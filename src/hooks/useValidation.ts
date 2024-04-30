@@ -1,7 +1,8 @@
 import { TFormFieldType } from '../types/Form';
 
-export const useValidation = (_value: any, _type?: TFormFieldType) => {
+export const useValidation = (value: any, type?: TFormFieldType) => {
   // Build validation...
+  console.log(value, type);
 
   return true;
 };
