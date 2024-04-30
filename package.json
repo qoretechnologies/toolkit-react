@@ -14,7 +14,7 @@
     "build:test:prod": "./node_modules/typescript/bin/tsc --project tsconfig.prod.json --noEmit",
     "lint": "yarn run eslint ./src/",
     "storybook": "storybook dev -p 6008",
-    "test-storybook": "DEBUG_PRINT_LIMIT=0 test-storybook",
+    "test-storybook": "DEBUG_PRINT_LIMIT=0 test-storybook --url http://localhost:6008",
     "install-playwright": "npx playwright install --with-deps",
     "build-storybook": "storybook build",
     "chromatic": "npx chromatic"
