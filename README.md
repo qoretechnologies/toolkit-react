@@ -4,21 +4,19 @@
   <br><br><br>
 </div>
 
-# @qoretechnologies/reqore
+# @qoretechnologies/toolkit-react
 
-Reqore is a UI library based on React which can be used with any React project to provide a customized UI experience.
-
-- Reqore is a comprehensive library of UI components that features our implementation of Qore Technologies design system
+> A toolkit for building React applications with Qore Technologies standards and best practices. A collection of reusable components, hooks, and utilities.
 
 ## Installation
 
 Before installing, [download and install Node.js](https://nodejs.org/en/download/).
- Latest stable Node.js is required.
+Latest stable Node.js is required.
 
 Install the library using
 
 ```console
-$ yarn add @qoretechnologies/reqore
+$ yarn add @qoretechnologies/toolkit-react
 ```
 
 ## Features

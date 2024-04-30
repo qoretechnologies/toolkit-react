@@ -1,6 +1,6 @@
 # This is a basic workflow to help you get started with Actions
 
-name: Tests
+name: Pull Request Tests
 
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the develop branch
@@ -8,52 +8,75 @@ on:
   pull_request:
     branches:
       - develop
-      - main
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  Tests:
+  PullRequestTests:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
-
+    env:
+      QORUS_TOKEN: ${{ secrets.QORUS_TOKEN }}
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      # Get current time for the commit
       - name: Get current time
         uses: josStorer/get-current-time@v2.0.2
         id: current_time
         with:
           format: YYYYMMDD-HH
           utcOffset: '+01:00'
-      # Checkout the repo
-      - uses: actions/checkout@v3
+
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - name: Get repo
+        uses: actions/checkout@v3
         with:
-          fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
-      # Get commit message
+          fetch-depth: 0
+
       - name: Print head git commit message
         id: get_head_commit_message
         run: echo "::set-output name=HEAD_COMMIT_MESSAGE::$(git show -s --format=%s)"
+
       - uses: actions/setup-node@v3
         with:
-          node-version: 16
-      - name: Preparing environment
-        id: setup_environment
-        run: npm install -g yarn
+          node-version: 16.19.0
+
+      # Notify Discord to not restart server
+      - name: Discord Warning
+        env:
+          DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK_DEV}}
+          # Mention someone in the embeds
+          DISCORD_EMBEDS: '[{ "color":16711680, "description": ":exclamation: Tests started, **please do not restart Qorus on Rippy** for the next 30 minutes." }]'
+          DISCORD_AVATAR: 'https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true'
+        uses: Ilshidur/action-discord@0.3.2
+        with:
+          args: '<@820316067921395752>'
+
+      - name: Save release version to outputs
+        id: save_release_version
+        run: echo ::set-output name=version::$(node -pe "require('./package.json').version")
+
       - name: Installing modules
         id: install_modules
         run: |
-          yarn cache clean
-          rm -rf node_modules
           yarn install
-      - name: Running tests
-        id: tests
-        run: yarn test:ci
-      - name: Build test
-        id: build_test
+          yarn install-playwright
+          yarn build-storybook --quiet
+
+      - name: Run build test
         run: |
-           yarn build
-           rm -rf dist
+          yarn build:test:prod
+
+      - name: Run unit tests
+        run: |
+          yarn test:ci
+
+      - name: Serve Storybook and run tests
+        run: |
+          npx concurrently -k -s first -n "SB,TEST" -c "magenta,blue" \
+            "npx http-server storybook-static --port 6008 --silent" \
+            "npx wait-on tcp:6008 && yarn test-storybook"
+
       - name: Publish to Chromatic
         id: chromatic_publish
         uses: chromaui/action@v1
@@ -61,24 +84,37 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
           exitZeroOnChanges: true
-      - name: Save release version to outputs
-        id: save_release_version
-        run: echo ::set-output name=version::$(node -pe "require('./package.json').version")
-      - name: Discord notification
+          allowConsoleErrors: true
+          debug: true
+
+      # Notify Discord if Success
+      - name: Discord notification success
         env:
           DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK}}
-          DISCORD_EMBEDS: '[{"author": {"icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}"}, "url": "https://github.com/${{github.repository}}/commit/${{github.sha}}", "fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{"name": "Repository","value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})","inline": true},{"name": "Branch","value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})","inline": true},{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{"name": "Author","value": "[${{github.actor}}](https://github.com/${{github.actor}})","inline": true},{ "name": "Job", "value": "${{github.job}}", "inline": true },{ "name": "Version", "value": "v${{ steps.save_release_version.outputs.version }}", "inline": true},{"name": "","value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) 📙 [Documentation](${{ steps.chromatic_publish.outputs.storybookUrl }}) 🎨 [Chromatic Tests](${{ steps.chromatic_publish.outputs.buildUrl }})"}],"color": 65280,"footer": { "text": "Published at ${{steps.current_time.outputs.readableTime}}" }}]'
-          DISCORD_AVATAR: 'https://github.com/qoretechnologies/reqore/blob/ae8ce24b7f0984340bf4e6835025d203d1741b3a/public/q-symbol-small.png?raw=true'
+          DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true},{ "name": "Version", "value": "v${{ steps.save_release_version.outputs.version }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) 🌐 [View Site]( https://deploy-preview-${{ github.event.pull_request.number}}--magical-starburst-a8bdfc.netlify.app) 📙 [Storybook](${{ steps.chromatic_publish.outputs.storybookUrl }}) 🎨 [Chromatic Tests](${{ steps.chromatic_publish.outputs.buildUrl }})"}],"color":65280,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
+          DISCORD_AVATAR: 'https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true'
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: ':white_check_mark: Tests action run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} succeeded. Check the links below for potentional Storybook and Chromatic updates.'
+          args: ':white_check_mark: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} *succeeded*, click GitHub Action link below to get the VSIX artifact.'
         if: success()
-      - name: Discord notification
+
+      # Notify discord if failure
+      - name: Discord notification failure
         env:
           DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK}}
-          DISCORD_EMBEDS: '[{"author": {"icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}"}, "url": "https://github.com/${{github.repository}}/commit/${{github.sha}}", "fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{"name": "Repository","value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})","inline": true},{"name": "Branch","value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})","inline": true},{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{"name": "Author","value": "[${{github.actor}}](https://github.com/${{github.actor}})","inline": true},{ "name": "Job", "value": "${{github.job}}", "inline": true },{ "name": "Version", "value": "v${{ steps.save_release_version.outputs.version }}", "inline": true},{"name": "","value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}})"}],"color": 16711680,"footer": { "text": "Triggered at ${{steps.current_time.outputs.readableTime}}" }}]'
-          DISCORD_AVATAR: 'https://github.com/qoretechnologies/reqore/blob/ae8ce24b7f0984340bf4e6835025d203d1741b3a/public/q-symbol-small.png?raw=true'
+          DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true },{ "name": "Version", "value": "v${{ steps.save_release_version.outputs.version }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}})"}],"color":16711680,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
+          DISCORD_AVATAR: 'https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true'
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: ':exclamation: Tests action run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} failed! Click the GitHub action link below to find out why.'
+          args: ':exclamation: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} *failed*!'
         if: failure()
+
+      - name: Discord notification safe to restart
+        env:
+          DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK_DEV}}
+          DISCORD_EMBEDS: '[{ "color":65280, "description": ":white_check_mark: Tests action finished. It is now safe to restart Qorus on Rippy." }]'
+          DISCORD_AVATAR: 'https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true'
+        uses: Ilshidur/action-discord@0.3.2
+        with:
+          args: '<@820316067921395752>'
+        if: always()
