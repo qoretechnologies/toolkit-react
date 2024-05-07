@@ -31,57 +31,27 @@ export const Default: Story = {
   },
 };
 
-export const Sensitive: Story = {
-  args: {
-    'aria-label': 'Name',
-    sensitive: true,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const input = canvas.getByLabelText('Name');
-    await expect(input).toBeInTheDocument();
-    await expect(input).toHaveAttribute('type', 'password');
-  },
-};
-
 export const Controllable: Story = {
   args: {
     value: 'Filip',
     label: 'Label',
     'aria-label': 'Name',
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const input = canvas.getByLabelText('Name');
-
-    await expect(input).toBeInTheDocument();
-    await expect(input).toHaveValue('Filip');
-
-    await userEvent.clear(input);
-    await userEvent.type(input, 'David');
-    await expect(input).toHaveValue('David');
-  },
-  render(args) {
-    const [value, setValue] = useState(args.value);
-    return <FormStringField {...args} value={value} onChange={(value) => setValue(value)} />;
-  },
-};
-export const Clearable: Story = {
-  args: {
-    'aria-label': 'Name',
     onClearClick: fn(),
-    value: 'Filip',
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText('Name');
+
     await expect(input).toBeInTheDocument();
     await expect(input).toHaveValue('Filip');
 
-    // click clear button
     await userEvent.click(input.nextElementSibling);
     await expect(args.onClearClick).toHaveBeenCalledOnce();
     await expect(input).toHaveValue('');
+
+    await userEvent.type(input, 'David');
+    await expect(input).toHaveValue('David');
+    await expect(args.onChange).toHaveBeenLastCalledWith('David', expect.objectContaining({}));
   },
   render(args) {
     const [value, setValue] = useState(args.value);
@@ -89,13 +59,31 @@ export const Clearable: Story = {
       <FormStringField
         {...args}
         value={value}
-        onChange={(value) => setValue(value)}
+        onChange={(value, event) => {
+          args.onChange?.(value, event);
+          setValue(value);
+        }}
         onClearClick={() => {
-          args.onClearClick();
+          args.onClearClick?.();
           setValue('');
         }}
       />
     );
+  },
+};
+
+export const Sensitive: Story = {
+  args: {
+    'aria-label': 'Name',
+    sensitive: true,
+    value: 'password',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText('Name');
+    await expect(input).toBeInTheDocument();
+    await expect(input).toHaveAttribute('type', 'password');
+    await expect(input).toHaveValue('password');
   },
 };
 
