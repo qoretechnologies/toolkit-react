@@ -32,7 +32,6 @@
     "qorus"
   ],
   "pre-push": [
-    "source",
     "build:test:prod",
     "lint",
     "test"
