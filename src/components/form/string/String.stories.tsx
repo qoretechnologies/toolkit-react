@@ -10,7 +10,6 @@ const meta = {
   title: 'Components/Form/String',
   args: {
     onChange: fn(),
-    onClearClick: fn(),
   },
 } as StoryMeta<typeof FormStringField>;
 
@@ -25,9 +24,23 @@ export const Default: Story = {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText('Name');
     await expect(input).toBeInTheDocument();
+    await expect(input).toHaveAttribute('type', 'text');
     await userEvent.type(input, 'Filip');
     await expect(input).toHaveValue('Filip');
     await expect(args.onChange).toHaveBeenLastCalledWith('Filip', expect.objectContaining({}));
+  },
+};
+
+export const Sensitive: Story = {
+  args: {
+    'aria-label': 'Name',
+    sensitive: true,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText('Name');
+    await expect(input).toBeInTheDocument();
+    await expect(input).toHaveAttribute('type', 'password');
   },
 };
 
