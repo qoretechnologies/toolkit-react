@@ -1,5 +1,6 @@
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
 import FormBooleanField from './boolean/Boolean';
+import FormNumberField from './number/Number';
 import { FormStringField } from './string/String';
 
 export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
@@ -42,7 +43,16 @@ export const FormField = <T extends TFormFieldType>({
             }}
           />
         );
-
+      case 'number':
+        return (
+          <FormNumberField
+            {...rest}
+            value={value as number}
+            onChange={(checked) => {
+              handleChange(checked as TFormFieldValueType<T>);
+            }}
+          />
+        );
       default:
         return null;
     }

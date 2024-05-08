@@ -25,6 +25,7 @@ export const Default: Story = {
     const [values, setValues] = useState({
       name: 'Filip',
       sendNotifications: true,
+      amount: 99,
     } as const);
 
     const onChange = (field: keyof typeof values) => (value) => {
@@ -46,13 +47,22 @@ export const Default: Story = {
           value={values.sendNotifications}
           onChange={onChange('sendNotifications')}
         />
+
+        <FormField
+          aria-label='Number'
+          type='number'
+          value={values.amount}
+          onChange={onChange('amount')}
+        />
       </ReqoreControlGroup>
     );
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
+
     await expect(canvas.getByLabelText('String')).toBeInTheDocument();
     await expect(canvas.getByLabelText('Boolean')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('Number')).toBeInTheDocument();
   },
 };
 
@@ -66,5 +76,11 @@ export const Boolean: Story = {
   args: {
     type: 'boolean',
     value: true,
+  },
+};
+export const Number: Story = {
+  args: {
+    type: 'number',
+    value: 99,
   },
 };
