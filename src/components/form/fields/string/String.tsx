@@ -3,15 +3,16 @@ import { IReqoreControlGroupProps } from '@qoretechnologies/reqore/dist/componen
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { ChangeEvent, useCallback } from 'react';
+import { TFormFieldValueType } from '../../../../types/Form';
 
 export interface IStringFormFieldProps extends Omit<IReqoreInputProps, 'onChange' | 'value'> {
   sensitive?: boolean;
-  value?: string;
+  value?: TFormFieldValueType<'string'>;
   label?: IReqoreTagProps['label'];
   labelPosition?: 'top' | 'left' | 'right' | 'bottom';
   labelProps?: IReqoreTagProps;
   wrapperProps?: IReqoreControlGroupProps;
-  onChange?: (value?: string, event?: ChangeEvent<HTMLInputElement>) => void;
+  onChange?: (value?: TFormFieldValueType<'string'>, event?: ChangeEvent<HTMLInputElement>) => void;
 }
 
 export const FormStringField = ({
