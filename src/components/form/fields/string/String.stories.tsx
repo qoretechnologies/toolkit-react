@@ -1,5 +1,5 @@
 import { StoryObj } from '@storybook/react';
-import { StoryMeta } from '../../../types';
+import { StoryMeta } from '../../../../types';
 import { FormStringField } from './String';
 
 const meta = {

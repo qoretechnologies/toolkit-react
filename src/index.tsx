@@ -1,1 +1,1 @@
-export { FormStringField, IStringFormFieldProps } from './components/form/string/String';
+export { FormStringField, IStringFormFieldProps } from './components/form/fields/string/String';
