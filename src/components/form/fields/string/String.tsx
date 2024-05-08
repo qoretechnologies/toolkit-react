@@ -1,8 +1,9 @@
+import { ChangeEvent } from 'react';
 import { ReqoreControlGroup, ReqoreInput, ReqoreTag } from '@qoretechnologies/reqore';
 import { IReqoreControlGroupProps } from '@qoretechnologies/reqore/dist/components/ControlGroup';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
-import { ChangeEvent } from 'react';
+
 import { TFormFieldValueType } from '../../../../types/Form';
 
 export interface IStringFormFieldProps extends Omit<IReqoreInputProps, 'onChange' | 'value'> {
@@ -40,9 +41,9 @@ export const FormStringField = ({
       {...wrapperProps}
       vertical={labelPosition === 'bottom' || labelPosition === 'top'}
     >
-      {(label || label === 0) && (labelPosition === 'top' || labelPosition === 'left') ? (
+      {(label || label === 0) && (labelPosition === 'top' || labelPosition === 'left') ?
         <ReqoreTag label={label} fluid {...labelProps} />
-      ) : null}
+      : null}
       <ReqoreInput
         fluid
         onFocus={(event) => {
@@ -58,9 +59,9 @@ export const FormStringField = ({
         onClearClick={handleClearClick}
         {...rest}
       />
-      {(label || label === 0) && (labelPosition === 'bottom' || labelPosition === 'right') ? (
+      {(label || label === 0) && (labelPosition === 'bottom' || labelPosition === 'right') ?
         <ReqoreTag label={label} fluid {...labelProps} />
-      ) : null}
+      : null}
     </ReqoreControlGroup>
   );
 };

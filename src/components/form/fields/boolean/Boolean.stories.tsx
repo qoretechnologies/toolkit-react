@@ -1,8 +1,9 @@
-import { StoryObj } from '@storybook/react';
-import { StoryMeta } from '../../../../types';
-import { FormBooleanField } from './Boolean';
-import { expect, fn, userEvent, within } from '@storybook/test';
 import { useState } from 'react';
+import { StoryObj } from '@storybook/react';
+import { expect, fn, userEvent, within } from '@storybook/test';
+
+import { FormBooleanField } from './Boolean';
+import { StoryMeta } from '../../../../types';
 
 const meta = {
   component: FormBooleanField,
@@ -18,7 +19,6 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {
     checked: true,
-    id: 'Boolean',
     'aria-label': 'Boolean',
   },
   render(args) {

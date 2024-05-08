@@ -1,7 +1,7 @@
-import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
 import FormBooleanField from './boolean/Boolean';
 import FormNumberField from './number/Number';
 import { FormStringField } from './string/String';
+import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
 
 export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
   type?: T;

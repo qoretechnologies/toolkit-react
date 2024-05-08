@@ -17,10 +17,8 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   args: {
-    value: 0,
-    id: 'Number',
     'aria-label': 'Number',
-    fluid: false,
+    value: 0,
   },
   render(args) {
     const [value, setValue] = useState(args.value);
@@ -33,7 +31,6 @@ export const Default: Story = {
           args.onChange?.(value);
           setValue(value);
         }}
-        autoFocus
         step={1.2}
       />
     );

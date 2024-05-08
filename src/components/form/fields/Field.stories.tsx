@@ -1,9 +1,10 @@
-import { StoryObj } from '@storybook/react';
-import { StoryMeta } from '../../../types';
-import { FormField } from './Field';
-import { fn, within, expect } from '@storybook/test';
 import { useState } from 'react';
+import { StoryObj } from '@storybook/react';
+import { fn, within, expect } from '@storybook/test';
 import { ReqoreControlGroup } from '@qoretechnologies/reqore';
+
+import { FormField } from './Field';
+import { StoryMeta } from '../../../types';
 
 const meta = {
   component: FormField,
@@ -17,15 +18,12 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-  args: {
-    value: 'Filip',
-    type: 'string',
-  },
   render() {
     const [values, setValues] = useState({
       name: 'Filip',
       sendNotifications: true,
       amount: 99,
+      color: { r: 255, g: 255, b: 255, a: 1 },
     } as const);
 
     const onChange = (field: keyof typeof values) => (value) => {
@@ -54,6 +52,13 @@ export const Default: Story = {
           value={values.amount}
           onChange={onChange('amount')}
         />
+
+        <FormField
+          aria-label='Color'
+          type='color'
+          value={values.color}
+          onChange={onChange('color')}
+        />
       </ReqoreControlGroup>
     );
   },
@@ -72,13 +77,22 @@ export const String: Story = {
     value: 'Filip',
   },
 };
+
 export const Boolean: Story = {
   args: {
     type: 'boolean',
     value: true,
   },
 };
+
 export const Number: Story = {
+  args: {
+    type: 'number',
+    value: 99,
+  },
+};
+
+export const Color: Story = {
   args: {
     type: 'number',
     value: 99,

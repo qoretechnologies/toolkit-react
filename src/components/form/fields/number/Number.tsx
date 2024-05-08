@@ -1,6 +1,6 @@
+import { ChangeEvent, ChangeEventHandler } from 'react';
 import { ReqoreInput } from '@qoretechnologies/reqore';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
-import { ChangeEvent, ChangeEventHandler } from 'react';
 
 export interface INumberFormFieldProps
   extends Omit<IReqoreInputProps, 'value' | 'onChange' | 'type'> {
@@ -35,12 +35,12 @@ export const FormNumberField = ({
       type='number'
       onClearClick={handleResetClick}
       focusRules={
-        autoFocus
-          ? {
-              type: 'auto',
-              viewportOnly: true,
-            }
-          : undefined
+        autoFocus ?
+          {
+            type: 'auto',
+            viewportOnly: true,
+          }
+        : undefined
       }
       // @ts-expect-error A PR has been submitted on Reqore to address the step prop type issue.
       step={step}
