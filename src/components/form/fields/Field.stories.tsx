@@ -68,6 +68,7 @@ export const Default: Story = {
     await expect(canvas.getByLabelText('String')).toBeInTheDocument();
     await expect(canvas.getByLabelText('Boolean')).toBeInTheDocument();
     await expect(canvas.getByLabelText('Number')).toBeInTheDocument();
+    await expect(canvasElement.querySelector('.sketch-picker')).toBeInTheDocument();
   },
 };
 

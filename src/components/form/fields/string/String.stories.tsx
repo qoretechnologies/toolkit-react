@@ -10,6 +10,8 @@ const meta = {
   title: 'Components/Form/String',
   args: {
     onChange: fn(),
+    onClearClick: fn(),
+    'aria-label': 'Name',
   },
 } as StoryMeta<typeof FormStringField>;
 
@@ -17,9 +19,6 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-  args: {
-    'aria-label': 'Name',
-  },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText('Name');
@@ -35,8 +34,6 @@ export const Controllable: Story = {
   args: {
     value: 'Filip',
     label: 'Label',
-    'aria-label': 'Name',
-    onClearClick: fn(),
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
@@ -74,7 +71,6 @@ export const Controllable: Story = {
 
 export const Sensitive: Story = {
   args: {
-    'aria-label': 'Name',
     sensitive: true,
     value: 'password',
   },

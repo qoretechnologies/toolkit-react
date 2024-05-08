@@ -2,6 +2,7 @@ import FormBooleanField from './boolean/Boolean';
 import FormNumberField from './number/Number';
 import { FormStringField } from './string/String';
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
+import FormColorField, { IColorFormFieldProps } from './color/Color';
 
 export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
   type?: T;
@@ -53,6 +54,18 @@ export const FormField = <T extends TFormFieldType>({
             }}
           />
         );
+
+      case 'color':
+        return (
+          <FormColorField
+            {...rest}
+            value={value as IColorFormFieldProps['color']}
+            onChange={(checked) => {
+              handleChange(checked as TFormFieldValueType<T>);
+            }}
+          />
+        );
+
       default:
         return null;
     }

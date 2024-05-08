@@ -6,20 +6,19 @@ export interface INumberFormFieldProps
   extends Omit<IReqoreInputProps, 'value' | 'onChange' | 'type'> {
   value: number;
   onChange?(value: number): void;
-  // TODO: remove step prop definition, A PR has been submitted on Reqore to address the step prop type issue.
-  step?: number;
+  type?: 'int' | 'float';
 }
 
 export const FormNumberField = ({
   onChange,
   autoFocus,
-  step = 1,
+  type = 'int',
   ...rest
 }: INumberFormFieldProps) => {
   const handleInputChange: ChangeEventHandler<HTMLInputElement> = (
     event: ChangeEvent<HTMLInputElement>
   ): void => {
-    onChange?.(+event.target.value || 0);
+    onChange?.(type === 'int' ? parseInt(event.target.value) : parseFloat(event.target.value));
   };
 
   const handleResetClick = (): void => {
@@ -43,7 +42,7 @@ export const FormNumberField = ({
         : undefined
       }
       // @ts-expect-error A PR has been submitted on Reqore to address the step prop type issue.
-      step={step}
+      step={type === 'int' ? 1 : 0.1}
       {...rest}
     />
   );
