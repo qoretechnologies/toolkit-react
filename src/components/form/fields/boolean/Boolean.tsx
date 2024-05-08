@@ -3,8 +3,6 @@ import { IReqoreCheckboxProps } from '@qoretechnologies/reqore/dist/components/C
 
 export interface IBooleanFormFieldProps extends Omit<IReqoreCheckboxProps, 'onChange'> {
   onChange?(checked: boolean): void;
-  // make checked prop required because FormBooleanField doesn't support uncontrolled behavior
-  checked: boolean;
 }
 
 export const FormBooleanField = ({
@@ -20,7 +18,7 @@ export const FormBooleanField = ({
 
   return (
     <ReqoreCheckbox
-      checked={checked}
+      checked={checked ?? false}
       onClick={toggle}
       asSwitch
       onText='Yes'

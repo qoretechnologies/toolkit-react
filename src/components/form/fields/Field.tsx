@@ -1,4 +1,5 @@
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
+import FormBooleanField from './boolean/Boolean';
 import { FormStringField } from './string/String';
 
 export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
@@ -13,6 +14,7 @@ export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
 export const FormField = <T extends TFormFieldType>({
   type,
   onChange,
+  value,
   ...rest
 }: IFormFieldProps<T>) => {
   const handleChange = (value: TFormFieldValueType<T>, event?: unknown) => {
@@ -26,8 +28,21 @@ export const FormField = <T extends TFormFieldType>({
           <FormStringField
             {...rest}
             onChange={(value: string) => handleChange(value as TFormFieldValueType<T>)}
+            value={value as TFormFieldValueType<T>}
           />
         );
+
+      case 'boolean':
+        return (
+          <FormBooleanField
+            {...rest}
+            checked={value as boolean}
+            onChange={(checked) => {
+              handleChange(checked as TFormFieldValueType<T>);
+            }}
+          />
+        );
+
       default:
         return null;
     }

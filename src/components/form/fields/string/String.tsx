@@ -2,7 +2,7 @@ import { ReqoreControlGroup, ReqoreInput, ReqoreTag } from '@qoretechnologies/re
 import { IReqoreControlGroupProps } from '@qoretechnologies/reqore/dist/components/ControlGroup';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
-import { ChangeEvent, useCallback } from 'react';
+import { ChangeEvent } from 'react';
 import { TFormFieldValueType } from '../../../../types/Form';
 
 export interface IStringFormFieldProps extends Omit<IReqoreInputProps, 'onChange' | 'value'> {
@@ -25,16 +25,14 @@ export const FormStringField = ({
   ...rest
 }: IStringFormFieldProps) => {
   // When input value changes
-  const handleChange = useCallback((event: ChangeEvent<HTMLInputElement>): void => {
-    event.persist();
-
+  const handleChange = (event: ChangeEvent<HTMLInputElement>): void => {
     onChange(event.target.value?.toString(), event);
-  }, []);
+  };
 
   // Clear the input on reset click
-  const handleClearClick = useCallback((): void => {
+  const handleClearClick = (): void => {
     onChange('');
-  }, []);
+  };
 
   return (
     <ReqoreControlGroup

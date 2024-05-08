@@ -1,5 +1,5 @@
 import { StoryObj } from '@storybook/react';
-import { StoryMeta } from '../../../types';
+import { StoryMeta } from '../../../../types';
 import { FormBooleanField } from './Boolean';
 import { expect, fn, userEvent, within } from '@storybook/test';
 import { useState } from 'react';
