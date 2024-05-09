@@ -24,6 +24,7 @@ export const Default: Story = {
       sendNotifications: true,
       amount: 99,
       color: { r: 255, g: 255, b: 255, a: 1 },
+      language: 'Java',
     } as const);
 
     const onChange = (field: keyof typeof values) => (value) => {
@@ -58,6 +59,20 @@ export const Default: Story = {
           type='color'
           value={values.color}
           onChange={onChange('color')}
+        />
+
+        <FormField
+          aria-label='Radio'
+          type='radio'
+          value={values.language}
+          onChange={onChange('language')}
+          fieldProps={{
+            items: [
+              { label: 'Qore', value: 'Qore', 'aria-label': 'Qore' },
+              { label: 'Java', value: 'Java', 'aria-label': 'Java' },
+              { label: 'Python', value: 'Python', 'aria-label': 'Python' },
+            ],
+          }}
         />
       </ReqoreControlGroup>
     );
@@ -97,5 +112,17 @@ export const Color: Story = {
   args: {
     type: 'color',
     value: { r: 0, g: 0, b: 0, a: 1 },
+  },
+};
+
+export const Radio: Story = {
+  args: {
+    type: 'radio',
+    value: 'Qore',
+    items: [
+      { label: 'Qore', value: 'Qore', 'aria-label': 'Qore' },
+      { label: 'Java', value: 'Java', 'aria-label': 'Java' },
+      { label: 'Python', value: 'Python', 'aria-label': 'Python' },
+    ],
   },
 };
