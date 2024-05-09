@@ -1,0 +1,155 @@
+{
+  "fsm": {
+    "singular_display_name": "Qog",
+    "display_name": "Qogs",
+    "short_desc": "Qogs are no-code logic elements based on finite state machines; they can be used anywhere in Qorus as an alternative to coding",
+    "supports_code": false,
+    "url_root": "fsms",
+    "drafts": 2,
+    "items": 49
+  },
+  "connection": {
+    "singular_display_name": "Connection",
+    "display_name": "Connections",
+    "short_desc": "Connections to remote systems",
+    "supports_code": false,
+    "url_root": "connections",
+    "drafts": 0,
+    "items": 25
+  },
+  "class": {
+    "singular_display_name": "Class",
+    "display_name": "Classes",
+    "short_desc": "Classes that can be used in Qorus interface code",
+    "supports_code": true,
+    "url_root": "classes",
+    "drafts": 0,
+    "items": 192
+  },
+  "errors": {
+    "singular_display_name": "Error",
+    "display_name": "Errors",
+    "short_desc": "Workflow error set definitions",
+    "supports_code": false,
+    "url_root": "error-sets",
+    "drafts": 0,
+    "items": 14
+  },
+  "event": {
+    "singular_display_name": "Workflow Sync Event",
+    "display_name": "Workflow Sync Events",
+    "short_desc": "Workflow synchronization events",
+    "supports_code": false,
+    "url_root": "events",
+    "drafts": 0,
+    "items": 9
+  },
+  "group": {
+    "singular_display_name": "Interface Group",
+    "display_name": "Interface Groups",
+    "short_desc": "Interface groups allow interfaces to be enabled and disabled together as well as enabling views on interfaces to be restricted for certain users",
+    "supports_code": false,
+    "url_root": "groups",
+    "drafts": 0,
+    "items": 102
+  },
+  "job": {
+    "singular_display_name": "Scheduled Job",
+    "display_name": "Scheduled Jobs",
+    "short_desc": "Jobs execute logic on a user-defined schedule",
+    "supports_code": true,
+    "url_root": "jobs",
+    "drafts": 0,
+    "items": 91
+  },
+  "mapper": {
+    "singular_display_name": "Mapper",
+    "display_name": "Mappers",
+    "short_desc": "Mappers are visual data transformation elements",
+    "supports_code": false,
+    "url_root": "mappers",
+    "drafts": 0,
+    "items": 37
+  },
+  "mapper-code": {
+    "singular_display_name": "Mapper Code Object",
+    "display_name": "Mapper Code",
+    "short_desc": "Mapper code elements are classes with methods that can be directly used in mappers for complex data transformation logic",
+    "supports_code": true,
+    "url_root": "classes",
+    "drafts": 0,
+    "items": 3
+  },
+  "pipeline": {
+    "singular_display_name": "Data Pipeline",
+    "display_name": "Data Pipelines",
+    "short_desc": "Data pipelines enable large volumes of data to be processed efficiently",
+    "supports_code": false,
+    "url_root": "pipelines",
+    "drafts": 0,
+    "items": 15
+  },
+  "queue": {
+    "singular_display_name": "Asynchronous Step Queue",
+    "display_name": "Asynchronous Step Queues",
+    "short_desc": "Asynchronous step queues connect the front end to the back end of asynchronous workflow steps",
+    "supports_code": false,
+    "url_root": "queues",
+    "drafts": 0,
+    "items": 13
+  },
+  "service": {
+    "singular_display_name": "Service",
+    "display_name": "Services",
+    "short_desc": "Services are a top-level interfacing object in Qorus",
+    "supports_code": true,
+    "url_root": "services",
+    "drafts": 0,
+    "items": 117
+  },
+  "sla": {
+    "singular_display_name": "SLA",
+    "display_name": "SLAs",
+    "short_desc": "SLAs track technical performance metrics with business impact",
+    "supports_code": false,
+    "url_root": "slas",
+    "drafts": 0,
+    "items": 5
+  },
+  "step": {
+    "singular_display_name": "Step",
+    "display_name": "Steps",
+    "short_desc": "Steps are an atomic execution element in a workflow",
+    "supports_code": true,
+    "url_root": "steps",
+    "drafts": 0,
+    "items": 233
+  },
+  "type": {
+    "singular_display_name": "Type",
+    "display_name": "Types",
+    "short_desc": "Data types",
+    "supports_code": false,
+    "url_root": "types",
+    "drafts": 0,
+    "items": 97
+  },
+  "value-map": {
+    "singular_display_name": "Value Map",
+    "display_name": "Value Maps",
+    "short_desc": "Value maps provide simple mappings from one value to another",
+    "supports_code": false,
+    "url_root": "valuemaps",
+    "drafts": 0,
+    "items": 10
+  },
+  "workflow": {
+    "singular_display_name": "Workflow",
+    "display_name": "Workflows",
+    "short_desc": "Workflows are the primary stateful orchestration interface type in Qorus",
+    "supports_code": true,
+    "url_root": "workflows",
+    "drafts": 0,
+    "items": 112
+  }
+}
