@@ -21,8 +21,6 @@ export function useGet<T>({
 
     const response = await get<T>(url, cache);
 
-    console.log(response);
-
     setLoading(false);
 
     if (response.ok) {

@@ -183,7 +183,7 @@ export const ReqraftMenu = ({
       minimal
       position='left'
       resizable={{
-        enable: { right: true, left: false },
+        enable: { right: resizable, left: false },
         minWidth: '250px',
         maxWidth: '350px',
         onResizeStop: (_e, _direction, _ref, d) => {

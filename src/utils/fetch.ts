@@ -76,8 +76,6 @@ export async function query<T>(
   const cache = method === 'DELETE' || method === 'POST' ? false : forceCache;
   const cacheKey = `${url}:${method}:${JSON.stringify(body || {})}`;
 
-  console.log(url, method, body, fetchConfig);
-
   if (fetchCache[cacheKey]?.data) {
     if (Date.now() - fetchCache[cacheKey].timestamp < CACHE_EXPIRATION_TIME) {
       return {
@@ -91,8 +89,6 @@ export async function query<T>(
 
   if (!fetchCache[cacheKey]?.actualCall || !cache) {
     const fetchCall = doFetchData(url, method, body);
-
-    console.log(fetchCall);
 
     if (cache) {
       fetchCache[cacheKey] = { actualCall: null, data: null, timestamp: Date.now() };
