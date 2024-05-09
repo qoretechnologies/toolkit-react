@@ -18,6 +18,13 @@ export default {
     interactionsDebugger: true,
   },
 
+  env: (config) => ({
+    ...config,
+    NODE_ENV: 'storybook',
+    BROWSER: 'chrome',
+    REACT_APP_QORUS_TOKEN: '2f58cd78-a400-4d98-8de2-90fbaa6f805d',
+  }),
+
   typescript: { reactDocgen: 'react-docgen' },
 
   refs: {

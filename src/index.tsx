@@ -6,3 +6,5 @@ export {
   TReqraftMenu,
   TReqraftMenuItem,
 } from './components/menu/Menu';
+
+export { ReqraftProvider } from './providers/ReqraftProvider';
