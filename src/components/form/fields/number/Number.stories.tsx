@@ -53,8 +53,7 @@ export const Default: Story = {
     await expect(args.onChange).toHaveBeenLastCalledWith(10);
 
     await userEvent.click(input.nextElementSibling);
-    await expect(input).toHaveValue(0);
-    await expect(args.onChange).toHaveBeenLastCalledWith(0);
+    await expect(args.onChange).toHaveBeenLastCalledWith(undefined);
   },
 };
 

@@ -4,7 +4,7 @@ import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Inpu
 
 export interface INumberFormFieldProps
   extends Omit<IReqoreInputProps, 'value' | 'onChange' | 'type'> {
-  value: number;
+  value?: number;
   onChange?(value: number): void;
   type?: 'int' | 'float';
 }
@@ -13,16 +13,18 @@ export const FormNumberField = ({
   onChange,
   autoFocus,
   type = 'int',
+  value,
   ...rest
 }: INumberFormFieldProps) => {
   const handleInputChange: ChangeEventHandler<HTMLInputElement> = (
     event: ChangeEvent<HTMLInputElement>
   ): void => {
-    onChange?.(type === 'int' ? parseInt(event.target.value) : parseFloat(event.target.value));
+    const value = type === 'int' ? parseInt(event.target.value) : parseFloat(event.target.value);
+    onChange?.(value ?? undefined);
   };
 
   const handleResetClick = (): void => {
-    onChange(0);
+    onChange(undefined);
   };
 
   return (
@@ -30,6 +32,7 @@ export const FormNumberField = ({
       wrapperStyle={{
         width: '100px',
       }}
+      value={value ?? ''}
       onChange={handleInputChange}
       type='number'
       onClearClick={handleResetClick}

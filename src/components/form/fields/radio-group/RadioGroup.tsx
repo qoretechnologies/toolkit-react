@@ -1,5 +1,6 @@
 import { ReqoreRadioGroup } from '@qoretechnologies/reqore';
 import { IReqoreRadioGroupProps } from '@qoretechnologies/reqore/dist/components/RadioGroup';
+import { useMemo } from 'react';
 
 export interface IRadioGroupFormFieldProps
   extends Omit<IReqoreRadioGroupProps, 'onChange' | 'onSelectClick' | 'selected'> {
@@ -9,15 +10,15 @@ export interface IRadioGroupFormFieldProps
 }
 
 export const FormRadioGroupField = ({
-  items,
+  items: _items,
   disabled,
   onChange,
   value,
   ...rest
 }: IRadioGroupFormFieldProps) => {
-  return (
-    <ReqoreRadioGroup
-      items={items.map((item) => ({
+  const items: IReqoreRadioGroupProps['items'] = useMemo(
+    () =>
+      _items.map((item) => ({
         margin: 'right',
         labelEffect: {
           spaced: 1,
@@ -27,7 +28,13 @@ export const FormRadioGroupField = ({
         },
         ...item,
         disabled: disabled || item.disabled,
-      }))}
+      })),
+    [_items]
+  );
+
+  return (
+    <ReqoreRadioGroup
+      items={items}
       disabled={disabled}
       onSelectClick={onChange}
       selected={value}
