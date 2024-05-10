@@ -1,4 +1,4 @@
-import { QueryClient } from 'react-query';
+import { QueryClient } from '@tanstack/react-query';
 import { ReqraftQueryClient } from '../providers/ReqraftProvider';
 
 export interface IReqraftFetchConfig {
@@ -80,9 +80,9 @@ export async function query<T>({
   const shouldCache = method === 'DELETE' || method === 'POST' ? false : cache;
   const cacheKey = `${url}:${method}:${JSON.stringify(body || {})}`;
 
-  const requestData = await queryClient.fetchQuery(
-    cacheKey,
-    async () => {
+  const requestData = await queryClient.fetchQuery({
+    queryKey: [cacheKey],
+    queryFn: async () => {
       const response = await doFetchData(url, method, body);
       const clone = response.clone();
       const json = await clone.json();
@@ -98,13 +98,11 @@ export async function query<T>({
         statusText: response.statusText,
       };
     },
-    {
-      staleTime: shouldCache ? CACHE_EXPIRATION_TIME : 0,
-    }
-  );
+    staleTime: shouldCache ? CACHE_EXPIRATION_TIME : 0,
+  });
 
   if (!requestData.ok) {
-    queryClient.invalidateQueries(cacheKey);
+    queryClient.invalidateQueries({ queryKey: [cacheKey] });
 
     return {
       data: null,

@@ -1,5 +1,5 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useQueryClient } from 'react-query';
 import { useEffectOnce } from 'react-use';
 import { FetchContext, TReqraftContextQueryConfig } from '../contexts/FetchContext';
 import { query, setupFetch } from '../utils/fetch';
