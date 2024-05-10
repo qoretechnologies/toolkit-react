@@ -2,18 +2,22 @@ import { ReqoreSpinner, ReqoreTree } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react';
 import { useEffectOnce } from 'react-use';
 import { StoryMeta } from '../../types';
-import { useGet } from './fetch';
+import { useFetch } from './fetch';
 
 const meta = {
   title: 'Hooks/Fetch',
   render: () => {
-    const { data = {}, load, loading } = useGet<any>({ url: 'public/info' });
+    const { data = {}, load, loading } = useFetch<any>({ url: 'public/info' });
 
     useEffectOnce(() => {
       load();
     });
 
-    return loading ? <ReqoreSpinner /> : <ReqoreTree data={data} />;
+    return loading ? (
+      <ReqoreSpinner />
+    ) : (
+      <ReqoreTree data={data} bottomActions={[{ label: 'Refetch', onClick: load }]} />
+    );
   },
 } as StoryMeta<any>;
 

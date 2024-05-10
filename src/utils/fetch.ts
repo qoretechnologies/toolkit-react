@@ -1,7 +1,10 @@
+import { QueryClient } from 'react-query';
+import { ReqraftQueryClient } from '../providers/ReqraftProvider';
+
 export interface IReqraftFetchConfig {
   instance: string;
   instanceToken: string;
-  unauthorizedRedirect?: string;
+  unauthorizedRedirect?: (pathname: string) => string;
 }
 
 export interface IReqraftFetchResponse<T> {
@@ -14,18 +17,10 @@ export interface IReqraftFetchResponse<T> {
 const fetchConfig: IReqraftFetchConfig = {
   instance: window.location.origin + '/',
   instanceToken: '',
-  unauthorizedRedirect: '/?next=',
+  unauthorizedRedirect: (pathname: string) => `/?next=${pathname}`,
 };
 
 const CACHE_EXPIRATION_TIME = 5 * 60 * 1000; // 5 minutes
-
-const fetchCache: {
-  [key: string]: {
-    actualCall: Promise<any>;
-    data: any;
-    timestamp: number;
-  };
-} = {};
 
 export const setupFetch = ({
   instance,
@@ -40,11 +35,11 @@ export const setupFetch = ({
   }
 };
 
-export const invalidateCache = (key: string) => {
-  delete fetchCache[key];
-};
-
-const doFetchData = async (url: string, method = 'GET', body?: { [key: string]: any }) => {
+async function doFetchData(
+  url: string,
+  method = 'GET',
+  body?: { [key: string]: any }
+): Promise<Response> {
   if (!fetchConfig.instanceToken) {
     return new Response(JSON.stringify({}), {
       status: 401,
@@ -65,74 +60,65 @@ const doFetchData = async (url: string, method = 'GET', body?: { [key: string]: 
       statusText: `Request failed ${error.message}`,
     });
   });
-};
+}
 
-export async function query<T>(
-  url: string,
+export interface IReqraftQueryConfig {
+  url: string;
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  body?: Record<string | number, any>;
+  cache?: boolean;
+  queryClient?: QueryClient;
+}
+
+export async function query<T>({
+  url,
   method = 'GET',
-  body?: Record<string | number, any>,
-  forceCache = true
-): Promise<IReqraftFetchResponse<T>> {
-  const cache = method === 'DELETE' || method === 'POST' ? false : forceCache;
+  body,
+  cache = true,
+  queryClient = ReqraftQueryClient,
+}: IReqraftQueryConfig): Promise<IReqraftFetchResponse<T>> {
+  const shouldCache = method === 'DELETE' || method === 'POST' ? false : cache;
   const cacheKey = `${url}:${method}:${JSON.stringify(body || {})}`;
 
-  if (fetchCache[cacheKey]?.data) {
-    if (Date.now() - fetchCache[cacheKey].timestamp < CACHE_EXPIRATION_TIME) {
-      return {
-        data: fetchCache[cacheKey].data,
-        ok: true,
-      };
-    }
+  const requestData = await queryClient.fetchQuery(
+    cacheKey,
+    async () => {
+      const response = await doFetchData(url, method, body);
+      const clone = response.clone();
+      const json = await clone.json();
 
-    delete fetchCache[cacheKey];
-  }
-
-  if (!fetchCache[cacheKey]?.actualCall || !cache) {
-    const fetchCall = doFetchData(url, method, body);
-
-    if (cache) {
-      fetchCache[cacheKey] = { actualCall: null, data: null, timestamp: Date.now() };
-      fetchCache[cacheKey].actualCall = fetchCall;
-    }
-
-    const requestData = await fetchCall;
-
-    if (requestData.status === 401) {
-      window.location.href = '/?next=' + window.location.pathname;
-    }
-
-    if (!requestData.ok) {
-      delete fetchCache[cacheKey];
+      if (response.status === 401) {
+        window.location.href = fetchConfig.unauthorizedRedirect(window.location.pathname);
+      }
 
       return {
-        data: null,
-        ok: false,
-        code: requestData.status,
-        error: requestData.statusText,
+        data: json,
+        ok: response.ok,
+        status: response.status,
+        statusText: response.statusText,
       };
+    },
+    {
+      staleTime: shouldCache ? CACHE_EXPIRATION_TIME : 0,
     }
+  );
 
-    const json = await requestData.json();
+  console.log(requestData, queryClient.getQueryData(cacheKey));
 
-    if (cache) {
-      fetchCache[cacheKey].data = json;
-    }
+  if (!requestData.ok) {
+    queryClient.invalidateQueries(cacheKey);
 
     return {
-      data: json,
-      ok: requestData.ok,
+      data: null,
+      ok: false,
       code: requestData.status,
-      error: !requestData.ok ? json : undefined,
-    };
-  } else {
-    // We need to wait for the call to finish and the data to be available
-    while (!fetchCache[cacheKey]?.data) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-
-    return {
-      data: fetchCache[cacheKey].data,
-      ok: true,
+      error: requestData.statusText,
     };
   }
+
+  return {
+    data: requestData.data,
+    ok: true,
+    code: requestData.status,
+  };
 }

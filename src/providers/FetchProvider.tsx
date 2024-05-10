@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { useQueryClient } from 'react-query';
 import { useEffectOnce } from 'react-use';
-import { FetchContext } from '../contexts/FetchContext';
+import { FetchContext, TReqraftContextQueryConfig } from '../contexts/FetchContext';
 import { query, setupFetch } from '../utils/fetch';
 import { IReqraftProviderProps } from './ReqraftProvider';
 
@@ -12,6 +13,7 @@ export const ReqraftFetchProvider = ({
   instanceToken,
   instanceUnauthorizedRedirect,
 }: IReqraftFetchProviderProps) => {
+  const queryClient = useQueryClient();
   const [ready, setReady] = useState(false);
 
   useEffectOnce(() => {
@@ -28,20 +30,20 @@ export const ReqraftFetchProvider = ({
     return null;
   }
 
-  async function get<T>(url: string, cache?: boolean) {
-    return query<T>(url, 'GET', undefined, cache);
+  async function get<T>(config: TReqraftContextQueryConfig) {
+    return query<T>({ queryClient, ...config, method: 'GET' });
   }
 
-  async function post<T>(url: string, body: any) {
-    return query<T>(url, 'POST', body);
+  async function post<T>(config: TReqraftContextQueryConfig) {
+    return query<T>({ queryClient, ...config, method: 'POST' });
   }
 
-  async function put<T>(url: string, body: any) {
-    return query<T>(url, 'PUT', body);
+  async function put<T>(config: TReqraftContextQueryConfig) {
+    return query<T>({ queryClient, ...config, method: 'PUT' });
   }
 
-  async function del<T>(url: string) {
-    return query<T>(url, 'DELETE');
+  async function del<T>(config: TReqraftContextQueryConfig) {
+    return query<T>({ queryClient, ...config, method: 'DELETE' });
   }
 
   return (
@@ -50,7 +52,7 @@ export const ReqraftFetchProvider = ({
         get,
         post,
         put,
-        delete: del,
+        del,
       }}
     >
       {children}
