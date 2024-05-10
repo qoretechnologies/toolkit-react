@@ -43,8 +43,6 @@ export function useFetch<T>({
 
     setLoading(false);
 
-    console.log({ response });
-
     if (response.ok) {
       setData(response.data);
     } else {

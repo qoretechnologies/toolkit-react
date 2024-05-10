@@ -103,8 +103,6 @@ export async function query<T>({
     }
   );
 
-  console.log(requestData, queryClient.getQueryData(cacheKey));
-
   if (!requestData.ok) {
     queryClient.invalidateQueries(cacheKey);
 
