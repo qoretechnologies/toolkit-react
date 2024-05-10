@@ -2,7 +2,7 @@ import { ReqoreSpinner, ReqoreTree } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react';
 import { useEffectOnce } from 'react-use';
 import { StoryMeta } from '../../types';
-import { useFetch } from './fetch';
+import { useFetch } from './useFetch';
 
 const meta = {
   title: 'Hooks/Fetch',

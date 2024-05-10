@@ -7,4 +7,6 @@ export {
   TReqraftMenuItem,
 } from './components/menu/Menu';
 
-export { ReqraftProvider } from './providers/ReqraftProvider';
+export { IReqraftUseFetch, useFetch } from './hooks/useFetch/useFetch';
+export { ReqraftProvider, ReqraftQueryClient } from './providers/ReqraftProvider';
+export { query } from './utils/fetch';
