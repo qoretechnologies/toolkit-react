@@ -18,6 +18,9 @@ export const LongStringFormField = ({
     <ReqoreTextarea
       scaleWithContent
       fluid
+      wrapperStyle={{
+        width: '100%',
+      }}
       onClearClick={() => {
         onClearClick?.();
         onChange?.('');

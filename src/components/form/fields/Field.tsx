@@ -1,3 +1,5 @@
+import { IReqoreLabelProps, ReqoreControlGroup, ReqoreLabel } from '@qoretechnologies/reqore';
+import { useId } from 'react';
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
 import BooleanFormField, { IBooleanFormFieldProps } from './boolean/Boolean';
 import ColorFormField, { IColorFormFieldProps } from './color/Color';
@@ -25,14 +27,21 @@ export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
     : never,
     'value' | 'onChange'
   >;
+
+  label?: IReqoreLabelProps['label'];
+  labelPosition?: 'top' | 'left' | 'right' | 'bottom';
 }
 export const FormField = <T extends TFormFieldType>({
   type,
   onChange,
   value,
   fieldProps,
+  label,
+  labelPosition = 'top',
   ...rest
 }: IFormFieldProps<T>) => {
+  const id = useId();
+
   const handleChange = (value: TFormFieldValueType<T>, event?: unknown) => {
     onChange(value, event);
   };
@@ -46,6 +55,7 @@ export const FormField = <T extends TFormFieldType>({
             {...(fieldProps as IFormFieldProps<'string'>['fieldProps'])}
             onChange={(value: string) => handleChange(value as TFormFieldValueType<T>)}
             value={value as TFormFieldValueType<T>}
+            id={id}
           />
         );
 
@@ -58,6 +68,7 @@ export const FormField = <T extends TFormFieldType>({
             onChange={(checked) => {
               handleChange(checked as TFormFieldValueType<T>);
             }}
+            id={id}
           />
         );
 
@@ -70,6 +81,7 @@ export const FormField = <T extends TFormFieldType>({
             onChange={(value) => {
               handleChange(value as TFormFieldValueType<T>);
             }}
+            id={id}
           />
         );
 
@@ -94,6 +106,7 @@ export const FormField = <T extends TFormFieldType>({
             onChange={(selected) => {
               handleChange(selected as TFormFieldValueType<T>);
             }}
+            id={id}
           />
         );
 
@@ -106,6 +119,7 @@ export const FormField = <T extends TFormFieldType>({
             onChange={(selected) => {
               handleChange(selected as TFormFieldValueType<T>);
             }}
+            id={id}
           />
         );
 
@@ -118,6 +132,7 @@ export const FormField = <T extends TFormFieldType>({
             onChange={(selected) => {
               handleChange(selected as TFormFieldValueType<T>);
             }}
+            id={id}
           />
         );
       default:
@@ -125,5 +140,19 @@ export const FormField = <T extends TFormFieldType>({
     }
   };
 
-  return renderField(type);
+  const cannotBeStacked: TFormFieldType[] = ['boolean', 'color', 'radio', 'markdown'];
+  return (
+    <ReqoreControlGroup
+      stack={!cannotBeStacked.includes(type)}
+      vertical={labelPosition === 'bottom' || labelPosition === 'top'}
+    >
+      {(label || label === 0) && (labelPosition === 'top' || labelPosition === 'left') ?
+        <ReqoreLabel htmlFor={id} label={label} fluid />
+      : null}
+      {renderField(type)}
+      {(label || label === 0) && (labelPosition === 'bottom' || labelPosition === 'right') ?
+        <ReqoreLabel htmlFor={id} label={label} fluid />
+      : null}
+    </ReqoreControlGroup>
+  );
 };

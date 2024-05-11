@@ -7,27 +7,25 @@ export interface IColorFormFieldProps extends Omit<SketchPickerProps, 'onChange'
 }
 
 export const StyledSketchPicker = styled(SketchPicker)`
-  &&& {
-    background-color: transparent !important;
+  background-color: transparent !important;
+  width: 100% !important;
+  max-width: 400px !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+
+  > div:first-child {
+    padding-bottom: unset !important;
+    height: 100px !important;
+  }
+
+  label {
+    color: #fff !important;
+  }
+  input {
     width: 100% !important;
-    max-width: 400px !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-
-    > div:first-child {
-      padding-bottom: unset !important;
-      height: 100px !important;
-    }
-
-    label {
-      color: #fff !important;
-    }
-    input {
-      width: 100% !important;
-    }
-    .flexbox-fix {
-      border: none !important;
-    }
+  }
+  .flexbox-fix {
+    border: none !important;
   }
 `;
 

@@ -1,5 +1,4 @@
-export const markdown = `
-# Welcome to StackEdit!
+export const markdown = `# Welcome to StackEdit!
 
 Hi! I'm your first Markdown file in **StackEdit**. If you want to learn about StackEdit, you can read me. If you want to play with Markdown, you can edit me. Once you have finished with me, you can create new files by opening the **file explorer** on the left corner of the navigation bar.
 
@@ -17,8 +16,7 @@ The file explorer is accessible using the button in left corner of the navigatio
 All your files and folders are presented as a tree in the file explorer. You can switch from one to another by clicking a file in the tree.
 `;
 
-export const longStringText = `
-✔ Checking your system
+export const longStringText = `✔ Checking your system
 ✔ Locating Application
 ✔ Preparing native dependencies
 ✔ Compiling Main Process Code

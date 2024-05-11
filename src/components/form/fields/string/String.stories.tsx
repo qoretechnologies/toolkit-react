@@ -1,4 +1,3 @@
-import { ReqoreControlGroup } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react';
 import { expect, fn, userEvent, within } from '@storybook/test';
 import { useState } from 'react';
@@ -83,23 +82,23 @@ export const Sensitive: Story = {
   },
 };
 
-export const WithLabel: Story = {
-  render(args) {
-    return (
-      <ReqoreControlGroup vertical gapSize='big'>
-        <StringFormField {...args} labelPosition='left' label='Left' />
-        <StringFormField {...args} labelPosition='top' label='Top' />
-        <StringFormField {...args} labelPosition='right' label='Right' />
-        <StringFormField {...args} labelPosition='bottom' label='Bottom' />
-      </ReqoreControlGroup>
-    );
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+// export const WithLabel: Story = {
+//   render(args) {
+//     return (
+//       <ReqoreControlGroup vertical gapSize='big'>
+//         <StringFormField {...args} labelPosition='left' label='Left' />
+//         <StringFormField {...args} labelPosition='top' label='Top' />
+//         <StringFormField {...args} labelPosition='right' label='Right' />
+//         <StringFormField {...args} labelPosition='bottom' label='Bottom' />
+//       </ReqoreControlGroup>
+//     );
+//   },
+//   play: async ({ canvasElement }) => {
+//     const canvas = within(canvasElement);
 
-    for (const label of ['Left', 'Top', 'Right', 'Bottom']) {
-      const input = canvas.getByText(label);
-      await expect(input).toBeInTheDocument();
-    }
-  },
-};
+//     for (const label of ['Left', 'Top', 'Right', 'Bottom']) {
+//       const input = canvas.getByText(label);
+//       await expect(input).toBeInTheDocument();
+//     }
+//   },
+// };

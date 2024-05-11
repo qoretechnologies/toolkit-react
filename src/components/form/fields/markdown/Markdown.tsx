@@ -9,12 +9,17 @@ export interface IMarkdownFormFieldProps extends ILongStringFormFieldProps {
   markdownPreviewProps?: Partial<ComponentProps<typeof ReactMarkdown>>;
 }
 
+const StyledWrapper = styled(ReqoreColumns)<ComponentProps<typeof ReqoreColumns>>`
+  width: 100%;
+`;
+
 const StyledLongStringWrapper = styled(ReqoreColumn)`
   .reqore-control-wrapper {
     display: flex;
     flex-direction: column;
   }
 `;
+
 const StyledMarkdown = styled(ReactMarkdown)<ComponentProps<typeof ReactMarkdown>>`
   p {
     font-size: 14px;
@@ -72,6 +77,11 @@ const StyledMarkdown = styled(ReactMarkdown)<ComponentProps<typeof ReactMarkdown
     padding: 34px 6px;
   }
 `;
+
+const StyledPreviewColumn = styled(ReqoreColumn)`
+  width: 100%;
+`;
+
 const StyledPreviewWrapper = styled(ReqoreMessage)<IReqoreMessageProps>`
   & div div {
     justify-content: start;
@@ -80,16 +90,16 @@ const StyledPreviewWrapper = styled(ReqoreMessage)<IReqoreMessageProps>`
 
 export const MarkdownFormField = ({ markdownPreviewProps, ...rest }: IMarkdownFormFieldProps) => {
   return (
-    <ReqoreColumns columnsGap='10px'>
+    <StyledWrapper columnsGap='10px'>
       <StyledLongStringWrapper flexFlow='column'>
         <LongStringFormField {...rest} style={{ height: '100%', flexGrow: '1' }} />
       </StyledLongStringWrapper>
-      <ReqoreColumn>
+      <StyledPreviewColumn>
         <StyledPreviewWrapper size='small' aria-label='Preview' flat fluid>
           <StyledMarkdown {...markdownPreviewProps}>{rest.value ?? ''}</StyledMarkdown>
         </StyledPreviewWrapper>
-      </ReqoreColumn>
-    </ReqoreColumns>
+      </StyledPreviewColumn>
+    </StyledWrapper>
   );
 };
 

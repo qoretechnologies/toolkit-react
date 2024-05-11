@@ -30,7 +30,7 @@ export const NumberFormField = ({
   return (
     <ReqoreInput
       wrapperStyle={{
-        width: '100px',
+        width: '100%',
       }}
       value={value ?? ''}
       onChange={handleInputChange}
@@ -44,7 +44,6 @@ export const NumberFormField = ({
           }
         : undefined
       }
-      // @ts-expect-error A PR has been submitted on Reqore to address the step prop type issue.
       step={type === 'int' ? 1 : 0.1}
       {...rest}
     />
