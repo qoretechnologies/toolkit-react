@@ -70,7 +70,7 @@ export const Default: Story = {
             ],
           }}
         />
-        <FormField {...getFieldProps('longstring', 'description')} />
+        <FormField {...getFieldProps('long-string', 'description')} />
         <FormField {...getFieldProps('markdown', 'post')} />
       </DefaultStoryWrapper>
     );
@@ -83,7 +83,7 @@ export const Default: Story = {
     await expect(canvas.getByLabelText('number')).toBeInTheDocument();
     await expect(canvasElement.querySelector('.sketch-picker')).toBeInTheDocument();
     await expect(canvas.getByLabelText('radio')).toBeInTheDocument();
-    await expect(canvas.getByLabelText('longstring')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('long-string')).toBeInTheDocument();
     await expect(canvas.getByLabelText('markdown')).toBeInTheDocument();
   },
 };
@@ -135,7 +135,7 @@ export const Radio: Story = {
 
 export const LongString: Story = {
   args: {
-    type: 'longstring',
+    type: 'long-string',
     value: longStringText,
     label: 'Label',
   },

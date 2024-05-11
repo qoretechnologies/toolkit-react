@@ -22,7 +22,7 @@ export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
     : T extends 'boolean' ? IBooleanFormFieldProps
     : T extends 'radio' ? IRadioGroupFormFieldProps
     : T extends 'color' ? IColorFormFieldProps
-    : T extends 'longstring' ? ILongStringFormFieldProps
+    : T extends 'long-string' ? ILongStringFormFieldProps
     : T extends 'markdown' ? IMarkdownFormFieldProps
     : never,
     'value' | 'onChange'
@@ -110,11 +110,11 @@ export const FormField = <T extends TFormFieldType>({
           />
         );
 
-      case 'longstring':
+      case 'long-string':
         return (
           <LongStringFormField
             {...rest}
-            {...(fieldProps as IFormFieldProps<'longstring'>['fieldProps'])}
+            {...(fieldProps as IFormFieldProps<'long-string'>['fieldProps'])}
             value={value as TFormFieldValueType<T>}
             onChange={(selected) => {
               handleChange(selected as TFormFieldValueType<T>);
