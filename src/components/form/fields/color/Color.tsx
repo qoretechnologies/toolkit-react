@@ -31,7 +31,7 @@ export const StyledSketchPicker = styled(SketchPicker)`
   }
 `;
 
-export const FormColorField = ({ value, onChange, ...rest }: IColorFormFieldProps) => {
+export const ColorFormField = ({ value, onChange, ...rest }: IColorFormFieldProps) => {
   return (
     <StyledSketchPicker
       onChange={(color) => onChange(color.rgb)}
@@ -42,4 +42,4 @@ export const FormColorField = ({ value, onChange, ...rest }: IColorFormFieldProp
   );
 };
 
-export default FormColorField;
+export default ColorFormField;

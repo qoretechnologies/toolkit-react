@@ -1,19 +1,19 @@
-import { StoryObj } from '@storybook/react';
-import { StoryMeta } from '../../../../types';
-import { FormStringField } from './String';
-import { userEvent, within, expect, fn } from '@storybook/test';
 import { ReqoreControlGroup } from '@qoretechnologies/reqore';
+import { StoryObj } from '@storybook/react';
+import { expect, fn, userEvent, within } from '@storybook/test';
 import { useState } from 'react';
+import { StoryMeta } from '../../../../types';
+import { StringFormField } from './String';
 
 const meta = {
-  component: FormStringField,
+  component: StringFormField,
   title: 'Components/Form/String',
   args: {
     onChange: fn(),
     onClearClick: fn(),
     'aria-label': 'Name',
   },
-} as StoryMeta<typeof FormStringField>;
+} as StoryMeta<typeof StringFormField>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -24,15 +24,15 @@ export const Default: Story = {
     const input = canvas.getByLabelText('Name');
     await expect(input).toBeInTheDocument();
     await expect(input).toHaveAttribute('type', 'text');
-    await userEvent.type(input, 'Filip');
-    await expect(input).toHaveValue('Filip');
-    await expect(args.onChange).toHaveBeenLastCalledWith('Filip', expect.objectContaining({}));
+    await userEvent.type(input, 'Qore');
+    await expect(input).toHaveValue('Qore');
+    await expect(args.onChange).toHaveBeenLastCalledWith('Qore', expect.objectContaining({}));
   },
 };
 
 export const Controllable: Story = {
   args: {
-    value: 'Filip',
+    value: 'Qore',
     label: 'Label',
   },
   play: async ({ canvasElement, args }) => {
@@ -40,20 +40,20 @@ export const Controllable: Story = {
     const input = canvas.getByLabelText('Name');
 
     await expect(input).toBeInTheDocument();
-    await expect(input).toHaveValue('Filip');
+    await expect(input).toHaveValue('Qore');
 
     await userEvent.click(input.nextElementSibling);
     await expect(args.onClearClick).toHaveBeenCalledOnce();
     await expect(input).toHaveValue('');
 
-    await userEvent.type(input, 'David');
-    await expect(input).toHaveValue('David');
-    await expect(args.onChange).toHaveBeenLastCalledWith('David', expect.objectContaining({}));
+    await userEvent.type(input, 'Java');
+    await expect(input).toHaveValue('Java');
+    await expect(args.onChange).toHaveBeenLastCalledWith('Java', expect.objectContaining({}));
   },
   render(args) {
     const [value, setValue] = useState(args.value);
     return (
-      <FormStringField
+      <StringFormField
         {...args}
         value={value}
         onChange={(value, event) => {
@@ -87,10 +87,10 @@ export const WithLabel: Story = {
   render(args) {
     return (
       <ReqoreControlGroup vertical gapSize='big'>
-        <FormStringField {...args} labelPosition='left' label='Left' />
-        <FormStringField {...args} labelPosition='top' label='Top' />
-        <FormStringField {...args} labelPosition='right' label='Right' />
-        <FormStringField {...args} labelPosition='bottom' label='Bottom' />
+        <StringFormField {...args} labelPosition='left' label='Left' />
+        <StringFormField {...args} labelPosition='top' label='Top' />
+        <StringFormField {...args} labelPosition='right' label='Right' />
+        <StringFormField {...args} labelPosition='bottom' label='Bottom' />
       </ReqoreControlGroup>
     );
   },

@@ -1,6 +1,6 @@
-import { ChangeEvent, ChangeEventHandler } from 'react';
 import { ReqoreInput } from '@qoretechnologies/reqore';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
+import { ChangeEvent, ChangeEventHandler } from 'react';
 
 export interface INumberFormFieldProps
   extends Omit<IReqoreInputProps, 'value' | 'onChange' | 'type'> {
@@ -9,7 +9,7 @@ export interface INumberFormFieldProps
   type?: 'int' | 'float';
 }
 
-export const FormNumberField = ({
+export const NumberFormField = ({
   onChange,
   autoFocus,
   type = 'int',
@@ -51,4 +51,4 @@ export const FormNumberField = ({
   );
 };
 
-export default FormNumberField;
+export default NumberFormField;

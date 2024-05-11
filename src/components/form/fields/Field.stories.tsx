@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import { StoryObj } from '@storybook/react';
-import { fn, within, expect } from '@storybook/test';
-import { ReqoreControlGroup } from '@qoretechnologies/reqore';
+import { expect, fn, within } from '@storybook/test';
+import { useState } from 'react';
 
-import { FormField } from './Field';
+import { longStringText, markdown } from '../../../../mock/fields';
 import { StoryMeta } from '../../../types';
+import { FormField } from './Field';
 
 const meta = {
   component: FormField,
@@ -20,11 +20,13 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   render() {
     const [values, setValues] = useState({
-      name: 'Filip',
+      name: 'Qore',
       sendNotifications: true,
       amount: 99,
       color: { r: 255, g: 255, b: 255, a: 1 },
       language: 'Java',
+      description: longStringText,
+      markdown: markdown,
     } as const);
 
     const onChange = (field: keyof typeof values) => (value) => {
@@ -32,7 +34,7 @@ export const Default: Story = {
     };
 
     return (
-      <ReqoreControlGroup vertical gapSize='big'>
+      <div style={{ display: 'grid', gap: '32px', maxWidth: '1024px', margin: 'auto' }}>
         <FormField
           aria-label='String'
           type='string'
@@ -74,7 +76,21 @@ export const Default: Story = {
             ],
           }}
         />
-      </ReqoreControlGroup>
+
+        <FormField
+          aria-label='LongString'
+          type='longstring'
+          value={values.description}
+          onChange={onChange('description')}
+        />
+
+        <FormField
+          aria-label='Markdown'
+          type='markdown'
+          value={values.markdown}
+          onChange={onChange('markdown')}
+        />
+      </div>
     );
   },
   async play({ canvasElement }) {
@@ -84,13 +100,15 @@ export const Default: Story = {
     await expect(canvas.getByLabelText('Boolean')).toBeInTheDocument();
     await expect(canvas.getByLabelText('Number')).toBeInTheDocument();
     await expect(canvasElement.querySelector('.sketch-picker')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('LongString')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('Markdown')).toBeInTheDocument();
   },
 };
 
 export const String: Story = {
   args: {
     type: 'string',
-    value: 'Filip',
+    value: 'Qore',
   },
 };
 
@@ -124,5 +142,19 @@ export const Radio: Story = {
       { label: 'Java', value: 'Java', 'aria-label': 'Java' },
       { label: 'Python', value: 'Python', 'aria-label': 'Python' },
     ],
+  },
+};
+
+export const LongString: Story = {
+  args: {
+    type: 'longstring',
+    value: longStringText,
+  },
+};
+
+export const Markdown: Story = {
+  args: {
+    type: 'markdown',
+    value: markdown,
   },
 };

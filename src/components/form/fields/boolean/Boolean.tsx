@@ -5,7 +5,7 @@ export interface IBooleanFormFieldProps extends Omit<IReqoreCheckboxProps, 'onCh
   onChange?(checked: boolean): void;
 }
 
-export const FormBooleanField = ({
+export const BooleanFormField = ({
   checked,
   onChange,
   onClick,
@@ -31,4 +31,4 @@ export const FormBooleanField = ({
   );
 };
 
-export default FormBooleanField;
+export default BooleanFormField;

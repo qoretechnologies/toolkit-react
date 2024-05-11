@@ -1,11 +1,11 @@
 import { StoryObj } from '@storybook/react';
-import { StoryMeta } from '../../../../types';
-import { FormNumberField } from './Number';
 import { expect, fn, userEvent, within } from '@storybook/test';
 import { useState } from 'react';
+import { StoryMeta } from '../../../../types';
+import { NumberFormField } from './Number';
 
 const meta = {
-  component: FormNumberField,
+  component: NumberFormField,
   title: 'Components/Form/Number',
   args: {
     'aria-label': 'Number',
@@ -15,7 +15,7 @@ const meta = {
     const [value, setValue] = useState(args.value);
 
     return (
-      <FormNumberField
+      <NumberFormField
         {...args}
         value={value}
         onChange={(value) => {
@@ -25,7 +25,7 @@ const meta = {
       />
     );
   },
-} as StoryMeta<typeof FormNumberField>;
+} as StoryMeta<typeof NumberFormField>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

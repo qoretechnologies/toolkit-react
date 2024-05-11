@@ -9,7 +9,7 @@ export interface IRadioGroupFormFieldProps
   disabled?: boolean;
 }
 
-export const FormRadioGroupField = ({
+export const RadioGroupFormField = ({
   items: _items,
   disabled,
   onChange,
@@ -43,4 +43,4 @@ export const FormRadioGroupField = ({
   );
 };
 
-export default FormRadioGroupField;
+export default RadioGroupFormField;

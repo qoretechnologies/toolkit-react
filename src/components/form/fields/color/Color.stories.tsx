@@ -1,17 +1,17 @@
-import { useState } from 'react';
 import { StoryObj } from '@storybook/react';
 import { expect, fn, userEvent } from '@storybook/test';
+import { useState } from 'react';
 
-import { FormColorField } from './Color';
 import { StoryMeta } from '../../../../types';
+import { ColorFormField } from './Color';
 
 const meta = {
-  component: FormColorField,
+  component: ColorFormField,
   title: 'Components/Form/Color',
   args: {
     onChange: fn(),
   },
-} as StoryMeta<typeof FormColorField>;
+} as StoryMeta<typeof ColorFormField>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -24,7 +24,7 @@ export const Default: Story = {
     const [value, setValue] = useState(args.value);
 
     return (
-      <FormColorField
+      <ColorFormField
         {...args}
         value={value}
         onChange={(value) => {

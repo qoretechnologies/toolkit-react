@@ -1,31 +1,20 @@
-import { useState } from 'react';
 import { StoryObj } from '@storybook/react';
 import { expect, fn, userEvent, within } from '@storybook/test';
+import { useState } from 'react';
 
-import { FormBooleanField } from './Boolean';
 import { StoryMeta } from '../../../../types';
+import { BooleanFormField } from './Boolean';
 
 const meta = {
-  component: FormBooleanField,
+  component: BooleanFormField,
   title: 'Components/Form/Boolean',
   args: {
     onChange: fn(),
   },
-} as StoryMeta<typeof FormBooleanField>;
-
-export default meta;
-type Story = StoryObj<typeof meta>;
-
-export const Default: Story = {
-  args: {
-    checked: true,
-    'aria-label': 'Boolean',
-  },
   render(args) {
     const [checked, setChecked] = useState(args.checked);
-
     return (
-      <FormBooleanField
+      <BooleanFormField
         {...args}
         checked={checked}
         onChange={(checked) => {
@@ -35,7 +24,16 @@ export const Default: Story = {
       />
     );
   },
+} as StoryMeta<typeof BooleanFormField>;
 
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const Default: Story = {
+  args: {
+    checked: true,
+    'aria-label': 'Boolean',
+  },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
 

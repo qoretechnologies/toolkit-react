@@ -1,16 +1,16 @@
-import { useState } from 'react';
 import { StoryObj } from '@storybook/react';
 import { expect, fn, userEvent, within } from '@storybook/test';
+import { useState } from 'react';
 
-import { FormRadioGroupField } from './RadioGroup';
 import { StoryMeta } from '../../../../types';
+import { RadioGroupFormField } from './RadioGroup';
 
-import qore from './images/qore-106x128.png';
 import java from './images/java-96x128.png';
 import python from './images/python-129x128.png';
+import qore from './images/qore-106x128.png';
 
 const meta = {
-  component: FormRadioGroupField,
+  component: RadioGroupFormField,
   title: 'Components/Form/Radio',
   args: {
     onChange: fn(),
@@ -18,7 +18,7 @@ const meta = {
   render(args) {
     const [value, setValue] = useState(args.value);
     return (
-      <FormRadioGroupField
+      <RadioGroupFormField
         {...args}
         value={value}
         onChange={(value) => {
@@ -28,7 +28,7 @@ const meta = {
       />
     );
   },
-} as StoryMeta<typeof FormRadioGroupField>;
+} as StoryMeta<typeof RadioGroupFormField>;
 
 export default meta;
 type Story = StoryObj<typeof meta>;

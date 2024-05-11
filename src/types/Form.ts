@@ -18,7 +18,8 @@ export type TFormFieldType =
   | 'email'
   | 'phone'
   | 'url'
-  | 'markdown';
+  | 'markdown'
+  | 'longstring';
 
 export type TFormFieldValueType<T> =
   T extends 'string' ? string
@@ -39,4 +40,5 @@ export type TFormFieldValueType<T> =
   : T extends 'phone' ? string
   : T extends 'url' ? string
   : T extends 'markdown' ? string
+  : T extends 'longstring' ? string
   : any;

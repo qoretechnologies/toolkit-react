@@ -1,8 +1,8 @@
-import { ChangeEvent } from 'react';
 import { ReqoreControlGroup, ReqoreInput, ReqoreTag } from '@qoretechnologies/reqore';
 import { IReqoreControlGroupProps } from '@qoretechnologies/reqore/dist/components/ControlGroup';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
+import { ChangeEvent } from 'react';
 
 import { TFormFieldValueType } from '../../../../types/Form';
 
@@ -16,7 +16,7 @@ export interface IStringFormFieldProps extends Omit<IReqoreInputProps, 'onChange
   onChange?: (value?: TFormFieldValueType<'string'>, event?: ChangeEvent<HTMLInputElement>) => void;
 }
 
-export const FormStringField = ({
+export const StringFormField = ({
   onChange,
   wrapperProps,
   labelProps,
