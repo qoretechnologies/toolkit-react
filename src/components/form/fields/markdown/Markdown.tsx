@@ -92,7 +92,7 @@ export const MarkdownFormField = ({ markdownPreviewProps, ...rest }: IMarkdownFo
   return (
     <StyledWrapper columnsGap='10px'>
       <StyledLongStringWrapper flexFlow='column'>
-        <LongStringFormField {...rest} style={{ height: '100%', flexGrow: '1' }} />
+        <LongStringFormField {...rest} />
       </StyledLongStringWrapper>
       <StyledPreviewColumn>
         <StyledPreviewWrapper size='small' aria-label='Preview' flat fluid>

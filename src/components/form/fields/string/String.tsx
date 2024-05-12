@@ -23,7 +23,6 @@ export const StringFormField = ({ onChange, sensitive, ...rest }: IStringFormFie
 
   return (
     <ReqoreInput
-      fluid
       wrapperStyle={{
         width: '100%',
       }}
@@ -35,7 +34,6 @@ export const StringFormField = ({ onChange, sensitive, ...rest }: IStringFormFie
         event.stopPropagation();
         rest?.onClick?.(event);
       }}
-      style={{ width: '100%', display: 'block' }}
       onChange={handleChange}
       type={sensitive ? 'password' : 'text'}
       onClearClick={handleClearClick}

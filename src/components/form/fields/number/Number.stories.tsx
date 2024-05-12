@@ -46,14 +46,13 @@ export const Default: Story = {
     await userEvent.type(input, '10');
     await expect(input).toHaveValue(10);
     await expect(args.onChange).toHaveBeenLastCalledWith(10);
-    await userEvent.clear(input);
+
+    await userEvent.click(input.nextElementSibling);
+    await expect(args.onChange).toHaveBeenLastCalledWith(undefined);
 
     await userEvent.type(input, '10.5');
     await expect(input).toHaveValue(10);
     await expect(args.onChange).toHaveBeenLastCalledWith(10);
-
-    await userEvent.click(input.nextElementSibling);
-    await expect(args.onChange).toHaveBeenLastCalledWith(undefined);
   },
 };
 
