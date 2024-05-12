@@ -102,6 +102,7 @@
   },
   "dependencies": {
     "classnames": "^2.2.6",
+    "cronstrue": "^2.50.0",
     "epoch-timeago": "^1.1.9",
     "lodash": "^4.17.21",
     "polished": "^4.2.2",

@@ -40,18 +40,21 @@ export const Default: Story = {
       language: 'Java',
       description: longStringText,
       post: markdown,
+      cron: '* * * * *',
     } as const);
 
-    const onChange = (field: keyof typeof values) => (value) => {
-      setValues((values) => ({ ...values, [field]: value }));
-    };
-    const getFieldProps = <T extends TFormFieldType>(name: T, key: keyof typeof values) =>
+    const getFieldProps = <T extends TFormFieldType>(type: T, key: keyof typeof values) =>
       ({
-        'aria-label': name,
-        label: name,
-        type: name,
+        'aria-label': type,
+        label: type,
+        type: type,
         value: values[key],
-        onChange: onChange(key),
+        onChange: (value) => {
+          setValues((values) => ({ ...values, [key]: value }));
+        },
+        labelProps: {
+          style: { textTransform: 'capitalize' },
+        },
       }) as unknown as IFormFieldProps<T>;
 
     return (
@@ -72,6 +75,10 @@ export const Default: Story = {
         />
         <FormField {...getFieldProps('long-string', 'description')} />
         <FormField {...getFieldProps('markdown', 'post')} />
+        <FormField
+          {...getFieldProps('cron', 'cron')}
+          fieldProps={{ wrapperProps: { 'aria-label': 'Cron' } }}
+        />
       </DefaultStoryWrapper>
     );
   },
@@ -85,6 +92,7 @@ export const Default: Story = {
     await expect(canvas.getByLabelText('radio')).toBeInTheDocument();
     await expect(canvas.getByLabelText('long-string')).toBeInTheDocument();
     await expect(canvas.getByLabelText('markdown')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('cron')).toBeInTheDocument();
   },
 };
 
@@ -100,7 +108,7 @@ export const Boolean: Story = {
   args: {
     type: 'boolean',
     value: true,
-    label: 'Label',
+    label: 'Boolean',
   },
 };
 
@@ -108,7 +116,7 @@ export const Number: Story = {
   args: {
     type: 'number',
     value: 99,
-    label: 'Label',
+    label: 'Number',
   },
 };
 
@@ -116,7 +124,7 @@ export const Color: Story = {
   args: {
     type: 'color',
     value: { r: 0, g: 0, b: 0, a: 1 },
-    label: 'Label',
+    label: 'Color',
   },
 };
 
@@ -129,7 +137,7 @@ export const Radio: Story = {
       { label: 'Java', value: 'Java', 'aria-label': 'Java' },
       { label: 'Python', value: 'Python', 'aria-label': 'Python' },
     ],
-    label: 'Label',
+    label: 'Radio',
   },
 };
 
@@ -137,7 +145,7 @@ export const LongString: Story = {
   args: {
     type: 'long-string',
     value: longStringText,
-    label: 'Label',
+    label: 'Long String',
   },
 };
 
@@ -145,6 +153,13 @@ export const Markdown: Story = {
   args: {
     type: 'markdown',
     value: markdown,
-    label: 'Label',
+    label: 'Markdown',
+  },
+};
+export const Cron: Story = {
+  args: {
+    type: 'cron',
+    value: '* * * * *',
+    label: 'Cron',
   },
 };

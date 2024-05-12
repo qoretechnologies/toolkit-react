@@ -3,6 +3,7 @@ import { useId } from 'react';
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
 import BooleanFormField, { IBooleanFormFieldProps } from './boolean/Boolean';
 import ColorFormField, { IColorFormFieldProps } from './color/Color';
+import CronFormField, { ICronFormFieldProps } from './cron/Cron';
 import LongStringFormField, { ILongStringFormFieldProps } from './long-string/LongString';
 import MarkdownFormField, { IMarkdownFormFieldProps } from './markdown/Markdown';
 import NumberFormField from './number/Number';
@@ -24,6 +25,7 @@ export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
     : T extends 'color' ? IColorFormFieldProps
     : T extends 'long-string' ? ILongStringFormFieldProps
     : T extends 'markdown' ? IMarkdownFormFieldProps
+    : T extends 'cron' ? ICronFormFieldProps
     : never,
     'value' | 'onChange'
   >;
@@ -135,21 +137,33 @@ export const FormField = <T extends TFormFieldType>({
             id={id}
           />
         );
+
+      case 'cron':
+        return (
+          <CronFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'cron'>['fieldProps'])}
+            value={value as TFormFieldValueType<T>}
+            onChange={(selected) => {
+              handleChange(selected as TFormFieldValueType<T>);
+            }}
+            // give id to first element to make htmlFor works.
+            inputProps={[{ id }]}
+          />
+        );
       default:
         return null;
     }
   };
 
-  const cannotBeStacked: TFormFieldType[] = ['boolean', 'color', 'radio', 'markdown'];
   return (
-    <ReqoreControlGroup
-      stack={!cannotBeStacked.includes(type)}
-      vertical={labelPosition === 'bottom' || labelPosition === 'top'}
-    >
+    <ReqoreControlGroup vertical={labelPosition === 'bottom' || labelPosition === 'top'}>
       {(label || label === 0) && (labelPosition === 'top' || labelPosition === 'left') ?
         <ReqoreLabel htmlFor={id} label={label} fluid />
       : null}
+
       {renderField(type)}
+
       {(label || label === 0) && (labelPosition === 'bottom' || labelPosition === 'right') ?
         <ReqoreLabel htmlFor={id} label={label} fluid />
       : null}
