@@ -2,18 +2,19 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useEffectOnce } from 'react-use';
 import { FetchContext, TReqraftContextQueryConfig } from '../contexts/FetchContext';
+import { useReqraftProperty } from '../hooks/useReqraftProperty';
 import { query, setupFetch } from '../utils/fetch';
-import { IReqraftProviderProps } from './ReqraftProvider';
 
-export interface IReqraftFetchProviderProps extends IReqraftProviderProps {}
+export interface IReqraftFetchProviderProps {
+  children: React.ReactNode;
+}
 
-export const ReqraftFetchProvider = ({
-  children,
-  instance,
-  instanceToken,
-  instanceUnauthorizedRedirect,
-}: IReqraftFetchProviderProps) => {
+export const ReqraftFetchProvider = ({ children }: IReqraftFetchProviderProps) => {
   const queryClient = useQueryClient();
+  const instance = useReqraftProperty('instance');
+  const instanceToken = useReqraftProperty('instanceToken');
+  const instanceUnauthorizedRedirect = useReqraftProperty('instanceUnauthorizedRedirect');
+
   const [ready, setReady] = useState(false);
 
   useEffectOnce(() => {

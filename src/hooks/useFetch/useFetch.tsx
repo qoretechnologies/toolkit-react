@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useEffectOnce } from 'react-use';
 import { useContextSelector } from 'use-context-selector';
 import { FetchContext } from '../../contexts/FetchContext';
 import { IReqraftQueryConfig } from '../../utils/fetch';
@@ -10,13 +11,19 @@ export interface IReqraftUseFetch<T> {
   error: Error | undefined;
 }
 
+export interface IReqraftUseFetchOptions<T> extends IReqraftQueryConfig {
+  defaultData?: T;
+  loadOnMount?: boolean;
+}
+
 export function useFetch<T>({
   url,
   method = 'GET',
   body,
   cache,
   defaultData,
-}: IReqraftQueryConfig & { defaultData?: T }) {
+  loadOnMount,
+}: IReqraftUseFetchOptions<T>) {
   const query = useContextSelector(FetchContext, (context) => {
     switch (method) {
       case 'GET':
@@ -32,14 +39,18 @@ export function useFetch<T>({
     }
   });
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(loadOnMount);
   const [data, setData] = useState<T | undefined>(defaultData);
   const [error, setError] = useState<Error | undefined>();
 
-  async function load() {
+  async function load({
+    body: customBody,
+    mergeBodies,
+  }: { body?: Record<string | number, any>; mergeBodies?: boolean } = {}) {
     setLoading(true);
 
-    const response = await query<T>({ url, body, cache });
+    const _body = mergeBodies ? { ...body, ...customBody } : customBody || body;
+    const response = await query<T>({ url, body: _body, cache });
 
     setLoading(false);
 
@@ -49,6 +60,12 @@ export function useFetch<T>({
       setError(response.error);
     }
   }
+
+  useEffectOnce(() => {
+    if (loadOnMount) {
+      load();
+    }
+  });
 
   return { data, loading, load, error };
 }

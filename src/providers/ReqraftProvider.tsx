@@ -1,19 +1,18 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode } from 'react';
-import { IReqraftFetchConfig } from '../utils/fetch';
+import { IReqraftContext, ReqraftContext } from '../contexts/ReqraftContext';
 import { ReqraftFetchProvider } from './FetchProvider';
+import { ReqraftStorageProvider } from './StorageProvider';
 
 export const ReqraftQueryClient = new QueryClient();
 
-export interface IReqraftProviderProps {
+export interface IReqraftProviderProps extends IReqraftContext {
   children: ReactNode;
-  instance?: string;
-  instanceToken: string;
-  instanceUnauthorizedRedirect?: IReqraftFetchConfig['unauthorizedRedirect'];
   reactQueryClient?: QueryClient;
 }
 
 export const ReqraftProvider = ({
+  appName,
   children,
   instance,
   instanceToken,
@@ -21,14 +20,14 @@ export const ReqraftProvider = ({
   reactQueryClient,
 }: IReqraftProviderProps) => {
   return (
-    <QueryClientProvider client={reactQueryClient || ReqraftQueryClient}>
-      <ReqraftFetchProvider
-        instance={instance}
-        instanceToken={instanceToken}
-        instanceUnauthorizedRedirect={instanceUnauthorizedRedirect}
-      >
-        {children}
-      </ReqraftFetchProvider>
-    </QueryClientProvider>
+    <ReqraftContext.Provider
+      value={{ appName, instanceToken, instance, instanceUnauthorizedRedirect }}
+    >
+      <QueryClientProvider client={reactQueryClient || ReqraftQueryClient}>
+        <ReqraftFetchProvider>
+          <ReqraftStorageProvider>{children}</ReqraftStorageProvider>
+        </ReqraftFetchProvider>
+      </QueryClientProvider>
+    </ReqraftContext.Provider>
   );
 };

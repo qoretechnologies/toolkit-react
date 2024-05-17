@@ -84,6 +84,7 @@ export async function query<T>({
     queryKey: [cacheKey],
     queryFn: async () => {
       const response = await doFetchData(url, method, body);
+
       const clone = response.clone();
       const json = await clone.json();
 

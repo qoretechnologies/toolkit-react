@@ -20,5 +20,11 @@
     "jsx": "react-jsx",
     "types": ["node", "react", "react-dom", "lodash", "@qoretechnologies/reqore"]
   },
-  "include": ["./**/*.ts", "./**/*.tsx", "../src/**/*.ts", "../src/**/*.tsx"]
+  "include": [
+    "./**/*.ts",
+    "./**/*.tsx",
+    "../src/**/*.ts",
+    "../src/**/*.tsx",
+    "../__tests__/utils.ts"
+  ]
 }

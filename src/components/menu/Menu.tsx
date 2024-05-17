@@ -11,6 +11,7 @@ import { IReqoreMenuDividerProps } from '@qoretechnologies/reqore/dist/component
 import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/Menu/item';
 import { map, reduce, size } from 'lodash';
 import { useEffect, useMemo, useState } from 'react';
+import { useReqraftStorage } from '../../hooks/useStorage/useStorage';
 
 export interface IReqraftMenuItem extends IReqoreMenuItemProps {
   submenu?: TReqraftMenuItem[];
@@ -110,7 +111,13 @@ export const ReqraftMenu = ({
   ...rest
 }: IReqraftMenuProps) => {
   const [query, setQuery] = useState<string>(defaultQuery);
-  const [width, setWidth] = useState<number>(250);
+
+  const [isSidebarOpen, update] = useReqraftStorage<boolean>('sidebar-open', true, false);
+  const [sidebarSize, updateSidebarSize] = useReqraftStorage<number>(
+    'sidebar-size',
+    defaultWidth,
+    false
+  );
 
   useEffect(() => {
     if (defaultQuery) {
@@ -118,17 +125,13 @@ export const ReqraftMenu = ({
     }
   }, [defaultQuery]);
 
-  useEffect(() => {
-    setWidth(defaultWidth);
-  }, [defaultWidth]);
-
   const handleQueryChange = (newQuery: string) => {
     setQuery(newQuery);
     onQueryChange?.(newQuery);
   };
 
   const handleWidthChange = (newWidth: number) => {
-    setWidth(newWidth);
+    updateSidebarSize(newWidth);
     onResizeChange?.(newWidth);
   };
 
@@ -187,10 +190,10 @@ export const ReqraftMenu = ({
         minWidth: '250px',
         maxWidth: '350px',
         onResizeStop: (_e, _direction, _ref, d) => {
-          handleWidthChange(width + d.width);
+          handleWidthChange(sidebarSize + d.width);
         },
-        defaultSize: {
-          width: `${width}px`,
+        size: {
+          width: `${sidebarSize}px`,
           height: '100%',
         },
       }}
@@ -218,7 +221,15 @@ export const ReqraftMenu = ({
             doNotInsertShortcut: true,
           }}
         />
-        <ReqoreButton icon='SideBarLine' fixed minimal={false} onClick={() => onHideClick?.()} />
+        <ReqoreButton
+          icon='SideBarLine'
+          fixed
+          minimal={false}
+          onClick={() => {
+            update(!isSidebarOpen);
+            onHideClick?.();
+          }}
+        />
       </ReqoreControlGroup>
       {map(filteredMenu, (menuData, menuId) => (
         <ReqraftMenuItem

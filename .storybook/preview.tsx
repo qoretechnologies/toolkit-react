@@ -50,6 +50,7 @@ export const decorators = [
       }}
     >
       <ReqraftProvider
+        appName='storybook'
         instanceToken={process.env.REACT_APP_QORUS_TOKEN}
         instance='https://hq.qoretechnologies.com:8092/'
       >
