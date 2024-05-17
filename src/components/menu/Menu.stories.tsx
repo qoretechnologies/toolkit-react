@@ -44,6 +44,7 @@ export const WithDefaultQuery: Story = {
     defaultQuery: 'mapper',
   },
   play: async () => {
+    await testsWaitForText('Developer Portal');
     await expect(document.querySelector('.reqore-input')).toHaveValue('mapper');
     await expect(document.querySelectorAll('.reqore-menu-item')).toHaveLength(2);
   },
@@ -55,6 +56,7 @@ export const Filtered: Story = {
     onQueryChange: fn(),
   },
   play: async () => {
+    await testsWaitForText('Developer Portal');
     await fireEvent.change(document.querySelector('.reqore-input'), { target: { value: 'step' } });
 
     await waitFor(() => expect(document.querySelectorAll('.reqore-menu-item')).toHaveLength(2), {
