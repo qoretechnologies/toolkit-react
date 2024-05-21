@@ -21,6 +21,6 @@
     "types": ["node", "react", "react-dom", "jest"],
     "outDir": "dist"
   },
-  "exclude": ["node_modules", "./src/stories/*", "./src/mock/*", "__tests__/*"],
+  "exclude": ["node_modules", "./mock/*", "__tests__/*", "./src/**/*.stories.tsx"],
   "include": ["./src/**/*.ts", "./src/**/*.tsx"]
 }
