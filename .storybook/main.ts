@@ -7,6 +7,7 @@ export default {
     '@storybook/addon-interactions',
     '@storybook/addon-webpack5-compiler-babel',
     '@chromatic-com/storybook',
+    'storybook-addon-mock',
   ],
 
   framework: {
@@ -17,6 +18,13 @@ export default {
   features: {
     interactionsDebugger: true,
   },
+
+  env: (config) => ({
+    ...config,
+    NODE_ENV: 'storybook',
+    BROWSER: 'chrome',
+    REACT_APP_QORUS_TOKEN: '2f58cd78-a400-4d98-8de2-90fbaa6f805d',
+  }),
 
   typescript: { reactDocgen: 'react-docgen' },
 
