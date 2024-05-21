@@ -16,7 +16,7 @@ tsconfig.prod.json
 yarn-error.log
 yarn.lock
 
-_tests_
+__tests__
 .github
 .storybook
 .vscode
