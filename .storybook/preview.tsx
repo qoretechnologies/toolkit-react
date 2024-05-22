@@ -1,4 +1,5 @@
 import { ReqoreContent, ReqoreLayoutContent, ReqoreUIProvider } from '@qoretechnologies/reqore';
+import { ReqraftProvider } from '../src';
 
 export const parameters = {
   actions: { argTypesRegex: '^on[A-Z].*' },
@@ -48,11 +49,17 @@ export const decorators = [
         ...context.args?.reqoreOptions,
       }}
     >
-      <ReqoreLayoutContent style={{ height: '100%' }}>
-        <ReqoreContent style={{ padding: '20px', display: 'flex', flexFlow: 'column' }}>
-          <Story />
-        </ReqoreContent>
-      </ReqoreLayoutContent>
+      <ReqraftProvider
+        appName='storybook'
+        instanceToken={process.env.REACT_APP_QORUS_TOKEN}
+        instance='https://hq.qoretechnologies.com:8092/'
+      >
+        <ReqoreLayoutContent style={{ height: '100%' }}>
+          <ReqoreContent style={{ padding: '20px', display: 'flex', flexFlow: 'column' }}>
+            <Story />
+          </ReqoreContent>
+        </ReqoreLayoutContent>
+      </ReqraftProvider>
     </ReqoreUIProvider>
   ),
 ];

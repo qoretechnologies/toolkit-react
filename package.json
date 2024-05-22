@@ -1,6 +1,6 @@
 {
   "name": "@qoretechnologies/reqraft",
-  "version": "0.1.0",
+  "version": "0.2.3",
   "description": "ReQraft is a collection of React components and hooks that are used across Qore Technologies' products made using the ReQore component library from Qore.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,11 +9,13 @@
     "test": "./node_modules/.bin/jest --passWithNoTests",
     "test:watch": "./node_modules/.bin/jest --watch --passWithNoTests",
     "test:ci": "./node_modules/.bin/jest --silent --json --outputFile=tests.json --passWithNoTests",
+    "precheck": "yarn run lint && yarn run test && yarn build:test:prod",
     "build": "./node_modules/typescript/bin/tsc --project tsconfig.prod.json",
     "build:test": "./node_modules/typescript/bin/tsc --noEmit",
     "build:test:prod": "./node_modules/typescript/bin/tsc --project tsconfig.prod.json --noEmit",
     "lint": "yarn run eslint ./src/",
     "storybook": "storybook dev -p 6008",
+    "update-reqore": "yarn add @qoretechnologies/reqore@beta",
     "test-storybook": "DEBUG_PRINT_LIMIT=0 test-storybook --url http://localhost:6008",
     "install-playwright": "npx playwright install --with-deps",
     "build-storybook": "storybook build",
@@ -32,7 +34,6 @@
     "qorus"
   ],
   "pre-push": [
-    "source",
     "build:test:prod",
     "lint",
     "test"
@@ -51,7 +52,7 @@
     "@babel/preset-react": "^7.12.10",
     "@babel/preset-typescript": "^7.12.7",
     "@chromatic-com/storybook": "^1",
-    "@qoretechnologies/reqore": "^0.42.0",
+    "@qoretechnologies/reqore": "^0.43.0",
     "@storybook/addon-actions": "^8.0.9",
     "@storybook/addon-essentials": "^8.0.9",
     "@storybook/addon-interactions": "^8.0.9",
@@ -73,6 +74,7 @@
     "@types/react-color": "^3.0.12",
     "@types/react-dom": "^18.3.0",
     "@types/styled-components": "^5.1.34",
+    "@types/react-query": "^1.2.9",
     "@typescript-eslint/eslint-plugin": "^7.8.0",
     "@typescript-eslint/parser": "^7.8.0",
     "babel-jest": "^29.7.0",
@@ -91,8 +93,10 @@
     "react-intersection-observer": "^9.4.2",
     "react-test-renderer": "^18.2.0",
     "storybook": "^8.0.9",
+    "storybook-addon-mock": "^5.0.0",
     "ts-jest": "^29.1.2",
     "ts-node": "^9.1.1",
+    "type-fest": "^4.18.2",
     "typescript": "^5.4.5"
   },
   "peerDependencies": {
@@ -101,6 +105,7 @@
     "react-dom": "^18.3.1"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.35.5",
     "classnames": "^2.2.6",
     "cronstrue": "^2.50.0",
     "epoch-timeago": "^1.1.9",
