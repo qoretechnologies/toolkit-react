@@ -37,8 +37,8 @@ export const Default: Story = {
   },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
-    const editor = canvas.getByLabelText('MarkdownEditor');
-    const preview = canvas.getByLabelText('Preview');
+    const editor = await canvas.findByLabelText('MarkdownEditor');
+    const preview = await canvas.findByLabelText('Preview');
 
     await expect(editor).toBeInTheDocument();
     await expect(preview).toBeInTheDocument();

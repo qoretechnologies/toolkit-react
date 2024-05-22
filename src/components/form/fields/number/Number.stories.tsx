@@ -37,7 +37,7 @@ export const Default: Story = {
 
   async play({ args, canvasElement }) {
     const canvas = within(canvasElement);
-    const input = canvas.getByLabelText('Number');
+    const input = await canvas.findByLabelText('Number');
 
     await expect(input).toBeInTheDocument();
     await expect(input).toHaveValue(0);
@@ -64,7 +64,7 @@ export const Float: Story = {
 
   async play({ args, canvasElement }) {
     const canvas = within(canvasElement);
-    const input = canvas.getByLabelText('Number');
+    const input = await canvas.findByLabelText('Number');
 
     await userEvent.clear(input);
     await userEvent.type(input, '10.9');

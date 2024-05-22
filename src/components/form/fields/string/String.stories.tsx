@@ -40,7 +40,7 @@ export const Default: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    const input = canvas.getByLabelText('Name');
+    const input = await canvas.findByLabelText('Name');
 
     await expect(input).toBeInTheDocument();
     await expect(input).toHaveValue('Qore');
@@ -62,7 +62,7 @@ export const Sensitive: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const input = canvas.getByLabelText('Name');
+    const input = await canvas.findByLabelText('Name');
     await expect(input).toBeInTheDocument();
     await expect(input).toHaveAttribute('type', 'password');
     await expect(input).toHaveValue('password');

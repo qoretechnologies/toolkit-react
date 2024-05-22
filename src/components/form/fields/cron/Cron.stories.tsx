@@ -42,19 +42,20 @@ export const Default: Story = {
 
   async play({ args, canvasElement }) {
     const canvas = within(canvasElement);
-    const wrapper = canvas.getByLabelText('Cron');
+    const wrapper = await canvas.findByLabelText('Cron');
     await expect(wrapper).toBeInTheDocument();
 
     await Promise.all(
       args.inputProps
         .map((p) => p['aria-label'])
-        .map((label) => expect(canvas.getByLabelText(label)).toBeInTheDocument())
+        .map(async (label) => expect(await canvas.findByLabelText(label)).toBeInTheDocument())
     );
-    await userEvent.clear(canvas.getByLabelText('Minute'));
-    await userEvent.type(canvas.getByLabelText('Minute'), '30');
+    const minute = await canvas.findByLabelText('Minute');
+    await userEvent.clear(minute);
+    await userEvent.type(minute, '30');
     await expect(args.onChange).toHaveBeenLastCalledWith('30 1 1 1 1');
 
-    await userEvent.click(canvas.getByRole('button'));
+    await userEvent.click(await canvas.findByRole('button'));
     await expect(args.onChange).toHaveBeenLastCalledWith('');
   },
 };
