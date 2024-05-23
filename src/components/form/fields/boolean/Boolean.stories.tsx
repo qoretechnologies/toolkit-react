@@ -37,10 +37,10 @@ export const Default: Story = {
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
 
-    await expect(await canvas.findByText('Yes')).toBeInTheDocument();
-    await expect(await canvas.findByText('No')).toBeInTheDocument();
+    await expect(canvas.getByText('Yes')).toBeInTheDocument();
+    await expect(canvas.getByText('No')).toBeInTheDocument();
 
-    await userEvent.click(await canvas.findByLabelText('Boolean'));
+    await userEvent.click(canvas.getByLabelText('Boolean'));
     await expect(args.onChange).toHaveBeenLastCalledWith(false);
   },
 };

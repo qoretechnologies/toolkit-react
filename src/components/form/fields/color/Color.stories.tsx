@@ -1,5 +1,5 @@
 import { StoryObj } from '@storybook/react';
-import { expect, fn, userEvent, waitFor } from '@storybook/test';
+import { expect, fn, userEvent } from '@storybook/test';
 import { useState } from 'react';
 
 import { StoryMeta } from '../../../../types';
@@ -35,9 +35,11 @@ export const Default: Story = {
     );
   },
   async play({ canvasElement, args }) {
-    await waitFor(() => expect(canvasElement.querySelector('.sketch-picker')).toBeInTheDocument());
+    const picker = canvasElement.querySelector('.sketch-picker');
     const colorPanel = canvasElement.querySelector('.saturation-white');
     const valueInput = canvasElement.querySelector('input');
+
+    await expect(picker).toBeInTheDocument();
     await expect(colorPanel).toBeInTheDocument();
     await expect(valueInput).toBeInTheDocument();
     await expect(valueInput).toHaveValue('000000');

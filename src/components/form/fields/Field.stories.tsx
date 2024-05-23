@@ -85,14 +85,14 @@ export const Default: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
-    await expect(await canvas.findByLabelText('string')).toBeInTheDocument();
-    await expect(await canvas.findByLabelText('boolean')).toBeInTheDocument();
-    await expect(await canvas.findByLabelText('number')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('string')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('boolean')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('number')).toBeInTheDocument();
     await expect(canvasElement.querySelector('.sketch-picker')).toBeInTheDocument();
-    await expect(await canvas.findByLabelText('radio')).toBeInTheDocument();
-    await expect(await canvas.findByLabelText('long-string')).toBeInTheDocument();
-    await expect(await canvas.findByLabelText('markdown')).toBeInTheDocument();
-    await expect(await canvas.findByLabelText('cron')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('radio')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('long-string')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('markdown')).toBeInTheDocument();
+    await expect(canvas.getByLabelText('cron')).toBeInTheDocument();
   },
 };
 

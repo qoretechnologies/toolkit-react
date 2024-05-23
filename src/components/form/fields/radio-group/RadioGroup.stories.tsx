@@ -1,5 +1,5 @@
 import { StoryObj } from '@storybook/react';
-import { expect, fn, userEvent, waitFor, within } from '@storybook/test';
+import { expect, fn, userEvent, within } from '@storybook/test';
 import { useState } from 'react';
 
 import { StoryMeta } from '../../../../types';
@@ -44,7 +44,7 @@ export const Default: Story = {
   },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
-    const java = await canvas.findByLabelText('Java');
+    const java = canvas.getByLabelText('Java');
     await userEvent.click(java);
     await expect(args.onChange).toHaveBeenLastCalledWith('Java');
   },
@@ -60,11 +60,9 @@ export const WithImages: Story = {
     ],
   },
   async play({ canvasElement }) {
-    await waitFor(() =>
-      expect(canvasElement.querySelector(`img[src="${qore}"]`)).toBeInTheDocument()
-    );
-    expect(canvasElement.querySelector(`img[src="${java}"]`)).toBeInTheDocument();
-    expect(canvasElement.querySelector(`img[src="${python}"]`)).toBeInTheDocument();
+    await expect(canvasElement.querySelector(`img[src="${qore}"]`)).toBeInTheDocument();
+    await expect(canvasElement.querySelector(`img[src="${java}"]`)).toBeInTheDocument();
+    await expect(canvasElement.querySelector(`img[src="${python}"]`)).toBeInTheDocument();
   },
 };
 
@@ -72,7 +70,7 @@ export const Disabled: Story = {
   args: { ...Default.args, disabled: true },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
-    const java = await canvas.findByLabelText('Java');
+    const java = canvas.getByLabelText('Java');
 
     // expect rejection caused by clicking an element with pointer-events:none
     await expect(() => userEvent.click(java)).rejects.toBeTruthy();

@@ -3,4 +3,3 @@ dist
 output.json
 tests.json
 coverage
-storybook-static

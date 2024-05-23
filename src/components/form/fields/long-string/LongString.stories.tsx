@@ -36,7 +36,7 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   play: async ({ canvasElement, args, step }) => {
     const canvas = within(canvasElement);
-    const textarea = await canvas.findByLabelText('LongString');
+    const textarea = canvas.getByLabelText('LongString');
 
     await step('Initial asserts', async () => {
       await expect(textarea).toBeInTheDocument();
