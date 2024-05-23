@@ -14,7 +14,7 @@ export interface IReqraftFetchResponse<T> {
   error?: any;
 }
 
-const fetchConfig: IReqraftFetchConfig = {
+export const fetchConfig: IReqraftFetchConfig = {
   instance: window.location.origin + '/',
   instanceToken: '',
   unauthorizedRedirect: (pathname: string) => `/?next=${pathname}`,
