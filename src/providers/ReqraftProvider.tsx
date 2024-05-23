@@ -29,8 +29,8 @@ export const initializeReqraft = (options: IReqraftOptions ) => {
     unauthorizedRedirect: options.instanceUnauthorizedRedirect,
   });
 
-  return ReqraftProvider
-}
+  return ReqraftProvider;
+};
 
 export const ReqraftProvider = ({
   appName,
