@@ -1,5 +1,5 @@
 import { ReqoreContent, ReqoreLayoutContent, ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { ReqraftProvider } from '../src';
+import { initializeReqraft } from '../src';
 
 export const parameters = {
   actions: { argTypesRegex: '^on[A-Z].*' },
@@ -39,7 +39,13 @@ export const argTypes = {
 };
 
 export const decorators = [
-  (Story, context) => (
+  (Story, context) => {
+    const Reqraft = initializeReqraft({
+      instance: 'https://hq.qoretechnologies.com:8092/',
+      instanceToken: process.env.REACT_APP_QORUS_TOKEN,
+    });
+
+    return (
     <ReqoreUIProvider
       options={{
         animations: {
@@ -49,17 +55,15 @@ export const decorators = [
         ...context.args?.reqoreOptions,
       }}
     >
-      <ReqraftProvider
+      <Reqraft
         appName='storybook'
-        instanceToken={process.env.REACT_APP_QORUS_TOKEN}
-        instance='https://hq.qoretechnologies.com:8092/'
       >
         <ReqoreLayoutContent style={{ height: '100%' }}>
           <ReqoreContent style={{ padding: '20px', display: 'flex', flexFlow: 'column' }}>
             <Story />
           </ReqoreContent>
         </ReqoreLayoutContent>
-      </ReqraftProvider>
+      </Reqraft>
     </ReqoreUIProvider>
-  ),
+  )},
 ];
