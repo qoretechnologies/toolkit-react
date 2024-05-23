@@ -46,24 +46,23 @@ export const decorators = [
     });
 
     return (
-    <ReqoreUIProvider
-      options={{
-        animations: {
-          buttons: false,
-          dialogs: false,
-        },
-        ...context.args?.reqoreOptions,
-      }}
-    >
-      <Reqraft
-        appName='storybook'
+      <ReqoreUIProvider
+        options={{
+          animations: {
+            buttons: false,
+            dialogs: false,
+          },
+          ...context.args?.reqoreOptions,
+        }}
       >
-        <ReqoreLayoutContent style={{ height: '100%' }}>
-          <ReqoreContent style={{ padding: '20px', display: 'flex', flexFlow: 'column' }}>
-            <Story />
-          </ReqoreContent>
-        </ReqoreLayoutContent>
-      </Reqraft>
-    </ReqoreUIProvider>
-  )},
+        <Reqraft appName='storybook' waitForStorage={false} {...context.parameters.reqraftOptions}>
+          <ReqoreLayoutContent style={{ height: '100%' }}>
+            <ReqoreContent style={{ padding: '20px', display: 'flex', flexFlow: 'column' }}>
+              <Story />
+            </ReqoreContent>
+          </ReqoreLayoutContent>
+        </Reqraft>
+      </ReqoreUIProvider>
+    );
+  },
 ];
