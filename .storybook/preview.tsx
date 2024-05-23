@@ -55,7 +55,7 @@ export const decorators = [
           ...context.args?.reqoreOptions,
         }}
       >
-        <Reqraft appName='storybook' waitForStorage={false} {...context.parameters.reqraftOptions}>
+        <Reqraft appName='storybook' waitForStorage={false} {...context.args.reqraftOptions}>
           <ReqoreLayoutContent style={{ height: '100%' }}>
             <ReqoreContent style={{ padding: '20px', display: 'flex', flexFlow: 'column' }}>
               <Story />

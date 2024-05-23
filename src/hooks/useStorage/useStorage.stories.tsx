@@ -24,7 +24,7 @@ const meta = {
       </ReqoreControlGroup>
     );
   },
-  parameters: { reqraftOptions: { waitForStorage: true } },
+  args: { reqraftOptions: { waitForStorage: true } },
 } as StoryMeta<any>;
 
 export default meta;
