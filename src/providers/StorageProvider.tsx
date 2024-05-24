@@ -7,11 +7,15 @@ import { useReqraftProperty } from '../hooks/useReqraftProperty';
 import { TReqraftStorageValue } from '../hooks/useStorage/useStorage';
 import { IReqraftProviderProps } from './ReqraftProvider';
 
-export interface IReqraftStorageProviderProps extends Pick<IReqraftProviderProps, 'waitForStorage'> {
+export interface IReqraftStorageProviderProps
+  extends Pick<IReqraftProviderProps, 'waitForStorage'> {
   children: ReactNode;
 }
 
-export const ReqraftStorageProvider = ({ children, waitForStorage }: IReqraftStorageProviderProps) => {
+export const ReqraftStorageProvider = ({
+  children,
+  waitForStorage,
+}: IReqraftStorageProviderProps) => {
   const appName = useReqraftProperty('appName');
 
   const { data, loading } = useFetch({
@@ -32,7 +36,9 @@ export const ReqraftStorageProvider = ({ children, waitForStorage }: IReqraftSto
     if (data) {
       setStorage(data);
     }
-  }, [data]);
+  }, [JSON.stringify(data)]);
+
+  console.log('re-render');
 
   const getStorage = function <T extends TReqraftStorageValue>(
     path: string,
