@@ -1,5 +1,14 @@
+import { IReqoreLabelProps, ReqoreControlGroup, ReqoreLabel } from '@qoretechnologies/reqore';
+import { useId } from 'react';
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
-import { FormStringField } from './string/String';
+import BooleanFormField, { IBooleanFormFieldProps } from './boolean/Boolean';
+import ColorFormField, { IColorFormFieldProps } from './color/Color';
+import CronFormField, { ICronFormFieldProps } from './cron/Cron';
+import LongStringFormField, { ILongStringFormFieldProps } from './long-string/LongString';
+import MarkdownFormField, { IMarkdownFormFieldProps } from './markdown/Markdown';
+import NumberFormField from './number/Number';
+import RadioGroupFormField, { IRadioGroupFormFieldProps } from './radio-group/RadioGroup';
+import { IStringFormFieldProps, StringFormField } from './string/String';
 
 export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
   type?: T;
@@ -8,13 +17,33 @@ export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
 
   validateSelf?: boolean;
   onValidateChange?: (isValid: boolean) => void;
-}
 
+  fieldProps?: Omit<
+    T extends 'string' ? IStringFormFieldProps
+    : T extends 'boolean' ? IBooleanFormFieldProps
+    : T extends 'radio' ? IRadioGroupFormFieldProps
+    : T extends 'color' ? IColorFormFieldProps
+    : T extends 'long-string' ? ILongStringFormFieldProps
+    : T extends 'markdown' ? IMarkdownFormFieldProps
+    : T extends 'cron' ? ICronFormFieldProps
+    : never,
+    'value' | 'onChange'
+  >;
+
+  label?: IReqoreLabelProps['label'];
+  labelPosition?: 'top' | 'left' | 'right' | 'bottom';
+}
 export const FormField = <T extends TFormFieldType>({
   type,
   onChange,
+  value,
+  fieldProps,
+  label,
+  labelPosition = 'top',
   ...rest
 }: IFormFieldProps<T>) => {
+  const id = useId();
+
   const handleChange = (value: TFormFieldValueType<T>, event?: unknown) => {
     onChange(value, event);
   };
@@ -23,9 +52,103 @@ export const FormField = <T extends TFormFieldType>({
     switch (type) {
       case 'string':
         return (
-          <FormStringField
+          <StringFormField
             {...rest}
+            {...(fieldProps as IFormFieldProps<'string'>['fieldProps'])}
             onChange={(value: string) => handleChange(value as TFormFieldValueType<T>)}
+            value={value as TFormFieldValueType<T>}
+            id={id}
+          />
+        );
+
+      case 'boolean':
+        return (
+          <BooleanFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'boolean'>['fieldProps'])}
+            checked={value as boolean}
+            onChange={(checked) => {
+              handleChange(checked as TFormFieldValueType<T>);
+            }}
+            id={id}
+          />
+        );
+
+      case 'number':
+        return (
+          <NumberFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'number'>['fieldProps'])}
+            value={value as number}
+            onChange={(value) => {
+              handleChange(value as TFormFieldValueType<T>);
+            }}
+            id={id}
+          />
+        );
+
+      case 'color':
+        return (
+          <ColorFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'color'>['fieldProps'])}
+            value={value as IColorFormFieldProps['color']}
+            onChange={(color) => {
+              handleChange(color as TFormFieldValueType<T>);
+            }}
+          />
+        );
+
+      case 'radio':
+        return (
+          <RadioGroupFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'radio'>['fieldProps'])}
+            value={value as TFormFieldValueType<T>}
+            onChange={(selected) => {
+              handleChange(selected as TFormFieldValueType<T>);
+            }}
+            id={id}
+          />
+        );
+
+      case 'long-string':
+        return (
+          <LongStringFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'long-string'>['fieldProps'])}
+            value={value as TFormFieldValueType<T>}
+            onChange={(selected) => {
+              handleChange(selected as TFormFieldValueType<T>);
+            }}
+            id={id}
+          />
+        );
+
+      case 'markdown':
+        return (
+          <MarkdownFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'markdown'>['fieldProps'])}
+            value={value as TFormFieldValueType<T>}
+            onChange={(selected) => {
+              handleChange(selected as TFormFieldValueType<T>);
+            }}
+            id={id}
+          />
+        );
+
+      case 'cron':
+        return (
+          <CronFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'cron'>['fieldProps'])}
+            value={value as TFormFieldValueType<T>}
+            onChange={(selected) => {
+              handleChange(selected as TFormFieldValueType<T>);
+            }}
+            // give id to first element to make htmlFor works.
+            inputProps={[{ id }]}
           />
         );
       default:
@@ -33,5 +156,17 @@ export const FormField = <T extends TFormFieldType>({
     }
   };
 
-  return renderField(type);
+  return (
+    <ReqoreControlGroup vertical={labelPosition === 'bottom' || labelPosition === 'top'}>
+      {(label || label === 0) && (labelPosition === 'top' || labelPosition === 'left') ?
+        <ReqoreLabel htmlFor={id} label={label} fluid />
+      : null}
+
+      {renderField(type)}
+
+      {(label || label === 0) && (labelPosition === 'bottom' || labelPosition === 'right') ?
+        <ReqoreLabel htmlFor={id} label={label} fluid />
+      : null}
+    </ReqoreControlGroup>
+  );
 };

@@ -1,3 +1,4 @@
+export * from './components/form';
 export {
   IReqraftMenuItem,
   IReqraftMenuProps,
@@ -6,7 +7,6 @@ export {
   TReqraftMenuItem
 } from './components/menu/Menu';
 
-export { FormStringField, IStringFormFieldProps } from './components/form/fields/string/String';
 export { IReqraftUseFetch, useFetch } from './hooks/useFetch/useFetch';
 export { ReqraftProvider, ReqraftQueryClient, initializeReqraft } from './providers/ReqraftProvider';
 export { query } from './utils/fetch';
