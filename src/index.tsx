@@ -4,10 +4,14 @@ export {
   IReqraftMenuProps,
   ReqraftMenu,
   TReqraftMenu,
-  TReqraftMenuItem
+  TReqraftMenuItem,
 } from './components/menu/Menu';
 
 export { IReqraftUseFetch, useFetch } from './hooks/useFetch/useFetch';
-export { ReqraftProvider, ReqraftQueryClient, initializeReqraft } from './providers/ReqraftProvider';
+export { TReqraftUseStorage, useReqraftStorage } from './hooks/useStorage/useStorage';
+export {
+  ReqraftProvider,
+  ReqraftQueryClient,
+  initializeReqraft,
+} from './providers/ReqraftProvider';
 export { query } from './utils/fetch';
-
