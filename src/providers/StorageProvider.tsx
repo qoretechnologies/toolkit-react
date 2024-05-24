@@ -38,8 +38,6 @@ export const ReqraftStorageProvider = ({
     }
   }, [JSON.stringify(data)]);
 
-  console.log('re-render');
-
   const getStorage = function <T extends TReqraftStorageValue>(
     path: string,
     defaultValue: T,

@@ -23,8 +23,6 @@ export function useReqraftStorage<T extends TReqraftStorageValue>(
     })
   );
 
-  console.log('render in useReqraftStorage');
-
   const value = useMemo(
     () => getStorage(path, defaultValue, includeAppPrefix),
     [path, defaultValue, includeAppPrefix, getStorage]
