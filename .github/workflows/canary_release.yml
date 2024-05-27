@@ -55,6 +55,7 @@ jobs:
         run: yarn build
 
       - name: Bump version with timestamp and canary tag
+        id: publish
         run: |
           TIMESTAMP=$(date +"%Y%m%d%H%M%S")
           NEW_VERSION=$(npm version prerelease --preid=canary.$TIMESTAMP --no-git-tag-version)
@@ -70,9 +71,9 @@ jobs:
           access: public
 
       - name: Create comment with canary version
-        uses: peter-evans/create-or-update-comment@v4
+        uses: mshick/add-pr-comment@v2
         with:
-          body: |
+          message: |
             Canary version published: ${{ steps.publish.outputs.version }}
             ```sh
             yarn add @qoretechnologies/reqraft@${{ steps.publish.outputs.version }}
