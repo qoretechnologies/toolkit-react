@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { useContextSelector } from 'use-context-selector';
 import { ReqraftStorageContext } from '../../contexts/StorageContext';
 
@@ -22,9 +23,21 @@ export function useReqraftStorage<T extends TReqraftStorageValue>(
     })
   );
 
-  return [
-    getStorage(path, defaultValue, includeAppPrefix),
-    (newStorage: T) => updateStorage(path, newStorage, includeAppPrefix),
-    () => removeStorageValue(path, includeAppPrefix),
-  ];
+  const value = useMemo(
+    () => getStorage(path, defaultValue, includeAppPrefix),
+    [path, defaultValue, includeAppPrefix, getStorage]
+  );
+
+  const updater = useCallback(
+    (newStorage: T) => {
+      updateStorage(path, newStorage, includeAppPrefix);
+    },
+    [path, includeAppPrefix, updateStorage]
+  );
+
+  const remover = useCallback(() => {
+    removeStorageValue(path, includeAppPrefix);
+  }, [path, includeAppPrefix, removeStorageValue]);
+
+  return [value, updater, remover];
 }
