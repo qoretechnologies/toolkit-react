@@ -57,7 +57,7 @@ jobs:
       - name: Bump version with timestamp and canary tag
         run: |
           TIMESTAMP=$(date +"%Y%m%d%H%M%S")
-          npm version prerelease --preid=canary.$TIMESTAMP
+          npm version prerelease --preid=canary.$TIMESTAMP --no-git-tag-version
 
       - name: Publish to NPM
         id: npm_publish
