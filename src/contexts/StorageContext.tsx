@@ -1,5 +1,5 @@
+import { createContext } from 'react';
 import { Get } from 'type-fest';
-import { createContext } from 'use-context-selector';
 import { TReqraftStorageValue } from '../hooks/useStorage/useStorage';
 
 export type TReqraftStorage = Record<string, any>;
