@@ -124,7 +124,7 @@ jobs:
         uses: Ilshidur/action-discord@0.3.2
         with:
           args: |
-            ':white_check_mark: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} 
+            :white_check_mark: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} 
 
             {% if github.event.pull_request.labels.*.name == 'canary' %}
             **Canary Version Installation:**
