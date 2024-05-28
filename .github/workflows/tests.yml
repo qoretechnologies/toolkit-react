@@ -71,6 +71,12 @@ jobs:
         run: |
           yarn test:ci
 
+      - name: Serve Storybook and run tests
+        run: |
+          npx concurrently -k -s first -n "SB,TEST" -c "magenta,blue" \
+            "npx http-server storybook-static --port 6008 --silent" \
+            "npx wait-on tcp:6008 && yarn test-storybook"
+
       - name: Bump version with timestamp and canary tag
         id: bump
         run: |
@@ -91,16 +97,10 @@ jobs:
         uses: mshick/add-pr-comment@v2
         with:
           message: |
-            Canary version published: ${{ steps.bump.outputs.version }}
+            Canary version for this PR published: ${{ steps.bump.outputs.version }}
             ```sh
             yarn add @qoretechnologies/reqraft@${{ steps.bump.outputs.version }}
             ```
-
-      - name: Serve Storybook and run tests
-        run: |
-          npx concurrently -k -s first -n "SB,TEST" -c "magenta,blue" \
-            "npx http-server storybook-static --port 6008 --silent" \
-            "npx wait-on tcp:6008 && yarn test-storybook"
 
       - name: Publish to Chromatic
         id: chromatic_publish
@@ -120,7 +120,7 @@ jobs:
           DISCORD_AVATAR: 'https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true'
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: ':white_check_mark: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} *succeeded*, click GitHub Action link below to get the VSIX artifact.'
+          args: ':white_check_mark: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} *succeeded*, install the canary version via `yarn add @qoretechnologies/reqraft@${{ steps.bump.outputs.version }}`.'
         if: success()
 
       # Notify discord if failure
