@@ -79,6 +79,7 @@ jobs:
 
       - name: Bump version with timestamp and canary tag
         id: bump
+        if: github.event.pull_request.labels.*.name == 'canary'
         run: |
           TIMESTAMP=$(date +"%Y%m%d%H%M%S")
           NEW_VERSION=$(npm version prerelease --preid=canary.$TIMESTAMP --no-git-tag-version)
@@ -87,6 +88,7 @@ jobs:
 
       - name: Publish canary version to NPM
         id: npm_publish
+        if: github.event.pull_request.labels.*.name == 'canary'
         uses: JS-DevTools/npm-publish@v1
         with:
           token: ${{ secrets.NPM_TOKEN }}
@@ -95,6 +97,7 @@ jobs:
 
       - name: Create comment with canary version
         uses: mshick/add-pr-comment@v2
+        if: github.event.pull_request.labels.*.name == 'canary'
         with:
           message: |
             Canary version for this PR published: ${{ steps.bump.outputs.version }}
@@ -120,7 +123,15 @@ jobs:
           DISCORD_AVATAR: 'https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true'
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: ':white_check_mark: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} *succeeded*, install the canary version via `yarn add @qoretechnologies/reqraft@${{ steps.bump.outputs.version }}`.'
+          args: |
+            ':white_check_mark: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} 
+
+            {% if github.event.pull_request.labels.*.name == 'canary' %}
+            **Canary Version Installation:**
+            ```
+            yarn add @qoretechnologies/reqraft@${{ steps.bump.outputs.version }}
+            ```
+            {% endif %}
         if: success()
 
       # Notify discord if failure
