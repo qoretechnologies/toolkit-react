@@ -65,11 +65,36 @@ jobs:
 
       - name: Run build test
         run: |
-          yarn build:test:prod
+          yarn build
 
       - name: Run unit tests
         run: |
           yarn test:ci
+
+      - name: Bump version with timestamp and canary tag
+        id: bump
+        run: |
+          TIMESTAMP=$(date +"%Y%m%d%H%M%S")
+          NEW_VERSION=$(npm version prerelease --preid=canary.$TIMESTAMP --no-git-tag-version)
+          echo "New version: $NEW_VERSION"
+          echo "::set-output name=version::$NEW_VERSION"
+
+      - name: Publish canary version to NPM
+        id: npm_publish
+        uses: JS-DevTools/npm-publish@v1
+        with:
+          token: ${{ secrets.NPM_TOKEN }}
+          tag: canary
+          access: public
+
+      - name: Create comment with canary version
+        uses: mshick/add-pr-comment@v2
+        with:
+          message: |
+            Canary version published: ${{ steps.bump.outputs.version }}
+            ```sh
+            yarn add @qoretechnologies/reqraft@${{ steps.bump.outputs.version }}
+            ```
 
       - name: Serve Storybook and run tests
         run: |
