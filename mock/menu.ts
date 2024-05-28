@@ -1,4 +1,5 @@
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
+import { fn } from '@storybook/test';
 import { map } from 'lodash';
 import { TReqraftMenuItem } from '../src';
 import interfaces from './interfaceCategories.json';
@@ -53,6 +54,7 @@ export default [
         as: 'a',
         id: id,
         rightIcon: 'AddLine',
+        onRightIconClick: fn(),
       })
     ),
   },

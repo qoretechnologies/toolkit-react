@@ -38,6 +38,17 @@ export const ActivePath: Story = {
   },
 };
 
+export const ActiveMenuItemIntent: Story = {
+  args: {
+    path: '/Interfaces/mapper',
+    menu: typedMenu,
+    activeItemIntent: 'success',
+  },
+  play: async () => {
+    await testsWaitForText('Developer Portal');
+  },
+};
+
 export const WithDefaultQuery: Story = {
   args: {
     menu: typedMenu,
