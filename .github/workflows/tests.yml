@@ -117,6 +117,7 @@ jobs:
 
       # Notify Discord with canary installation instruction if Success
       - name: Discord notification success
+        if: github.event.pull_request.labels.*.name == 'canary'
         env:
           DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK}}
           DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true},{ "name": "Version", "value": "v${{ steps.save_release_version.outputs.version }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) 🌐 [View Site]( https://deploy-preview-${{ github.event.pull_request.number}}--magical-starburst-a8bdfc.netlify.app) 📙 [Storybook](${{ steps.chromatic_publish.outputs.storybookUrl }}) 🎨 [Chromatic Tests](${{ steps.chromatic_publish.outputs.buildUrl }})"}],"color":65280,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
@@ -130,10 +131,10 @@ jobs:
             ```
             yarn add @qoretechnologies/reqraft@${{ steps.bump.outputs.version }}
             ```
-        if: success()
 
       # Notify Discord without canary installation instruction if Success
       - name: Discord notification success
+        if: github.event.pull_request.labels.*.name != 'canary'
         env:
           DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK}}
           DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true},{ "name": "Version", "value": "v${{ steps.save_release_version.outputs.version }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) 🌐 [View Site]( https://deploy-preview-${{ github.event.pull_request.number}}--magical-starburst-a8bdfc.netlify.app) 📙 [Storybook](${{ steps.chromatic_publish.outputs.storybookUrl }}) 🎨 [Chromatic Tests](${{ steps.chromatic_publish.outputs.buildUrl }})"}],"color":65280,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
@@ -142,7 +143,6 @@ jobs:
         with:
           args: |
             :white_check_mark: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }}
-        if: success()
 
       # Notify discord if failure
       - name: Discord notification failure
