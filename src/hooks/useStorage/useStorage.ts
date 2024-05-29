@@ -1,5 +1,4 @@
-import { useCallback, useMemo } from 'react';
-import { useContextSelector } from 'use-context-selector';
+import { useCallback, useContext, useMemo } from 'react';
 import { ReqraftStorageContext } from '../../contexts/StorageContext';
 
 export type TReqraftStorageValue = string | number | boolean | Record<string | number, any> | any[];
@@ -14,14 +13,7 @@ export function useReqraftStorage<T extends TReqraftStorageValue>(
   defaultValue?: T,
   includeAppPrefix?: boolean
 ): TReqraftUseStorage<T> {
-  const { getStorage, updateStorage, removeStorageValue } = useContextSelector(
-    ReqraftStorageContext,
-    ({ getStorage, updateStorage, removeStorageValue }) => ({
-      getStorage,
-      updateStorage,
-      removeStorageValue,
-    })
-  );
+  const { getStorage, updateStorage, removeStorageValue } = useContext(ReqraftStorageContext);
 
   const value = useMemo(
     () => getStorage(path, defaultValue, includeAppPrefix),

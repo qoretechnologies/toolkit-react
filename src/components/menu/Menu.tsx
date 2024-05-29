@@ -9,6 +9,7 @@ import {
 import ReqoreMenu, { IReqoreMenuProps } from '@qoretechnologies/reqore/dist/components/Menu';
 import { IReqoreMenuDividerProps } from '@qoretechnologies/reqore/dist/components/Menu/divider';
 import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/Menu/item';
+import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { map, reduce, size } from 'lodash';
 import { useEffect, useMemo, useState } from 'react';
 import { useReqraftStorage } from '../../hooks/useStorage/useStorage';
@@ -37,13 +38,15 @@ export interface IReqraftMenuProps extends Partial<Omit<IReqoreMenuProps, 'resiz
   resizable?: boolean;
   onResizeChange?: (width: number) => void;
   defaultWidth?: number;
+  activeItemIntent?: TReqoreIntent;
 }
 
 export const ReqraftMenuItem = ({
   path,
   isCollapsed,
+  activeIntent = 'info',
   ...props
-}: TReqraftMenuItem & { path?: string; isCollapsed?: boolean }) => {
+}: TReqraftMenuItem & { path?: string; isCollapsed?: boolean; activeIntent?: TReqoreIntent }) => {
   if ('divider' in props) {
     return <ReqoreMenuDivider />;
   }
@@ -68,7 +71,12 @@ export const ReqraftMenuItem = ({
         {...menuData}
       >
         {map(submenu, (submenuData, submenuId) => (
-          <ReqraftMenuItem key={submenuId} {...submenuData} path={path} />
+          <ReqraftMenuItem
+            key={submenuId}
+            {...submenuData}
+            path={path}
+            activeIntent={activeIntent}
+          />
         ))}
       </ReqoreMenuSection>
     );
@@ -78,19 +86,19 @@ export const ReqraftMenuItem = ({
     <ReqoreMenuItem
       customTheme={{ main: '#050505' }}
       effect={
-        isActive
-          ? {
-              gradient: {
-                colors: {
-                  0: 'info:darken:5:0.4',
-                  40: '#181818',
-                  100: '#181818',
-                },
+        isActive ?
+          {
+            gradient: {
+              colors: {
+                0: `${activeIntent}:darken:3:0.4`,
+                65: 'main:lighten:2',
+                100: 'main:lighten:2',
               },
-            }
-          : undefined
+            },
+          }
+        : undefined
       }
-      leftIconColor={isActive ? 'info:lighten:10' : undefined}
+      leftIconColor={isActive ? `${activeIntent}:lighten:10` : undefined}
       verticalPadding='tiny'
       {...props}
     />
@@ -108,6 +116,7 @@ export const ReqraftMenu = ({
   onHideClick,
   resizable,
   path,
+  activeItemIntent,
   ...rest
 }: IReqraftMenuProps) => {
   const [query, setQuery] = useState<string>(defaultQuery);
@@ -237,6 +246,7 @@ export const ReqraftMenu = ({
           {...menuData}
           path={path}
           isCollapsed={!query && !!(menuData as IReqraftMenuItem).submenu}
+          activeIntent={activeItemIntent}
         />
       ))}
     </ReqoreMenu>
