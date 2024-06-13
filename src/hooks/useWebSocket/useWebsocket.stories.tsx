@@ -120,6 +120,7 @@ export const CloseManually: Story = {
     await OpenOnMount.play({ args, ...rest });
     await testsClickButton({ label: 'Disconnect' });
     await testsWaitForText('Websocket Status: CLOSED');
+    await sleep(300);
     await expect(args.onClose).toHaveBeenCalled();
   },
 };
