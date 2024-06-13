@@ -16,7 +16,7 @@
     "lint": "yarn run eslint ./src/",
     "storybook": "storybook dev -p 6008",
     "update-reqore": "yarn add @qoretechnologies/reqore@beta",
-    "test-storybook": "DEBUG_PRINT_LIMIT=0 test-storybook --url http://localhost:6008",
+    "test-storybook": "DEBUG_PRINT_LIMIT=300 test-storybook --url http://localhost:6008",
     "install-playwright": "npx playwright install --with-deps",
     "build-storybook": "storybook build",
     "chromatic": "npx chromatic"

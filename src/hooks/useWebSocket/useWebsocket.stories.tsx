@@ -62,7 +62,7 @@ const meta = {
           killTimeout = setTimeout(() => {
             server = new Server(url);
             killTimeout = null;
-          }, 5000);
+          }, 3000);
 
           return;
         }
@@ -88,6 +88,9 @@ const meta = {
     closeOnUnmount: true,
     url: 'log-test',
   },
+  // parameters: {
+  //   chromatic: { disable: true },
+  // },
   render: (args) => {
     return <CompWithHook {...args} />;
   },
@@ -146,7 +149,7 @@ export const ReconnectFails: Story = {
     reconnect: true,
     maxReconnectTries: 3,
     openOnMount: true,
-    reconnectInterval: 1000,
+    reconnectInterval: 500,
   },
   play: async ({ args, ...rest }) => {
     await OpenOnMount.play({ args, ...rest });
@@ -181,7 +184,7 @@ export const WithLogs: Story = {
     ...Reconnects.args,
     includeLogMessagesInState: true,
     useState: true,
-    reconnectInterval: 1500,
+    reconnectInterval: 500,
   },
   play: async ({ args, ...rest }) => {
     await Reconnects.play({ args, ...rest });
