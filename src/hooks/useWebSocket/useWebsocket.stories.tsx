@@ -88,9 +88,9 @@ const meta = {
     closeOnUnmount: true,
     url: 'log-test',
   },
-  // parameters: {
-  //   chromatic: { disable: true },
-  // },
+  parameters: {
+    chromatic: { disable: true },
+  },
   render: (args) => {
     return <CompWithHook {...args} />;
   },
@@ -150,9 +150,6 @@ export const ReconnectFails: Story = {
     maxReconnectTries: 3,
     openOnMount: true,
     reconnectInterval: 500,
-  },
-  parameters: {
-    chromatic: { disable: true },
   },
   play: async ({ args, ...rest }) => {
     await OpenOnMount.play({ args, ...rest });
