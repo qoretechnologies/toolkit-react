@@ -62,7 +62,6 @@ export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseR
       onClose: (...args) => {
         updateStates(ReqraftWebSocketStatus.CLOSED, 'Connection closed');
 
-        console.log('closing', options);
         options?.onClose?.(...args);
       },
       onError: (...args) => {
