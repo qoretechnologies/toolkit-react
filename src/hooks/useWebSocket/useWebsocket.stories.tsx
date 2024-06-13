@@ -151,6 +151,9 @@ export const ReconnectFails: Story = {
     openOnMount: true,
     reconnectInterval: 500,
   },
+  parameters: {
+    chromatic: { disable: true },
+  },
   play: async ({ args, ...rest }) => {
     await OpenOnMount.play({ args, ...rest });
     await testsClickButton({ label: 'Kill' });
