@@ -338,7 +338,7 @@ export const MultipleConnections: Story = {
     includeLogMessagesInState: true,
     useState: true,
   },
-  // @ts-ignore
+  // @ts-expect-error customprops
   render: (args: IUseReqraftWebSocketOptions) => {
     const [conectionStatus, setConnectionStatus] = useState<string>('CLOSED');
     const [panels, setPanels] = useState({ 1: true, 2: true, 3: true });
@@ -462,8 +462,6 @@ export const MultipleConnectionsHaveCustomHandlers: Story = {
 export const MultipleConnectionsCanBeDisconnectedAndReconnected: Story = {
   ...MultipleConnectionsHaveCustomHandlers,
   play: async (args) => {
-    const canvas = within(args.canvasElement);
-
     await MultipleConnectionsHaveCustomHandlers.play(args);
 
     await testsClickButton({ label: 'Disconnect', nth: 1 });
