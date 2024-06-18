@@ -1,6 +1,5 @@
 import { ReqoreSpinner, ReqoreTree } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react';
-import { useEffectOnce } from 'react-use';
 import { testsWaitForText } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';
 import { useFetch } from './useFetch';
@@ -8,17 +7,15 @@ import { useFetch } from './useFetch';
 const meta = {
   title: 'Hooks/useFetch',
   render: (args) => {
-    const { data = {}, load, loading } = useFetch<any>({ url: 'public/info', method: args.method });
+    const {
+      data = {},
+      load,
+      loading,
+    } = useFetch<any>({ url: 'public/info', method: args.method, loadOnMount: true });
 
-    useEffectOnce(() => {
-      load();
-    });
-
-    return loading ? (
-      <ReqoreSpinner />
-    ) : (
-      <ReqoreTree data={data} bottomActions={[{ label: 'Refetch', onClick: load }]} />
-    );
+    return loading ?
+        <ReqoreSpinner />
+      : <ReqoreTree data={data} bottomActions={[{ label: 'Refetch', onClick: load }]} />;
   },
 } as StoryMeta<any>;
 
