@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useEffectOnce, useUnmount } from 'react-use';
-import { IReqraftWebSocketConfig, ReqraftWebsocket } from '../../utils/websocket';
+import { IReqraftWebSocketConfig, ReqraftWebSocket } from '../../utils/websocket';
 
 export interface IUseReqraftWebSocketOptions extends IReqraftWebSocketConfig {
   onMessage?: (ev: MessageEvent) => void;
@@ -16,7 +16,7 @@ export interface IUseReqraftWebSocket {
   status: keyof typeof ReqraftWebSocketStatus;
   open: () => void;
   close: () => void;
-  socket: ReqraftWebsocket;
+  socket: ReqraftWebSocket;
   send: (data: string) => void;
   clear: () => void;
   on: (type: keyof WebSocketEventMap, handler: (ev: Event) => void) => void;
@@ -32,7 +32,7 @@ export enum ReqraftWebSocketStatus {
 export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseReqraftWebSocket => {
   const [messages, setMessages] = useState<string[]>([]);
   const [status, setStatus] = useState<keyof typeof ReqraftWebSocketStatus>('CLOSED');
-  const [socket, setSocket] = useState<ReqraftWebsocket>(undefined);
+  const [socket, setSocket] = useState<ReqraftWebSocket>(undefined);
 
   const updateStates = (status: keyof typeof ReqraftWebSocketStatus, log?: string) => {
     setStatus(status);
@@ -49,7 +49,7 @@ export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseR
   };
 
   const open = () => {
-    const socket = new ReqraftWebsocket({
+    const socket = new ReqraftWebSocket({
       ...options,
       onOpen: handleOpen,
       onMessage: (ev) => {

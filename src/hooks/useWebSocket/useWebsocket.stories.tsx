@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { useMount } from 'react-use';
 import { sleep, testsClickButton, testsWaitForText } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';
-import { ReqraftWebSocketConnections } from '../../utils/websocket';
+import { ReqraftWebSocketsManager } from '../../utils/websocket';
 import { IUseReqraftWebSocketOptions, useReqraftWebSocket } from './useWebSocket';
 
 const CompWithHook = (args: IUseReqraftWebSocketOptions) => {
@@ -348,12 +348,16 @@ export const MultipleConnections: Story = {
     const [panels, setPanels] = useState({ 1: true, 2: true, 3: true });
 
     useMount(() => {
-      setConnectionStatus(ReqraftWebSocketConnections[args.url]?.socket ? 'OPEN' : 'CLOSED');
+      setConnectionStatus(
+        ReqraftWebSocketsManager.connections[args.url]?.socket ? 'OPEN' : 'CLOSED'
+      );
     });
 
     useEffect(() => {
       setTimeout(() => {
-        setConnectionStatus(ReqraftWebSocketConnections[args.url]?.socket ? 'OPEN' : 'CLOSED');
+        setConnectionStatus(
+          ReqraftWebSocketsManager.connections[args.url]?.socket ? 'OPEN' : 'CLOSED'
+        );
       }, 500);
     }, [panels]);
 
@@ -370,7 +374,7 @@ export const MultipleConnections: Story = {
         actions={[
           {
             label: 'Close All',
-            onClick: () => ReqraftWebSocketConnections[args.url].socket.close(),
+            onClick: () => ReqraftWebSocketsManager.connections[args.url].socket.close(),
           },
         ]}
       >

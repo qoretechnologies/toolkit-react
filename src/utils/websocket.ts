@@ -16,19 +16,47 @@ export interface IReqraftWebSocketConfig {
   onReconnectFailed?: () => void;
 }
 
-const connections: Record<
-  string,
-  { socket: WebSocket; using: number; heartbeat?: NodeJS.Timeout }
-> = {};
-const defaultWebsocketConfig: Partial<IReqraftWebSocketConfig> = {
-  reconnect: true,
-  maxReconnectTries: 10,
-  reconnectInterval: 5000,
-  useHeartbeat: true,
-};
+export class ReqraftWebSocketsManager {
+  public static defaultConfig: IReqraftWebSocketConfig = {
+    reconnect: true,
+    url: '',
+    maxReconnectTries: 10,
+    reconnectInterval: 5000,
+    useHeartbeat: true,
+  };
+  public static connections: Record<
+    string,
+    { socket: WebSocket; using: number; heartbeat?: NodeJS.Timeout }
+  > = {};
 
-export const ReqraftWebSocketConnections = connections;
-export class ReqraftWebsocket {
+  public static closeAll() {
+    forEach(this.connections, (connection) => {
+      connection.socket.close(4999);
+    });
+  }
+
+  public static addHandler(
+    url: string,
+    event: keyof WebSocketEventMap,
+    handler: (ev: Event | MessageEvent | CloseEvent) => void
+  ) {
+    this.connections[url].socket.addEventListener(event, handler);
+
+    return () => {
+      this.connections[url].socket.removeEventListener(event, handler);
+    };
+  }
+
+  public static removeHandler(
+    url: string,
+    event: keyof WebSocketEventMap,
+    handler: (ev: Event | MessageEvent | CloseEvent) => void
+  ) {
+    this.connections[url].socket.removeEventListener(event, handler);
+  }
+}
+
+export class ReqraftWebSocket {
   public isConnected: boolean;
   public reconnectTries: number = 0;
   public reconnectInterval: NodeJS.Timeout;
@@ -43,7 +71,7 @@ export class ReqraftWebsocket {
     this.isConnected = true;
     this.reconnectTries = 0;
     this.reconnectInterval = null;
-    this.options = { ...defaultWebsocketConfig, ...config };
+    this.options = { ...ReqraftWebSocketsManager.defaultConfig, ...config };
 
     this.connect();
   }
@@ -55,13 +83,19 @@ export class ReqraftWebsocket {
     const id = shortid.generate();
 
     this.handlers[id] = { type: event, event: handler };
-    this.socket.addEventListener(event, handler);
+
+    ReqraftWebSocketsManager.addHandler(this.options.url, event, handler);
 
     return id;
   }
 
   public removeHandler(id: string) {
-    this.socket.removeEventListener(this.handlers[id].type, this.handlers[id].event);
+    ReqraftWebSocketsManager.removeHandler(
+      this.options.url,
+      this.handlers[id].type,
+      this.handlers[id].event
+    );
+
     delete this.handlers[id];
   }
 
@@ -76,7 +110,7 @@ export class ReqraftWebsocket {
   }
 
   public connect() {
-    if (!connections[this.options.url]) {
+    if (!ReqraftWebSocketsManager.connections[this.options.url]) {
       this.socket = new WebSocket(this.getSocketUrl());
       this.socket.onopen = (ev) => {
         this.reconnectTries = 0;
@@ -93,17 +127,17 @@ export class ReqraftWebsocket {
         this.options?.onOpen?.(ev);
       };
 
-      connections[this.options.url] = {
+      ReqraftWebSocketsManager.connections[this.options.url] = {
         socket: this.socket,
         using: 0,
       };
     } else {
-      this.socket = connections[this.options.url].socket;
+      this.socket = ReqraftWebSocketsManager.connections[this.options.url].socket;
       this.options?.onOpen?.(null);
     }
 
     // Increment the number of parts using this connection
-    connections[this.options.url].using++;
+    ReqraftWebSocketsManager.connections[this.options.url].using++;
 
     if (this.options?.onMessage) {
       this.addHandler('message', (event) => {
@@ -120,7 +154,7 @@ export class ReqraftWebsocket {
       this.stopHeartbeat();
       this.removeAllHandlers();
 
-      delete connections[this.options.url];
+      delete ReqraftWebSocketsManager.connections[this.options.url];
 
       // Start the reconnect process
       this.maybeReconnect((<CloseEvent>event).code);
@@ -183,11 +217,11 @@ export class ReqraftWebsocket {
   }
 
   public remove() {
-    if (!connections[this.options.url]) return;
+    if (!ReqraftWebSocketsManager.connections[this.options.url]) return;
     // Decrement the number of parts using this connection
-    connections[this.options.url].using--;
+    ReqraftWebSocketsManager.connections[this.options.url].using--;
     // If this is the last part using the connection, close it
-    if (connections[this.options.url].using === 0) {
+    if (ReqraftWebSocketsManager.connections[this.options.url].using === 0) {
       this.close();
       return;
     }
@@ -208,17 +242,17 @@ export class ReqraftWebsocket {
 
   private startHeartbeat() {
     // Start the heartbeat
-    clearInterval(connections[this.options.url].heartbeat);
-    connections[this.options.url].heartbeat = null;
-    connections[this.options.url].heartbeat = setInterval(() => {
+    clearInterval(ReqraftWebSocketsManager.connections[this.options.url].heartbeat);
+    ReqraftWebSocketsManager.connections[this.options.url].heartbeat = null;
+    ReqraftWebSocketsManager.connections[this.options.url].heartbeat = setInterval(() => {
       this.socket.send('ping');
     }, 3000);
   }
 
   private stopHeartbeat() {
-    if (!connections[this.options.url]) return;
+    if (!ReqraftWebSocketsManager.connections[this.options.url]) return;
 
-    clearInterval(connections[this.options.url].heartbeat);
-    connections[this.options.url].heartbeat = null;
+    clearInterval(ReqraftWebSocketsManager.connections[this.options.url].heartbeat);
+    ReqraftWebSocketsManager.connections[this.options.url].heartbeat = null;
   }
 }
