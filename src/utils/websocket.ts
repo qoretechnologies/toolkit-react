@@ -40,10 +40,10 @@ export class ReqraftWebSocketsManager {
     event: keyof WebSocketEventMap,
     handler: (ev: Event | MessageEvent | CloseEvent) => void
   ) {
-    this.connections[url].socket.addEventListener(event, handler);
+    this.connections[url]?.socket.addEventListener(event, handler);
 
     return () => {
-      this.connections[url].socket.removeEventListener(event, handler);
+      this.connections[url]?.socket.removeEventListener(event, handler);
     };
   }
 
@@ -52,7 +52,7 @@ export class ReqraftWebSocketsManager {
     event: keyof WebSocketEventMap,
     handler: (ev: Event | MessageEvent | CloseEvent) => void
   ) {
-    this.connections[url].socket.removeEventListener(event, handler);
+    this.connections[url]?.socket.removeEventListener(event, handler);
   }
 }
 
