@@ -21,6 +21,7 @@ export interface IUseReqraftWebSocket {
   clear: () => void;
   on: (type: keyof WebSocketEventMap, handler: (ev: Event) => void) => void;
   addMessage: (message: string) => void;
+  removeMessage: (index: number) => void;
 }
 
 export enum ReqraftWebSocketStatus {
@@ -29,8 +30,11 @@ export enum ReqraftWebSocketStatus {
   CONNECTING = 'CONNECTING',
 }
 
-export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseReqraftWebSocket => {
-  const [messages, setMessages] = useState<string[]>([]);
+export const useReqraftWebSocket = (
+  options: IUseReqraftWebSocketOptions,
+  defaultMessages: string[] = []
+): IUseReqraftWebSocket => {
+  const [messages, setMessages] = useState<string[]>(defaultMessages);
   const [status, setStatus] = useState<keyof typeof ReqraftWebSocketStatus>('CLOSED');
   const [socket, setSocket] = useState<ReqraftWebSocket>(undefined);
 
@@ -130,6 +134,12 @@ export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseR
     }
   };
 
+  const removeMessage = (index: number) => {
+    if (options?.useState) {
+      setMessages((prev) => prev.filter((_, i) => i !== index));
+    }
+  };
+
   useEffectOnce(() => {
     if (options?.openOnMount) {
       open();
@@ -142,5 +152,5 @@ export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseR
     }
   });
 
-  return { messages, status, open, socket, close, send, clear, on, addMessage };
+  return { messages, status, open, socket, close, send, clear, on, addMessage, removeMessage };
 };

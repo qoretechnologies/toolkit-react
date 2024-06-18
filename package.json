@@ -1,6 +1,6 @@
 {
   "name": "@qoretechnologies/reqraft",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "ReQraft is a collection of React components and hooks that are used across Qore Technologies' products made using the ReQore component library from Qore.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -52,7 +52,7 @@
     "@babel/preset-react": "^7.12.10",
     "@babel/preset-typescript": "^7.12.7",
     "@chromatic-com/storybook": "^1.5.0",
-    "@qoretechnologies/reqore": "^0.43.0",
+    "@qoretechnologies/reqore": "^0.46.6",
     "@storybook/addon-actions": "^8.1.7",
     "@storybook/addon-essentials": "^8.1.7",
     "@storybook/addon-interactions": "^8.1.7",
