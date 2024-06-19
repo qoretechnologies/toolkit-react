@@ -32,6 +32,7 @@ export class ReqraftWebSocketsManager {
   public static closeAll() {
     forEach(this.connections, (connection) => {
       connection.socket.close(4999);
+      delete this.connections[connection.socket.url];
     });
   }
 
@@ -65,7 +66,7 @@ export class ReqraftWebSocket {
     string,
     { type: keyof WebSocketEventMap; event: (ev: Event) => void }
   > = {};
-  private socket: WebSocket;
+  public socket: WebSocket;
 
   constructor(config: IReqraftWebSocketConfig) {
     this.isConnected = true;
@@ -90,6 +91,8 @@ export class ReqraftWebSocket {
   }
 
   public removeHandler(id: string) {
+    if (!this.handlers[id]) return;
+
     ReqraftWebSocketsManager.removeHandler(
       this.options.url,
       this.handlers[id].type,

@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useEffectOnce, useUnmount } from 'react-use';
+import { getCurrentTimeWithMilliseconds } from '../../utils/datetime';
 import { IReqraftWebSocketConfig, ReqraftWebSocket } from '../../utils/websocket';
 
 export interface IUseReqraftWebSocketOptions extends IReqraftWebSocketConfig {
@@ -12,7 +13,7 @@ export interface IUseReqraftWebSocketOptions extends IReqraftWebSocketConfig {
 }
 
 export interface IUseReqraftWebSocket {
-  messages: string[];
+  messages: IReqraftWebSocketMessage[];
   status: keyof typeof ReqraftWebSocketStatus;
   open: () => void;
   close: () => void;
@@ -20,17 +21,29 @@ export interface IUseReqraftWebSocket {
   send: (data: string) => void;
   clear: () => void;
   on: (type: keyof WebSocketEventMap, handler: (ev: Event) => void) => void;
+  pause: () => void;
+  resume: () => void;
   addMessage: (message: string) => void;
+  removeMessage: (index: number) => void;
 }
 
 export enum ReqraftWebSocketStatus {
   OPEN = 'OPEN',
   CLOSED = 'CLOSED',
   CONNECTING = 'CONNECTING',
+  PAUSED = 'PAUSED',
 }
 
-export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseReqraftWebSocket => {
-  const [messages, setMessages] = useState<string[]>([]);
+export interface IReqraftWebSocketMessage {
+  message: string;
+  timestamp?: string;
+}
+
+export const useReqraftWebSocket = (
+  options: IUseReqraftWebSocketOptions,
+  defaultMessages: IReqraftWebSocketMessage[] = []
+): IUseReqraftWebSocket => {
+  const [messages, setMessages] = useState<IReqraftWebSocketMessage[]>(defaultMessages);
   const [status, setStatus] = useState<keyof typeof ReqraftWebSocketStatus>('CLOSED');
   const [socket, setSocket] = useState<ReqraftWebSocket>(undefined);
 
@@ -38,7 +51,10 @@ export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseR
     setStatus(status);
 
     if (log && options?.includeLogMessagesInState && options?.useState) {
-      setMessages((prev) => [...prev, log]);
+      setMessages((prev) => [
+        ...prev,
+        { message: log, timestamp: getCurrentTimeWithMilliseconds() },
+      ]);
     }
   };
 
@@ -48,17 +64,39 @@ export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseR
     options?.onOpen?.(ev);
   };
 
+  const handleMessage = useCallback(
+    (ev: MessageEvent) => {
+      if (ev.data === 'pong') {
+        return;
+      }
+
+      if (options?.useState && status === ReqraftWebSocketStatus.OPEN) {
+        setMessages((prev) => [
+          ...prev,
+          { message: ev.data, timestamp: getCurrentTimeWithMilliseconds() },
+        ]);
+      }
+
+      options?.onMessage?.(ev);
+    },
+    [options?.useState, options?.onMessage, status]
+  );
+
+  // Add the message event handler inside the useEffect
+  // because we need to be able to access the up to data state
+  // of the messages array
+  useEffect(() => {
+    const id = socket?.addHandler('message', handleMessage as any);
+
+    return () => {
+      socket?.removeHandler(id);
+    };
+  }, [socket, handleMessage]);
+
   const open = () => {
     const socket = new ReqraftWebSocket({
       ...options,
       onOpen: handleOpen,
-      onMessage: (ev) => {
-        if (options?.useState) {
-          setMessages((prev) => [...prev, ev.data]);
-        }
-
-        options?.onMessage?.(ev);
-      },
       onClose: (...args) => {
         updateStates(ReqraftWebSocketStatus.CLOSED, 'Connection closed');
 
@@ -94,10 +132,17 @@ export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseR
   };
 
   const send = (data: string) => {
+    if (status !== ReqraftWebSocketStatus.OPEN) {
+      return;
+    }
+
     socket?.send(data);
 
     if (options?.includeSentMessagesInState) {
-      setMessages((prev) => [...prev, data]);
+      setMessages((prev) => [
+        ...prev,
+        { message: data, timestamp: getCurrentTimeWithMilliseconds() },
+      ]);
     }
   };
 
@@ -126,7 +171,27 @@ export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseR
 
   const addMessage = (message: string) => {
     if (options?.useState) {
-      setMessages((prev) => [...prev, message]);
+      setMessages((prev) => [...prev, { message, timestamp: getCurrentTimeWithMilliseconds() }]);
+    }
+  };
+
+  const removeMessage = (index: number) => {
+    if (options?.useState) {
+      setMessages((prev) => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const pause = () => {
+    setStatus(ReqraftWebSocketStatus.PAUSED);
+  };
+
+  const resume = () => {
+    if (socket?.socket.OPEN) {
+      setStatus(ReqraftWebSocketStatus.OPEN);
+    } else if (socket?.socket.CONNECTING) {
+      setStatus(ReqraftWebSocketStatus.CONNECTING);
+    } else {
+      setStatus(ReqraftWebSocketStatus.CLOSED);
     }
   };
 
@@ -142,5 +207,18 @@ export const useReqraftWebSocket = (options: IUseReqraftWebSocketOptions): IUseR
     }
   });
 
-  return { messages, status, open, socket, close, send, clear, on, addMessage };
+  return {
+    messages,
+    status,
+    open,
+    socket,
+    close,
+    send,
+    clear,
+    on,
+    addMessage,
+    removeMessage,
+    pause,
+    resume,
+  };
 };

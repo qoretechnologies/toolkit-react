@@ -28,7 +28,7 @@ const CompWithHook = (args: IUseReqraftWebSocketOptions) => {
     >
       {args.includeLogMessagesInState || args.useState ?
         <ReqoreControlGroup vertical>
-          {messages.map((message, index) => (
+          {messages.map(({ message }, index) => (
             <ReqoreP key={index}>{message}</ReqoreP>
           ))}
         </ReqoreControlGroup>
@@ -74,7 +74,11 @@ const meta = {
     return () => {
       killTimeout && clearTimeout(killTimeout);
       killTimeout = null;
-      server.close();
+      server.close({
+        code: 4999,
+        reason: 'Test ended',
+        wasClean: true,
+      });
     };
   },
   args: {
@@ -240,7 +244,7 @@ const ConnectionOne = ({ onPanelClose, ...args }: IConnectionProps) => {
     >
       {args.includeLogMessagesInState || args.useState ?
         <ReqoreControlGroup vertical>
-          {messages.map((message, index) => (
+          {messages.map(({ message }, index) => (
             <ReqoreP key={index}>{message}</ReqoreP>
           ))}
         </ReqoreControlGroup>
@@ -280,7 +284,7 @@ const ConnectionTwo = ({ onPanelClose, ...args }: IConnectionProps) => {
     >
       {args.includeLogMessagesInState || args.useState ?
         <ReqoreControlGroup vertical>
-          {messages.map((message, index) => (
+          {messages.map(({ message }, index) => (
             <ReqoreP key={index}>{message}</ReqoreP>
           ))}
         </ReqoreControlGroup>
@@ -328,7 +332,7 @@ const ConnectionThree = ({ onPanelClose, ...args }: IConnectionProps) => {
     >
       {args.includeLogMessagesInState || args.useState ?
         <ReqoreControlGroup vertical>
-          {messages.map((message, index) => (
+          {messages.map(({ message }, index) => (
             <ReqoreP key={index}>{message}</ReqoreP>
           ))}
         </ReqoreControlGroup>
