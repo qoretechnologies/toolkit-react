@@ -10,6 +10,7 @@ const meta = {
   title: 'Components/Log',
   args: {
     url: 'log-test',
+    label: 'Testing Log',
     socketOptions: {
       openOnMount: true,
       closeOnUnmount: true,
@@ -23,12 +24,34 @@ const meta = {
     const url = `wss://hq.qoretechnologies.com:8092/log-test?token=${process.env.REACT_APP_QORUS_TOKEN}`;
     let server = new Server(url);
     let killTimeout: NodeJS.Timeout;
+    let fakeInterval: NodeJS.Timeout;
+    let fakeMessages = [
+      'This is a message',
+      'WARNING: This is a warning message',
+      'This is another message',
+      'This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature, which should be able to handle this message without any issues. This is a very long message that should be split into multiple lines to test the word wrap feature,',
+      'ERROR: This is an error message',
+      'This is a new message',
+      'THIS IS A MESSAGE IN ALL CAPS',
+      'This is a message with a link: https://www.qoretechnologies.com',
+    ];
+    let fakeMessageIndex = 0;
 
     server.on('connection', (socket) => {
       if (killTimeout) {
         server.close();
         return;
       }
+
+      fakeInterval = setInterval(() => {
+        socket.send(fakeMessages[fakeMessageIndex]);
+        fakeMessageIndex = (fakeMessageIndex + 1) % fakeMessages.length;
+
+        if (fakeMessageIndex === 0) {
+          clearInterval(fakeInterval);
+          fakeInterval = null;
+        }
+      }, 300);
 
       socket.on('message', (data) => {
         if (data === 'ping') {

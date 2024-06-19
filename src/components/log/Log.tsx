@@ -1,13 +1,13 @@
-import { ReqoreControlGroup } from '@qoretechnologies/reqore';
+import { ReqoreButton, ReqoreControlGroup, ReqoreParagraph } from '@qoretechnologies/reqore';
 import { IReqorePanelProps, ReqorePanel } from '@qoretechnologies/reqore/dist/components/Panel';
-import ReqoreTag, { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
+import { IReqoreParagraphProps } from '@qoretechnologies/reqore/dist/components/Paragraph';
 import { useCallback, useMemo } from 'react';
 import {
   IUseReqraftWebSocketOptions,
   useReqraftWebSocket,
 } from '../../hooks/useWebSocket/useWebSocket';
 
-export interface IReqraftLogMessage extends IReqoreTagProps {
+export interface IReqraftLogMessage extends IReqoreParagraphProps {
   message: string;
 }
 
@@ -37,6 +37,7 @@ export const ReqraftLog = ({
   onConnectionError,
   messageFormatter = (message) => ({ message }),
   socketOptions,
+  size = 'small',
   ...panelProps
 }: IReqraftLogProps) => {
   const handleMessage = useCallback(
@@ -46,7 +47,7 @@ export const ReqraftLog = ({
     [onMessage]
   );
 
-  const { messages, removeMessage } = useReqraftWebSocket(
+  const { messages, status, removeMessage } = useReqraftWebSocket(
     {
       url,
       onOpen: onConnect,
@@ -71,21 +72,39 @@ export const ReqraftLog = ({
   };
 
   return (
-    <ReqorePanel {...panelProps}>
-      <ReqoreControlGroup vertical fluid size={panelProps.size}>
-        {_messages.map(({ message, ...tagProps }, index) => (
-          <ReqoreTag
-            key={index}
-            minimal
-            label={message}
-            wrap
-            onClick={onMessageClick ? () => handleMessageClick(message) : undefined}
-            {...tagProps}
-            actions={[
-              { icon: 'DeleteBin2Fill', show: 'hover', onClick: () => removeMessage(index) },
-              ...(tagProps.actions || []),
-            ]}
-          />
+    <ReqorePanel
+      size={size}
+      flat
+      {...panelProps}
+      icon='CheckboxBlankCircleFill'
+      iconColor={
+        status === 'CLOSED' ? 'danger'
+        : status === 'CONNECTING' ?
+          'pending'
+        : 'success'
+      }
+    >
+      <ReqoreControlGroup vertical fluid size={size}>
+        {_messages.map(({ message, ...paragraphProps }, index) => (
+          <ReqoreControlGroup spaceBetween>
+            <ReqoreParagraph
+              size={size}
+              key={index}
+              onClick={onMessageClick ? () => handleMessageClick(message) : undefined}
+              style={{ fontFamily: 'monospace' }}
+              {...paragraphProps}
+            >
+              {message}
+            </ReqoreParagraph>
+            <ReqoreButton
+              onClick={() => removeMessage(index)}
+              icon='DeleteBinLine'
+              fixed
+              minimal
+              size={size}
+              flat
+            />
+          </ReqoreControlGroup>
         ))}
       </ReqoreControlGroup>
     </ReqorePanel>
