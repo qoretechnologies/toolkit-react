@@ -42,9 +42,7 @@ export interface IReqraftLogProps extends IReqorePanelProps {
 export const ReqraftLog = ({
   url,
   defaultMessages,
-  autoScroll,
   allowMessageDeletion,
-  showTimestamps,
   filterable,
   filterProps,
   onConnect,

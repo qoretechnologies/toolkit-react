@@ -76,8 +76,6 @@ export const useReqraftWebSocket = (
   useEffect(() => {
     const id = socket?.addHandler('message', handleMessage as any);
 
-    console.log(id);
-
     return () => {
       socket?.removeHandler(id);
     };
