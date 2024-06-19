@@ -74,7 +74,11 @@ const meta = {
     return () => {
       killTimeout && clearTimeout(killTimeout);
       killTimeout = null;
-      server.close();
+      server.close({
+        code: 4999,
+        reason: 'Test ended',
+        wasClean: true,
+      });
     };
   },
   args: {

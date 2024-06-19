@@ -32,6 +32,7 @@ export class ReqraftWebSocketsManager {
   public static closeAll() {
     forEach(this.connections, (connection) => {
       connection.socket.close(4999);
+      delete this.connections[connection.socket.url];
     });
   }
 
