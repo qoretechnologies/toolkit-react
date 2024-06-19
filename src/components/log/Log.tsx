@@ -1,7 +1,14 @@
-import { ReqoreButton, ReqoreControlGroup, ReqoreParagraph } from '@qoretechnologies/reqore';
+import {
+  ReqoreButton,
+  ReqoreControlGroup,
+  ReqoreInput,
+  ReqoreParagraph,
+} from '@qoretechnologies/reqore';
+import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
 import { IReqorePanelProps, ReqorePanel } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreParagraphProps } from '@qoretechnologies/reqore/dist/components/Paragraph';
-import { useCallback, useMemo } from 'react';
+import count from 'lodash/size';
+import { useCallback, useMemo, useState } from 'react';
 import {
   IUseReqraftWebSocketOptions,
   useReqraftWebSocket,
@@ -14,7 +21,12 @@ export interface IReqraftLogMessage extends IReqoreParagraphProps {
 export interface IReqraftLogProps extends IReqorePanelProps {
   url: string;
   autoScroll?: boolean;
+  allowMessageDeletion?: boolean;
+  showTimestamps?: boolean;
   defaultMessages?: string[];
+
+  filterable?: boolean;
+  filterProps?: IReqoreInputProps;
 
   onConnect?: () => void;
   onMessage?: (message: string[]) => void;
@@ -30,6 +42,11 @@ export interface IReqraftLogProps extends IReqorePanelProps {
 export const ReqraftLog = ({
   url,
   defaultMessages,
+  autoScroll,
+  allowMessageDeletion,
+  showTimestamps,
+  filterable,
+  filterProps,
   onConnect,
   onMessage,
   onMessageClick,
@@ -40,6 +57,7 @@ export const ReqraftLog = ({
   size = 'small',
   ...panelProps
 }: IReqraftLogProps) => {
+  const [query, setQuery] = useState<string>('');
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       onMessage?.(event.data);
@@ -47,7 +65,7 @@ export const ReqraftLog = ({
     [onMessage]
   );
 
-  const { messages, status, removeMessage } = useReqraftWebSocket(
+  const { messages, status, clear, removeMessage, pause, resume } = useReqraftWebSocket(
     {
       url,
       onOpen: onConnect,
@@ -62,9 +80,14 @@ export const ReqraftLog = ({
     defaultMessages
   );
 
-  const _messages = useMemo(
-    () => messages.map((message) => messageFormatter(message)),
-    [messages, messageFormatter]
+  const filteredMessages = useMemo(
+    () =>
+      messages
+        .map((message) => messageFormatter(message))
+        .filter(({ message }) =>
+          query ? message.toLowerCase().includes(query.toLowerCase()) : true
+        ),
+    [messages, messageFormatter, query]
   );
 
   const handleMessageClick = (message: string) => {
@@ -81,12 +104,41 @@ export const ReqraftLog = ({
         status === 'CLOSED' ? 'danger'
         : status === 'CONNECTING' ?
           'pending'
+        : status === 'PAUSED' ?
+          'warning'
         : 'success'
       }
+      actions={[
+        {
+          icon: status === 'PAUSED' ? 'PlayLine' : 'PauseFill',
+          onClick: status === 'PAUSED' ? resume : pause,
+          tooltip: status === 'PAUSED' ? 'Resume' : 'Pause',
+          intent: status === 'PAUSED' ? 'warning' : 'success',
+        },
+        {
+          icon: 'DeleteBinLine',
+          onClick: clear,
+          tooltip: 'Clear log',
+        },
+      ]}
     >
       <ReqoreControlGroup vertical fluid size={size}>
-        {_messages.map(({ message, ...paragraphProps }, index) => (
-          <ReqoreControlGroup spaceBetween>
+        {filterable && (
+          <ReqoreInput
+            size={size}
+            icon='SearchLine'
+            {...filterProps}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        )}
+        {count(filteredMessages) === 0 ?
+          <ReqoreParagraph size={size} style={{ fontFamily: 'monospace' }}>
+            No messages
+          </ReqoreParagraph>
+        : null}
+        {filteredMessages.map(({ message, ...paragraphProps }, index) => (
+          <ReqoreControlGroup spaceBetween key={index}>
             <ReqoreParagraph
               size={size}
               key={index}
@@ -96,14 +148,16 @@ export const ReqraftLog = ({
             >
               {message}
             </ReqoreParagraph>
-            <ReqoreButton
-              onClick={() => removeMessage(index)}
-              icon='DeleteBinLine'
-              fixed
-              minimal
-              size={size}
-              flat
-            />
+            {allowMessageDeletion && (
+              <ReqoreButton
+                onClick={() => removeMessage(index)}
+                icon='DeleteBinLine'
+                fixed
+                minimal
+                size={size}
+                flat
+              />
+            )}
           </ReqoreControlGroup>
         ))}
       </ReqoreControlGroup>

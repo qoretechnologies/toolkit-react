@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useEffectOnce, useUnmount } from 'react-use';
 import { IReqraftWebSocketConfig, ReqraftWebSocket } from '../../utils/websocket';
 
@@ -20,6 +20,8 @@ export interface IUseReqraftWebSocket {
   send: (data: string) => void;
   clear: () => void;
   on: (type: keyof WebSocketEventMap, handler: (ev: Event) => void) => void;
+  pause: () => void;
+  resume: () => void;
   addMessage: (message: string) => void;
   removeMessage: (index: number) => void;
 }
@@ -28,6 +30,7 @@ export enum ReqraftWebSocketStatus {
   OPEN = 'OPEN',
   CLOSED = 'CLOSED',
   CONNECTING = 'CONNECTING',
+  PAUSED = 'PAUSED',
 }
 
 export const useReqraftWebSocket = (
@@ -52,17 +55,38 @@ export const useReqraftWebSocket = (
     options?.onOpen?.(ev);
   };
 
+  const handleMessage = useCallback(
+    (ev: MessageEvent) => {
+      if (ev.data === 'pong') {
+        return;
+      }
+
+      if (options?.useState && status === ReqraftWebSocketStatus.OPEN) {
+        setMessages((prev) => [...prev, ev.data]);
+      }
+
+      options?.onMessage?.(ev);
+    },
+    [options?.useState, options?.onMessage, status]
+  );
+
+  // Add the message event handler inside the useEffect
+  // because we need to be able to access the up to data state
+  // of the messages array
+  useEffect(() => {
+    const id = socket?.addHandler('message', handleMessage as any);
+
+    console.log(id);
+
+    return () => {
+      socket?.removeHandler(id);
+    };
+  }, [socket, handleMessage]);
+
   const open = () => {
     const socket = new ReqraftWebSocket({
       ...options,
       onOpen: handleOpen,
-      onMessage: (ev) => {
-        if (options?.useState) {
-          setMessages((prev) => [...prev, ev.data]);
-        }
-
-        options?.onMessage?.(ev);
-      },
       onClose: (...args) => {
         updateStates(ReqraftWebSocketStatus.CLOSED, 'Connection closed');
 
@@ -98,6 +122,10 @@ export const useReqraftWebSocket = (
   };
 
   const send = (data: string) => {
+    if (status !== ReqraftWebSocketStatus.OPEN) {
+      return;
+    }
+
     socket?.send(data);
 
     if (options?.includeSentMessagesInState) {
@@ -140,6 +168,20 @@ export const useReqraftWebSocket = (
     }
   };
 
+  const pause = () => {
+    setStatus(ReqraftWebSocketStatus.PAUSED);
+  };
+
+  const resume = () => {
+    if (socket?.socket.OPEN) {
+      setStatus(ReqraftWebSocketStatus.OPEN);
+    } else if (socket?.socket.CONNECTING) {
+      setStatus(ReqraftWebSocketStatus.CONNECTING);
+    } else {
+      setStatus(ReqraftWebSocketStatus.CLOSED);
+    }
+  };
+
   useEffectOnce(() => {
     if (options?.openOnMount) {
       open();
@@ -152,5 +194,18 @@ export const useReqraftWebSocket = (
     }
   });
 
-  return { messages, status, open, socket, close, send, clear, on, addMessage, removeMessage };
+  return {
+    messages,
+    status,
+    open,
+    socket,
+    close,
+    send,
+    clear,
+    on,
+    addMessage,
+    removeMessage,
+    pause,
+    resume,
+  };
 };

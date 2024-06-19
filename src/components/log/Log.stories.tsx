@@ -25,7 +25,7 @@ const meta = {
     let server = new Server(url);
     let killTimeout: NodeJS.Timeout;
     let fakeInterval: NodeJS.Timeout;
-    let fakeMessages = [
+    const fakeMessages = [
       'This is a message',
       'WARNING: This is a warning message',
       'This is another message',
@@ -51,7 +51,7 @@ const meta = {
           clearInterval(fakeInterval);
           fakeInterval = null;
         }
-      }, 300);
+      }, 100);
 
       socket.on('message', (data) => {
         if (data === 'ping') {
@@ -77,6 +77,10 @@ const meta = {
     return () => {
       killTimeout && clearTimeout(killTimeout);
       killTimeout = null;
+      fakeInterval && clearInterval(fakeInterval);
+      fakeInterval = null;
+      fakeMessageIndex = 0;
+
       server.close();
     };
   },
@@ -87,6 +91,13 @@ export type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {
   play: async () => {
-    await testsWaitForText('Connection opened');
+    await testsWaitForText('This is a message with a link: https://www.qoretechnologies.com');
+  },
+};
+
+export const Filterable: Story = {
+  ...Basic,
+  args: {
+    filterable: true,
   },
 };
