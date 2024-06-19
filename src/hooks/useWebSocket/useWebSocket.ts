@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useEffectOnce, useUnmount } from 'react-use';
+import { getCurrentTimeWithMilliseconds } from '../../utils/datetime';
 import { IReqraftWebSocketConfig, ReqraftWebSocket } from '../../utils/websocket';
 
 export interface IUseReqraftWebSocketOptions extends IReqraftWebSocketConfig {
@@ -12,7 +13,7 @@ export interface IUseReqraftWebSocketOptions extends IReqraftWebSocketConfig {
 }
 
 export interface IUseReqraftWebSocket {
-  messages: string[];
+  messages: IReqraftWebSocketMessage[];
   status: keyof typeof ReqraftWebSocketStatus;
   open: () => void;
   close: () => void;
@@ -33,11 +34,16 @@ export enum ReqraftWebSocketStatus {
   PAUSED = 'PAUSED',
 }
 
+export interface IReqraftWebSocketMessage {
+  message: string;
+  timestamp?: string;
+}
+
 export const useReqraftWebSocket = (
   options: IUseReqraftWebSocketOptions,
-  defaultMessages: string[] = []
+  defaultMessages: IReqraftWebSocketMessage[] = []
 ): IUseReqraftWebSocket => {
-  const [messages, setMessages] = useState<string[]>(defaultMessages);
+  const [messages, setMessages] = useState<IReqraftWebSocketMessage[]>(defaultMessages);
   const [status, setStatus] = useState<keyof typeof ReqraftWebSocketStatus>('CLOSED');
   const [socket, setSocket] = useState<ReqraftWebSocket>(undefined);
 
@@ -45,7 +51,10 @@ export const useReqraftWebSocket = (
     setStatus(status);
 
     if (log && options?.includeLogMessagesInState && options?.useState) {
-      setMessages((prev) => [...prev, log]);
+      setMessages((prev) => [
+        ...prev,
+        { message: log, timestamp: getCurrentTimeWithMilliseconds() },
+      ]);
     }
   };
 
@@ -62,7 +71,10 @@ export const useReqraftWebSocket = (
       }
 
       if (options?.useState && status === ReqraftWebSocketStatus.OPEN) {
-        setMessages((prev) => [...prev, ev.data]);
+        setMessages((prev) => [
+          ...prev,
+          { message: ev.data, timestamp: getCurrentTimeWithMilliseconds() },
+        ]);
       }
 
       options?.onMessage?.(ev);
@@ -127,7 +139,10 @@ export const useReqraftWebSocket = (
     socket?.send(data);
 
     if (options?.includeSentMessagesInState) {
-      setMessages((prev) => [...prev, data]);
+      setMessages((prev) => [
+        ...prev,
+        { message: data, timestamp: getCurrentTimeWithMilliseconds() },
+      ]);
     }
   };
 
@@ -156,7 +171,7 @@ export const useReqraftWebSocket = (
 
   const addMessage = (message: string) => {
     if (options?.useState) {
-      setMessages((prev) => [...prev, message]);
+      setMessages((prev) => [...prev, { message, timestamp: getCurrentTimeWithMilliseconds() }]);
     }
   };
 

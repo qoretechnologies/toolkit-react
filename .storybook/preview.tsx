@@ -1,3 +1,4 @@
+import withMockdate from '@netsells/storybook-mockdate';
 import { ReqoreContent, ReqoreLayoutContent, ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { initializeReqraft } from '../src';
 
@@ -39,6 +40,7 @@ export const argTypes = {
 };
 
 export const decorators = [
+  withMockdate,
   (Story, context) => {
     const Reqraft = initializeReqraft({
       instance: 'https://hq.qoretechnologies.com:8092/',

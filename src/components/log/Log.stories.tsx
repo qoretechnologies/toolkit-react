@@ -1,7 +1,7 @@
 import { StoryObj } from '@storybook/react';
-import { fn } from '@storybook/test';
+import { expect, fireEvent, fn } from '@storybook/test';
 import { Server } from 'mock-socket';
-import { testsWaitForText } from '../../../__tests__/utils';
+import { sleep, testsClickButton, testsWaitForText } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';
 import { ReqraftLog } from './Log';
 
@@ -19,6 +19,9 @@ const meta = {
     onMessage: fn(),
     onDisconnect: fn(),
     onConnectionError: fn(),
+  },
+  parameters: {
+    mockdate: new Date('2024-01-01T08:00:00.000Z'),
   },
   async beforeEach() {
     const url = `wss://hq.qoretechnologies.com:8092/log-test?token=${process.env.REACT_APP_QORUS_TOKEN}`;
@@ -99,5 +102,134 @@ export const Filterable: Story = {
   ...Basic,
   args: {
     filterable: true,
+  },
+  play: async (args) => {
+    await Basic.play(args);
+    await fireEvent.change(document.querySelector('.reqore-input'), { target: { value: 'error' } });
+    await expect(document.querySelectorAll('.reqraft-log-message')).toHaveLength(1);
+  },
+};
+
+export const WithTimestamps: Story = {
+  ...Basic,
+  args: {
+    showTimestamps: true,
+  },
+};
+
+export const WithDefaultMessages: Story = {
+  ...Basic,
+  args: {
+    showTimestamps: true,
+    defaultMessages: [
+      { message: 'This is a default message', timestamp: '08:00:00.000' },
+      { message: 'This is another default message', timestamp: '08:00:00.000' },
+    ],
+  },
+};
+
+export const WithCopyableMessages: Story = {
+  ...Basic,
+  args: {
+    allowMessageCopy: true,
+  },
+  play: async (args) => {
+    await Basic.play(args);
+  },
+};
+
+export const WithDeletableMessages: Story = {
+  ...Basic,
+  args: {
+    allowMessageCopy: true,
+    allowMessageDeletion: true,
+  },
+  play: async (args) => {
+    await Basic.play(args);
+    await testsClickButton({ selector: '.reqraft-log-delete-message', nth: 4 });
+  },
+};
+
+export const Pause: Story = {
+  ...Basic,
+  args: {
+    allowMessageDeletion: true,
+  },
+  play: async () => {
+    await testsWaitForText('This is another message');
+    await testsClickButton({ selector: '.reqraft-log-pause-resume' });
+  },
+};
+
+export const Clear: Story = {
+  ...Basic,
+  args: {
+    allowMessageDeletion: true,
+  },
+  play: async (args) => {
+    await Basic.play(args);
+    await testsClickButton({ selector: '.reqraft-log-clear' });
+    await testsWaitForText('No messages');
+  },
+};
+
+export const FormattedMessages: Story = {
+  ...Basic,
+  args: {
+    messageFormatter: ({ message, ...rest }) => {
+      if (message.includes('WARNING')) {
+        return { message, intent: 'warning' };
+      }
+
+      if (message.includes('ERROR')) {
+        return { message, intent: 'danger' };
+      }
+
+      if (message.includes('ALL CAPS')) {
+        return { message, intent: 'info' };
+      }
+
+      return { message, ...rest };
+    },
+  },
+  play: async (args) => {
+    await Basic.play(args);
+  },
+};
+
+export const CanSendMessages: Story = {
+  ...Basic,
+  args: {
+    canSendMessages: true,
+    showTimestamps: true,
+  },
+  play: async (args) => {
+    await Basic.play(args);
+  },
+};
+
+export const WithAutoScroll: Story = {
+  ...Basic,
+  args: {
+    autoScroll: true,
+    style: { height: '200px' },
+  },
+  play: async (args) => {
+    await Basic.play(args);
+  },
+};
+
+export const WithAutoScrollAndManualScroll: Story = {
+  ...WithAutoScroll,
+  args: {
+    autoScroll: true,
+    style: { height: '200px' },
+  },
+  play: async (args) => {
+    await WithAutoScroll.play(args);
+    await fireEvent.scroll(document.querySelector('.reqore-panel-content'), {
+      target: { scrollTop: 100 },
+    });
+    await sleep(100);
   },
 };
