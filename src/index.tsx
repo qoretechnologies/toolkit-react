@@ -1,4 +1,5 @@
 export * from './components/form';
+export * from './components/log/Log';
 export {
   IReqraftMenuItem,
   IReqraftMenuProps,
