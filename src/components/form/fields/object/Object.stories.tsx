@@ -91,6 +91,27 @@ export const NativeOnly: Story = {
   },
 };
 
+export const ValueCanBeRemoved: Story = {
+  args: {
+    type: 'array',
+    dataType: 'native',
+    resultDataType: 'native',
+    value: [
+      {
+        key: 'value',
+      },
+      'Test',
+      12,
+      false,
+    ],
+  },
+  async play() {
+    await testsWaitForText('"value"');
+    await testsClickButton({ label: 'Remove' });
+    await testsWaitForText('New List');
+  },
+};
+
 export const json: Story = {
   args: {
     type: 'object',

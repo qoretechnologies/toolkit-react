@@ -52,6 +52,10 @@ export const ReqraftObjectFormFieldTextarea = ({
   );
 
   const isValid = useMemo(() => {
+    if (localValue === '' || localValue === undefined) {
+      return true;
+    }
+
     try {
       !!parseValue(dataType);
     } catch (e) {
@@ -77,8 +81,13 @@ export const ReqraftObjectFormFieldTextarea = ({
           compact
           fluid
           intent='success'
-          disabled={!localValue || !isValid}
+          disabled={!isValid}
           onClick={() => {
+            if (localValue === '' || localValue === undefined) {
+              onChange(undefined);
+              return;
+            }
+
             let parsedValue = parseValue(dataType);
 
             if (resultDataType === 'json') {
@@ -204,6 +213,11 @@ export const ReqraftObjectFormField = ({
             showControls={false}
             {...editorProps}
           />
+        )}
+        {treeData && (
+          <ReqoreButton onClick={() => handleTreeDataChange(undefined)} fixed icon='CloseLine'>
+            Remove
+          </ReqoreButton>
         )}
       </ReqoreTabsContent>
       <ReqoreTabsContent tabId='text'>
