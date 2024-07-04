@@ -2546,10 +2546,10 @@
   resolved "https://registry.npmjs.org/@popperjs/core/-/core-2.11.8.tgz"
   integrity sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==
 
-"@qoretechnologies/reqore@^0.46.6":
-  version "0.46.6"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.46.6.tgz#27bed49e006979cf1e06e591caa286e3365c0e65"
-  integrity sha512-b+AJi6fy7G98MxIUKo46wp31JMn1B1FPoJOb7IqadVvuUHvtAX2DTm4hOyWjPvXbEmDzLgzqfvxwGdxB4RYRfw==
+"@qoretechnologies/reqore@^0.47.1":
+  version "0.47.1"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.47.1.tgz#c31c1419a00beaf8ef236aa704f405280ad57a98"
+  integrity sha512-4SCpjLdIPOSDY3FEjX+m3BCg5VjpzIBvLbT+pnn7VzJt8ISXNdiYoSkYqz4Z9e/Pf+IJsrR5RWPkiTgVkBZ5ow==
   dependencies:
     "@internationalized/date" "^3.5.3"
     "@popperjs/core" "^2.11.6"
@@ -5595,6 +5595,11 @@
   version "2.2.7"
   resolved "https://registry.npmjs.org/@types/js-cookie/-/js-cookie-2.2.7.tgz"
   integrity sha512-aLkWa0C0vO5b4Sr798E26QgOkss68Un0bLjs7u9qxzPT5CG+8DuNTffWES58YzJs3hrVAOs1wonycqEBqNJubA==
+
+"@types/js-yaml@^4.0.9":
+  version "4.0.9"
+  resolved "https://registry.yarnpkg.com/@types/js-yaml/-/js-yaml-4.0.9.tgz#cd82382c4f902fed9691a2ed79ec68c5898af4c2"
+  integrity sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==
 
 "@types/jsdom@^20.0.0":
   version "20.0.1"
@@ -10458,7 +10463,7 @@ js-yaml@^3.13.1:
 
 js-yaml@^4.1.0:
   version "4.1.0"
-  resolved "https://registry.npmjs.org/js-yaml/-/js-yaml-4.1.0.tgz"
+  resolved "https://registry.yarnpkg.com/js-yaml/-/js-yaml-4.1.0.tgz#c1fb65f8f5017901cdd2c951864ba18458a10602"
   integrity sha512-wpxZs9NoxZaJESJGIZTyDEaYpl0FKSA+FB9aJiyemKhMwkxQg63h4T1KJgUGHpTqPDNRcmmYLugrRjJlBtWvRA==
   dependencies:
     argparse "^2.0.1"
