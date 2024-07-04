@@ -37,16 +37,23 @@ export const ReqraftObjectFormFieldTextarea = ({
     setValue(newValue);
   }, []);
 
+  const parseValue = useCallback(
+    (type: 'json' | 'yaml' | 'native') => {
+      switch (type) {
+        case 'json':
+          return JSON.parse(localValue);
+        case 'yaml':
+          return jsyaml.load(localValue);
+        default:
+          return parseValue(resultDataType);
+      }
+    },
+    [dataType, localValue, resultDataType]
+  );
+
   const isValid = useMemo(() => {
     try {
-      switch (dataType) {
-        case 'json':
-          JSON.parse(localValue);
-          break;
-        case 'yaml':
-          jsyaml.load(localValue);
-          break;
-      }
+      !!parseValue(dataType);
     } catch (e) {
       return false;
     }
@@ -56,29 +63,44 @@ export const ReqraftObjectFormFieldTextarea = ({
 
   return (
     <ReqoreControlGroup vertical>
-      <ReqoreControlGroup stack fill>
-        <LongStringFormField
-          value={localValue}
-          onChange={handleChange}
-          scaleWithContent
-          {...rest}
-          intent={isValid ? rest.intent : 'danger'}
-        />
+      <LongStringFormField
+        value={localValue}
+        onChange={handleChange}
+        scaleWithContent
+        {...rest}
+        intent={isValid ? rest.intent : 'danger'}
+      />
+      <ReqoreControlGroup stack>
         <ReqoreButton
           label='Save'
           icon='CheckLine'
           compact
+          fluid
           intent='success'
-          fixed
-          disabled={!isValid}
+          disabled={!localValue || !isValid}
           onClick={() => {
-            onChange(localValue);
+            let parsedValue = parseValue(dataType);
+
+            if (resultDataType === 'json') {
+              parsedValue = JSON.stringify(parsedValue, null, 2);
+            } else if (resultDataType === 'yaml') {
+              parsedValue = jsyaml.dump(parsedValue);
+            }
+            onChange(parsedValue);
           }}
+        />
+        <ReqoreButton
+          label='Discard'
+          icon='HistoryLine'
+          compact
+          fixed
+          disabled={localValue === value}
+          onClick={() => setValue(value)}
         />
       </ReqoreControlGroup>
       {!isValid && (
         <ReqoreSpan intent='danger' size='small'>
-          Not a valid {dataType.toUpperCase()}
+          Not a valid {resultDataType.toUpperCase()}
         </ReqoreSpan>
       )}
     </ReqoreControlGroup>
@@ -137,7 +159,12 @@ export const ReqraftObjectFormField = ({
       case 'yaml':
         return value as string;
       default:
-        return JSON.stringify(value, null, 2);
+        switch (resultDataType) {
+          case 'json':
+            return JSON.stringify(value, null, 2);
+          default:
+            return jsyaml.dump(value);
+        }
     }
   }, [value]);
 
