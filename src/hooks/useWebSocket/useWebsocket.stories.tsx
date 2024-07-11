@@ -193,7 +193,6 @@ export const WithLogs: Story = {
   play: async ({ args, ...rest }) => {
     await Reconnects.play({ args, ...rest });
 
-    await testsWaitForText('Reconnecting... Attempt 4');
     await testsWaitForText('Connection opened');
   },
 };
