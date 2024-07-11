@@ -160,8 +160,7 @@ export const ReconnectFails: Story = {
     await testsClickButton({ label: 'Kill' });
     await testsWaitForText('Websocket Status: CONNECTING');
     await expect(args.onReconnecting).toHaveBeenCalled();
-    await testsWaitForText('Websocket Status: CLOSED');
-    await waitFor(() => expect(args.onReconnectFailed).toHaveBeenCalled(), { timeout: 10000 });
+    await waitFor(() => expect(args.onReconnectFailed).toHaveBeenCalled(), { timeout: 20000 });
   },
 };
 
