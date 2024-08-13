@@ -72,6 +72,32 @@ export const List: Story = {
   },
 };
 
+export const Disabled: Story = {
+  args: {
+    type: 'array',
+    dataType: 'native',
+    resultDataType: 'native',
+    disabled: true,
+  },
+};
+
+export const DisabledWithValue: Story = {
+  args: {
+    type: 'array',
+    dataType: 'native',
+    resultDataType: 'json',
+    value: [
+      {
+        key: 'value',
+      },
+      'Test',
+      12,
+      false,
+    ],
+    disabled: true,
+  },
+};
+
 export const NativeOnly: Story = {
   args: {
     type: 'array',
