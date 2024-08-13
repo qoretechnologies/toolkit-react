@@ -21,6 +21,8 @@ export interface IReqraftObjectFormFieldProps extends Omit<IReqoreTabsProps, 'on
 
   editorProps?: Omit<IReqoreTreeProps, 'data' | 'onDataChange'>;
   textareaProps?: ILongStringFormFieldProps;
+
+  disabled?: boolean;
 }
 
 export const ReqraftObjectFormFieldTextarea = ({
@@ -81,7 +83,7 @@ export const ReqraftObjectFormFieldTextarea = ({
           compact
           fluid
           intent='success'
-          disabled={!isValid}
+          disabled={!isValid || rest.disabled || localValue === value}
           onClick={() => {
             if (localValue === '' || localValue === undefined) {
               onChange(undefined);
@@ -103,7 +105,7 @@ export const ReqraftObjectFormFieldTextarea = ({
           icon='HistoryLine'
           compact
           fixed
-          disabled={localValue === value}
+          disabled={localValue === value || rest.disabled}
           onClick={() => setValue(value)}
         />
       </ReqoreControlGroup>
@@ -201,12 +203,14 @@ export const ReqraftObjectFormField = ({
             onClick={() => handleTreeDataChange(type === 'array' ? [] : {})}
             fixed
             icon='AddLine'
+            disabled={rest.disabled}
           >
             New {type === 'array' ? 'List' : 'Object'}
           </ReqoreButton>
         )}
         {treeData && (
           <ReqoreTree
+            disabled={rest.disabled}
             data={treeData}
             onDataChange={handleTreeDataChange}
             editable
@@ -215,13 +219,19 @@ export const ReqraftObjectFormField = ({
           />
         )}
         {treeData && (
-          <ReqoreButton onClick={() => handleTreeDataChange(undefined)} fixed icon='CloseLine'>
+          <ReqoreButton
+            onClick={() => handleTreeDataChange(undefined)}
+            fixed
+            icon='CloseLine'
+            disabled={rest.disabled}
+          >
             Remove
           </ReqoreButton>
         )}
       </ReqoreTabsContent>
       <ReqoreTabsContent tabId='text'>
         <ReqraftObjectFormFieldTextarea
+          disabled={rest.disabled}
           {...textareaProps}
           value={textData}
           onChange={onChange}
