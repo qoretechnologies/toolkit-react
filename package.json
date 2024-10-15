@@ -17,7 +17,7 @@
     "storybook": "storybook dev -p 6008",
     "update-reqore": "yarn add @qoretechnologies/reqore@beta",
     "test-storybook": "DEBUG_PRINT_LIMIT=300 test-storybook --url http://localhost:6008",
-    "install-playwright": "npx playwright install --with-deps",
+    "install-playwright": "npx playwright@latest install --with-deps",
     "build-storybook": "storybook build",
     "chromatic": "npx chromatic"
   },
@@ -87,7 +87,7 @@
     "jest-github-actions-reporter": "^1.0.2",
     "mock-socket": "^9.3.1",
     "npm-cli-login": "^0.1.1",
-    "playwright": "^1.16.3",
+    "playwright": "^1.48.0",
     "pre-push": "^0.1.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
