@@ -61,6 +61,7 @@ jobs:
         run: |
           yarn install
           yarn install-playwright
+          yarn playwright install
           yarn build-storybook --quiet
 
       - name: Run build test
