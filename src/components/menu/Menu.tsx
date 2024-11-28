@@ -67,7 +67,7 @@ export const ReqraftMenuItem = ({
         label={menuData.label}
         icon={menuData.icon}
         isCollapsed={isCollapsed && !isActive}
-        verticalPadding='tiny'
+        verticalPadding='big'
         {...menuData}
       >
         {map(submenu, (submenuData, submenuId) => (
@@ -85,21 +85,21 @@ export const ReqraftMenuItem = ({
   return (
     <ReqoreMenuItem
       customTheme={{ main: '#050505' }}
+      verticalPadding='big'
       effect={
-        isActive ?
-          {
-            gradient: {
-              colors: {
-                0: `${activeIntent}:darken:3:0.4`,
-                65: 'main:lighten:2',
-                100: 'main:lighten:2',
+        isActive
+          ? {
+              gradient: {
+                colors: {
+                  0: `${activeIntent}:darken:3:0.4`,
+                  65: 'main:lighten:2',
+                  100: 'main:lighten:2',
+                },
               },
-            },
-          }
-        : undefined
+            }
+          : undefined
       }
       leftIconColor={isActive ? `${activeIntent}:lighten:10` : undefined}
-      verticalPadding='tiny'
       {...props}
     />
   );
@@ -216,7 +216,7 @@ export const ReqraftMenu = ({
           minimal={false}
           flat={false}
           placeholder={`Filter menu "${inputFocusShortcut}"`}
-          intent={query ? 'info' : 'muted'}
+          intent={query ? 'info' : undefined}
           leftIconProps={{ size: 'small' }}
           iconColor={query ? 'info' : 'muted'}
           pill
