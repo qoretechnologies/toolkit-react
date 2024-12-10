@@ -106,7 +106,7 @@ export async function query<T>({
     queryClient.invalidateQueries({ queryKey: [cacheKey] });
 
     return {
-      data: null,
+      data: requestData.data,
       ok: false,
       code: requestData.status,
       error: requestData.statusText,

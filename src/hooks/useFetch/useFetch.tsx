@@ -9,6 +9,7 @@ export interface IReqraftUseFetch<T> {
   loading: boolean;
   load: () => Promise<T>;
   error: Error | undefined;
+  errorData?: any;
 }
 
 export interface IReqraftUseFetchOptions<T> extends IReqraftQueryConfig {
@@ -42,6 +43,7 @@ export function useFetch<T>({
   const [loading, setLoading] = useState(loadOnMount);
   const [data, setData] = useState<T | undefined>(defaultData);
   const [error, setError] = useState<Error | undefined>();
+  const [errorData, setErrorData] = useState<any>();
 
   async function load({
     body: customBody,
@@ -55,9 +57,12 @@ export function useFetch<T>({
     setLoading(false);
 
     if (response.ok) {
+      setError(undefined);
+      setErrorData(undefined);
       setData(response.data);
     } else {
       setError(response.error);
+      setErrorData(response.data);
     }
   }
 
@@ -67,5 +72,5 @@ export function useFetch<T>({
     }
   });
 
-  return { data, loading, load, error };
+  return { data, loading, load, error, errorData };
 }
