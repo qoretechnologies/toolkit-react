@@ -85,7 +85,11 @@ export async function query<T>({
     queryFn: async () => {
       const response = await doFetchData(url, method, body);
 
-      if (response.status === 401) {
+      if (
+        response.status === 401 &&
+        process.env.NODE_ENV !== 'test' &&
+        process.env.NODE_ENV !== 'storybook'
+      ) {
         window.location.href = fetchConfig.unauthorizedRedirect(window.location.pathname);
       }
 

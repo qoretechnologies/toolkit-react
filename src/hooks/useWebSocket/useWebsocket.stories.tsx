@@ -39,11 +39,6 @@ const CompWithHook = (args: IUseReqraftWebSocketOptions) => {
 
 const meta = {
   title: 'Hooks/useWebSocket',
-  parameters: {
-    jest: {
-      timeout: 60000,
-    },
-  },
   async beforeEach() {
     const url = `wss://hq.qoretechnologies.com:8092/log-test?token=${process.env.REACT_APP_QORUS_TOKEN}`;
     let server = new Server(url);
@@ -99,6 +94,9 @@ const meta = {
   },
   parameters: {
     chromatic: { disable: true },
+    jest: {
+      timeout: 60000,
+    },
   },
   render: (args) => {
     return <CompWithHook {...args} />;
