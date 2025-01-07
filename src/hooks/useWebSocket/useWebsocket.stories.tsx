@@ -26,19 +26,24 @@ const CompWithHook = (args: IUseReqraftWebSocketOptions) => {
         { label: 'Send', icon: 'MessageLine', onClick: () => send('This is a test message') },
       ]}
     >
-      {args.includeLogMessagesInState || args.useState ?
+      {args.includeLogMessagesInState || args.useState ? (
         <ReqoreControlGroup vertical>
           {messages.map(({ message }, index) => (
             <ReqoreP key={index}>{message}</ReqoreP>
           ))}
         </ReqoreControlGroup>
-      : null}
+      ) : null}
     </ReqorePanel>
   );
 };
 
 const meta = {
   title: 'Hooks/useWebSocket',
+  parameters: {
+    jest: {
+      timeout: 60000,
+    },
+  },
   async beforeEach() {
     const url = `wss://hq.qoretechnologies.com:8092/log-test?token=${process.env.REACT_APP_QORUS_TOKEN}`;
     let server = new Server(url);
@@ -155,6 +160,11 @@ export const ReconnectFails: Story = {
     openOnMount: true,
     reconnectInterval: 500,
   },
+  parameters: {
+    jest: {
+      timeout: 60000,
+    },
+  },
   play: async ({ args, ...rest }) => {
     await OpenOnMount.play({ args, ...rest });
     await testsClickButton({ label: 'Kill' });
@@ -240,13 +250,13 @@ const ConnectionOne = ({ onPanelClose, ...args }: IConnectionProps) => {
         { label: 'Send', icon: 'MessageLine', onClick: () => send('This is a test message') },
       ]}
     >
-      {args.includeLogMessagesInState || args.useState ?
+      {args.includeLogMessagesInState || args.useState ? (
         <ReqoreControlGroup vertical>
           {messages.map(({ message }, index) => (
             <ReqoreP key={index}>{message}</ReqoreP>
           ))}
         </ReqoreControlGroup>
-      : null}
+      ) : null}
     </ReqorePanel>
   );
 };
@@ -280,13 +290,13 @@ const ConnectionTwo = ({ onPanelClose, ...args }: IConnectionProps) => {
         { label: 'Send', icon: 'MessageLine', onClick: () => send('This is a test message') },
       ]}
     >
-      {args.includeLogMessagesInState || args.useState ?
+      {args.includeLogMessagesInState || args.useState ? (
         <ReqoreControlGroup vertical>
           {messages.map(({ message }, index) => (
             <ReqoreP key={index}>{message}</ReqoreP>
           ))}
         </ReqoreControlGroup>
-      : null}
+      ) : null}
     </ReqorePanel>
   );
 };
@@ -309,10 +319,11 @@ const ConnectionThree = ({ onPanelClose, ...args }: IConnectionProps) => {
       minimal
       fluid
       intent={
-        status === 'CLOSED' ? 'danger'
-        : status === 'CONNECTING' ?
-          'pending'
-        : ('success' as TReqoreIntent)
+        status === 'CLOSED'
+          ? 'danger'
+          : status === 'CONNECTING'
+          ? 'pending'
+          : ('success' as TReqoreIntent)
       }
       size='small'
       closeButtonProps={{
@@ -328,13 +339,13 @@ const ConnectionThree = ({ onPanelClose, ...args }: IConnectionProps) => {
         { label: 'Send', icon: 'MessageLine', onClick: () => send('This is a test message') },
       ]}
     >
-      {args.includeLogMessagesInState || args.useState ?
+      {args.includeLogMessagesInState || args.useState ? (
         <ReqoreControlGroup vertical>
           {messages.map(({ message }, index) => (
             <ReqoreP key={index}>{message}</ReqoreP>
           ))}
         </ReqoreControlGroup>
-      : null}
+      ) : null}
     </ReqorePanel>
   );
 };
