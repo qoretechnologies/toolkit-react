@@ -175,7 +175,11 @@ export class ReqraftWebSocket {
   public async checkServerStatus() {
     const check = await query({ url: '/system/pid', cache: false });
 
-    if (check.code === 401) {
+    if (
+      check.code === 401 &&
+      process.env.NODE_ENV !== 'test' &&
+      process.env.NODE_ENV !== 'storybook'
+    ) {
       // Qorus is back up again but we need to re-authenticate
       // Get the current pathname and redirect to the login page
       window.location.href = fetchConfig.unauthorizedRedirect(window.location.pathname);

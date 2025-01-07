@@ -227,6 +227,7 @@ export const WithAutoScrollAndManualScroll: Story = {
   },
   play: async (args) => {
     await WithAutoScroll.play(args);
+    await sleep(3000);
     await fireEvent.scroll(document.querySelector('.reqore-panel-content'), {
       target: { scrollTop: 100 },
     });

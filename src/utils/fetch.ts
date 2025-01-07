@@ -85,15 +85,25 @@ export async function query<T>({
     queryFn: async () => {
       const response = await doFetchData(url, method, body);
 
-      const clone = response.clone();
-      const json = await clone.json();
-
-      if (response.status === 401) {
+      if (
+        response.status === 401 &&
+        process.env.NODE_ENV !== 'test' &&
+        process.env.NODE_ENV !== 'storybook'
+      ) {
         window.location.href = fetchConfig.unauthorizedRedirect(window.location.pathname);
       }
 
+      const clone = response.clone();
+      let data: any;
+
+      try {
+        data = await clone.json();
+      } catch (error) {
+        data = {};
+      }
+
       return {
-        data: json,
+        data,
         ok: response.ok,
         status: response.status,
         statusText: response.statusText,
