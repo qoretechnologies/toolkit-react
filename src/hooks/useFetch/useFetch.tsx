@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useEffectOnce } from 'react-use';
 import { useContextSelector } from 'use-context-selector';
 import { FetchContext } from '../../contexts/FetchContext';
 import { IReqraftQueryConfig } from '../../utils/fetch';
+import { useWhyDidYouUpdate } from '../useWhyDidYouUpdate';
 
 export interface IReqraftUseFetch<T> {
   data: T | undefined;
@@ -42,29 +43,35 @@ export function useFetch<T>({
 
   const [loading, setLoading] = useState(loadOnMount);
   const [data, setData] = useState<T | undefined>(defaultData);
+  const [response, setResponse] = useState<Response | undefined>();
   const [error, setError] = useState<Error | undefined>();
   const [errorData, setErrorData] = useState<any>();
 
-  async function load({
-    body: customBody,
-    mergeBodies,
-  }: { body?: Record<string | number, any>; mergeBodies?: boolean } = {}) {
-    setLoading(true);
+  const load = useCallback(
+    async ({
+      body: customBody,
+      mergeBodies,
+    }: { body?: Record<string | number, any>; mergeBodies?: boolean } = {}) => {
+      setLoading(true);
 
-    const _body = mergeBodies ? { ...body, ...customBody } : customBody || body;
-    const response = await query<T>({ url, body: _body, cache });
+      const _body = mergeBodies ? { ...body, ...customBody } : customBody || body;
+      const response = await query<T>({ url, body: _body, cache });
 
-    setLoading(false);
+      setLoading(false);
 
-    if (response.ok) {
-      setError(undefined);
-      setErrorData(undefined);
-      setData(response.data);
-    } else {
-      setError(response.error);
-      setErrorData(response.data);
-    }
-  }
+      if (response.ok) {
+        setError(undefined);
+        setErrorData(undefined);
+        setData(response.data);
+      } else {
+        setError(response.error);
+        setErrorData(response.data);
+      }
+
+      setResponse(response.response);
+    },
+    [JSON.stringify(body), method, url, cache]
+  );
 
   useEffectOnce(() => {
     if (loadOnMount) {
@@ -72,5 +79,22 @@ export function useFetch<T>({
     }
   });
 
-  return { data, loading, load, error, errorData };
+  useWhyDidYouUpdate(`ReQraft useFetch for ${url}`, {
+    url,
+    method,
+    body,
+    cache,
+    defaultData,
+    loadOnMount,
+    loading,
+    data,
+    error,
+    errorData,
+    response,
+  });
+
+  return useMemo(
+    () => ({ data, loading, load, error, errorData, response }),
+    [JSON.stringify(data), loading, load, error, errorData, response]
+  );
 }

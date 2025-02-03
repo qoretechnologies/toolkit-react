@@ -12,6 +12,7 @@ export interface IReqraftFetchResponse<T> {
   ok: boolean;
   code?: number;
   error?: any;
+  response: Response;
 }
 
 export const fetchConfig: IReqraftFetchConfig = {
@@ -107,6 +108,7 @@ export async function query<T>({
         ok: response.ok,
         status: response.status,
         statusText: response.statusText,
+        response,
       };
     },
     staleTime: shouldCache ? CACHE_EXPIRATION_TIME : 0,
@@ -120,6 +122,7 @@ export async function query<T>({
       ok: false,
       code: requestData.status,
       error: requestData.statusText,
+      response: requestData.response,
     };
   }
 
@@ -127,5 +130,6 @@ export async function query<T>({
     data: requestData.data,
     ok: true,
     code: requestData.status,
+    response: requestData.response,
   };
 }
