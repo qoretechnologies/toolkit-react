@@ -17,7 +17,12 @@ const meta = {
     return loading ? (
       <ReqoreSpinner />
     ) : (
-      <ReqoreTree data={errorData || data} bottomActions={[{ label: 'Refetch', onClick: load }]} />
+      <>
+        <ReqoreTree
+          data={errorData || data}
+          bottomActions={[{ label: 'Refetch', onClick: load }]}
+        />
+      </>
     );
   },
 } as StoryMeta<any>;
