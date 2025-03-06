@@ -8,7 +8,7 @@ import {
 import { IReqoreTabsProps } from '@qoretechnologies/reqore/dist/components/Tabs';
 import { IReqoreTreeProps, ReqoreTree } from '@qoretechnologies/reqore/dist/components/Tree';
 import jsyaml from 'js-yaml';
-import { useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import LongStringFormField, { ILongStringFormFieldProps } from '../long-string/LongString';
 
 export interface IReqraftObjectFormFieldProps extends Omit<IReqoreTabsProps, 'onChange'> {
@@ -78,6 +78,7 @@ export const ReqraftObjectFormFieldTextarea = ({
       />
       <ReqoreControlGroup stack>
         <ReqoreButton
+          size={rest.size}
           label='Save'
           icon='CheckLine'
           compact
@@ -101,6 +102,7 @@ export const ReqraftObjectFormFieldTextarea = ({
           }}
         />
         <ReqoreButton
+          size={rest.size}
           label='Discard'
           icon='HistoryLine'
           compact
@@ -118,127 +120,135 @@ export const ReqraftObjectFormFieldTextarea = ({
   );
 };
 
-export const ReqraftObjectFormField = ({
-  onChange,
-  value,
-  type,
-  dataType,
-  resultDataType = dataType,
-  editorProps,
-  textareaProps,
-  ...rest
-}: IReqraftObjectFormFieldProps) => {
-  const handleTreeDataChange = useCallback(
-    (data: IReqoreTreeProps['data']) => {
-      switch (resultDataType) {
-        case 'json':
-          onChange(JSON.stringify(data, null, 2));
-          break;
-        case 'yaml':
-          onChange(jsyaml.dump(data));
-          break;
-        default:
-          onChange(data);
-      }
-    },
-    [resultDataType, onChange]
-  );
-
-  const treeData = useMemo(() => {
-    if (!value) {
-      return undefined;
-    }
-
-    switch (dataType) {
-      case 'json':
-        return JSON.parse(value as string);
-      case 'yaml':
-        return jsyaml.load(value as string);
-      default:
-        return value;
-    }
-  }, [value]);
-
-  const textData: string = useMemo(() => {
-    if (!value) {
-      return undefined;
-    }
-
-    switch (dataType) {
-      case 'json':
-        return value as string;
-      case 'yaml':
-        return value as string;
-      default:
+export const ReqraftObjectFormField = memo(
+  ({
+    onChange,
+    value,
+    type,
+    dataType,
+    resultDataType = dataType,
+    editorProps,
+    textareaProps,
+    ...rest
+  }: IReqraftObjectFormFieldProps) => {
+    const handleTreeDataChange = useCallback(
+      (data: IReqoreTreeProps['data']) => {
         switch (resultDataType) {
           case 'json':
-            return JSON.stringify(value, null, 2);
+            onChange(JSON.stringify(data, null, 2));
+            break;
+          case 'yaml':
+            onChange(jsyaml.dump(data));
+            break;
           default:
-            return jsyaml.dump(value);
+            onChange(data);
         }
-    }
-  }, [value]);
+      },
+      [resultDataType, onChange]
+    );
 
-  return (
-    <ReqoreTabs
-      tabsPadding='vertical'
-      {...rest}
-      tabs={[
-        {
-          label: 'Editor',
-          icon: 'NodeTree',
-          id: 'editor',
-        },
-        {
-          label: 'Text',
-          icon: 'Text',
-          id: 'text',
-          show: resultDataType !== 'native',
-        },
-      ]}
-    >
-      <ReqoreTabsContent tabId='editor'>
-        {!treeData && (
-          <ReqoreButton
-            onClick={() => handleTreeDataChange(type === 'array' ? [] : {})}
-            fixed
-            icon='AddLine'
+    const treeData = useMemo(() => {
+      if (!value) {
+        return undefined;
+      }
+
+      switch (dataType) {
+        case 'json':
+          return JSON.parse(value as string);
+        case 'yaml':
+          return jsyaml.load(value as string);
+        default:
+          return value;
+      }
+    }, [value]);
+
+    const textData: string = useMemo(() => {
+      if (!value) {
+        return undefined;
+      }
+
+      switch (dataType) {
+        case 'json':
+          return value as string;
+        case 'yaml':
+          return value as string;
+        default:
+          switch (resultDataType) {
+            case 'json':
+              return JSON.stringify(value, null, 2);
+            default:
+              return jsyaml.dump(value);
+          }
+      }
+    }, [value]);
+
+    return (
+      <ReqoreTabs
+        tabsPadding='vertical'
+        {...rest}
+        tabs={[
+          {
+            label: 'Editor',
+            icon: 'NodeTree',
+            id: 'editor',
+            size: rest.size,
+          },
+          {
+            label: 'Text',
+            icon: 'Text',
+            id: 'text',
+            show: resultDataType !== 'native',
+            size: rest.size,
+          },
+        ]}
+      >
+        <ReqoreTabsContent tabId='editor'>
+          {!treeData && (
+            <ReqoreButton
+              onClick={() => handleTreeDataChange(type === 'array' ? [] : {})}
+              fixed
+              icon='AddLine'
+              disabled={rest.disabled}
+              size={rest.size}
+            >
+              New {type === 'array' ? 'List' : 'Object'}
+            </ReqoreButton>
+          )}
+          {treeData && (
+            <ReqoreTree
+              disabled={rest.disabled}
+              data={treeData}
+              onDataChange={handleTreeDataChange}
+              editable
+              showControls={false}
+              size={rest.size}
+              {...editorProps}
+            />
+          )}
+          {treeData && (
+            <ReqoreButton
+              onClick={() => handleTreeDataChange(undefined)}
+              fixed
+              icon='CloseLine'
+              disabled={rest.disabled}
+              size={rest.size}
+            >
+              Remove
+            </ReqoreButton>
+          )}
+        </ReqoreTabsContent>
+        <ReqoreTabsContent tabId='text'>
+          <ReqraftObjectFormFieldTextarea
             disabled={rest.disabled}
-          >
-            New {type === 'array' ? 'List' : 'Object'}
-          </ReqoreButton>
-        )}
-        {treeData && (
-          <ReqoreTree
-            disabled={rest.disabled}
-            data={treeData}
-            onDataChange={handleTreeDataChange}
-            editable
-            showControls={false}
-            {...editorProps}
+            size={rest.size}
+            {...textareaProps}
+            value={textData}
+            onChange={onChange}
+            dataType={dataType}
+            resultDataType={resultDataType as 'json' | 'yaml'}
           />
-        )}
-        {treeData && (
-          <ReqoreButton
-            onClick={() => handleTreeDataChange(undefined)}
-            fixed
-            icon='CloseLine'
-            disabled={rest.disabled}
-          >
-            Remove
-          </ReqoreButton>
-        )}
-      </ReqoreTabsContent>
-      <ReqoreTabsContent tabId='text'>
-        <ReqraftObjectFormFieldTextarea
-          disabled={rest.disabled}
-          {...textareaProps}
-          value={textData}
-          onChange={onChange}
-          dataType={dataType}
-          resultDataType={resultDataType as 'json' | 'yaml'}
-        />
-      </ReqoreTabsContent>
-    </ReqoreTabs>
-  );
-};
+        </ReqoreTabsContent>
+      </ReqoreTabs>
+    );
+  }
+);
