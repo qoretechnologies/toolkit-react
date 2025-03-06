@@ -81,6 +81,23 @@ export const Disabled: Story = {
   },
 };
 
+export const Small: Story = {
+  args: {
+    type: 'array',
+    size: 'small',
+    dataType: 'native',
+    resultDataType: 'yaml',
+    value: [
+      {
+        key: 'value',
+      },
+      'Test',
+      12,
+      false,
+    ],
+  },
+};
+
 export const DisabledWithValue: Story = {
   args: {
     type: 'array',

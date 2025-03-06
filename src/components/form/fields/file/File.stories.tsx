@@ -30,6 +30,7 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
 export const WithSpecifiedExtensions: Story = {
   args: {
     options: {
@@ -56,5 +57,12 @@ export const WithValue: Story = {
       content: 'test',
       size: 28736,
     },
+  },
+};
+
+export const Small: Story = {
+  args: {
+    ...WithValue.args,
+    valueButtonProps: { size: 'small' },
   },
 };
