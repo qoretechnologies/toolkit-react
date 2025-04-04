@@ -5,7 +5,7 @@ export type TReqraftStorageValue = string | number | boolean | Record<string | n
 export type TReqraftUseStorage<T extends TReqraftStorageValue> = [
   T,
   (newStorage: T) => void,
-  () => void,
+  () => void
 ];
 
 export function useReqraftStorage<T extends TReqraftStorageValue>(
@@ -31,5 +31,5 @@ export function useReqraftStorage<T extends TReqraftStorageValue>(
     removeStorageValue(path, includeAppPrefix);
   }, [path, includeAppPrefix, removeStorageValue]);
 
-  return [value, updater, remover];
+  return useMemo(() => [value, updater, remover], [value, updater, remover]);
 }

@@ -1,10 +1,12 @@
 import { cloneDeep, get, set } from 'lodash';
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useMemo } from 'react';
+import { useEffectOnce } from 'react-use';
 import type { Get } from 'type-fest';
 import { ReqraftStorageContext, TReqraftStorage } from '../contexts/StorageContext';
 import { useFetch } from '../hooks/useFetch/useFetch';
 import { useReqraftProperty } from '../hooks/useReqraftProperty';
 import { TReqraftStorageValue } from '../hooks/useStorage/useStorage';
+import { currentUserStore } from '../stores/currentUser/currentUser';
 import { IReqraftProviderProps } from './ReqraftProvider';
 
 export interface IReqraftStorageProviderProps
@@ -12,16 +14,17 @@ export interface IReqraftStorageProviderProps
   children: ReactNode;
 }
 
-export const ReqraftStorageProvider = ({
-  children,
-  waitForStorage,
-}: IReqraftStorageProviderProps) => {
+export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorageProviderProps) => {
   const appName = useReqraftProperty('appName');
+  const {
+    currentUser,
+    updateStorage: updateCurrentUserStorage,
+    load: loadCurrentUser,
+    loading,
+  } = currentUserStore();
 
-  const { data, loading } = useFetch({
-    url: 'users/_current_/storage',
-    cache: false,
-    loadOnMount: true,
+  useEffectOnce(() => {
+    loadCurrentUser();
   });
 
   const { load } = useFetch({
@@ -30,56 +33,58 @@ export const ReqraftStorageProvider = ({
     cache: false,
   });
 
-  const [storage, setStorage] = useState<TReqraftStorage>(data);
+  const getStorage = useCallback(
+    function <T extends TReqraftStorageValue>(
+      path: string,
+      defaultValue: T,
+      includeAppPrefix: boolean = true
+    ): Get<TReqraftStorage, string> {
+      const _path = includeAppPrefix ? `${appName}.${path}` : path;
 
-  useEffect(() => {
-    if (data) {
-      setStorage(data);
-    }
-  }, [JSON.stringify(data)]);
+      return get(currentUser?.storage, _path) ?? defaultValue;
+    },
+    [appName, currentUser?.storage]
+  );
 
-  const getStorage = function <T extends TReqraftStorageValue>(
-    path: string,
-    defaultValue: T,
-    includeAppPrefix: boolean = true
-  ): Get<TReqraftStorage, string> {
-    const _path = includeAppPrefix ? `${appName}.${path}` : path;
+  const updateStorage = useCallback(
+    function <T extends TReqraftStorageValue>(
+      path: string,
+      value: T,
+      includeAppPrefix: boolean = true
+    ) {
+      const _path = includeAppPrefix ? `${appName}.${path}` : path;
+      const updatedStorage = set(cloneDeep(currentUser?.storage), _path, value);
 
-    return get(storage, _path) ?? defaultValue;
-  };
+      updateCurrentUserStorage(updatedStorage);
 
-  const updateStorage = function <T extends TReqraftStorageValue>(
-    path: string,
-    value: T,
-    includeAppPrefix: boolean = true
-  ) {
-    const _path = includeAppPrefix ? `${appName}.${path}` : path;
-    const updatedStorage = set(cloneDeep(storage), _path, value);
+      load({ body: { storage: updatedStorage } });
+    },
+    [appName, currentUser?.storage, load, updateCurrentUserStorage]
+  );
 
-    setStorage(updatedStorage);
+  const removeStorageValue = useCallback(
+    function (path: string, includeAppPrefix: boolean = true) {
+      const _path = includeAppPrefix ? `${appName}.${path}` : path;
 
-    load({ body: { storage: updatedStorage } });
-  };
+      const updatedStorage = set(cloneDeep(currentUser?.storage), _path, null);
 
-  const removeStorageValue = function (path: string, includeAppPrefix: boolean = true) {
-    const _path = includeAppPrefix ? `${appName}.${path}` : path;
+      updateCurrentUserStorage(updatedStorage);
 
-    const updatedStorage = set(cloneDeep(storage), _path, null);
+      load({ body: { storage_path: _path } });
+    },
+    [appName, currentUser?.storage, load, updateCurrentUserStorage]
+  );
 
-    setStorage(updatedStorage);
+  const contextValue = useMemo(
+    () => ({ storage: currentUser?.storage, getStorage, updateStorage, removeStorageValue }),
+    [currentUser?.storage, getStorage, updateStorage, removeStorageValue]
+  );
 
-    load({ body: { storage_path: _path } });
-  };
-
-  if ((loading || !storage) && waitForStorage) {
+  if (loading && waitForStorage) {
     return null;
   }
 
   return (
-    <ReqraftStorageContext.Provider
-      value={{ storage, getStorage, updateStorage, removeStorageValue }}
-    >
-      {children}
-    </ReqraftStorageContext.Provider>
+    <ReqraftStorageContext.Provider value={contextValue}>{children}</ReqraftStorageContext.Provider>
   );
 };

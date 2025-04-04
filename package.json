@@ -1,6 +1,6 @@
 {
   "name": "@qoretechnologies/reqraft",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "ReQraft is a collection of React components and hooks that are used across Qore Technologies' products made using the ReQore component library from Qore.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,6 +14,7 @@
     "build:test": "./node_modules/typescript/bin/tsc --noEmit",
     "build:test:prod": "./node_modules/typescript/bin/tsc --project tsconfig.prod.json --noEmit",
     "lint": "yarn run eslint ./src/",
+    "start": "yarn storybook",
     "storybook": "storybook dev -p 6008",
     "update-reqore": "yarn add -D @qoretechnologies/reqore@beta",
     "test-storybook": "DEBUG_PRINT_LIMIT=300 test-storybook --url http://localhost:6008",
@@ -123,7 +124,8 @@
     "shortid": "^2.2.16",
     "styled-components": "^5.3.6",
     "thenby": "^1.3.4",
-    "use-context-selector": "^1.4.1"
+    "use-context-selector": "^1.4.1",
+    "zustand": "^5.0.3"
   },
   "resolutions": {
     "jackspeak": "2.1.1"
