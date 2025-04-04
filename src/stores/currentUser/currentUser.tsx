@@ -14,6 +14,8 @@ export interface ICurrentUser {
   mappers: string[];
   vmaps: string[];
   groups: string[];
+  fsms: string[];
+  oauth2_clients?: Record<string, any>[];
   storage?: Record<string, any>;
 }
 
