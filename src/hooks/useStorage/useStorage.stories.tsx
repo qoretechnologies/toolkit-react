@@ -37,7 +37,7 @@ export const DefaultValue: Story = {
   parameters: {
     mockData: [
       {
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/users/_current_/storage',
+        url: 'https://hq.qoretechnologies.com:8092/api/latest/users?action=current',
         method: 'GET',
         status: 200,
         response: {},

@@ -2,7 +2,7 @@ import { set } from 'lodash';
 
 export const storiesStorageMockEmpty = [
   {
-    url: 'https://hq.qoretechnologies.com:8092/api/latest/users/_current_/storage',
+    url: 'https://hq.qoretechnologies.com:8092/api/latest/users?action=current',
     method: 'GET',
     status: 200,
     response: {},
@@ -11,13 +11,15 @@ export const storiesStorageMockEmpty = [
 
 export const storiesStorageMock = [
   {
-    url: 'https://hq.qoretechnologies.com:8092/api/latest/users/_current_/storage',
+    url: 'https://hq.qoretechnologies.com:8092/api/latest/users?action=current',
     method: 'GET',
     status: 200,
     response: {
-      'sidebar-size': 350,
-      storybook: {
-        'some-path': 'This is a storage value',
+      storage: {
+        'sidebar-size': 350,
+        storybook: {
+          'some-path': 'This is a storage value',
+        },
       },
     },
   },
