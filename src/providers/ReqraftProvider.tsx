@@ -19,6 +19,7 @@ export interface IReqraftProviderProps extends IReqraftContext {
 export interface IReqraftOptions {
   instance?: string;
   instanceToken: string;
+  instanceRbacDisabled?: boolean;
   instanceUnauthorizedRedirect?: IReqraftFetchConfig['unauthorizedRedirect'];
 }
 
@@ -26,6 +27,7 @@ export const initializeReqraft = (options: IReqraftOptions) => {
   setupFetch({
     instance: options.instance,
     instanceToken: options.instanceToken,
+    instanceRbacDisabled: options.instanceRbacDisabled,
     unauthorizedRedirect: options.instanceUnauthorizedRedirect,
   });
 

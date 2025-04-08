@@ -4,6 +4,7 @@ import { ReqraftQueryClient } from '../providers/ReqraftProvider';
 export interface IReqraftFetchConfig {
   instance: string;
   instanceToken: string;
+  instanceRbacDisabled?: boolean;
   unauthorizedRedirect?: (pathname: string) => string;
 }
 
@@ -26,10 +27,12 @@ const CACHE_EXPIRATION_TIME = 5 * 60 * 1000; // 5 minutes
 export const setupFetch = ({
   instance,
   instanceToken,
+  instanceRbacDisabled,
   unauthorizedRedirect,
 }: IReqraftFetchConfig) => {
   fetchConfig.instance = instance;
   fetchConfig.instanceToken = instanceToken;
+  fetchConfig.instanceRbacDisabled = instanceRbacDisabled;
 
   if (unauthorizedRedirect) {
     fetchConfig.unauthorizedRedirect = unauthorizedRedirect;
@@ -41,7 +44,7 @@ async function doFetchData(
   method = 'GET',
   body?: { [key: string]: any }
 ): Promise<Response> {
-  if (!fetchConfig.instanceToken) {
+  if (!fetchConfig.instanceToken && !fetchConfig.instanceRbacDisabled) {
     return new Response(JSON.stringify({}), {
       status: 401,
       statusText: 'Unauthorized',
@@ -52,7 +55,9 @@ async function doFetchData(
     method,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${fetchConfig.instanceToken}`,
+      Authorization: fetchConfig.instanceRbacDisabled
+        ? undefined
+        : `Bearer ${fetchConfig.instanceToken}`,
     },
     body: JSON.stringify(body),
   }).catch((error) => {
