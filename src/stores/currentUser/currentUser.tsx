@@ -27,7 +27,7 @@ export interface ICurrentUserStore {
   error?: Error;
   errorData?: any;
 
-  hasPermissions: (permissions: string[]) => boolean;
+  hasAnyPermission: (permissions: string[]) => boolean;
   updateStorage: (storage: Record<string, any>) => void;
 }
 
@@ -55,14 +55,14 @@ export const currentUserStore = create<ICurrentUserStore>((set, get) => ({
 
     return response.data;
   },
-  hasPermissions: (permissions) => {
+  hasAnyPermission: (permissions) => {
     if (!get().currentUser) {
       return false;
     }
 
     const { currentUser } = get();
 
-    return permissions.every((permission) => currentUser.permissions?.includes(permission));
+    return permissions.some((permission) => currentUser.permissions?.includes(permission));
   },
   updateStorage: (storage) => {
     set((state) => ({ currentUser: { ...state.currentUser, storage } }));
