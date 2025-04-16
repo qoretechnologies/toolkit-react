@@ -34,11 +34,13 @@ export const currentUserCanBeLoaded: Story = {
 export const currentUserHasPermissions: Story = {
   ...currentUserCanBeLoaded,
   render: () => {
-    const { hasPermissions } = currentUserStore();
+    const { hasAnyPermission } = currentUserStore();
 
     return (
       <ReqoreP>
-        {hasPermissions(['SERVER-CONTROL']) ? 'Yes, user has "SERVER-CONTROL" permission' : 'No'}
+        {hasAnyPermission(['SERVER-CONTROL', 'RANDOM-PERM'])
+          ? 'Yes, user has "SERVER-CONTROL" permission'
+          : 'No'}
       </ReqoreP>
     );
   },

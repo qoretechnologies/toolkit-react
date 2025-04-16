@@ -12,9 +12,14 @@ export { IReqraftUseFetch, useFetch } from './hooks/useFetch/useFetch';
 export { TReqraftUseStorage, useReqraftStorage } from './hooks/useStorage/useStorage';
 export * from './hooks/useWebSocket/useWebSocket';
 export {
+  initializeReqraft,
   ReqraftProvider,
   ReqraftQueryClient,
-  initializeReqraft,
 } from './providers/ReqraftProvider';
+export {
+  ICurrentUser,
+  ICurrentUserStore,
+  currentUserStore as ReqraftCurrentUserStore,
+} from './stores/currentUser/currentUser';
 export { query } from './utils/fetch';
 export * from './utils/websocket';
