@@ -3,7 +3,7 @@ import { ReactNode } from 'react';
 import { IReqraftContext, ReqraftContext } from '../contexts/ReqraftContext';
 import { IReqraftFetchConfig, setupFetch } from '../utils/fetch';
 import { ReqraftFetchProvider } from './FetchProvider';
-import { ReqraftStorageProvider } from './StorageProvider';
+import { ReqraftUserProvider } from './StorageProvider';
 
 export const ReqraftQueryClient = new QueryClient();
 
@@ -11,21 +11,23 @@ export interface IReqraftProviderProps extends IReqraftContext {
   children: ReactNode;
   reactQueryClient?: QueryClient;
   /*
-  * If true, the component will wait for the storage to be loaded before rendering the children.
-  */
+   * If true, the component will wait for the storage to be loaded before rendering the children.
+   */
   waitForStorage?: boolean;
 }
 
 export interface IReqraftOptions {
   instance?: string;
   instanceToken: string;
+  instanceRbacDisabled?: boolean;
   instanceUnauthorizedRedirect?: IReqraftFetchConfig['unauthorizedRedirect'];
 }
 
-export const initializeReqraft = (options: IReqraftOptions ) => {
+export const initializeReqraft = (options: IReqraftOptions) => {
   setupFetch({
     instance: options.instance,
     instanceToken: options.instanceToken,
+    instanceRbacDisabled: options.instanceRbacDisabled,
     unauthorizedRedirect: options.instanceUnauthorizedRedirect,
   });
 
@@ -39,12 +41,10 @@ export const ReqraftProvider = ({
   waitForStorage = true,
 }: IReqraftProviderProps) => {
   return (
-    <ReqraftContext.Provider
-      value={{ appName  }}
-    >
+    <ReqraftContext.Provider value={{ appName }}>
       <QueryClientProvider client={reactQueryClient || ReqraftQueryClient}>
         <ReqraftFetchProvider>
-          <ReqraftStorageProvider waitForStorage={waitForStorage}>{children}</ReqraftStorageProvider>
+          <ReqraftUserProvider waitForStorage={waitForStorage}>{children}</ReqraftUserProvider>
         </ReqraftFetchProvider>
       </QueryClientProvider>
     </ReqraftContext.Provider>
