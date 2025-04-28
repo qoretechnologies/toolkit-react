@@ -8,13 +8,27 @@ export interface IReqraftFetchConfig {
   unauthorizedRedirect?: (pathname: string) => string;
 }
 
-export interface IReqraftFetchResponse<T> {
+export interface IReqraftFetchOkResponse<T> {
+  ok: true;
   data: T;
-  ok: boolean;
+
   code?: number;
   error?: any;
   response: Response;
 }
+
+export interface IReqraftFetchErrorResponse<E> {
+  ok: false;
+  data: E;
+
+  code?: number;
+  error?: any;
+  response: Response;
+}
+
+export type TReqraftFetchResponse<T, E = string> =
+  | IReqraftFetchOkResponse<T>
+  | IReqraftFetchErrorResponse<E>;
 
 export const fetchConfig: IReqraftFetchConfig = {
   instance: window.location.origin + '/',
@@ -76,19 +90,25 @@ export interface IReqraftQueryConfig {
   queryClient?: QueryClient;
 }
 
+export function isError<T, E>(
+  res: TReqraftFetchResponse<T, E>
+): res is IReqraftFetchErrorResponse<E> {
+  return res.ok === false;
+}
+
 export async function query<T>({
   url,
   method = 'GET',
   body,
   cache = true,
   queryClient = ReqraftQueryClient,
-}: IReqraftQueryConfig): Promise<IReqraftFetchResponse<T>> {
+}: IReqraftQueryConfig): Promise<TReqraftFetchResponse<T, string>> {
   const shouldCache = method === 'DELETE' || method === 'POST' ? false : cache;
   const cacheKey = `${url}:${method}:${JSON.stringify(body || {})}`;
 
-  const requestData = await queryClient.fetchQuery({
+  const requestData = await queryClient.fetchQuery<TReqraftFetchResponse<T, string>>({
     queryKey: [cacheKey],
-    queryFn: async () => {
+    queryFn: async (): Promise<TReqraftFetchResponse<T, string>> => {
       const response = await doFetchData(url, method, body);
 
       if (
@@ -100,19 +120,28 @@ export async function query<T>({
       }
 
       const clone = response.clone();
-      let data: any;
+      let parsed: unknown;
 
       try {
-        data = await clone.json();
+        parsed = await clone.json();
       } catch (error) {
-        data = {};
+        parsed = {};
+      }
+
+      if (!response.ok) {
+        return {
+          data: typeof parsed === 'string' ? parsed : JSON.stringify(parsed),
+          ok: false as const,
+          code: response.status,
+          error: response.statusText,
+          response,
+        };
       }
 
       return {
-        data,
-        ok: response.ok,
-        status: response.status,
-        statusText: response.statusText,
+        data: parsed as T,
+        ok: true as const,
+        code: response.status,
         response,
       };
     },
@@ -121,20 +150,7 @@ export async function query<T>({
 
   if (!requestData.ok) {
     queryClient.invalidateQueries({ queryKey: [cacheKey] });
-
-    return {
-      data: requestData.data,
-      ok: false,
-      code: requestData.status,
-      error: requestData.statusText,
-      response: requestData.response,
-    };
   }
 
-  return {
-    data: requestData.data,
-    ok: true,
-    code: requestData.status,
-    response: requestData.response,
-  };
+  return requestData;
 }
