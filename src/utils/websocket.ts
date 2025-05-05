@@ -2,6 +2,21 @@ import { forEach } from 'lodash';
 import shortid from 'shortid';
 import { fetchConfig, query } from './fetch';
 
+export interface QorusApiEvent<Info> {
+  class: number;
+  classstr: string;
+  compositeseverity: number;
+  compositeseveritystr: string;
+  event: number;
+  eventstr: string;
+  id: number;
+  info: Info;
+  severity: number;
+  severitystr: string;
+  time: string;
+  timeus: number;
+}
+
 export interface IReqraftWebSocketConfig {
   url: string;
   reconnect?: boolean;

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { query } from '../../utils/fetch';
+import { ReqraftWebSocket } from '../../utils/websocket';
 
 export interface ICurrentUser {
   provider: string;
@@ -29,6 +30,9 @@ export interface ICurrentUserStore {
 
   hasAnyPermission: (permissions: string[]) => boolean;
   updateStorage: (storage: Record<string, any>) => void;
+
+  apiEvents?: ReqraftWebSocket;
+  connectToApiEvents: () => void;
 }
 
 export const currentUserStore = create<ICurrentUserStore>((set, get) => ({
@@ -53,7 +57,17 @@ export const currentUserStore = create<ICurrentUserStore>((set, get) => ({
 
     set({ currentUser: response.data, loading: false, errorData: undefined, error: undefined });
 
+    // Connect to API events
+    get().connectToApiEvents();
+
     return response.data;
+  },
+  connectToApiEvents: () => {
+    const socket = new ReqraftWebSocket({
+      url: `apievents`,
+    });
+
+    set({ apiEvents: socket });
   },
   hasAnyPermission: (permissions) => {
     if (!get().currentUser) {

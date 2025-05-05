@@ -4,7 +4,7 @@ import { getCurrentTimeWithMilliseconds } from '../../utils/datetime';
 import { IReqraftWebSocketConfig, ReqraftWebSocket } from '../../utils/websocket';
 
 export interface IUseReqraftWebSocketOptions extends IReqraftWebSocketConfig {
-  onMessage?: (ev: MessageEvent) => void;
+  onMessage?: <T>(ev: MessageEvent<T>) => void;
   useState?: boolean;
   includeSentMessagesInState?: boolean;
   includeLogMessagesInState?: boolean;

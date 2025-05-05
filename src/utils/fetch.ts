@@ -82,12 +82,15 @@ async function doFetchData(
   });
 }
 
-export interface IReqraftQueryConfig {
+export interface IReqraftQueryConfig<T> {
   url: string;
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
   body?: Record<string | number, any>;
   cache?: boolean;
   queryClient?: QueryClient;
+  onBefore?: () => void;
+  onSuccess?: (data: IReqraftFetchOkResponse<T>) => void;
+  onError?: (data: IReqraftFetchErrorResponse<string>) => void;
 }
 
 export function isError<T, E>(
@@ -102,9 +105,14 @@ export async function query<T>({
   body,
   cache = true,
   queryClient = ReqraftQueryClient,
-}: IReqraftQueryConfig): Promise<TReqraftFetchResponse<T, string>> {
+  onBefore,
+  onSuccess,
+  onError,
+}: IReqraftQueryConfig<T>): Promise<TReqraftFetchResponse<T, string>> {
   const shouldCache = method === 'DELETE' || method === 'POST' ? false : cache;
   const cacheKey = `${url}:${method}:${JSON.stringify(body || {})}`;
+
+  onBefore?.();
 
   const requestData = await queryClient.fetchQuery<TReqraftFetchResponse<T, string>>({
     queryKey: [cacheKey],
@@ -129,21 +137,27 @@ export async function query<T>({
       }
 
       if (!response.ok) {
-        return {
+        const result = {
           data: typeof parsed === 'string' ? parsed : JSON.stringify(parsed),
           ok: false as const,
           code: response.status,
           error: response.statusText,
           response,
         };
+
+        onError?.(result);
+        return result;
       }
 
-      return {
+      const result = {
         data: parsed as T,
         ok: true as const,
         code: response.status,
         response,
       };
+
+      onSuccess?.(result);
+      return result;
     },
     staleTime: shouldCache ? CACHE_EXPIRATION_TIME : 0,
   });
