@@ -1,11 +1,11 @@
-import { ReqoreButton, ReqoreIcon, ReqoreTable, ReqoreTimeAgo } from '@qoretechnologies/reqore';
+import { ReqoreIcon, ReqoreTable, ReqoreTag, ReqoreTimeAgo } from '@qoretechnologies/reqore';
 import {
   IReqorePanelAction,
   IReqorePanelProps,
 } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreTableColumn } from '@qoretechnologies/reqore/dist/components/Table';
 import { size } from 'lodash';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { FEATURES_ICONS } from '../constants';
 import { SERVICES_ACTIONS_PERMISSIONS } from './constants';
 import { useQorusServices } from './useServices';
@@ -13,9 +13,41 @@ import { useQorusServices } from './useServices';
 export interface QorusServiceTableProps extends IReqorePanelProps {}
 
 export const QorusServicesTable = ({}: QorusServiceTableProps) => {
+  const [selected, setSelected] = useState<any[]>([]);
+
   const services = useQorusServices({ loadOnMount: true });
   const actions = useMemo(
     (): IReqorePanelAction[] => [
+      {
+        label: 'With Selected',
+        minimal: true,
+        intent: 'info',
+        badge: selected.length,
+        show: selected.length > 0,
+        tooltip: 'Manage Selected Items',
+        loading: services.loading,
+        loadingIconType: 4,
+        actions: [
+          {
+            icon: 'ToggleFill',
+            label: 'Enable',
+            disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleEnabled),
+            onClick: async () => {
+              services.toggleEnabledCall(selected, true);
+              setSelected([]);
+            },
+          },
+          {
+            icon: 'ToggleLine',
+            label: 'Disable',
+            disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleEnabled),
+            onClick: async () => {
+              services.toggleEnabledCall(selected, false);
+              setSelected([]);
+            },
+          },
+        ],
+      },
       {
         icon: 'RefreshLine',
         tooltip: 'Refresh',
@@ -26,8 +58,9 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
         },
       },
     ],
-    [services.loading]
+    [services.loading, selected]
   );
+
   const columns = useMemo(
     (): IReqoreTableColumn[] => [
       {
@@ -40,26 +73,27 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
         width: 400,
         grow: 2,
         cell: {
-          padded: 'none',
           content: ({ display_name, name, serviceid, short_desc, isSelected, alerts }) => (
-            <ReqoreButton
+            <ReqoreTag
               size='small'
               as='a'
-              transparent
               flat
               href={`/services/${serviceid}`}
               icon={FEATURES_ICONS.services}
               compact
-              intent={isSelected ? 'info' : undefined}
+              customTheme={{
+                main:
+                  size(alerts) > 0
+                    ? 'warning:lighten:1:0.5'
+                    : isSelected
+                    ? 'info:lighten:1:0.5'
+                    : undefined,
+              }}
               shrink={1}
               tooltip={short_desc}
               rightIcon={size(alerts) > 0 ? 'AlertLine' : undefined}
-              labelEffect={{
-                underline: true,
-              }}
-            >
-              {display_name || name}
-            </ReqoreButton>
+              label={display_name || name}
+            />
           ),
         },
       },
@@ -113,7 +147,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
               tooltip: enabled ? 'Enabled, click to disable' : 'Disabled, click to enable',
               disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleEnabled),
               onClick: async () => {
-                services.toggleEnabled(serviceid);
+                services.toggleEnabledCall([serviceid], !enabled);
               },
             },
             {
@@ -126,7 +160,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
                 : 'Autostart is disabled, click to enable',
               disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleAutostart),
               onClick: async () => {
-                services.toggleAutostart(serviceid);
+                services.toggleAutostartCall([serviceid], !autostart);
               },
             },
             {
@@ -138,7 +172,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
                 ? 'Service is loaded, click to unload'
                 : 'Service is unloaded, click to load',
               onClick: async () => {
-                services.toggleLoaded(serviceid);
+                services.toggleLoadedCall([serviceid], !loaded);
               },
               disabled: loaded
                 ? !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.unload)
@@ -192,6 +226,8 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
       striped
       exportable
       actions={actions}
+      onSelectedChange={setSelected}
+      selected={selected}
     />
   );
 };

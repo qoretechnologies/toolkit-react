@@ -1,4 +1,3 @@
-import { size } from 'lodash';
 import { useMemo } from 'react';
 import { useEffectOnce } from 'react-use';
 import { QorusServicesStore } from './store';
@@ -13,9 +12,9 @@ export const useQorusServices = ({
   const {
     data,
     load,
-    toggleEnabled,
-    toggleAutostart,
-    toggleLoaded,
+    toggleEnabledCall,
+    toggleAutostartCall,
+    toggleLoadedCall,
     toggleRemote,
     reset,
     hasPermissions,
@@ -33,7 +32,6 @@ export const useQorusServices = ({
       ...item,
       lastUpdated: item.lastUpdated,
       _selectId: item.serviceid,
-      _intent: size(item.alerts) > 0 ? 'danger' : undefined,
     }));
   }, [data]);
 
@@ -41,9 +39,9 @@ export const useQorusServices = ({
     () => ({
       data: items,
       load,
-      toggleEnabled,
-      toggleAutostart,
-      toggleLoaded,
+      toggleEnabledCall,
+      toggleAutostartCall,
+      toggleLoadedCall,
       hasPermissions,
       toggleRemote,
       reset,
@@ -53,9 +51,9 @@ export const useQorusServices = ({
       items,
       load,
       loading,
-      toggleEnabled,
-      toggleAutostart,
-      toggleLoaded,
+      toggleEnabledCall,
+      toggleAutostartCall,
+      toggleLoadedCall,
       toggleRemote,
       reset,
       hasPermissions,
