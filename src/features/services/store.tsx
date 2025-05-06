@@ -1,22 +1,15 @@
+import { QorusService } from '@qoretechnologies/ts-toolkit';
 import { create } from 'zustand';
+import { currentUserStore } from '../../stores/currentUser/currentUser';
 import { query } from '../../utils/fetch';
+import {} from '../../utils/websocket';
 import { toggleEnabled } from '../api';
 import { FEATURES_API_URL, QorusFeatureStore } from '../constants';
+import { QorusApiEvent, QorusGlobalEvents } from '../events';
 import { createFeatureStore } from '../utils';
 import { SERVICES_ACTIONS_PERMISSIONS } from './constants';
+import { QorusServiceEvents } from './events';
 
-export interface QorusService {
-  type: 'user' | 'system';
-  name: string;
-  version: string;
-  desc: string;
-  serviceid: number;
-  enabled: boolean;
-  autostart?: boolean;
-  loaded?: string;
-  remote?: boolean;
-  lastUpdated?: number;
-}
 export interface QorusServicesStore extends QorusFeatureStore<QorusService> {
   toggleEnabled: (id: string | number) => Promise<void>;
   toggleAutostart: (id: string | number) => Promise<void>;
@@ -28,6 +21,39 @@ export interface QorusServicesStore extends QorusFeatureStore<QorusService> {
 export const QorusServicesStore = create<QorusServicesStore>((set, get) => ({
   ...createFeatureStore<QorusService>('services', set, get),
   idKey: 'serviceid',
+
+  registerApiEvents: () => {
+    currentUserStore.getState().apiEvents.addHandler('message', (e) => {
+      if (e.data === 'pong') {
+        return;
+      }
+
+      const data: QorusApiEvent[] = JSON.parse(e.data);
+
+      data.forEach((event: QorusApiEvent) => {
+        if (event.eventstr === QorusServiceEvents.ENABLE_TOGGLE) {
+          get().updateItem(event.info.id, { enabled: event.info.enabled });
+        }
+
+        if (event.eventstr === QorusServiceEvents.UPDATED) {
+          get().updateItem(event.info.serviceid, { ...event.info.info });
+        }
+
+        if (event.eventstr === QorusServiceEvents.START) {
+          get().updateItem(event.info.serviceid, { loaded: event.time });
+        }
+
+        if (event.eventstr === QorusServiceEvents.STOP) {
+          get().updateItem(event.info.serviceid, { loaded: undefined });
+        }
+
+        if (event.eventstr === QorusGlobalEvents.AlertCleared) {
+          const service = get().itemById(event.info.id);
+          get().updateItem(event.info.id, { enabled: event.info.enabled });
+        }
+      });
+    });
+  },
 
   toggleEnabled: async (id: string | number) => {
     const service = get().itemById(id);

@@ -2,21 +2,6 @@ import { forEach } from 'lodash';
 import shortid from 'shortid';
 import { fetchConfig, query } from './fetch';
 
-export interface QorusApiEvent<Info> {
-  class: number;
-  classstr: string;
-  compositeseverity: number;
-  compositeseveritystr: string;
-  event: number;
-  eventstr: string;
-  id: number;
-  info: Info;
-  severity: number;
-  severitystr: string;
-  time: string;
-  timeus: number;
-}
-
 export interface IReqraftWebSocketConfig {
   url: string;
   reconnect?: boolean;
@@ -51,10 +36,10 @@ export class ReqraftWebSocketsManager {
     });
   }
 
-  public static addHandler(
+  public static addHandler<E extends keyof WebSocketEventMap>(
     url: string,
-    event: keyof WebSocketEventMap,
-    handler: (ev: Event | MessageEvent | CloseEvent) => void
+    event: E,
+    handler: (ev: WebSocketEventMap[E]) => void
   ) {
     this.connections[url]?.socket.addEventListener(event, handler);
 
@@ -63,10 +48,10 @@ export class ReqraftWebSocketsManager {
     };
   }
 
-  public static removeHandler(
+  public static removeHandler<E extends keyof WebSocketEventMap>(
     url: string,
-    event: keyof WebSocketEventMap,
-    handler: (ev: Event | MessageEvent | CloseEvent) => void
+    event: E,
+    handler: (ev: WebSocketEventMap[E]) => void
   ) {
     this.connections[url]?.socket.removeEventListener(event, handler);
   }
@@ -79,7 +64,10 @@ export class ReqraftWebSocket {
   public options: IReqraftWebSocketConfig;
   public readonly handlers: Record<
     string,
-    { type: keyof WebSocketEventMap; event: (ev: Event) => void }
+    {
+      type: keyof WebSocketEventMap;
+      event: (ev: WebSocketEventMap[keyof WebSocketEventMap]) => void;
+    }
   > = {};
   public socket: WebSocket;
 
@@ -92,13 +80,16 @@ export class ReqraftWebSocket {
     this.connect();
   }
 
-  public addHandler(
-    event: keyof WebSocketEventMap,
-    handler: (ev: Event | MessageEvent | CloseEvent) => void
-  ) {
+  public addHandler<E extends keyof WebSocketEventMap>(
+    event: E,
+    handler: (ev: WebSocketEventMap[E]) => void
+  ): string {
     const id = shortid.generate();
 
-    this.handlers[id] = { type: event, event: handler };
+    this.handlers[id] = {
+      type: event,
+      event: handler as (e: WebSocketEventMap[keyof WebSocketEventMap]) => void,
+    };
 
     ReqraftWebSocketsManager.addHandler(this.options.url, event, handler);
 

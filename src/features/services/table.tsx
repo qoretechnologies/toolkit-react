@@ -1,9 +1,10 @@
-import { ReqoreButton, ReqoreIcon, ReqoreTable } from '@qoretechnologies/reqore';
+import { ReqoreButton, ReqoreIcon, ReqoreTable, ReqoreTimeAgo } from '@qoretechnologies/reqore';
 import {
   IReqorePanelAction,
   IReqorePanelProps,
 } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreTableColumn } from '@qoretechnologies/reqore/dist/components/Table';
+import { size } from 'lodash';
 import { useMemo } from 'react';
 import { FEATURES_ICONS } from '../constants';
 import { SERVICES_ACTIONS_PERMISSIONS } from './constants';
@@ -40,7 +41,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
         grow: 2,
         cell: {
           padded: 'none',
-          content: ({ display_name, name, serviceid, short_desc, isSelected }) => (
+          content: ({ display_name, name, serviceid, short_desc, isSelected, alerts }) => (
             <ReqoreButton
               size='small'
               as='a'
@@ -52,6 +53,10 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
               intent={isSelected ? 'info' : undefined}
               shrink={1}
               tooltip={short_desc}
+              rightIcon={size(alerts) > 0 ? 'AlertLine' : undefined}
+              labelEffect={{
+                underline: true,
+              }}
             >
               {display_name || name}
             </ReqoreButton>
@@ -83,7 +88,9 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
         resizable: true,
         cell: {
           tooltip: (lastUpdated) => `Last updated: ${lastUpdated}`,
-          content: 'time-ago',
+          content: ({ lastUpdated }) => {
+            return <ReqoreTimeAgo time={lastUpdated} emptyMessage={'-'} />;
+          },
         },
         sortable: true,
       },

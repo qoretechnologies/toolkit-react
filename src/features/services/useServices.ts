@@ -1,8 +1,6 @@
-import { useCallback, useMemo } from 'react';
+import { size } from 'lodash';
+import { useMemo } from 'react';
 import { useEffectOnce } from 'react-use';
-import { useReqraftWebSocket } from '../../hooks/useWebSocket/useWebSocket';
-import { QorusApiEvent } from '../../utils/websocket';
-import { QorusServiceEvent, SERVICE_ENABLE_TOGGLE_EVENT } from './events';
 import { QorusServicesStore } from './store';
 
 export interface UseQorusServicesConfig {
@@ -22,7 +20,6 @@ export const useQorusServices = ({
     reset,
     hasPermissions,
     loading,
-    updateItem,
   } = QorusServicesStore();
 
   useEffectOnce(() => {
@@ -34,29 +31,11 @@ export const useQorusServices = ({
   const items = useMemo(() => {
     return data.map((item) => ({
       ...item,
-      lastUpdated: item.lastUpdated || 0,
+      lastUpdated: item.lastUpdated,
       _selectId: item.serviceid,
+      _intent: size(item.alerts) > 0 ? 'danger' : undefined,
     }));
   }, [data]);
-
-  const handleMessage = useCallback(
-    (e: MessageEvent) => {
-      const data: QorusApiEvent<QorusServiceEvent>[] = JSON.parse(e.data);
-
-      data.forEach((event: QorusApiEvent<QorusServiceEvent>) => {
-        if (event.eventstr === SERVICE_ENABLE_TOGGLE_EVENT) {
-          updateItem(event.info.id, { enabled: event.info.enabled });
-        }
-      });
-    },
-    [updateItem]
-  );
-
-  useReqraftWebSocket({
-    url: 'apievents',
-    openOnMount: true,
-    onMessage: handleMessage,
-  });
 
   return useMemo(
     () => ({

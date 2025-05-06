@@ -49,6 +49,12 @@ export const createFeatureStore = <Data>(
         onBefore: () => set({ loading: true, error: undefined }),
         onSuccess: (data) => {
           set({ loading: false, data: data.data, error: undefined });
+
+          // Register API events if not already registered
+          if (!get().hasRegisteredApiEvents) {
+            get().registerApiEvents?.();
+            set({ hasRegisteredApiEvents: true });
+          }
         },
         onError: (data) => {
           set({ loading: false, error: data.error, errorData: data.data });

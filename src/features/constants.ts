@@ -4,7 +4,7 @@ import { SERVICES_API_URL } from './services/constants';
 
 export interface QorusFeatureStore<T> {
   loading: boolean;
-  data: T[];
+  data: (T & { lastUpdated?: number })[];
   error?: Error;
   errorData?: string;
   load: () => Promise<T>;
@@ -12,6 +12,9 @@ export interface QorusFeatureStore<T> {
   itemById: (id: string | number) => T | undefined;
   idKey?: string;
   updateItem: (id: string | number, data: Partial<T>) => void;
+
+  registerApiEvents?: () => void;
+  hasRegisteredApiEvents?: boolean;
 
   hasPermissions: (permissions: string[]) => boolean;
 }
