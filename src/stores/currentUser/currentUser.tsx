@@ -37,7 +37,7 @@ export interface ICurrentUserStore {
 
 export const currentUserStore = create<ICurrentUserStore>((set, get) => ({
   currentUser: undefined,
-  loading: false,
+  loading: true,
   error: undefined,
   load: async () => {
     set({ loading: true });
@@ -55,7 +55,7 @@ export const currentUserStore = create<ICurrentUserStore>((set, get) => ({
       return Promise.reject(response.error);
     }
 
-    set({ currentUser: response.data, loading: false, errorData: undefined, error: undefined });
+    set({ currentUser: response.data, errorData: undefined, error: undefined });
 
     // Connect to API events
     get().connectToApiEvents();
@@ -67,7 +67,7 @@ export const currentUserStore = create<ICurrentUserStore>((set, get) => ({
       url: `apievents`,
     });
 
-    set({ apiEvents: socket });
+    set({ apiEvents: socket, loading: false });
   },
   hasAnyPermission: (permissions) => {
     if (!get().currentUser) {

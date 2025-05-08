@@ -13,7 +13,7 @@ export interface IReqraftUseFetch<T> {
   errorData?: any;
 }
 
-export interface IReqraftUseFetchOptions<T> extends IReqraftQueryConfig {
+export interface IReqraftUseFetchOptions<T> extends IReqraftQueryConfig<T> {
   defaultData?: T;
   loadOnMount?: boolean;
 }

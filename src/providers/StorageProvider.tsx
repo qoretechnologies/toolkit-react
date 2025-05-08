@@ -14,7 +14,7 @@ export interface IReqraftStorageProviderProps
   children: ReactNode;
 }
 
-export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorageProviderProps) => {
+export const ReqraftUserProvider = ({ children }: IReqraftStorageProviderProps) => {
   const appName = useReqraftProperty('appName');
   const {
     currentUser,
@@ -80,7 +80,9 @@ export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorag
     [currentUser?.storage, getStorage, updateStorage, removeStorageValue]
   );
 
-  if (loading && waitForStorage) {
+  console.log(contextValue, loading);
+
+  if (loading) {
     return null;
   }
 

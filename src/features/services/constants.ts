@@ -11,4 +11,5 @@ export const SERVICES_ACTIONS_PERMISSIONS = {
   unload: ['SERVICE-CONTROL', 'UNLOAD-SERVICE'],
   setRemote: ['SERVICE-CONTROL'],
   reset: ['SERVICE-CONTROL', 'RESET-SERVICE'],
+  manageSystemService: ['SERVER-CONTROL', 'SYSTEM-SERVICE-CONTROL'],
 };

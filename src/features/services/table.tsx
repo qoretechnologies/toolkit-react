@@ -46,6 +46,41 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
               setSelected([]);
             },
           },
+          {
+            divider: true,
+            dividerPadded: 'none',
+          },
+          {
+            icon: 'ArrowUpLine',
+            label: 'Load',
+            disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.load),
+            onClick: async () => {
+              services.toggleLoadedCall(selected, true);
+              setSelected([]);
+            },
+          },
+          {
+            icon: 'ArrowDownLine',
+            label: 'Unload',
+            disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.unload),
+            onClick: async () => {
+              services.toggleLoadedCall(selected, false);
+              setSelected([]);
+            },
+          },
+          {
+            divider: true,
+            dividerPadded: 'none',
+          },
+          {
+            icon: 'HistoryLine',
+            label: 'Reset',
+            disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.reset),
+            onClick: async () => {
+              services.resetCall(selected);
+              setSelected([]);
+            },
+          },
         ],
       },
       {
@@ -98,6 +133,19 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
         },
       },
       {
+        dataId: 'version',
+        align: 'center',
+        header: {
+          label: 'V',
+          tooltip: 'Version',
+        },
+        resizable: true,
+        cell: {
+          content: 'number',
+        },
+        sortable: true,
+      },
+      {
         dataId: 'type',
         align: 'center',
         header: {
@@ -117,7 +165,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
         align: 'center',
         width: 100,
         header: {
-          label: 'Updated',
+          label: 'Last Update',
         },
         resizable: true,
         cell: {
@@ -160,7 +208,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
                 : 'Autostart is disabled, click to enable',
               disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleAutostart),
               onClick: async () => {
-                services.toggleAutostartCall([serviceid], !autostart);
+                services.toggleAutostartCall(serviceid, !autostart);
               },
             },
             {
@@ -188,7 +236,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
                 : 'Local service, click to change to remote',
               disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.setRemote),
               onClick: async () => {
-                services.toggleRemote(serviceid);
+                services.toggleRemoteCall(serviceid);
               },
             },
             {
@@ -198,7 +246,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
               tooltip: 'Reset service',
               disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.reset),
               onClick: async () => {
-                services.reset(serviceid);
+                services.resetCall(serviceid);
               },
             },
           ],

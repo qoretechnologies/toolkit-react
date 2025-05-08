@@ -3,6 +3,10 @@ import { ReqoreContent, ReqoreLayoutContent, ReqoreUIProvider } from '@qoretechn
 import { initializeReqraft } from '../src';
 
 export const parameters = {
+  mockAddonConfigs: {
+    ignoreQueryParams: true,
+    globalMockData: [],
+  },
   actions: { argTypesRegex: '^on[A-Z].*' },
   layout: 'fullscreen',
   options: {
