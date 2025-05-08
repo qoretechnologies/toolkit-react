@@ -1,8 +1,8 @@
 import { QorusService } from '@qoretechnologies/ts-toolkit';
 import { size } from 'lodash';
+import { ApiEventsWebSocket } from '../../.storybook/preview';
 import { QorusServiceEnableCallResponse } from '../../src/features/services/api';
 import { QorusServiceEnableEventInfo } from '../../src/features/services/events';
-import { ServicesSocket } from '../../src/features/services/Services.stories';
 import { MockServicesData } from './data';
 
 export const GetServices = {
@@ -50,7 +50,7 @@ export const ToggleEnableServices = {
         },
       }));
 
-    ServicesSocket.send(JSON.stringify(responseEvents));
+    ApiEventsWebSocket.send(JSON.stringify(responseEvents));
 
     return affectedServices.map((service) => ({
       arg: 'any',

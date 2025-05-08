@@ -1,62 +1,15 @@
 import { StoryObj } from '@storybook/react';
 import { expect, fireEvent } from '@storybook/test';
-import { Client, Server } from 'mock-socket';
 import { GetServices, ToggleEnableServices } from '../../../__tests__/services/api';
 import { sleep, testsClickButton, testsWaitForText } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';
 import { QorusServicesTable } from './table';
-
-export let ServicesSocket: Client;
 
 const meta = {
   title: 'Features/Services',
   excludeStories: ['ServicesSocket'],
   render: () => {
     return <QorusServicesTable />;
-  },
-  async beforeEach() {
-    const url = `wss://hq.qoretechnologies.com:8092/apievents?token=${process.env.REACT_APP_QORUS_TOKEN}`;
-    let server = new Server(url);
-    let killTimeout: NodeJS.Timeout;
-
-    server.on('connection', (socket) => {
-      ServicesSocket = socket;
-
-      if (killTimeout) {
-        server.close();
-        return;
-      }
-
-      socket.on('message', (data) => {
-        if (data === 'ping') {
-          socket.send('pong');
-          return;
-        }
-
-        if (data === 'kill') {
-          server.close();
-
-          killTimeout = setTimeout(() => {
-            server = new Server(url);
-            killTimeout = null;
-          }, 3000);
-
-          return;
-        }
-
-        socket.send(`Received message: ${data}`);
-      });
-    });
-
-    return () => {
-      killTimeout && clearTimeout(killTimeout);
-      killTimeout = null;
-      server.close({
-        code: 4999,
-        reason: 'Test ended',
-        wasClean: true,
-      });
-    };
   },
 } as StoryMeta<any>;
 

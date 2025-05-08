@@ -1,5 +1,6 @@
 import withMockdate from '@netsells/storybook-mockdate';
 import { ReqoreContent, ReqoreLayoutContent, ReqoreUIProvider } from '@qoretechnologies/reqore';
+import { Client, Server } from 'mock-socket';
 import { initializeReqraft } from '../src';
 
 export const parameters = {
@@ -42,6 +43,22 @@ export const argTypes = {
     },
   },
 };
+
+export let ApiEventsWebSocket: Client;
+
+const url = `wss://hq.qoretechnologies.com:8092/apievents?token=${process.env.REACT_APP_QORUS_TOKEN}`;
+let server = new Server(url);
+
+server.on('connection', (socket) => {
+  ApiEventsWebSocket = socket;
+
+  socket.on('message', (data) => {
+    if (data === 'ping') {
+      socket.send('pong');
+      return;
+    }
+  });
+});
 
 export const decorators = [
   withMockdate,
