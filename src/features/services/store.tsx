@@ -1,7 +1,7 @@
 import { QorusService } from '@qoretechnologies/ts-toolkit';
 import { create } from 'zustand';
 import { currentUserStore } from '../../stores/currentUser/currentUser';
-import { query, TReqraftFetchResponse } from '../../utils/fetch';
+import { IReqraftQueryConfig, query, TReqraftFetchResponse } from '../../utils/fetch';
 import {} from '../../utils/websocket';
 import { FEATURES_API_URL, QorusFeatureStore } from '../constants';
 import { QorusApiEvent, QorusGlobalEvents } from '../events';
@@ -13,18 +13,27 @@ import { QorusServiceEvents } from './events';
 export interface QorusServicesStore extends QorusFeatureStore<QorusService> {
   toggleEnabledCall: (
     ids: number[],
-    enabled: true | false
+    enabled: true | false,
+    options?: Partial<IReqraftQueryConfig<QorusServiceEnableCallResponse[]>>
   ) => Promise<TReqraftFetchResponse<QorusServiceEnableCallResponse[]>>;
   toggleAutostartCall: (
     ids: number,
-    autostart: true | false
+    autostart: true | false,
+    options?: Partial<IReqraftQueryConfig<QorusServiceEnableCallResponse[]>>
   ) => Promise<TReqraftFetchResponse<unknown>>;
   toggleLoadedCall: (
     ids: number[],
-    loaded: true | false
+    loaded: true | false,
+    options?: Partial<IReqraftQueryConfig<QorusServiceEnableCallResponse[]>>
   ) => Promise<TReqraftFetchResponse<unknown>>;
-  resetCall: (id: number[]) => Promise<TReqraftFetchResponse<unknown>>;
-  toggleRemoteCall: (id: string | number) => Promise<TReqraftFetchResponse<unknown>>;
+  resetCall: (
+    id: number[],
+    options?: Partial<IReqraftQueryConfig<QorusServiceEnableCallResponse[]>>
+  ) => Promise<TReqraftFetchResponse<unknown>>;
+  toggleRemoteCall: (
+    id: string | number,
+    options?: Partial<IReqraftQueryConfig<QorusServiceEnableCallResponse[]>>
+  ) => Promise<TReqraftFetchResponse<unknown>>;
 }
 
 export const QorusServicesStore = create<QorusServicesStore>((set, get) => ({
@@ -74,12 +83,13 @@ export const QorusServicesStore = create<QorusServicesStore>((set, get) => ({
   },
 
   toggleEnabledCall: (
-    ids: number[],
-    enabled: true | false
+    ids,
+    enabled,
+    options
   ): Promise<TReqraftFetchResponse<QorusServiceEnableCallResponse[]>> => {
     if (get().hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleEnabled)) {
-      console.log({ ids, enabled });
       return query({
+        ...options,
         method: 'PUT',
         url: `${FEATURES_API_URL.services}?action=${enabled ? 'enable' : 'disable'}`,
         body: { ids: ids.join(',') },
@@ -94,9 +104,10 @@ export const QorusServicesStore = create<QorusServicesStore>((set, get) => ({
     });
   },
 
-  toggleAutostartCall: (id: number, autostart: boolean) => {
+  toggleAutostartCall: (id, autostart, options) => {
     if (get().hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleAutostart)) {
       return query({
+        ...options,
         method: 'PUT',
         url: `${FEATURES_API_URL.services}/${id}?action=setAutostart`,
         body: { autostart },
@@ -111,7 +122,7 @@ export const QorusServicesStore = create<QorusServicesStore>((set, get) => ({
     } as TReqraftFetchResponse<unknown>);
   },
 
-  toggleLoadedCall: (ids: number[], loaded: boolean) => {
+  toggleLoadedCall: (ids, loaded, options) => {
     if (
       !get().hasPermissions(
         loaded ? SERVICES_ACTIONS_PERMISSIONS.load : SERVICES_ACTIONS_PERMISSIONS.unload
@@ -125,6 +136,7 @@ export const QorusServicesStore = create<QorusServicesStore>((set, get) => ({
     }
 
     return query({
+      ...options,
       method: 'PUT',
       url: `${FEATURES_API_URL.services}?action=${loaded ? 'load' : 'unload'}`,
       body: { loaded, ids: ids.join(',') },
@@ -132,7 +144,7 @@ export const QorusServicesStore = create<QorusServicesStore>((set, get) => ({
     });
   },
 
-  toggleRemoteCall: (id: string | number) => {
+  toggleRemoteCall: (id, options) => {
     const service = get().itemById(id);
     const permissions = SERVICES_ACTIONS_PERMISSIONS.setRemote;
 
@@ -145,6 +157,7 @@ export const QorusServicesStore = create<QorusServicesStore>((set, get) => ({
     }
 
     return query({
+      ...options,
       method: 'PUT',
       url: `${FEATURES_API_URL.services}/${id}?action=setRemote`,
       body: { remote: !service?.remote },
@@ -152,7 +165,7 @@ export const QorusServicesStore = create<QorusServicesStore>((set, get) => ({
     });
   },
 
-  resetCall: (ids: number[]) => {
+  resetCall: (ids, options) => {
     const permissions = SERVICES_ACTIONS_PERMISSIONS.reset;
 
     if (!get().hasPermissions(permissions)) {
@@ -164,6 +177,7 @@ export const QorusServicesStore = create<QorusServicesStore>((set, get) => ({
     }
 
     return query({
+      ...options,
       method: 'PUT',
       url: `${FEATURES_API_URL.services}?action=reset`,
       body: { ids: ids.join(',') },

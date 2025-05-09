@@ -47,18 +47,22 @@ export const argTypes = {
 export let ApiEventsWebSocket: Client;
 
 const url = `wss://hq.qoretechnologies.com:8092/apievents?token=${process.env.REACT_APP_QORUS_TOKEN}`;
-let server = new Server(url);
+try {
+  let server = new Server(url);
 
-server.on('connection', (socket) => {
-  ApiEventsWebSocket = socket;
+  server.on('connection', (socket) => {
+    ApiEventsWebSocket = socket;
 
-  socket.on('message', (data) => {
-    if (data === 'ping') {
-      socket.send('pong');
-      return;
-    }
+    socket.on('message', (data) => {
+      if (data === 'ping') {
+        socket.send('pong');
+        return;
+      }
+    });
   });
-});
+} catch (e) {
+  console.warn('WebSocket server threw:', e.message);
+}
 
 export const decorators = [
   withMockdate,

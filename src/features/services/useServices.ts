@@ -1,80 +1,87 @@
 import { useReqoreProperty } from '@qoretechnologies/reqore';
 import { useCallback, useMemo } from 'react';
 import { useEffectOnce } from 'react-use';
-import { isError } from '../../utils/fetch';
+import { IReqraftFetchErrorResponse, isError } from '../../utils/fetch';
 import { QorusServicesStore } from './store';
 
 export interface UseQorusServicesConfig {
   loadOnMount?: boolean;
 }
 
+export interface UseQorusServicesResult extends Partial<QorusServicesStore> {
+  toggleEnabledWithNotification: QorusServicesStore['toggleEnabledCall'];
+}
+
 export const useQorusServices = ({
   loadOnMount,
-}: UseQorusServicesConfig): Partial<QorusServicesStore> => {
+}: UseQorusServicesConfig): UseQorusServicesResult => {
   const addNotification = useReqoreProperty('addNotification');
-  const services = QorusServicesStore();
+  const { toggleEnabledCall, load, data, ...rest } = QorusServicesStore();
 
   useEffectOnce(() => {
     if (loadOnMount) {
-      services.load();
+      load();
     }
   });
 
   const items = useMemo(() => {
-    return services.data.map((item) => ({
+    return data.map((item) => ({
       ...item,
       lastUpdated: item.lastUpdated,
       _selectId: item.serviceid,
     }));
-  }, [services.data]);
+  }, [data]);
 
-  const toggleEnabledCall: QorusServicesStore['toggleEnabledCall'] = useCallback(
-    async (ids, enabled) => {
-      const result = await services.toggleEnabledCall(ids, enabled);
+  const handleCallError = useCallback((result: IReqraftFetchErrorResponse) => {
+    if (isError(result)) {
+      addNotification({
+        type: 'danger',
+        content: result.data,
+        title: result.error,
+        opaque: false,
+      });
+    }
+  }, []);
 
-      console.log({ result });
+  const toggleEnabledWithNotification: UseQorusServicesResult['toggleEnabledWithNotification'] =
+    useCallback(
+      async (ids, enabled) => {
+        const result = await toggleEnabledCall(ids, enabled, {
+          onError: handleCallError,
+          onSuccess: ({ data }) => {
+            data?.forEach((resultItem) => {
+              if (enabled && !resultItem.enabled) {
+                addNotification({
+                  size: 'small',
+                  type: 'danger',
+                  content: resultItem.info,
+                  title: 'Error enabling service(s)',
+                });
+              }
 
-      if (isError(result)) {
-        // Check if the call resulted in an error
-        addNotification({
-          type: 'danger',
-          content: result.data,
-          title: result.error,
-        });
-      } else {
-        // Check if the call was successful but some items were not enabled
-        result.data?.forEach((resultItem) => {
-          if (enabled && !resultItem.enabled) {
-            addNotification({
-              size: 'small',
-              type: 'danger',
-              content: resultItem.info,
-              title: 'Error enabling service(s)',
+              if (!enabled && !resultItem.disabled) {
+                addNotification({
+                  size: 'small',
+                  type: 'danger',
+                  content: resultItem.info,
+                  title: 'Error disabling service(s)',
+                });
+              }
             });
-          }
-
-          if (!enabled && !resultItem.disabled) {
-            addNotification({
-              size: 'small',
-              type: 'danger',
-              content: resultItem.info,
-              title: 'Error disabling service(s)',
-            });
-          }
+          },
         });
-      }
 
-      return result;
-    },
-    [services.toggleEnabledCall]
-  );
+        return result;
+      },
+      [toggleEnabledCall]
+    );
 
   return useMemo(
     () => ({
-      ...services,
+      ...rest,
       data: items,
-      toggleEnabledCall,
+      toggleEnabledWithNotification,
     }),
-    [services, items, toggleEnabledCall]
+    [rest, items, toggleEnabledWithNotification]
   );
 };

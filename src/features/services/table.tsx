@@ -33,7 +33,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
             label: 'Enable',
             disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleEnabled),
             onClick: async () => {
-              services.toggleEnabledCall(selected, true);
+              services.toggleEnabledWithNotification(selected, true);
               setSelected([]);
             },
           },
@@ -42,7 +42,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
             label: 'Disable',
             disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleEnabled),
             onClick: async () => {
-              services.toggleEnabledCall(selected, false);
+              services.toggleEnabledWithNotification(selected, false);
               setSelected([]);
             },
           },
@@ -195,7 +195,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
               tooltip: enabled ? 'Enabled, click to disable' : 'Disabled, click to enable',
               disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleEnabled),
               onClick: async () => {
-                services.toggleEnabledCall([serviceid], !enabled);
+                services.toggleEnabledWithNotification([serviceid], !enabled);
               },
             },
             {

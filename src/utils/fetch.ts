@@ -17,7 +17,7 @@ export interface IReqraftFetchOkResponse<T> {
   response: Response;
 }
 
-export interface IReqraftFetchErrorResponse<E> {
+export interface IReqraftFetchErrorResponse<E = string> {
   ok: false;
   data: E;
 

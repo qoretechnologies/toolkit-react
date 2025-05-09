@@ -80,8 +80,6 @@ export const ReqraftUserProvider = ({ children }: IReqraftStorageProviderProps) 
     [currentUser?.storage, getStorage, updateStorage, removeStorageValue]
   );
 
-  console.log(contextValue, loading);
-
   if (loading) {
     return null;
   }
