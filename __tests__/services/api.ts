@@ -20,45 +20,61 @@ export const ToggleEnableServices = {
     const { searchParams, body } = request;
     const { ids } = JSON.parse(body);
     const affectedServices = MockServicesData.filter((service) => ids.includes(service.serviceid));
-
     const action = searchParams.action;
-    const key = action === 'enable' ? 'enabled' : 'disabled';
 
-    const getResponseData = (service: QorusService): Partial<QorusServiceEnableCallResponse> =>
-      action === 'enable'
-        ? {
+    const getResponseData = (service: QorusService) => {
+      switch (action) {
+        case 'enable':
+          return {
             info: size(service.alerts)
               ? `Service ${service.serviceid} was NOT enabled`
               : `Service ${service.serviceid} enabled`,
-            [key]: size(service.alerts) ? false : true,
-          }
-        : {
+            enabled: size(service.alerts) ? false : true,
+          } satisfies Partial<QorusServiceEnableCallResponse>;
+        case 'disable':
+          return {
             info: `Service ${service.serviceid} was disabled`,
-            [key]: true,
-          };
+            disabled: true,
+          } satisfies Partial<QorusServiceEnableCallResponse>;
+      }
+    };
 
-    const responseEvents: Partial<QorusServiceEnableEventInfo>[] = affectedServices
-      .filter((service) => service.serviceid !== 3)
-      .map((service) => ({
-        eventstr: 'GROUP_STATUS_CHANGED',
-        info: {
-          id: service.serviceid,
-          enabled: action === 'enable' ? (size(service.alerts) ? false : true) : false,
+    let responseEvents: unknown;
+    let result: unknown;
+
+    switch (action) {
+      case 'enable':
+      case 'disable': {
+        responseEvents = affectedServices
+          .filter((service) => (action === 'enable' ? !size(service.alerts) : true))
+          .map((service) => ({
+            eventstr: 'GROUP_STATUS_CHANGED',
+            info: {
+              id: service.serviceid,
+              enabled: action === 'enable' ? (size(service.alerts) ? false : true) : false,
+              name: service.name,
+              synthetic: false,
+              type: 'service',
+            },
+          })) satisfies Partial<QorusServiceEnableEventInfo>[];
+
+        result = affectedServices.map((service) => ({
+          arg: 'any',
+          serviceid: service.serviceid,
           name: service.name,
-          synthetic: false,
-          type: 'service',
-        },
-      }));
+          type: service.type,
+          version: service.version,
+          ...getResponseData(service),
+        })) satisfies QorusServiceEnableCallResponse[];
 
+        break;
+      }
+    }
+
+    // Send events to the WebSocket
     ApiEventsWebSocket.send(JSON.stringify(responseEvents));
 
-    return affectedServices.map((service) => ({
-      arg: 'any',
-      serviceid: service.serviceid,
-      name: service.name,
-      type: service.type,
-      version: service.version,
-      ...getResponseData(service),
-    })) as QorusServiceEnableCallResponse[];
+    // Return the result (this is a 200 response with the data)
+    return result;
   },
 };

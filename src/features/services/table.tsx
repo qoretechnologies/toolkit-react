@@ -139,7 +139,6 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
           label: 'V',
           tooltip: 'Version',
         },
-        resizable: true,
         cell: {
           content: 'number',
         },
@@ -192,6 +191,7 @@ export const QorusServicesTable = ({}: QorusServiceTableProps) => {
               compact: true,
               intent: enabled ? 'info' : undefined,
               minimal: true,
+              className: 'qorus-service-enable-toggle',
               tooltip: enabled ? 'Enabled, click to disable' : 'Disabled, click to enable',
               disabled: !services.hasPermissions(SERVICES_ACTIONS_PERMISSIONS.toggleEnabled),
               onClick: async () => {

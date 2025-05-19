@@ -45,3 +45,16 @@ export const ServicesCanBeSelected: Story = {
     await testsWaitForText('Reset');
   },
 };
+
+export const ServicesCanBeEnabledAndDisabled: Story = {
+  ...ServicesCanBeSelected,
+  play: async (args) => {
+    await ServicesCanBeSelected.play(args);
+    await testsClickButton({ label: 'Disable' });
+    await testsWaitForText('Operation completed successfully!');
+    await fireEvent.click(document.querySelectorAll('.qorus-service-enable-toggle')[2]);
+    await testsWaitForText('Operation completed successfully!');
+    await fireEvent.click(document.querySelectorAll('.qorus-service-enable-toggle')[1]);
+    await testsWaitForText('Operation completed successfully!');
+  },
+};
