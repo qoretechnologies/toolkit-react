@@ -17,6 +17,8 @@ export interface ICurrentUser {
   fsms: string[];
   oauth2_clients?: Record<string, any>[];
   storage?: Record<string, any>;
+  sandboxed?: boolean;
+  default_group?: string;
 }
 
 export interface ICurrentUserStore {
