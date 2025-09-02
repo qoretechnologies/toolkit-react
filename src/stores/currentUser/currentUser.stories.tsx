@@ -38,7 +38,7 @@ export const currentUserHasPermissions: Story = {
 
     return (
       <ReqoreP>
-        {hasAnyPermission(['SERVER-CONTROL', 'RANDOM-PERM'])
+        {hasAnyPermission(['USER-CONTROL', 'RANDOM-PERM'])
           ? 'Yes, user has "SERVER-CONTROL" permission'
           : 'No'}
       </ReqoreP>
