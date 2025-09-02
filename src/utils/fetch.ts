@@ -44,21 +44,19 @@ async function doFetchData(
   method = 'GET',
   body?: { [key: string]: any }
 ): Promise<Response> {
-  if (!fetchConfig.instanceToken && !fetchConfig.instanceRbacDisabled) {
-    return new Response(JSON.stringify({}), {
-      status: 401,
-      statusText: 'Unauthorized',
-    });
+  // We do not check for token because Qorus now handles auth automatically via cookies
+  // token is only supplied in a dev environment
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  if (fetchConfig.instanceToken && !fetchConfig.instanceRbacDisabled) {
+    headers['Authorization'] = `Bearer ${fetchConfig.instanceToken}`;
   }
 
   return fetch(`${fetchConfig.instance}api/latest/${url}`, {
     method,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: fetchConfig.instanceRbacDisabled
-        ? undefined
-        : `Bearer ${fetchConfig.instanceToken}`,
-    },
+    headers,
     body: JSON.stringify(body),
   }).catch((error) => {
     return new Response(JSON.stringify({}), {
@@ -90,14 +88,6 @@ export async function query<T>({
     queryKey: [cacheKey],
     queryFn: async () => {
       const response = await doFetchData(url, method, body);
-
-      if (
-        response.status === 401 &&
-        process.env.NODE_ENV !== 'test' &&
-        process.env.NODE_ENV !== 'storybook'
-      ) {
-        window.location.href = fetchConfig.unauthorizedRedirect(window.location.pathname);
-      }
 
       const clone = response.clone();
       let data: any;
