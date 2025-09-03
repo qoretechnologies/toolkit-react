@@ -18,7 +18,7 @@ export interface IReqraftProviderProps extends IReqraftContext {
 
 export interface IReqraftOptions {
   instance?: string;
-  instanceToken: string;
+  instanceToken?: string;
   instanceRbacDisabled?: boolean;
   instanceUnauthorizedRedirect?: IReqraftFetchConfig['unauthorizedRedirect'];
 }

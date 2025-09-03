@@ -3,7 +3,7 @@ import { ReqraftQueryClient } from '../providers/ReqraftProvider';
 
 export interface IReqraftFetchConfig {
   instance: string;
-  instanceToken: string;
+  instanceToken?: string;
   instanceRbacDisabled?: boolean;
   unauthorizedRedirect?: (pathname: string) => string;
 }

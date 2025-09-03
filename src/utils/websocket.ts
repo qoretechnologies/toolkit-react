@@ -14,6 +14,7 @@ export interface IReqraftWebSocketConfig {
   onError?: (ev?: Event) => void;
   onReconnecting?: (reconnectNumber?: number) => void;
   onReconnectFailed?: () => void;
+  tokenOverride?: string;
 }
 
 export class ReqraftWebSocketsManager {
@@ -109,7 +110,9 @@ export class ReqraftWebSocket {
       wsUrl = wsUrl.slice(0, -1);
     }
 
-    return `${wsUrl}/${this.options.url}?token=${fetchConfig.instanceToken}`;
+    const token = this.options.tokenOverride || fetchConfig.instanceToken;
+
+    return `${wsUrl}/${this.options.url}${token ? `?token=${token}` : ''}`;
   }
 
   public connect() {
