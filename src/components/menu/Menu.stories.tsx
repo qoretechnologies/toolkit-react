@@ -82,3 +82,12 @@ export const WidthFromStorage: Story = {
     mockData: [...storiesStorageMock],
   },
 };
+
+export const WithCustomChildren: Story = {
+  ...ActivePath,
+  args: {
+    ...ActivePath.args,
+    topChildren: <div style={{ padding: 10 }}>Top Custom Child</div>,
+    bottomChildren: <div style={{ padding: 10 }}>Bottom Custom Child</div>,
+  },
+};

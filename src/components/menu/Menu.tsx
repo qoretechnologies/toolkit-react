@@ -12,6 +12,7 @@ import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/M
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { map, reduce, size } from 'lodash';
 import { useEffect, useMemo, useState } from 'react';
+import styled from 'styled-components';
 import { useReqraftStorage } from '../../hooks/useStorage/useStorage';
 
 export interface IReqraftMenuItem extends IReqoreMenuItemProps {
@@ -39,7 +40,12 @@ export interface IReqraftMenuProps extends Partial<Omit<IReqoreMenuProps, 'resiz
   onResizeChange?: (width: number) => void;
   defaultWidth?: number;
   activeItemIntent?: TReqoreIntent;
+
+  topChildren?: React.ReactNode;
+  bottomChildren?: React.ReactNode;
 }
+
+export const ReqraftMenuItemsSection = styled.div``;
 
 export const ReqraftMenuItem = ({
   path,
@@ -117,6 +123,8 @@ export const ReqraftMenu = ({
   resizable,
   path,
   activeItemIntent,
+  topChildren,
+  bottomChildren,
   ...rest
 }: IReqraftMenuProps) => {
   const [query, setQuery] = useState<string>(defaultQuery);
@@ -208,8 +216,10 @@ export const ReqraftMenu = ({
       }}
       rounded={false}
       customTheme={{ main: '#181818' }}
+      style={{ overflowY: 'hidden' }}
       {...rest}
     >
+      {topChildren}
       <ReqoreControlGroup>
         <ReqoreInput
           icon='Search2Line'
@@ -240,15 +250,18 @@ export const ReqraftMenu = ({
           }}
         />
       </ReqoreControlGroup>
-      {map(filteredMenu, (menuData, menuId) => (
-        <ReqraftMenuItem
-          key={menuId}
-          {...menuData}
-          path={path}
-          isCollapsed={!query && !!(menuData as IReqraftMenuItem).submenu}
-          activeIntent={activeItemIntent}
-        />
-      ))}
+      <ReqoreControlGroup vertical style={{ overflowY: 'auto', flex: '1 auto' }}>
+        {map(filteredMenu, (menuData, menuId) => (
+          <ReqraftMenuItem
+            key={menuId}
+            {...menuData}
+            path={path}
+            isCollapsed={!query && !!(menuData as IReqraftMenuItem).submenu}
+            activeIntent={activeItemIntent}
+          />
+        ))}
+      </ReqoreControlGroup>
+      {bottomChildren}
     </ReqoreMenu>
   );
 };
