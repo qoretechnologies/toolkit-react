@@ -1,8 +1,4 @@
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
-import { fn } from '@storybook/test';
-import { map } from 'lodash';
-import { TReqraftMenuItem } from '../src';
-import interfaces from './interfaceCategories.json';
 
 export const interfaceIcons: Record<string, IReqoreIconName> = {
   service: 'ServerLine',
@@ -30,40 +26,610 @@ export const interfaceIcons: Record<string, IReqoreIconName> = {
 
 export default [
   {
-    label: 'Developer Portal',
-    icon: 'CodeBoxLine',
-    to: '/',
-    activePaths: ['', '/ide'],
-    id: 'ide',
+    label: 'Qogs',
+    description: 'Create Powerful Automations',
+    transparent: false,
+    customTheme: {
+      main: 'custom1',
+    },
+    icon: 'DashboardLine',
+    leftIconProps: {
+      icon: 'DashboardLine',
+      image: '/qog.png',
+    },
+    tooltip: {
+      content:
+        'Qogs are no-code logic elements based on finite state machines; they can be used anywhere in Qorus as an alternative to coding',
+      maxWidth: '400px',
+      delay: 300,
+    },
+    to: '/Interfaces/fsm',
+    activePaths: ['/Interfaces/fsm'],
+    badge: [
+      {
+        label: 52,
+        align: 'right',
+      },
+    ],
+    id: 'fsm',
     as: 'a',
-    submenu: map(
-      interfaces,
-      (item, id): TReqraftMenuItem => ({
-        label: item.display_name,
-        icon: interfaceIcons[id],
+    stackWithActions: false,
+    rightAction: {
+      icon: 'AddLine',
+      compact: true,
+      tooltip: 'Create New',
+    },
+  },
+  {
+    label: 'Interfaces & More',
+    description: 'View and Manage Qorus Objects',
+    icon: 'CodeBoxLine',
+    id: 'ide',
+    activePaths: ['/Interfaces', '/CreateInterface'],
+    submenu: [
+      {
+        label: 'Connections',
+        icon: 'Plug2Line',
+        leftIconProps: {
+          icon: 'Plug2Line',
+        },
         minimal: false,
-        to: `/Interfaces/${id}`,
-        badge: [{ label: item.items + item.drafts, align: 'right' }],
+        to: '/Interfaces/connection',
+        badge: [
+          {
+            label: 30,
+            align: 'right',
+          },
+        ],
         tooltip: {
-          content: item.short_desc,
+          content: 'Connections to remote systems',
           maxWidth: '400px',
           delay: 300,
         },
         wrap: false,
-        activePaths: [`/Interfaces/${id}`, `/CreateInterface/${id}`],
+        activePaths: ['/Interfaces/connection', '/CreateInterface/connection'],
         as: 'a',
-        id: id,
-        rightIcon: 'AddLine',
-        onRightIconClick: fn(),
-      })
-    ),
+        id: 'connection',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Classes',
+        icon: 'CodeSLine',
+        leftIconProps: {
+          icon: 'CodeSLine',
+        },
+        minimal: false,
+        to: '/Interfaces/class',
+        badge: [
+          {
+            label: 193,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Classes that can be used in Qorus interface code',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/class', '/CreateInterface/class'],
+        as: 'a',
+        id: 'class',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Constants',
+        icon: 'Hashtag',
+        leftIconProps: {
+          icon: 'Hashtag',
+        },
+        minimal: false,
+        to: '/Interfaces/constant',
+        badge: [
+          {
+            label: 8,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Constants that can be used in Qorus interface code',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/constant', '/CreateInterface/constant'],
+        as: 'a',
+        id: 'constant',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'ForbidLine',
+          disabled: true,
+          tooltip: 'Deprecated: Creation is disabled',
+          compact: true,
+        },
+      },
+      {
+        label: 'Errors',
+        icon: 'ErrorWarningLine',
+        leftIconProps: {
+          icon: 'ErrorWarningLine',
+        },
+        minimal: false,
+        to: '/Interfaces/errors',
+        badge: [
+          {
+            label: 15,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Workflow error set definitions',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/errors', '/CreateInterface/errors'],
+        as: 'a',
+        id: 'errors',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Workflow Sync Events',
+        icon: 'GitCommitLine',
+        leftIconProps: {
+          icon: 'GitCommitLine',
+        },
+        minimal: false,
+        to: '/Interfaces/event',
+        badge: [
+          {
+            label: 9,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Workflow synchronization events',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/event', '/CreateInterface/event'],
+        as: 'a',
+        id: 'event',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Functions',
+        icon: 'FacebookLine',
+        leftIconProps: {
+          icon: 'FacebookLine',
+        },
+        minimal: false,
+        to: '/Interfaces/function',
+        badge: [
+          {
+            label: 162,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Functions that can be used in Qorus interface code',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/function', '/CreateInterface/function'],
+        as: 'a',
+        id: 'function',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'ForbidLine',
+          disabled: true,
+          tooltip: 'Deprecated: Creation is disabled',
+          compact: true,
+        },
+      },
+      {
+        label: 'Interface Groups',
+        icon: 'GridFill',
+        leftIconProps: {
+          icon: 'GridFill',
+        },
+        minimal: false,
+        to: '/Interfaces/group',
+        badge: [
+          {
+            label: 42,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content:
+            'Interface groups allow interfaces to be enabled and disabled together as well as enabling views on interfaces to be restricted for certain users',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/group', '/CreateInterface/group'],
+        as: 'a',
+        id: 'group',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Scheduled Jobs',
+        icon: 'CalendarLine',
+        leftIconProps: {
+          icon: 'CalendarLine',
+        },
+        minimal: false,
+        to: '/Interfaces/job',
+        badge: [
+          {
+            label: 92,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Jobs execute logic on a user-defined schedule',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/job', '/CreateInterface/job'],
+        as: 'a',
+        id: 'job',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Mappers',
+        icon: 'MindMap',
+        leftIconProps: {
+          icon: 'MindMap',
+        },
+        minimal: false,
+        to: '/Interfaces/mapper',
+        badge: [
+          {
+            label: 37,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Mappers are visual data transformation elements',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/mapper', '/CreateInterface/mapper'],
+        as: 'a',
+        id: 'mapper',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Mapper Code',
+        icon: 'FunctionLine',
+        leftIconProps: {
+          icon: 'FunctionLine',
+        },
+        minimal: false,
+        to: '/Interfaces/mapper-code',
+        badge: [
+          {
+            label: 4,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content:
+            'Mapper code elements are classes with methods that can be directly used in mappers for complex data transformation logic',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/mapper-code', '/CreateInterface/mapper-code'],
+        as: 'a',
+        id: 'mapper-code',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Data Pipelines',
+        icon: 'NodeTree',
+        leftIconProps: {
+          icon: 'NodeTree',
+        },
+        minimal: false,
+        to: '/Interfaces/pipeline',
+        badge: [
+          {
+            label: 15,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Data pipelines enable large volumes of data to be processed efficiently',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/pipeline', '/CreateInterface/pipeline'],
+        as: 'a',
+        id: 'pipeline',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Asynchronous Step Queues',
+        icon: 'StackLine',
+        leftIconProps: {
+          icon: 'StackLine',
+        },
+        minimal: false,
+        to: '/Interfaces/queue',
+        badge: [
+          {
+            label: 13,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content:
+            'Asynchronous step queues connect the front end to the back end of asynchronous workflow steps',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/queue', '/CreateInterface/queue'],
+        as: 'a',
+        id: 'queue',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Services',
+        icon: 'ServerLine',
+        leftIconProps: {
+          icon: 'ServerLine',
+        },
+        minimal: false,
+        to: '/Interfaces/service',
+        badge: [
+          {
+            label: 118,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Services are a top-level interfacing object in Qorus',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/service', '/CreateInterface/service'],
+        as: 'a',
+        id: 'service',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'SLAs',
+        icon: 'TimerLine',
+        leftIconProps: {
+          icon: 'TimerLine',
+        },
+        minimal: false,
+        to: '/Interfaces/sla',
+        badge: [
+          {
+            label: 5,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'SLAs track technical performance metrics with business impact',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/sla', '/CreateInterface/sla'],
+        as: 'a',
+        id: 'sla',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Steps',
+        icon: 'StickyNoteLine',
+        leftIconProps: {
+          icon: 'StickyNoteLine',
+        },
+        minimal: false,
+        to: '/Interfaces/step',
+        badge: [
+          {
+            label: 233,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Steps are an atomic execution element in a workflow',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/step', '/CreateInterface/step'],
+        as: 'a',
+        id: 'step',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Types',
+        icon: 'Asterisk',
+        leftIconProps: {
+          icon: 'Asterisk',
+        },
+        minimal: false,
+        to: '/Interfaces/type',
+        badge: [
+          {
+            label: 97,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Data types',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/type', '/CreateInterface/type'],
+        as: 'a',
+        id: 'type',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Value Maps',
+        icon: 'BringToFront',
+        leftIconProps: {
+          icon: 'BringToFront',
+        },
+        minimal: false,
+        to: '/Interfaces/value-map',
+        badge: [
+          {
+            label: 10,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Value maps provide simple mappings from one value to another',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/value-map', '/CreateInterface/value-map'],
+        as: 'a',
+        id: 'value-map',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+      {
+        label: 'Workflows',
+        icon: 'GitBranchLine',
+        leftIconProps: {
+          icon: 'GitBranchLine',
+        },
+        minimal: false,
+        to: '/Interfaces/workflow',
+        badge: [
+          {
+            label: 112,
+            align: 'right',
+          },
+        ],
+        tooltip: {
+          content: 'Workflows are the primary stateful orchestration interface type in Qorus',
+          maxWidth: '400px',
+          delay: 300,
+        },
+        wrap: false,
+        activePaths: ['/Interfaces/workflow', '/CreateInterface/workflow'],
+        as: 'a',
+        id: 'workflow',
+        stackWithActions: false,
+        rightAction: {
+          icon: 'AddLine',
+          tooltip: 'Create New',
+          compact: true,
+        },
+      },
+    ],
+  },
+  {
+    label: 'Release Manager',
+    description: 'Create New Releases',
+    transparent: false,
+    icon: 'ArchiveFill',
+    to: '/releases',
+    activePaths: ['/releases'],
+    id: 'releases',
+    as: 'a',
   },
   {
     divider: true,
   },
   {
     label: 'Operational Dashboard',
-    icon: 'Home2Fill',
+    icon: 'Home2Line',
     href: '/dashboard',
     activePaths: ['/dashboard'],
     id: 'dashboard',
