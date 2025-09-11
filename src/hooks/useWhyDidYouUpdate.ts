@@ -5,7 +5,11 @@ export function useWhyDidYouUpdate(name: string, props: Record<any, any>) {
   // ... for comparison next time this hook runs.
   const previousProps: any = useRef();
   useEffect(() => {
-    if (process.env.NODE_ENV !== 'production' && process.env.NODE_ENV === 'storybook') {
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      process.env.NODE_ENV === 'storybook' &&
+      !process.env.CI
+    ) {
       if (previousProps.current) {
         // Get all keys from previous and current props
         const allKeys = Object.keys({ ...previousProps.current, ...props });
