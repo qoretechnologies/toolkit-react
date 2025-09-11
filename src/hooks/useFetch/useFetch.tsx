@@ -3,7 +3,6 @@ import { useEffectOnce } from 'react-use';
 import { useContextSelector } from 'use-context-selector';
 import { FetchContext } from '../../contexts/FetchContext';
 import { IReqraftQueryConfig } from '../../utils/fetch';
-import { useWhyDidYouUpdate } from '../useWhyDidYouUpdate';
 
 export interface IReqraftUseFetch<T> {
   data: T | undefined;
@@ -77,20 +76,6 @@ export function useFetch<T>({
     if (loadOnMount) {
       load();
     }
-  });
-
-  useWhyDidYouUpdate(`ReQraft useFetch for ${url}`, {
-    url,
-    method,
-    body,
-    cache,
-    defaultData,
-    loadOnMount,
-    loading,
-    data,
-    error,
-    errorData,
-    response,
   });
 
   return useMemo(
