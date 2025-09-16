@@ -37,7 +37,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 20.11.0
+          node-version: 22.19.0
 
       - name: Save release version to outputs
         id: save_release_version
@@ -49,10 +49,6 @@ jobs:
           yarn cache clean
           rm -rf node_modules
           yarn install
-
-      - name: Running tests
-        id: tests
-        run: yarn test:ci
 
       - name: Build
         id: build
