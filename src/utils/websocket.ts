@@ -1,5 +1,5 @@
 import { forEach } from 'lodash';
-import shortid from 'shortid';
+import { nanoid } from 'nanoid';
 import { fetchConfig, query } from './fetch';
 
 export interface IReqraftWebSocketConfig {
@@ -82,7 +82,7 @@ export class ReqraftWebSocket {
     event: keyof WebSocketEventMap,
     handler: (ev: Event | MessageEvent | CloseEvent) => void
   ) {
-    const id = shortid.generate();
+    const id = nanoid();
 
     this.handlers[id] = { type: event, event: handler };
 

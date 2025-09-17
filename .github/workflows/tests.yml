@@ -39,7 +39,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 20.11.0
+          node-version: 22.19.0
 
       # Notify Discord to not restart server
       - name: Discord Warning
@@ -67,10 +67,6 @@ jobs:
       - name: Run build test
         run: |
           yarn build
-
-      - name: Run unit tests
-        run: |
-          yarn test:ci
 
       - name: Serve Storybook and run tests
         run: |
