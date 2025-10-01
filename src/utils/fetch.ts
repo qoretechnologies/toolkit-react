@@ -5,7 +5,7 @@ export interface IReqraftFetchConfig {
   instance: string;
   instanceToken?: string;
   instanceRbacDisabled?: boolean;
-  unauthorizedRedirect?: (pathname: string) => string;
+  unauthorizedRedirect?: (location: Window['location']) => string;
 }
 
 export interface IReqraftFetchResponse<T> {
@@ -19,7 +19,7 @@ export interface IReqraftFetchResponse<T> {
 export const fetchConfig: IReqraftFetchConfig = {
   instance: window.location.origin + '/',
   instanceToken: '',
-  unauthorizedRedirect: (pathname: string) => `/?next=${pathname}`,
+  unauthorizedRedirect: (location: Window['location']) => `/?next=${location.pathname}`,
 };
 
 const CACHE_EXPIRATION_TIME = 5 * 60 * 1000; // 5 minutes
@@ -88,6 +88,10 @@ export async function query<T>({
     queryKey: [cacheKey],
     queryFn: async () => {
       const response = await doFetchData(url, method, body);
+
+      if (response.status === 401 && fetchConfig.unauthorizedRedirect) {
+        window.location.href = fetchConfig.unauthorizedRedirect(window.location);
+      }
 
       const clone = response.clone();
       let data: any;
