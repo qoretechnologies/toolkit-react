@@ -58,6 +58,7 @@ async function doFetchData(
     method,
     headers,
     body: JSON.stringify(body),
+    credentials: 'include',
   }).catch((error) => {
     return new Response(JSON.stringify({}), {
       status: 500,
