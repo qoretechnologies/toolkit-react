@@ -101,7 +101,7 @@ jobs:
 
       - name: Publish to Chromatic
         id: chromatic_publish
-        uses: chromaui/action@v1
+        uses: chromaui/action@latest
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
