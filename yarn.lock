@@ -1682,10 +1682,10 @@
   resolved "https://registry.npmjs.org/@popperjs/core/-/core-2.11.8.tgz"
   integrity sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==
 
-"@qoretechnologies/reqore@^0.55.4":
-  version "0.55.4"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.55.4.tgz#e2729a0fd6a61a7a4b55d10e0d493bde5979a678"
-  integrity sha512-zHxTrc1wa9Reh7nNY8O3Ek14dJWW2Ls7c/ngIQqBemAUoTI/xABdxYv2Iildl3aaBg51+Z8lAWWeQxb1767zVA==
+"@qoretechnologies/reqore@^0.60.0":
+  version "0.60.0"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.60.0.tgz#529bacbc4f3f75cab2ed73a55687d630ec85f6ed"
+  integrity sha512-unfI0v27x7LIbWQb3Mg8gJkGQ7yA/wYKwgtn7nyDJ/y2KZ1KMQFyMflO3sGiFqqQycMuTnTKQx9IPsafHG6/0Q==
   dependencies:
     "@internationalized/date" "^3.5.3"
     "@popperjs/core" "^2.11.6"
