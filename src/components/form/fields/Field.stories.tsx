@@ -163,3 +163,69 @@ export const Cron: Story = {
     label: 'Cron',
   },
 };
+
+export const WithAllowedValuesFew: Story = {
+  args: {
+    type: 'long-string',
+    value: 'option2',
+    label: 'Pick a value',
+    allowed_values: [
+      { display_name: 'Option 1', short_desc: 'The first option', value: { type: 'string', value: 'option1' } },
+      { display_name: 'Option 2', short_desc: 'The second option', value: { type: 'string', value: 'option2' } },
+      { display_name: 'Option 3', short_desc: 'The third option', value: { type: 'string', value: 'option3' } },
+    ],
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    const checkboxes = canvas.getAllByRole('checkbox');
+    await expect(checkboxes.length).toBe(3);
+    // option2 is pre-selected
+    await expect(checkboxes[1]).toBeChecked();
+    // click option2 again to deselect it
+    await checkboxes[1].click();
+    await expect(checkboxes[1]).not.toBeChecked();
+  },
+};
+
+export const WithAllowedValuesMany: Story = {
+  args: {
+    type: 'long-string',
+    value: 'option3',
+    label: 'Pick a value',
+    allowed_values: [
+      { display_name: 'Option 1', value: { type: 'string', value: 'option1' } },
+      { display_name: 'Option 2', value: { type: 'string', value: 'option2' } },
+      { display_name: 'Option 3', value: { type: 'string', value: 'option3' } },
+      { display_name: 'Option 4', value: { type: 'string', value: 'option4' } },
+      { display_name: 'Option 5', value: { type: 'string', value: 'option5' } },
+      { display_name: 'Option 6', value: { type: 'string', value: 'option6' } },
+    ],
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    // > 3 items → SelectFormField dropdown (no textarea — field is hidden)
+    await expect(canvas.getByRole('button')).toBeInTheDocument();
+    await expect(canvas.getByText('Option 3')).toBeInTheDocument();
+  },
+};
+
+export const WithCreatable: Story = {
+  args: {
+    type: 'long-string',
+    value: '',
+    label: 'Pick or type a value',
+    allowed_values_creatable: true,
+    allowed_values: [
+      { display_name: 'Quick option 1', value: { type: 'string', value: 'quick1' } },
+      { display_name: 'Quick option 2', value: { type: 'string', value: 'quick2' } },
+      { display_name: 'Quick option 3', value: { type: 'string', value: 'quick3' } },
+      { display_name: 'Quick option 4', value: { type: 'string', value: 'quick4' } },
+    ],
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    // Field (textarea) is shown first, suggestion picker (button) below it
+    await expect(canvas.getByRole('textbox')).toBeInTheDocument();
+    await expect(canvas.getByRole('button')).toBeInTheDocument();
+  },
+};

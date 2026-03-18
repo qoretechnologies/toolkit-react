@@ -20,7 +20,10 @@ export type TFormFieldType =
   | 'url'
   | 'markdown'
   | 'long-string'
-  | 'cron';
+  | 'cron'
+  | 'richtext'
+  | 'hash'
+  | 'list';
 
 export type TFormFieldValueType<T> =
   T extends 'string' ? string
@@ -43,4 +46,5 @@ export type TFormFieldValueType<T> =
   : T extends 'markdown' ? string
   : T extends 'long-string' ? string
   : T extends 'cron' ? string
+  : T extends 'richtext' ? string
   : any;

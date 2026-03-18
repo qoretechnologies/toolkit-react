@@ -10,6 +10,7 @@ const meta = {
   title: 'Components/Form/Boolean',
   args: {
     onChange: fn(),
+    'aria-label': 'Boolean',
   },
   render(args) {
     const [checked, setChecked] = useState(args.checked);
@@ -29,10 +30,9 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {
+export const Checked: Story = {
   args: {
     checked: true,
-    'aria-label': 'Boolean',
   },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
@@ -42,5 +42,35 @@ export const Default: Story = {
 
     await userEvent.click(canvas.getByLabelText('Boolean'));
     await expect(args.onChange).toHaveBeenLastCalledWith(false);
+  },
+};
+
+export const Unchecked: Story = {
+  args: {
+    checked: false,
+  },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByText('No')).toBeInTheDocument();
+
+    await userEvent.click(canvas.getByLabelText('Boolean'));
+    await expect(args.onChange).toHaveBeenLastCalledWith(true);
+  },
+};
+
+export const Disabled: Story = {
+  args: {
+    checked: true,
+    disabled: true,
+  },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+    const checkbox = canvas.getByLabelText('Boolean');
+
+    await expect(checkbox).toBeDisabled();
+
+    await userEvent.click(checkbox);
+    await expect(args.onChange).not.toHaveBeenCalled();
   },
 };

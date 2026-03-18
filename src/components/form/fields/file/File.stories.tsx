@@ -1,5 +1,5 @@
 import { StoryObj } from '@storybook/react';
-import { fn } from '@storybook/test';
+import { expect, fn, within } from '@storybook/test';
 import { useState } from 'react';
 
 import { StoryMeta } from '../../../../types';
@@ -29,22 +29,44 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
-
-export const WithSpecifiedExtensions: Story = {
-  args: {
-    options: {
-      accept: {
-        'image/png': ['.png'],
-        'image/jpeg': ['.jpg', '.jpeg'],
-        'application/pdf': ['.pdf'],
-      },
-    },
+export const Empty: Story = {
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Click or drop files here to upload')).toBeInTheDocument();
   },
 };
 
 export const WithValue: Story = {
   args: {
+    value: {
+      name: 'report.pdf',
+      content: 'data:application/pdf;base64,abc123',
+      size: 28736,
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('report.pdf')).toBeInTheDocument();
+  },
+};
+
+export const WithImageValue: Story = {
+  args: {
+    value: {
+      name: 'photo.png',
+      content: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      size: 1024,
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('photo.png')).toBeInTheDocument();
+    await expect(canvasElement.querySelector('img')).toBeInTheDocument();
+  },
+};
+
+export const WithAcceptedExtensions: Story = {
+  args: {
     options: {
       accept: {
         'image/png': ['.png'],
@@ -52,17 +74,24 @@ export const WithValue: Story = {
         'application/pdf': ['.pdf'],
       },
     },
-    value: {
-      name: 'MyFile.pdf',
-      content: 'test',
-      size: 28736,
-    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Click or drop files here to upload')).toBeInTheDocument();
+    await expect(canvas.getByText('.png, .jpg, .jpeg, .pdf')).toBeInTheDocument();
   },
 };
 
-export const Small: Story = {
+export const WithBuildTab: Story = {
   args: {
-    ...WithValue.args,
-    valueButtonProps: { size: 'small' },
+    argSchema: {
+      filename: { type: 'string', ui_type: 'string', display_name: 'Filename', required: true },
+      content: { type: 'string', ui_type: 'string', display_name: 'Content', required: true },
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Upload a File')).toBeInTheDocument();
+    await expect(canvas.getByText('Build a File')).toBeInTheDocument();
   },
 };

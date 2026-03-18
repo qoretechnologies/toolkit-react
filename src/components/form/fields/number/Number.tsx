@@ -1,12 +1,12 @@
 import { ReqoreInput } from '@qoretechnologies/reqore';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
-import { ChangeEvent, ChangeEventHandler } from 'react';
+import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { useDebounce } from 'react-use';
 
-export interface INumberFormFieldProps
-  extends Omit<IReqoreInputProps, 'value' | 'onChange' | 'type'> {
-  value?: number;
-  onChange?(value: number): void;
+export interface INumberFormFieldProps extends Omit<IReqoreInputProps, 'value' | 'onChange' | 'type'> {
+  value?: number | string;
   type?: 'int' | 'float';
+  onChange?: (value: number | string) => void;
 }
 
 export const NumberFormField = ({
@@ -16,35 +16,70 @@ export const NumberFormField = ({
   value,
   ...rest
 }: INumberFormFieldProps) => {
-  const handleInputChange: ChangeEventHandler<HTMLInputElement> = (
-    event: ChangeEvent<HTMLInputElement>
-  ): void => {
-    const value = type === 'int' ? parseInt(event.target.value) : parseFloat(event.target.value);
-    onChange?.(value ?? undefined);
-  };
+  const [localValue, setLocalValue] = useState<number | string>(value ?? '');
 
-  const handleResetClick = (): void => {
-    onChange(undefined);
-  };
+  useEffect(() => {
+    if (value !== localValue) {
+      setLocalValue(value ?? '');
+    }
+  }, [value]);
+
+  useDebounce(
+    () => {
+      if (localValue !== value) {
+        onChange?.(localValue);
+      }
+    },
+    100,
+    [localValue, onChange]
+  );
+
+  const handleChange = useCallback(
+    (rawValue: number | string): void => {
+      if (rawValue === '' || rawValue === '-' || rawValue === '-.') {
+        setLocalValue(rawValue);
+        return;
+      }
+      const parsed = type === 'int' ? parseInt(rawValue as string, 10) : parseFloat(rawValue as string);
+      setLocalValue(isNaN(parsed) ? rawValue : parsed);
+    },
+    [type]
+  );
+
+  const handleInputChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>): void => {
+      handleChange(event.target.value);
+    },
+    [handleChange]
+  );
+
+  const handleResetClick = useCallback((): void => {
+    setLocalValue(0);
+    onChange?.(0);
+  }, [onChange]);
+
+  const focusRules = useMemo(
+    () =>
+      autoFocus
+        ? {
+            type: 'auto' as const,
+            viewportOnly: true,
+          }
+        : undefined,
+    [autoFocus]
+  );
 
   return (
     <ReqoreInput
-      wrapperStyle={{
-        width: '100%',
-      }}
-      value={value ?? ''}
+      fluid
+      icon='MoneyDollarCircleLine'
+      value={localValue}
       onChange={handleInputChange}
       type='number'
-      onClearClick={handleResetClick}
-      focusRules={
-        autoFocus ?
-          {
-            type: 'auto',
-            viewportOnly: true,
-          }
-        : undefined
-      }
+      // @ts-ignore
       step={type === 'int' ? 1 : 0.1}
+      onClearClick={handleResetClick}
+      focusRules={focusRules}
       {...rest}
     />
   );

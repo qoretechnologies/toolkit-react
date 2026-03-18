@@ -1,0 +1,86 @@
+{
+  "name": {
+    "type": "richtext",
+    "ui_type": "richtext",
+    "desc": "The filename",
+    "required": true,
+    "supports_templates": true,
+    "supports_expressions": true,
+    "display_name": "Filename",
+    "short_desc": "The filename"
+  },
+  "content": {
+    "type": "richtext",
+    "ui_type": "richtext",
+    "desc": "Base64-encoded file data",
+    "required": true,
+    "supports_templates": true,
+    "supports_expressions": true,
+    "display_name": "File Data",
+    "short_desc": "Base64-encoded file data"
+  },
+  "mime_type": {
+    "allowed_values": [
+      {
+        "display_name": "Autodetect",
+        "short_desc": "Autodetect from the file name; valid only on input",
+        "value": { "type": "string", "value": "auto" },
+        "desc": "Autodetect from the file name; valid only on input"
+      },
+      {
+        "display_name": "text/plain",
+        "short_desc": "Plain text",
+        "value": { "type": "string", "value": "text/plain" },
+        "desc": "Plain text"
+      },
+      {
+        "display_name": "text/html",
+        "short_desc": "HTML text",
+        "value": { "type": "string", "value": "text/html" },
+        "desc": "HTML text"
+      },
+      {
+        "display_name": "application/pdf",
+        "short_desc": "PDF file",
+        "value": { "type": "string", "value": "application/pdf" },
+        "desc": "PDF file"
+      },
+      {
+        "display_name": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "short_desc": "MS Word docx document",
+        "value": {
+          "type": "string",
+          "value": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        },
+        "desc": "MS Word `docx` document"
+      },
+      {
+        "display_name": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "short_desc": "MS PowerPoint pptx document",
+        "value": {
+          "type": "string",
+          "value": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        },
+        "desc": "MS PowerPoint `pptx` document"
+      },
+      {
+        "display_name": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "short_desc": "MS Excel xlsx document",
+        "value": {
+          "type": "string",
+          "value": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        },
+        "desc": "MS Excel `xlsx` document"
+      }
+    ],
+    "allowed_values_creatable": true,
+    "type": "richtext",
+    "ui_type": "richtext",
+    "desc": "The MIME type string for the file",
+    "required": true,
+    "supports_templates": true,
+    "supports_expressions": true,
+    "display_name": "MIME Type",
+    "short_desc": "The MIME type string for the file"
+  }
+}

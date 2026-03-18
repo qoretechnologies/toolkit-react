@@ -1,22 +1,76 @@
-import { IReqoreLabelProps, ReqoreControlGroup, ReqoreLabel } from '@qoretechnologies/reqore';
+import {
+  IReqoreLabelProps,
+  ReqoreCheckbox,
+  ReqoreControlGroup,
+  ReqoreSkeleton,
+  ReqoreSpan,
+} from '@qoretechnologies/reqore';
+import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
+import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
+import { IQorusAllowedValue, IQorusFormFieldSchemaBase, IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
+import { isEqual, size } from 'lodash';
 import { useId } from 'react';
+import { typedToYaml } from '../../../helpers/common';
+import { useArgSchema } from '../../../hooks/useArgSchema';
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
 import BooleanFormField, { IBooleanFormFieldProps } from './boolean/Boolean';
 import ColorFormField, { IColorFormFieldProps } from './color/Color';
 import CronFormField, { ICronFormFieldProps } from './cron/Cron';
+import { DateFormField, IDateFormFieldProps } from './date/Date';
+import { IFileFormFieldValue, IReqraftFileFormFieldProps, ReqraftFileFormField } from './file/File';
 import LongStringFormField, { ILongStringFormFieldProps } from './long-string/LongString';
 import MarkdownFormField, { IMarkdownFormFieldProps } from './markdown/Markdown';
+import { MultiSelectFormField } from './multi-select/MultiSelectFormField';
 import NumberFormField from './number/Number';
+import { ReqraftObjectFormField } from './object/Object';
 import RadioGroupFormField, { IRadioGroupFormFieldProps } from './radio-group/RadioGroup';
+import { IRichTextFormFieldProps, RichTextFormField } from './rich-text/RichText';
+import { ISelectFormFieldProps, SelectFormField } from './select/Select';
 import { IStringFormFieldProps, StringFormField } from './string/String';
+import { ArrayAutoField } from './array/ArrayAutoField';
+// Direct import — circular dep (FormEngine → TemplateField → FormField → FormEngine) is safe
+// because modules are all loaded before any component renders
+import { FormEngine } from '../engine/FormEngine';
 
-export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
+const mapQorusTypeToFormFieldType = (type: string): TFormFieldType => {
+  switch (type) {
+    case 'richtext': return 'richtext';
+    case 'bool': case 'boolean': return 'boolean';
+    case 'int': case 'integer': case 'float': case 'number': return 'number';
+    case 'date': return 'date';
+    case 'file': return 'file';
+    case 'rgbcolor': return 'color';
+    case 'hash': case 'free-hash': return 'hash';
+    case 'list': case 'free-list': return 'list';
+    default: return 'long-string';
+  }
+};
+
+// Re-export for consumers who need to construct allowed values
+export type { IQorusAllowedValue };
+
+export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> extends Omit<
+  IQorusFormFieldSchemaBase,
+  'value' | 'default_value' | 'arg_schema' | 'element_type' | 'ui_element_type'
+>, IWithReqoreSize {
   type?: T;
   value: TFormFieldValueType<T>;
   onChange: (value: TFormFieldValueType<T>, event?: unknown) => void;
 
+  /** Field name — used by hash/list sub-renderers */
+  name?: string;
+
   validateSelf?: boolean;
   onValidateChange?: (isValid: boolean) => void;
+
+  /** Nested schema for hash/file Build tab — either an inline schema or a URL to fetch */
+  arg_schema?: string | IQorusFormSchema;
+  /** For list fields: the type of each element */
+  element_type?: string;
+  ui_element_type?: string;
+  /** Fixed allowed values for list items */
+  element_allowed_values?: IQorusAllowedValue[];
+  element_allowed_values_creatable?: boolean;
 
   fieldProps?: Omit<
     T extends 'string' ? IStringFormFieldProps
@@ -26,6 +80,10 @@ export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
     : T extends 'long-string' ? ILongStringFormFieldProps
     : T extends 'markdown' ? IMarkdownFormFieldProps
     : T extends 'cron' ? ICronFormFieldProps
+    : T extends 'richtext' ? IRichTextFormFieldProps
+    : T extends 'date' ? IDateFormFieldProps
+    : T extends 'file' ? IReqraftFileFormFieldProps
+    : T extends 'select' ? ISelectFormFieldProps
     : never,
     'value' | 'onChange'
   >;
@@ -33,6 +91,7 @@ export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> {
   label?: IReqoreLabelProps['label'];
   labelPosition?: 'top' | 'left' | 'right' | 'bottom';
 }
+
 export const FormField = <T extends TFormFieldType>({
   type,
   onChange,
@@ -40,15 +99,37 @@ export const FormField = <T extends TFormFieldType>({
   fieldProps,
   label,
   labelPosition = 'top',
+  allowed_values,
+  allowed_values_creatable,
+  arg_schema,
+  element_type,
+  ui_element_type,
+  element_allowed_values,
+  element_allowed_values_creatable,
+  // Pulled out explicitly so they're properly typed for hash/list rendering
+  name,
+  display_name,
+  readonly,
+  size: fieldSize,
+  // Destructured to prevent type conflicts when spreading into specific field components;
+  // pass these through fieldProps if a specific field needs them.
+  tags: _tags,
+  options: _options,
   ...rest
 }: IFormFieldProps<T>) => {
   const id = useId();
+  const { schema: finalArgSchema, loading: argSchemaLoading } = useArgSchema(arg_schema);
 
   const handleChange = (value: TFormFieldValueType<T>, event?: unknown) => {
     onChange(value, event);
   };
 
   const renderField = (type: T) => {
+    // When allowed_values are set without creatable, hide the raw field
+    if (allowed_values?.length && !allowed_values_creatable) {
+      return null;
+    }
+
     switch (type) {
       case 'string':
         return (
@@ -92,7 +173,7 @@ export const FormField = <T extends TFormFieldType>({
           <ColorFormField
             {...rest}
             {...(fieldProps as IFormFieldProps<'color'>['fieldProps'])}
-            value={value as IColorFormFieldProps['color']}
+            value={value as IColorFormFieldProps['value']}
             onChange={(color) => {
               handleChange(color as TFormFieldValueType<T>);
             }}
@@ -151,22 +232,293 @@ export const FormField = <T extends TFormFieldType>({
             inputProps={[{ id }]}
           />
         );
+
+      case 'richtext':
+        return (
+          <RichTextFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'richtext'>['fieldProps'])}
+            value={value as TFormFieldValueType<T>}
+            onChange={(val) => {
+              handleChange(val as TFormFieldValueType<T>);
+            }}
+          />
+        );
+
+      case 'date':
+        return (
+          <DateFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'date'>['fieldProps'])}
+            value={value as TFormFieldValueType<T>}
+            onChange={(val) => {
+              handleChange(val as TFormFieldValueType<T>);
+            }}
+          />
+        );
+
+      case 'file':
+        return (
+          <ReqraftFileFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'file'>['fieldProps'])}
+            value={value as IFileFormFieldValue}
+            argSchema={finalArgSchema}
+            argSchemaLoading={argSchemaLoading}
+            onChange={(val) => {
+              handleChange(val as TFormFieldValueType<T>);
+            }}
+          />
+        );
+
+      case 'select':
+        return (
+          <SelectFormField
+            {...rest}
+            {...(fieldProps as IFormFieldProps<'select'>['fieldProps'])}
+            value={value}
+            onChange={(val) => {
+              handleChange(val as TFormFieldValueType<T>);
+            }}
+            fluid
+          />
+        );
+
+      case 'hash': {
+        if (argSchemaLoading) {
+          return <ReqoreSkeleton height='80px' />;
+        }
+        if (finalArgSchema) {
+          return (
+            <FormEngine
+              name={name || id}
+              options={finalArgSchema}
+              value={value as any}
+              onChange={(_name, val) => handleChange(val as TFormFieldValueType<T>)}
+              flat={false}
+              wrapperPadding='bottom'
+              columns={1}
+              minColumnWidth='150px'
+              size={fieldSize}
+              disabled={rest.disabled}
+            />
+          );
+        }
+        // No schema — YAML object editor
+        const hashYaml = value ? typedToYaml({ type: 'hash', value }) : undefined;
+        return (
+          <ReqraftObjectFormField
+            value={hashYaml}
+            onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
+            type='object'
+            dataType='yaml'
+            resultDataType='yaml'
+            disabled={rest.disabled}
+            size={fieldSize}
+          />
+        );
+      }
+
+      case 'list': {
+        const effectiveElementType = ui_element_type || element_type;
+
+        // Fixed allowed values with no creatability → checkbox/multiselect
+        if (size(element_allowed_values) && !element_allowed_values_creatable) {
+          const formatToServer = (vals: unknown[]) =>
+            (vals || []).map((v) => {
+              const match = element_allowed_values.find((ev) => isEqual(ev.value?.value, v));
+              return { value: v, type: match?.value?.type ?? effectiveElementType };
+            });
+          const formatFromServer = (vals: unknown[]) =>
+            (vals as Array<{ value?: unknown }>).map((item) => item?.value);
+          const serverValue = formatFromServer((value as unknown[]) || []);
+
+          if (element_allowed_values.length <= 3) {
+            return (
+              <ReqoreControlGroup vertical size='tiny'>
+                {element_allowed_values.map((item, index) => {
+                  const itemValue = item.value?.value;
+                  const checked = serverValue.some((v) => isEqual(v, itemValue));
+                  return (
+                    <ReqoreCheckbox
+                      margin='right'
+                      key={index}
+                      label={item.display_name ?? String(itemValue)}
+                      tooltip={item.short_desc || item.desc}
+                      checked={checked}
+                      intent={checked ? 'info' : undefined}
+                      onClick={() => {
+                        const next =
+                          checked ?
+                            serverValue.filter((v) => !isEqual(v, itemValue))
+                          : [...serverValue, itemValue];
+                        handleChange(formatToServer(next) as TFormFieldValueType<T>);
+                      }}
+                    />
+                  );
+                })}
+              </ReqoreControlGroup>
+            );
+          }
+
+          return (
+            <MultiSelectFormField
+              items={element_allowed_values}
+              value={serverValue}
+              onChange={(selected) =>
+                handleChange(formatToServer(selected) as TFormFieldValueType<T>)
+              }
+              disabled={rest.disabled}
+              size={fieldSize}
+            />
+          );
+        }
+
+        // Has element_type → ArrayAutoField for typed items
+        if (effectiveElementType) {
+          const rawValues = ((value as unknown[]) || []).map((item: any) => item?.value ?? item);
+          return (
+            <ArrayAutoField
+              name={name || id}
+              display_name={display_name}
+              value={rawValues}
+              type={effectiveElementType}
+              arg_schema={finalArgSchema}
+              allowed_values={element_allowed_values}
+              allowed_values_creatable={element_allowed_values_creatable}
+              disabled={rest.disabled}
+              readOnly={readonly}
+              size={fieldSize}
+              onChange={(_name, vals) => {
+                if (!size(vals)) {
+                  handleChange(undefined as TFormFieldValueType<T>);
+                  return;
+                }
+                handleChange(
+                  (vals || []).map((v) => ({
+                    value: v,
+                    type: effectiveElementType,
+                  })) as TFormFieldValueType<T>
+                );
+              }}
+              renderItem={({ value: itemVal, onChange: onItemChange, type: itemType, ...itemRest }) => (
+                <FormField
+                  {...(itemRest as any)}
+                  type={mapQorusTypeToFormFieldType(itemType || 'string') as T}
+                  value={itemVal as TFormFieldValueType<T>}
+                  onChange={(v) => onItemChange(v)}
+                />
+              )}
+            />
+          );
+        }
+
+        // No element constraints — YAML array editor
+        const listYaml = value ? typedToYaml({ type: 'list', value }) : undefined;
+        return (
+          <ReqraftObjectFormField
+            value={listYaml}
+            onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
+            type='array'
+            dataType='yaml'
+            resultDataType='yaml'
+            disabled={rest.disabled}
+            size={fieldSize}
+          />
+        );
+      }
+
       default:
         return null;
     }
   };
 
+  /**
+   * Maps an IQorusAllowedValue to the shape SelectFormField / checkboxes expect.
+   * The actual selectable value lives at item.value.value (the wrapper has type metadata).
+   */
+  const mapAllowedValue = (item: IQorusAllowedValue) => ({
+    display_name: item.display_name,
+    short_desc: item.short_desc,
+    desc: item.desc,
+    icon: item.icon,
+    image: item.image,
+    badge: item.badge as TReqoreBadge,
+    intent: item.intent,
+    disabled: item.disabled,
+    messages: item.messages,
+    actions: item.actions,
+    value: item.value?.value,
+  });
+
+  /**
+   * Renders the allowed-values picker.
+   *
+   * - Not creatable: ≤3 → checkboxes with selection, >3 → dropdown with selection
+   * - Creatable: minimal suggestion picker with no value (resets after selection)
+   */
+  const renderAllowedValues = () => {
+    if (!allowed_values?.length) return null;
+
+    // Creatable: "Saved & Suggested Values" style — no value, fills field and resets
+    if (allowed_values_creatable) {
+      return (
+        <SelectFormField
+          items={allowed_values.map(mapAllowedValue)}
+          onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
+          placeholder='Saved & Suggested Values'
+          minimal
+          icon='SaveFill'
+          fluid
+          hideItemCount
+        />
+      );
+    }
+
+    // Non-creatable ≤3: checkboxes that track the current value
+    if (allowed_values.length <= 3) {
+      return (
+        <ReqoreControlGroup vertical size='tiny'>
+          <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
+            Select one:
+          </ReqoreSpan>
+          {allowed_values.map((item, index) => {
+            const itemValue = item.value?.value;
+            const checked = isEqual(value, itemValue);
+            return (
+              <ReqoreCheckbox
+                margin='right'
+                key={index}
+                label={item.display_name ?? JSON.stringify(itemValue)}
+                tooltip={item.short_desc || item.desc}
+                disabled={item.disabled}
+                checked={checked}
+                intent={checked ? 'info' : undefined}
+                onClick={() =>
+                  handleChange((checked ? undefined : itemValue) as TFormFieldValueType<T>)
+                }
+              />
+            );
+          })}
+        </ReqoreControlGroup>
+      );
+    }
+
+    // Non-creatable >3: dropdown that tracks the current value
+    return (
+      <SelectFormField
+        items={allowed_values.map(mapAllowedValue)}
+        value={value}
+        onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
+        fluid
+      />
+    );
+  };
+
   return (
-    <ReqoreControlGroup vertical={labelPosition === 'bottom' || labelPosition === 'top'}>
-      {(label || label === 0) && (labelPosition === 'top' || labelPosition === 'left') ?
-        <ReqoreLabel htmlFor={id} label={label} fluid />
-      : null}
-
+    <ReqoreControlGroup vertical fluid>
       {renderField(type)}
-
-      {(label || label === 0) && (labelPosition === 'bottom' || labelPosition === 'right') ?
-        <ReqoreLabel htmlFor={id} label={label} fluid />
-      : null}
+      {renderAllowedValues()}
     </ReqoreControlGroup>
   );
 };
