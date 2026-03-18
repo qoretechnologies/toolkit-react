@@ -238,7 +238,7 @@ export const SelectFormField = memo(
         <ReqoreButton
           fluid={fluid}
           flat={false}
-          label={valueToShow((value || filteredItems[0].value) as string)}
+          label={getLabel(items, value ?? filteredItems[0].value)}
           description={getItemShortDescription(value as string) as string}
           readOnly
           fixed

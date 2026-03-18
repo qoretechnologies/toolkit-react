@@ -8,6 +8,14 @@ export interface IDateFormFieldProps extends Omit<IDatePickerProps<TDateValue>, 
   placeholder?: string;
 }
 
+const toFullIso = (value?: string | Date): string | Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  // DatePicker requires a full ISO 8601 datetime string — append time if only a date is given
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00`;
+  return value;
+};
+
 export const DateFormField = ({ value, onChange, disabled, ...rest }: IDateFormFieldProps) => {
   const theme = useReqoreTheme();
 
@@ -19,7 +27,7 @@ export const DateFormField = ({ value, onChange, disabled, ...rest }: IDateFormF
     <DatePicker
       {...rest}
       style={{ width: '100%' }}
-      value={value ?? null}
+      value={toFullIso(value) as TDateValue}
       onChange={handleChange}
       customTheme={theme}
       isDisabled={disabled}

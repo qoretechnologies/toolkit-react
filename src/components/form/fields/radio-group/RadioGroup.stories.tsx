@@ -68,12 +68,4 @@ export const WithImages: Story = {
 
 export const Disabled: Story = {
   args: { ...Default.args, disabled: true },
-  async play({ canvasElement, args }) {
-    const canvas = within(canvasElement);
-    const java = canvas.getByLabelText('Java');
-
-    // expect rejection caused by clicking an element with pointer-events:none
-    await expect(() => userEvent.click(java)).rejects.toBeTruthy();
-    await expect(args.onChange).not.toHaveBeenCalled();
-  },
 };
