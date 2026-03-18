@@ -287,9 +287,9 @@ export const FormEngine = ({
   onSingleOptionsChange,
   onDependableOptionChange,
   placeholder,
-  noValueString,
-  isValid,
-  onOptionsLoaded,
+  noValueString, // eslint-disable-line @typescript-eslint/no-unused-vars
+  isValid, // eslint-disable-line @typescript-eslint/no-unused-vars
+  onOptionsLoaded, // eslint-disable-line @typescript-eslint/no-unused-vars
   recordRequiresSearchOptions,
   readOnly,
   allowTemplates = true,
@@ -716,6 +716,7 @@ export const FormEngine = ({
   }, [showInvalidOptionsOnly, JSON.stringify(availableOptions)]);
 
   const getIntent = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (optName: string, type: TQorusType, optValue: any, _op: any): TReqoreIntent => {
       const intent =
         isOptionValid(optName, type, optValue) ? undefined

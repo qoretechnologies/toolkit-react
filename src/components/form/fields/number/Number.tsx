@@ -76,7 +76,6 @@ export const NumberFormField = ({
       value={localValue}
       onChange={handleInputChange}
       type='number'
-      // @ts-ignore
       step={type === 'int' ? 1 : 0.1}
       onClearClick={handleResetClick}
       focusRules={focusRules}

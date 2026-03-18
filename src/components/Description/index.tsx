@@ -44,7 +44,7 @@ export const Description = memo(
     longDescriptionShownByDefault,
     maxShortDescriptionLength = 1000,
     margin = 'bottom',
-    type: _type,
+    type: _type, // eslint-disable-line @typescript-eslint/no-unused-vars
     ...rest
   }: IDescriptionProps) => {
     const [showLongDescription, setShowLongDescription] = useState<boolean>(

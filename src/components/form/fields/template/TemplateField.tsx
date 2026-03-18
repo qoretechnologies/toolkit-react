@@ -229,7 +229,7 @@ export const TemplateField = memo(
     filterTemplatesFunc,
     componentFromType,
     isDefaultTemplate,
-    returnType: _returnType,
+    returnType: _returnType, // eslint-disable-line @typescript-eslint/no-unused-vars
     level,
     className,
     menuItems,

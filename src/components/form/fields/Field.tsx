@@ -97,8 +97,8 @@ export const FormField = <T extends TFormFieldType>({
   onChange,
   value,
   fieldProps,
-  label,
-  labelPosition = 'top',
+  label, // eslint-disable-line @typescript-eslint/no-unused-vars
+  labelPosition = 'top', // eslint-disable-line @typescript-eslint/no-unused-vars
   allowed_values,
   allowed_values_creatable,
   arg_schema,
@@ -113,8 +113,8 @@ export const FormField = <T extends TFormFieldType>({
   size: fieldSize,
   // Destructured to prevent type conflicts when spreading into specific field components;
   // pass these through fieldProps if a specific field needs them.
-  tags: _tags,
-  options: _options,
+  tags, // eslint-disable-line @typescript-eslint/no-unused-vars
+  options, // eslint-disable-line @typescript-eslint/no-unused-vars
   ...rest
 }: IFormFieldProps<T>) => {
   const id = useId();

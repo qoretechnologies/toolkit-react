@@ -731,6 +731,7 @@ export const OptionWithAnyType: Story = {
       },
     },
   },
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   play: async ({ canvasElement }) => {
     // Fields without a value and ui_type='any' show a template dropdown labelled "Select Template"
     await _testsWaitForText('Select Template');
