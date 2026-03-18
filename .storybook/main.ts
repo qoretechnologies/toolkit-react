@@ -27,11 +27,4 @@ export default {
   }),
 
   typescript: { reactDocgen: 'react-docgen' },
-
-  refs: {
-    reqore: {
-      title: 'ReQore',
-      url: 'https://reqore.qoretechnologies.com/',
-    },
-  },
 };

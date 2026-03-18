@@ -1,9 +1,11 @@
 import { SketchPicker, SketchPickerProps } from 'react-color';
 import styled from 'styled-components';
 
-export interface IColorFormFieldProps extends Omit<SketchPickerProps, 'onChange'> {
-  value: SketchPickerProps['color'];
-  onChange(value: IColorFormFieldProps['value']);
+export interface IColorFormFieldProps extends Omit<SketchPickerProps, 'onChange' | 'onChangeComplete'> {
+  value?: { r: number; g: number; b: number; a?: number };
+  onChange?: (value: { r: number; g: number; b: number; a: number }) => void;
+  disabled?: boolean;
+  readOnly?: boolean;
 }
 
 export const StyledSketchPicker = styled(SketchPicker)`
@@ -29,11 +31,12 @@ export const StyledSketchPicker = styled(SketchPicker)`
   }
 `;
 
-export const ColorFormField = ({ value, onChange, ...rest }: IColorFormFieldProps) => {
+export const ColorFormField = ({ value, onChange, disabled, readOnly, ...rest }: IColorFormFieldProps) => {
   return (
     <StyledSketchPicker
-      onChange={(color) => onChange(color.rgb)}
+      onChangeComplete={(color) => onChange?.(color.rgb)}
       color={value}
+      readOnly={disabled || readOnly}
       disableAlpha
       {...rest}
     />

@@ -1,39 +1,54 @@
 import { ReqoreTextarea } from '@qoretechnologies/reqore';
 import { IReqoreTextareaProps } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { useCallback } from 'react';
-import { TFormFieldValueType } from '../../../../types/Form';
+import { ChangeEvent, useCallback, useEffect, useState } from 'react';
+import { useDebounce } from 'react-use';
 
 export interface ILongStringFormFieldProps extends Omit<IReqoreTextareaProps, 'onChange'> {
-  onChange?: (
-    value?: TFormFieldValueType<'string'>,
-    event?: React.FormEvent<HTMLTextAreaElement>
-  ) => void;
+  value?: string;
+  onChange?: (value: string, event?: ChangeEvent<HTMLTextAreaElement>) => void;
 }
 
 export const LongStringFormField = ({
+  value,
   onChange,
   onClearClick,
   ...rest
 }: ILongStringFormFieldProps) => {
-  const handleClearClick = useCallback(() => {
-    onClearClick?.();
-    onChange?.('');
-  }, [onClearClick, onChange]);
+  const [localValue, setLocalValue] = useState<string>(value ?? '');
 
-  const handleChange = useCallback(
-    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-      onChange?.(event.currentTarget.value, event);
+  useEffect(() => {
+    if (value !== localValue) {
+      setLocalValue(value ?? '');
+    }
+  }, [value]);
+
+  useDebounce(
+    () => {
+      if (localValue !== value) {
+        onChange?.(localValue);
+      }
     },
-    [onChange]
+    100,
+    [localValue, onChange]
   );
+
+  const handleChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>): void => {
+    setLocalValue(event.target.value);
+  }, []);
+
+  const handleClearClick = useCallback(() => {
+    setLocalValue('');
+    onChange?.('');
+    onClearClick?.();
+  }, [onChange, onClearClick]);
 
   return (
     <ReqoreTextarea
       scaleWithContent
       fluid
-      onClearClick={handleClearClick}
+      value={localValue}
       onChange={handleChange}
-      rows={4}
+      onClearClick={handleClearClick}
       {...rest}
     />
   );

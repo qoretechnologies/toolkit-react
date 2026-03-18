@@ -11,7 +11,8 @@ import jsyaml from 'js-yaml';
 import { memo, useCallback, useMemo, useState } from 'react';
 import LongStringFormField, { ILongStringFormFieldProps } from '../long-string/LongString';
 
-export interface IReqraftObjectFormFieldProps extends Omit<IReqoreTabsProps, 'onChange'> {
+export interface IReqraftObjectFormFieldProps extends Omit<IReqoreTabsProps, 'onChange' | 'tabs'> {
+  tabs?: IReqoreTabsProps['tabs'];
   onChange: (value: string | IReqoreTreeProps['data']) => void;
   value: string | IReqoreTreeProps['data'];
 

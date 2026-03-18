@@ -1,6 +1,6 @@
 {
   "name": "@qoretechnologies/reqraft",
-  "version": "0.7.15",
+  "version": "0.8.0",
   "description": "ReQraft is a collection of React components and hooks that are used across Qore Technologies' products made using the ReQore component library from Qore.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -54,7 +54,7 @@
     "@babel/preset-typescript": "^7.12.7",
     "@chromatic-com/storybook": "^2.0.2",
     "@netsells/storybook-mockdate": "^0.3.3",
-    "@qoretechnologies/reqore": "^0.60.0",
+    "@qoretechnologies/reqore": "^0.63.3",
     "@storybook/addon-actions": "^8.3.5",
     "@storybook/addon-essentials": "^8.3.5",
     "@storybook/addon-interactions": "^8.3.5",
@@ -108,12 +108,14 @@
     "react-dom": "^18.3.1"
   },
   "dependencies": {
+    "@qoretechnologies/ts-toolkit": "^0.5.78",
     "@tanstack/react-query": "4",
     "classnames": "^2.2.6",
+    "cron-validator": "^1.4.0",
     "cronstrue": "^2.50.0",
     "epoch-timeago": "^1.1.9",
     "filesize": "^10.1.6",
-    "js-yaml": "^4.1.0",
+    "js-yaml": "^4.1.1",
     "lodash": "^4.17.21",
     "nanoid": "^5.1.5",
     "polished": "^4.2.2",
@@ -122,9 +124,10 @@
     "react-markdown": "^9.0.1",
     "react-use": "^17.6.0",
     "scheduler": "^0.23.0",
+    "style-to-object": "^1.0.0",
     "styled-components": "^5.3.6",
     "thenby": "^1.3.4",
-    "use-context-selector": "^1.4.1",
+    "use-context-selector": "^2.0.0",
     "zustand": "^5.0.3"
   },
   "resolutions": {

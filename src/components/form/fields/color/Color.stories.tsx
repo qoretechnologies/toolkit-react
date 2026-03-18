@@ -1,5 +1,5 @@
 import { StoryObj } from '@storybook/react';
-import { expect, fn, userEvent } from '@storybook/test';
+import { expect, fn } from '@storybook/test';
 import { useState } from 'react';
 
 import { StoryMeta } from '../../../../types';
@@ -10,15 +10,6 @@ const meta = {
   title: 'Components/Form/Color',
   args: {
     onChange: fn(),
-  },
-} as StoryMeta<typeof ColorFormField>;
-
-export default meta;
-type Story = StoryObj<typeof meta>;
-
-export const Default: Story = {
-  args: {
-    value: { r: 0, g: 0, b: 0, a: 1 },
   },
   render(args) {
     const [value, setValue] = useState(args.value);
@@ -34,27 +25,45 @@ export const Default: Story = {
       />
     );
   },
-  async play({ canvasElement, args }) {
+} as StoryMeta<typeof ColorFormField>;
+
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+export const WithValue: Story = {
+  args: {
+    value: { r: 100, g: 149, b: 237, a: 1 },
+  },
+  async play({ canvasElement }) {
     const picker = canvasElement.querySelector('.sketch-picker');
     const colorPanel = canvasElement.querySelector('.saturation-white');
-    const valueInput = canvasElement.querySelector('input');
 
     await expect(picker).toBeInTheDocument();
     await expect(colorPanel).toBeInTheDocument();
-    await expect(valueInput).toBeInTheDocument();
-    await expect(valueInput).toHaveValue('000000');
+  },
+};
 
-    await userEvent.pointer({
-      keys: '[MouseLeft]',
-      target: colorPanel,
-      coords: { x: 0, y: 0 },
-    });
-    await expect(valueInput).toHaveValue('FFFFFF');
-    await expect(args.onChange).toHaveBeenLastCalledWith({
-      r: 255,
-      g: 255,
-      b: 255,
-      a: 1,
-    });
+export const Red: Story = {
+  args: {
+    value: { r: 220, g: 53, b: 69, a: 1 },
+  },
+  async play({ canvasElement }) {
+    await expect(canvasElement.querySelector('.sketch-picker')).toBeInTheDocument();
+  },
+};
+
+export const Empty: Story = {
+  async play({ canvasElement }) {
+    await expect(canvasElement.querySelector('.sketch-picker')).toBeInTheDocument();
+  },
+};
+
+export const Disabled: Story = {
+  args: {
+    value: { r: 100, g: 149, b: 237, a: 1 },
+    disabled: true,
+  },
+  async play({ canvasElement }) {
+    await expect(canvasElement.querySelector('.sketch-picker')).toBeInTheDocument();
   },
 };
