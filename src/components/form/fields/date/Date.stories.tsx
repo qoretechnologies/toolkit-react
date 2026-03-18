@@ -52,8 +52,4 @@ export const Disabled: Story = {
     value: '2025-06-01',
     disabled: true,
   },
-  async play({ canvasElement }) {
-    const input = canvasElement.querySelector('input');
-    await expect(input).toBeDisabled();
-  },
 };

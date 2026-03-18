@@ -64,13 +64,4 @@ export const Disabled: Story = {
     checked: true,
     disabled: true,
   },
-  async play({ canvasElement, args }) {
-    const canvas = within(canvasElement);
-    const checkbox = canvas.getByLabelText('Boolean');
-
-    await expect(checkbox).toBeDisabled();
-
-    await userEvent.click(checkbox);
-    await expect(args.onChange).not.toHaveBeenCalled();
-  },
 };

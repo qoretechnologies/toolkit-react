@@ -12,7 +12,8 @@ const toFullIso = (value?: string | Date): string | Date | null => {
   if (!value) return null;
   if (value instanceof Date) return value;
   // DatePicker requires a full ISO 8601 datetime string — append time if only a date is given
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00`;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00.000Z`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) return `${value}.000Z`;
   return value;
 };
 
