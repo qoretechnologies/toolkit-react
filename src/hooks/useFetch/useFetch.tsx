@@ -24,6 +24,7 @@ export function useFetch<T>({
   cache,
   defaultData,
   loadOnMount,
+  noApiPrefix,
 }: IReqraftUseFetchOptions<T>) {
   const query = useContextSelector(FetchContext, (context) => {
     switch (method) {
@@ -54,7 +55,7 @@ export function useFetch<T>({
       setLoading(true);
 
       const _body = mergeBodies ? { ...body, ...customBody } : customBody || body;
-      const response = await query<T>({ url, body: _body, cache });
+      const response = await query<T>({ url, body: _body, cache, noApiPrefix });
 
       setLoading(false);
 
@@ -69,7 +70,7 @@ export function useFetch<T>({
 
       setResponse(response.response);
     },
-    [JSON.stringify(body), method, url, cache]
+    [JSON.stringify(body), method, url, cache, noApiPrefix]
   );
 
   useEffectOnce(() => {
