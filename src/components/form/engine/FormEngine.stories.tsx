@@ -1137,7 +1137,7 @@ export const OnValidityChange: Story = {
     });
 
     // Type a value into the required field to make the form valid
-    const requiredInput = document.querySelector('.system-option .reqore-input') as HTMLInputElement;
+    const requiredInput = document.querySelectorAll('.system-option .reqore-textarea')[0] as HTMLTextAreaElement;
     await fireEvent.change(requiredInput, { target: { value: 'hello' } });
 
     await sleep(300);
