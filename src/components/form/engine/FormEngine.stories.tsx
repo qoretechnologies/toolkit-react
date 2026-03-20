@@ -1137,7 +1137,7 @@ export const OnValidityChange: Story = {
     });
 
     // Type a value into the required field to make the form valid
-    const requiredInput = canvas.getByDisplayValue('');
+    const requiredInput = document.querySelector('.system-option .reqore-input') as HTMLInputElement;
     await fireEvent.change(requiredInput, { target: { value: 'hello' } });
 
     await sleep(300);
