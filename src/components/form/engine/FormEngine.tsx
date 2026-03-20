@@ -38,7 +38,12 @@ import { useDebounce, useUpdateEffect } from 'react-use';
 import { createContext } from 'use-context-selector';
 import { getDefaultValue, insertAtIndex, richtextToString } from '../../../helpers/common';
 import { getRequiredOptionMessage } from '../../../helpers/options';
-import { hasAllDependenciesFullfilled, validateField } from '../../../helpers/validations';
+import {
+  IValidationResult,
+  hasAllDependenciesFullfilled,
+  validateField,
+  validateFieldWithResult,
+} from '../../../helpers/validations';
 import { useQorusTypes } from '../../../hooks/useQorusTypes';
 import { useTemplates } from '../../../hooks/useTemplates';
 import { Description } from '../../Description';
@@ -64,6 +69,19 @@ export interface IOptionsSchema extends IQorusFormSchema {}
 export interface IOperator extends IQorusFormOperator {}
 export interface IOperatorsSchema extends IQorusFormOperatorsSchema {}
 export interface IOptionsOnChangeMeta extends IQorusFormFieldOnChangeMeta {}
+
+export interface IFormFieldValidityData {
+  fieldName: string;
+  type: TQorusType;
+  value: any;
+  validation: IValidationResult;
+}
+
+export interface IFormValidityData {
+  isValid: boolean;
+  fields: IFormFieldValidityData[];
+  invalidFields: IFormFieldValidityData[];
+}
 
 const NegativeColorEffect: any = {
   gradient: {
@@ -276,7 +294,7 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   templateFieldProps?: Partial<ITemplateFieldProps>;
   showTypeToggle?: boolean;
   compact?: boolean;
-  onValidityChange?: (isValid: boolean) => void;
+  onValidityChange?: (isValid: boolean, data: IFormValidityData) => void;
 }
 
 export const FormEngine = ({
@@ -663,36 +681,64 @@ export const FormEngine = ({
     [JSON.stringify(options), JSON.stringify(availableOptions), JSON.stringify(localValue.fields)]
   );
 
-  const getInvalidOptions = useCallback((): TQorusFormFieldSchema[] => {
-    return reduce(
+  const getValidityData = useCallback((): IFormValidityData => {
+    const fields: IFormFieldValidityData[] = reduce(
       availableOptions,
-      (invalidOptions, option, optionName) => {
-        if (
-          !isOptionValid(
-            optionName,
-            (option as IQorusFormField).type ||
-              (options?.[optionName]?.ui_type as TQorusType) ||
-              (options?.[optionName]?.type as TQorusType),
-            (option as IQorusFormField).value
-          )
-        ) {
-          invalidOptions.push(options?.[optionName] as TQorusFormFieldSchema);
+      (result, option, optionName) => {
+        const type =
+          (option as IQorusFormField).type ||
+          (options?.[optionName]?.ui_type as TQorusType) ||
+          (options?.[optionName]?.type as TQorusType);
+        const optionValue = (option as IQorusFormField).value;
+
+        const isRequired = options?.[optionName]?.required;
+        const hasRequiredGroups = !!options?.[optionName]?.required_groups;
+        const isEmpty = optionValue === undefined || optionValue === '';
+
+        let validation: IValidationResult;
+
+        if (!isRequired && !hasRequiredGroups && isEmpty) {
+          validation = { isValid: true, reasons: [] };
+        } else {
+          validation = validateFieldWithResult(getType(type), optionValue, {
+            has_to_have_value: true,
+            optionSchema: options,
+            options: availableOptions,
+            ...options?.[optionName],
+          } as any);
         }
-        return invalidOptions;
+
+        result.push({
+          fieldName: optionName,
+          type: getType(type),
+          value: optionValue,
+          validation,
+        });
+
+        return result;
       },
-      [] as TQorusFormFieldSchema[]
+      [] as IFormFieldValidityData[]
     );
+
+    const invalidFields = fields.filter((f) => !f.validation.isValid);
+
+    return {
+      isValid: invalidFields.length === 0,
+      fields,
+      invalidFields,
+    };
   }, [
     JSON.stringify(availableOptions),
     JSON.stringify(options),
     JSON.stringify(localValue.fields),
   ]);
 
-  const optionsAreValid = useMemo(() => getInvalidOptions().length === 0, [getInvalidOptions]);
+  const validityData = useMemo(() => getValidityData(), [getValidityData]);
+  const optionsAreValid = validityData.isValid;
 
   useEffect(() => {
-    onValidityChange?.(optionsAreValid);
-  }, [optionsAreValid]);
+    onValidityChange?.(optionsAreValid, validityData);
+  }, [JSON.stringify(validityData)]);
 
   const shownOptions = useMemo((): TQorusForm => {
     return reduce(
@@ -986,7 +1032,7 @@ export const FormEngine = ({
           minimal
           contentRenderer={(children) => (
             <>
-              {size(getInvalidOptions()) && !readOnly ?
+              {size(validityData.invalidFields) && !readOnly ?
                 <ReqoreMessage
                   intent={showInvalidOptionsOnly ? 'info' : 'danger'}
                   opaque={false}
@@ -996,7 +1042,7 @@ export const FormEngine = ({
                 >
                   {showInvalidOptionsOnly ?
                     'Showing invalid fields only. Click here again to show all fields.'
-                  : `${size(getInvalidOptions()) < 2 ? 'A field is not valid and requires' : `${size(getInvalidOptions())} fields are not valid and require`} attention. Click here to only show invalid fields.`
+                  : `${size(validityData.invalidFields) < 2 ? 'A field is not valid and requires' : `${size(validityData.invalidFields)} fields are not valid and require`} attention. Click here to only show invalid fields.`
                   }
                 </ReqoreMessage>
               : null}

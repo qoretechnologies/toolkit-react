@@ -657,3 +657,99 @@ describe('hasAllDependenciesFullfilled', () => {
     expect(hasAllDependenciesFullfilled([['parent', 'other']], options, schema)).toBe(true);
   });
 });
+
+// ─── exported validation functions ────────────────────────────────────────────
+
+describe('validation module exports all public functions', () => {
+  it('exports validateField as a function', () => {
+    expect(typeof validateField).toBe('function');
+  });
+
+  it('exports validateFieldWithResult as a function', () => {
+    expect(typeof validateFieldWithResult).toBe('function');
+  });
+
+  it('exports isValueSet as a function', () => {
+    expect(typeof isValueSet).toBe('function');
+  });
+
+  it('exports getTypeFromValue as a function', () => {
+    expect(typeof getTypeFromValue).toBe('function');
+  });
+
+  it('exports maybeParseYaml as a function', () => {
+    expect(typeof maybeParseYaml).toBe('function');
+  });
+
+  it('exports hasAllDependenciesFullfilled as a function', () => {
+    expect(typeof hasAllDependenciesFullfilled).toBe('function');
+  });
+
+  it('exports validateOptionWithRequiredGroups as a function', () => {
+    expect(typeof validateOptionWithRequiredGroups).toBe('function');
+  });
+});
+
+// ─── validateFieldWithResult detailed output ──────────────────────────────────
+
+describe('validateFieldWithResult returns detailed IValidationResult', () => {
+  it('returns isValid: true with empty reasons for valid field', () => {
+    const result = validateFieldWithResult('string', 'hello');
+    expect(result).toEqual({
+      isValid: true,
+      reasons: [],
+    });
+  });
+
+  it('returns isValid: false with reason for invalid required string', () => {
+    const result = validateFieldWithResult('string', '', { has_to_have_value: true });
+    expect(result.isValid).toBe(false);
+    expect(result.reason).toBeDefined();
+    expect(result.reasons.length).toBeGreaterThan(0);
+  });
+
+  it('returns isValid: false with reason for invalid number', () => {
+    const result = validateFieldWithResult('number', 'not-a-number');
+    expect(result.isValid).toBe(false);
+    expect(result.reason).toBeDefined();
+    expect(result.reasons).toContain(result.reason);
+  });
+
+  it('returns isValid: false with reason for invalid int', () => {
+    const result = validateFieldWithResult('int', 3.14);
+    expect(result.isValid).toBe(false);
+    expect(result.reason).toBeDefined();
+  });
+
+  it('returns isValid: false with reason for empty required boolean', () => {
+    const result = validateFieldWithResult('boolean', undefined, { has_to_have_value: true });
+    expect(result.isValid).toBe(false);
+    expect(result.reason).toBeDefined();
+  });
+
+  it('returns isValid: false with reason for invalid cron', () => {
+    const result = validateFieldWithResult('cron', 'not-a-cron');
+    expect(result.isValid).toBe(false);
+    expect(result.reason).toBeDefined();
+  });
+
+  it('returns isValid: false with reason for invalid date', () => {
+    const result = validateFieldWithResult('date', 'not-a-date');
+    expect(result.isValid).toBe(false);
+    expect(result.reason).toBeDefined();
+  });
+
+  it('returns isValid: false with reasons for invalid hash with arg_schema', () => {
+    const result = validateFieldWithResult('hash', { nested: 'value' }, {
+      arg_schema: {
+        requiredProp: {
+          type: 'string',
+          ui_type: 'string',
+          required: true,
+        },
+      },
+    });
+    expect(result.isValid).toBe(false);
+    expect(result.reasons.length).toBeGreaterThan(0);
+  });
+});
