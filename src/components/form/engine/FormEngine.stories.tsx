@@ -1119,23 +1119,21 @@ export const OnValidityChange: Story = {
 
     // onValidityChange should have been called with false and detailed data
     await waitFor(() => {
-      expect(args.onValidityChange).toHaveBeenCalledWith(
-        false,
-        expect.objectContaining({
-          isValid: false,
-          fields: expect.any(Array),
-          invalidFields: expect.arrayContaining([
-            expect.objectContaining({
-              fieldName: 'requiredField',
-              validation: expect.objectContaining({
-                isValid: false,
-                reason: expect.any(String),
-                reasons: expect.any(Array),
-              }),
-            }),
-          ]),
-        })
-      );
+      expect(args.onValidityChange).toHaveBeenCalled();
+
+      const calls = (args.onValidityChange as ReturnType<typeof fn>).mock.calls;
+      const [isValid, data] = calls[calls.length - 1];
+
+      expect(isValid).toBe(false);
+      expect(data.isValid).toBe(false);
+      expect(Array.isArray(data.fields)).toBe(true);
+      expect(data.invalidFields.length).toBe(1);
+
+      const invalidField = data.invalidFields[0];
+      expect(invalidField.fieldName).toBe('requiredField');
+      expect(invalidField.validation.isValid).toBe(false);
+      expect(typeof invalidField.validation.reason).toBe('string');
+      expect(Array.isArray(invalidField.validation.reasons)).toBe(true);
     });
 
     // Type a value into the required field to make the form valid
@@ -1150,15 +1148,14 @@ export const OnValidityChange: Story = {
       expect(canvas.getByTestId('validity-invalid-count').textContent).toBe('0');
     });
 
-    // onValidityChange should have been called with true
+    // onValidityChange should have been called with true and no invalid fields
     await waitFor(() => {
-      expect(args.onValidityChange).toHaveBeenCalledWith(
-        true,
-        expect.objectContaining({
-          isValid: true,
-          invalidFields: [],
-        })
-      );
+      const calls = (args.onValidityChange as ReturnType<typeof fn>).mock.calls;
+      const [isValid, data] = calls[calls.length - 1];
+
+      expect(isValid).toBe(true);
+      expect(data.isValid).toBe(true);
+      expect(data.invalidFields).toHaveLength(0);
     });
   },
 };
