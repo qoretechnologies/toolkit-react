@@ -1,6 +1,16 @@
 export * from './components/form';
 export * from './components/log/Log';
 export {
+  validateField,
+  validateFieldWithResult,
+  isValueSet,
+  getTypeFromValue,
+  maybeParseYaml,
+  hasAllDependenciesFullfilled,
+  validateOptionWithRequiredGroups,
+} from './helpers/validations';
+export type { IValidationResult } from './helpers/validations';
+export {
   IReqraftMenuItem,
   IReqraftMenuProps,
   ReqraftMenu,

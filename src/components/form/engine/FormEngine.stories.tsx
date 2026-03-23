@@ -14,7 +14,7 @@ import {
   _testsWaitForTextToNotExist,
   sleep,
 } from '../../../stories/Tests/utils';
-import { FormEngine, IFormEngineProps, IOptionsSchema } from './FormEngine';
+import { FormEngine, IFormEngineProps, IFormValidityData, IOptionsSchema } from './FormEngine';
 
 // ─── schema data ──────────────────────────────────────────────────────────────
 
@@ -1046,5 +1046,116 @@ export const AllowedValuesOptionWithTemplateValueShowsWarning: Story = {
     await _testsWaitForText(
       'This field has pre-defined allowed values, make sure the template you select is compatible with those'
     );
+  },
+};
+
+export const OnValidityChange: Story = {
+  args: {
+    options: {
+      requiredField: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Required Field',
+        required: true,
+        preselected: true,
+      },
+      optionalField: {
+        type: 'number',
+        ui_type: 'number',
+        display_name: 'Optional Field',
+        preselected: true,
+      },
+    },
+    value: {},
+  },
+  render: ({ value, onChange, onValidityChange, ...rest }: IFormEngineProps) => {
+    const [val, setValue] = useState(value);
+    const [validityData, setValidityData] = useState<IFormValidityData | null>(null);
+
+    return (
+      <>
+        <FormEngine
+          {...rest}
+          value={val}
+          onChange={(_n, v, m) => {
+            setValue(v);
+            onChange?.(_n, v, m);
+          }}
+          onValidityChange={(isValid, data) => {
+            setValidityData(data);
+            onValidityChange?.(isValid, data);
+          }}
+        />
+        {validityData && (
+          <div data-testid='validity-output'>
+            <span data-testid='validity-is-valid'>{String(validityData.isValid)}</span>
+            <span data-testid='validity-total-fields'>{validityData.fields.length}</span>
+            <span data-testid='validity-invalid-count'>{validityData.invalidFields.length}</span>
+            {validityData.invalidFields.map((f) => (
+              <span key={f.fieldName} data-testid={`invalid-field-${f.fieldName}`}>
+                {f.validation.reason}
+              </span>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+
+    // Wait for the form to render and validity to be reported
+    await waitFor(
+      () => expect(canvas.getByTestId('validity-output')).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
+
+    // The form should be invalid initially because requiredField is empty
+    await waitFor(() => {
+      expect(canvas.getByTestId('validity-is-valid').textContent).toBe('false');
+      expect(canvas.getByTestId('validity-invalid-count').textContent).toBe('1');
+      expect(canvas.getByTestId('invalid-field-requiredField')).toBeInTheDocument();
+    });
+
+    // onValidityChange should have been called with false and detailed data
+    await waitFor(() => {
+      expect(args.onValidityChange).toHaveBeenCalled();
+
+      const calls = (args.onValidityChange as ReturnType<typeof fn>).mock.calls;
+      const [isValid, data] = calls[calls.length - 1];
+
+      expect(isValid).toBe(false);
+      expect(data.isValid).toBe(false);
+      expect(Array.isArray(data.fields)).toBe(true);
+      expect(data.invalidFields.length).toBe(1);
+
+      const invalidField = data.invalidFields[0];
+      expect(invalidField.fieldName).toBe('requiredField');
+      expect(invalidField.validation.isValid).toBe(false);
+      expect(typeof invalidField.validation.reason).toBe('string');
+      expect(Array.isArray(invalidField.validation.reasons)).toBe(true);
+    });
+
+    // Type a value into the required field to make the form valid
+    const requiredInput = document.querySelectorAll('.system-option .reqore-textarea')[0] as HTMLTextAreaElement;
+    await fireEvent.change(requiredInput, { target: { value: 'hello' } });
+
+    await sleep(300);
+
+    // Now the form should be valid
+    await waitFor(() => {
+      expect(canvas.getByTestId('validity-is-valid').textContent).toBe('true');
+      expect(canvas.getByTestId('validity-invalid-count').textContent).toBe('0');
+    });
+
+    // onValidityChange should have been called with true and no invalid fields
+    await waitFor(() => {
+      const calls = (args.onValidityChange as ReturnType<typeof fn>).mock.calls;
+      const [isValid, data] = calls[calls.length - 1];
+
+      expect(isValid).toBe(true);
+      expect(data.isValid).toBe(true);
+      expect(data.invalidFields).toHaveLength(0);
+    });
   },
 };
