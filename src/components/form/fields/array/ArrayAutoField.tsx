@@ -3,12 +3,13 @@ import {
   ReqoreControlGroup,
   ReqorePanel,
   ReqoreTag,
+  ReqoreTagGroup,
   ReqoreVerticalSpacer,
   useReqoreProperty,
 } from '@qoretechnologies/reqore';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { map, size } from 'lodash';
-import { memo, useCallback, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 
@@ -48,6 +49,11 @@ const defaultValueByType: Record<string, unknown> = {
   list: [],
 };
 
+const formatTagLabel = (val: unknown): string => {
+  if (val === undefined || val === null) return '';
+  return String(val);
+};
+
 export const ArrayAutoField = memo(
   ({
     name,
@@ -65,6 +71,10 @@ export const ArrayAutoField = memo(
   }: IArrayAutoFieldProps) => {
     const confirmAction = useReqoreProperty('confirmAction');
     const [localValue, setLocalValue] = useState(value);
+    // Compact mode state: staging value for the input field and optional editing index
+    const [inputValue, setInputValue] = useState<unknown>(undefined);
+    const [editingIndex, setEditingIndex] = useState<number | null>(null);
+    const inputKeyRef = useRef(0);
 
     useEffect(() => {
       setLocalValue(value);
@@ -82,12 +92,9 @@ export const ArrayAutoField = memo(
       setLocalValue((prev) => [...(prev || []), defaultValueByType[type] ?? undefined]);
     }, [type]);
 
-    const removeItem = useCallback(
-      (idx: number) => {
-        setLocalValue((prev) => (prev || []).filter((_, i) => i !== idx));
-      },
-      []
-    );
+    const removeItem = useCallback((idx: number) => {
+      setLocalValue((prev) => (prev || []).filter((_, i) => i !== idx));
+    }, []);
 
     const handleItemChange = useCallback((idx: number, itemValue: unknown) => {
       setLocalValue((prev) => {
@@ -116,6 +123,159 @@ export const ArrayAutoField = memo(
       }
       return null;
     };
+
+    // ── Compact mode handlers ──────────────────────────────────────────────
+
+    const resetInput = useCallback(() => {
+      setInputValue(undefined);
+      setEditingIndex(null);
+      inputKeyRef.current += 1;
+    }, []);
+
+    const confirmInput = useCallback(() => {
+      if (inputValue === undefined || inputValue === '') return;
+
+      if (editingIndex !== null) {
+        // Update existing item
+        setLocalValue((prev) => {
+          const next = [...(prev || [])];
+          next[editingIndex] = inputValue;
+          return next;
+        });
+      } else {
+        // Add new item
+        setLocalValue((prev) => [...(prev || []), inputValue]);
+      }
+
+      resetInput();
+    }, [inputValue, editingIndex, resetInput]);
+
+    const handleEditTag = useCallback(
+      (idx: number) => {
+        setInputValue(localValue[idx]);
+        setEditingIndex(idx);
+        inputKeyRef.current += 1;
+      },
+      [localValue]
+    );
+
+    const handleRemoveTag = useCallback(
+      (idx: number) => {
+        // If we're editing this item, cancel the edit
+        if (editingIndex === idx) {
+          resetInput();
+        } else if (editingIndex !== null && idx < editingIndex) {
+          // Adjust editing index if removing an item before it
+          setEditingIndex((prev) => (prev !== null ? prev - 1 : null));
+        }
+        removeItem(idx);
+      },
+      [editingIndex, removeItem, resetInput]
+    );
+
+    const handleInputKeyDown = useCallback(
+      (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          confirmInput();
+        } else if (e.key === 'Escape' && editingIndex !== null) {
+          e.preventDefault();
+          resetInput();
+        }
+      },
+      [confirmInput, editingIndex, resetInput]
+    );
+
+    // ── Compact mode: non-hash, non-list element types ─────────────────────
+
+    if (type !== 'hash' && type !== 'list' && type !== 'rgbcolor') {
+      const isEditing = editingIndex !== null;
+      const hasInput = inputValue !== undefined && inputValue !== '';
+
+      return (
+        <ReqoreControlGroup
+          vertical
+          fluid
+          className='array-auto-compact'
+          onKeyDown={handleInputKeyDown as any}
+        >
+          {size(localValue) > 0 && (
+            <ReqoreTagGroup>
+              {map(localValue, (val, idx) => (
+                <ReqoreTag
+                  key={`${idx}-${formatTagLabel(val)}`}
+                  label={formatTagLabel(val)}
+                  className='array-auto-compact-tag'
+                  size={fieldSize as any}
+                  intent={editingIndex === idx ? 'info' : undefined}
+                  actions={
+                    disabled || readOnly ? undefined : (
+                      [
+                        {
+                          icon: 'EditLine',
+                          tooltip: 'Edit',
+                          className: 'array-auto-compact-edit',
+                          onClick: () => handleEditTag(idx),
+                        },
+                        {
+                          icon: 'DeleteBinLine',
+                          intent: 'danger',
+                          tooltip: 'Remove',
+                          className: 'array-auto-compact-remove',
+                          onClick: () => handleRemoveTag(idx),
+                        },
+                      ]
+                    )
+                  }
+                />
+              ))}
+            </ReqoreTagGroup>
+          )}
+
+          <ReqoreControlGroup fluid>
+            <div style={{ flex: 1 }}>
+              {renderItem({
+                value: inputValue,
+                onChange: (v) => setInputValue(v),
+                index: -1,
+                type,
+                arg_schema,
+                allowed_values,
+                allowed_values_creatable,
+                disabled,
+                readOnly,
+                size: fieldSize,
+                key: inputKeyRef.current,
+              } as any)}
+            </div>
+            {!disabled && !readOnly && (
+              <>
+                <ReqoreButton
+                  icon={isEditing ? 'CheckLine' : 'AddLine'}
+                  intent={isEditing ? 'info' : undefined}
+                  className='array-auto-compact-confirm'
+                  tooltip={isEditing ? 'Save changes' : 'Add item'}
+                  disabled={!hasInput}
+                  onClick={confirmInput}
+                  fixed
+                />
+                {isEditing && (
+                  <ReqoreButton
+                    icon='CloseLine'
+                    className='array-auto-compact-cancel'
+                    tooltip='Cancel editing'
+                    onClick={resetInput}
+                    fixed
+                  />
+                )}
+              </>
+            )}
+          </ReqoreControlGroup>
+        </ReqoreControlGroup>
+      );
+    }
+
+    // ── Complex mode: hash/list element types ──────────────────────────────
 
     return (
       <ReqoreControlGroup vertical fluid>

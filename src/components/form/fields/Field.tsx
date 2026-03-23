@@ -13,20 +13,19 @@ import { useId } from 'react';
 import { typedToYaml } from '../../../helpers/common';
 import { useArgSchema } from '../../../hooks/useArgSchema';
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
-import BooleanFormField, { IBooleanFormFieldProps } from './boolean/Boolean';
+import BooleanFormField from './boolean/Boolean';
 import ColorFormField, { IColorFormFieldProps } from './color/Color';
-import CronFormField, { ICronFormFieldProps } from './cron/Cron';
-import { DateFormField, IDateFormFieldProps } from './date/Date';
-import { IFileFormFieldValue, IReqraftFileFormFieldProps, ReqraftFileFormField } from './file/File';
-import LongStringFormField, { ILongStringFormFieldProps } from './long-string/LongString';
-import MarkdownFormField, { IMarkdownFormFieldProps } from './markdown/Markdown';
+import CronFormField from './cron/Cron';
+import { DateFormField } from './date/Date';
+import { IFileFormFieldValue, ReqraftFileFormField } from './file/File';
+import LongStringFormField from './long-string/LongString';
+import MarkdownFormField from './markdown/Markdown';
 import { MultiSelectFormField } from './multi-select/MultiSelectFormField';
 import NumberFormField from './number/Number';
 import { ReqraftObjectFormField } from './object/Object';
-import RadioGroupFormField, { IRadioGroupFormFieldProps } from './radio-group/RadioGroup';
-import { IRichTextFormFieldProps, RichTextFormField } from './rich-text/RichText';
-import { ISelectFormFieldProps, SelectFormField } from './select/Select';
-import { IStringFormFieldProps, StringFormField } from './string/String';
+import { RichTextFormField } from './rich-text/RichText';
+import { SelectFormField } from './select/Select';
+import { StringFormField } from './string/String';
 import { ArrayAutoField } from './array/ArrayAutoField';
 // Direct import — circular dep (FormEngine → TemplateField → FormField → FormEngine) is safe
 // because modules are all loaded before any component renders
@@ -35,11 +34,11 @@ import { FormEngine } from '../engine/FormEngine';
 const mapQorusTypeToFormFieldType = (type: string): TFormFieldType => {
   switch (type) {
     case 'richtext': return 'richtext';
-    case 'bool': case 'boolean': return 'boolean';
-    case 'int': case 'integer': case 'float': case 'number': return 'number';
+    case 'bool': case 'boolean': return 'bool';
+    case 'int': case 'integer': case 'float': case 'number': return 'int';
     case 'date': return 'date';
     case 'file': return 'file';
-    case 'rgbcolor': return 'color';
+    case 'rgbcolor': return 'rgbcolor';
     case 'hash': case 'free-hash': return 'hash';
     case 'list': case 'free-list': return 'list';
     default: return 'long-string';
@@ -72,21 +71,7 @@ export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> exte
   element_allowed_values?: IQorusAllowedValue[];
   element_allowed_values_creatable?: boolean;
 
-  fieldProps?: Omit<
-    T extends 'string' ? IStringFormFieldProps
-    : T extends 'boolean' ? IBooleanFormFieldProps
-    : T extends 'radio' ? IRadioGroupFormFieldProps
-    : T extends 'color' ? IColorFormFieldProps
-    : T extends 'long-string' ? ILongStringFormFieldProps
-    : T extends 'markdown' ? IMarkdownFormFieldProps
-    : T extends 'cron' ? ICronFormFieldProps
-    : T extends 'richtext' ? IRichTextFormFieldProps
-    : T extends 'date' ? IDateFormFieldProps
-    : T extends 'file' ? IReqraftFileFormFieldProps
-    : T extends 'select' ? ISelectFormFieldProps
-    : never,
-    'value' | 'onChange'
-  >;
+  fieldProps?: Record<string, any>;
 
   label?: IReqoreLabelProps['label'];
   labelPosition?: 'top' | 'left' | 'right' | 'bottom';
@@ -130,7 +115,7 @@ export const FormField = <T extends TFormFieldType>({
       return null;
     }
 
-    switch (type) {
+    switch (type as string) {
       case 'string':
         return (
           <StringFormField
@@ -142,11 +127,12 @@ export const FormField = <T extends TFormFieldType>({
           />
         );
 
+      case 'bool':
       case 'boolean':
         return (
           <BooleanFormField
             {...rest}
-            {...(fieldProps as IFormFieldProps<'boolean'>['fieldProps'])}
+            {...(fieldProps as IFormFieldProps<'bool'>['fieldProps'])}
             checked={value as boolean}
             onChange={(checked) => {
               handleChange(checked as TFormFieldValueType<T>);
@@ -155,11 +141,14 @@ export const FormField = <T extends TFormFieldType>({
           />
         );
 
+      case 'int':
+      case 'integer':
+      case 'float':
       case 'number':
         return (
           <NumberFormField
             {...rest}
-            {...(fieldProps as IFormFieldProps<'number'>['fieldProps'])}
+            {...(fieldProps as IFormFieldProps<'int'>['fieldProps'])}
             value={value as number}
             onChange={(value) => {
               handleChange(value as TFormFieldValueType<T>);
@@ -168,28 +157,15 @@ export const FormField = <T extends TFormFieldType>({
           />
         );
 
-      case 'color':
+      case 'rgbcolor':
         return (
           <ColorFormField
             {...rest}
-            {...(fieldProps as IFormFieldProps<'color'>['fieldProps'])}
+            {...(fieldProps as IFormFieldProps<'rgbcolor'>['fieldProps'])}
             value={value as IColorFormFieldProps['value']}
             onChange={(color) => {
               handleChange(color as TFormFieldValueType<T>);
             }}
-          />
-        );
-
-      case 'radio':
-        return (
-          <RadioGroupFormField
-            {...rest}
-            {...(fieldProps as IFormFieldProps<'radio'>['fieldProps'])}
-            value={value as TFormFieldValueType<T>}
-            onChange={(selected) => {
-              handleChange(selected as TFormFieldValueType<T>);
-            }}
-            id={id}
           />
         );
 
@@ -210,7 +186,7 @@ export const FormField = <T extends TFormFieldType>({
         return (
           <MarkdownFormField
             {...rest}
-            {...(fieldProps as IFormFieldProps<'markdown'>['fieldProps'])}
+            {...(fieldProps as any)}
             value={value as TFormFieldValueType<T>}
             onChange={(selected) => {
               handleChange(selected as TFormFieldValueType<T>);
@@ -223,7 +199,7 @@ export const FormField = <T extends TFormFieldType>({
         return (
           <CronFormField
             {...rest}
-            {...(fieldProps as IFormFieldProps<'cron'>['fieldProps'])}
+            {...(fieldProps as any)}
             value={value as TFormFieldValueType<T>}
             onChange={(selected) => {
               handleChange(selected as TFormFieldValueType<T>);
@@ -272,10 +248,12 @@ export const FormField = <T extends TFormFieldType>({
         );
 
       case 'select':
+      case 'select-string':
+      case 'enum':
         return (
           <SelectFormField
             {...rest}
-            {...(fieldProps as IFormFieldProps<'select'>['fieldProps'])}
+            {...(fieldProps as any)}
             value={value}
             onChange={(val) => {
               handleChange(val as TFormFieldValueType<T>);

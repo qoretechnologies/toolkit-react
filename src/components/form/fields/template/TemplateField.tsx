@@ -52,18 +52,18 @@ export const mapQorusTypeToFormFieldType = (type: string): TFormFieldType => {
       return 'richtext';
     case 'bool':
     case 'boolean':
-      return 'boolean';
+      return 'bool';
     case 'int':
     case 'integer':
     case 'float':
     case 'number':
-      return 'number';
+      return 'int';
     case 'date':
       return 'date';
     case 'file':
       return 'file';
     case 'rgbcolor':
-      return 'color';
+      return 'rgbcolor';
     case 'hash':
     case 'free-hash':
       return 'hash';

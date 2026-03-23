@@ -1,6 +1,5 @@
 import {
   ReqoreButton,
-  ReqoreControlGroup,
   ReqoreDropdown,
   ReqoreMenu,
   ReqoreMenuItem,
@@ -12,10 +11,7 @@ import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { isEqual, size } from 'lodash';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ISelectFieldCollectionItem,
-  SelectFieldCollection,
-} from './SelectCollection';
+import { ISelectFieldCollectionItem, SelectFieldCollection } from './SelectCollection';
 
 export type ISelectFormFieldItem = ISelectFieldCollectionItem;
 
@@ -215,14 +211,17 @@ export const SelectFormField = memo(
 
     const itemCount: TReqoreBadge = useMemo(
       () =>
-        hideItemCount
-          ? undefined
-          : {
-              label: size(items),
-              align: 'right' as const,
-              flat: false,
-              intent: hasError(items) ? 'danger' : hasWarning(items) ? 'warning' : undefined,
-            },
+        hideItemCount ? undefined : (
+          {
+            label: size(items),
+            align: 'right' as const,
+            flat: false,
+            intent:
+              hasError(items) ? 'danger'
+              : hasWarning(items) ? 'warning'
+              : undefined,
+          }
+        ),
       [size(items), hideItemCount]
     );
 
@@ -244,16 +243,19 @@ export const SelectFormField = memo(
           fixed
           minimal
           {...getIcon(filteredItems, filteredItems[0].value)}
-          intent={itemHasError ? 'danger' : itemHasWarning ? 'warning' : 'info'}
+          intent={
+            itemHasError ? 'danger'
+            : itemHasWarning ?
+              'warning'
+            : 'info'
+          }
           disabled={false}
         />
       );
     }
 
     if (!filteredItems || filteredItems.length === 0) {
-      return (
-        <ReqoreTag intent='muted' label='No data available' icon='ForbidLine' fixed />
-      );
+      return <ReqoreTag intent='muted' label='No data available' icon='ForbidLine' fixed />;
     }
 
     return (
@@ -268,7 +270,7 @@ export const SelectFormField = memo(
             onClose={() => setCollectionOpen(false)}
           />
         )}
-        {asMenu ? (
+        {asMenu ?
           <ReqoreMenu>
             {filteredItems.map((item) => (
               <ReqoreMenuItem
@@ -280,43 +282,39 @@ export const SelectFormField = memo(
               />
             ))}
           </ReqoreMenu>
-        ) : hasItemsWithDesc(items) && !forceDropdown ? (
-          <ReqoreControlGroup stack fluid={fluid}>
-            <ReqoreButton
-              transparent={!value}
-              minimal
-              intent={
-                hasError(items, value)
-                  ? 'danger'
-                  : hasWarning(items, value)
-                    ? 'warning'
-                    : value
-                      ? 'info'
-                      : rest.intent as TReqoreIntent
-              }
-              fluid={fluid}
-              compact
-              key={valueToShow(value) as string}
-              badge={itemCount}
-              {...getIcon(items, value)}
-              rightIcon={showRightIcon ? 'ExpandUpDownLine' : undefined}
-              onClick={(e) => {
-                e.stopPropagation();
-                setCollectionOpen(true);
-              }}
-              description={getItemShortDescription(value as string) as string}
-              tooltip={rest.tooltip as IReqoreButtonProps['tooltip']}
-              disabled={disabled}
-            >
-              {value
-                ? getLabel(items, value as string)
-                : showPlaceholder
-                  ? placeholder || 'Please select'
-                  : undefined}
-            </ReqoreButton>
-          </ReqoreControlGroup>
-        ) : (
-          <ReqoreDropdown
+        : hasItemsWithDesc(items) && !forceDropdown ?
+          <ReqoreButton
+            transparent={!value}
+            minimal
+            intent={
+              hasError(items, value) ? 'danger'
+              : hasWarning(items, value) ?
+                'warning'
+              : value ?
+                'info'
+              : (rest.intent as TReqoreIntent)
+            }
+            fluid={fluid}
+            compact
+            key={valueToShow(value) as string}
+            badge={itemCount}
+            {...getIcon(items, value)}
+            rightIcon={showRightIcon ? 'ExpandUpDownLine' : undefined}
+            onClick={(e) => {
+              e.stopPropagation();
+              setCollectionOpen(true);
+            }}
+            description={getItemShortDescription(value as string) as string}
+            tooltip={rest.tooltip as IReqoreButtonProps['tooltip']}
+            disabled={disabled}
+          >
+            {value ?
+              getLabel(items, value as string)
+            : showPlaceholder ?
+              placeholder || 'Please select'
+            : undefined}
+          </ReqoreButton>
+        : <ReqoreDropdown
             items={reqoreItems}
             listCustomTheme={{
               main: '#010811',
@@ -336,15 +334,20 @@ export const SelectFormField = memo(
             }}
             description={getItemShortDescription(value as string) as string}
             minimal
-            intent={hasError(items, value) ? 'danger' : value ? 'info' : rest.intent as TReqoreIntent}
+            intent={
+              hasError(items, value) ? 'danger'
+              : value ?
+                'info'
+              : (rest.intent as TReqoreIntent)
+            }
           >
-            {value
-              ? getLabel(items, value as string)
-              : showPlaceholder
-                ? placeholder || 'Please select'
-                : undefined}
+            {value ?
+              getLabel(items, value as string)
+            : showPlaceholder ?
+              placeholder || 'Please select'
+            : undefined}
           </ReqoreDropdown>
-        )}
+        }
       </>
     );
   }
