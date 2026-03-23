@@ -8,6 +8,7 @@ export interface IMultiSelectFormFieldProps {
   value?: unknown[];
   /** The fixed list of allowed items */
   items: IQorusAllowedValue[];
+  canCreateItems?: boolean;
   onChange: (value: unknown[]) => void;
   disabled?: boolean;
   size?: string;
@@ -18,7 +19,7 @@ export interface IMultiSelectFormFieldProps {
  * Used by FormField for `list` fields that have `element_allowed_values`.
  */
 export const MultiSelectFormField = memo(
-  ({ value = [], items, onChange, disabled, size }: IMultiSelectFormFieldProps) => {
+  ({ value = [], items, onChange, disabled, size, canCreateItems }: IMultiSelectFormFieldProps) => {
     const reqoreItems = useMemo<TReqoreMultiSelectItem[]>(
       () =>
         items.map((item) => ({
@@ -39,9 +40,12 @@ export const MultiSelectFormField = memo(
       <ReqoreMultiSelect
         items={reqoreItems}
         value={selectedValues}
-        onValueChange={(selected) => onChange(selected as unknown[])}
+        onValueChange={(selected) => onChange?.(selected as unknown[])}
         disabled={disabled}
         size={size as any}
+        canCreateItems={canCreateItems}
+        enterKeySelects
+        canRemoveItems
       />
     );
   }

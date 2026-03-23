@@ -1,50 +1,18 @@
+import { TQorusType } from '@qoretechnologies/ts-toolkit';
 import { IColorFormFieldProps } from '../components/form/fields/color/Color';
 
-export type TFormFieldType =
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'date'
-  | 'time'
-  | 'datetime'
-  | 'select'
-  | 'multiSelect'
-  | 'radio'
-  | 'checkbox'
-  | 'file'
-  | 'image'
-  | 'color'
-  | 'password'
-  | 'email'
-  | 'phone'
-  | 'url'
-  | 'markdown'
-  | 'long-string'
-  | 'cron'
-  | 'richtext'
-  | 'hash'
-  | 'list';
+export type TFormFieldType = TQorusType;
 
 export type TFormFieldValueType<T> =
-  T extends 'string' ? string
-  : T extends 'number' ? number
-  : T extends 'boolean' ? boolean
+  T extends 'string' | 'long-string' | 'binary' | 'email' | 'url' | 'enum' | 'select-string' | 'file-as-string' ? string
+  : T extends 'int' | 'integer' | 'float' | 'number' ? number
+  : T extends 'bool' | 'boolean' ? boolean
   : T extends 'date' ? Date | string
-  : T extends 'time' ? Date | string
-  : T extends 'datetime' ? Date | string
-  : T extends 'select' ? string
-  : T extends 'multiSelect' ? string[]
-  : T extends 'radio' ? string
-  : T extends 'checkbox' ? boolean
+  : T extends 'hash' | 'free-hash' | 'data' ? Record<string, any>
+  : T extends 'list' | 'free-list' | 'range' ? unknown[]
+  : T extends 'rgbcolor' ? IColorFormFieldProps['value']
   : T extends 'file' ? File
-  : T extends 'image' ? string
-  : T extends 'color' ? IColorFormFieldProps['value']
-  : T extends 'password' ? string
-  : T extends 'email' ? string
-  : T extends 'phone' ? string
-  : T extends 'url' ? string
-  : T extends 'markdown' ? string
-  : T extends 'long-string' ? string
-  : T extends 'cron' ? string
   : T extends 'richtext' ? string
+  : T extends 'auto' | 'any' ? any
+  : T extends 'null' | 'nothing' ? null
   : any;
