@@ -43,7 +43,8 @@ async function doFetchData(
   url: string,
   method = 'GET',
   body?: { [key: string]: any },
-  noApiPrefix = false
+  noApiPrefix = false,
+  instance = fetchConfig.instance
 ): Promise<Response> {
   // We do not check for token because Qorus now handles auth automatically via cookies
   // token is only supplied in a dev environment
@@ -55,7 +56,7 @@ async function doFetchData(
     headers['Authorization'] = `Bearer ${fetchConfig.instanceToken}`;
   }
 
-  return fetch(`${fetchConfig.instance}${noApiPrefix ? '' : 'api/latest/'}${url}`, {
+  return fetch(`${instance}${noApiPrefix ? '' : 'api/latest/'}${url}`, {
     method,
     headers,
     body: JSON.stringify(body),
@@ -75,6 +76,8 @@ export interface IReqraftQueryConfig {
   cache?: boolean;
   queryClient?: QueryClient;
   noApiPrefix?: boolean;
+  /** Override the global instance URL for this single call (e.g. to target a different port). */
+  instance?: string;
 }
 
 export async function query<T>({
@@ -84,6 +87,7 @@ export async function query<T>({
   cache = true,
   queryClient = ReqraftQueryClient,
   noApiPrefix = false,
+  instance,
 }: IReqraftQueryConfig): Promise<IReqraftFetchResponse<T>> {
   const shouldCache = method === 'DELETE' || method === 'POST' ? false : cache;
   const cacheKey = `${url}:${method}:${JSON.stringify(body || {})}`;
@@ -91,7 +95,7 @@ export async function query<T>({
   const requestData = await queryClient.fetchQuery({
     queryKey: [cacheKey],
     queryFn: async () => {
-      const response = await doFetchData(url, method, body, noApiPrefix);
+      const response = await doFetchData(url, method, body, noApiPrefix, instance);
 
       if (response.status === 401 && fetchConfig.unauthorizedRedirect) {
         window.location.href = fetchConfig.unauthorizedRedirect(window.location);
