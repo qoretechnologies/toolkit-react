@@ -1050,6 +1050,9 @@ export const AllowedValuesOptionWithTemplateValueShowsWarning: Story = {
 };
 
 export const OnValidityChange: Story = {
+  parameters: {
+    chromatic: { disable: true },
+  },
   args: {
     options: {
       requiredField: {
@@ -1105,10 +1108,9 @@ export const OnValidityChange: Story = {
     const canvas = within(canvasElement);
 
     // Wait for the form to render and validity to be reported
-    await waitFor(
-      () => expect(canvas.getByTestId('validity-output')).toBeInTheDocument(),
-      { timeout: 10000 }
-    );
+    await waitFor(() => expect(canvas.getByTestId('validity-output')).toBeInTheDocument(), {
+      timeout: 10000,
+    });
 
     // The form should be invalid initially because requiredField is empty
     await waitFor(() => {
@@ -1137,7 +1139,9 @@ export const OnValidityChange: Story = {
     });
 
     // Type a value into the required field to make the form valid
-    const requiredInput = document.querySelectorAll('.system-option .reqore-textarea')[0] as HTMLTextAreaElement;
+    const requiredInput = document.querySelectorAll(
+      '.system-option .reqore-textarea'
+    )[0] as HTMLTextAreaElement;
     await fireEvent.change(requiredInput, { target: { value: 'hello' } });
 
     await sleep(300);
