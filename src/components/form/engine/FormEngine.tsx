@@ -1140,6 +1140,7 @@ export const FormEngine = ({
               badge: buildBadges(options[optionName], optionName),
               className: 'system-option',
               size: 'small',
+              floatingActions: true,
               actions: [
                 {
                   size: 'tiny',
