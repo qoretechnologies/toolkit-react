@@ -533,9 +533,12 @@ export const FormEngine = ({
       if (option.required || option.required_groups) {
         badges.push({
           icon: 'Asterisk',
+          size: 'tiny',
           leftIconProps: {
             size: 'tiny',
           },
+          color: 'transparent',
+          minimal: true,
           iconColor: option.required_groups ? 'warning:lighten:7' : 'danger:lighten:7',
           tooltip: {
             delay: 300,
@@ -548,6 +551,7 @@ export const FormEngine = ({
         badges.push({
           icon: 'LinkUnlink',
           intent: 'info',
+          size: 'tiny',
           tooltip: {
             content:
               'Other options depend on this option, changing it may result in configuration changes.',
@@ -1082,9 +1086,9 @@ export const FormEngine = ({
               label: options[optionName]?.display_name || optionName,
               tags: (options[optionName] as any)?.tags,
               labelEffect: {
-                textSize: 'small',
+                textSize: '11px',
                 uppercase: true,
-                opacity: 0.8,
+                opacity: 0.9,
               },
               labelProps: {
                 style:
