@@ -62,13 +62,6 @@ jobs:
           tag: beta
           access: public
 
-      # - name: Publish to Chromatic
-      #   id: chromatic_publish
-      #   uses: chromaui/action@v1
-      #   with:
-      #     token: ${{ secrets.GITHUB_TOKEN }}
-      #     projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-
       - name: Create a release
         id: release
         uses: actions/create-release@v1
@@ -102,3 +95,10 @@ jobs:
         with:
           args: ":exclamation: ReQraft beta v${{ steps.save_release_version.outputs.version }} release failed! Click the GitHub Action link below to find out why."
         if: failure()
+
+      - name: Publish to Chromatic
+        id: chromatic_publish
+        uses: chromaui/action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}

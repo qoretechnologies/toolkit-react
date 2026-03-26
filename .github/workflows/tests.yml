@@ -99,15 +99,15 @@ jobs:
             yarn add @qoretechnologies/reqraft@${{ steps.bump.outputs.version }}
             ```
 
-      # - name: Publish to Chromatic
-      #   id: chromatic_publish
-      #   uses: chromaui/action@latest
-      #   with:
-      #     token: ${{ secrets.GITHUB_TOKEN }}
-      #     projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-      #     exitZeroOnChanges: true
-      #     allowConsoleErrors: true
-      #     debug: true
+      - name: Publish to Chromatic
+        id: chromatic_publish
+        uses: chromaui/action@latest
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          exitZeroOnChanges: true
+          allowConsoleErrors: true
+          debug: true
 
       # Notify Discord if Success
       - name: Discord notification success
