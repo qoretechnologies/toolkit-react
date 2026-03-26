@@ -1,6 +1,6 @@
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react';
-import { expect, fireEvent, fn, waitFor, within } from '@storybook/test';
+import { expect, fireEvent, fn, userEvent, waitFor, within } from '@storybook/test';
 import { useState } from 'react';
 import { validateField } from '../../../helpers/validations';
 import FileFieldArgSchema from '../../../stories/Data/fileFieldArgSchema.json';
@@ -513,6 +513,7 @@ export const FocusedEditing: Story = {
   ...Basic,
   play: async (args) => {
     await Basic.play!(args);
+    await userEvent.hover(document.querySelectorAll('.system-option')[0]);
     await _testsClickButton({ selector: '.options-item-fullscreen', nth: 0 });
     await _testsWaitForText('Focused Editing');
   },
@@ -555,8 +556,9 @@ export const ValueCanBeRemoved: Story = {
   },
   play: async () => {
     await _testsWaitForText('Click here to upload a different file');
-    await expect(document.querySelectorAll('.options-item-remove').length).toBe(2);
+    await userEvent.hover(document.querySelectorAll('.system-option')[0]);
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
+    await userEvent.hover(document.querySelectorAll('.system-option')[1]);
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
     await _testsWaitForTextToNotExist('Click here to upload a different file');
   },
@@ -1050,6 +1052,9 @@ export const AllowedValuesOptionWithTemplateValueShowsWarning: Story = {
 };
 
 export const OnValidityChange: Story = {
+  parameters: {
+    chromatic: { disable: true },
+  },
   args: {
     options: {
       requiredField: {
@@ -1105,10 +1110,9 @@ export const OnValidityChange: Story = {
     const canvas = within(canvasElement);
 
     // Wait for the form to render and validity to be reported
-    await waitFor(
-      () => expect(canvas.getByTestId('validity-output')).toBeInTheDocument(),
-      { timeout: 10000 }
-    );
+    await waitFor(() => expect(canvas.getByTestId('validity-output')).toBeInTheDocument(), {
+      timeout: 10000,
+    });
 
     // The form should be invalid initially because requiredField is empty
     await waitFor(() => {
@@ -1137,7 +1141,9 @@ export const OnValidityChange: Story = {
     });
 
     // Type a value into the required field to make the form valid
-    const requiredInput = document.querySelectorAll('.system-option .reqore-textarea')[0] as HTMLTextAreaElement;
+    const requiredInput = document.querySelectorAll(
+      '.system-option .reqore-textarea'
+    )[0] as HTMLTextAreaElement;
     await fireEvent.change(requiredInput, { target: { value: 'hello' } });
 
     await sleep(300);

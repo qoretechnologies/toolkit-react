@@ -352,11 +352,7 @@ export const FormEngine = ({
 
       const toEmit = size(localValue.fields) ? (localValue.fields as TQorusForm) : undefined;
       lastEmittedValue.current = toEmit;
-      onChange?.(
-        name,
-        toEmit,
-        size(localValue.meta) ? localValue.meta : undefined
-      );
+      onChange?.(name, toEmit, size(localValue.meta) ? localValue.meta : undefined);
     },
     0,
     [JSON.stringify(localValue)]
@@ -389,15 +385,17 @@ export const FormEngine = ({
   const handleValueChange = useCallback(
     (optionName: string, val?: any, _type?: string) => {
       setLocalValue(({ fields = {} }) => {
-        const schemaType = ((options?.[optionName]?.ui_type ||
-          options?.[optionName]?.type) as TQorusType);
+        const schemaType = (options?.[optionName]?.ui_type ||
+          options?.[optionName]?.type) as TQorusType;
         const isAnyLike = schemaType === 'any' || schemaType === 'auto';
         // For any/auto schema types, preserve the user's chosen type stored in the field
         const resolvedSchemaType =
-          isAnyLike && (fields[optionName] as IQorusFormField)?.type
-            ? ((fields[optionName] as IQorusFormField).type as TQorusType)
-            : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
-        const type = _type || getTypeAndCanBeNull(resolvedSchemaType, options?.[optionName]?.allowed_values).type;
+          isAnyLike && (fields[optionName] as IQorusFormField)?.type ?
+            ((fields[optionName] as IQorusFormField).type as TQorusType)
+          : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
+        const type =
+          _type ||
+          getTypeAndCanBeNull(resolvedSchemaType, options?.[optionName]?.allowed_values).type;
 
         if (!(fields as TQorusForm)[optionName]) {
           const defaultOperators: TOperatorValue = reduce(
@@ -535,9 +533,12 @@ export const FormEngine = ({
       if (option.required || option.required_groups) {
         badges.push({
           icon: 'Asterisk',
+          size: 'tiny',
           leftIconProps: {
             size: 'tiny',
           },
+          color: 'transparent',
+          minimal: true,
           iconColor: option.required_groups ? 'warning:lighten:7' : 'danger:lighten:7',
           tooltip: {
             delay: 300,
@@ -550,6 +551,7 @@ export const FormEngine = ({
         badges.push({
           icon: 'LinkUnlink',
           intent: 'info',
+          size: 'tiny',
           tooltip: {
             content:
               'Other options depend on this option, changing it may result in configuration changes.',
@@ -632,11 +634,14 @@ export const FormEngine = ({
         // validation always use the correct field type (e.g. ui_type:'richtext' wins over type:'string').
         const isAnyLike = schemaType === 'any' || schemaType === 'auto';
         const effectiveType =
-          isAnyLike && (option as IQorusFormField)?.type
-            ? (option as IQorusFormField).type
-            : schemaType;
+          isAnyLike && (option as IQorusFormField)?.type ?
+            (option as IQorusFormField).type
+          : schemaType;
 
-        return { ...newValue, [optionName]: { ...(option as IQorusFormField), type: effectiveType } };
+        return {
+          ...newValue,
+          [optionName]: { ...(option as IQorusFormField), type: effectiveType },
+        };
       }, {});
   }, [
     JSON.stringify(fixedValue),
@@ -1017,9 +1022,10 @@ export const FormEngine = ({
         : null}
         <ReqoreCollection
           minColumnWidth='350px'
-          {...rest}
           flat
           padded={false}
+          minimal
+          {...rest}
           label={compact ? undefined : rest.label}
           responsiveTitle={false}
           inputProps={{
@@ -1029,7 +1035,6 @@ export const FormEngine = ({
           filterable={'filterable' in rest ? rest.filterable : !compact}
           sortable={'sortable' in rest ? rest.sortable : !compact && size(availableOptions) > 1}
           defaultSortBy={null}
-          minimal
           contentRenderer={(children) => (
             <>
               {size(validityData.invalidFields) && !readOnly ?
@@ -1080,12 +1085,11 @@ export const FormEngine = ({
             ({ type, ...other }, optionName): IReqoreCollectionItemProps => ({
               label: options[optionName]?.display_name || optionName,
               tags: (options[optionName] as any)?.tags,
-              labelEffect:
-                options[optionName]?.short_desc ?
-                  {
-                    underline: 'underline dotted #878787',
-                  }
-                : undefined,
+              labelEffect: {
+                textSize: '11px',
+                uppercase: true,
+                opacity: 0.9,
+              },
               labelProps: {
                 style:
                   options[optionName]?.short_desc ?
@@ -1108,10 +1112,12 @@ export const FormEngine = ({
               },
               description:
                 showFieldTypes ?
-                  `<${(options[optionName] as any)?.ui_type || options[optionName]?.type}${(options[optionName] as any)?.ui_element_type ? `[${(options[optionName] as any)?.ui_element_type}]` : ''}>`
-                : undefined,
+                  `<${options[optionName].ui_type || options[optionName].type}${options[optionName]?.ui_element_type ? `[${options[optionName].ui_element_type}]` : ''}> ${options[optionName].short_desc || ''}`
+                : options[optionName].short_desc || '',
               descriptionEffect: {
-                opacity: 0.5,
+                textSize: '11px',
+                opacity: 0.3,
+                underline: options[optionName]?.desc ? 'underline dotted #878787' : undefined,
               },
               customTheme: {
                 main: 'main:darken:1',
@@ -1134,6 +1140,7 @@ export const FormEngine = ({
               badge: buildBadges(options[optionName], optionName),
               className: 'system-option',
               size: 'small',
+              floatingActions: true,
               actions: [
                 {
                   size: 'tiny',
