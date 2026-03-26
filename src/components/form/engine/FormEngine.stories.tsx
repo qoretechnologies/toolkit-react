@@ -1,6 +1,6 @@
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react';
-import { expect, fireEvent, fn, waitFor, within } from '@storybook/test';
+import { expect, fireEvent, fn, userEvent, waitFor, within } from '@storybook/test';
 import { useState } from 'react';
 import { validateField } from '../../../helpers/validations';
 import FileFieldArgSchema from '../../../stories/Data/fileFieldArgSchema.json';
@@ -513,6 +513,7 @@ export const FocusedEditing: Story = {
   ...Basic,
   play: async (args) => {
     await Basic.play!(args);
+    await userEvent.hover(document.querySelectorAll('.system-option')[0]);
     await _testsClickButton({ selector: '.options-item-fullscreen', nth: 0 });
     await _testsWaitForText('Focused Editing');
   },
@@ -555,8 +556,9 @@ export const ValueCanBeRemoved: Story = {
   },
   play: async () => {
     await _testsWaitForText('Click here to upload a different file');
-    await expect(document.querySelectorAll('.options-item-remove').length).toBe(2);
+    await userEvent.hover(document.querySelectorAll('.system-option')[0]);
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
+    await userEvent.hover(document.querySelectorAll('.system-option')[1]);
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
     await _testsWaitForTextToNotExist('Click here to upload a different file');
   },
