@@ -93,17 +93,17 @@ export const ReqraftMenuItem = ({
       customTheme={{ main: '#050505' }}
       verticalPadding='big'
       effect={
-        isActive
-          ? {
-              gradient: {
-                colors: {
-                  0: `${activeIntent}:darken:3:0.4`,
-                  65: 'main:lighten:2',
-                  100: 'main:lighten:2',
-                },
+        isActive ?
+          {
+            gradient: {
+              colors: {
+                0: `${activeIntent}:darken:3:0.4`,
+                65: 'main',
+                100: 'main',
               },
-            }
-          : undefined
+            },
+          }
+        : undefined
       }
       leftIconColor={isActive ? `${activeIntent}:lighten:10` : undefined}
       {...props}
@@ -215,8 +215,8 @@ export const ReqraftMenu = ({
         },
       }}
       rounded={false}
-      customTheme={{ main: '#181818' }}
       style={{ overflowY: 'hidden' }}
+      effect={{ gradient: { direction: 'to bottom', colors: { 0: '#15031b', 100: '#000000' } } }}
       {...rest}
     >
       {topChildren}
