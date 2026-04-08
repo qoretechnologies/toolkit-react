@@ -15,6 +15,9 @@ const meta = {
   parameters: {
     mockData: [...storiesStorageMockEmpty],
   },
+  args: {
+    customTheme: { main: '#1e0421' },
+  },
 } as StoryMeta<typeof ReqraftMenu>;
 
 export default meta;

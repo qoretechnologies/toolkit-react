@@ -30,7 +30,7 @@ export default [
     description: 'Create Powerful Automations',
     transparent: false,
     customTheme: {
-      main: 'custom1',
+      main: '#ee00d6',
     },
     icon: 'DashboardLine',
     leftIconProps: {
