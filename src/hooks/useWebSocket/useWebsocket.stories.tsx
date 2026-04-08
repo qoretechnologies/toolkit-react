@@ -195,7 +195,7 @@ export const WithLogs: Story = {
     ...Reconnects.args,
     includeLogMessagesInState: true,
     useState: true,
-    reconnectInterval: 500,
+    reconnectInterval: 1500,
   },
   play: async ({ args, ...rest }) => {
     await Reconnects.play({ args, ...rest });
