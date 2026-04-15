@@ -54,7 +54,7 @@ export const ReqraftMenuItem = ({
   ...props
 }: TReqraftMenuItem & { path?: string; isCollapsed?: boolean; activeIntent?: TReqoreIntent }) => {
   if ('divider' in props) {
-    return <ReqoreMenuDivider />;
+    return <ReqoreMenuDivider {...props} />;
   }
 
   const isActive = useMemo(
