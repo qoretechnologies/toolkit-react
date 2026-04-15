@@ -162,7 +162,6 @@ export const ReqraftMenu = ({
         items,
         (acc, item) => {
           if ('divider' in item) {
-            acc.push(item);
             return acc;
           }
 
