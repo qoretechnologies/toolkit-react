@@ -615,6 +615,11 @@ export default [
     ],
   },
   {
+    divider: true,
+    label: 'Advanced',
+    size: 'tiny',
+  },
+  {
     label: 'Release Manager',
     description: 'Create New Releases',
     transparent: false,
