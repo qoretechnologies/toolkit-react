@@ -249,7 +249,10 @@ export const ReqraftMenu = ({
           }}
         />
       </ReqoreControlGroup>
-      <ReqoreControlGroup vertical style={{ overflowY: 'auto', flex: '1 auto' }}>
+      <ReqoreControlGroup
+        vertical
+        style={{ overflowY: 'auto', overflowX: 'hidden', flex: '1 auto' }}
+      >
         {map(filteredMenu, (menuData, menuId) => (
           <ReqraftMenuItem
             key={menuId}
