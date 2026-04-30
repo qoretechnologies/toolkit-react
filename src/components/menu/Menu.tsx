@@ -11,7 +11,7 @@ import { IReqoreMenuDividerProps } from '@qoretechnologies/reqore/dist/component
 import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/Menu/item';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { map, reduce, size } from 'lodash';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useReqraftStorage } from '../../hooks/useStorage/useStorage';
 
@@ -46,6 +46,27 @@ export interface IReqraftMenuProps extends Partial<Omit<IReqoreMenuProps, 'resiz
 }
 
 export const ReqraftMenuItemsSection = styled.div``;
+
+const StyledMenuScrollWrapper = styled.div<{ $showBottomShadow: boolean }>`
+  position: relative;
+  flex: 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
+    pointer-events: none;
+    box-shadow: inset 0 -32px 28px -16px rgba(0, 0, 0, 0.95);
+    opacity: ${({ $showBottomShadow }) => ($showBottomShadow ? 1 : 0)};
+    transition: opacity 0.15s ease;
+  }
+`;
 
 export const ReqraftMenuItem = ({
   path,
@@ -128,6 +149,8 @@ export const ReqraftMenu = ({
   ...rest
 }: IReqraftMenuProps) => {
   const [query, setQuery] = useState<string>(defaultQuery);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [canScrollDown, setCanScrollDown] = useState<boolean>(false);
 
   const [isSidebarOpen, update] = useReqraftStorage<boolean>('sidebar-open', true, false);
   const [sidebarSize, updateSidebarSize] = useReqraftStorage<number>(
@@ -146,6 +169,33 @@ export const ReqraftMenu = ({
     setQuery(newQuery);
     onQueryChange?.(newQuery);
   };
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      return;
+    }
+    setCanScrollDown(el.scrollTop + el.clientHeight < el.scrollHeight - 1);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) {
+      return undefined;
+    }
+
+    updateScrollState();
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+
+    const resizeObserver = new ResizeObserver(updateScrollState);
+    resizeObserver.observe(el);
+    Array.from(el.children).forEach((child) => resizeObserver.observe(child));
+
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      resizeObserver.disconnect();
+    };
+  }, [updateScrollState, query]);
 
   const handleWidthChange = (newWidth: number) => {
     updateSidebarSize(newWidth);
@@ -249,20 +299,23 @@ export const ReqraftMenu = ({
           }}
         />
       </ReqoreControlGroup>
-      <ReqoreControlGroup
-        vertical
-        style={{ overflowY: 'auto', overflowX: 'hidden', flex: '1 auto' }}
-      >
-        {map(filteredMenu, (menuData, menuId) => (
-          <ReqraftMenuItem
-            key={menuId}
-            {...menuData}
-            path={path}
-            isCollapsed={!query && !!(menuData as IReqraftMenuItem).submenu}
-            activeIntent={activeItemIntent}
-          />
-        ))}
-      </ReqoreControlGroup>
+      <StyledMenuScrollWrapper $showBottomShadow={!!bottomChildren && canScrollDown}>
+        <ReqoreControlGroup
+          vertical
+          ref={scrollRef}
+          style={{ overflowY: 'auto', overflowX: 'hidden', flex: '1 auto', minHeight: 0 }}
+        >
+          {map(filteredMenu, (menuData, menuId) => (
+            <ReqraftMenuItem
+              key={menuId}
+              {...menuData}
+              path={path}
+              isCollapsed={!query && !!(menuData as IReqraftMenuItem).submenu}
+              activeIntent={activeItemIntent}
+            />
+          ))}
+        </ReqoreControlGroup>
+      </StyledMenuScrollWrapper>
       {bottomChildren}
     </ReqoreMenu>
   );
