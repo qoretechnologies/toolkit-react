@@ -47,25 +47,16 @@ export interface IReqraftMenuProps extends Partial<Omit<IReqoreMenuProps, 'resiz
 
 export const ReqraftMenuItemsSection = styled.div``;
 
-const StyledMenuScrollWrapper = styled.div<{ $showBottomShadow: boolean }>`
+const StyledMenuBottomShadow = styled.div<{ $visible: boolean }>`
+  height: 48px;
+  margin-top: -48px;
+  flex-shrink: 0;
+  pointer-events: none;
   position: relative;
-  flex: 1 auto;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 48px;
-    pointer-events: none;
-    box-shadow: inset 0 -32px 28px -16px rgba(0, 0, 0, 0.95);
-    opacity: ${({ $showBottomShadow }) => ($showBottomShadow ? 1 : 0)};
-    transition: opacity 0.15s ease;
-  }
+  z-index: 1;
+  box-shadow: inset 0 -32px 28px -16px rgba(0, 0, 0, 0.95);
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  transition: opacity 0.15s ease;
 `;
 
 export const ReqraftMenuItem = ({
@@ -299,23 +290,22 @@ export const ReqraftMenu = ({
           }}
         />
       </ReqoreControlGroup>
-      <StyledMenuScrollWrapper $showBottomShadow={!!bottomChildren && canScrollDown}>
-        <ReqoreControlGroup
-          vertical
-          ref={scrollRef}
-          style={{ overflowY: 'auto', overflowX: 'hidden', flex: '1 auto', minHeight: 0 }}
-        >
-          {map(filteredMenu, (menuData, menuId) => (
-            <ReqraftMenuItem
-              key={menuId}
-              {...menuData}
-              path={path}
-              isCollapsed={!query && !!(menuData as IReqraftMenuItem).submenu}
-              activeIntent={activeItemIntent}
-            />
-          ))}
-        </ReqoreControlGroup>
-      </StyledMenuScrollWrapper>
+      <ReqoreControlGroup
+        vertical
+        ref={scrollRef}
+        style={{ overflowY: 'auto', overflowX: 'hidden', flex: '1 auto', minHeight: 0 }}
+      >
+        {map(filteredMenu, (menuData, menuId) => (
+          <ReqraftMenuItem
+            key={menuId}
+            {...menuData}
+            path={path}
+            isCollapsed={!query && !!(menuData as IReqraftMenuItem).submenu}
+            activeIntent={activeItemIntent}
+          />
+        ))}
+      </ReqoreControlGroup>
+      {bottomChildren && <StyledMenuBottomShadow $visible={canScrollDown} />}
       {bottomChildren}
     </ReqoreMenu>
   );
