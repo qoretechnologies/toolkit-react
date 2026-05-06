@@ -82,6 +82,22 @@ export const WithAcceptedExtensions: Story = {
   },
 };
 
+export const Multiple: Story = {
+  args: {
+    multiple: true,
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Click or drop files here to upload')).toBeInTheDocument();
+    // Even when a value is set externally, the click-or-drop area
+    // stays visible so the user can keep adding files. Multi-file
+    // consumers render their own picked-file list above the field.
+    const input = canvasElement.querySelector('input[type="file"]') as HTMLInputElement | null;
+    await expect(input).not.toBeNull();
+    await expect(input?.multiple).toBe(true);
+  },
+};
+
 export const WithBuildTab: Story = {
   args: {
     argSchema: {

@@ -37,6 +37,14 @@ export interface IReqraftFileFormFieldProps extends Omit<IReqorePanelProps, 'onC
   argSchema?: IQorusFormSchema;
   /** While the arg_schema is being fetched from the API */
   argSchemaLoading?: boolean;
+  /**
+   * Accept multiple files in the picker / drop zone. When set, `onChange`
+   * fires once per picked file (so consumers keep their existing
+   * single-file handler shape — they just receive it N times). Picked
+   * files are not previewed inline; the consumer is expected to render
+   * its own list / chip group from the accumulated values.
+   */
+  multiple?: boolean;
 }
 
 export const ReqraftFileFormField = memo(
@@ -47,6 +55,7 @@ export const ReqraftFileFormField = memo(
     valueButtonProps = {},
     argSchema,
     argSchemaLoading,
+    multiple,
     ...rest
   }: IReqraftFileFormFieldProps) => {
     const contentStyle: React.CSSProperties = useMemo(
@@ -61,7 +70,8 @@ export const ReqraftFileFormField = memo(
 
     const { acceptedFiles, getRootProps, getInputProps } = useDropzone({
       disabled: rest.disabled || rest.readonly,
-      maxFiles: 1,
+      maxFiles: multiple ? 0 : 1,
+      multiple: !!multiple,
       ...options,
     });
 
@@ -103,17 +113,19 @@ export const ReqraftFileFormField = memo(
         return;
       }
 
-      const reader = new FileReader();
+      const filesToRead = multiple ? acceptedFiles : [acceptedFiles[0]];
 
-      reader.onload = () => {
-        onChange?.({
-          name: acceptedFiles[0].name,
-          content: reader.result as string,
-          size: acceptedFiles[0].size,
-        });
-      };
-
-      reader.readAsDataURL(acceptedFiles[0]);
+      filesToRead.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          onChange?.({
+            name: file.name,
+            content: reader.result as string,
+            size: file.size,
+          });
+        };
+        reader.readAsDataURL(file);
+      });
     }, [acceptedFiles]);
 
     const handleTabChange = useCallback(
@@ -136,7 +148,10 @@ export const ReqraftFileFormField = memo(
     );
 
     const renderUploader = useCallback(() => {
-      if (value && !value.mime_type) {
+      // In multi-file mode, the consumer is responsible for rendering its
+      // own list of picked files (e.g. as a chip group). Always show the
+      // click-or-drop area so the user can keep adding files.
+      if (!multiple && value && !value.mime_type) {
         return (
           <>
             <input {...getInputProps()} />
@@ -173,7 +188,7 @@ export const ReqraftFileFormField = memo(
           </ReqoreControlGroup>
         </ReqorePanel>
       );
-    }, [value, rest, valueButtonProps, getInputProps, getRootProps, renderExtensions, contentStyle]);
+    }, [value, rest, valueButtonProps, getInputProps, getRootProps, renderExtensions, contentStyle, multiple]);
 
     if (!argSchema && !argSchemaLoading) {
       return renderUploader();
