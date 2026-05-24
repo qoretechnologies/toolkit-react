@@ -33,3 +33,14 @@ export {
 } from './stores/currentUser/currentUser';
 export { query } from './utils/fetch';
 export * from './utils/websocket';
+export { LspClient } from './utils/lspClient';
+export type { ILspClientOptions } from './utils/lspClient';
+export type {
+  ILspCompletionItem,
+  ILspDiagnostic,
+  ILspMarkupContent,
+  ILspPosition,
+  ILspRange,
+  ILspTextEdit,
+  TLspDocumentText,
+} from './utils/lspClient.types';

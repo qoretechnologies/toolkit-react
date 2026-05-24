@@ -1,0 +1,70 @@
+// Copyright 2026 Qore Technologies, s.r.o.
+//
+// Minimal LSP type subset used by Reqraft's `LspClient`. The shapes follow
+// the Language Server Protocol JSON-RPC payloads but are intentionally narrow
+// — only what an editor consuming completions / diagnostics / hover / format
+// needs is exposed. Consumers can layer richer types on top in
+// language-specific wrappers (e.g. a DPQL-specific `IDpqlCompletionItem`
+// that extends `ILspCompletionItem`).
+
+/** Zero-based line + UTF-16 character offset. */
+export interface ILspPosition {
+  line: number;
+  character: number;
+}
+
+/** Inclusive start, exclusive end — per LSP convention. */
+export interface ILspRange {
+  start: ILspPosition;
+  end: ILspPosition;
+}
+
+/**
+ * Diagnostic delivered via `textDocument/publishDiagnostics` notifications
+ * or returned synchronously from language-specific `<lang>/validate` methods.
+ */
+export interface ILspDiagnostic {
+  range: ILspRange;
+  message: string;
+  /** LSP DiagnosticSeverity: 1 = Error, 2 = Warning, 3 = Information, 4 = Hint */
+  severity?: number;
+  code?: string | number;
+  source?: string;
+}
+
+/**
+ * Completion item from `textDocument/completion`. `kind` follows the LSP
+ * CompletionItemKind enum (1 = Text, 2 = Method, 3 = Function, …).
+ */
+export interface ILspCompletionItem {
+  label: string;
+  kind?: number;
+  detail?: string;
+  insertText?: string;
+  /** 1 = PlainText, 2 = Snippet */
+  insertTextFormat?: number;
+  documentation?: ILspMarkupContent | string | null;
+  sortText?: string;
+  filterText?: string;
+}
+
+/** Rich-text content from hover / completion documentation. */
+export interface ILspMarkupContent {
+  kind: 'plaintext' | 'markdown';
+  value: string;
+}
+
+/** Edit returned by `textDocument/formatting`. */
+export interface ILspTextEdit {
+  range: ILspRange;
+  newText: string;
+}
+
+/**
+ * Document text payload for `didOpen` / `didChange`. Plain string is the
+ * standard LSP shape; some Qorus-language servers (e.g. DPQL) also accept
+ * a structured richtext envelope `{ type: 'richtext', value: [...] }` that
+ * the server flattens server-side. Consumers that don't need the richtext
+ * form should pass a string.
+ */
+export type TLspDocumentText = string | { type: 'richtext'; value: unknown[] };
