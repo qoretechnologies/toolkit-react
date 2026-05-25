@@ -21,6 +21,78 @@ $ yarn add @qoretechnologies/toolkit-react
 
 ## Features
 
+## Components
+
+### `DpqlEditor`
+
+A Slate-based smart text field for writing Data Provider Query Language (DPQL), with LSP-driven syntax highlighting, autocomplete, live diagnostics, formatting, and expression↔text serialization. Talks to the Qorus `/lsp` WebSocket using `languageId: 'dpql'` and the server's `dpql/*` custom JSON-RPC methods.
+
+```tsx
+import { DpqlEditor, type IDpqlEditorRef } from '@qoretechnologies/reqraft';
+import { useRef, useState } from 'react';
+
+function MyForm() {
+  const [dpql, setDpql] = useState('@status == "active"');
+  const editorRef = useRef<IDpqlEditorRef>(null);
+
+  return (
+    <DpqlEditor
+      ref={editorRef}
+      value={dpql}
+      onChange={setDpql}
+      provider="datasource:omq/table/orders"
+      recordType="record"
+    />
+  );
+}
+```
+
+Props in brief:
+
+| Prop | Type | What it does |
+|---|---|---|
+| `value` / `onChange` | `string` / `(v: string) => void` | Controlled value as plain DPQL text |
+| `provider` | `string` | Data-provider spec — `@<app>/<action>`, `datasource:name`, `connection:name`, or factory string. Drives schema-aware completions via `dpql/setContext` |
+| `recordType` | `string` | `'record'` (default), `'create'`, or `'update'` |
+| `options` | `Record<string, any>` | Extra `dpql/setContext` options |
+| `actionCode` | `number` | FSM action code (`DPAT_FIND` / `DPAT_UPDATE` / `DPAT_DELETE`) — derives search-context semantics |
+| `templates` | `IReqoreFormTemplates` | Items for the template-picker dropdown |
+| `stateId` | `string` | FSM state ID — `$data:{stateId.field}` templates are inserted as `@field` |
+| `height` | `string` | CSS height of the editable area (default `'200px'`) |
+| `readOnly` | `boolean` | |
+| `onBlur` | `() => void` | |
+
+The ref exposes `format()`, `validate()`, `parse(text)`, and `serialize(expression)` — all backed by LSP requests.
+
+### `LspClient`
+
+A generic JSON-RPC 2.0 LSP client over `ReqraftWebSocket`. The same class drives any language server the backend exposes — DPQL, Qonsole, Qore, Python, TypeScript, etc. — distinguished by `languageId` on `didOpen`. `DpqlEditor` uses it under the hood; you only reach for it directly when you're integrating a different language.
+
+```tsx
+import { LspClient } from '@qoretechnologies/reqraft';
+
+const client = new LspClient({
+  languageId: 'qonsole',
+  uri: 'qonsole://chat/abc',
+});
+
+await client.connect();
+client.didOpen('list services ');
+
+// Standard LSP
+const items = await client.getCompletions(0, 14);
+
+// Language-specific custom methods
+await client.customRequest('qonsole/assist', { input: '/list ', features: ['completion'] });
+
+client.onDiagnostics((uri, diags) => { /* … */ });
+client.onNotification('qonsole/sessionStateChanged', (params) => { /* … */ });
+
+client.disconnect();
+```
+
+Each client owns one isolated WebSocket (`pooled: false`) because LSP sessions carry per-document state on the server. Auto-reconnect, 15s request timeout, request/response correlation by `id`, pending requests rejected on close. Document URIs should be opaque and client-generated — per the Qonsole LSP contract they must not contain session tokens, usernames, sandbox identifiers, or other secrets that end up in server logs.
+
 ## Community
 
 - [GitHub Organization](https://github.com/qoretechnologies) for Official open-source projects
