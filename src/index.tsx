@@ -46,3 +46,4 @@ export type {
 } from './utils/lspClient.types';
 export * from './components/smartEditor';
 export * from './components/dpqlEditor';
+export * from './components/qonsoleSmartInput';

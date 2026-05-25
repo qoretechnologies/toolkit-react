@@ -305,7 +305,9 @@ export const LspCompletionRoundtrip: Story = {
       (m) => m.method === 'textDocument/completion'
     );
     expect(completionReq).toBeDefined();
-    expect(completionReq.params.textDocument.uri).toMatch(/^dpql:\/\/richtext\//);
+    // useLspSession (Phase 1 + SmartEditor refactor) generates URIs as
+    // `${languageId}://session/<n>` — for DPQL that's `dpql://session/<n>`.
+    expect(completionReq.params.textDocument.uri).toMatch(/^dpql:\/\/session\//);
 
     // Dropdown rendered the canned items. They live outside the canvas
     // (Popover portal), so query the document directly.
