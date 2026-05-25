@@ -60,6 +60,14 @@ export interface ISlateConverter {
 export interface ICompletionInserterContext {
   plainText: string;
   cursorOffset: number;
+  /**
+   * Set when the dropdown was opened via the "replace this chip" flow
+   * (user clicked an existing tag chip). The inserter should atomically
+   * swap the node at this Slate path for the chosen completion —
+   * skipping the usual "delete partial token then insert at cursor"
+   * dance. Absent for normal typing-triggered completions.
+   */
+  replacementPath?: number[];
 }
 
 /**
@@ -106,6 +114,21 @@ export interface ISmartEditorProps {
 
   /** Per-tag `ReqoreTag` props — color, icon, tooltip etc. */
   tagRenderer?: (tag: ISlateElement) => IReqoreTagProps;
+
+  /**
+   * Called when a rendered tag chip is clicked. Default behavior:
+   * unwrap the tag back to plain text at its position so the editor's
+   * autocomplete fires for that token — effectively "open the dropdown
+   * for this completion so the user can swap it for a different one".
+   *
+   * Pass an explicit override (or a no-op `() => {}`) to disable this
+   * behavior — useful for read-only-feel editors that should accept
+   * clicks without mutating.
+   */
+  onTagClick?: (
+    tag: ISlateElement,
+    editor: BaseEditor & ReactEditor & HistoryEditor
+  ) => void;
 
   /** Characters that open the autocomplete dropdown. */
   triggerCharacters?: Set<string>;

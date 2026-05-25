@@ -43,7 +43,12 @@ const TEMPLATES_DROPDOWN_DEFAULTS: Partial<IReqoreDropdownProps> = {
   },
 };
 
-const DPQL_TRIGGERS = new Set(['@', '$', '.', ':', ' ']);
+// Trigger characters that open the autocomplete on typing. Space is
+// deliberately NOT in the set — typing a space after a chip (or after a
+// keyword like `==`) shouldn't pop the dropdown. Sigils (`@`, `$`) and
+// in-token punctuation (`.`, `:`) cover the meaningful cases; the rest
+// of completion is handled by typing inside an already-open token.
+const DPQL_TRIGGERS = new Set(['@', '$', '.', ':']);
 
 export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
   (

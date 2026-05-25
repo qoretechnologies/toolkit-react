@@ -40,10 +40,44 @@ function findTokenStart(plainText: string, cursorOffset: number): number {
  */
 export const dpqlCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
   const ed = editor as BaseEditor & ReactEditor & HistoryEditor;
-  const { selection } = ed;
-  if (!selection) return;
+  const insertValue = item.textEdit?.newText ?? item.insertText ?? item.label;
 
-  // Decide how many plain-text characters of the partial token to delete.
+  // Replace mode — user clicked an existing chip. Atomically swap the
+  // node at the chip's path for the chosen completion. No token-delete
+  // dance, no selection dependency — just `removeNodes` + `insertNodes`
+  // inside `withoutNormalizing` so Slate sees a single batched op.
+  if (ctx.replacementPath) {
+    const path = ctx.replacementPath;
+    Editor.withoutNormalizing(ed, () => {
+      Transforms.removeNodes(ed, { at: path });
+      if (isTagCompletion(insertValue)) {
+        const tagElement: ISlateElement = {
+          type: 'tag',
+          value: insertValue,
+          label: getTagLabel(insertValue),
+          children: [{ text: '' }],
+        };
+        Transforms.insertNodes(ed, tagElement as any, { at: path, select: true });
+      } else {
+        Transforms.insertNodes(ed, [{ text: insertValue }] as any, {
+          at: path,
+          select: true,
+        });
+      }
+    });
+    try {
+      ReactEditor.focus(ed);
+    } catch {
+      // Editor may not be focusable in this render cycle.
+    }
+    return;
+  }
+
+  // Normal (typing) path — needs a live selection. Compute how many
+  // plain-text characters of the partial token to delete before
+  // inserting at the cursor.
+  if (!ed.selection) return;
+
   let charsToDelete: number;
   if (item.textEdit) {
     const startOffset = lspPositionToOffset(ctx.plainText, item.textEdit.range.start);
@@ -59,8 +93,6 @@ export const dpqlCompletionInserter: TCompletionInserter = (item, editor, ctx) =
       Editor.deleteBackward(ed, { unit: 'character' });
     }
   }
-
-  const insertValue = item.textEdit?.newText ?? item.insertText ?? item.label;
 
   if (isTagCompletion(insertValue)) {
     const tagElement: ISlateElement = {

@@ -204,7 +204,19 @@ export const BasicMock: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
+
+    // Phase 1 contract: dropdown must not open just because the cursor
+    // landed on a position whose char-before-cursor is a trigger
+    // character. Initial value `/list services ` ends in a space (a
+    // trigger char), so on mount + on click the dropdown must stay
+    // closed.
+    await sleep(500);
+    expect(document.querySelector('.reqore-menu')).toBeNull();
     await userEvent.click(editable);
+    await sleep(500);
+    expect(document.querySelector('.reqore-menu')).toBeNull();
+
+    // Now the user actually types — dropdown should open.
     await userEvent.type(editable, '-');
     await sleep(500);
     const dropdown = document.querySelector('.reqore-menu');
