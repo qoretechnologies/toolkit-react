@@ -51,14 +51,30 @@ export interface ISlateConverter {
 }
 
 /**
+ * Context passed to the completion inserter. Includes the live Slate
+ * editor, the plain-text projection of its current document, and the
+ * cursor's offset within that plain text — enough state for the inserter
+ * to compute how many characters to delete before inserting (so the
+ * partial token the user typed isn't duplicated).
+ */
+export interface ICompletionInserterContext {
+  plainText: string;
+  cursorOffset: number;
+}
+
+/**
  * Hook callback that decides what happens when a completion item is
- * accepted. The generic default inserts the item's `insertText ?? label`
- * as plain text. Wrappers can override to insert Slate tag elements,
- * trigger re-prompts on retrigger-completions, etc.
+ * accepted. The generic default uses the item's `textEdit.range` when
+ * the server provided one (LSP-compliant: delete the typed partial
+ * token then insert the server's `newText`); otherwise falls back to
+ * a heuristic that strips the partial token before inserting
+ * `insertText ?? label`. Wrappers can override entirely — e.g. DPQL
+ * inserts Slate tag elements for `@field` / `$template` completions.
  */
 export type TCompletionInserter = (
   item: ILspCompletionItem,
-  editor: BaseEditor & ReactEditor & HistoryEditor
+  editor: BaseEditor & ReactEditor & HistoryEditor,
+  context: ICompletionInserterContext
 ) => void;
 
 import { ILspCompletionItem } from '../../utils/lspClient.types';

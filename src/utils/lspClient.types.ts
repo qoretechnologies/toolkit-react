@@ -35,6 +35,13 @@ export interface ILspDiagnostic {
 /**
  * Completion item from `textDocument/completion`. `kind` follows the LSP
  * CompletionItemKind enum (1 = Text, 2 = Method, 3 = Function, …).
+ *
+ * When the server supplies a `textEdit`, that is the authoritative way to
+ * apply the completion — the range tells the client exactly which span of
+ * the document to replace (including any partial token the user already
+ * typed). Falling back to `insertText` without using `textEdit` can lead to
+ * the partial token being duplicated (e.g. typed `-` + inserted `--desc=`
+ * becomes `---desc=`).
  */
 export interface ILspCompletionItem {
   label: string;
@@ -46,6 +53,18 @@ export interface ILspCompletionItem {
   documentation?: ILspMarkupContent | string | null;
   sortText?: string;
   filterText?: string;
+  /**
+   * Authoritative edit instructions from the server. When present, the
+   * `range` is the span to replace (start/end as line/character positions
+   * in the plain-text projection of the document) and `newText` is what
+   * to put there. Consumers should prefer `textEdit` over `insertText`.
+   */
+  textEdit?: {
+    range: ILspRange;
+    newText: string;
+  };
+  /** Characters that auto-accept this completion when typed after it. */
+  commitCharacters?: string[];
 }
 
 /** Rich-text content from hover / completion documentation. */

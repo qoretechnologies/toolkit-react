@@ -128,6 +128,29 @@ export function offsetToLspPosition(
   return { line, character };
 }
 
+/**
+ * Inverse of `offsetToLspPosition` — convert an LSP `{line, character}`
+ * back into a plain-text character offset. Used when applying a
+ * `textEdit.range` from a completion item: the server speaks LSP
+ * positions, the editor inserter speaks plain-text offsets.
+ */
+export function lspPositionToOffset(
+  plainText: string,
+  position: { line: number; character: number }
+): number {
+  let line = 0;
+  for (let i = 0; i < plainText.length; i++) {
+    if (line === position.line) {
+      return i + position.character;
+    }
+    if (plainText[i] === '\n') {
+      line++;
+    }
+  }
+  // Position is past end of document — clamp to end + character (best-effort).
+  return plainText.length;
+}
+
 /** Map an LSP CompletionItemKind enum value to a Reqore icon name. */
 export function mapCompletionKindToIcon(kind?: number): IReqoreIconName {
   switch (kind) {

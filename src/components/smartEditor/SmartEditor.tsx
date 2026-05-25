@@ -25,21 +25,37 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import { Transforms } from 'slate';
+import { Editor, Transforms } from 'slate';
 import { ReactEditor } from 'slate-react';
-import { defaultSlateConverter } from './helpers';
+import { defaultSlateConverter, lspPositionToOffset } from './helpers';
 import { ISlateElement, ISmartEditorProps, TCompletionInserter } from './types';
 import { useLspAutocomplete } from './useLspAutocomplete';
 
 /**
- * Default completion inserter — replaces the partial token under the cursor
- * with the item's `insertText ?? label` as plain text. Wrappers override
- * this for richer behavior (e.g. DPQL's tag-element insertion for `@field`
- * / `$template` completions).
+ * Default completion inserter — applies the server-provided `textEdit`
+ * when present (LSP-compliant: replace the exact span the server
+ * specified with `newText`), or falls back to inserting `insertText` at
+ * the cursor. Without the `textEdit` path, the partial token the user
+ * typed before requesting completions would be duplicated — e.g. typed
+ * `-` + inserted `--desc=` becomes `---desc=`. Wrappers (DPQL) override
+ * this entirely to insert Slate tag elements for `@field` / `$template`.
  */
-const defaultCompletionInserter: TCompletionInserter = (item, editor) => {
-  const insertText = item.insertText || item.label;
-  Transforms.insertText(editor, insertText);
+const defaultCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
+  const newText = item.textEdit?.newText ?? item.insertText ?? item.label;
+
+  if (item.textEdit) {
+    const startOffset = lspPositionToOffset(ctx.plainText, item.textEdit.range.start);
+    // `cursorOffset - startOffset` is the number of plain-text characters
+    // between the start of the LSP-specified replacement range and the
+    // current caret. Those characters are the partial token the user
+    // typed; delete them before inserting.
+    const charsToDelete = Math.max(0, ctx.cursorOffset - startOffset);
+    for (let i = 0; i < charsToDelete; i++) {
+      Editor.deleteBackward(editor, { unit: 'character' });
+    }
+  }
+
+  Transforms.insertText(editor, newText);
   try {
     ReactEditor.focus(editor);
   } catch {

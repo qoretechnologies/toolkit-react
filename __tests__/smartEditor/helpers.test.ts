@@ -8,6 +8,7 @@ import {
   defaultFromSlateNodes,
   defaultSelectionToOffset,
   defaultToSlateNodes,
+  lspPositionToOffset,
   mapCompletionKindToIcon,
   offsetToLspPosition,
 } from '../../src/components/smartEditor/helpers';
@@ -45,6 +46,39 @@ describe('smartEditor helpers', () => {
 
     it('handles offset at end of string', () => {
       expect(offsetToLspPosition('abc', 3)).toEqual({ line: 0, character: 3 });
+    });
+  });
+
+  describe('lspPositionToOffset', () => {
+    it('returns 0 for line 0 character 0', () => {
+      expect(lspPositionToOffset('hello', { line: 0, character: 0 })).toBe(0);
+    });
+
+    it('returns the character offset on a single-line document', () => {
+      expect(lspPositionToOffset('hello world', { line: 0, character: 5 })).toBe(5);
+    });
+
+    it('crosses a newline correctly', () => {
+      // 'line1\nline2' — line 1 starts at offset 6
+      expect(lspPositionToOffset('line1\nline2', { line: 1, character: 0 })).toBe(6);
+      expect(lspPositionToOffset('line1\nline2', { line: 1, character: 3 })).toBe(9);
+    });
+
+    it('handles multiple newlines', () => {
+      expect(lspPositionToOffset('a\nb\nc', { line: 2, character: 0 })).toBe(4);
+    });
+
+    it('is the inverse of offsetToLspPosition for representative offsets', () => {
+      const text = 'select * from\nusers where\nname = "Alice"';
+      const cases = [0, 5, 13, 14, 20, 26, 40];
+      for (const offset of cases) {
+        const pos = offsetToLspPosition(text, offset);
+        expect(lspPositionToOffset(text, pos)).toBe(offset);
+      }
+    });
+
+    it('clamps to document end when position is past EOF', () => {
+      expect(lspPositionToOffset('abc', { line: 5, character: 0 })).toBe(3);
     });
   });
 

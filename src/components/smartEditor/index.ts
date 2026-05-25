@@ -23,6 +23,7 @@ export {
   offsetToLspPosition,
 } from './helpers';
 export type {
+  ICompletionInserterContext,
   ILspCompletionItem,
   ISlateConverter,
   ISlateElement,

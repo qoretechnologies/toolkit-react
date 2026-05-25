@@ -216,8 +216,20 @@ export function useLspAutocomplete(
   const selectItem = useCallback(
     (item: ICompletionDropdownItem) => {
       const editor = editorRef.current;
-      if (!editor) return;
-      inserter(item.raw, editor);
+      if (!editor || !editor.selection) return;
+      // Reconstruct the inserter context from the live editor state so the
+      // inserter can apply `textEdit` ranges (the server's authoritative
+      // "delete this span, then insert this text" instruction). Without
+      // this context the inserter has no way to know how many chars of
+      // partial token the user typed before requesting completions.
+      const nodes = editor.children as ISlateElement[];
+      const plainText = converter.fromSlateNodes(nodes);
+      const cursorOffset = converter.selectionToOffset(
+        nodes,
+        editor.selection.anchor.path as number[],
+        editor.selection.anchor.offset
+      );
+      inserter(item.raw, editor, { plainText, cursorOffset });
       close();
       // Re-trigger completions for partial items (e.g. `$timestamp:` shows
       // sub-completions for the value).
@@ -230,7 +242,7 @@ export function useLspAutocomplete(
       }
     },
     // onSlateChangeImpl is referenced below; deps deliberately omit it.
-    [close, inserter]
+    [close, inserter, converter]
   );
 
   useEffect(() => {

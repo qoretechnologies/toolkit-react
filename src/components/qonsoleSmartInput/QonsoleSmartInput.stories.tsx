@@ -101,7 +101,15 @@ export const BasicMock: Story = {
               })
             );
             break;
-          case 'textDocument/completion':
+          case 'textDocument/completion': {
+            // Mirror the real server's shape — items include a `textEdit`
+            // with the exact span to replace (the partial `-` the user
+            // typed). The inserter uses textEdit to avoid double-dashing.
+            const position = msg.params?.position ?? { line: 0, character: 0 };
+            const replaceRange = {
+              start: { line: position.line, character: Math.max(0, position.character - 1) },
+              end: position,
+            };
             socket.send(
               JSON.stringify({
                 jsonrpc: '2.0',
@@ -113,24 +121,28 @@ export const BasicMock: Story = {
                       insertText: '--desc=',
                       kind: 10,
                       detail: 'if true then sort in descending order',
+                      textEdit: { range: replaceRange, newText: '--desc=' },
                     },
                     {
                       label: '--limit',
                       insertText: '--limit=',
                       kind: 10,
                       detail: 'maximum number of results',
+                      textEdit: { range: replaceRange, newText: '--limit=' },
                     },
                     {
                       label: '--search',
                       insertText: '--search=',
                       kind: 10,
                       detail: 'filter by name using a regex',
+                      textEdit: { range: replaceRange, newText: '--search=' },
                     },
                   ],
                 },
               })
             );
             break;
+          }
           case 'qonsole/setContext':
             socket.send(
               JSON.stringify({
@@ -200,6 +212,14 @@ export const BasicMock: Story = {
     expect(dropdown!.textContent).toContain('--desc');
     expect(dropdown!.textContent).toContain('--limit');
     expect(dropdown!.textContent).toContain('--search');
+
+    // Accept the first item with Enter and check the editor doesn't
+    // double-dash. The mock returns `textEdit` covering the typed `-`,
+    // so the result must be `/list services --desc=`, not `---desc=`.
+    await userEvent.keyboard('{Enter}');
+    await sleep(200);
+    expect(editable.textContent).toBe('/list services --desc=');
+    expect(editable.textContent).not.toContain('---');
   },
 };
 
