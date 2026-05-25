@@ -54,7 +54,7 @@
     "@babel/preset-typescript": "^7.12.7",
     "@chromatic-com/storybook": "^2.0.2",
     "@netsells/storybook-mockdate": "^0.3.3",
-    "@qoretechnologies/reqore": "^0.64.3",
+    "@qoretechnologies/reqore": "^0.68.3",
     "@storybook/addon-actions": "^8.3.5",
     "@storybook/addon-essentials": "^8.3.5",
     "@storybook/addon-interactions": "^8.3.5",
