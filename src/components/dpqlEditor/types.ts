@@ -1,7 +1,15 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Type definitions for the DpqlEditor component.
+// Type definitions for the DpqlEditor component. Slate node types
+// (`ISlateElement`, `ISlateText`, `TSlateNode`) live in the smartEditor
+// primitive's `types.ts` — re-export them here for backward compat.
 
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+
+export type {
+  ISlateElement,
+  ISlateText,
+  TSlateNode,
+} from '../smartEditor/types';
 
 /** Result of a `dpql/parse` request — DPQL-specific custom LSP method. */
 export interface IDpqlParseResult {
@@ -69,35 +77,4 @@ export interface IDpqlEditorRef {
   parse: (text: string) => Promise<IDpqlParseResult>;
   /** Serialize an expression AST back to DPQL text via `dpql/serialize`. */
   serialize: (expression: Record<string, any>) => Promise<string>;
-}
-
-/** Slate node — either an element (paragraph/tag) or a text node. */
-export type TSlateNode = ISlateElement | ISlateText;
-
-/** Slate custom element. Mirrors Reqore's CustomElement shape. */
-export interface ISlateElement {
-  type: 'paragraph' | 'tag';
-  value?: string | number;
-  label?: string | number;
-  metadata?: Record<string, any>;
-  children: TSlateNode[];
-}
-
-/** Slate custom text node with formatting + syntax-highlight + diagnostic marks. */
-export interface ISlateText {
-  text: string;
-  bold?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  code?: boolean;
-  // Syntax highlighting decorations
-  keyword?: boolean;
-  string?: boolean;
-  number?: boolean;
-  operator?: boolean;
-  comment?: boolean;
-  function?: boolean;
-  boolean?: boolean;
-  // Diagnostic decorations
-  error?: boolean;
 }

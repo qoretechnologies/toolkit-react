@@ -1,0 +1,118 @@
+// Copyright 2026 Qore Technologies, s.r.o.
+// Type definitions for the generic SmartEditor primitive.
+
+import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
+import { BaseEditor } from 'slate';
+import { HistoryEditor } from 'slate-history';
+import { ReactEditor, RenderLeafProps } from 'slate-react';
+import { EditableProps } from 'slate-react/dist/components/editable';
+import type { IUseLspSessionResult } from './useLspSession';
+
+/** Slate custom element — paragraph (block) or tag (inline void). */
+export interface ISlateElement {
+  type: 'paragraph' | 'tag';
+  value?: string | number;
+  label?: string | number;
+  metadata?: Record<string, any>;
+  children: TSlateNode[];
+}
+
+/** Slate text node with optional decoration / mark flags. */
+export interface ISlateText {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  code?: boolean;
+  // Arbitrary mark flags — populated by `decorate` and consumed by `customRenderLeaf`.
+  [mark: string]: unknown;
+}
+
+export type TSlateNode = ISlateElement | ISlateText;
+
+/**
+ * Plain text ↔ Slate conversion. Language-specific implementations can
+ * recognise patterns (e.g. DPQL's `@field` / `$template`) and represent
+ * them as tag elements. The default just maps paragraphs split on newlines.
+ */
+export interface ISlateConverter {
+  toSlateNodes: (plainText: string) => ISlateElement[];
+  fromSlateNodes: (nodes: ISlateElement[]) => string;
+  /**
+   * Convert a Slate selection (paragraph index, child index, offset within
+   * child) to a plain-text character offset. Used to map cursor positions
+   * to LSP `Position`s and to slice the partial token under the caret.
+   */
+  selectionToOffset: (
+    nodes: ISlateElement[],
+    anchorPath: number[],
+    anchorOffset: number
+  ) => number;
+}
+
+/**
+ * Hook callback that decides what happens when a completion item is
+ * accepted. The generic default inserts the item's `insertText ?? label`
+ * as plain text. Wrappers can override to insert Slate tag elements,
+ * trigger re-prompts on retrigger-completions, etc.
+ */
+export type TCompletionInserter = (
+  item: ILspCompletionItem,
+  editor: BaseEditor & ReactEditor & HistoryEditor
+) => void;
+
+import { ILspCompletionItem } from '../../utils/lspClient.types';
+
+export type { ILspCompletionItem };
+
+export interface ISmartEditorProps {
+  /**
+   * LSP session. Created by the consumer via `useLspSession({ languageId,
+   * initialMetadata, uri, url, initialText })`. The consumer owns the
+   * session so it can subscribe to `session.client` / `session.isReady`
+   * changes in effects (e.g. to dispatch `dpql/setContext` when its
+   * provider prop changes). Lifting the session up rather than embedding
+   * it in `SmartEditor` keeps language-specific lifecycle logic in the
+   * language-specific layer.
+   */
+  session: IUseLspSessionResult;
+
+  /** Controlled plain-text value. */
+  value: string;
+  /** Called with the new plain-text value whenever the document changes. */
+  onChange: (value: string) => void;
+
+  /** Slate `decorate` function for client-side syntax highlighting. */
+  decorate?: EditableProps['decorate'];
+
+  /** Custom leaf renderer — consumes the `decorate` ranges. */
+  customRenderLeaf?: (props: RenderLeafProps) => JSX.Element;
+
+  /** Per-tag `ReqoreTag` props — color, icon, tooltip etc. */
+  tagRenderer?: (tag: ISlateElement) => IReqoreTagProps;
+
+  /** Characters that open the autocomplete dropdown. */
+  triggerCharacters?: Set<string>;
+
+  /** Plain-text ↔ Slate conversion. Defaults to single-paragraph plain text. */
+  converter?: ISlateConverter;
+
+  /**
+   * Called when a completion item is accepted. Defaults to plain-text
+   * insertion. Wrappers override to insert tag elements, re-trigger
+   * completions, etc.
+   */
+  completionInserter?: TCompletionInserter;
+
+  /** Optional React node rendered above the editor (e.g. a templates dropdown). */
+  topActions?: React.ReactNode;
+
+  /** CSS height of the editable area. Default: `'200px'`. */
+  height?: string;
+
+  /** Read-only mode. */
+  readOnly?: boolean;
+
+  /** Called when the editor loses focus. */
+  onBlur?: () => void;
+}

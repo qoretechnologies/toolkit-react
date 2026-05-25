@@ -1,15 +1,15 @@
 // Lifted from qorus-ide __tests__/helpers/dpqlRichtextHelpers.test.ts on the
-// feature/dpql-editor branch. Differences: vitest → jest globals, import
-// path updated to Reqraft's dpqlEditor folder.
+// feature/dpql-editor branch. Differences: vitest → jest globals, imports
+// split across DPQL-specific (`dpqlHelpers`) and generic-SmartEditor
+// (`smartEditor/helpers`) helpers after the SmartEditor refactor.
 
 import {
   getTagLabel,
   isTagCompletion,
-  offsetToLspPosition,
   plainTextToSlate,
   slateSelectionToOffset,
   slateToPlainText,
-} from '../../src/components/dpqlEditor/helpers';
+} from '../../src/components/dpqlEditor/dpqlHelpers';
 
 describe('dpqlEditor helpers', () => {
   describe('plainTextToSlate', () => {
@@ -212,41 +212,6 @@ describe('dpqlEditor helpers', () => {
 
     it('returns plain text as-is', () => {
       expect(getTagLabel('SELECT')).toBe('SELECT');
-    });
-  });
-
-  describe('offsetToLspPosition', () => {
-    it('returns 0,0 for offset 0', () => {
-      expect(offsetToLspPosition('hello', 0)).toEqual({ line: 0, character: 0 });
-    });
-
-    it('returns correct character offset on single line', () => {
-      expect(offsetToLspPosition('hello world', 5)).toEqual({
-        line: 0,
-        character: 5,
-      });
-    });
-
-    it('tracks line breaks correctly', () => {
-      expect(offsetToLspPosition('line1\nline2', 6)).toEqual({
-        line: 1,
-        character: 0,
-      });
-    });
-
-    it('tracks character after line break', () => {
-      expect(offsetToLspPosition('line1\nline2', 9)).toEqual({
-        line: 1,
-        character: 3,
-      });
-    });
-
-    it('handles multiple line breaks', () => {
-      expect(offsetToLspPosition('a\nb\nc', 4)).toEqual({ line: 2, character: 0 });
-    });
-
-    it('handles offset at end of string', () => {
-      expect(offsetToLspPosition('abc', 3)).toEqual({ line: 0, character: 3 });
     });
   });
 

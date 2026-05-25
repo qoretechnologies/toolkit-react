@@ -44,4 +44,5 @@ export type {
   ILspTextEdit,
   TLspDocumentText,
 } from './utils/lspClient.types';
+export * from './components/smartEditor';
 export * from './components/dpqlEditor';

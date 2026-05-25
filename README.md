@@ -23,9 +23,21 @@ $ yarn add @qoretechnologies/toolkit-react
 
 ## Components
 
+The smart-editor stack is layered:
+
+```
+  LspClient            generic JSON-RPC 2.0 LSP client over WebSocket
+     ↓
+  SmartEditor          generic Slate-based editor primitive
+     ↓
+  DpqlEditor           DPQL-flavored wrapper around SmartEditor
+```
+
+Most apps will use `DpqlEditor` directly. Reach for `SmartEditor` when you need an editor for a different language (Qonsole, Qore, …); use `LspClient` directly only when you don't want an editor at all (CLI tools, scripts, headless validation).
+
 ### `DpqlEditor`
 
-A Slate-based smart text field for writing Data Provider Query Language (DPQL), with LSP-driven syntax highlighting, autocomplete, live diagnostics, formatting, and expression↔text serialization. Talks to the Qorus `/lsp` WebSocket using `languageId: 'dpql'` and the server's `dpql/*` custom JSON-RPC methods.
+A Slate-based smart text field for writing Data Provider Query Language (DPQL), with LSP-driven syntax highlighting, autocomplete, live diagnostics, formatting, and expression↔text serialization. Talks to the Qorus `/lsp` WebSocket using `languageId: 'dpql'` and the server's `dpql/*` custom JSON-RPC methods. Internally a thin wrapper over `SmartEditor`.
 
 ```tsx
 import { DpqlEditor, type IDpqlEditorRef } from '@qoretechnologies/reqraft';
@@ -64,9 +76,55 @@ Props in brief:
 
 The ref exposes `format()`, `validate()`, `parse(text)`, and `serialize(expression)` — all backed by LSP requests.
 
+### `SmartEditor`
+
+The generic Slate-based editor primitive that `DpqlEditor` wraps. Knows nothing about any specific language — instead it takes a caller-owned LSP session (`useLspSession`) plus a set of language-flavour props (`decorate`, `customRenderLeaf`, `tagRenderer`, `triggerCharacters`, `converter`, `completionInserter`, `topActions`). The same primitive can drive a DPQL editor, a Qonsole command input, or any other LSP-backed text field.
+
+```tsx
+import { SmartEditor, useLspSession } from '@qoretechnologies/reqraft';
+import { useState } from 'react';
+
+function MyQonsoleInput() {
+  const [value, setValue] = useState('/list services ');
+
+  // Own the session so you can react to its state (call qonsole/setContext,
+  // dispatch qonsole/assist, etc.) in effects.
+  const session = useLspSession({
+    languageId: 'qonsole',
+    initialMetadata: { /* /use context if any */ },
+  });
+
+  return (
+    <SmartEditor
+      session={session}
+      value={value}
+      onChange={setValue}
+      triggerCharacters={new Set(['/', ' ', '-', '=', '.'])}
+    />
+  );
+}
+```
+
+Props in brief:
+
+| Prop | Type | What it does |
+|---|---|---|
+| `session` | `IUseLspSessionResult` | Caller-owned LSP session (from `useLspSession`) |
+| `value` / `onChange` | `string` / `(v: string) => void` | Controlled plain-text value |
+| `decorate` | Slate `decorate` | Client-side syntax highlighting |
+| `customRenderLeaf` | `(props: RenderLeafProps) => JSX.Element` | Leaf renderer reading `decorate` marks |
+| `tagRenderer` | `(tag: ISlateElement) => IReqoreTagProps` | Per-tag chip props |
+| `triggerCharacters` | `Set<string>` | Characters that open the completion dropdown |
+| `converter` | `ISlateConverter` | Plain-text ↔ Slate conversion. Default = paragraphs split on newlines |
+| `completionInserter` | `(item, editor) => void` | How a completion is inserted. Default = plain text |
+| `topActions` | `ReactNode` | Optional content above the editor |
+| `height` / `readOnly` / `onBlur` | | Standard chrome props |
+
+For language-specific custom methods (e.g. `dpql/setContext`, `qonsole/assist`), call `session.client.customRequest(...)` directly from your wrapper — the session is yours.
+
 ### `LspClient`
 
-A generic JSON-RPC 2.0 LSP client over `ReqraftWebSocket`. The same class drives any language server the backend exposes — DPQL, Qonsole, Qore, Python, TypeScript, etc. — distinguished by `languageId` on `didOpen`. `DpqlEditor` uses it under the hood; you only reach for it directly when you're integrating a different language.
+A generic JSON-RPC 2.0 LSP client over `ReqraftWebSocket`. `SmartEditor` builds on it via `useLspSession`. Reach for `LspClient` directly when you want LSP machinery without an editor — CLI tools, validation pipelines, server-driven introspection.
 
 ```tsx
 import { LspClient } from '@qoretechnologies/reqraft';
