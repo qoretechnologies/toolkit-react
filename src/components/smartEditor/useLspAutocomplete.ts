@@ -8,7 +8,7 @@
 
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BaseEditor } from 'slate';
+import { BaseEditor, Transforms } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
 import { ILspCompletionItem } from '../../utils/lspClient.types';
@@ -91,6 +91,12 @@ export interface ICompletionDropdownItem {
    * one of the standard values.
    */
   kindLabel?: string;
+  /**
+   * Server-side warning copy (LSP `item.warning` — non-standard,
+   * Qonsole emits this on mutating verbs). Rendered as a right-aligned
+   * "Warning" chip alongside the kind chip.
+   */
+  warning?: string;
   /** Raw LSP item — passed to the inserter so wrappers can use any LSP field. */
   raw: ILspCompletionItem;
   metadata?: {
@@ -296,6 +302,16 @@ export function useLspAutocomplete(
   const groups = useMemo((): ICompletionGroup[] => {
     if (filteredItems.length === 0) return [];
 
+    // When the server populates `sortText`, it has already ranked
+    // items (group_rank embedded in sortText's first segment). Use
+    // the flat list directly so we don't re-order across kinds and
+    // contradict the server's intent. Qonsole takes this path; DPQL
+    // (no sortText) falls through to kind-grouping below.
+    const hasSortText = filteredItems.some((i) => i.raw.sortText);
+    if (hasSortText) {
+      return [{ label: '', items: filteredItems }];
+    }
+
     const groupMap = new Map<string, ICompletionDropdownItem[]>();
     for (const item of filteredItems) {
       const kind = item.metadata?.kind;
@@ -368,7 +384,17 @@ export function useLspAutocomplete(
           }
           return;
         }
-        const mapped: ICompletionDropdownItem[] = lspItems.map((item) => {
+        // Sort by `sortText` when present (Qonsole encodes
+        // group_rank + match_rank into sortText for stable order).
+        // For items without sortText, preserve server order — DPQL
+        // doesn't populate sortText consistently.
+        const sortedLspItems = lspItems.some((i) => i.sortText)
+          ? [...lspItems].sort((a, b) =>
+              (a.sortText ?? a.label).localeCompare(b.sortText ?? b.label)
+            )
+          : lspItems;
+
+        const mapped: ICompletionDropdownItem[] = sortedLspItems.map((item) => {
           const insertText = item.insertText || item.label;
           return {
             label: item.label,
@@ -380,6 +406,7 @@ export function useLspAutocomplete(
               item.kind !== undefined
                 ? COMPLETION_KIND_CHIPS[item.kind]
                 : undefined,
+            warning: item.warning,
             raw: item,
             metadata: {
               insertTextFormat: item.insertTextFormat,
@@ -552,8 +579,37 @@ export function useLspAutocomplete(
           e.stopPropagation();
           close();
           break;
-        default:
+        default: {
+          // `commitCharacters` support: when the typed key matches one
+          // of the focused item's commit characters, accept the
+          // completion AND insert the typed character (VS-Code semantics).
+          // Skip when the completion's inserted text already ends with
+          // that character (server may have baked it into the textEdit /
+          // insertText — e.g. `--limit=` for an `=`-committed flag).
+          if (e.key.length !== 1) break;
+          const focusedItem = filteredItems[focusedIndexRef.current];
+          const commits = focusedItem?.raw.commitCharacters;
+          if (!commits || !commits.includes(e.key)) break;
+          const editor = editorRef.current;
+          if (!editor) break;
+          e.preventDefault();
+          e.stopPropagation();
+          // Inspect what the inserter will actually insert. If the
+          // string ends with the typed character, the server's edit
+          // already includes it; don't double-insert.
+          const inserted =
+            focusedItem.raw.textEdit?.newText ??
+            focusedItem.raw.insertText ??
+            focusedItem.raw.label;
+          selectItem(focusedItem);
+          if (!inserted.endsWith(e.key)) {
+            // Re-insert the committed character at the cursor so it's
+            // preserved in the document. (selectItem closes the
+            // popover; we run after.)
+            Transforms.insertText(editor, e.key);
+          }
           break;
+        }
       }
     };
     document.addEventListener('keydown', handleKeyDown, true);

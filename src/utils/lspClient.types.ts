@@ -65,6 +65,34 @@ export interface ILspCompletionItem {
   };
   /** Characters that auto-accept this completion when typed after it. */
   commitCharacters?: string[];
+  /**
+   * Opaque server-supplied data carried with the item. Qonsole uses
+   * this to encode wizard launch metadata (`{action: 'start-wizard',
+   * name, start_path, ...}`) and per-kind hints (verb aliases, flag
+   * types, etc.). The client passes it back via `completionItem/resolve`
+   * if implemented; for now consumers (inserters, custom click
+   * handlers) read it directly.
+   */
+  data?: Record<string, unknown>;
+  /**
+   * Server-side warning copy attached to specific items — Qonsole
+   * uses this on mutating verbs ("Changes system state; execution
+   * may require confirmation."). Rendered as a right-aligned chip
+   * in the dropdown row.
+   */
+  warning?: string;
+  /**
+   * Command to execute on accept INSTEAD OF inserting `insertText`/
+   * `textEdit`. Used by Qonsole for wizard launch items
+   * (`{ command: 'qonsole.startWizard', arguments: [{...}] }`).
+   * Standard LSP shape; the client is responsible for executing it
+   * (the server rejects `workspace/executeCommand` for `qonsole.*`).
+   */
+  command?: {
+    title: string;
+    command: string;
+    arguments?: unknown[];
+  };
 }
 
 /** Rich-text content from hover / completion documentation. */

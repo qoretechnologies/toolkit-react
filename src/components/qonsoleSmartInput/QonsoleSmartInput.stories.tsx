@@ -28,6 +28,7 @@ interface IDemoArgs {
   height?: string;
   readOnly?: boolean;
   onChange?: (v: string) => void;
+  onWizardStart?: (args: Record<string, unknown>) => void;
 }
 
 function QonsoleSmartInputWithState(props: IDemoArgs) {
@@ -42,6 +43,7 @@ function QonsoleSmartInputWithState(props: IDemoArgs) {
       useContext={props.useContext}
       height={props.height}
       readOnly={props.readOnly}
+      onWizardStart={props.onWizardStart}
     />
   );
 }
@@ -137,23 +139,99 @@ export const BasicMock: Story = {
             let items: any[] = [];
             if (text.startsWith('/') && !text.includes(' ')) {
               // Cursor is inside the verb token (`/lis…`) — suggest
-              // top-level commands.
+              // top-level commands. Verbs commit on space (server
+              // contract).
               items = [
-                { label: '/list', insertText: '/list', kind: 14, detail: 'List resources' },
-                { label: '/show', insertText: '/show', kind: 14, detail: 'Show resource details' },
-                { label: '/count', insertText: '/count', kind: 14, detail: 'Count matching resources' },
-                { label: '/help', insertText: '/help', kind: 14, detail: 'Show help' },
+                {
+                  label: '/list',
+                  insertText: '/list',
+                  kind: 14,
+                  detail: 'List resources',
+                  commitCharacters: [' '],
+                  sortText: '10_00_/list',
+                },
+                {
+                  label: '/show',
+                  insertText: '/show',
+                  kind: 14,
+                  detail: 'Show resource details',
+                  commitCharacters: [' '],
+                  sortText: '10_01_/show',
+                },
+                {
+                  label: '/count',
+                  insertText: '/count',
+                  kind: 14,
+                  detail: 'Count matching resources',
+                  commitCharacters: [' '],
+                  sortText: '10_02_/count',
+                },
+                // Mutating verb — server attaches a `warning` chip.
+                {
+                  label: '/delete',
+                  insertText: '/delete',
+                  kind: 14,
+                  detail: 'Delete a resource',
+                  commitCharacters: [' '],
+                  warning: 'Mutates system state',
+                  sortText: '20_00_/delete',
+                },
+                {
+                  label: '/help',
+                  insertText: '/help',
+                  kind: 14,
+                  detail: 'Show help',
+                  commitCharacters: [' '],
+                  sortText: '30_00_/help',
+                },
+                // Wizard launch item. When accepted, the wrapper's
+                // `onWizardStart` fires INSTEAD of inserting text.
+                // Mirror of the real-server shape:
+                // qorus/Classes/QonsoleAssistService.qc:818
+                {
+                  label: 'Start "Create connection" wizard',
+                  kind: 15, // CIK_SNIPPET — server uses snippet for wizards
+                  detail: 'Guided setup',
+                  data: {
+                    action: 'start-wizard',
+                    name: 'create-connection',
+                    title: 'Create connection',
+                    short_desc: 'Guided setup for a new connection',
+                    verb: 'create',
+                    resource: 'connections',
+                    start_path: '/api/latest/qonsole/wizards/create-connection/start',
+                  },
+                  command: {
+                    title: 'Start Create connection wizard',
+                    command: 'qonsole.startWizard',
+                    arguments: [
+                      {
+                        action: 'start-wizard',
+                        name: 'create-connection',
+                        title: 'Create connection',
+                        short_desc: 'Guided setup for a new connection',
+                        verb: 'create',
+                        resource: 'connections',
+                        start_path:
+                          '/api/latest/qonsole/wizards/create-connection/start',
+                      },
+                    ],
+                  },
+                  sortText: '40_00_wizard',
+                },
               ];
             } else if (/\s$/.test(text.slice(0, position.character))) {
               // Cursor sits after a space — suggest resource names.
               items = [
-                { label: 'services', insertText: 'services', kind: 7, detail: 'Service interfaces' },
-                { label: 'workflows', insertText: 'workflows', kind: 7, detail: 'Workflow interfaces' },
-                { label: 'jobs', insertText: 'jobs', kind: 7, detail: 'Job interfaces' },
-                { label: 'users', insertText: 'users', kind: 7, detail: 'IDP users' },
+                { label: 'services', insertText: 'services', kind: 7, detail: 'Service interfaces', commitCharacters: [' '] },
+                { label: 'workflows', insertText: 'workflows', kind: 7, detail: 'Workflow interfaces', commitCharacters: [' '] },
+                { label: 'jobs', insertText: 'jobs', kind: 7, detail: 'Job interfaces', commitCharacters: [' '] },
+                { label: 'users', insertText: 'users', kind: 7, detail: 'IDP users', commitCharacters: [' '] },
               ];
             } else if (charBefore === '-') {
-              // Inside a `--flag` token — suggest flag names.
+              // Inside a `--flag` token — suggest flag names. Flags
+              // commit on `=` for value-bearing flags or space for
+              // booleans.
               items = [
                 {
                   label: '--desc',
@@ -161,6 +239,7 @@ export const BasicMock: Story = {
                   kind: 10,
                   detail: 'sort descending',
                   textEdit: { range: replaceRange, newText: '--desc=' },
+                  commitCharacters: ['='],
                 },
                 {
                   label: '--limit',
@@ -168,6 +247,7 @@ export const BasicMock: Story = {
                   kind: 10,
                   detail: 'maximum number of results',
                   textEdit: { range: replaceRange, newText: '--limit=' },
+                  commitCharacters: ['='],
                 },
                 {
                   label: '--search',
@@ -175,6 +255,7 @@ export const BasicMock: Story = {
                   kind: 10,
                   detail: 'filter by name using a regex',
                   textEdit: { range: replaceRange, newText: '--search=' },
+                  commitCharacters: ['='],
                 },
                 {
                   label: '--app',
@@ -182,6 +263,7 @@ export const BasicMock: Story = {
                   kind: 10,
                   detail: 'filter by application',
                   textEdit: { range: replaceRange, newText: '--app=' },
+                  commitCharacters: ['='],
                 },
               ];
             } else if (charBefore === '=') {
@@ -441,5 +523,71 @@ export const WithDiagnostics: Story = {
     return () => {
       server.close();
     };
+  },
+};
+
+/**
+ * Demonstrates `commitCharacters` auto-accept
+ * (QONSOLE_ASSIST_FEATURES). The mock's flag completions carry
+ * `commitCharacters: ['=']`. Typing `=` while a flag is focused
+ * accepts the completion + inserts the `=` (or, when the
+ * `textEdit.newText` already ends with `=`, suppresses the
+ * duplicate).
+ *
+ * Sequence to play through:
+ *   1. Initial value `/list services `
+ *   2. Type `-` — dropdown shows the flag list
+ *   3. Type `-` again (now typing `--`)
+ *   4. Type `l` — narrows to `--limit`
+ *   5. Type `=` — `--limit` auto-accepts; final text is `/list services --limit=`
+ *      (NOT `/list services --limit==`)
+ */
+export const WithCommitCharacters: Story = {
+  args: {
+    initialValue: '/list services ',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          '`commitCharacters` auto-accept on `=` for flag value tokens. ' +
+          'Verifies that no duplicate `=` is inserted when the ' +
+          'completion already ends with one.',
+      },
+    },
+  },
+};
+
+/**
+ * Demonstrates wizard launch via `command: 'qonsole.startWizard'`
+ * (QONSOLE_ASSIST_FEATURES). The mock returns a synthetic
+ * "Create connection" wizard item when no resource is set yet
+ * (cursor on `/…`). Accepting the wizard item fires the wrapper's
+ * `onWizardStart` callback INSTEAD of inserting text.
+ *
+ * Reqraft ships NO wizard runner UI — that's qorus-ide-side
+ * (separate task). This story exists to verify the hand-off path:
+ *   - The mock attaches a `command` field on the wizard item
+ *   - The Qonsole inserter branches on `command.command === "qonsole.startWizard"`
+ *   - The wrapper's `onWizardStart` fires with `command.arguments[0]`
+ *
+ * The args.onWizardStart is a `fn()` spy so the play test (or your
+ * Storybook actions panel) can confirm it was invoked.
+ */
+export const WithWizardItems: Story = {
+  args: {
+    initialValue: '/',
+    onWizardStart: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Wizard-launch path. Initial value `/`; the dropdown opens ' +
+          'on `/` with both commands AND a "Start Create connection ' +
+          'wizard" item. Selecting the wizard item fires ' +
+          '`onWizardStart` (visible in the Actions panel).',
+      },
+    },
   },
 };

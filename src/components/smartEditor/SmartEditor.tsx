@@ -81,11 +81,42 @@ const SEMANTIC_TOKEN_COLORS: Record<string, string> = {
  * `minimal` style + smaller size for a subdued, IntelliSense-style
  * appearance that doesn't compete with the label.
  */
-function buildKindBadge(item: ICompletionDropdownItem):
+/**
+ * Build the `badge` prop for a completion row. Returns the kind chip
+ * (Field / Method / …) plus a "Warning" chip when the item carries
+ * server-side warning copy (Qonsole emits this on mutating verbs).
+ * Both chips are right-aligned on the row.
+ *
+ * Returns `undefined` when neither applies — keeps Reqore's prop
+ * shape clean.
+ */
+function buildKindBadge(
+  item: ICompletionDropdownItem
+):
   | { label: string; minimal: true; size: 'small' }
+  | Array<{
+      label: string;
+      minimal?: true;
+      size: 'small';
+      intent?: 'warning';
+      tooltip?: string;
+    }>
   | undefined {
-  if (!item.kindLabel) return undefined;
-  return { label: item.kindLabel, minimal: true, size: 'small' };
+  const kindBadge = item.kindLabel
+    ? ({ label: item.kindLabel, minimal: true as const, size: 'small' as const })
+    : null;
+  const warningBadge = item.warning
+    ? ({
+        label: 'Warning',
+        size: 'small' as const,
+        intent: 'warning' as const,
+        tooltip: item.warning,
+      })
+    : null;
+  if (warningBadge && kindBadge) return [kindBadge, warningBadge];
+  if (warningBadge) return [warningBadge];
+  if (kindBadge) return kindBadge;
+  return undefined;
 }
 
 /**

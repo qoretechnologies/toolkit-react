@@ -37,7 +37,11 @@ export type TQonsoleAssistFeature =
  */
 export interface IQonsoleAssistResult {
   version: string;
-  mode: 'command' | 'natural-language';
+  // Server literal — `"command"` (input starts with `/`), `"nl"`
+  // (free-form natural language), or `"empty"`. The earlier
+  // `"natural-language"` was a documentation error; the server
+  // returns the literal `"nl"` (see QonsoleAssistService.qc:282).
+  mode: 'command' | 'nl' | 'empty';
   context?: Record<string, unknown>;
   canonical?: {
     command_name?: string;
@@ -85,6 +89,28 @@ export interface IQonsoleSmartInputProps {
   height?: string;
   /** Called when the editor loses focus. */
   onBlur?: () => void;
+  /**
+   * Called when the user accepts a wizard-launch completion item —
+   * i.e. an item whose `command.command === "qonsole.startWizard"`.
+   * The argument is the server-supplied wizard descriptor:
+   *
+   *   `{ action: 'start-wizard', name, title, short_desc, verb,
+   *      resource, start_path, source_command }`
+   *
+   * The consumer is responsible for launching the wizard flow —
+   * typically POSTing to `start_path` and rendering a step-by-step
+   * modal. Reqraft provides no wizard runner UI; that lives in the
+   * qorus-ide consumer.
+   *
+   * When this prop is set, wizard items are NOT inserted as text on
+   * accept; this callback fires instead. When it's `undefined`, the
+   * item's `label` falls through to plain-text insertion (degraded
+   * but harmless).
+   *
+   * See `qorus/Classes/QonsoleAssistService.qc:818` for the
+   * wizard descriptor's exact shape.
+   */
+  onWizardStart?: (args: Record<string, unknown>) => void;
 }
 
 export interface IQonsoleSmartInputRef {

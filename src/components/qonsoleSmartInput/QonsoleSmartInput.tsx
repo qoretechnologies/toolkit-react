@@ -5,9 +5,10 @@
 // the server's `/lsp` endpoint with `languageId: 'qonsole'` and the
 // server-advertised trigger characters from the live spike.
 
-import { forwardRef, useCallback, useImperativeHandle } from 'react';
+import { forwardRef, useCallback, useImperativeHandle, useMemo } from 'react';
 import { RenderLeafProps } from 'slate-react/dist/components/editable';
 import { SmartEditor } from '../smartEditor/SmartEditor';
+import { makeQonsoleCompletionInserter } from './qonsoleInserter';
 import {
   IQonsoleSmartInputProps,
   IQonsoleSmartInputRef,
@@ -44,13 +45,29 @@ export const QonsoleSmartInput = forwardRef<
   IQonsoleSmartInputProps
 >(
   (
-    { value, onChange, useContext, readOnly = false, height = '40px', onBlur },
+    {
+      value,
+      onChange,
+      useContext,
+      readOnly = false,
+      height = '40px',
+      onBlur,
+      onWizardStart,
+    },
     ref
   ) => {
     const qonsole = useQonsoleSession({
       useContext,
       initialText: value,
     });
+
+    // Branch wizard items into the consumer's `onWizardStart`
+    // callback. Memoised on the callback identity so the inserter
+    // reference is stable across renders when the callback is.
+    const completionInserter = useMemo(
+      () => makeQonsoleCompletionInserter(onWizardStart),
+      [onWizardStart]
+    );
 
     const assist = useCallback(
       (
@@ -76,6 +93,7 @@ export const QonsoleSmartInput = forwardRef<
         onChange={onChange}
         triggerCharacters={QONSOLE_TRIGGERS}
         customRenderLeaf={qonsoleRenderLeaf}
+        completionInserter={completionInserter}
         height={height}
         readOnly={readOnly}
         onBlur={onBlur}
