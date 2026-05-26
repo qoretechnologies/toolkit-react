@@ -37,6 +37,12 @@ import {
   useLspAutocomplete,
 } from './useLspAutocomplete';
 import {
+  COMPLETION_KIND_INTENTS,
+  DIAGNOSTIC_SEVERITY_EFFECTS,
+  SMART_EDITOR_OVERLAY_EFFECT,
+  SMART_EDITOR_POPOVER_CUSTOM_THEME,
+} from './styling';
+import {
   severityToIntent,
   useLspDiagnosticDecorations,
 } from './useLspDiagnosticDecorations';
@@ -90,28 +96,29 @@ const SEMANTIC_TOKEN_COLORS: Record<string, string> = {
  * Returns `undefined` when neither applies — keeps Reqore's prop
  * shape clean.
  */
-function buildKindBadge(
-  item: ICompletionDropdownItem
-):
-  | { label: string; minimal: true; size: 'small' }
-  | Array<{
-      label: string;
-      minimal?: true;
-      size: 'small';
-      intent?: 'warning';
-      tooltip?: string;
-    }>
+function buildKindBadge(item: ICompletionDropdownItem):
+  | Record<string, unknown>
+  | Array<Record<string, unknown>>
   | undefined {
+  const kindIntent =
+    item.metadata?.kind !== undefined
+      ? COMPLETION_KIND_INTENTS[item.metadata.kind]
+      : undefined;
   const kindBadge = item.kindLabel
-    ? ({ label: item.kindLabel, minimal: true as const, size: 'small' as const })
+    ? {
+        label: item.kindLabel,
+        minimal: true as const,
+        size: 'small' as const,
+        intent: kindIntent,
+      }
     : null;
   const warningBadge = item.warning
-    ? ({
+    ? {
         label: 'Warning',
         size: 'small' as const,
         intent: 'warning' as const,
         tooltip: item.warning,
-      })
+      }
     : null;
   if (warningBadge && kindBadge) return [kindBadge, warningBadge];
   if (warningBadge) return [warningBadge];
@@ -558,19 +565,22 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           />
           {showLoadingOverlay && (
             <div
-              // Absolutely-positioned, centred, semi-transparent panel
-              // covering the editor body. Pointer events pass through
-              // (mostly) — the LSP-dependent paths (completions, hover)
-              // short-circuit on `!session.isReady` anyway, so the user
-              // can still see / scroll / select text under the overlay.
+              // Absolutely-positioned, centred panel covering the
+              // editor body. `backdrop-filter: blur` matches the
+              // 20px backdrop blur Reqore uses for drawers — keeps
+              // the editor content faintly readable underneath while
+              // signalling "this surface is paused". Pointer events
+              // pass through; the LSP-dependent paths short-circuit
+              // on `!isReady` / `!isContextReady` anyway.
               style={{
                 position: 'absolute',
                 inset: 0,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: 'rgba(0, 0, 0, 0.06)',
-                backdropFilter: 'blur(0.5px)',
+                background: 'rgba(10, 10, 10, 0.35)',
+                backdropFilter: 'blur(4px)',
+                WebkitBackdropFilter: 'blur(4px)',
                 borderRadius: 4,
                 pointerEvents: 'none',
                 zIndex: 2,
@@ -605,6 +615,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   maxHeight='300px'
                   width='300px'
                   padded={false}
+                  customTheme={SMART_EDITOR_POPOVER_CUSTOM_THEME}
+                  effect={SMART_EDITOR_OVERLAY_EFFECT}
                 >
                   {autocomplete.items.length === 0 &&
                     (autocomplete.isReplaceMode ||
@@ -628,11 +640,22 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                     let flatIndex = 0;
                     return autocomplete.groups.map((group) => (
                       <React.Fragment key={group.label || '_default'}>
-                        {group.label && <ReqoreMenuDivider label={group.label} />}
+                        {group.label && (
+                          <ReqoreMenuDivider
+                            label={group.label}
+                            // Muted intent: section labels read as
+                            // navigation chrome, not as content.
+                            // Matches qorus-ide's "tiny label" pattern.
+                            // @ts-expect-error — intent type not in older Reqore
+                            intent='muted'
+                          />
+                        )}
                         {group.items.map((item) => {
                           const itemIndex = flatIndex++;
                           const badge = buildKindBadge(item);
                           const tooltip = buildDocTooltip(item);
+                          const isFocused =
+                            itemIndex === autocomplete.focusedIndex;
                           return (
                             <ReqoreMenuItem
                               key={item.value}
@@ -641,10 +664,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                               description={item.description}
                               badge={badge as any}
                               tooltip={tooltip as any}
-                              selected={itemIndex === autocomplete.focusedIndex}
-                              scrollIntoView={
-                                itemIndex === autocomplete.focusedIndex
-                              }
+                              selected={isFocused}
+                              // Apply info intent on the focused row for
+                              // better contrast against the dark
+                              // `#1a1a1a` popover surface.
+                              intent={isFocused ? 'info' : undefined}
+                              scrollIntoView={isFocused}
                               onClick={() =>
                                 handleCompletionSelect({ value: item.value })
                               }
@@ -719,6 +744,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               closeOnOutsideClick
               minWidth='220px'
               flat
+              transparent
+              backgroundBlur={20}
+              // @ts-expect-error — customTheme on popovers is valid but
+              // not in the older Reqore type declarations
+              customTheme={SMART_EDITOR_POPOVER_CUSTOM_THEME}
               onToggleChange={(open: boolean) => {
                 if (!open) hover.clearHover();
               }}
@@ -821,6 +851,10 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 closeOnOutsideClick={false}
                 minWidth='280px'
                 flat
+                transparent
+                backgroundBlur={20}
+                // @ts-expect-error — customTheme on popovers is valid
+                customTheme={SMART_EDITOR_POPOVER_CUSTOM_THEME}
               />
             );
           })()}
@@ -845,6 +879,17 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 }
                 size='small'
                 flat
+                // `opaque={false}` matches every Qonsole sub-surface —
+                // message blends with the host page gradient rather
+                // than putting its own opaque background on top.
+                opaque={false}
+                // Per-severity coloured gradient effect — matches the
+                // `NegativeColorEffect` / `WarningColorEffect` /
+                // `PendingColorEffect` vocabulary from qorus-ide.
+                effect={
+                  DIAGNOSTIC_SEVERITY_EFFECTS[diag.severity ?? 1] ??
+                  DIAGNOSTIC_SEVERITY_EFFECTS[1]
+                }
               >
                 {diag.message}
               </ReqoreMessage>
