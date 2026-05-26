@@ -17,6 +17,14 @@ import { ISlateConverter, ISlateElement, TCompletionInserter } from './types';
 
 const DEFAULT_TRIGGER_CHARS = new Set(['.', ':', ' ']);
 const DEBOUNCE_MS = 150;
+/**
+ * Delay before `isFetching=true` is set after a completion request
+ * fires. Mirrors VS Code's "delay progress indicator" pattern — only
+ * show the "Loading completions…" stub for genuinely slow responses.
+ * Fast responses (mock, warm cache, sub-250ms live) never set the
+ * flag at all, so no visible flash.
+ */
+const LOADER_DELAY_MS = 250;
 
 /** LSP CompletionItemKind values → group labels for the dropdown. */
 /** LSP `CompletionItemKind` → plural group header in the dropdown. */
@@ -191,8 +199,17 @@ export function useLspAutocomplete(
   const [focusedIndex, setFocusedIndex] = useState(0);
   // True while a completion request is in flight AND we've shown the
   // popover. Used by SmartEditor to render a "Loading…" stub instead
-  // of the bare empty-list flash on slow LSP responses.
+  // of the bare empty-list flash on slow LSP responses. Set on a
+  // `LOADER_DELAY_MS` timer rather than synchronously — fast
+  // responses clear before the timer fires, so the stub never flashes
+  // on a sub-250ms response.
   const [isFetching, setIsFetching] = useState(false);
+  // The setTimeout handle for the deferred `setIsFetching(true)`.
+  // Cleared by either: (a) the request resolving (success / error),
+  // or (b) `close()` being called. Either path nulls the ref and
+  // calls clearTimeout to ensure the loader never flashes on a
+  // fast-resolved request.
+  const fetchingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The partial token the user has typed since the trigger opened the
   // dropdown — e.g. when typing `@status`, the prefix evolves as `@` →
   // `@s` → `@st` → … The dropdown should narrow to items whose
@@ -328,12 +345,18 @@ export function useLspAutocomplete(
           // position state we last computed.
         }
       }
-      // Mark in-flight + open the popover immediately so the loading
-      // stub renders during slow LSP roundtrips. If the response is
-      // fast (mock or warm cache), `isFetching` is back to false
-      // before any render shows the stub — no flash.
-      setIsFetching(true);
+      // Open the popover immediately so the user sees feedback on
+      // the click / keystroke. `isFetching` is set ONLY after a
+      // delay — fast responses (mock, warm cache, sub-250ms live)
+      // never set the flag and never flash the "Loading…" stub.
       setIsOpen(true);
+      if (fetchingTimerRef.current !== null) {
+        clearTimeout(fetchingTimerRef.current);
+      }
+      fetchingTimerRef.current = setTimeout(() => {
+        setIsFetching(true);
+        fetchingTimerRef.current = null;
+      }, LOADER_DELAY_MS);
       try {
         const lspItems = await getCompletions(plainText, offset);
         if (lspItems.length === 0) {
@@ -372,6 +395,12 @@ export function useLspAutocomplete(
         setItems([]);
         setIsOpen(false);
       } finally {
+        // Cancel the pending "show loader" timer AND clear any
+        // already-set fetching state. Idempotent.
+        if (fetchingTimerRef.current !== null) {
+          clearTimeout(fetchingTimerRef.current);
+          fetchingTimerRef.current = null;
+        }
         setIsFetching(false);
       }
     },
@@ -396,6 +425,12 @@ export function useLspAutocomplete(
     setFilterPrefix('');
     setIsReplaceMode(false);
     setIsFetching(false);
+    // Cancel any pending "show loader" timer — the popover is closing,
+    // we don't want the stub to pop up mid-close.
+    if (fetchingTimerRef.current !== null) {
+      clearTimeout(fetchingTimerRef.current);
+      fetchingTimerRef.current = null;
+    }
     replacingChipPathRef.current = null;
     pendingChipRequestRef.current = null;
     requestCompletions.cancel();
