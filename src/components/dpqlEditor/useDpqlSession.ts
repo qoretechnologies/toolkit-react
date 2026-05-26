@@ -5,7 +5,7 @@
 // returns for tooltip rendering. Wraps the `dpql/parse` / `dpql/serialize`
 // / `dpql/validate` custom methods as typed Promise-returning functions.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ILspDiagnostic } from '../../utils/lspClient.types';
 import { useLspSession, IUseLspSessionResult } from '../smartEditor/useLspSession';
 import { IDpqlParseResult } from './types';
@@ -69,13 +69,41 @@ export function useDpqlSession(
   });
 
   const [fieldMeta, setFieldMeta] = useState<Record<string, IDpqlFieldMeta>>({});
+  // Tracks whether a DPQL context binding has completed for this
+  // session. SmartEditor and its child LSP hooks gate on
+  // `session.isReady && session.isContextReady` to avoid firing
+  // requests against a context-less server during the 50-200ms gap
+  // between LSP `initialize`/`didOpen` and our `dpql/setContext`
+  // response landing. Without this, a fast user typing `@` right
+  // after mount hits the server with no provider bound, gets empty
+  // completions, and the dropdown silently auto-closes.
+  //
+  // - Wrapper is NOT configured with a `provider` / `recordType`:
+  //   we have no context to bind, so we report `true` immediately
+  //   (the generic `useLspSession.isContextReady` default).
+  // - Wrapper IS configured: starts `false`, flips `true` after
+  //   `dpql/setContext` resolves (success OR error — best-effort
+  //   so a transient failure doesn't lock the editor out forever).
+  const needsContextBinding = Boolean(provider && recordType);
+  const [isContextBound, setIsContextBound] = useState(!needsContextBinding);
 
   // React to provider / recordType / options / actionCode changes — call
   // `dpql/setContext` on the live client whenever the session is ready.
   useEffect(() => {
-    if (!session.client || !session.isReady || !provider || !recordType) {
-      return;
+    if (!needsContextBinding) {
+      // Configuration cleared — no context binding needed; flip the
+      // gate back to ready so completions resume working.
+      setIsContextBound(true);
+      return undefined;
     }
+    if (!session.client || !session.isReady) {
+      // Will re-run when isReady flips true.
+      return undefined;
+    }
+    // Re-arm the gate for this binding request — covers both the
+    // initial connect AND any later provider/recordType change.
+    setIsContextBound(false);
+    let cancelled = false;
     session.client
       .customRequest<{ fields?: Record<string, any> }>('dpql/setContext', {
         uri: session.uri,
@@ -85,6 +113,7 @@ export function useDpqlSession(
         action_code: actionCode,
       })
       .then((result) => {
+        if (cancelled) return;
         if (result?.fields) {
           const meta: Record<string, IDpqlFieldMeta> = {};
           for (const [name, field] of Object.entries(
@@ -103,8 +132,20 @@ export function useDpqlSession(
       .catch((err) => {
         // eslint-disable-next-line no-console
         console.error('[DPQL] setContext failed:', err);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        // Flip the gate true even on error — best-effort: a
+        // transient setContext failure shouldn't keep the editor
+        // disabled forever. Completions will just be context-less
+        // until the next provider/recordType change retries.
+        setIsContextBound(true);
       });
+    return () => {
+      cancelled = true;
+    };
   }, [
+    needsContextBinding,
     session.client,
     session.isReady,
     session.uri,
@@ -113,6 +154,15 @@ export function useDpqlSession(
     ctxOptions,
     actionCode,
   ]);
+
+  // Wrap the underlying LSP session so consumers see the DPQL-aware
+  // `isContextReady` instead of the generic primitive's `true`. Spread
+  // preserves every function reference; only this one field is
+  // overridden.
+  const wrappedSession = useMemo<IUseLspSessionResult>(
+    () => ({ ...session, isContextReady: isContextBound }),
+    [session, isContextBound]
+  );
 
   const parse = useCallback(
     async (text: string): Promise<IDpqlParseResult> => {
@@ -177,7 +227,7 @@ export function useDpqlSession(
   }, [session.client, session.uri]);
 
   return {
-    session,
+    session: wrappedSession,
     fieldMeta,
     diagnostics: session.diagnostics,
     parse,

@@ -136,7 +136,14 @@ export function useLspHover(
     fetchHover.current = debounce(async (clientX: number, clientY: number) => {
       const editor = editorRef.current;
       const client = session.client;
-      if (!enabled || !editor || !client || !session.isReady) return;
+      if (
+        !enabled ||
+        !editor ||
+        !client ||
+        !session.isReady ||
+        !session.isContextReady
+      )
+        return;
 
       const point = mousePositionToSlatePoint(editor, clientX, clientY);
       if (!point) {

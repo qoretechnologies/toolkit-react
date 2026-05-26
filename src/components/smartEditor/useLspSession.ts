@@ -39,6 +39,23 @@ export interface IUseLspSessionResult {
   uri: string;
   /** Becomes `true` once `initialize` + `didOpen` complete. */
   isReady: boolean;
+  /**
+   * Becomes `true` once any language-specific context binding the
+   * wrapper requires has resolved. For the generic primitive session
+   * this is always `true` (no context). Wrappers like `useDpqlSession`
+   * override it: it's `false` while a `dpql/setContext` /
+   * `dpql/setFsmContext` / `dpql/setAlertPayloadContext` request is
+   * in flight after `isReady` flipped, and flips `true` once the
+   * binding resolves (success or error — see the wrapper for
+   * details).
+   *
+   * SmartEditor and its child hooks gate LSP requests on the
+   * combined signal `isReady && isContextReady`: without it, a fast
+   * user typing `@` in the ~50–200ms window between LSP-ready and
+   * context-bound would hit the server context-less and get empty
+   * results, with the dropdown auto-closing silently.
+   */
+  isContextReady: boolean;
   /** Most-recent `textDocument/publishDiagnostics` payload for this document. */
   diagnostics: ILspDiagnostic[];
   /**
@@ -158,6 +175,10 @@ export function useLspSession(
     client,
     uri: uriRef.current,
     isReady,
+    // Generic session has no language-specific context to bind;
+    // wrappers (`useDpqlSession`) override this on their returned
+    // session by spreading + replacing.
+    isContextReady: true,
     diagnostics,
     semanticTokensLegend,
     didChange,

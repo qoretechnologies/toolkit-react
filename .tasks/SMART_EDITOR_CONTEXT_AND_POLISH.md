@@ -8,10 +8,7 @@ loader-flash on fast LSP responses, the missing FSM and Alert-payload
 context props (required for the upcoming Alert Rule editor in
 qorus-ide), and the README drift across this batch.
 
-**Status:** ready to start after `0.10.0-beta` ships, but **item 4
-(FSM / Alert-payload props) is a hard dependency** for the qorus-ide
-`ALERT_RULES_AND_SILENCES.md` work — it should land in a `0.10.1`
-patch before that integration begins.
+**Status:** in progress — item 1 (`isContextReady` race fix) starting 2026-05-26. Release strategy revised (`.tasks/INDEX.md`): all CONTEXT_AND_POLISH items ship together as part of `0.10.0`, no longer a separate `0.10.1` patch.
 
 **Scope:** four items, all small-to-medium. README update is
 non-optional given how many props have been added.

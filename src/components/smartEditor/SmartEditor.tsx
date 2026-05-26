@@ -64,7 +64,10 @@ const SEMANTIC_TOKEN_COLORS: Record<string, string> = {
   method: '#e5c07b', // yellow
   class: '#e5c07b', // yellow — Qonsole resource names (`services`, …)
   type: '#e5c07b', // yellow
-  regexp: '#56b6c2', // cyan — /pattern/flags
+  regexp: '#d16969', // coral — /pattern/flags. Distinct from operator
+  //                    cyan so `=~ /…/` reads as two tokens, not one
+  //                    cyan run. Matches VS Code Dark+ regex hue;
+  //                    distinct from variable's `#e06c75` pink.
   modifier: '#c678dd', // purple
   decorator: '#c678dd', // purple
   namespace: '#e5c07b', // yellow
@@ -199,9 +202,19 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     // programmatic focus / selection / transforms.
     useImperativeHandle(ref, () => editorRef.current as TReqoreRichTextEditorRef, []);
 
+    // Combined readiness signal — gates ALL LSP-driven hooks. We want
+    // both (a) the LSP connection established (`isReady`) AND (b) any
+    // wrapper-defined context binding to have resolved
+    // (`isContextReady`). Without (b), typing `@` during the
+    // ~50–200ms window between LSP-ready and `dpql/setContext`-bound
+    // hits the server context-less and gets empty results — the
+    // dropdown auto-closes silently. Generic primitive sessions have
+    // `isContextReady: true` so this collapses to `isReady` for them.
+    const lspReady = session.isReady && session.isContextReady;
+
     const autocomplete = useLspAutocomplete({
       getCompletions: session.getCompletions,
-      isReady: session.isReady,
+      isReady: lspReady,
       triggerCharacters,
       converter,
       inserter: completionInserter,
@@ -427,15 +440,29 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     );
 
     // Loading overlay rendered on top of the editor while the LSP
-    // session is still connecting OR the wrapper has signalled a
-    // higher-level busy state via `isLoading` (e.g. DpqlEditor's
-    // `useServerParse` mode while awaiting `dpql/toRichtext`). The
-    // editor itself stays mounted so the initial value is visible
+    // session is still connecting, the wrapper's language-specific
+    // context binding is still resolving, OR the wrapper has signalled
+    // a higher-level busy state via `isLoading` (e.g. DpqlEditor's
+    // `useServerParse` mode while awaiting `dpql/toRichtext`).
+    //
+    // The default copy varies by which signal is the cause:
+    //   - `!isReady`         → "Connecting to language server…"
+    //   - `!isContextReady`  → "Loading schema…"
+    //   - `isLoading` only   → "Loading…"
+    //
+    // The editor stays mounted so the initial value is visible
     // underneath; the overlay just signals "completions / diagnostics
     // / hover are temporarily unavailable". `loadingIndicator === null`
-    // opts out entirely.
+    // opts out entirely; a non-null override replaces the default
+    // entirely.
     const showLoadingOverlay =
-      (!session.isReady || isLoading) && loadingIndicator !== null;
+      (!session.isReady || !session.isContextReady || isLoading) &&
+      loadingIndicator !== null;
+    const defaultLoadingLabel = !session.isReady
+      ? 'Connecting to language server…'
+      : !session.isContextReady
+        ? 'Loading schema…'
+        : 'Loading…';
     const overlayContent =
       loadingIndicator !== undefined && loadingIndicator !== null ? (
         loadingIndicator
@@ -446,7 +473,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           centered
           labelEffect={{ textSize: 'small' }}
         >
-          Connecting to language server…
+          {defaultLoadingLabel}
         </ReqoreSpinner>
       );
 
@@ -532,9 +559,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                         label={
                           !session.isReady
                             ? 'Connecting to language server…'
-                            : autocomplete.isFetching
-                              ? 'Loading completions…'
-                              : 'No alternatives available'
+                            : !session.isContextReady
+                              ? 'Loading schema…'
+                              : autocomplete.isFetching
+                                ? 'Loading completions…'
+                                : 'No alternatives available'
                         }
                         disabled
                         compact

@@ -37,6 +37,17 @@ let received: any[] = [];
 let lastDocumentText = '';
 
 /**
+ * Story-level override for the artificial delay applied to
+ * `dpql/setContext` responses. Used by the `WithDelayedContext`
+ * story to demonstrate the `isContextReady` race-fix: while the
+ * delay is in flight, the editor shows the "Loading schema…"
+ * overlay and gates LSP-driven hooks (completions, hover, semantic
+ * tokens) so they don't fire against a context-less server. Reset
+ * by `beforeEach` on every other story.
+ */
+let setContextDelayMs = 0;
+
+/**
  * Minimal DPQL-correct tokenizer used only by the story mock to
  * produce a plausible `textDocument/semanticTokens/full` response.
  * Returns the LSP-encoded flat int array (delta-encoded 5-tuples).
@@ -213,6 +224,7 @@ const meta = {
   async beforeEach() {
     received = [];
     lastDocumentText = '';
+    setContextDelayMs = 0;
     const server = new Server(STORY_LSP_URL);
 
     server.on('connection', (socket) => {
@@ -365,23 +377,31 @@ const meta = {
             );
             break;
 
-          case 'dpql/setContext':
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: msg.id,
-                result: {
-                  provider: msg.params?.provider ?? null,
-                  recordType: msg.params?.recordType ?? 'record',
-                  fields: {
-                    name: { display_name: 'Name', type: { name: 'string' } },
-                    status: { display_name: 'Status', type: { name: 'string' } },
-                    age: { display_name: 'Age', type: { name: 'int' } },
-                  },
+          case 'dpql/setContext': {
+            const response = JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: {
+                provider: msg.params?.provider ?? null,
+                recordType: msg.params?.recordType ?? 'record',
+                fields: {
+                  name: { display_name: 'Name', type: { name: 'string' } },
+                  status: { display_name: 'Status', type: { name: 'string' } },
+                  age: { display_name: 'Age', type: { name: 'int' } },
                 },
-              })
-            );
+              },
+            });
+            // Honour the story-level delay so the
+            // `WithDelayedContext` story can demonstrate the
+            // `isContextReady` overlay during a slow setContext
+            // roundtrip. Most stories leave this at 0.
+            if (setContextDelayMs > 0) {
+              setTimeout(() => socket.send(response), setContextDelayMs);
+            } else {
+              socket.send(response);
+            }
             break;
+          }
 
           case 'dpql/validate':
             socket.send(
@@ -544,6 +564,44 @@ export const WithServerParse: Story = {
           '`$config:min_age`) are wrapped as tag chips by the server, ' +
           'not by the client regex. Watch the brief "Connecting…" ' +
           'overlay on first mount while the server response arrives.',
+      },
+    },
+  },
+};
+
+/**
+ * Demonstrates the `isContextReady` race-fix (CONTEXT_AND_POLISH item 1).
+ * Mock LSP delays `dpql/setContext` by 1.5s, so for the first 1.5s
+ * after mount:
+ * - The editor shows the "Loading schema…" overlay
+ * - Typing `@` produces no completion dropdown (gated on
+ *   `session.isContextReady`)
+ * - Once setContext resolves, the overlay disappears and completions
+ *   begin working.
+ *
+ * Verifies that the gap between LSP-ready and DPQL-context-bound
+ * doesn't surface as a silently-empty dropdown anymore.
+ */
+export const WithDelayedContext: Story = {
+  args: {
+    value: '@name == "Alice"',
+    provider: 'datasource:omq/table/users',
+    recordType: 'record',
+  },
+  async beforeEach() {
+    setContextDelayMs = 1500;
+    return () => {
+      setContextDelayMs = 0;
+    };
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Slow `dpql/setContext` response (1.5s). On mount: ' +
+          '"Loading schema…" overlay; typing `@` during the wait ' +
+          'does NOT open the dropdown. After 1.5s: overlay clears, ' +
+          'completions begin working normally.',
       },
     },
   },

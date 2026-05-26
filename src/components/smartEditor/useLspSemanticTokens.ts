@@ -199,12 +199,27 @@ export function useLspSemanticTokens(
     debounce(() => undefined)
   );
 
+  // Depend on the stable primitives inside `session` — not the `session`
+  // object literal itself. `useLspSession` rebuilds its return object on
+  // every render, so `[session, …]` would cancel and recreate this
+  // debounce on every parent re-render and the armed fetch would never
+  // get a chance to fire (see `WithServerParse` story: the
+  // `dpql/toRichtext` response arrives ~10ms after `isReady` flips and
+  // its three setStates would cancel the 250ms debounce before it
+  // expired, so `getSemanticTokens` was never called).
   useEffect(() => {
     fetchTokens.current.cancel();
     fetchTokens.current = debounce(async () => {
       const client = session.client;
       const legend = session.semanticTokensLegend;
-      if (!enabled || !client || !session.isReady || !legend) return;
+      if (
+        !enabled ||
+        !client ||
+        !session.isReady ||
+        !session.isContextReady ||
+        !legend
+      )
+        return;
       const reqId = ++requestIdRef.current;
       try {
         const data = await client.getSemanticTokens();
@@ -217,18 +232,32 @@ export function useLspSemanticTokens(
       }
     }, debounceMs);
     return () => fetchTokens.current.cancel();
-  }, [session, enabled, debounceMs]);
+  }, [
+    session.client,
+    session.isReady,
+    session.isContextReady,
+    session.semanticTokensLegend,
+    enabled,
+    debounceMs,
+  ]);
 
   // Fire on every document change AND when the session becomes ready
   // (first highlighting pass right after connect).
   useEffect(() => {
-    if (!enabled || !session.isReady || !session.semanticTokensLegend) return;
+    if (
+      !enabled ||
+      !session.isReady ||
+      !session.isContextReady ||
+      !session.semanticTokensLegend
+    )
+      return;
     fetchTokens.current();
     // No cleanup — the debounce is cancelled by the outer effect on
     // session/enabled changes.
   }, [
     enabled,
     session.isReady,
+    session.isContextReady,
     session.semanticTokensLegend,
     plainText,
   ]);
