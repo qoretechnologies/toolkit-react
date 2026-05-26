@@ -29,10 +29,10 @@ implementation order; release happens after the last row commits.
 | Task | Status | Sequence rationale |
 |---|---|---|
 | [SMART_EDITOR_UX_POLISH](./SMART_EDITOR_UX_POLISH.md) | Phase 1 committed `6fb9bf3` · Phases 2–7 + 6 committed `a9b7f1b` and **verified in browser 2026-05-26** · Phase 8 (release prep) deferred to end of batch | The original UX batch. All design-doc items (1–7) shipped and verified; Phase 8's "bump version + push" step now happens after every follow-up below also lands. |
-| [SMART_EDITOR_CONTEXT_AND_POLISH](./SMART_EDITOR_CONTEXT_AND_POLISH.md) | in progress (item 1 starting) | **1st** — item 4 (`alertPayloadContext` + `fsmContext` props) is the qorus-ide alert-rule editor blocker; item 1 (`isContextReady` race) is real-bug correctness. Land these together. Items 2/3 ride along (loader debounce, README catch-up; the latter slim — full README rewrite at end of batch). |
-| [SMART_EDITOR_LSP_FEATURES](./SMART_EDITOR_LSP_FEATURES.md) | ready to start | **2nd** — wires `textDocument/signatureHelp`, the only HIGH-value LSP method the server supports for DPQL. Introduces `session.capabilities` which other tasks can use defensively. |
-| [QONSOLE_ASSIST_FEATURES](./QONSOLE_ASSIST_FEATURES.md) | ready to start | **3rd** — generic LSP wins (commit chars, sortText, warning) + Qonsole-specific (wizard launch, mode-type fix). |
-| [SMART_EDITOR_VISUAL_POLISH](./SMART_EDITOR_VISUAL_POLISH.md) | ready to start | **4th (last)** — Reqore styling-vocabulary push. Polishes the **final** UI state — each preceding task adds new surfaces (signature pill, warning chips, wizard items) the polish pass should cover in one sweep. |
+| [SMART_EDITOR_CONTEXT_AND_POLISH](./SMART_EDITOR_CONTEXT_AND_POLISH.md) | items 1/2/4 committed (`5e94fd7`, `8e6fe0f`, `2a53a1a`); item 3 (README) deferred to release prep — **awaiting browser verification** | **1st** done |
+| [SMART_EDITOR_LSP_FEATURES](./SMART_EDITOR_LSP_FEATURES.md) | committed (`d54597e`) — **awaiting browser verification** | **2nd** done |
+| [QONSOLE_ASSIST_FEATURES](./QONSOLE_ASSIST_FEATURES.md) | committed (`189fe52`) — **awaiting browser verification** | **3rd** done |
+| [SMART_EDITOR_VISUAL_POLISH](./SMART_EDITOR_VISUAL_POLISH.md) | committed (`c006a79`) — **awaiting browser verification** | **4th** done |
 | `0.10.0` release prep (Phase 8 of UX_POLISH) | ready to start once all above complete | **5th (final)** — bump `package.json` to `0.10.0`; final README pass against the final API; tag; push. |
 
 ## Status vocabulary

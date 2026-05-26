@@ -8,7 +8,7 @@ task triages each field, lands the generic ones in `useLspAutocomplete`,
 and lands the Qonsole-specific wizard / starter-suggestion flow in
 the `QonsoleSmartInput` wrapper.
 
-**Status:** ready to start after `0.10.0-beta` ships.
+**Status:** done — committed in `189fe52`. Generic LSP wins (commitCharacters, sortText, warning) + Qonsole-specific (wizard launch via `qonsole.startWizard`, mode-type fix). **Awaiting browser verification.**
 **Scope:** seven items, three of them generic-LSP wins (commit chars,
 sortText, warning), four Qonsole-specific (relatedWizards, wizard
 command, natural-language mode, mode-type fix).

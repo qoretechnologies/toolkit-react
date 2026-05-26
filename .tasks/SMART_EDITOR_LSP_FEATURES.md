@@ -7,7 +7,7 @@ the client. This task triages each, lands the ones with real value
 for DPQL / Qonsole today, and documents why the rest are deferred or
 permanently out of scope.
 
-**Status:** ready to start once `0.10.0-beta` ships.
+**Status:** done — committed in `d54597e`. Wires `textDocument/signatureHelp`; other 12 LSP methods deferred per the per-method rationale below. **Awaiting browser verification.**
 **Scope:** one new feature (signatureHelp), one capability-detection
 helper, eight explicit "rejected — defer" decisions.
 **Estimated size:** ~250 lines + tests, ~1.5 days.

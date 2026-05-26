@@ -8,7 +8,7 @@ uses a rich Reqore styling vocabulary (gradients, intents, frost,
 glow, relative-darken sub-surfaces). This task brings the editor up to
 parity.
 
-**Status:** ready to start once `0.10.0-beta` is pushed.
+**Status:** done — committed in `c006a79`. Reqore styling vocabulary applied across completion / hover / signature popovers, kind chips, diagnostic messages, dividers, focused-row, loading overlay. **Awaiting browser verification.**
 **Scope:** styling-only — no behaviour or API changes.
 **Estimated size:** ~150 lines, 1 day.
 
