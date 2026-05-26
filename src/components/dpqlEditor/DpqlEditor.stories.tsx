@@ -198,6 +198,8 @@ interface IDpqlEditorStoryArgs {
   recordType?: string;
   stateId?: string;
   useServerParse?: boolean;
+  alertPayloadContext?: boolean;
+  fsmContext?: any;
 }
 
 const DpqlEditorWithState = (props: IDpqlEditorStoryArgs) => {
@@ -437,6 +439,55 @@ const meta = {
             );
             break;
 
+          case 'dpql/setAlertPayloadContext':
+            // Returns the canonical alert-payload schema. Mirrors
+            // the real server's `setDpqlAlertPayloadContext`
+            // (qorus/Classes/QorusLspWebSocketHandler.qc:8439).
+            socket.send(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                id: msg.id,
+                result: {
+                  context: 'alert-payload',
+                  fields: {
+                    severity: { display_name: 'Severity', type: { name: 'string' } },
+                    alert_type: { display_name: 'Alert Type', type: { name: 'string' } },
+                    alert_code: { display_name: 'Alert Code', type: { name: 'string' } },
+                    alert_class: { display_name: 'Alert Class', type: { name: 'string' } },
+                    interface_type: { display_name: 'Interface Type', type: { name: 'string' } },
+                    interface_name: { display_name: 'Interface Name', type: { name: 'string' } },
+                    alert_object: { display_name: 'Alert Object', type: { name: 'string' } },
+                  },
+                },
+              })
+            );
+            break;
+
+          case 'dpql/setFsmContext':
+            // Captures which source the client passed and echoes
+            // back a synthetic state_data_keys list so consumers
+            // can verify the binding was sent. Mirrors the real
+            // server's response shape from
+            // `qorus/Classes/QorusLspWebSocketHandler.qc:8509`.
+            socket.send(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                id: msg.id,
+                result: {
+                  source_type: msg.params?.fsm
+                    ? 'inline'
+                    : msg.params?.draft_id
+                      ? 'draft'
+                      : msg.params?.fsmid
+                        ? 'published'
+                        : 'cleared',
+                  current_state: msg.params?.current_state ?? null,
+                  state_data_keys: ['order_id', 'user_name', 'event_type'],
+                },
+              })
+            );
+            break;
+
           case 'dpql/toRichtext':
             // Mirror the real server's response shape (see
             // `qorus/Classes/UserApi.qc:_priv_get_richtext_string`).
@@ -602,6 +653,72 @@ export const WithDelayedContext: Story = {
           '"Loading schema…" overlay; typing `@` during the wait ' +
           'does NOT open the dropdown. After 1.5s: overlay clears, ' +
           'completions begin working normally.',
+      },
+    },
+  },
+};
+
+/**
+ * Demonstrates the `alertPayloadContext` prop (CONTEXT_AND_POLISH
+ * item 4). Binds the document to the canonical alert-payload schema
+ * instead of a provider/recordType pair — the field set becomes
+ * `severity` / `alert_type` / `alert_code` / etc.
+ *
+ * Required by the qorus-ide Alert Rule / Silence editor's `match`
+ * field.
+ *
+ * Implementation detail: when `alertPayloadContext` is set at mount,
+ * the editor includes `metadata.dpql_context: "alert-payload"` in
+ * the `textDocument/didOpen` notification so the server binds at
+ * open-time — no extra roundtrip. Later toggles fire an explicit
+ * `dpql/setAlertPayloadContext` request.
+ */
+export const WithAlertPayloadContext: Story = {
+  args: {
+    value: '@severity == "ERROR" && @interface_type == "service"',
+    alertPayloadContext: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Alert-payload schema binding. Initial value uses ' +
+          '`@severity` and `@interface_type` — fields the server ' +
+          'knows about via the canonical alert-payload context.',
+      },
+    },
+  },
+};
+
+/**
+ * Demonstrates the `fsmContext` prop (CONTEXT_AND_POLISH item 4).
+ * Binds an FSM context for state-aware template completions; the
+ * mock sends a "published" source_type response when `fsmId` is
+ * provided.
+ *
+ * Required by the qorus-ide FSM state editor when DpqlEditor is
+ * embedded inside an action's match expression — `$data:` /
+ * `$fsminput:` templates then resolve against the FSM's state
+ * graph.
+ *
+ * Composable: can be combined with `provider`/`recordType` (provider
+ * yields `@field` completions; FSM yields `$template:` completions).
+ */
+export const WithFsmContext: Story = {
+  args: {
+    value: '@status == "active" && $data:{order_id} > 0',
+    provider: 'datasource:omq/table/orders',
+    recordType: 'record',
+    fsmContext: { fsmId: 42, currentState: 'process_order' },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Composes provider context (for `@field` completions) ' +
+          'with FSM context (for `$data:` template completions). ' +
+          'Mock server replies with `source_type: "published"` and ' +
+          'a synthetic state-data keys list.',
       },
     },
   },

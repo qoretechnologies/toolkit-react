@@ -5,10 +5,10 @@
 // returns for tooltip rendering. Wraps the `dpql/parse` / `dpql/serialize`
 // / `dpql/validate` custom methods as typed Promise-returning functions.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ILspDiagnostic } from '../../utils/lspClient.types';
 import { useLspSession, IUseLspSessionResult } from '../smartEditor/useLspSession';
-import { IDpqlParseResult } from './types';
+import { IDpqlParseResult, TDpqlFsmContext } from './types';
 
 export interface IDpqlFieldMeta {
   display_name?: string;
@@ -28,6 +28,19 @@ export interface IUseDpqlSessionOptions {
   actionCode?: number;
   /** Initial DPQL text sent on `didOpen`. */
   initialText?: string;
+  /**
+   * Use the canonical alert-payload schema instead of (or in addition
+   * to) a provider/recordType binding. Mutually exclusive with
+   * `provider`/`recordType` server-side — when `true`, the provider
+   * binding is suppressed. Toggling back to `false` re-binds the
+   * provider if one is configured.
+   */
+  alertPayloadContext?: boolean;
+  /**
+   * FSM context for state-aware template completions. Composes with
+   * provider/alertPayload — fired as an independent binding.
+   */
+  fsmContext?: TDpqlFsmContext;
 }
 
 export interface IUseDpqlSessionResult {
@@ -51,14 +64,38 @@ export interface IUseDpqlSessionResult {
 export function useDpqlSession(
   opts: IUseDpqlSessionOptions
 ): IUseDpqlSessionResult {
-  const { provider, recordType, options: ctxOptions, actionCode, initialText = '' } = opts;
+  const {
+    provider,
+    recordType,
+    options: ctxOptions,
+    actionCode,
+    initialText = '',
+    alertPayloadContext = false,
+    fsmContext,
+  } = opts;
+
+  // Provider/recordType context and alert-payload context are
+  // server-side mutually exclusive — only one binds the URI at a time.
+  // When `alertPayloadContext` is `true`, suppress the provider effect
+  // so they don't race.
+  const needsProviderBinding =
+    Boolean(provider && recordType) && !alertPayloadContext;
 
   const initialMetadata = (() => {
     const m: Record<string, any> = {};
-    if (provider) m.provider = provider;
-    if (recordType) m.recordType = recordType;
-    if (ctxOptions) m.options = ctxOptions;
-    if (actionCode !== undefined) m.action_code = actionCode;
+    if (alertPayloadContext) {
+      // Tell the server at `didOpen` time which binding this URI
+      // should have — avoids a separate `dpql/setAlertPayloadContext`
+      // roundtrip on first mount. The server's `isAlertPayloadContext`
+      // helper (qorus/Classes/QorusLspWebSocketHandler.qc:8497) reads
+      // this metadata key directly.
+      m.dpql_context = 'alert-payload';
+    } else {
+      if (provider) m.provider = provider;
+      if (recordType) m.recordType = recordType;
+      if (ctxOptions) m.options = ctxOptions;
+      if (actionCode !== undefined) m.action_code = actionCode;
+    }
     return Object.keys(m).length > 0 ? m : undefined;
   })();
 
@@ -69,40 +106,45 @@ export function useDpqlSession(
   });
 
   const [fieldMeta, setFieldMeta] = useState<Record<string, IDpqlFieldMeta>>({});
-  // Tracks whether a DPQL context binding has completed for this
-  // session. SmartEditor and its child LSP hooks gate on
-  // `session.isReady && session.isContextReady` to avoid firing
-  // requests against a context-less server during the 50-200ms gap
-  // between LSP `initialize`/`didOpen` and our `dpql/setContext`
-  // response landing. Without this, a fast user typing `@` right
-  // after mount hits the server with no provider bound, gets empty
+
+  // Track each context binding's pending state independently. The
+  // combined gate `isContextBound` (computed below) is the AND of the
+  // three — SmartEditor and its child LSP hooks gate on the combined
+  // signal to avoid firing requests against an unbound server during
+  // the 50-200ms gap between LSP `initialize`/`didOpen` and the
+  // setContext response. Without this, a fast user typing `@` right
+  // after mount hits the server with no context bound, gets empty
   // completions, and the dropdown silently auto-closes.
   //
-  // - Wrapper is NOT configured with a `provider` / `recordType`:
-  //   we have no context to bind, so we report `true` immediately
-  //   (the generic `useLspSession.isContextReady` default).
-  // - Wrapper IS configured: starts `false`, flips `true` after
-  //   `dpql/setContext` resolves (success OR error — best-effort
-  //   so a transient failure doesn't lock the editor out forever).
-  const needsContextBinding = Boolean(provider && recordType);
-  const [isContextBound, setIsContextBound] = useState(!needsContextBinding);
+  // Initial states mirror what `initialMetadata` does at didOpen:
+  // - Provider/recordType binding: already done via metadata on
+  //   didOpen, so we start `true` and only flip `false` on later
+  //   changes that require an explicit `dpql/setContext` call.
+  //   (Actually no — the server's `dpql/setContext` is needed to get
+  //   the field-meta back. We DO need to fire it on initial mount
+  //   too. So start `false`.)
+  // - Alert-payload binding: same reasoning — start `false`, but the
+  //   server may bind via didOpen metadata so this might flip true
+  //   without an explicit request. We fire it explicitly anyway for
+  //   field-meta consistency.
+  // - FSM binding: ALWAYS requires an explicit
+  //   `dpql/setFsmContext` request — no initialMetadata shortcut.
+  const [providerBound, setProviderBound] = useState(!needsProviderBinding);
+  const [alertPayloadBound, setAlertPayloadBound] = useState(
+    !alertPayloadContext
+  );
+  const [fsmBound, setFsmBound] = useState(!fsmContext);
+  const isContextBound = providerBound && alertPayloadBound && fsmBound;
 
-  // React to provider / recordType / options / actionCode changes — call
-  // `dpql/setContext` on the live client whenever the session is ready.
+  // Provider/recordType binding. Suppressed while alert-payload is
+  // active — they're mutually exclusive on the server.
   useEffect(() => {
-    if (!needsContextBinding) {
-      // Configuration cleared — no context binding needed; flip the
-      // gate back to ready so completions resume working.
-      setIsContextBound(true);
+    if (!needsProviderBinding) {
+      setProviderBound(true);
       return undefined;
     }
-    if (!session.client || !session.isReady) {
-      // Will re-run when isReady flips true.
-      return undefined;
-    }
-    // Re-arm the gate for this binding request — covers both the
-    // initial connect AND any later provider/recordType change.
-    setIsContextBound(false);
+    if (!session.client || !session.isReady) return undefined;
+    setProviderBound(false);
     let cancelled = false;
     session.client
       .customRequest<{ fields?: Record<string, any> }>('dpql/setContext', {
@@ -135,17 +177,15 @@ export function useDpqlSession(
       })
       .finally(() => {
         if (cancelled) return;
-        // Flip the gate true even on error — best-effort: a
-        // transient setContext failure shouldn't keep the editor
-        // disabled forever. Completions will just be context-less
-        // until the next provider/recordType change retries.
-        setIsContextBound(true);
+        // Flip the gate true even on error — best-effort. A transient
+        // setContext failure shouldn't lock the editor out forever.
+        setProviderBound(true);
       });
     return () => {
       cancelled = true;
     };
   }, [
-    needsContextBinding,
+    needsProviderBinding,
     session.client,
     session.isReady,
     session.uri,
@@ -153,6 +193,115 @@ export function useDpqlSession(
     recordType,
     ctxOptions,
     actionCode,
+  ]);
+
+  // Alert-payload binding. On first mount it lands via
+  // `initialMetadata.dpql_context` at didOpen — no extra roundtrip.
+  // For later toggles (false → true after mount) we fire the explicit
+  // `dpql/setAlertPayloadContext` method. Toggling back to false
+  // re-binds the provider context (if one is configured) via the
+  // sibling provider effect above.
+  const [alertPayloadInitialMount, setAlertPayloadInitialMount] = useState(true);
+  useEffect(() => {
+    if (!alertPayloadContext) {
+      setAlertPayloadBound(true);
+      return undefined;
+    }
+    if (!session.client || !session.isReady) return undefined;
+    // First mount with alert-payload=true: the server already bound
+    // via `initialMetadata.dpql_context` at didOpen, so once isReady
+    // is true the binding is done — no explicit request needed.
+    if (alertPayloadInitialMount) {
+      setAlertPayloadInitialMount(false);
+      setAlertPayloadBound(true);
+      return undefined;
+    }
+    // Later toggle false→true: fire the explicit method.
+    setAlertPayloadBound(false);
+    let cancelled = false;
+    session.client
+      .customRequest('dpql/setAlertPayloadContext', { uri: session.uri })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[DPQL] setAlertPayloadContext failed:', err);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setAlertPayloadBound(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    alertPayloadContext,
+    alertPayloadInitialMount,
+    session.client,
+    session.isReady,
+    session.uri,
+  ]);
+
+  // FSM context binding. Always uses the explicit
+  // `dpql/setFsmContext` method (no initialMetadata shortcut on the
+  // server). Independent of provider / alert-payload — both can apply.
+  //
+  // We track the previous `fsmContext` via a ref so we only fire when
+  // there's actual binding work to do (set / change / clear). Without
+  // this skip, every DpqlEditor mount with no `fsmContext` would
+  // unnecessarily call `setFsmContext` with no source — and the brief
+  // `fsmBound: false` window during that no-op roundtrip would race
+  // with user typing on first mount (broke `LspCompletionRoundtrip`).
+  const prevFsmContextRef = useRef<TDpqlFsmContext | undefined>(undefined);
+  useEffect(() => {
+    const prevHadBinding = Boolean(prevFsmContextRef.current);
+    const currentHasBinding = Boolean(fsmContext);
+    prevFsmContextRef.current = fsmContext;
+
+    if (!session.client || !session.isReady) {
+      // If we haven't connected yet, the gate state mirrors the
+      // intent: no binding requested → ready; binding requested → wait.
+      setFsmBound(!currentHasBinding);
+      return undefined;
+    }
+    // No-op: never had a binding, still don't. Skip the request.
+    if (!prevHadBinding && !currentHasBinding) {
+      setFsmBound(true);
+      return undefined;
+    }
+    // Bind, update, or clear. Build params from the discriminated
+    // union; passing no source key clears any existing FSM binding.
+    const params: Record<string, unknown> = { uri: session.uri };
+    if (fsmContext) {
+      if ('fsm' in fsmContext && fsmContext.fsm) {
+        params.fsm = fsmContext.fsm;
+      } else if ('draftId' in fsmContext && fsmContext.draftId) {
+        params.draft_id = fsmContext.draftId;
+      } else if ('fsmId' in fsmContext && fsmContext.fsmId !== undefined) {
+        params.fsmid = fsmContext.fsmId;
+      }
+      if (fsmContext.currentState) {
+        params.current_state = fsmContext.currentState;
+      }
+    }
+    setFsmBound(false);
+    let cancelled = false;
+    session.client
+      .customRequest('dpql/setFsmContext', params)
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error('[DPQL] setFsmContext failed:', err);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setFsmBound(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    session.client,
+    session.isReady,
+    session.uri,
+    fsmContext,
   ]);
 
   // Wrap the underlying LSP session so consumers see the DPQL-aware

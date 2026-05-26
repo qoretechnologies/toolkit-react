@@ -83,7 +83,51 @@ export interface IDpqlEditorProps {
    * Default `false`.
    */
   useServerParse?: boolean;
+
+  /**
+   * Bind the document's field set to the canonical alert-payload
+   * schema (`severity`, `alert_type`, `alert_code`, `alert_class`,
+   * `interface_type`, `interface_name`, `alert_object`, …). Required
+   * for the Alert Rule / Silence editor to produce correct
+   * completions and diagnostics on `@payload.field` references.
+   *
+   * Server contract: `dpql/setAlertPayloadContext`. The server treats
+   * alert-payload and provider/recordType bindings as **mutually
+   * exclusive** — when this is `true`, the `provider` /
+   * `recordType` / `options` / `actionCode` props are silently
+   * ignored. Toggling this prop back to `false` re-binds the
+   * provider context if one is configured (via `dpql/setContext`).
+   *
+   * Default `false`.
+   */
+  alertPayloadContext?: boolean;
+
+  /**
+   * FSM context for state-aware template completions. When set,
+   * `$data:` / `$fsminput:` template namespaces resolve against the
+   * FSM's state graph; pass `currentState` to narrow `$data:` to a
+   * specific state's payload.
+   *
+   * Exactly one of `fsm` / `draftId` / `fsmId` must be provided.
+   * Pass `undefined` (or omit the prop) to clear any existing FSM
+   * binding for this session.
+   *
+   * Server contract: `dpql/setFsmContext`. Independent of and
+   * composable with `provider`/`recordType` (provider yields field
+   * completions; FSM yields template completions).
+   */
+  fsmContext?: TDpqlFsmContext;
 }
+
+/**
+ * FSM context source — exactly one of `fsm` / `draftId` / `fsmId`.
+ * The optional `currentState` narrows state-data completions to that
+ * state when present.
+ */
+export type TDpqlFsmContext =
+  | { fsm: Record<string, any>; currentState?: string; draftId?: never; fsmId?: never }
+  | { draftId: string; currentState?: string; fsm?: never; fsmId?: never }
+  | { fsmId: number; currentState?: string; fsm?: never; draftId?: never };
 
 /** Imperative methods exposed via the `DpqlEditor` ref. */
 export interface IDpqlEditorRef {

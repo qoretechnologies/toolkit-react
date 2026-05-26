@@ -66,6 +66,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       templates,
       stateId,
       useServerParse = false,
+      alertPayloadContext = false,
+      fsmContext,
     },
     ref
   ) => {
@@ -75,6 +77,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       options,
       actionCode,
       initialText: value,
+      alertPayloadContext,
+      fsmContext,
     });
 
     // Server-parse state: when `useServerParse` is true, we ask the
