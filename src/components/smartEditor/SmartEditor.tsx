@@ -42,6 +42,7 @@ import {
 } from './useLspDiagnosticDecorations';
 import { useLspHover } from './useLspHover';
 import { useLspSemanticTokens } from './useLspSemanticTokens';
+import { useLspSignatureHelp } from './useLspSignatureHelp';
 
 /**
  * Theme-leaning colour palette keyed off the LSP-standard
@@ -183,6 +184,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       loadingIndicator,
       enableHover = true,
       isLoading = false,
+      enableSignatureHelp = true,
     },
     ref
   ) => {
@@ -231,6 +233,15 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       { enabled: enableHover }
     );
 
+    // Signature help — small pill above the caret showing the active
+    // function/operator call's signature with the current parameter
+    // highlighted. Silently no-ops when the server doesn't advertise
+    // `signatureHelpProvider` capability.
+    // (Hook needs `slateValue` so its `plainText` memo recomputes on
+    // document changes — it's declared further down, so we use a
+    // forward reference via the editor's live children inside the
+    // hook. We call the hook AFTER slateValue is defined.)
+
     const slateValue = useMemo(() => {
       // Return the cached Slate nodes when `value` is just the echo of the
       // last plainText we emitted from the editor — Slate's internal state
@@ -262,6 +273,19 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       session,
       converter,
       slateValue
+    );
+
+    // Signature help. Hook self-fires on document changes; renders
+    // as a small pinned popover ABOVE the caret line (so it can
+    // coexist with the completion popover, which anchors below).
+    // Silently no-ops when the server doesn't advertise
+    // `signatureHelpProvider` capability.
+    const signatureHelp = useLspSignatureHelp(
+      session,
+      editorRef as React.RefObject<any>,
+      converter,
+      slateValue,
+      { enabled: enableSignatureHelp }
     );
 
     const composedDecorate = useCallback(
@@ -669,6 +693,106 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               }}
             />
           )}
+          {signatureHelp.signature && signatureHelp.position && (() => {
+            // Render the signature-help pill ABOVE the caret line.
+            // Pulled into an IIFE so we can compute the active
+            // parameter once per render.
+            const sig =
+              signatureHelp.signature.signatures[
+                signatureHelp.signature.activeSignature ?? 0
+              ];
+            if (!sig) return null;
+            const activeIdx =
+              sig.activeParameter ??
+              signatureHelp.signature.activeParameter ??
+              0;
+            const params = sig.parameters ?? [];
+            const activeParam = params[activeIdx];
+
+            // Highlight the active parameter substring inside the
+            // signature label when `label` is a [start, end] tuple
+            // (LSP spec allows either substring positions or literal
+            // names). For literal names we fall back to bolding the
+            // matching word.
+            const renderLabel = (): React.ReactNode => {
+              if (!activeParam) return sig.label;
+              if (Array.isArray(activeParam.label)) {
+                const [start, end] = activeParam.label;
+                return (
+                  <>
+                    {sig.label.slice(0, start)}
+                    <strong style={{ color: '#56b6c2' }}>
+                      {sig.label.slice(start, end)}
+                    </strong>
+                    {sig.label.slice(end)}
+                  </>
+                );
+              }
+              const name = activeParam.label;
+              const idx = sig.label.indexOf(name);
+              if (idx < 0) return sig.label;
+              return (
+                <>
+                  {sig.label.slice(0, idx)}
+                  <strong style={{ color: '#56b6c2' }}>{name}</strong>
+                  {sig.label.slice(idx + name.length)}
+                </>
+              );
+            };
+
+            const paramDoc =
+              activeParam && activeParam.documentation
+                ? typeof activeParam.documentation === 'string'
+                  ? activeParam.documentation
+                  : activeParam.documentation.value
+                : null;
+
+            return (
+              <ReqorePopover
+                key={`sig-${signatureHelp.position.left}-${signatureHelp.position.top}`}
+                component='span'
+                wrapperStyle={{
+                  position: 'fixed',
+                  top: signatureHelp.position.top,
+                  left: signatureHelp.position.left,
+                  width: '1px',
+                  height: '1px',
+                  pointerEvents: 'none',
+                }}
+                content={
+                  <div
+                    style={{
+                      maxWidth: 480,
+                      fontSize: 12,
+                      padding: 6,
+                      fontFamily: 'monospace',
+                    }}
+                  >
+                    <div>{renderLabel()}</div>
+                    {paramDoc && (
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontFamily: 'inherit',
+                          fontSize: 11,
+                          opacity: 0.85,
+                        }}
+                      >
+                        <ReactMarkdown>{paramDoc}</ReactMarkdown>
+                      </div>
+                    )}
+                  </div>
+                }
+                openOnMount
+                noArrow
+                placement='top-start'
+                handler='click'
+                closeOnOutsideClick={false}
+                minWidth='280px'
+                flat
+              />
+            );
+          })()}
         </div>
         {session.diagnostics.length > 0 && (
           // Stacked `ReqoreMessage`s under the editor — one per active

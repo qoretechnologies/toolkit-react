@@ -305,6 +305,12 @@ const meta = {
                       full: true,
                       range: true,
                     },
+                    // Advertise signatureHelp so the client wires it
+                    // up. Trigger chars mirror the real server
+                    // (qorus/Classes/QorusLspWebSocketHandler.qc:847).
+                    signatureHelpProvider: {
+                      triggerCharacters: ['(', ',', ' ', '-', '='],
+                    },
                   },
                 },
               })
@@ -536,6 +542,65 @@ const meta = {
             socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: [] }));
             break;
 
+          case 'textDocument/signatureHelp': {
+            // Synthetic `coalesce(value1, value2, default)` signature
+            // for visual demos. Real server returns the active call's
+            // canonical signature via `dpql-get-signature-help`.
+            const position = msg.params?.position ?? { line: 0, character: 0 };
+            const lineText =
+              lastDocumentText.split('\n')[position.line] ?? '';
+            const head = lineText.slice(0, position.character);
+            // Count commas inside the most recently opened paren to
+            // derive an `activeParameter`. Very crude — sufficient
+            // for a visual demo.
+            const lastOpen = head.lastIndexOf('(');
+            let activeParameter = 0;
+            if (lastOpen >= 0) {
+              activeParameter = (
+                head.slice(lastOpen + 1).match(/,/g) ?? []
+              ).length;
+            }
+            socket.send(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                id: msg.id,
+                result: {
+                  signatures: [
+                    {
+                      label: 'coalesce(value1, value2, default)',
+                      documentation: {
+                        kind: 'markdown',
+                        value:
+                          'Returns the **first non-null** value among ' +
+                          'the supplied arguments. The final argument ' +
+                          'is the fallback returned if every prior ' +
+                          'value is null.',
+                      },
+                      parameters: [
+                        {
+                          label: 'value1',
+                          documentation: 'First candidate value.',
+                        },
+                        {
+                          label: 'value2',
+                          documentation: 'Second candidate value.',
+                        },
+                        {
+                          label: 'default',
+                          documentation:
+                            'Fallback returned when every prior value is null.',
+                        },
+                      ],
+                    },
+                  ],
+                  activeSignature: 0,
+                  activeParameter,
+                },
+              })
+            );
+            break;
+          }
+
           default:
             // Unknown request: return null so the client's promise still resolves.
             socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: null }));
@@ -719,6 +784,37 @@ export const WithFsmContext: Story = {
           'with FSM context (for `$data:` template completions). ' +
           'Mock server replies with `source_type: "published"` and ' +
           'a synthetic state-data keys list.',
+      },
+    },
+  },
+};
+
+/**
+ * Demonstrates `textDocument/signatureHelp` (LSP_FEATURES task).
+ * Initial value `coalesce(@name, ` leaves the cursor inside a
+ * function call's argument list — on mount, the mock returns a
+ * synthetic `coalesce(value1, value2, default)` signature with the
+ * active parameter computed from the comma count at the cursor.
+ *
+ * The signature pill renders ABOVE the caret line; the completion
+ * popover (if it pops up alongside) anchors BELOW. The two coexist
+ * without overlap.
+ *
+ * The mock advertises `signatureHelpProvider.triggerCharacters` in
+ * its initialize response, so the editor wires up the hook. Servers
+ * that don't advertise the provider get a silent no-op.
+ */
+export const WithSignatureHelp: Story = {
+  args: {
+    value: 'coalesce(@name, ',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Signature-help pill above the caret. Type a comma to ' +
+          'advance to the next parameter (`value2` → `default`); ' +
+          'closing `)` dismisses.',
       },
     },
   },

@@ -11,6 +11,7 @@ import {
   ILspCompletionItem,
   ILspDiagnostic,
   ILspSemanticTokensLegend,
+  ILspServerCapabilities,
 } from '../../utils/lspClient.types';
 import { offsetToLspPosition } from './helpers';
 
@@ -64,8 +65,18 @@ export interface IUseLspSessionResult {
    * before the initialize response arrives or when the server doesn't
    * advertise semantic tokens. Consumers (`useLspSemanticTokens`) need
    * it to resolve int-encoded `tokenType` / `tokenModifiers` indices.
+   *
+   * Kept for backwards compatibility — new code should prefer
+   * `capabilities?.semanticTokensProvider?.legend`.
    */
   semanticTokensLegend: ILspSemanticTokensLegend | null;
+  /**
+   * Full `capabilities` block from the server's initialize response.
+   * `null` until the handshake completes. Hooks gate features on the
+   * presence of the relevant provider (e.g. `useLspSignatureHelp`
+   * only fires when `capabilities?.signatureHelpProvider` exists).
+   */
+  capabilities: ILspServerCapabilities | null;
   /** Forward content changes to the server via `didChange`. */
   didChange: (text: string) => void;
   /**
@@ -92,6 +103,8 @@ export function useLspSession(
   const [diagnostics, setDiagnostics] = useState<ILspDiagnostic[]>([]);
   const [semanticTokensLegend, setSemanticTokensLegend] =
     useState<ILspSemanticTokensLegend | null>(null);
+  const [capabilities, setCapabilities] =
+    useState<ILspServerCapabilities | null>(null);
 
   useEffect(() => {
     const c = new LspClient({
@@ -110,10 +123,12 @@ export function useLspSession(
 
     c.connect()
       .then(() => {
-        // Initialize completed — the client now has the
-        // semanticTokensProvider legend captured. Mirror it into
-        // state so consumers can subscribe via React.
+        // Initialize completed — mirror the captured server
+        // capabilities (including the semantic-tokens legend) into
+        // React state so consumers can subscribe via the session
+        // result.
         setSemanticTokensLegend(c.semanticTokensLegend);
+        setCapabilities(c.capabilities);
         c.didOpen(
           initialText,
           initialMetadata && Object.keys(initialMetadata).length > 0
@@ -134,6 +149,7 @@ export function useLspSession(
       setClient(null);
       setIsReady(false);
       setSemanticTokensLegend(null);
+      setCapabilities(null);
     };
     // Connect once per mount. Metadata changes after mount are the
     // wrapper's responsibility (via the exposed `client` ref and the
@@ -181,6 +197,7 @@ export function useLspSession(
     isContextReady: true,
     diagnostics,
     semanticTokensLegend,
+    capabilities,
     didChange,
     getCompletions,
     format,

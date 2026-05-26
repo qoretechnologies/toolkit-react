@@ -104,6 +104,73 @@ export interface ILspSemanticToken {
   tokenModifiers: string[];
 }
 
+/**
+ * One parameter inside a signature. `label` is either a substring of
+ * the parent signature's `label` or a literal name string. `documentation`
+ * carries optional markdown / plaintext explainer.
+ */
+export interface ILspParameterInformation {
+  label: string | [number, number];
+  documentation?: ILspMarkupContent | string | null;
+}
+
+/**
+ * A single function / operator signature. `parameters` lists the
+ * positional parameters in order; the consumer highlights the one at
+ * `activeParameter` from the parent `ILspSignatureHelp`.
+ */
+export interface ILspSignatureInformation {
+  label: string;
+  documentation?: ILspMarkupContent | string | null;
+  parameters?: ILspParameterInformation[];
+  /** Per-signature active parameter override (LSP spec optional). */
+  activeParameter?: number;
+}
+
+/**
+ * Response shape for `textDocument/signatureHelp`. Empty `signatures`
+ * means "no help available at this position".
+ */
+export interface ILspSignatureHelp {
+  signatures: ILspSignatureInformation[];
+  /** Index into `signatures` of the active overload. Default 0. */
+  activeSignature?: number;
+  /** Index into the active signature's `parameters`. Default 0. */
+  activeParameter?: number;
+}
+
+/**
+ * Minimal projection of the server's `initialize` response
+ * `capabilities` block — only the providers we currently read on the
+ * client. Hooks gate themselves on the presence of the relevant
+ * provider so an editor talking to a server that doesn't support a
+ * feature degrades to no-op rather than erroring.
+ */
+export interface ILspServerCapabilities {
+  completionProvider?: {
+    triggerCharacters?: string[];
+    resolveProvider?: boolean;
+  };
+  signatureHelpProvider?: {
+    triggerCharacters?: string[];
+    retriggerCharacters?: string[];
+  };
+  hoverProvider?: boolean | object;
+  semanticTokensProvider?: {
+    legend: ILspSemanticTokensLegend;
+    full?: boolean | object;
+    range?: boolean | object;
+  };
+  codeActionProvider?:
+    | boolean
+    | {
+        codeActionKinds?: string[];
+        resolveProvider?: boolean;
+      };
+  /** Allow unknown providers to pass through for forward compat. */
+  [key: string]: unknown;
+}
+
 /** Edit returned by `textDocument/formatting`. */
 export interface ILspTextEdit {
   range: ILspRange;

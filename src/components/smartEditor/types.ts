@@ -181,4 +181,17 @@ export interface ISmartEditorProps {
    * `dpql/toRichtext` response).
    */
   isLoading?: boolean;
+
+  /**
+   * Whether to query `textDocument/signatureHelp` when the user types
+   * a server-advertised trigger char (typically `(`, `,`, ` `, `-`,
+   * `=`) or moves the cursor inside an open call. Default `true`.
+   * Renders a small pinned popover ABOVE the caret line showing the
+   * active signature's label with the current parameter highlighted.
+   *
+   * Silently no-op when the server doesn't advertise
+   * `signatureHelpProvider` — degrades cleanly against servers that
+   * don't support it.
+   */
+  enableSignatureHelp?: boolean;
 }

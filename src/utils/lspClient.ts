@@ -19,6 +19,8 @@ import {
   ILspDiagnostic,
   ILspMarkupContent,
   ILspSemanticTokensLegend,
+  ILspServerCapabilities,
+  ILspSignatureHelp,
   ILspTextEdit,
   TLspDocumentText,
 } from './lspClient.types';
@@ -95,8 +97,24 @@ export class LspClient {
    * (`useLspSemanticTokens`) need this legend to resolve the
    * `tokenType` / `tokenModifiers` int indices into human-readable
    * names — both arrays are positional.
+   *
+   * Kept as a top-level field for backwards compatibility with the
+   * pre-`capabilities` API; new code should prefer
+   * `capabilities?.semanticTokensProvider?.legend`.
    */
   public semanticTokensLegend: ILspSemanticTokensLegend | null = null;
+
+  /**
+   * Full `capabilities` block from the server's `initialize` response.
+   * `null` until the handshake completes. Consumers gate optional
+   * features on the presence of the relevant provider — e.g.
+   * `useLspSignatureHelp` only fires requests when
+   * `capabilities?.signatureHelpProvider` is present, and reads
+   * `triggerCharacters` from it. Forward-compatible: unknown
+   * providers pass through the `[key: string]: unknown` index
+   * signature in `ILspServerCapabilities`.
+   */
+  public capabilities: ILspServerCapabilities | null = null;
 
   constructor(options: ILspClientOptions) {
     this.languageId = options.languageId;
@@ -131,13 +149,21 @@ export class LspClient {
 
           this.sendRequest('initialize', { capabilities: {} })
             .then((initResult: any) => {
-              // Capture the semantic-tokens legend so consumers can
-              // resolve the int-encoded tokenType / tokenModifier
-              // indices the server returns from
-              // `textDocument/semanticTokens/full`. Standard LSP
-              // shape: `{ tokenTypes: string[], tokenModifiers: string[] }`.
-              const legend =
-                initResult?.capabilities?.semanticTokensProvider?.legend;
+              // Capture the full capabilities block. Consumers gate
+              // optional features (signatureHelp, semantic tokens, …)
+              // on the presence of the relevant provider so we degrade
+              // gracefully against servers that don't support them.
+              const caps = initResult?.capabilities;
+              this.capabilities =
+                caps && typeof caps === 'object'
+                  ? (caps as ILspServerCapabilities)
+                  : null;
+
+              // Also keep the dedicated `semanticTokensLegend` field
+              // for backwards compat — `useLspSemanticTokens` reads it
+              // directly. Standard LSP shape:
+              // `{ tokenTypes: string[], tokenModifiers: string[] }`.
+              const legend = caps?.semanticTokensProvider?.legend;
               if (
                 legend &&
                 Array.isArray(legend.tokenTypes) &&
@@ -362,6 +388,27 @@ export class LspClient {
       }
     }
     return null;
+  }
+
+  /**
+   * Request signature help at a cursor position — `textDocument/signatureHelp`.
+   * Returns `null` when the server reports no signatures available
+   * (LSP allows either an empty `signatures: []` response or `null`;
+   * we normalise to `null` in both cases so consumers have one
+   * "nothing here" condition to check).
+   */
+  async getSignatureHelp(
+    line: number,
+    character: number
+  ): Promise<ILspSignatureHelp | null> {
+    const result = await this.sendRequest('textDocument/signatureHelp', {
+      textDocument: { uri: this.uri },
+      position: { line, character },
+    });
+    if (!result || !Array.isArray(result.signatures) || result.signatures.length === 0) {
+      return null;
+    }
+    return result as ILspSignatureHelp;
   }
 
   // ── Custom-method dispatch (language-specific extensions) ───────────
