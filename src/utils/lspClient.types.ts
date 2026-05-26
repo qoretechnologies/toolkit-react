@@ -73,6 +73,37 @@ export interface ILspMarkupContent {
   value: string;
 }
 
+/**
+ * Token legend advertised by the server in
+ * `initialize → capabilities.semanticTokensProvider.legend`. Both
+ * arrays are positional — a semantic token's encoded `tokenType` int
+ * is an index into `tokenTypes`, and its encoded `tokenModifiers` int
+ * is a bitmask over `tokenModifiers`. The standard LSP legend has 16
+ * token types and 6 modifiers, but servers may extend either list.
+ */
+export interface ILspSemanticTokensLegend {
+  tokenTypes: string[];
+  tokenModifiers: string[];
+}
+
+/**
+ * Decoded semantic-token span (the int-array → human-friendly form
+ * the editor consumes). `tokenType` / `tokenModifiers` are already
+ * resolved against the server's legend.
+ */
+export interface ILspSemanticToken {
+  /** 0-based line number in the document. */
+  line: number;
+  /** 0-based column (UTF-16) on that line. */
+  character: number;
+  /** Token length in characters. */
+  length: number;
+  /** Resolved type name (e.g. `"keyword"`, `"variable"`, `"string"`). */
+  tokenType: string;
+  /** Resolved modifier names from the bitmask. */
+  tokenModifiers: string[];
+}
+
 /** Edit returned by `textDocument/formatting`. */
 export interface ILspTextEdit {
   range: ILspRange;

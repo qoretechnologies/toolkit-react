@@ -7,7 +7,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { LspClient } from '../../utils/lspClient';
-import { ILspCompletionItem, ILspDiagnostic } from '../../utils/lspClient.types';
+import {
+  ILspCompletionItem,
+  ILspDiagnostic,
+  ILspSemanticTokensLegend,
+} from '../../utils/lspClient.types';
 import { offsetToLspPosition } from './helpers';
 
 let lspUriCounter = 0;
@@ -37,6 +41,14 @@ export interface IUseLspSessionResult {
   isReady: boolean;
   /** Most-recent `textDocument/publishDiagnostics` payload for this document. */
   diagnostics: ILspDiagnostic[];
+  /**
+   * The server's semantic-tokens legend, captured from
+   * `initialize → capabilities.semanticTokensProvider.legend`. `null`
+   * before the initialize response arrives or when the server doesn't
+   * advertise semantic tokens. Consumers (`useLspSemanticTokens`) need
+   * it to resolve int-encoded `tokenType` / `tokenModifiers` indices.
+   */
+  semanticTokensLegend: ILspSemanticTokensLegend | null;
   /** Forward content changes to the server via `didChange`. */
   didChange: (text: string) => void;
   /**
@@ -61,6 +73,8 @@ export function useLspSession(
   const [client, setClient] = useState<LspClient | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [diagnostics, setDiagnostics] = useState<ILspDiagnostic[]>([]);
+  const [semanticTokensLegend, setSemanticTokensLegend] =
+    useState<ILspSemanticTokensLegend | null>(null);
 
   useEffect(() => {
     const c = new LspClient({
@@ -79,6 +93,10 @@ export function useLspSession(
 
     c.connect()
       .then(() => {
+        // Initialize completed — the client now has the
+        // semanticTokensProvider legend captured. Mirror it into
+        // state so consumers can subscribe via React.
+        setSemanticTokensLegend(c.semanticTokensLegend);
         c.didOpen(
           initialText,
           initialMetadata && Object.keys(initialMetadata).length > 0
@@ -98,6 +116,7 @@ export function useLspSession(
       clientRef.current = null;
       setClient(null);
       setIsReady(false);
+      setSemanticTokensLegend(null);
     };
     // Connect once per mount. Metadata changes after mount are the
     // wrapper's responsibility (via the exposed `client` ref and the
@@ -140,6 +159,7 @@ export function useLspSession(
     uri: uriRef.current,
     isReady,
     diagnostics,
+    semanticTokensLegend,
     didChange,
     getCompletions,
     format,

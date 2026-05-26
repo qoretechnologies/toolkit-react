@@ -15,6 +15,13 @@ import { IQonsoleAssistContext } from './types';
 
 const MOCK_LSP_URL = `wss://hq.qoretechnologies.com:8092/lsp?token=${process.env.REACT_APP_QORUS_TOKEN}`;
 
+/**
+ * Most-recent document text the client has sent via didOpen / didChange.
+ * The mock's completion handler inspects this so it can return
+ * contextually-correct items per the user's cursor position.
+ */
+let lastQonsoleText = '';
+
 interface IDemoArgs {
   initialValue?: string;
   useContext?: IQonsoleAssistContext;
@@ -63,6 +70,7 @@ export const BasicMock: Story = {
     initialValue: '/list services ',
   },
   async beforeEach() {
+    lastQonsoleText = '';
     const server = new Server(MOCK_LSP_URL);
     server.on('connection', (socket) => {
       socket.on('message', (raw) => {
@@ -75,6 +83,16 @@ export const BasicMock: Story = {
           msg = JSON.parse(raw as string);
         } catch {
           return;
+        }
+        // Track document text so completion handler can return
+        // contextually-correct items based on cursor position.
+        if (msg.method === 'textDocument/didOpen') {
+          lastQonsoleText = msg.params?.textDocument?.text ?? '';
+        } else if (msg.method === 'textDocument/didChange') {
+          const change = msg.params?.contentChanges?.[0];
+          if (change && typeof change.text === 'string') {
+            lastQonsoleText = change.text;
+          }
         }
         if (msg.id === undefined) return;
 
@@ -102,43 +120,85 @@ export const BasicMock: Story = {
             );
             break;
           case 'textDocument/completion': {
-            // Mirror the real server's shape — items include a `textEdit`
-            // with the exact span to replace (the partial `-` the user
-            // typed). The inserter uses textEdit to avoid double-dashing.
+            // Stub Qonsole completion logic: return different items
+            // based on what the user just typed. Mirrors the real
+            // server's contextual behaviour — slash opens commands,
+            // space opens resources / flags, `--` opens flag names.
             const position = msg.params?.position ?? { line: 0, character: 0 };
             const replaceRange = {
               start: { line: position.line, character: Math.max(0, position.character - 1) },
               end: position,
             };
+            // Lightly inspect the document text the client most-recently
+            // sent so we can tailor items. The `lastQonsoleText` ref
+            // captures the latest didOpen / didChange.
+            const text = lastQonsoleText;
+            const charBefore = text[position.character - 1] ?? '';
+            let items: any[] = [];
+            if (text.startsWith('/') && !text.includes(' ')) {
+              // Cursor is inside the verb token (`/lis…`) — suggest
+              // top-level commands.
+              items = [
+                { label: '/list', insertText: '/list', kind: 14, detail: 'List resources' },
+                { label: '/show', insertText: '/show', kind: 14, detail: 'Show resource details' },
+                { label: '/count', insertText: '/count', kind: 14, detail: 'Count matching resources' },
+                { label: '/help', insertText: '/help', kind: 14, detail: 'Show help' },
+              ];
+            } else if (/\s$/.test(text.slice(0, position.character))) {
+              // Cursor sits after a space — suggest resource names.
+              items = [
+                { label: 'services', insertText: 'services', kind: 7, detail: 'Service interfaces' },
+                { label: 'workflows', insertText: 'workflows', kind: 7, detail: 'Workflow interfaces' },
+                { label: 'jobs', insertText: 'jobs', kind: 7, detail: 'Job interfaces' },
+                { label: 'users', insertText: 'users', kind: 7, detail: 'IDP users' },
+              ];
+            } else if (charBefore === '-') {
+              // Inside a `--flag` token — suggest flag names.
+              items = [
+                {
+                  label: '--desc',
+                  insertText: '--desc=',
+                  kind: 10,
+                  detail: 'sort descending',
+                  textEdit: { range: replaceRange, newText: '--desc=' },
+                },
+                {
+                  label: '--limit',
+                  insertText: '--limit=',
+                  kind: 10,
+                  detail: 'maximum number of results',
+                  textEdit: { range: replaceRange, newText: '--limit=' },
+                },
+                {
+                  label: '--search',
+                  insertText: '--search=',
+                  kind: 10,
+                  detail: 'filter by name using a regex',
+                  textEdit: { range: replaceRange, newText: '--search=' },
+                },
+                {
+                  label: '--app',
+                  insertText: '--app=',
+                  kind: 10,
+                  detail: 'filter by application',
+                  textEdit: { range: replaceRange, newText: '--app=' },
+                },
+              ];
+            } else if (charBefore === '=') {
+              // Inside a `--flag=value` value position — suggest
+              // values for the last seen flag. The mock just returns
+              // a few app names so the `--app=` path is exercisable.
+              items = [
+                { label: 'qorus', insertText: 'qorus', kind: 12, detail: 'Qorus core app' },
+                { label: 'qorus-ide', insertText: 'qorus-ide', kind: 12, detail: 'Qorus IDE' },
+                { label: 'qorus-creator', insertText: 'qorus-creator', kind: 12, detail: 'Qorus Creator' },
+              ];
+            }
             socket.send(
               JSON.stringify({
                 jsonrpc: '2.0',
                 id: msg.id,
-                result: {
-                  items: [
-                    {
-                      label: '--desc',
-                      insertText: '--desc=',
-                      kind: 10,
-                      detail: 'if true then sort in descending order',
-                      textEdit: { range: replaceRange, newText: '--desc=' },
-                    },
-                    {
-                      label: '--limit',
-                      insertText: '--limit=',
-                      kind: 10,
-                      detail: 'maximum number of results',
-                      textEdit: { range: replaceRange, newText: '--limit=' },
-                    },
-                    {
-                      label: '--search',
-                      insertText: '--search=',
-                      kind: 10,
-                      detail: 'filter by name using a regex',
-                      textEdit: { range: replaceRange, newText: '--search=' },
-                    },
-                  ],
-                },
+                result: { items },
               })
             );
             break;
@@ -269,5 +329,117 @@ export const LiveQonsoleWithContext: Story = {
   args: {
     initialValue: 'show me services in the pricing pipeline ',
     useContext: { resource: 'services' },
+  },
+};
+
+/**
+ * Mock-socket variant that pushes diagnostics via the LSP
+ * `textDocument/publishDiagnostics` notification immediately after the
+ * client opens the document. Verifies:
+ * - inline wavy-underline decorations (driven by `decorate` →
+ *   `useLspDiagnosticDecorations`),
+ * - the `ReqoreMessage` panel below the editor (one row per
+ *   diagnostic, intent + icon per severity).
+ *
+ * The initial value contains two recognisable spans — `services` (an
+ * Error) and `pricing` (a Warning). Adjust the mock if you change the
+ * value here.
+ */
+export const WithDiagnostics: Story = {
+  args: {
+    initialValue: '/list services in pricing',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Shows inline wavy-underline + the diagnostic message panel ' +
+          'below the editor. Hover an underlined token for the native ' +
+          'title-tooltip with the diagnostic message.',
+      },
+    },
+  },
+  async beforeEach() {
+    lastQonsoleText = '';
+    const server = new Server(MOCK_LSP_URL);
+    server.on('connection', (socket) => {
+      socket.on('message', (raw) => {
+        if (raw === 'ping') {
+          socket.send('pong');
+          return;
+        }
+        let msg: any;
+        try {
+          msg = JSON.parse(raw as string);
+        } catch {
+          return;
+        }
+        if (msg.id !== undefined) {
+          switch (msg.method) {
+            case 'initialize':
+              socket.send(
+                JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: msg.id,
+                  result: { capabilities: {} },
+                })
+              );
+              break;
+            case 'qonsole/setContext':
+            case 'qonsole/validate':
+              socket.send(
+                JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: msg.id,
+                  result: null,
+                })
+              );
+              break;
+            default:
+              socket.send(
+                JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: null })
+              );
+              break;
+          }
+        }
+        // After didOpen, push a publishDiagnostics notification so the
+        // editor renders inline + panel feedback. `didOpen` carries the
+        // uri in params.textDocument.uri.
+        if (msg.method === 'textDocument/didOpen') {
+          const uri = msg.params?.textDocument?.uri;
+          socket.send(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'textDocument/publishDiagnostics',
+              params: {
+                uri,
+                diagnostics: [
+                  {
+                    range: {
+                      start: { line: 0, character: 6 },
+                      end: { line: 0, character: 14 },
+                    },
+                    message:
+                      'Unknown resource "services" — did you mean "service"?',
+                    severity: 1,
+                  },
+                  {
+                    range: {
+                      start: { line: 0, character: 18 },
+                      end: { line: 0, character: 25 },
+                    },
+                    message: 'Pipeline "pricing" not found in workspace.',
+                    severity: 2,
+                  },
+                ],
+              },
+            })
+          );
+        }
+      });
+    });
+    return () => {
+      server.close();
+    };
   },
 };

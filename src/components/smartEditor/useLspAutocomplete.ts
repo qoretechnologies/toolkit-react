@@ -19,6 +19,7 @@ const DEFAULT_TRIGGER_CHARS = new Set(['.', ':', ' ']);
 const DEBOUNCE_MS = 150;
 
 /** LSP CompletionItemKind values → group labels for the dropdown. */
+/** LSP `CompletionItemKind` → plural group header in the dropdown. */
 const COMPLETION_KIND_LABELS: Record<number, string> = {
   2: 'Methods',
   3: 'Functions',
@@ -28,11 +29,60 @@ const COMPLETION_KIND_LABELS: Record<number, string> = {
   15: 'Snippets',
 };
 
+/**
+ * LSP `CompletionItemKind` → short singular chip label rendered on the
+ * right of each row (e.g. "Field", "Keyword"). Falls back to no chip
+ * when the kind isn't in the table.
+ */
+const COMPLETION_KIND_CHIPS: Record<number, string> = {
+  1: 'Text',
+  2: 'Method',
+  3: 'Function',
+  4: 'Constructor',
+  5: 'Field',
+  6: 'Variable',
+  7: 'Class',
+  8: 'Interface',
+  9: 'Module',
+  10: 'Property',
+  11: 'Unit',
+  12: 'Value',
+  13: 'Enum',
+  14: 'Keyword',
+  15: 'Snippet',
+  16: 'Color',
+  17: 'File',
+  18: 'Reference',
+  19: 'Folder',
+  20: 'EnumMember',
+  21: 'Constant',
+  22: 'Struct',
+  23: 'Event',
+  24: 'Operator',
+  25: 'TypeParameter',
+};
+
 export interface ICompletionDropdownItem {
   label: string;
   value: string;
   icon?: string;
+  /**
+   * Short type hint (LSP `item.detail`) — rendered as the row's
+   * subtitle. Typically a single word like "string", "int", "boolean".
+   */
   description?: string;
+  /**
+   * Rich documentation (LSP `item.documentation`). Wrappers can render
+   * it as markdown (when `kind === 'markdown'`) or plain text. Currently
+   * surfaced via the hover-tooltip on each row.
+   */
+  documentation?: ILspCompletionItem['documentation'];
+  /**
+   * Short singular kind label (e.g. "Field", "Keyword") rendered as a
+   * right-aligned chip on the row. `undefined` when the LSP kind isn't
+   * one of the standard values.
+   */
+  kindLabel?: string;
   /** Raw LSP item — passed to the inserter so wrappers can use any LSP field. */
   raw: ILspCompletionItem;
   metadata?: {
@@ -74,6 +124,12 @@ export interface IUseLspAutocompleteResult {
    * empty (whereas normal typing closes the popover on empty results).
    */
   isReplaceMode: boolean;
+  /**
+   * True while a completion request is in flight. SmartEditor uses
+   * this together with `items.length === 0` to render a "Loading…"
+   * stub inside the popover during slow LSP roundtrips.
+   */
+  isFetching: boolean;
   focusedIndex: number;
   close: () => void;
   onSlateChange: (
@@ -133,6 +189,10 @@ export function useLspAutocomplete(
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [focusedIndex, setFocusedIndex] = useState(0);
+  // True while a completion request is in flight AND we've shown the
+  // popover. Used by SmartEditor to render a "Loading…" stub instead
+  // of the bare empty-list flash on slow LSP responses.
+  const [isFetching, setIsFetching] = useState(false);
   // The partial token the user has typed since the trigger opened the
   // dropdown — e.g. when typing `@status`, the prefix evolves as `@` →
   // `@s` → `@st` → … The dropdown should narrow to items whose
@@ -179,14 +239,33 @@ export function useLspAutocomplete(
   }, [focusedIndex]);
 
   // Items the dropdown actually shows after the client-side prefix
-  // filter is applied. Case-insensitive `startsWith` match against the
+  // filter is applied. Case-insensitive match against the
   // server-supplied `filterText` (falls back to `label`).
+  //
+  // The needle is built by stripping any leading sigil character
+  // (`@`, `$`, `/`, `-`) from `filterPrefix` — the server normally
+  // returns items WITHOUT the sigil baked into `label` / `filterText`
+  // (e.g. Qonsole returns `list` not `/list`, DPQL returns `name`
+  // not `@name` in completion items). A literal-prefix match on the
+  // sigil-ful form filters everything out as soon as the user types
+  // one more char after the trigger; stripping the sigil restores the
+  // expected "narrow as you type" behaviour.
+  //
+  // We also try a substring match as a fallback so e.g. `@stat` still
+  // matches an item whose label is `status` — common when the LSP
+  // returns a static catalog and lets the client narrow.
   const filteredItems = useMemo(() => {
     if (!filterPrefix) return items;
-    const needle = filterPrefix.toLowerCase();
+    const stripped = filterPrefix.replace(/^[@$/-]+/, '');
+    const needle = stripped.toLowerCase();
+    if (!needle) return items;
     return items.filter((item) => {
-      const haystack = (item.raw.filterText ?? item.label).toLowerCase();
-      return haystack.startsWith(needle);
+      const haystack = (item.raw.filterText ?? item.label)
+        .toLowerCase()
+        .replace(/^[@$/-]+/, '');
+      // Prefer prefix match (typical LSP completion shape); fall
+      // through to a substring match if no prefix hit.
+      return haystack.startsWith(needle) || haystack.includes(needle);
     });
   }, [items, filterPrefix]);
 
@@ -225,6 +304,36 @@ export function useLspAutocomplete(
   const performCompletionRequest = useCallback(
     async (plainText: string, offset: number) => {
       if (!isReady) return;
+      // Re-measure the caret position just before opening — by this
+      // point the typing-debounce has expired (~150ms) and Slate has
+      // committed the new character to the DOM, so
+      // `ReactEditor.toDOMRange` returns a valid rect. The earlier
+      // call inside `onSlateChangeImpl` can fire during Slate's
+      // onChange BEFORE the DOM commit, in which case `toDOMRange`
+      // throws or returns the previous (stale) range and the popover
+      // ends up at the initial `{top: 0, left: 0}`.
+      const editor = editorRef.current;
+      if (editor && editor.selection) {
+        try {
+          const domRange = ReactEditor.toDOMRange(editor, editor.selection);
+          const rect = domRange.getBoundingClientRect();
+          // Only update when we got a meaningful rect — a 0,0,0,0 rect
+          // means the DOM still isn't ready; keep whatever the earlier
+          // measure produced rather than slamming back to origin.
+          if (rect.width || rect.height || rect.left || rect.top) {
+            setPosition({ left: rect.left, top: rect.bottom });
+          }
+        } catch {
+          // Editor unmounted mid-request — proceed with whatever
+          // position state we last computed.
+        }
+      }
+      // Mark in-flight + open the popover immediately so the loading
+      // stub renders during slow LSP roundtrips. If the response is
+      // fast (mock or warm cache), `isFetching` is back to false
+      // before any render shows the stub — no flash.
+      setIsFetching(true);
+      setIsOpen(true);
       try {
         const lspItems = await getCompletions(plainText, offset);
         if (lspItems.length === 0) {
@@ -243,6 +352,11 @@ export function useLspAutocomplete(
             value: insertText,
             icon: mapCompletionKindToIcon(item.kind),
             description: item.detail,
+            documentation: item.documentation,
+            kindLabel:
+              item.kind !== undefined
+                ? COMPLETION_KIND_CHIPS[item.kind]
+                : undefined,
             raw: item,
             metadata: {
               insertTextFormat: item.insertTextFormat,
@@ -257,6 +371,8 @@ export function useLspAutocomplete(
       } catch {
         setItems([]);
         setIsOpen(false);
+      } finally {
+        setIsFetching(false);
       }
     },
     [getCompletions, isReady]
@@ -279,6 +395,7 @@ export function useLspAutocomplete(
     setFocusedIndex(0);
     setFilterPrefix('');
     setIsReplaceMode(false);
+    setIsFetching(false);
     replacingChipPathRef.current = null;
     pendingChipRequestRef.current = null;
     requestCompletions.cancel();
@@ -656,6 +773,7 @@ export function useLspAutocomplete(
     groups,
     isOpen,
     isReplaceMode,
+    isFetching,
     focusedIndex,
     close,
     onSlateChange: onSlateChangeImpl,

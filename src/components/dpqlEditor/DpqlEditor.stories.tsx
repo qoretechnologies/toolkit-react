@@ -29,6 +29,155 @@ const STORY_LSP_URL = `wss://hq.qoretechnologies.com:8092/lsp?token=${process.en
  */
 let received: any[] = [];
 
+/**
+ * Most-recent document text the client has sent via `didOpen` /
+ * `didChange`. The semantic-tokens mock tokenises this string so the
+ * response always matches what the user sees. Reset in `beforeEach`.
+ */
+let lastDocumentText = '';
+
+/**
+ * Minimal DPQL-correct tokenizer used only by the story mock to
+ * produce a plausible `textDocument/semanticTokens/full` response.
+ * Returns the LSP-encoded flat int array (delta-encoded 5-tuples).
+ *
+ * Token type indices match the legend advertised in the mock's
+ * `initialize` response:
+ *   4 = variable   (`@field`)
+ *   2 = class      (`$context:value` template references)
+ *   8 = keyword    (`in`, `not`, `between`, `and`, `like`, `true`,
+ *                  `false`, `null`)
+ *   11 = string    (single- / double-quoted)
+ *   12 = number    (int / float)
+ *   14 = operator  (==, !=, <=, >=, <, >, &&, ||, !, =~, !~, +, -,
+ *                  *, /, %, .., comma, parens, brackets, braces)
+ *   13 = regexp    (/pattern/flags)
+ *   10 = comment   (DPQL has no comments, but we keep this for
+ *                  completeness if extended later)
+ */
+function mockTokenizeDpql(text: string): number[] {
+  const DPQL_KEYWORDS = new Set([
+    'in',
+    'not',
+    'between',
+    'and',
+    'like',
+    'true',
+    'false',
+    'null',
+  ]);
+  // DPQL built-in functions per qore-2/design/dpql-syntax.md
+  // §"Built-in Functions". When an identifier appears immediately
+  // before `(`, classify it as a function call.
+  const DPQL_FUNCTIONS = new Set([
+    'abs',
+    'round',
+    'floor',
+    'ceil',
+    'trim',
+    'ltrim',
+    'rtrim',
+    'concat',
+    'split',
+    'substr',
+    'coalesce',
+    'nullif',
+    'now',
+    'days',
+    'hours',
+    'minutes',
+    'seconds',
+    'milliseconds',
+    'microseconds',
+    'years',
+    'months',
+    'weeks',
+    'get_year',
+    'get_month',
+    'get_day',
+    'get_hour',
+    'get_minute',
+    'get_second',
+    'format_date',
+    'format_number',
+    'map',
+    'hash_map',
+    'contains',
+  ]);
+  // Order matters: longer operators must come first so `==` doesn't
+  // get matched as two `=` etc. The regex's alternation groups identify
+  // the token type at match time.
+  const TOKEN_RE = new RegExp(
+    [
+      `("(?:\\\\.|[^"\\\\])*")`, // 1: double-quoted string
+      `('(?:\\\\.|[^'\\\\])*')`, // 2: single-quoted string
+      `(/(?:\\\\.|[^/\\\\])*/[gimsux]*)`, // 3: regex literal /…/flags
+      `(@"(?:\\\\.|[^"\\\\])*"|@[A-Za-z_][\\w.]*)`, // 4: @field
+      `(\\$[A-Za-z_-][\\w-]*:(?:\\{[^}]*\\}|[\\w.{}]+))`, // 5: $context:value
+      `(\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b)`, // 6: number
+      `(==|!=|<=|>=|&&|\\|\\||=~|!~|\\.\\.|[+\\-*/%<>!=,(){}\\[\\].])`, // 7: operator
+      `(\\b[A-Za-z_][\\w]*\\b)`, // 8: identifier (keyword check)
+    ].join('|'),
+    'g'
+  );
+
+  const lines = text.split('\n');
+  const tokens: Array<{
+    line: number;
+    char: number;
+    length: number;
+    type: number;
+  }> = [];
+
+  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    const line = lines[lineIdx];
+    TOKEN_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = TOKEN_RE.exec(line)) !== null) {
+      const length = match[0].length;
+      let type = -1;
+      if (match[1] || match[2]) type = 11; // string
+      else if (match[3]) type = 13; // regexp
+      else if (match[4]) type = 4; // variable
+      else if (match[5]) type = 2; // class (template)
+      else if (match[6]) type = 12; // number
+      else if (match[7]) type = 14; // operator
+      else if (match[8]) {
+        const word = match[8].toLowerCase();
+        if (DPQL_KEYWORDS.has(word)) {
+          type = 8; // keyword
+        } else if (DPQL_FUNCTIONS.has(word)) {
+          // Treat as a function regardless of trailing `(` — the live
+          // server might be more contextual but this is good enough
+          // for visual demos.
+          type = 6; // function
+        } else {
+          // Plain identifier — no decoration in the mock.
+          continue;
+        }
+      }
+      if (type >= 0) {
+        tokens.push({ line: lineIdx, char: match.index, length, type });
+      }
+    }
+  }
+
+  // Sort by position (stable; lines already sorted, char within line
+  // sorted by regex iteration order).
+  // Delta-encode per LSP spec.
+  const data: number[] = [];
+  let prevLine = 0;
+  let prevChar = 0;
+  for (const t of tokens) {
+    const deltaLine = t.line - prevLine;
+    const deltaChar = deltaLine === 0 ? t.char - prevChar : t.char;
+    data.push(deltaLine, deltaChar, t.length, t.type, 0);
+    prevLine = t.line;
+    prevChar = t.char;
+  }
+  return data;
+}
+
 interface IDpqlEditorStoryArgs {
   value?: string;
   onChange?: (v: string) => void;
@@ -37,6 +186,7 @@ interface IDpqlEditorStoryArgs {
   provider?: string;
   recordType?: string;
   stateId?: string;
+  useServerParse?: boolean;
 }
 
 const DpqlEditorWithState = (props: IDpqlEditorStoryArgs) => {
@@ -62,6 +212,7 @@ const meta = {
   },
   async beforeEach() {
     received = [];
+    lastDocumentText = '';
     const server = new Server(STORY_LSP_URL);
 
     server.on('connection', (socket) => {
@@ -79,6 +230,18 @@ const meta = {
         }
         received.push(msg);
 
+        // Track document text from didOpen / didChange notifications so
+        // the semantic-tokens mock can tokenise the current content.
+        if (msg.method === 'textDocument/didOpen') {
+          lastDocumentText = msg.params?.textDocument?.text ?? '';
+        } else if (msg.method === 'textDocument/didChange') {
+          // The client sends a single full-document content change.
+          const change = msg.params?.contentChanges?.[0];
+          if (change && typeof change.text === 'string') {
+            lastDocumentText = change.text;
+          }
+        }
+
         // Auto-respond to requests; notifications (no `id`) are accepted silently.
         if (msg.id === undefined) {
           return;
@@ -90,12 +253,71 @@ const meta = {
               JSON.stringify({
                 jsonrpc: '2.0',
                 id: msg.id,
-                result: { capabilities: {} },
+                result: {
+                  capabilities: {
+                    // Advertise semantic tokens with the LSP-standard
+                    // 16-type / 6-modifier legend — same shape as the
+                    // real Qorus `/lsp` endpoint (captured in
+                    // `QONSOLE_LSP_RESPONSES.txt`).
+                    semanticTokensProvider: {
+                      legend: {
+                        tokenTypes: [
+                          'namespace',
+                          'type',
+                          'class',
+                          'parameter',
+                          'variable',
+                          'property',
+                          'function',
+                          'method',
+                          'keyword',
+                          'modifier',
+                          'comment',
+                          'string',
+                          'number',
+                          'regexp',
+                          'operator',
+                          'decorator',
+                        ],
+                        tokenModifiers: [
+                          'declaration',
+                          'definition',
+                          'readonly',
+                          'static',
+                          'defaultLibrary',
+                          'documentation',
+                        ],
+                      },
+                      full: true,
+                      range: true,
+                    },
+                  },
+                },
+              })
+            );
+            break;
+
+          case 'textDocument/semanticTokens/full':
+            // Tokenise the document text the client has just sent (via
+            // the most recent didOpen / didChange). The story mock
+            // doesn't track per-uri state — we use a small DPQL-correct
+            // tokenizer here so the response matches the visible text.
+            socket.send(
+              JSON.stringify({
+                jsonrpc: '2.0',
+                id: msg.id,
+                result: {
+                  data: mockTokenizeDpql(lastDocumentText),
+                },
               })
             );
             break;
 
           case 'textDocument/completion':
+            // Mirror the live DPQL server's shape — items include
+            // `kind` (so SmartEditor renders the right-side kind chip)
+            // and `documentation` (rendered as a markdown tooltip on
+            // hover). Lets stories exercise the full visual treatment.
             socket.send(
               JSON.stringify({
                 jsonrpc: '2.0',
@@ -107,18 +329,35 @@ const meta = {
                       insertText: '@name',
                       kind: 5,
                       detail: 'string',
+                      documentation: {
+                        kind: 'markdown',
+                        value:
+                          '**Display name** of the record.\n\n' +
+                          '- Indexed, case-insensitive\n' +
+                          '- Maps to the `name` column on the underlying table',
+                      },
                     },
                     {
                       label: '@status',
                       insertText: '@status',
                       kind: 5,
                       detail: 'string',
+                      documentation: {
+                        kind: 'markdown',
+                        value:
+                          '**Lifecycle status** — one of:\n\n' +
+                          '- `active`\n- `paused`\n- `archived`',
+                      },
                     },
                     {
                       label: '@age',
                       insertText: '@age',
                       kind: 5,
                       detail: 'int',
+                      documentation: {
+                        kind: 'plaintext',
+                        value: 'Age in years, computed from birth_date.',
+                      },
                     },
                   ],
                 },
@@ -178,6 +417,49 @@ const meta = {
             );
             break;
 
+          case 'dpql/toRichtext':
+            // Mirror the real server's response shape (see
+            // `qorus/Classes/UserApi.qc:_priv_get_richtext_string`).
+            // Synthetic small parser: turn `$prefix:value` and
+            // `$prefix:{value}` patterns into tag children; everything
+            // else is a text child. (The live server also recognises a
+            // subset of patterns — we match what we know works.)
+            (() => {
+              const text = msg.params?.text ?? '';
+              const TEMPLATE_RE =
+                /\$[a-z][-a-z]+:(?:\{[^}]*\}|[\w.]+)/g;
+              const children: any[] = [];
+              let last = 0;
+              let m: RegExpExecArray | null;
+              while ((m = TEMPLATE_RE.exec(text)) !== null) {
+                if (m.index > last) {
+                  children.push({ text: text.slice(last, m.index) });
+                }
+                children.push({
+                  type: 'tag',
+                  value: m[0],
+                  label: m[0],
+                  children: [{ text: '' }],
+                });
+                last = m.index + m[0].length;
+              }
+              if (last < text.length) {
+                children.push({ text: text.slice(last) });
+              }
+              if (children.length === 0) children.push({ text: '' });
+              socket.send(
+                JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: msg.id,
+                  result: {
+                    type: 'richtext',
+                    value: [{ type: 'paragraph', children }],
+                  },
+                })
+              );
+            })();
+            break;
+
           case 'textDocument/formatting':
             // Return empty edit list — the editor treats this as "no change".
             socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: [] }));
@@ -202,9 +484,16 @@ export type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {};
 
+/**
+ * No chips / templates — just a valid DPQL literal expression so we can
+ * verify the editor mounts plain text without any tag elements. (The
+ * previous example here used SQL `SELECT * FROM …` syntax — DPQL has
+ * no `SELECT` / `FROM` / `WHERE`; the value was invalid DPQL inherited
+ * from the qorus-ide Monaco placeholder. See design doc §7.)
+ */
 export const WithPlainText: Story = {
   args: {
-    value: 'SELECT * FROM users WHERE name = "Alice"',
+    value: '1 == 1 && "hello" != "world"',
   },
 };
 
@@ -222,7 +511,73 @@ export const WithTemplateVariable: Story = {
 
 export const WithMixedContent: Story = {
   args: {
-    value: '@name == $data:{1.name} AND @age > $config:min_age',
+    // DPQL uses `&&` for logical AND (not SQL's `AND`). See
+    // qore-2/design/dpql-syntax.md §"Logical Operators".
+    value: '@name == $data:{1.name} && @age > $config:min_age',
+  },
+};
+
+/**
+ * Exercises the `useServerParse` opt-in (design doc §6). The editor
+ * calls `dpql/toRichtext` on the LSP and uses the server's structured
+ * response as the Slate document. While the request is in flight, the
+ * loading overlay shows; on a successful response, the editor renders
+ * the server-parsed tree; on failure it falls back silently to the
+ * client-side regex parser.
+ *
+ * The mock's `dpql/toRichtext` handler wraps `$prefix:value` patterns
+ * as tag chips (matching the real server's behaviour). `@field` refs
+ * are intentionally NOT chipped by the server response — that's a
+ * known limitation; the client-side parser handles them in normal
+ * (non-server-parse) mode.
+ */
+export const WithServerParse: Story = {
+  args: {
+    value: '$static:input == "Alice" && $config:min_age > 18',
+    useServerParse: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opts into `useServerParse`. Templates (`$static:input`, ' +
+          '`$config:min_age`) are wrapped as tag chips by the server, ' +
+          'not by the client regex. Watch the brief "Connecting…" ' +
+          'overlay on first mount while the server response arrives.',
+      },
+    },
+  },
+};
+
+/**
+ * Demonstrates LSP-driven syntax highlighting (design doc §7) across a
+ * representative DPQL expression touching every coloured token type:
+ * field references, templates, operators, string / number / boolean /
+ * null literals, regex, range, keywords, parens.
+ *
+ * The story's mock LSP runs a small DPQL-correct tokenizer (defined at
+ * the top of this file) and returns the LSP-encoded int array; the
+ * editor's `useLspSemanticTokens` hook decodes it and renders each
+ * token in the theme palette defined in `SmartEditor`.
+ */
+export const WithSemanticTokens: Story = {
+  args: {
+    value:
+      '@status in ("active", "pending") && @age between 18 and 65 ' +
+      '&& @email =~ /^[a-z]+@example\\.com$/i ' +
+      '&& @balance > 0 && @deleted != true',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Every coloured DPQL token category. Variables (`@status`, ' +
+          '`@age`, …) in red, operators (`==`, `&&`, `=~`, `between`) ' +
+          'in cyan, strings in green, numbers in orange, keywords ' +
+          '(`in`, `between`, `and`, `not`, `true`) in purple, regex ' +
+          'in cyan.',
+      },
+    },
   },
 };
 

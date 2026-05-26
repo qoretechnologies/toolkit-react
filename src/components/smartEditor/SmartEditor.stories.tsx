@@ -133,6 +133,189 @@ export const BasicMock: Story = {
 };
 
 /**
+ * Exercises the markdown-documentation tooltip render — completion items
+ * carry rich markdown that should appear on hover with `react-markdown`
+ * rendering (bold, lists, inline code), and a plaintext fallback when the
+ * server says `kind: 'plaintext'`. Visual story; no play assertions.
+ */
+export const WithMarkdownDocs: Story = {
+  args: {
+    languageId: 'demo',
+    initialValue: '',
+    triggerCharacters: new Set([' ', '.']),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Type any trigger character (space or `.`) to open the dropdown, ' +
+          'then hover an item for ~200ms to reveal the markdown documentation ' +
+          'tooltip. The first two items use `kind: "markdown"`, the third uses ' +
+          '`kind: "plaintext"` to verify the fallback render.',
+      },
+    },
+  },
+  async beforeEach() {
+    const server = new Server(MOCK_LSP_URL);
+    server.on('connection', (socket) => {
+      socket.on('message', (raw) => {
+        if (raw === 'ping') {
+          socket.send('pong');
+          return;
+        }
+        let msg: any;
+        try {
+          msg = JSON.parse(raw as string);
+        } catch {
+          return;
+        }
+        if (msg.id === undefined) return;
+        if (msg.method === 'initialize') {
+          socket.send(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { capabilities: {} },
+            })
+          );
+        } else if (msg.method === 'textDocument/completion') {
+          socket.send(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: {
+                items: [
+                  {
+                    label: 'forEach',
+                    insertText: 'forEach',
+                    kind: 2,
+                    detail: '(callback: (item) => void) => void',
+                    documentation: {
+                      kind: 'markdown',
+                      value:
+                        '### `forEach`\n\n' +
+                        'Invoke a callback for **each** element in the collection.\n\n' +
+                        '```ts\n' +
+                        "['a','b','c'].forEach((x) => console.log(x))\n" +
+                        '```\n\n' +
+                        '- Stops on `break` ✗ (use `for…of` instead)\n' +
+                        '- Returns `undefined`',
+                    },
+                  },
+                  {
+                    label: 'map',
+                    insertText: 'map',
+                    kind: 2,
+                    detail: '<U>(fn: (item: T) => U) => U[]',
+                    documentation: {
+                      kind: 'markdown',
+                      value:
+                        '### `map`\n\n' +
+                        'Project each element through `fn`, returning a new array.\n\n' +
+                        '- Pure / no side effects\n- Preserves length',
+                    },
+                  },
+                  {
+                    label: 'reduce',
+                    insertText: 'reduce',
+                    kind: 2,
+                    detail: '<U>(fn, init: U) => U',
+                    documentation: {
+                      kind: 'plaintext',
+                      value:
+                        'Fold the collection into a single value using fn.\n\n' +
+                        'Be careful with the initial value — without one, ' +
+                        'reduce throws on empty input.',
+                    },
+                  },
+                ],
+              },
+            })
+          );
+        } else {
+          socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: null }));
+        }
+      });
+    });
+    return () => {
+      server.close();
+    };
+  },
+};
+
+/**
+ * Exercises multi-kind grouping — the dropdown should split items into
+ * sections (Methods / Variables / Keywords) with a `ReqoreMenuDivider`
+ * label between groups when more than one kind is present.
+ */
+export const WithGroupedKinds: Story = {
+  args: {
+    languageId: 'demo',
+    initialValue: '',
+    triggerCharacters: new Set([' ', '.']),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Type a trigger to open the dropdown and verify the items are ' +
+          'grouped under "Methods", "Variables", and "Keywords" headers. ' +
+          'Each row also has its right-aligned kind chip.',
+      },
+    },
+  },
+  async beforeEach() {
+    const server = new Server(MOCK_LSP_URL);
+    server.on('connection', (socket) => {
+      socket.on('message', (raw) => {
+        if (raw === 'ping') {
+          socket.send('pong');
+          return;
+        }
+        let msg: any;
+        try {
+          msg = JSON.parse(raw as string);
+        } catch {
+          return;
+        }
+        if (msg.id === undefined) return;
+        if (msg.method === 'initialize') {
+          socket.send(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: { capabilities: {} },
+            })
+          );
+        } else if (msg.method === 'textDocument/completion') {
+          socket.send(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id: msg.id,
+              result: {
+                items: [
+                  { label: 'concat', insertText: 'concat', kind: 2, detail: 'method' },
+                  { label: 'slice', insertText: 'slice', kind: 2, detail: 'method' },
+                  { label: 'length', insertText: 'length', kind: 6, detail: 'number' },
+                  { label: 'name', insertText: 'name', kind: 6, detail: 'string' },
+                  { label: 'if', insertText: 'if', kind: 14 },
+                  { label: 'return', insertText: 'return', kind: 14 },
+                ],
+              },
+            })
+          );
+        } else {
+          socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: null }));
+        }
+      });
+    });
+    return () => {
+      server.close();
+    };
+  },
+};
+
+/**
  * **Live spike — hits the real Qorus `/lsp` endpoint** at
  * `wss://hq.qoretechnologies.com:8092/lsp`. No mock-socket. Used to
  * validate the SmartEditor + LspClient abstraction end-to-end against

@@ -16,7 +16,9 @@ export type {
   IUseDpqlSessionOptions,
   IUseDpqlSessionResult,
 } from './useDpqlSession';
-export { useDpqlSyntaxHighlighting } from './useDpqlSyntaxHighlighting';
+// `useDpqlSyntaxHighlighting` removed in 0.10.0 — syntax highlighting
+// is now LSP-driven via `useLspSemanticTokens` inside SmartEditor.
+// See design/SMART_EDITOR_UX.md §7.
 export {
   dpqlSlateConverter,
   getTagLabel,

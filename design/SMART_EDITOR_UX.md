@@ -185,6 +185,105 @@ synchronous-render behaviour.
 **Tests.** Storybook story `WithServerParse` against the live LSP.
 Add mock for `dpql/toRichtext` in DpqlEditor's BasicMock if needed.
 
+### 7. Server-driven syntax highlighting via LSP semantic tokens
+
+**Added 2026-05-26 — design doc revision.** Surfaced during Phase 5
+verification. The original design omitted this item under the
+assumption that the existing client-side regex highlighter was
+adequate. Closer research showed it is fundamentally wrong.
+
+**Problem.** Our `useDpqlSyntaxHighlighting.ts` was copy-pasted from
+qorus-ide's `services/dpqlMonacoSetup.ts`, which itself was a
+"placeholder until LSP semantic tokens are wired" that never got
+replaced. The keyword list is **SQL**, not DPQL:
+
+- DPQL has no `SELECT` / `FROM` / `WHERE` / `JOIN` / `GROUP BY` / etc.
+- DPQL uses `&&` / `||` / `!`, **not** `AND` / `OR` / `NOT`.
+- DPQL has no `--` or `/* */` comments — both currently coloured by
+  our regex.
+- The `COUNT` / `SUM` / `AVG` / `MIN` / `MAX` aggregates aren't DPQL
+  built-ins.
+- DPQL has unique constructs the regex doesn't even attempt to
+  handle: `=~` / `!~` regex match, `..` range, `between … and …`,
+  `in (…)` / `not in (…)`, `<deadbeef>` binary literals, ISO-8601
+  date literals.
+
+The authoritative grammar lives in
+[`qore-2/design/dpql-syntax.md`](../../QoreTechnologies/qore-2/design/dpql-syntax.md)
+and the tokenizer in
+[`qore-2/qlib/DataProvider/DpqlTokenizer.qc`](../../QoreTechnologies/qore-2/qlib/DataProvider/DpqlTokenizer.qc).
+Reproducing this in JS bug-for-bug compatible would be a non-trivial
+maintenance burden.
+
+**Fix.** Drive syntax highlighting from the LSP's
+`textDocument/semanticTokens/full` response. Confirmed during the
+Qonsole spike (`QONSOLE_LSP_RESPONSES.txt`, section 9) that the
+shared `/lsp` endpoint already advertises and serves semantic tokens
+with the LSP-standard 16-type / 6-modifier legend — both DPQL and
+Qonsole benefit identically.
+
+Concrete plumbing:
+
+- **`LspClient`** captures `semanticTokensProvider.legend` from the
+  initialize response and exposes it as a public field
+  (`semanticTokensLegend: ILspSemanticTokensLegend | null`).
+- **`useLspSession`** surfaces the legend in its return.
+- **New `useLspSemanticTokens(session, converter, nodes, options?)` hook**
+  in `src/components/smartEditor/`:
+  - Debounces document changes (~250ms idle)
+  - Calls `session.client.getSemanticTokens()` (we already have it)
+  - Decodes the flat int-5-tuple array (deltaLine, deltaStart,
+    length, tokenType-idx, tokenModifiers-bitmask) per LSP spec
+  - Maps each token's `{line, character, length}` to a Slate `Range`
+    via the converter
+  - Emits ranges with marks `tokenType: string` and `tokenModifiers: string[]`
+  - Returns a stable `decorate` function composable into
+    `SmartEditor`'s `composedDecorate`
+- **`SmartEditor.tsx` customRenderLeaf** extends the leaf renderer
+  to honour the LSP-standard semantic-token types with
+  theme-appropriate colours (keyword, function, method, class,
+  property, string, number, comment, operator, regexp, variable,
+  parameter, etc.).
+- **`useDpqlSyntaxHighlighting.ts` is removed** as a copy-paste
+  artifact. A thin offline fallback (`useDpqlFallbackHighlighting`)
+  may be added later if needed; for now, no highlighting until the
+  LSP connects is acceptable (the loading overlay from item 4
+  signals this).
+- **DpqlEditor stories** — the misleading `WithPlainText` value
+  `SELECT * FROM users WHERE name = "Alice"` is replaced with a
+  valid DPQL expression (e.g. `1 == 1` or `2026 - 2024 == 2`).
+
+**Surface area.**
+`src/utils/lspClient.ts` (legend capture, ~10 lines),
+`src/utils/lspClient.types.ts` (new `ILspSemanticTokensLegend` /
+`ILspSemanticToken` types, ~10 lines),
+`src/components/smartEditor/useLspSession.ts` (expose legend,
+~5 lines),
+`src/components/smartEditor/useLspSemanticTokens.ts` (new, ~150
+lines including the LSP int-array decoder),
+`src/components/smartEditor/SmartEditor.tsx` (compose into
+decorate, extend renderLeaf colours, ~30 lines),
+`src/components/dpqlEditor/DpqlEditor.tsx` (drop the
+`useDpqlSyntaxHighlighting` import + caller, ~5 lines net removal),
+removed `src/components/dpqlEditor/useDpqlSyntaxHighlighting.ts`,
+fixed `src/components/dpqlEditor/DpqlEditor.stories.tsx` (one
+example value).
+
+**Tests.** Unit tests for the LSP int-array decoder (delta
+re-basing, modifier bitmask). Mock-socket extension to return a
+synthetic semantic-tokens payload for a known expression. New story
+`WithSemanticTokens` on DpqlEditor demonstrating highlighting on
+`@status == "active" && @age >= $config:min_age`.
+
+**Rationale for landing this BEFORE the `0.10.0` release.** The
+current highlighting is *visibly* wrong on real DPQL — every `&&` /
+`||` / `=~` is uncoloured while every typo like `AND` / `OR` is
+mis-coloured green. Shipping `0.10.0` with this in place would mean
+the FE consumer's first impression of the DPQL editor includes
+visibly broken syntax highlighting. That bar is higher than "matches
+the design doc as originally written" — it's "doesn't actively
+mislead users about the language".
+
 ## Locked decisions
 
 ### Theme — Reqore-native, borrowing from qorus-ide
@@ -198,18 +297,32 @@ Match the visual vocabulary of the rest of the IDE. Concretely:
 - Concrete improvements still scoped per item 2 (tighter rows, kind chips
   on the right, focused-row highlight, markdown documentation).
 
-### Decorate composition — merge in the wrapper
+### Decorate composition — merge inside SmartEditor
 
-When DpqlEditor combines syntax highlighting + diagnostic underlines,
-the wrapper exposes a single combined `decorate` function to
-`SmartEditor`. SmartEditor stays unchanged. Implementation:
+**Revised 2026-05-26.** Originally specified the wrapper combining
+`useDpqlSyntaxHighlighting` + `useLspDiagnosticDecorations`. With
+the item 7 revision, `useDpqlSyntaxHighlighting` is gone — both
+syntax highlighting (via LSP semantic tokens) and diagnostics are
+session-driven, so they live in **SmartEditor** rather than the
+wrapper. SmartEditor's `composedDecorate` merges:
 
 ```typescript
-// In DpqlEditor.tsx
-const syntaxDecorate = useDpqlSyntaxHighlighting();
-const diagnosticDecorate = useLspDiagnosticDecorations(dpql.diagnostics, dpqlSlateConverter);
-const decorate = useCallback((entry) => [...syntaxDecorate(entry), ...diagnosticDecorate(entry)], [syntaxDecorate, diagnosticDecorate]);
+// SmartEditor.tsx
+const diagnosticDecorate = useLspDiagnosticDecorations(session.diagnostics, converter, slateValue);
+const semanticDecorate = useLspSemanticTokens(session, converter, slateValue);
+const composedDecorate = useCallback(
+  (entry) => [
+    ...decorate?.(entry) ?? [],   // optional caller override
+    ...semanticDecorate(entry),    // LSP-driven syntax highlighting
+    ...diagnosticDecorate(entry),  // LSP-driven error underlines
+  ],
+  [decorate, semanticDecorate, diagnosticDecorate]
+);
 ```
+
+Wrappers can still inject extra decorations via the `decorate` prop
+(e.g. embedding-specific overlays), but they no longer have to know
+about LSP plumbing.
 
 ### Hover popover position — token center
 
@@ -241,6 +354,7 @@ once, at the end of the batch (Phase 8 release prep).
 | Item 4 | Adjust existing play tests to wait for ready signal before typing |
 | Item 5 | Unit test of position-mapping math. No play test (jsdom limitation) |
 | Item 6 | Story WithServerParse against live LSP |
+| Item 7 | Unit tests for LSP int-array decoder. Mock-socket returns a synthetic semantic-tokens payload. New WithSemanticTokens story. Fix the broken `WithPlainText` SQL example. |
 
 All items together: TS clean, lint clean, all jest tests pass, all
 storybook play tests pass (147 currently in our scope, expected +5).
@@ -248,15 +362,25 @@ storybook play tests pass (147 currently in our scope, expected +5).
 ## Migration impact
 
 `0.9.0` consumers (DpqlEditor, QonsoleSmartInput) get all items 1–5
-automatically — no prop changes. Item 6 is opt-in. No breaking
-changes; this can ship as `0.9.0` (still pre-release) or `0.10.0` if
-we want a "feature-complete" version bump.
+**and 7** automatically — no prop changes. Item 6 is opt-in. No
+breaking changes; this can ship as `0.9.0` (still pre-release) or
+`0.10.0` if we want a "feature-complete" version bump.
+
+Item 7 carries one subtle behavioural change: until the LSP session
+becomes ready, no syntax highlighting is rendered (the editor body
+is plain monospace text). The loading overlay from item 4 signals
+this. Consumers who need offline syntax colouring can pass a
+`decorate` prop with their own fallback — but for the standard use
+case (an LSP is reachable within ~300ms of mount), the gap is
+imperceptible.
 
 ## Status
 
-**Design locked 2026-05-25.** All open questions resolved (see "Locked
-decisions" above). Ready for Phase 1 implementation per
-[`.tasks/SMART_EDITOR_UX_POLISH.md`](../.tasks/SMART_EDITOR_UX_POLISH.md).
+**Design locked 2026-05-25.**
+**Revised 2026-05-26** to add item 7 (LSP semantic tokens) after
+research surfaced that the SQL-style highlighting was a copy-paste
+artifact incompatible with real DPQL syntax. All other items
+unchanged.
 
 Any new issues discovered during implementation get added to the task
 list as they surface — design doc updates only with explicit revision.

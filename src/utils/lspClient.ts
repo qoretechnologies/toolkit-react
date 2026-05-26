@@ -18,6 +18,7 @@ import {
   ILspCompletionItem,
   ILspDiagnostic,
   ILspMarkupContent,
+  ILspSemanticTokensLegend,
   ILspTextEdit,
   TLspDocumentText,
 } from './lspClient.types';
@@ -87,6 +88,16 @@ export class LspClient {
   private lastText: TLspDocumentText | null = null;
   private lastMetadata: Record<string, any> | undefined = undefined;
 
+  /**
+   * Captured from `initialize → capabilities.semanticTokensProvider.legend`.
+   * `null` until the initialize response arrives, and stays `null` if the
+   * server doesn't advertise semantic-token support. Consumers
+   * (`useLspSemanticTokens`) need this legend to resolve the
+   * `tokenType` / `tokenModifiers` int indices into human-readable
+   * names — both arrays are positional.
+   */
+  public semanticTokensLegend: ILspSemanticTokensLegend | null = null;
+
   constructor(options: ILspClientOptions) {
     this.languageId = options.languageId;
     this.uri = options.uri;
@@ -119,7 +130,26 @@ export class LspClient {
           this.connected = true;
 
           this.sendRequest('initialize', { capabilities: {} })
-            .then(() => {
+            .then((initResult: any) => {
+              // Capture the semantic-tokens legend so consumers can
+              // resolve the int-encoded tokenType / tokenModifier
+              // indices the server returns from
+              // `textDocument/semanticTokens/full`. Standard LSP
+              // shape: `{ tokenTypes: string[], tokenModifiers: string[] }`.
+              const legend =
+                initResult?.capabilities?.semanticTokensProvider?.legend;
+              if (
+                legend &&
+                Array.isArray(legend.tokenTypes) &&
+                Array.isArray(legend.tokenModifiers)
+              ) {
+                this.semanticTokensLegend = {
+                  tokenTypes: legend.tokenTypes.slice(),
+                  tokenModifiers: legend.tokenModifiers.slice(),
+                };
+              } else {
+                this.semanticTokensLegend = null;
+              }
               if (initialConnect) {
                 initialConnect = false;
                 resolve();

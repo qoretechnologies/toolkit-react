@@ -199,3 +199,63 @@ export const dpqlSlateConverter: ISlateConverter = {
   fromSlateNodes: slateToPlainText,
   selectionToOffset: slateSelectionToOffset,
 };
+
+/**
+ * Convert the server's `dpql/toRichtext` response into a Slate
+ * `ISlateElement[]`. The server returns `{ type: "richtext", value:
+ * [...] }` where `value` is already an array of `{type: "paragraph",
+ * children: [...]}` nodes — children alternate between
+ * `{ text: "..." }` text nodes and `{ type: "tag", value, label,
+ * children: [{text: ""}], metadata? }` inline-void tag nodes (see
+ * `qorus/Classes/UserApi.qc:_priv_get_richtext_string`).
+ *
+ * Returns `null` when the response doesn't look like the expected
+ * shape — callers should fall back to `plainTextToSlate` in that
+ * case. We don't trust the server response unconditionally because
+ * (a) the regex used server-side recognises `$template:value`
+ * patterns but NOT `@field` references, so DPQL field-ref chips are
+ * only produced by the client parser, and (b) network errors / weird
+ * shapes shouldn't crash the editor.
+ */
+export function richtextResponseToSlate(
+  response: unknown
+): ISlateElement[] | null {
+  if (!response || typeof response !== 'object') return null;
+  const r = response as { type?: unknown; value?: unknown };
+  if (r.type !== 'richtext' || !Array.isArray(r.value)) return null;
+  const paragraphs: ISlateElement[] = [];
+  for (const node of r.value) {
+    if (!node || typeof node !== 'object') return null;
+    const n = node as { type?: unknown; children?: unknown };
+    if (n.type !== 'paragraph' || !Array.isArray(n.children)) return null;
+    const children: TSlateNode[] = [];
+    for (const child of n.children) {
+      if (!child || typeof child !== 'object') return null;
+      const c = child as Record<string, unknown>;
+      if (typeof c.text === 'string') {
+        children.push({ text: c.text } as ISlateText);
+      } else if (c.type === 'tag' && typeof c.value === 'string') {
+        children.push({
+          type: 'tag',
+          value: c.value,
+          label:
+            typeof c.label === 'string'
+              ? c.label
+              : getTagLabel(c.value),
+          metadata: (c.metadata as Record<string, any>) ?? undefined,
+          children: [{ text: '' } as ISlateText],
+        } as ISlateElement);
+      } else {
+        // Unknown child shape — refuse the whole response so the
+        // caller falls back to client-side parsing.
+        return null;
+      }
+    }
+    if (children.length === 0) children.push({ text: '' } as ISlateText);
+    paragraphs.push({ type: 'paragraph', children });
+  }
+  if (paragraphs.length === 0) {
+    paragraphs.push({ type: 'paragraph', children: [{ text: '' }] });
+  }
+  return paragraphs;
+}

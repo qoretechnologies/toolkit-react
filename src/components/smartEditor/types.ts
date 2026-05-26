@@ -154,4 +154,31 @@ export interface ISmartEditorProps {
 
   /** Called when the editor loses focus. */
   onBlur?: () => void;
+
+  /**
+   * Custom loading indicator rendered as an overlay on top of the
+   * editor body while `session.isReady` is false. Defaults to a
+   * `ReqoreSpinner` with copy "Connecting to language server…".
+   * Pass `null` to suppress the default overlay entirely (useful
+   * if the wrapper handles loading state at a higher level).
+   */
+  loadingIndicator?: React.ReactNode;
+
+  /**
+   * Whether to query `textDocument/hover` when the user mouse-rests
+   * over a token in the editor. Default `true`. The popover renders
+   * the server's markdown content via `react-markdown`. Set `false`
+   * to opt out — e.g. for short input fields where hover would be
+   * distracting.
+   */
+  enableHover?: boolean;
+
+  /**
+   * Generic "this editor is busy" flag — when `true`, the loading
+   * overlay is shown regardless of `session.isReady`. Used by wrappers
+   * that have their own busy state (e.g. DpqlEditor's
+   * `useServerParse` mode shows the overlay while awaiting the
+   * `dpql/toRichtext` response).
+   */
+  isLoading?: boolean;
 }

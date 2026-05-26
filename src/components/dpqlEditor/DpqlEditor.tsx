@@ -13,20 +13,21 @@ import {
 import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
 import { size } from 'lodash';
 import {
-  CSSProperties,
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
+  useRef,
+  useState,
 } from 'react';
-import { RenderLeafProps } from 'slate-react/dist/components/editable';
 import { SmartEditor } from '../smartEditor/SmartEditor';
-import { dpqlSlateConverter } from './dpqlHelpers';
+import { ISlateConverter, ISlateElement } from '../smartEditor/types';
+import { dpqlSlateConverter, richtextResponseToSlate } from './dpqlHelpers';
 import { dpqlCompletionInserter } from './dpqlInserter';
 import { makeDpqlTagRenderer } from './dpqlTags';
 import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
-import { useDpqlSyntaxHighlighting } from './useDpqlSyntaxHighlighting';
 
 export type { IDpqlEditorProps, IDpqlEditorRef };
 
@@ -64,11 +65,10 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       onBlur,
       templates,
       stateId,
+      useServerParse = false,
     },
     ref
   ) => {
-    const decorate = useDpqlSyntaxHighlighting();
-
     const dpql = useDpqlSession({
       provider,
       recordType,
@@ -76,6 +76,108 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       actionCode,
       initialText: value,
     });
+
+    // Server-parse state: when `useServerParse` is true, we ask the
+    // LSP server's `dpql/toRichtext` to convert the plain-text value
+    // into a structured Slate tree. The result is cached against the
+    // `value` it parsed — so subsequent renders with the same text
+    // reuse it without another roundtrip. `null` until the first
+    // response arrives (or when the request errored — caller falls
+    // back to the client-side regex parser via `dpqlSlateConverter`).
+    const [serverParsedNodes, setServerParsedNodes] = useState<
+      ISlateElement[] | null
+    >(null);
+    const [serverParsedFor, setServerParsedFor] = useState<string | null>(
+      null
+    );
+    const [isParsing, setIsParsing] = useState(false);
+    // Tracks the most recent in-flight request so a slow response
+    // can't overwrite a newer one (the user typed faster than the
+    // server replied).
+    const parseRequestIdRef = useRef(0);
+
+    useEffect(() => {
+      if (!useServerParse) {
+        // Clear any cached server-parsed nodes when the prop is
+        // toggled off — next render uses the client-side converter.
+        setServerParsedNodes(null);
+        setServerParsedFor(null);
+        setIsParsing(false);
+        return;
+      }
+      const client = dpql.session.client;
+      if (!client || !dpql.session.isReady) return;
+      // Empty value — short-circuit to the empty document so the user
+      // doesn't see a spinner for a no-op parse.
+      if (!value) {
+        setServerParsedNodes([{ type: 'paragraph', children: [{ text: '' }] }]);
+        setServerParsedFor('');
+        setIsParsing(false);
+        return;
+      }
+      // Already parsed this exact text — no need to re-request.
+      if (serverParsedFor === value && serverParsedNodes) {
+        return;
+      }
+      const reqId = ++parseRequestIdRef.current;
+      setIsParsing(true);
+      client
+        .customRequest<unknown>('dpql/toRichtext', { text: value })
+        .then((response) => {
+          if (reqId !== parseRequestIdRef.current) return;
+          const nodes = richtextResponseToSlate(response);
+          if (nodes) {
+            setServerParsedNodes(nodes);
+            setServerParsedFor(value);
+          } else {
+            // Bad shape — fall back to client-side parsing by leaving
+            // the cache empty for this value. The custom converter
+            // below detects the miss and uses `plainTextToSlate`.
+            setServerParsedNodes(null);
+            setServerParsedFor(null);
+          }
+        })
+        .catch(() => {
+          // Network / server error — same fallback as bad-shape.
+          if (reqId !== parseRequestIdRef.current) return;
+          setServerParsedNodes(null);
+          setServerParsedFor(null);
+        })
+        .finally(() => {
+          if (reqId === parseRequestIdRef.current) {
+            setIsParsing(false);
+          }
+        });
+    }, [
+      useServerParse,
+      value,
+      dpql.session.client,
+      dpql.session.isReady,
+      serverParsedFor,
+      serverParsedNodes,
+    ]);
+
+    // When server-parse is active, override `toSlateNodes` so SmartEditor
+    // gets the server's tree for the matching value, falling through to
+    // the client regex parser for anything else (initial empty string,
+    // mid-edit echoes, error fallbacks). Other converter methods are
+    // delegated to the base — slate→plain text and offset math are pure
+    // and don't need server input.
+    const converter = useMemo<ISlateConverter>(() => {
+      if (!useServerParse) return dpqlSlateConverter;
+      return {
+        ...dpqlSlateConverter,
+        toSlateNodes: (text: string) => {
+          if (
+            text === serverParsedFor &&
+            serverParsedNodes
+          ) {
+            return serverParsedNodes;
+          }
+          return dpqlSlateConverter.toSlateNodes(text);
+        },
+      };
+    }, [useServerParse, serverParsedFor, serverParsedNodes]);
 
     const tagRenderer = useMemo(
       () => makeDpqlTagRenderer(dpql.fieldMeta),
@@ -97,27 +199,6 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       }),
       [dpql, value, onChange]
     );
-
-    // Custom renderLeaf for syntax highlighting + error underlines.
-    const customRenderLeaf = useCallback((props: RenderLeafProps) => {
-      const style: CSSProperties = {};
-      const leaf = props.leaf as any;
-
-      if (leaf.keyword) style.color = '#c678dd';
-      if (leaf.string) style.color = '#98c379';
-      if (leaf.number) style.color = '#d19a66';
-      if (leaf.operator) style.color = '#56b6c2';
-      if (leaf.comment) style.color = '#5c6370';
-      if (leaf.function) style.color = '#e5c07b';
-      if (leaf.boolean) style.color = '#d19a66';
-      if (leaf.error) style.borderBottom = '2px solid red';
-
-      return (
-        <span {...props.attributes} style={style}>
-          {props.children}
-        </span>
-      );
-    }, []);
 
     /**
      * Transform a template value for DPQL context.
@@ -175,16 +256,15 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         session={dpql.session}
         value={value}
         onChange={onChange}
-        decorate={decorate}
-        customRenderLeaf={customRenderLeaf}
         tagRenderer={tagRenderer}
         triggerCharacters={DPQL_TRIGGERS}
-        converter={dpqlSlateConverter}
+        converter={converter}
         completionInserter={dpqlCompletionInserter}
         topActions={topActions}
         height={height}
         readOnly={readOnly}
         onBlur={onBlur}
+        isLoading={isParsing}
       />
     );
   }

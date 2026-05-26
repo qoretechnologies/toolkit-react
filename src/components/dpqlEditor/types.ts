@@ -62,6 +62,27 @@ export interface IDpqlEditorProps {
    * `$data:{stateId.field}` are converted to `@field` on insertion.
    */
   stateId?: string;
+  /**
+   * Opt-in to server-driven plain-text → Slate parsing via the LSP's
+   * `dpql/toRichtext` custom method. When `true`, the editor calls
+   * `dpql/toRichtext({ text: value })` on mount and on every external
+   * `value` change, and uses the server's structured response as the
+   * Slate document. Falls back to the client-side regex parser if the
+   * server request fails, times out, or returns a shape we don't
+   * recognise. While the request is in flight, the editor shows the
+   * "Connecting…" overlay (see `SmartEditor.loadingIndicator`).
+   *
+   * Trade-off: the server understands nested expressions, function
+   * calls with templates inside, and quoted edge cases better than
+   * the client regex — but the server's current `toRichtext` only
+   * recognises `$template:value` patterns, NOT `@field` references.
+   * For DPQL where field refs dominate, the client-side parser is
+   * usually richer. Treat this as an escape hatch for documents that
+   * tickle the client regex's known limitations.
+   *
+   * Default `false`.
+   */
+  useServerParse?: boolean;
 }
 
 /** Imperative methods exposed via the `DpqlEditor` ref. */
