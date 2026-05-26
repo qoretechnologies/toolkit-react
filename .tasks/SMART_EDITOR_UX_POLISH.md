@@ -321,38 +321,55 @@ removal of `useDpqlSyntaxHighlighting.ts`, fixed DPQL story values.
       play tests (152 pass — +1 for `WithSemanticTokens`)
 - [ ] **STOP — user verifies in browser before commit**
 
-## Phase 8 — Release prep
+## Phase 8 — Release prep (deferred — runs after all follow-up tasks)
 
-- [ ] Bump Reqraft `package.json` version (decide 0.9.x patch or 0.10.0)
-- [ ] Update Reqraft `README.md` Components section to mention
-      diagnostics, hover, loading state, server-parse
-- [ ] Carry the user's list into the README too
+**Revised 2026-05-26.** Originally scoped to run immediately after
+phase 7, but research after phase 7 surfaced four follow-up tasks
+that should ship as part of the same `0.10.0` release (see
+[`INDEX.md`](./INDEX.md) for the full list). Cutting `0.10.0-beta`
+before those land would mean a release tag with no real consumer —
+qorus-ide alert-rule integration needs `alertPayloadContext` /
+`fsmContext` from `SMART_EDITOR_CONTEXT_AND_POLISH`.
+
+So Phase 8 runs at the **end** of the full task sequence, after:
+
+1. [`SMART_EDITOR_CONTEXT_AND_POLISH.md`](./SMART_EDITOR_CONTEXT_AND_POLISH.md)
+2. [`SMART_EDITOR_LSP_FEATURES.md`](./SMART_EDITOR_LSP_FEATURES.md)
+3. [`QONSOLE_ASSIST_FEATURES.md`](./QONSOLE_ASSIST_FEATURES.md)
+4. [`SMART_EDITOR_VISUAL_POLISH.md`](./SMART_EDITOR_VISUAL_POLISH.md)
+
+Phase 8 itself:
+
+- [ ] Bump Reqraft `package.json` version to `0.10.0`
+- [ ] Final `README.md` pass against the **complete** post-batch
+      API (covers all new props introduced across all five tasks).
+      Don't bother with a slimmer mid-batch README pass — wait for
+      this one
 - [ ] Update `qorus-frontend/DPQL_EXTRACTION_PROGRESS.md` execution log
+- [ ] Verify Reqore PRs (`Textarea.handleBlur`, `RichTextEditor.renderElement` deps)
+      have either shipped upstream OR a `patch-package` patch is
+      committed for the `node_modules` workaround
 - [ ] Final test pass: jest + storybook + manual smoke
 - [ ] **STOP — user does final review before push**
+- [ ] Tag + push
 
-## Follow-up batches (post-`0.10.0`)
+## Follow-up tasks (part of `0.10.0`, not separate releases)
 
-Four separate planning documents were drafted after the `0.10.0`
-research pass. They are NOT part of `0.10.0` itself — they ship as
-later patches.
+See [`INDEX.md`](./INDEX.md) for sequencing and status. Brief
+summary:
 
-- [`SMART_EDITOR_VISUAL_POLISH.md`](./SMART_EDITOR_VISUAL_POLISH.md) —
-  Reqore styling-vocabulary alignment (effects, customTheme, frost
-  on popovers, intent-coloured chips, native loading overlay)
+- [`SMART_EDITOR_CONTEXT_AND_POLISH.md`](./SMART_EDITOR_CONTEXT_AND_POLISH.md)
+  — `isContextReady` race fix, debounced loader, FSM /
+  alert-payload context props (qorus-ide alert-rule blocker),
+  README catch-up
 - [`SMART_EDITOR_LSP_FEATURES.md`](./SMART_EDITOR_LSP_FEATURES.md) —
   unused LSP methods, primarily wiring `textDocument/signatureHelp`
-  (the one high-value gap)
 - [`QONSOLE_ASSIST_FEATURES.md`](./QONSOLE_ASSIST_FEATURES.md) —
   `commitCharacters`, `sortText`, `warning`, `data`, wizard launch
   via `command: qonsole.startWizard`, mode-type fix
-- [`SMART_EDITOR_CONTEXT_AND_POLISH.md`](./SMART_EDITOR_CONTEXT_AND_POLISH.md)
-  — `isContextReady` race fix, debounced loader, FSM /
-  alert-payload context props (gating for qorus-ide alert-rule
-  editor), README catch-up
-
-Sequence them per user direction; some have natural ordering inside
-themselves (see each file's "Sequencing" section where present).
+- [`SMART_EDITOR_VISUAL_POLISH.md`](./SMART_EDITOR_VISUAL_POLISH.md)
+  — Reqore styling-vocabulary alignment (lands last so it polishes
+  the final UI state)
 
 ## Notes
 

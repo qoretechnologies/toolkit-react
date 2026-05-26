@@ -344,6 +344,33 @@ Per user preference: no incremental versions per phase. All of items
 1–6 ship together as `0.10.0-beta`. Reqraft `package.json` bumps
 once, at the end of the batch (Phase 8 release prep).
 
+**Release strategy revised 2026-05-26.** After phases 1–7 + 6
+shipped, post-batch research surfaced four follow-up task files
+(`.tasks/SMART_EDITOR_CONTEXT_AND_POLISH.md`, `LSP_FEATURES.md`,
+`QONSOLE_ASSIST_FEATURES.md`, `VISUAL_POLISH.md`) that are
+sufficiently entangled with the original batch to share a release
+tag rather than ship as `0.10.1` / `0.10.2` / `0.11.0`:
+
+- **`CONTEXT_AND_POLISH` item 4** (`alertPayloadContext` /
+  `fsmContext` props) is the actual qorus-ide alert-rule editor
+  blocker. Without it, an immediate `0.10.0-beta` release has no
+  consumer.
+- **`VISUAL_POLISH`** styles surfaces introduced by the other
+  follow-ups (signature pill, warning chips, wizard items) — landing
+  it before they exist would mean a second polish pass.
+- **The full README pass** is cheaper to do once at the end against
+  the final API than to update incrementally after each release.
+- **The Reqore patches** (Textarea null-check, renderElement deps)
+  need to either ship upstream or be persisted via `patch-package`.
+  A held release gives Reqore time to land the PRs.
+
+Net: all five `.tasks/*.md` files (the original UX_POLISH plus the
+four follow-ups) ship as a single `0.10.0` tag once every row in
+`.tasks/INDEX.md` is `committed`. No `-beta` intermediate tag, no
+incremental point releases between. The cost is "release happens
+later"; the benefit is "the release tag corresponds to a real
+consumer milestone".
+
 ## Test plan
 
 | Phase | Coverage |
@@ -381,6 +408,10 @@ imperceptible.
 research surfaced that the SQL-style highlighting was a copy-paste
 artifact incompatible with real DPQL syntax. All other items
 unchanged.
+**Revised 2026-05-26 (second)** to update the release strategy
+section — `0.10.0` now bundles the four follow-up task files into a
+single tag rather than shipping `0.10.0-beta` + incremental
+releases. Rationale in the "Version bump" sub-section above.
 
 Any new issues discovered during implementation get added to the task
 list as they surface — design doc updates only with explicit revision.

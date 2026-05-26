@@ -4,24 +4,36 @@ One-glance status across every task file in `.tasks/`. **Update this
 file whenever a task transitions between statuses** (per the
 convention in `.claude/CLAUDE.md` § "Task & design docs workflow").
 
-## Releases
+## Release strategy
+
+**Revised 2026-05-26.** All `.tasks/` items below ship together as a
+single `0.10.0` release — no incremental `-beta` / `0.10.1` / `0.10.2`
+tags between. Rationale recorded in
+[`design/SMART_EDITOR_UX.md` § "Release strategy"](../design/SMART_EDITOR_UX.md):
+shipping incremental releases would mean cutting tags with no real
+consumer (qorus-ide alert-rule editor needs `alertPayloadContext`/`fsmContext`
+which are in the CONTEXT_AND_POLISH task, not in what was originally
+scoped for `0.10.0`). Better to land everything in one coherent
+release that an actual consumer can adopt.
 
 | Release | Status | Tag / sha |
 |---|---|---|
 | `0.9.0` | shipped | (current published) |
-| `0.10.0-beta` | done pending user verify | uncommitted Phase 8 + `a9b7f1b` (Phases 2-7) + `6fb9bf3` (Phase 1) |
-| `0.10.1` | planned | follow-up — see below |
-| `0.11.0` | planned | follow-up — see below |
+| `0.10.0` | in progress | held until every task row below is `committed` |
 
 ## Tasks
 
-| Task | Status | Target release | Sequence rationale |
-|---|---|---|---|
-| [SMART_EDITOR_UX_POLISH](./SMART_EDITOR_UX_POLISH.md) | Phase 1 committed `6fb9bf3` · Phases 2–7 + 6 committed `a9b7f1b` · Phase 8 release prep pending user-verify | **0.10.0-beta** | The main UX batch. Phase 8 is the release-prep step (bump version, README, push) — gated on user verification of `VERIFY.local.md` |
-| [SMART_EDITOR_CONTEXT_AND_POLISH](./SMART_EDITOR_CONTEXT_AND_POLISH.md) | ready to start | **0.10.1** | **Blocking dependency**: item 4 (`alertPayloadContext` + `fsmContext` props) unblocks qorus-ide's `ALERT_RULES_AND_SILENCES.md` integration. Land first after `0.10.0` ships. |
-| [SMART_EDITOR_LSP_FEATURES](./SMART_EDITOR_LSP_FEATURES.md) | ready to start | **0.10.2** or **0.11.0** | `textDocument/signatureHelp` — the only HIGH-value LSP method the server actually supports for DPQL. Introduces `session.capabilities` which other tasks can use. |
-| [QONSOLE_ASSIST_FEATURES](./QONSOLE_ASSIST_FEATURES.md) | ready to start | **0.11.0** | Qonsole-side UX (commit chars, wizard launch, sort order, etc.). Most useful when an actual Qonsole consumer (qorus-ide `QonsoleInput.tsx` swap) is on the horizon. |
-| [SMART_EDITOR_VISUAL_POLISH](./SMART_EDITOR_VISUAL_POLISH.md) | ready to start | **0.11.0** or **0.11.1** | Reqore styling-vocabulary push. Land **last** so it polishes the final UI state — each preceding task adds new surfaces (signature pill, warning chips, wizard items) the polish pass should cover in one go. |
+All tasks ship as part of `0.10.0`. Sequence below is the suggested
+implementation order; release happens after the last row commits.
+
+| Task | Status | Sequence rationale |
+|---|---|---|
+| [SMART_EDITOR_UX_POLISH](./SMART_EDITOR_UX_POLISH.md) | Phase 1 committed `6fb9bf3` · Phases 2–7 + 6 committed `a9b7f1b` · Phase 8 (release prep) deferred to end of batch | The original UX batch. All design-doc items (1–7) shipped; Phase 8's "bump version + push" step now happens after every follow-up below also lands. |
+| [SMART_EDITOR_CONTEXT_AND_POLISH](./SMART_EDITOR_CONTEXT_AND_POLISH.md) | ready to start | **1st** — item 4 (`alertPayloadContext` + `fsmContext` props) is the qorus-ide alert-rule editor blocker; item 1 (`isContextReady` race) is real-bug correctness. Land these together. Items 2/3 ride along (loader debounce, README catch-up; the latter slim — full README rewrite at end of batch). |
+| [SMART_EDITOR_LSP_FEATURES](./SMART_EDITOR_LSP_FEATURES.md) | ready to start | **2nd** — wires `textDocument/signatureHelp`, the only HIGH-value LSP method the server supports for DPQL. Introduces `session.capabilities` which other tasks can use defensively. |
+| [QONSOLE_ASSIST_FEATURES](./QONSOLE_ASSIST_FEATURES.md) | ready to start | **3rd** — generic LSP wins (commit chars, sortText, warning) + Qonsole-specific (wizard launch, mode-type fix). |
+| [SMART_EDITOR_VISUAL_POLISH](./SMART_EDITOR_VISUAL_POLISH.md) | ready to start | **4th (last)** — Reqore styling-vocabulary push. Polishes the **final** UI state — each preceding task adds new surfaces (signature pill, warning chips, wizard items) the polish pass should cover in one sweep. |
+| `0.10.0` release prep (Phase 8 of UX_POLISH) | ready to start once all above complete | **5th (final)** — bump `package.json` to `0.10.0`; final README pass against the final API; tag; push. |
 
 ## Status vocabulary
 
