@@ -242,6 +242,120 @@ yarn build:test         # Type-check without emit
 | `src/types/` | Shared TypeScript types |
 | `__tests__/` | Jest tests |
 
+## Task & design docs workflow
+
+This repo uses **three complementary doc surfaces** for tracking
+in-flight work. Keeping them in sync is part of every meaningful
+change. The convention was introduced during the SmartEditor UX
+batch (`design/SMART_EDITOR_UX.md` is the worked example).
+
+### The three surfaces
+
+| Surface | Location | Committed? | Lifetime | Purpose |
+|---|---|---|---|---|
+| **Design doc** | `design/<TOPIC>.md` | yes | persistent | *What we decided* — locked design + rationale. Updates are explicit revisions. |
+| **Task file** | `.tasks/<TOPIC>.md` | yes | persistent (kept as history) | *What we're doing* — phases / checklists, status header, surface area, tests |
+| **Verify file** | `VERIFY.local.md` at repo root | **no** (gitignored via `*.local.md`) | per-batch (overwrite each batch) | *What to check before push* — story-by-story click-through for the current uncommitted work |
+
+Plus the dashboard:
+
+- **`.tasks/INDEX.md`** (committed) — one-glance table across every
+  task file with status, target release, sequence rationale.
+
+### When to update each
+
+**Design doc** (`design/<TOPIC>.md`)
+- On creation: a non-trivial feature batch. Locks the decisions
+  *before* code is written.
+- On revision: when a decision changes mid-implementation. Update
+  with a "Revised <date>" note in the affected section AND the
+  doc's status footer. Don't silently rewrite — leave the audit
+  trail.
+- Example: `design/SMART_EDITOR_UX.md` was locked 2026-05-25,
+  revised 2026-05-26 to add item 7 (LSP semantic tokens) after
+  research surfaced that the regex highlighter was a copy-paste
+  artifact.
+
+**Task file** (`.tasks/<TOPIC>.md`)
+- On creation: when starting a new batch of work. Must include:
+  - `**Status:**` line at the top
+  - Reference to the design doc (if applicable)
+  - Surface-area table (which files this touches)
+  - Phase breakdown with checklist items
+  - "STOP — user verifies in browser before commit" gates
+- On every meaningful transition: update the `**Status:**` line.
+  Vocabulary listed in `.tasks/INDEX.md`.
+- On checklist item completion: tick the box. Use `[x]` not
+  emojis. Multi-task batches may use sub-section markers like
+  `### 7a` / `### 7b` for grouping.
+- On commit: append the commit sha to the relevant phase's status.
+
+**`.tasks/INDEX.md`** (the dashboard)
+- On every status transition that affects a task row, update both
+  the task file's `**Status:**` header AND the index row.
+- On new task creation: add a row before merging the task file
+  itself.
+- On task completion: don't delete the row — mark it `committed
+  <sha>` or `shipped <tag>`.
+- On task supersession: mark `superseded by <file>` rather than
+  deleting; the row is history.
+
+**`VERIFY.local.md`** (verification companion)
+- On creation: at the start of a verification cycle (e.g. after a
+  batch of work is done and before commit). Overwrite any
+  previous content — this file is not historical.
+- Contents: per-story click-through, what to type / hover /
+  expect, plus test status snapshots and known issues.
+- After verification passes: the file can stay (will be
+  overwritten next batch) or be deleted. It's gitignored either
+  way.
+- **Do NOT** put any of this content in `.tasks/` or `design/` —
+  those are committed and would create noise. The verify file
+  exists exactly to keep batch-specific click-throughs out of
+  history.
+
+### The STOP-before-commit rule
+
+Established workflow rule (originated in the SmartEditor UX batch
+after several premature commits): **never commit a feature batch
+until the user has verified it in their own browser.**
+
+The agent's responsibility:
+- Leave the work uncommitted (or on a feature branch, never
+  merged) when implementation completes.
+- Update `VERIFY.local.md` with the verification checklist.
+- Surface a clear "STOP — user verifies" message in the response.
+
+The user's responsibility:
+- Open the running storybook (`yarn storybook`, port 6008).
+- Walk the checklist in `VERIFY.local.md`.
+- Either approve the commit OR report issues for iteration.
+
+### File-naming conventions
+
+- `design/<TOPIC>.md` — uppercase, kebab-case OK
+  (e.g. `SMART_EDITOR_UX.md`)
+- `.tasks/<TOPIC>.md` — same
+- `.tasks/INDEX.md` — fixed name, top-level dashboard
+- `<ANYTHING>.local.md` — gitignored; the `*.local.*` family is
+  in `.gitignore` for non-committed scratch files (verify notes,
+  agent prompts, screenshots checklists, etc.)
+
+### What NOT to do
+
+- **Don't put status / progress in design docs.** Design is
+  *what we decided* — orthogonal to *where we are*.
+- **Don't put click-through verification steps in `.tasks/`.**
+  Those go in `VERIFY.local.md` so they stay out of history.
+- **Don't delete completed task files.** They become institutional
+  knowledge — refer back during reviews and post-mortems.
+- **Don't track granular line-item status in `INDEX.md`.** The
+  index is a dashboard; line items live in the task file.
+- **Don't update one of the three surfaces without checking the
+  others.** A status flip in the task file means a row update in
+  the index. A design revision means a note in the task file
+  pointing at it.
+
 ## Other
 
 - You may need to source zsh to get some commands (like `gh`) working: `source ~/.zshrc`

@@ -5,9 +5,13 @@ Active task list for the UX work specified in
 of the qorus-ide `.tasks/*.md` convention: one task file per body of
 work, check off items as they land.
 
+**Status:** Phase 1 committed `6fb9bf3` · Phases 2–7 + 6 committed `a9b7f1b` · Phase 8 release prep pending user-verify
+**Design doc:** [`design/SMART_EDITOR_UX.md`](../design/SMART_EDITOR_UX.md)
+
 **Workflow rule:** code changes land as **uncommitted** changes for
 user verification first. No commits until the user has confirmed the
-change behaves correctly in their own browser.
+change behaves correctly in their own browser. See `.claude/CLAUDE.md`
+§ "Task & design docs workflow" for the full convention.
 
 ## Status
 
