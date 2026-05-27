@@ -14,3 +14,7 @@ coverage
 *.local.txt
 *.local.json
 .local/
+
+# Per-agent local-only config (Claude Preview launch, etc.)
+.claude/launch.json
+
