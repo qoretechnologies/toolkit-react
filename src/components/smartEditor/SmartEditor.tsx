@@ -820,54 +820,83 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   : activeParam.documentation.value
                 : null;
 
+            // Render the pill as a plain absolutely-positioned div
+            // anchored relative to the caret line, not as a
+            // `ReqorePopover` — popovers want a meaningful trigger
+            // element, and the signature pill is purely visual (no
+            // hover/click target, no pointer events on the anchor).
+            // Earlier the wrapper was a 1×1 `pointer-events: none`
+            // span and `openOnMount` was silently no-opping because
+            // the popover ignores mount when the wrapper isn't an
+            // interactive trigger.
+            //
+            // Position strategy: prefer ABOVE the caret line; if
+            // that would clip the viewport top (e.g. when the editor
+            // is at y=0 of its container), fall back to BELOW the
+            // line. Estimated pill height = 64px which covers
+            // single-line label + a short markdown doc paragraph.
+            const pillBgTheme =
+              SMART_EDITOR_POPOVER_CUSTOM_THEME?.main ?? '#1a1a1a';
+            const PILL_HEIGHT_ESTIMATE = 64;
+            const PILL_WIDTH_ESTIMATE = 480; // matches maxWidth below
+            const VIEWPORT_MARGIN = 8;
+            const lineHeightEstimate = 18;
+            const placeBelow =
+              signatureHelp.position.top < PILL_HEIGHT_ESTIMATE + 8;
+            const pillTop = placeBelow
+              ? signatureHelp.position.top + lineHeightEstimate + 4
+              : signatureHelp.position.top - 6;
+            // Horizontal clamp: keep the pill inside the viewport.
+            // Without this, when the caret sits near the right edge
+            // the pill clips off-screen (or in narrow Storybook
+            // canvases, hangs partly outside). `window.innerWidth` is
+            // safe at render time — we're inside the body of an IIFE
+            // that runs every render.
+            const desiredLeft = signatureHelp.position.left;
+            const viewportWidth =
+              typeof window !== 'undefined' ? window.innerWidth : 1920;
+            const maxLeft =
+              viewportWidth - PILL_WIDTH_ESTIMATE - VIEWPORT_MARGIN;
+            const pillLeft = Math.max(
+              VIEWPORT_MARGIN,
+              Math.min(desiredLeft, maxLeft)
+            );
             return (
-              <ReqorePopover
-                key={`sig-${signatureHelp.position.left}-${signatureHelp.position.top}`}
-                component='span'
-                wrapperStyle={{
+              <div
+                key={`sig-${signatureHelp.position.left}-${signatureHelp.position.top}-${placeBelow}`}
+                style={{
                   position: 'fixed',
-                  top: signatureHelp.position.top,
-                  left: signatureHelp.position.left,
-                  width: '1px',
-                  height: '1px',
+                  top: pillTop,
+                  left: pillLeft,
+                  transform: placeBelow ? undefined : 'translate(0, -100%)',
+                  maxWidth: 480,
+                  minWidth: 280,
+                  padding: '6px 10px',
+                  fontSize: 12,
+                  fontFamily: 'monospace',
+                  color: '#e6e6e6',
+                  background: pillBgTheme,
+                  backdropFilter: 'blur(20px)',
+                  borderRadius: 4,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
                   pointerEvents: 'none',
+                  zIndex: 100,
                 }}
-                content={
+              >
+                <div>{renderLabel()}</div>
+                {paramDoc && (
                   <div
                     style={{
-                      maxWidth: 480,
-                      fontSize: 12,
-                      padding: 6,
-                      fontFamily: 'monospace',
+                      marginTop: 4,
+                      fontFamily: 'inherit',
+                      fontSize: 11,
+                      opacity: 0.85,
                     }}
                   >
-                    <div>{renderLabel()}</div>
-                    {paramDoc && (
-                      <div
-                        style={{
-                          marginTop: 4,
-                          fontFamily: 'inherit',
-                          fontSize: 11,
-                          opacity: 0.85,
-                        }}
-                      >
-                        <ReactMarkdown>{paramDoc}</ReactMarkdown>
-                      </div>
-                    )}
+                    <ReactMarkdown>{paramDoc}</ReactMarkdown>
                   </div>
-                }
-                openOnMount
-                noArrow
-                placement='top-start'
-                handler='click'
-                closeOnOutsideClick={false}
-                minWidth='280px'
-                flat
-                transparent
-                backgroundBlur={20}
-                // @ts-expect-error — customTheme on popovers is valid
-                customTheme={SMART_EDITOR_POPOVER_CUSTOM_THEME}
-              />
+                )}
+              </div>
             );
           })()}
         </div>

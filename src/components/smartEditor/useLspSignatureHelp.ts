@@ -19,7 +19,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { BaseEditor } from 'slate';
+import { BaseEditor, Editor } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
@@ -102,10 +102,19 @@ export function useLspSignatureHelp(
         clearSignature();
         return;
       }
-      const selection = editor.selection;
+      // If the editor doesn't have a focused selection (e.g. fresh
+      // mount before user interaction), fall back to the end of the
+      // document. Without this, the hook would never fire on mount
+      // — the demo story can't ask the user to click first.
+      let selection = editor.selection;
       if (!selection) {
-        clearSignature();
-        return;
+        try {
+          const end = Editor.end(editor, []);
+          selection = { anchor: end, focus: end };
+        } catch {
+          clearSignature();
+          return;
+        }
       }
 
       // Map the current selection's anchor to an LSP {line, character}.
@@ -122,7 +131,9 @@ export function useLspSignatureHelp(
       try {
         const result = await client.getSignatureHelp(line, character);
         if (reqId !== requestIdRef.current) return; // stale
-        if (!result) {
+        // LSP servers signal "no signature" either by responding `null`
+        // or by responding `{signatures: []}` — treat both as dismiss.
+        if (!result || !result.signatures || result.signatures.length === 0) {
           clearSignature();
           return;
         }
