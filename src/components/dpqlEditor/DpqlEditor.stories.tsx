@@ -223,10 +223,17 @@ const meta = {
     value: '',
     onChange: fn(),
   },
-  async beforeEach() {
+  async beforeEach(context) {
     received = [];
     lastDocumentText = '';
     setContextDelayMs = 0;
+    // Live stories (those with `parameters: { live: true }`) skip
+    // the mock-socket server so the editor's WebSocket reaches the
+    // real Qorus `/lsp` endpoint at `wss://hq.qoretechnologies.com:8092/lsp`.
+    // Prereq: set `REACT_APP_QORUS_TOKEN` before running storybook.
+    if (context.parameters?.live) {
+      return undefined;
+    }
     const server = new Server(STORY_LSP_URL);
 
     server.on('connection', (socket) => {
@@ -550,16 +557,58 @@ const meta = {
             const lineText =
               lastDocumentText.split('\n')[position.line] ?? '';
             const head = lineText.slice(0, position.character);
-            // Count commas inside the most recently opened paren to
-            // derive an `activeParameter`. Very crude — sufficient
-            // for a visual demo.
-            const lastOpen = head.lastIndexOf('(');
-            let activeParameter = 0;
-            if (lastOpen >= 0) {
-              activeParameter = (
-                head.slice(lastOpen + 1).match(/,/g) ?? []
-              ).length;
+            // Find the innermost unclosed `(` before the cursor. If
+            // none, the cursor isn't inside any open call — return
+            // empty signatures so the pill dismisses. Walk backward
+            // tracking nesting depth: every `)` adds to depth, every
+            // `(` at depth 0 is the one we're inside.
+            let depth = 0;
+            let openPos = -1;
+            for (let i = head.length - 1; i >= 0; i--) {
+              const c = head[i];
+              if (c === ')') depth++;
+              else if (c === '(') {
+                if (depth === 0) {
+                  openPos = i;
+                  break;
+                }
+                depth--;
+              }
             }
+            if (openPos < 0) {
+              // No open call at the cursor — empty signatures, pill
+              // dismisses on the client side.
+              socket.send(
+                JSON.stringify({
+                  jsonrpc: '2.0',
+                  id: msg.id,
+                  result: {
+                    signatures: [],
+                    activeSignature: 0,
+                    activeParameter: 0,
+                  },
+                })
+              );
+              break;
+            }
+            // Count commas inside the matched open call, ignoring any
+            // nested calls. (Crude: scan forward from openPos+1, track
+            // paren depth, count commas at depth 0.)
+            const argsRegion = head.slice(openPos + 1);
+            let nestDepth = 0;
+            let activeParameter = 0;
+            for (let i = 0; i < argsRegion.length; i++) {
+              const c = argsRegion[i];
+              if (c === '(') nestDepth++;
+              else if (c === ')') nestDepth--;
+              else if (c === ',' && nestDepth === 0) activeParameter++;
+            }
+            // Synthetic `substr(...)` signature — mirrors the shape the
+            // real Qorus server returns (captured during live probing).
+            // Choosing `substr` (3 distinct params) over `coalesce`
+            // (single-variadic-param) so active-parameter advancement
+            // is visible on typing commas. Human-friendly capitalized
+            // parameter names match the real server's convention.
             socket.send(
               JSON.stringify({
                 jsonrpc: '2.0',
@@ -567,28 +616,29 @@ const meta = {
                 result: {
                   signatures: [
                     {
-                      label: 'coalesce(value1, value2, default)',
+                      label:
+                        'substr(String Value, Start Character, Length) → string',
                       documentation: {
                         kind: 'markdown',
                         value:
-                          'Returns the **first non-null** value among ' +
-                          'the supplied arguments. The final argument ' +
-                          'is the fallback returned if every prior ' +
-                          'value is null.',
+                          'Extracts a substring from `String Value`, ' +
+                          'starting at `Start Character` (0-based) and ' +
+                          'taking at most `Length` characters.',
                       },
                       parameters: [
                         {
-                          label: 'value1',
-                          documentation: 'First candidate value.',
+                          label: 'String Value',
+                          documentation: 'The source string to extract from.',
                         },
                         {
-                          label: 'value2',
-                          documentation: 'Second candidate value.',
-                        },
-                        {
-                          label: 'default',
+                          label: 'Start Character',
                           documentation:
-                            'Fallback returned when every prior value is null.',
+                            'The starting character position where the first character is 0.',
+                        },
+                        {
+                          label: 'Length',
+                          documentation:
+                            'The maximum number of characters to return.',
                         },
                       ],
                     },
@@ -791,10 +841,18 @@ export const WithFsmContext: Story = {
 
 /**
  * Demonstrates `textDocument/signatureHelp` (LSP_FEATURES task).
- * Initial value `coalesce(@name, ` leaves the cursor inside a
+ * Initial value `substr("hello", ` leaves the cursor inside a
  * function call's argument list — on mount, the mock returns a
- * synthetic `coalesce(value1, value2, default)` signature with the
- * active parameter computed from the comma count at the cursor.
+ * synthetic `substr(String Value, Start Character, Length) → string`
+ * signature with the active parameter computed from the comma count
+ * at the cursor.
+ *
+ * Mock shape mirrors the real Qorus DPQL server's `substr`
+ * signature (3 distinct params, capitalized labels, `→ string`
+ * return annotation) so the mock and live stories exercise
+ * structurally-identical responses. See
+ * `LiveDpqlEditorWithSignatureHelp` for the same flow against the
+ * real backend.
  *
  * The signature pill renders ABOVE the caret line; the completion
  * popover (if it pops up alongside) anchors BELOW. The two coexist
@@ -806,15 +864,79 @@ export const WithFsmContext: Story = {
  */
 export const WithSignatureHelp: Story = {
   args: {
-    value: 'coalesce(@name, ',
+    value: 'substr("hello", ',
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Signature-help pill above the caret. Type a comma to ' +
-          'advance to the next parameter (`value2` → `default`); ' +
-          'closing `)` dismisses.',
+          'Signature-help pill above the caret. Type `0, ` to ' +
+          'advance to the next parameter (`Start Character` → ' +
+          '`Length`); typing `)` dismisses.',
+      },
+    },
+  },
+};
+
+/**
+ * **Live spike — hits the real Qorus `/lsp` endpoint** at
+ * `wss://hq.qoretechnologies.com:8092/lsp` with `languageId: 'dpql'`.
+ * Used to validate `useLspSignatureHelp` end-to-end against the
+ * shipped Qorus DPQL handler (`dpql-get-signature-help` in
+ * `qorus/Classes/QorusLspWebSocketHandler.qc`).
+ *
+ * **Initial value: `substr("hello", `** — uses `substr` rather than
+ * `coalesce` because `substr` has THREE distinct positional
+ * parameters (`String Value`, `Start Character`, `Length`), so typing
+ * commas visibly advances the active parameter. The server models
+ * `coalesce` and `concat` as single-variadic-parameter functions
+ * (one `Value` slot) — the pill stays static on those.
+ *
+ * Server-confirmed via direct probes:
+ * - `substr("hello", ` → `activeParameter: 1` (Start Character)
+ * - `substr("hello", 0, ` → `activeParameter: 2` (Length)
+ *
+ * Other multi-param candidates verified to advance: `round(Number,
+ * Precision)`, `format_date(Date To Format, Format String)`,
+ * `nullif(Value, Compare Value)`, `split(String To Split, Separator)`.
+ *
+ * The `parameters: { live: true }` flag tells the meta-level
+ * `beforeEach` to skip the mock-socket setup so the WebSocket reaches
+ * the real backend.
+ *
+ * **Prereq:** export `REACT_APP_QORUS_TOKEN` before running storybook.
+ * Without a valid token the WebSocket handshake fails with 401.
+ *
+ * **Expected behavior:**
+ * - On mount, pill appears showing `substr(String Value, Start
+ *   Character, Length) → string` with `Start Character` highlighted
+ *   (already past the first comma).
+ * - Type `0, ` — pill updates: `Length` is now highlighted.
+ * - Type `)` — pill dismisses (server returns empty signatures when
+ *   the call is closed).
+ *
+ * **If no pill appears**, the most likely causes are:
+ * - The real server doesn't advertise `signatureHelpProvider` for
+ *   `languageId: 'dpql'` (capability drift — check via DevTools
+ *   Network → WS frame inspector → `initialize` response).
+ * - The server's `dpql-get-signature-help` returns a shape our
+ *   client doesn't parse (check the response body for the request).
+ * - The token is invalid (401 in DevTools Network).
+ */
+export const LiveDpqlEditorWithSignatureHelp: Story = {
+  args: {
+    value: 'substr("hello", ',
+  },
+  parameters: {
+    live: true,
+    docs: {
+      description: {
+        story:
+          'Hits the real Qorus DPQL LSP — no mock. Initial value is ' +
+          '`substr("hello", ` so active-parameter advancement is ' +
+          'visible (`coalesce` would not advance because the server ' +
+          'models it as single-variadic-param). Set ' +
+          '`REACT_APP_QORUS_TOKEN` before launching storybook.',
       },
     },
   },

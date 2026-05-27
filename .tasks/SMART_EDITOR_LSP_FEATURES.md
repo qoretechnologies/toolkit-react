@@ -7,7 +7,40 @@ the client. This task triages each, lands the ones with real value
 for DPQL / Qonsole today, and documents why the rest are deferred or
 permanently out of scope.
 
-**Status:** done — committed in `d54597e`. Wires `textDocument/signatureHelp`; other 12 LSP methods deferred per the per-method rationale below. **Awaiting browser verification.**
+**Status:** done — committed in `d54597e`. Wires `textDocument/signatureHelp`; other 12 LSP methods deferred per the per-method rationale below. **Awaiting browser verification (mock + live story exist; live story confirmed against the real Qorus DPQL LSP).**
+
+**Live-verification notes (captured after the initial implementation):**
+
+- Real server signature shape differs from the hypothetical one
+  documented in §"Design decisions → 1." below. The Qorus DPQL handler
+  emits a single `→ <type>` return annotation in the `label`, and uses
+  **human-friendly capitalized parameter names** (`"String Value"`,
+  `"Start Character"`) rather than identifier-style (`"value1"`,
+  `"start"`). Both are valid LSP `SignatureInformation`; the render
+  path handles both.
+- **`coalesce` and `concat` are single-variadic-parameter on the
+  server.** Both return one parameter (`"Value"`). Typing more commas
+  does NOT advance the active parameter — the server semantically
+  treats all args as the same conceptual slot. The original task plan
+  used `coalesce` as the demo case; the live story uses `substr`
+  instead because it has three distinct positional parameters and
+  visibly demos active-parameter advancement.
+- Server-probed shapes for functions with distinct positional params:
+  - `substr(String Value, Start Character, Length) → string`
+  - `round(Number, Precision) → auto`
+  - `format_date(Date To Format, Format String) → string`
+  - `nullif(Value, Compare Value) → auto`
+  - `split(String To Split, Separator) → list<auto>`
+- Real server **also pushes a `textDocument/publishDiagnostics`** for
+  incomplete input — `substr("hello", ` flags as "Unexpected token ''
+  in value position". The diagnostic clears once the syntax is
+  complete. The editor's existing diagnostic panel renders it.
+  Expected behavior.
+- Capability advertisement: real server advertises 22 LSP providers
+  in `initialize`, but per the per-method rationale below, most return
+  null/empty for `languageId: 'dpql'`. The capability gate on
+  `session.capabilities?.signatureHelpProvider` is the right check
+  before wiring features.
 **Scope:** one new feature (signatureHelp), one capability-detection
 helper, eight explicit "rejected — defer" decisions.
 **Estimated size:** ~250 lines + tests, ~1.5 days.
