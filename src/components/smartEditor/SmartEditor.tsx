@@ -423,6 +423,18 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
         if (plainText !== lastPlainTextRef.current) {
           lastPlainTextRef.current = plainText;
+          // CRITICAL: also refresh `slateValueRef` to the live Slate
+          // nodes. The `slateValue` useMemo's cache check returns
+          // `slateValueRef.current` when `value === lastPlainTextRef`,
+          // and that condition fires on the re-render immediately
+          // after this callback (parent's `setState(plainText)` makes
+          // the next `value` prop equal to `lastPlainTextRef`). If we
+          // don't update `slateValueRef` here, downstream hooks
+          // (signature help, semantic decoration's `plainText` memo)
+          // see STALE nodes and don't recompute — manifests as the
+          // signature pill's active-parameter never advancing on
+          // typing.
+          slateValueRef.current = newNodes;
           onChange(plainText);
           session.didChange(plainText);
         }
