@@ -8,6 +8,7 @@ import {
   defaultFromSlateNodes,
   defaultSelectionToOffset,
   defaultToSlateNodes,
+  expandSnippet,
   lspPositionToOffset,
   mapCompletionKindToIcon,
   offsetToLspPosition,
@@ -198,6 +199,30 @@ describe('smartEditor helpers', () => {
     it('falls back to CodeLine for unknown kind', () => {
       expect(mapCompletionKindToIcon(undefined)).toBe('CodeLine');
       expect(mapCompletionKindToIcon(999)).toBe('CodeLine');
+    });
+  });
+
+  describe('expandSnippet', () => {
+    it('strips placeholders to their default text', () => {
+      // The real-world bug: a function snippet leaked `${n:…}$0`.
+      expect(
+        expandSnippet('slice(${1:List Value}, ${2:Index or Range})$0')
+      ).toBe('slice(List Value, Index or Range)');
+    });
+
+    it('drops bare tab-stops and empty placeholders', () => {
+      expect(expandSnippet('foo($1, $2)$0')).toBe('foo(, )');
+      expect(expandSnippet('foo(${1}, ${2})')).toBe('foo(, )');
+    });
+
+    it('leaves plain text untouched', () => {
+      expect(expandSnippet('substr')).toBe('substr');
+      expect(expandSnippet('@name == "x"')).toBe('@name == "x"');
+    });
+
+    it('honours TextMate escapes (a literal $ is not a tab-stop)', () => {
+      expect(expandSnippet('price = \\$${1:amount}')).toBe('price = $amount');
+      expect(expandSnippet('cost \\$0 today')).toBe('cost $0 today');
     });
   });
 });

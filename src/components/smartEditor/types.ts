@@ -146,7 +146,11 @@ export interface ISmartEditorProps {
   /** Optional React node rendered above the editor (e.g. a templates dropdown). */
   topActions?: React.ReactNode;
 
-  /** CSS height of the editable area. Default: `'200px'`. */
+  /**
+   * Optional **minimum** height of the editable area (CSS value). The
+   * editor auto-grows with content; this is a floor, not a fixed size.
+   * Omit for a single-line field that grows as you type.
+   */
   height?: string;
 
   /** Read-only mode. */

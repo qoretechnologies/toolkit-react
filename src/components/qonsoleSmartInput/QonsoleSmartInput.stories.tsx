@@ -751,6 +751,15 @@ export const WithDiagnostics: Story = {
       server.close();
     };
   },
+  // CI guard for the diagnostics round-trip (server `publishDiagnostics`
+  // → the stacked `ReqoreMessage` panel below the editor). Both pushed
+  // messages must render.
+  play: async ({ canvasElement }) => {
+    await sleep(700);
+    const text = canvasElement.textContent ?? '';
+    expect(text).toContain('Pipeline "pricing" not found in workspace.');
+    expect(text).toContain('Unknown resource "services"');
+  },
 };
 
 /**
@@ -770,11 +779,6 @@ export const WithDiagnostics: Story = {
  *   4. Type `l` — narrows to `--limit`
  *   5. Type `=` — `--limit` auto-accepts; final text is `/list services --limit=`
  *      (NOT `/list services --limit==`)
- *
- * Smoke-test only — no `play:` assertions. This is a hand-driven
- * exploration of the commit-character path; the contract assertion
- * lives in `BasicMock`'s play test (typing `-` → Enter → no
- * duplicate dash).
  */
 export const WithCommitCharacters: Story = {
   args: {
@@ -794,6 +798,30 @@ export const WithCommitCharacters: Story = {
     const server = setupBasicQonsoleMockServer();
     return () => server.close();
   },
+  // CI guard: typing `=` while `--limit` is focused auto-accepts and
+  // must NOT produce `--limit==` (the inserted text already ends with
+  // `=`, so the typed `=` is suppressed).
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    // Let the LSP session connect before typing (mirrors BasicMock).
+    await sleep(500);
+    await userEvent.click(editable);
+    // `-` opens the flag list (first item `--desc` is auto-focused).
+    await userEvent.type(editable, '-');
+    await sleep(500);
+    const dropdown = document.querySelector('.reqore-menu');
+    expect(dropdown).not.toBeNull();
+    expect(dropdown!.textContent).toContain('--desc');
+    // `=` is a commit character → auto-accept the focused `--desc`.
+    // Use `userEvent.keyboard` (not `type`) so the keydown reaches the
+    // document-capture commit handler cleanly. Its insertText already
+    // ends with `=`, so the typed `=` is suppressed (no `--desc==`).
+    await userEvent.keyboard('=');
+    await sleep(300);
+    expect(editable.textContent).toBe('/list services --desc=');
+    expect(editable.textContent).not.toContain('==');
+  },
 };
 
 /**
@@ -809,11 +837,8 @@ export const WithCommitCharacters: Story = {
  *   - The Qonsole inserter branches on `command.command === "qonsole.startWizard"`
  *   - The wrapper's `onWizardStart` fires with `command.arguments[0]`
  *
- * The args.onWizardStart is a `fn()` spy so the Storybook Actions
- * panel can confirm it was invoked.
- *
- * Smoke-test only — no `play:` assertions. Use Actions panel to
- * inspect the wizard-descriptor payload.
+ * The args.onWizardStart is a `fn()` spy so the play test (and the
+ * Storybook Actions panel) can confirm it was invoked.
  */
 export const WithWizardItems: Story = {
   args: {
@@ -834,5 +859,30 @@ export const WithWizardItems: Story = {
   async beforeEach() {
     const server = setupBasicQonsoleMockServer();
     return () => server.close();
+  },
+  // CI guard: selecting the wizard item fires `onWizardStart` with the
+  // descriptor INSTEAD of inserting text. The initial `/` doesn't
+  // auto-open (trigger-on-typing) — clear and re-type `/` to open the
+  // verb dropdown that includes the wizard item.
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.clear(editable);
+    await userEvent.type(editable, '/');
+    await sleep(400);
+    const dropdown = document.querySelector('.reqore-menu');
+    expect(dropdown).not.toBeNull();
+    const wizardItem = Array.from(
+      document.querySelectorAll('.reqore-menu-item')
+    ).find((el) => el.textContent?.includes('Create connection'));
+    expect(wizardItem).toBeDefined();
+    await userEvent.click(wizardItem as HTMLElement);
+    await sleep(200);
+    // The callback fired with the wizard descriptor.
+    expect(args.onWizardStart).toHaveBeenCalled();
+    const callArg = (args.onWizardStart as ReturnType<typeof fn>).mock
+      .calls[0][0];
+    expect(callArg).toMatchObject({ action: 'start-wizard' });
   },
 };

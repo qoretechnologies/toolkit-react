@@ -2,19 +2,18 @@
 // DpqlEditor — Slate-based DPQL smart text field. Thin wrapper over the
 // generic `SmartEditor` primitive, configured with DPQL-flavored knobs:
 // regex-driven syntax highlighting, tag rendering for $template / @field,
-// the templates dropdown above the editor, plain-text↔Slate conversion
-// that recognises DPQL tag patterns, and tag-element insertion for
-// completions whose `insertText` starts with `@` or `$`.
+// plain-text↔Slate conversion that recognises DPQL tag patterns, and
+// tag-element insertion for completions whose `insertText` starts with
+// `@` or `$`.
+//
+// Templates and fields are BOTH served by the LSP server through the
+// completion stream: typing `$` opens templates, `@` opens field
+// references (the server's `dpql-get-completions` is position-aware).
+// There is intentionally no client-side "Templates" button — it would
+// duplicate what the server already returns on `$`.
 
 import {
-  ReqoreControlGroup,
-  ReqoreDropdown,
-} from '@qoretechnologies/reqore';
-import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
-import { size } from 'lodash';
-import {
   forwardRef,
-  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -30,19 +29,6 @@ import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
 
 export type { IDpqlEditorProps, IDpqlEditorRef };
-
-/**
- * Default props for the `Templates` `ReqoreDropdown` shown above the editor.
- * Inlined here so the component is self-contained.
- */
-const TEMPLATES_DROPDOWN_DEFAULTS: Partial<IReqoreDropdownProps> = {
-  useTargetWidth: true,
-  handler: 'focus',
-  minWidth: '300px',
-  listCustomTheme: {
-    main: '#1e0d29',
-  },
-};
 
 // Trigger characters that open the autocomplete on typing. Space is
 // deliberately NOT in the set — typing a space after a chip (or after a
@@ -60,11 +46,9 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       recordType,
       options,
       actionCode,
-      height = '200px',
+      height,
       readOnly = false,
       onBlur,
-      templates,
-      stateId,
       useServerParse = false,
       alertPayloadContext = false,
       fsmContext,
@@ -204,57 +188,6 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       [dpql, value, onChange]
     );
 
-    /**
-     * Transform a template value for DPQL context.
-     * - Current state fields: `$data:{stateId.field}` → `@field`.
-     * - Wildcard templates: `$static:*` → `$static:` (user types field name).
-     */
-    const toDpqlValue = useCallback(
-      (templateValue: string): { text: string; needsFieldName: boolean } => {
-        if (stateId) {
-          const prefix = `$data:{${stateId}.`;
-          if (templateValue.startsWith(prefix) && templateValue.endsWith('}')) {
-            const field = templateValue.slice(prefix.length, -1);
-            return { text: `@${field}`, needsFieldName: false };
-          }
-        }
-        if (templateValue.endsWith(':*')) {
-          return { text: templateValue.slice(0, -1), needsFieldName: true };
-        }
-        return { text: templateValue, needsFieldName: false };
-      },
-      [stateId]
-    );
-
-    const handleTemplateSelect = useCallback(
-      (item: { value?: string }) => {
-        if (!item.value) return;
-        const { text } = toDpqlValue(item.value);
-        const newText = value ? `${value}${text}` : text;
-        onChange(newText);
-      },
-      [toDpqlValue, value, onChange]
-    );
-
-    const hasTemplates = size(templates?.items) > 0;
-
-    const topActions =
-      hasTemplates && !readOnly ? (
-        <ReqoreControlGroup>
-          <ReqoreDropdown
-            icon='MoneyDollarBoxLine'
-            label='Templates'
-            items={templates!.items}
-            onItemSelect={handleTemplateSelect}
-            filterable
-            compact
-            minimal
-            caretPosition='right'
-            {...TEMPLATES_DROPDOWN_DEFAULTS}
-          />
-        </ReqoreControlGroup>
-      ) : null;
-
     return (
       <SmartEditor
         session={dpql.session}
@@ -264,7 +197,6 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         triggerCharacters={DPQL_TRIGGERS}
         converter={converter}
         completionInserter={dpqlCompletionInserter}
-        topActions={topActions}
         height={height}
         readOnly={readOnly}
         onBlur={onBlur}

@@ -14,7 +14,9 @@ import {
   ReqoreMenuItem,
   ReqoreMessage,
   ReqoreSpinner,
+  useReqoreTheme,
 } from '@qoretechnologies/reqore';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { ReqorePopover } from '@qoretechnologies/reqore/dist/components/Popover';
 import {
   ReqoreRichTextEditor,
@@ -27,10 +29,14 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
-import ReactMarkdown from 'react-markdown';
 import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
-import { defaultSlateConverter, lspPositionToOffset } from './helpers';
+import {
+  defaultSlateConverter,
+  expandSnippet,
+  lspPositionToOffset,
+} from './helpers';
+import { MarkdownDoc } from './MarkdownDoc';
 import { ISlateElement, ISmartEditorProps, TCompletionInserter } from './types';
 import {
   ICompletionDropdownItem,
@@ -40,7 +46,6 @@ import {
   COMPLETION_KIND_INTENTS,
   DIAGNOSTIC_SEVERITY_EFFECTS,
   SMART_EDITOR_OVERLAY_EFFECT,
-  SMART_EDITOR_POPOVER_CUSTOM_THEME,
 } from './styling';
 import {
   severityToIntent,
@@ -140,14 +145,16 @@ function buildDocTooltip(item: ICompletionDropdownItem) {
   const text = typeof doc === 'string' ? doc : doc?.value ?? '';
   if (!text) return undefined;
   return {
-    content: (
-      <div style={{ maxWidth: 360, maxHeight: 240, overflow: 'auto' }}>
-        {isMarkdown ? <ReactMarkdown>{text}</ReactMarkdown> : <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{text}</pre>}
-      </div>
-    ),
+    content: <MarkdownDoc content={text} markdown={isMarkdown} />,
     placement: 'right' as const,
     delay: 200,
-  };
+    // Dark frosted surface to match the completion dropdown + the hover
+    // popover (Reqore tooltips are popovers at runtime; these props
+    // aren't in the older tooltip type declarations).
+    flat: true,
+    transparent: true,
+    backgroundBlur: 20,
+  } as any;
 }
 
 /**
@@ -160,7 +167,12 @@ function buildDocTooltip(item: ICompletionDropdownItem) {
  * this entirely to insert Slate tag elements for `@field` / `$template`.
  */
 const defaultCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
-  const newText = item.textEdit?.newText ?? item.insertText ?? item.label;
+  const rawText = item.textEdit?.newText ?? item.insertText ?? item.label;
+  // LSP snippet (`insertTextFormat === 2`): expand the TextMate
+  // placeholder syntax to plain text so `slice(${1:List Value})$0`
+  // doesn't leak `${…}$0` into the document.
+  const newText =
+    item.insertTextFormat === 2 ? expandSnippet(rawText) : rawText;
 
   // Replace mode — atomically swap the node at the chip's path for the
   // chosen completion as plain text. (Language wrappers that need tag
@@ -216,7 +228,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       converter = defaultSlateConverter,
       completionInserter = defaultCompletionInserter,
       topActions,
-      height = '200px',
+      height,
       readOnly = false,
       onBlur,
       loadingIndicator,
@@ -226,6 +238,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     },
     ref
   ) => {
+    const theme = useReqoreTheme();
     const editorRef = useRef<TReqoreRichTextEditorRef>(null);
     const lastPlainTextRef = useRef(value);
     // Cached Slate nodes. Updated only on EXTERNAL value changes (initial
@@ -391,13 +404,18 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
         // Diagnostic underline goes outermost so it overlays the
         // syntax colour. Native `title` tooltip carries the message.
+        // Colours derive from the theme's diagnostic intents — the same
+        // vocabulary the diagnostic panel uses via
+        // `DIAGNOSTIC_SEVERITY_EFFECTS` (Error→danger, Warning→warning,
+        // Info/Hint→info) — not hardcoded hex. Hex fallbacks keep the
+        // underline visible if a host theme omits an intent.
         if (leaf.error) {
           const underlineColor =
             leaf.severity === 2
-              ? '#f0a500'
+              ? (theme.intents?.warning ?? '#f0a500')
               : leaf.severity && leaf.severity >= 3
-                ? '#3a86ff'
-                : '#d62828';
+                ? (theme.intents?.info ?? '#3a86ff')
+                : (theme.intents?.danger ?? '#d62828');
           child = (
             <span
               title={leaf.errorMessage}
@@ -414,7 +432,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
         return child;
       },
-      [customRenderLeaf]
+      [customRenderLeaf, theme]
     );
 
     const handleSlateChange = useCallback(
@@ -569,7 +587,13 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               fluid: true,
               flat: true,
               style: {
-                minHeight: height,
+                // Auto-grow: the editor sizes to its content and grows
+                // as lines are added. `height` is an optional *minimum*
+                // floor (e.g. a multi-line code editor); when omitted,
+                // a single comfortable line so the empty field stays
+                // clickable and the diagnostics panel hugs the input
+                // instead of sitting below a tall reserved box.
+                minHeight: height ?? '2.4em',
                 fontFamily: 'monospace',
                 fontSize: '13px',
               },
@@ -627,7 +651,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   maxHeight='300px'
                   width='300px'
                   padded={false}
-                  customTheme={SMART_EDITOR_POPOVER_CUSTOM_THEME}
+                  // No customTheme — inherit the ambient app theme so the
+                  // dropdown matches whatever host embeds the editor
+                  // (`#121212` inside qorus-ide). Frosted via the blur.
                   effect={SMART_EDITOR_OVERLAY_EFFECT}
                 >
                   {autocomplete.items.length === 0 &&
@@ -677,10 +703,13 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                               badge={badge as any}
                               tooltip={tooltip as any}
                               selected={isFocused}
-                              // Apply info intent on the focused row for
-                              // better contrast against the dark
-                              // `#1a1a1a` popover surface.
-                              intent={isFocused ? 'info' : undefined}
+                              // Focused row uses the host's primary brand
+                              // intent (`custom1`) so the selection matches
+                              // the embedding app — QorusPurple inside
+                              // qorus-ide. Degrades to the host theme's
+                              // `custom1` elsewhere; falls back to the
+                              // default selected styling if undefined.
+                              intent={isFocused ? 'custom1' : undefined}
                               scrollIntoView={isFocused}
                               onClick={() =>
                                 handleCompletionSelect({ value: item.value })
@@ -709,6 +738,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               closeOnInsideClick={false}
               minWidth='300px'
               flat
+              // Transparent wrapper (like the hover/signature popovers)
+              // so the popover's own lighter surface + content padding
+              // don't form a frame around the menu — the `ReqoreMenu`
+              // card is the only visible surface.
+              transparent
               onToggleChange={autocomplete.handleExternalClose}
             />
           )}
@@ -731,22 +765,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 pointerEvents: 'none',
               }}
               content={
-                <div
-                  style={{
-                    maxWidth: 360,
-                    maxHeight: 240,
-                    overflow: 'auto',
-                    fontSize: 12,
-                    padding: 4,
-                  }}
-                >
-                  {hover.hoverContent.kind === 'markdown' ? (
-                    <ReactMarkdown>{hover.hoverContent.value}</ReactMarkdown>
-                  ) : (
-                    <pre style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
-                      {hover.hoverContent.value}
-                    </pre>
-                  )}
+                <div style={{ padding: 4 }}>
+                  <MarkdownDoc
+                    content={hover.hoverContent.value}
+                    markdown={hover.hoverContent.kind === 'markdown'}
+                  />
                 </div>
               }
               openOnMount
@@ -758,9 +781,6 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               flat
               transparent
               backgroundBlur={20}
-              // @ts-expect-error — customTheme on popovers is valid but
-              // not in the older Reqore type declarations
-              customTheme={SMART_EDITOR_POPOVER_CUSTOM_THEME}
               onToggleChange={(open: boolean) => {
                 if (!open) hover.clearHover();
               }}
@@ -782,6 +802,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             const params = sig.parameters ?? [];
             const activeParam = params[activeIdx];
 
+            // Active-parameter accent: the theme's `info` intent (the
+            // same colour the markdown doc uses for links), falling back
+            // to a readable foreground — not a hardcoded hex.
+            const activeParamColor =
+              theme.intents?.info ?? getReadableColor(theme);
+
             // Highlight the active parameter substring inside the
             // signature label when `label` is a [start, end] tuple
             // (LSP spec allows either substring positions or literal
@@ -794,7 +820,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 return (
                   <>
                     {sig.label.slice(0, start)}
-                    <strong style={{ color: '#56b6c2' }}>
+                    <strong style={{ color: activeParamColor }}>
                       {sig.label.slice(start, end)}
                     </strong>
                     {sig.label.slice(end)}
@@ -807,7 +833,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               return (
                 <>
                   {sig.label.slice(0, idx)}
-                  <strong style={{ color: '#56b6c2' }}>{name}</strong>
+                  <strong style={{ color: activeParamColor }}>{name}</strong>
                   {sig.label.slice(idx + name.length)}
                 </>
               );
@@ -835,8 +861,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             // is at y=0 of its container), fall back to BELOW the
             // line. Estimated pill height = 64px which covers
             // single-line label + a short markdown doc paragraph.
-            const pillBgTheme =
-              SMART_EDITOR_POPOVER_CUSTOM_THEME?.main ?? '#1a1a1a';
+            // Derive the pill surface from the active theme (the popover
+            // surface, falling back to the theme main) — not a hardcoded
+            // hex. The `backdropFilter` blur provides the frosted look.
+            const pillBgTheme = theme.popover?.main ?? theme.main;
+            // Readable foreground against the pill surface.
+            const pillTextColor = getReadableColor(theme);
             const PILL_HEIGHT_ESTIMATE = 64;
             const PILL_WIDTH_ESTIMATE = 480; // matches maxWidth below
             const VIEWPORT_MARGIN = 8;
@@ -874,7 +904,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   padding: '6px 10px',
                   fontSize: 12,
                   fontFamily: 'monospace',
-                  color: '#e6e6e6',
+                  color: pillTextColor,
                   background: pillBgTheme,
                   backdropFilter: 'blur(20px)',
                   borderRadius: 4,
@@ -885,15 +915,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               >
                 <div>{renderLabel()}</div>
                 {paramDoc && (
-                  <div
-                    style={{
-                      marginTop: 4,
-                      fontFamily: 'inherit',
-                      fontSize: 11,
-                      opacity: 0.85,
-                    }}
-                  >
-                    <ReactMarkdown>{paramDoc}</ReactMarkdown>
+                  <div style={{ marginTop: 4, opacity: 0.85 }}>
+                    <MarkdownDoc content={paramDoc} markdown />
                   </div>
                 )}
               </div>

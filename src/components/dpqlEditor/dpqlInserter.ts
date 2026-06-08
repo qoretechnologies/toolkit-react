@@ -6,7 +6,7 @@
 import { BaseEditor, Editor, Transforms } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
-import { lspPositionToOffset } from '../smartEditor/helpers';
+import { expandSnippet, lspPositionToOffset } from '../smartEditor/helpers';
 import { ISlateElement, TCompletionInserter } from '../smartEditor/types';
 import { getTagLabel, isTagCompletion } from './dpqlHelpers';
 
@@ -40,7 +40,13 @@ function findTokenStart(plainText: string, cursorOffset: number): number {
  */
 export const dpqlCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
   const ed = editor as BaseEditor & ReactEditor & HistoryEditor;
-  const insertValue = item.textEdit?.newText ?? item.insertText ?? item.label;
+  const rawValue = item.textEdit?.newText ?? item.insertText ?? item.label;
+  // Expand LSP snippets (`insertTextFormat === 2`) so function templates
+  // like `slice(${1:List Value}, ${2:Index or Range})$0` insert as
+  // `slice(List Value, Index or Range)` instead of leaking the snippet
+  // syntax. Tag completions (`@field` / `$template`) are never snippets.
+  const insertValue =
+    item.insertTextFormat === 2 ? expandSnippet(rawValue) : rawValue;
 
   // Replace mode — user clicked an existing chip. Atomically swap the
   // node at the chip's path for the chosen completion. No token-delete

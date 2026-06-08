@@ -241,6 +241,30 @@ export const WithMarkdownDocs: Story = {
       server.close();
     };
   },
+  // Open the dropdown so the story snapshot is distinct from the other
+  // empty-at-rest SmartEditor stories (and to guard the markdown-item
+  // render path in CI).
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.type(editable, 'arr.');
+    await sleep(500);
+    let dropdown = document.querySelector('.reqore-menu');
+    expect(dropdown).not.toBeNull();
+    expect(dropdown!.textContent).toContain('forEach');
+
+    // Regression guard: typing the method name after the `.` must
+    // NARROW the list (not clear it). The filter needle is the segment
+    // after the last `.` (`for`), not the whole `arr.for` token —
+    // otherwise every suggestion would wrongly disappear.
+    await userEvent.type(editable, 'for');
+    await sleep(400);
+    dropdown = document.querySelector('.reqore-menu');
+    expect(dropdown).not.toBeNull();
+    expect(dropdown!.textContent).toContain('forEach');
+    expect(dropdown!.textContent).not.toContain('reduce');
+  },
 };
 
 /**
@@ -312,6 +336,21 @@ export const WithGroupedKinds: Story = {
     return () => {
       server.close();
     };
+  },
+  // Open the grouped dropdown so the snapshot is distinct + guard the
+  // kind-grouping render (Methods / Variables / Keywords sections).
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.type(editable, 'x.');
+    await sleep(500);
+    const dropdown = document.querySelector('.reqore-menu');
+    expect(dropdown).not.toBeNull();
+    // Items from multiple kinds render.
+    expect(dropdown!.textContent).toContain('concat');
+    expect(dropdown!.textContent).toContain('length');
+    expect(dropdown!.textContent).toContain('return');
   },
 };
 

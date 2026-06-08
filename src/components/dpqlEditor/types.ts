@@ -3,8 +3,6 @@
 // (`ISlateElement`, `ISlateText`, `TSlateNode`) live in the smartEditor
 // primitive's `types.ts` — re-export them here for backward compat.
 
-import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
-
 export type {
   ISlateElement,
   ISlateText,
@@ -49,19 +47,17 @@ export interface IDpqlEditorProps {
    * (e.g. DPAT_FIND / DPAT_UPDATE / DPAT_DELETE).
    */
   actionCode?: number;
-  /** CSS height of the editable area. Default `'200px'`. */
+  /**
+   * Optional **minimum** height of the editable area (CSS value). The
+   * editor auto-grows with its content; this is just a floor. Omit for a
+   * single-line field that grows as you type (right for match-expression
+   * fields); pass e.g. `'200px'` for a taller multi-line code editor.
+   */
   height?: string;
   /** Read-only mode. */
   readOnly?: boolean;
   /** Called when the editor loses focus. */
   onBlur?: () => void;
-  /** Template picker items (for dropdown insertion above the editor). */
-  templates?: IReqoreFormTemplates;
-  /**
-   * Current FSM state ID. When set, templates matching the form
-   * `$data:{stateId.field}` are converted to `@field` on insertion.
-   */
-  stateId?: string;
   /**
    * Opt-in to server-driven plain-text → Slate parsing via the LSP's
    * `dpql/toRichtext` custom method. When `true`, the editor calls

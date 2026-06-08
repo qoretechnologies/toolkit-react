@@ -193,10 +193,8 @@ interface IDpqlEditorStoryArgs {
   value?: string;
   onChange?: (v: string) => void;
   readOnly?: boolean;
-  templates?: any;
   provider?: string;
   recordType?: string;
-  stateId?: string;
   useServerParse?: boolean;
   alertPayloadContext?: boolean;
   fsmContext?: any;
@@ -340,57 +338,153 @@ const meta = {
             );
             break;
 
-          case 'textDocument/completion':
-            // Mirror the live DPQL server's shape — items include
-            // `kind` (so SmartEditor renders the right-side kind chip)
-            // and `documentation` (rendered as a markdown tooltip on
-            // hover). Lets stories exercise the full visual treatment.
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: msg.id,
-                result: {
-                  items: [
-                    {
-                      label: '@name',
-                      insertText: '@name',
-                      kind: 5,
-                      detail: 'string',
-                      documentation: {
-                        kind: 'markdown',
-                        value:
-                          '**Display name** of the record.\n\n' +
-                          '- Indexed, case-insensitive\n' +
-                          '- Maps to the `name` column on the underlying table',
-                      },
-                    },
-                    {
-                      label: '@status',
-                      insertText: '@status',
-                      kind: 5,
-                      detail: 'string',
-                      documentation: {
-                        kind: 'markdown',
-                        value:
-                          '**Lifecycle status** — one of:\n\n' +
-                          '- `active`\n- `paused`\n- `archived`',
-                      },
-                    },
-                    {
-                      label: '@age',
-                      insertText: '@age',
-                      kind: 5,
-                      detail: 'int',
-                      documentation: {
-                        kind: 'plaintext',
-                        value: 'Age in years, computed from birth_date.',
-                      },
-                    },
-                  ],
+          case 'textDocument/completion': {
+            // Position-aware, mirroring the real DPQL server's single
+            // `dpql-get-completions`: after `$` → templates, after `@`
+            // → field references. The server decides from cursor
+            // context; the mock looks at the char before the cursor.
+            const cpos = msg.params?.position ?? { line: 0, character: 0 };
+            const cline = lastDocumentText.split('\n')[cpos.line] ?? '';
+            const chead = cline.slice(0, cpos.character);
+            // Most-recent unclosed sigil before the cursor decides
+            // context: scan back to the last `@` or `$` not separated
+            // by whitespace.
+            const sigilMatch = chead.match(/[@$][\w:.{}]*$/);
+            const sigil = sigilMatch ? sigilMatch[0][0] : '';
+
+            const FIELD_ITEMS = [
+              {
+                label: '@name',
+                insertText: '@name',
+                kind: 5,
+                detail: 'string',
+                documentation: {
+                  kind: 'markdown',
+                  value:
+                    '**Display name** of the record.\n\n' +
+                    '- Indexed, case-insensitive\n' +
+                    '- Maps to the `name` column on the underlying table',
                 },
-              })
+              },
+              {
+                label: '@status',
+                insertText: '@status',
+                kind: 5,
+                detail: 'string',
+                documentation: {
+                  kind: 'markdown',
+                  value:
+                    '**Lifecycle status** — one of:\n\n' +
+                    '- `active`\n- `paused`\n- `archived`',
+                },
+              },
+              {
+                label: '@age',
+                insertText: '@age',
+                kind: 5,
+                detail: 'int',
+                documentation: {
+                  kind: 'plaintext',
+                  value: 'Age in years, computed from birth_date.',
+                },
+              },
+            ];
+
+            // Template namespaces — mirrors the real server's
+            // `$`-context completions (QorusExpressionMap), e.g.
+            // `$data:`, `$config:`, `$static:`, `$timestamp:`.
+            const TEMPLATE_ITEMS = [
+              {
+                label: '$data:',
+                insertText: '$data:',
+                kind: 1,
+                detail: 'template',
+                documentation: { kind: 'plaintext', value: 'FSM state data.' },
+              },
+              {
+                label: '$config:',
+                insertText: '$config:',
+                kind: 1,
+                detail: 'template',
+                documentation: {
+                  kind: 'plaintext',
+                  value: 'Interface configuration item.',
+                },
+              },
+              {
+                label: '$static:',
+                insertText: '$static:',
+                kind: 1,
+                detail: 'template',
+                documentation: {
+                  kind: 'plaintext',
+                  value: 'Static workflow data.',
+                },
+              },
+              {
+                label: '$timestamp:',
+                insertText: '$timestamp:',
+                kind: 1,
+                detail: 'template',
+                documentation: {
+                  kind: 'plaintext',
+                  value: 'Timestamp value (e.g. `now`).',
+                },
+              },
+            ];
+
+            // Bare-identifier context (no sigil) → functions / keywords,
+            // matching the real server's identifier-position completions
+            // (e.g. typing `sub` → `substr`). This is what autosuggest
+            // surfaces.
+            const FUNCTION_ITEMS = [
+              {
+                label: 'substr',
+                insertText: 'substr',
+                kind: 3,
+                detail: '(string, start, length) → string',
+                documentation: {
+                  kind: 'markdown',
+                  value: 'Extract a substring.',
+                },
+              },
+              {
+                label: 'coalesce',
+                insertText: 'coalesce',
+                kind: 3,
+                detail: '(value, …) → auto',
+                documentation: {
+                  kind: 'markdown',
+                  value: 'First non-null value.',
+                },
+              },
+              {
+                label: 'round',
+                insertText: 'round',
+                kind: 3,
+                detail: '(number, precision) → auto',
+                documentation: {
+                  kind: 'markdown',
+                  value: 'Round a number.',
+                },
+              },
+            ];
+
+            const items =
+              sigil === '$'
+                ? TEMPLATE_ITEMS
+                : sigil === '@'
+                  ? FIELD_ITEMS
+                  : // No sigil → bare identifier: functions / keywords
+                    // (autosuggest surfaces these as you type, e.g.
+                    // `sub` → `substr`).
+                    FUNCTION_ITEMS;
+
+            socket.send(
+              JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { items } })
             );
             break;
+          }
 
           case 'dpql/setContext': {
             const response = JSON.stringify({
@@ -771,6 +865,17 @@ export const WithDelayedContext: Story = {
       },
     },
   },
+  // CI guard for the `isContextReady` gate: while the 1.5s setContext
+  // is in flight the "Loading schema…" overlay shows; once it resolves
+  // the overlay clears.
+  play: async () => {
+    // Past LSP connect, still inside the 1.5s setContext delay.
+    await sleep(700);
+    expect(document.body.textContent).toContain('Loading schema');
+    // After the delay resolves, the overlay clears.
+    await sleep(1500);
+    expect(document.body.textContent).not.toContain('Loading schema');
+  },
 };
 
 /**
@@ -802,6 +907,18 @@ export const WithAlertPayloadContext: Story = {
           'knows about via the canonical alert-payload context.',
       },
     },
+  },
+  // CI guard: `alertPayloadContext` must bind at `didOpen` time via the
+  // `dpql_context: "alert-payload"` metadata (not a separate roundtrip).
+  play: async () => {
+    await sleep(500);
+    const didOpen = received.find(
+      (m) => m.method === 'textDocument/didOpen'
+    );
+    expect(didOpen).toBeDefined();
+    expect(didOpen.params.textDocument.metadata?.dpql_context).toBe(
+      'alert-payload'
+    );
   },
 };
 
@@ -876,6 +993,27 @@ export const WithSignatureHelp: Story = {
       },
     },
   },
+  // CI regression guard: on mount (cursor inside the open `substr(`
+  // call) the signature pill must render with the active parameter
+  // (`Start Character`) highlighted. Mount fires the hook without
+  // typing, so this is deterministic — see the `Editor.end` fallback
+  // in `useLspSignatureHelp`.
+  play: async () => {
+    await sleep(800);
+    const pill = Array.from(document.querySelectorAll('div')).find(
+      (el) =>
+        (el as HTMLElement).style?.position === 'fixed' &&
+        el.textContent?.includes('substr(String Value')
+    );
+    expect(pill).toBeDefined();
+    expect(pill!.textContent).toContain(
+      'substr(String Value, Start Character, Length)'
+    );
+    // Active parameter highlighted in a <strong>.
+    const strong = pill!.querySelector('strong');
+    expect(strong).not.toBeNull();
+    expect(strong!.textContent).toBe('Start Character');
+  },
 };
 
 /**
@@ -943,6 +1081,41 @@ export const LiveDpqlEditorWithSignatureHelp: Story = {
 };
 
 /**
+ * **Live — real `/lsp`, with an alert-payload context bound.** This is
+ * the story to verify `@` **field** completions against the real
+ * server. `alertPayloadContext: true` fires `dpql/setAlertPayloadContext`,
+ * binding the canonical alert schema — so typing `@` returns real fields
+ * (`@severity`, `@alert_type`, `@interface_type`, …).
+ *
+ * Why a dedicated story: the no-context `LiveDpqlEditorWithSignatureHelp`
+ * returns nothing on `@` (field refs need a bound context — the server's
+ * NO-CONTEXT path yields functions/keywords/templates but not fields).
+ * This story supplies that context so the `@` path is exercisable live.
+ *
+ * Also exercises `$` → templates in the same editor (server returns the
+ * global namespaces context-free).
+ *
+ * **Prereq:** export `REACT_APP_QORUS_TOKEN` before running storybook.
+ */
+export const LiveDpqlEditorWithAlertPayload: Story = {
+  args: {
+    value: '@severity == "MAJOR" and ',
+    alertPayloadContext: true,
+  },
+  parameters: {
+    live: true,
+    docs: {
+      description: {
+        story:
+          'Real `/lsp` with `alertPayloadContext`. Type `@` → real ' +
+          'alert-payload fields; type `$` → template namespaces. The ' +
+          'context story you use to verify `@` field completions live.',
+      },
+    },
+  },
+};
+
+/**
  * Demonstrates LSP-driven syntax highlighting (design doc §7) across a
  * representative DPQL expression touching every coloured token type:
  * field references, templates, operators, string / number / boolean /
@@ -972,6 +1145,21 @@ export const WithSemanticTokens: Story = {
       },
     },
   },
+  // CI guard for the semantic-token pipeline (server tokens → decode →
+  // decorate → coloured leaf). Assert the editor rendered spans carrying
+  // the palette colours: keyword purple (#c678dd → rgb(198,120,221)) and
+  // string green (#98c379 → rgb(152,195,121)). If the decoration breaks,
+  // the tokens render uncoloured and these are absent.
+  play: async ({ canvasElement }) => {
+    await sleep(600);
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    const colors = Array.from(editable.querySelectorAll('span'))
+      .map((s) => (s as HTMLElement).style.color)
+      .filter(Boolean);
+    expect(colors).toContain('rgb(198, 120, 221)'); // keyword purple
+    expect(colors).toContain('rgb(152, 195, 121)'); // string green
+  },
 };
 
 export const ReadOnly: Story = {
@@ -981,28 +1169,97 @@ export const ReadOnly: Story = {
   },
 };
 
+/**
+ * Templates via the `$` trigger — the server's design (mirrored in the
+ * mock): typing `$` opens template-namespace completions
+ * (`$data:`, `$config:`, `$static:`, `$timestamp:`), the same on-typing
+ * dropdown that `@` uses for fields. There is no separate "Templates"
+ * button — `dpql-get-completions` is position-aware and returns
+ * templates after `$`, fields after `@`.
+ */
 export const WithTemplates: Story = {
   args: {
     value: '',
-    templates: {
-      items: [
-        {
-          label: '$local:input',
-          value: '$local:input',
-          icon: 'ExchangeDollarLine',
-        },
-        {
-          label: '$timestamp:now',
-          value: '$timestamp:now',
-          icon: 'ExchangeDollarLine',
-        },
-        {
-          label: '$config:api_key',
-          value: '$config:api_key',
-          icon: 'ExchangeDollarLine',
-        },
-      ],
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Type `$` to open the template namespaces (`$data:`, ' +
+          '`$config:`, …). Templates and fields share one on-typing ' +
+          'completion dropdown — `$`→templates, `@`→fields. No ' +
+          'separate Templates button.',
+      },
     },
+  },
+  // CI guard: `$` opens templates, `@` opens fields — proves the
+  // position-aware routing.
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    await userEvent.click(editable);
+
+    // `$` → templates
+    await userEvent.type(editable, '$');
+    await sleep(500);
+    let dropdown = document.querySelector('.reqore-menu');
+    expect(dropdown).not.toBeNull();
+    expect(dropdown!.textContent).toContain('$data:');
+    expect(dropdown!.textContent).toContain('$config:');
+    // Field refs must NOT appear in the `$` dropdown.
+    expect(dropdown!.textContent).not.toContain('@name');
+
+    // Clear and switch to `@` → fields.
+    await userEvent.clear(editable);
+    await userEvent.type(editable, '@');
+    await sleep(500);
+    dropdown = document.querySelector('.reqore-menu');
+    expect(dropdown).not.toBeNull();
+    expect(dropdown!.textContent).toContain('@name');
+    expect(dropdown!.textContent).not.toContain('$data:');
+  },
+};
+
+/**
+ * Autosuggest — typing a **bare identifier** (no `@` / `$` sigil) opens
+ * function / keyword completions as you type, e.g. `sub` → `substr`.
+ * No trigger character or manual invoke needed.
+ *
+ * The dropdown only appears when the server actually has suggestions:
+ * the request is "quiet" (the popover stays closed until items arrive),
+ * and the position-aware server returns `[]` where completion isn't
+ * appropriate (inside a string, a dead-end token) so nothing flickers.
+ */
+export const WithAutosuggest: Story = {
+  args: {
+    value: '',
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Type a bare identifier (no sigil) — e.g. `sub` — and ' +
+          'function completions appear (`substr`). Autosuggest fires ' +
+          'on identifier typing; the server gates what (if anything) ' +
+          'shows.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    await userEvent.click(editable);
+    // Bare identifier — no trigger char. Autosuggest should open the
+    // dropdown and narrow to `substr`.
+    await userEvent.type(editable, 'sub');
+    await sleep(600);
+    const dropdown = document.querySelector('.reqore-menu');
+    expect(dropdown).not.toBeNull();
+    expect(dropdown!.textContent).toContain('substr');
+    // Non-matching functions are filtered out by the typed prefix.
+    expect(dropdown!.textContent).not.toContain('round');
   },
 };
 

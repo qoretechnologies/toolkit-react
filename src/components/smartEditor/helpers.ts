@@ -170,3 +170,48 @@ export function mapCompletionKindToIcon(kind?: number): IReqoreIconName {
       return 'CodeLine';
   }
 }
+
+/**
+ * Expand an LSP **snippet** (`insertTextFormat === 2`, TextMate syntax)
+ * to plain insertable text. We don't implement interactive tab-stops —
+ * we strip the placeholder markup down to the placeholder's *text* (the
+ * standard fallback for editors without snippet-navigation support), so
+ * `slice(${1:List Value}, ${2:Index or Range})$0` becomes
+ * `slice(List Value, Index or Range)` instead of leaking the raw
+ * `${n:…}$0` syntax into the document.
+ *
+ * Handled forms:
+ *  - `${1:default}` → `default` (placeholder with text)
+ *  - `${1}` / `${0}` → `` (placeholder without text)
+ *  - `$1` / `$0` → `` (bare tab-stop)
+ *  - `\$`, `\}`, `\\` → `$`, `}`, `\` (TextMate escapes)
+ */
+export function expandSnippet(text: string): string {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    // TextMate escape: `\$`, `\}`, `\\` → the literal char.
+    if (c === '\\' && i + 1 < text.length && /[$}\\]/.test(text[i + 1])) {
+      out += text[i + 1];
+      i += 1;
+      continue;
+    }
+    if (c === '$') {
+      // `${n:default}` or `${n}` → the default text (or empty).
+      const braced = text.slice(i).match(/^\$\{(\d+)(?::([^}]*))?\}/);
+      if (braced) {
+        out += braced[2] ?? '';
+        i += braced[0].length - 1;
+        continue;
+      }
+      // `$n` (bare tab-stop, incl. `$0`) → empty.
+      const bare = text.slice(i).match(/^\$(\d+)/);
+      if (bare) {
+        i += bare[0].length - 1;
+        continue;
+      }
+    }
+    out += c;
+  }
+  return out;
+}

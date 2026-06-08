@@ -9,7 +9,6 @@
 // rather than re-exporting from qorus-ide keeps the dependency graph
 // clean. Source attribution is in comments next to each constant.
 
-import type { IReqoreCustomTheme } from '@qoretechnologies/reqore/dist/constants/theme';
 import type { IReqoreEffect } from '@qoretechnologies/reqore/dist/components/Effect';
 import type { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 
@@ -22,16 +21,6 @@ import type { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/them
 export const SMART_EDITOR_OVERLAY_EFFECT = {
   backgroundBlur: 20,
 } as const satisfies IReqoreEffect;
-
-/**
- * Tone for the completion / hover / signature popovers — a dark
- * IDE-page-card colour that reads on both Qonsole-tinted hosts and
- * standalone forms. Matches qorus-ide's "metrics / history panel"
- * tone (`#1a1a1a`).
- */
-export const SMART_EDITOR_POPOVER_CUSTOM_THEME: IReqoreCustomTheme = {
-  main: '#1a1a1a',
-};
 
 /**
  * Severity → Reqore effect mapping for the diagnostic message panel
@@ -62,13 +51,13 @@ export const DIAGNOSTIC_SEVERITY_EFFECTS: Record<number, IReqoreEffect> = {
   3: {
     gradient: {
       direction: 'to right bottom',
-      colors: { 0: 'pending:lighten:3', 100: '#160437' },
+      colors: { 0: 'pending:lighten:3', 100: 'pending:darken:2' },
     },
   },
   4: {
     gradient: {
       direction: 'to right bottom',
-      colors: { 0: 'pending:lighten:3', 100: '#160437' },
+      colors: { 0: 'pending:lighten:3', 100: 'pending:darken:2' },
     },
   },
 };

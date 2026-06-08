@@ -279,8 +279,18 @@ export function useLspAutocomplete(
   // returns a static catalog and lets the client narrow.
   const filteredItems = useMemo(() => {
     if (!filterPrefix) return items;
-    const stripped = filterPrefix.replace(/^[@$/-]+/, '');
-    const needle = stripped.toLowerCase();
+    // Reduce the prefix to the segment the user is actually typing:
+    // strip a leading sigil (`@`, `$`, `/`, `-`) AND any member-access /
+    // namespace prefix up to the last `.` or `:`. `findTokenStart`
+    // intentionally includes `.`/`:` in the token (for paths like
+    // `$data:state.field`), but for FILTERING we only want the trailing
+    // word — otherwise after `arr.` typing `for` yields the needle
+    // `arr.for`, which matches no `forEach`-style label and wrongly
+    // hides every suggestion.
+    const segment = filterPrefix
+      .replace(/^[@$/-]+/, '')
+      .replace(/^.*[.:]/, '');
+    const needle = segment.toLowerCase();
     if (!needle) return items;
     return items.filter((item) => {
       const haystack = (item.raw.filterText ?? item.label)
@@ -335,7 +345,18 @@ export function useLspAutocomplete(
   // imperative entry points (e.g. `openAtChip` on tag-click) can fire it
   // immediately, bypassing the typing-debounce.
   const performCompletionRequest = useCallback(
-    async (plainText: string, offset: number) => {
+    async (
+      plainText: string,
+      offset: number,
+      opts: { eager?: boolean } = {}
+    ) => {
+      // `eager` (default) opens the popover immediately for instant
+      // feedback — right for explicit triggers (`@`, `$`, `.`) where
+      // we know items are coming. Autosuggest passes `eager: false`
+      // ("quiet"): the popover stays closed until items actually
+      // arrive, so typing in no-suggestion spots (inside a string, a
+      // dead-end identifier) never flickers a dropdown open-then-shut.
+      const { eager = true } = opts;
       if (!isReady) return;
       // Re-measure the caret position just before opening — by this
       // point the typing-debounce has expired (~150ms) and Slate has
@@ -365,14 +386,17 @@ export function useLspAutocomplete(
       // the click / keystroke. `isFetching` is set ONLY after a
       // delay — fast responses (mock, warm cache, sub-250ms live)
       // never set the flag and never flash the "Loading…" stub.
-      setIsOpen(true);
-      if (fetchingTimerRef.current !== null) {
-        clearTimeout(fetchingTimerRef.current);
+      // Skipped for autosuggest (`eager: false`) — see above.
+      if (eager) {
+        setIsOpen(true);
+        if (fetchingTimerRef.current !== null) {
+          clearTimeout(fetchingTimerRef.current);
+        }
+        fetchingTimerRef.current = setTimeout(() => {
+          setIsFetching(true);
+          fetchingTimerRef.current = null;
+        }, LOADER_DELAY_MS);
       }
-      fetchingTimerRef.current = setTimeout(() => {
-        setIsFetching(true);
-        fetchingTimerRef.current = null;
-      }, LOADER_DELAY_MS);
       try {
         const lspItems = await getCompletions(plainText, offset);
         if (lspItems.length === 0) {
@@ -729,6 +753,22 @@ export function useLspAutocomplete(
         setFilterPrefix(plainText.slice(tokenStart, cursorOffset));
         positionTrigger(editor);
         requestCompletions(plainText, cursorOffset);
+        return;
+      }
+
+      // Autosuggest: typing inside a BARE identifier (a function /
+      // keyword name — no leading sigil) fires a QUIET completion
+      // request. The DPQL server is position-aware — it returns
+      // functions / keywords for identifier positions and `[]`
+      // elsewhere (inside strings, etc.) — so the dropdown only
+      // appears when there's actually something to suggest, and
+      // `eager: false` keeps it from flickering where there isn't.
+      // (Sigil tokens and the already-open case are handled above; a
+      // bare identifier is one whose first char is a word char.)
+      if (/\w/.test(charBefore) && tokenPrefix && /\w/.test(tokenPrefix)) {
+        setFilterPrefix(plainText.slice(tokenStart, cursorOffset));
+        positionTrigger(editor);
+        requestCompletions(plainText, cursorOffset, { eager: false });
         return;
       }
 
