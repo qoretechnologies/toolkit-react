@@ -49,6 +49,14 @@ export const decorators = [
 
     return (
       <ReqoreUIProvider
+        theme={{
+          main: '#121212',
+          intents: {
+            success: '#4a7110',
+            custom1: '#762f7e',
+            custom2: '#b34e1d',
+          },
+        }}
         options={{
           animations: {
             buttons: false,
