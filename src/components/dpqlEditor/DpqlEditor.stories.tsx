@@ -13,10 +13,9 @@
 // dropdown rendered.
 
 import { StoryObj } from '@storybook/react';
-import { expect, fn, userEvent, within } from '@storybook/test';
+import { expect, fn, userEvent, waitFor, within } from '@storybook/test';
 import { Server } from 'mock-socket';
 import { useState } from 'react';
-import { sleep } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';
 import { DpqlEditor } from './DpqlEditor';
 
@@ -220,6 +219,13 @@ const meta = {
   args: {
     value: '',
     onChange: fn(),
+  },
+  parameters: {
+    // Play tests wait on async mock-LSP WebSocket round-trips (connect →
+    // didOpen → setContext → completion) before assertions hold. Give the
+    // runner headroom over its short default so the `waitFor` polls below
+    // don't time out on a slow/cold CI runner.
+    jest: { timeout: 60000 },
   },
   async beforeEach(context) {
     received = [];
@@ -869,12 +875,17 @@ export const WithDelayedContext: Story = {
   // is in flight the "Loading schema…" overlay shows; once it resolves
   // the overlay clears.
   play: async () => {
-    // Past LSP connect, still inside the 1.5s setContext delay.
-    await sleep(700);
-    expect(document.body.textContent).toContain('Loading schema');
-    // After the delay resolves, the overlay clears.
-    await sleep(1500);
-    expect(document.body.textContent).not.toContain('Loading schema');
+    // While the 1.5s setContext is in flight, the overlay shows. Poll
+    // for it (substring match — the copy is "Loading schema…").
+    await waitFor(
+      () => expect(document.body.textContent).toContain('Loading schema'),
+      { timeout: 10000 }
+    );
+    // Once setContext resolves, the overlay clears.
+    await waitFor(
+      () => expect(document.body.textContent).not.toContain('Loading schema'),
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -911,13 +922,19 @@ export const WithAlertPayloadContext: Story = {
   // CI guard: `alertPayloadContext` must bind at `didOpen` time via the
   // `dpql_context: "alert-payload"` metadata (not a separate roundtrip).
   play: async () => {
-    await sleep(500);
-    const didOpen = received.find(
-      (m) => m.method === 'textDocument/didOpen'
-    );
-    expect(didOpen).toBeDefined();
-    expect(didOpen.params.textDocument.metadata?.dpql_context).toBe(
-      'alert-payload'
+    // Poll until the didOpen notification arrives and carries the
+    // alert-payload binding metadata — no fixed sleep racing the socket.
+    await waitFor(
+      () => {
+        const didOpen = received.find(
+          (m) => m.method === 'textDocument/didOpen'
+        );
+        expect(didOpen).toBeDefined();
+        expect(didOpen.params.textDocument.metadata?.dpql_context).toBe(
+          'alert-payload'
+        );
+      },
+      { timeout: 10000 }
     );
   },
 };
@@ -999,20 +1016,26 @@ export const WithSignatureHelp: Story = {
   // typing, so this is deterministic — see the `Editor.end` fallback
   // in `useLspSignatureHelp`.
   play: async () => {
-    await sleep(800);
-    const pill = Array.from(document.querySelectorAll('div')).find(
-      (el) =>
-        (el as HTMLElement).style?.position === 'fixed' &&
-        el.textContent?.includes('substr(String Value')
+    // Poll until the signature pill renders (mount fires the hook via the
+    // `Editor.end` fallback) with the active parameter highlighted.
+    await waitFor(
+      () => {
+        const pill = Array.from(document.querySelectorAll('div')).find(
+          (el) =>
+            (el as HTMLElement).style?.position === 'fixed' &&
+            el.textContent?.includes('substr(String Value')
+        );
+        expect(pill).toBeDefined();
+        expect(pill!.textContent).toContain(
+          'substr(String Value, Start Character, Length)'
+        );
+        // Active parameter highlighted in a <strong>.
+        const strong = pill!.querySelector('strong');
+        expect(strong).not.toBeNull();
+        expect(strong!.textContent).toBe('Start Character');
+      },
+      { timeout: 10000 }
     );
-    expect(pill).toBeDefined();
-    expect(pill!.textContent).toContain(
-      'substr(String Value, Start Character, Length)'
-    );
-    // Active parameter highlighted in a <strong>.
-    const strong = pill!.querySelector('strong');
-    expect(strong).not.toBeNull();
-    expect(strong!.textContent).toBe('Start Character');
   },
 };
 
@@ -1151,14 +1174,21 @@ export const WithSemanticTokens: Story = {
   // string green (#98c379 → rgb(152,195,121)). If the decoration breaks,
   // the tokens render uncoloured and these are absent.
   play: async ({ canvasElement }) => {
-    await sleep(600);
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
-    const colors = Array.from(editable.querySelectorAll('span'))
-      .map((s) => (s as HTMLElement).style.color)
-      .filter(Boolean);
-    expect(colors).toContain('rgb(198, 120, 221)'); // keyword purple
-    expect(colors).toContain('rgb(152, 195, 121)'); // string green
+    // Poll until the semantic-token pipeline has coloured the leaves
+    // (server tokens → decode → decorate). Before the round-trip lands
+    // the spans are uncoloured and these assertions fail.
+    await waitFor(
+      () => {
+        const colors = Array.from(editable.querySelectorAll('span'))
+          .map((s) => (s as HTMLElement).style.color)
+          .filter(Boolean);
+        expect(colors).toContain('rgb(198, 120, 221)'); // keyword purple
+        expect(colors).toContain('rgb(152, 195, 121)'); // string green
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -1202,22 +1232,30 @@ export const WithTemplates: Story = {
 
     // `$` → templates
     await userEvent.type(editable, '$');
-    await sleep(500);
-    let dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
-    expect(dropdown!.textContent).toContain('$data:');
-    expect(dropdown!.textContent).toContain('$config:');
-    // Field refs must NOT appear in the `$` dropdown.
-    expect(dropdown!.textContent).not.toContain('@name');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('$data:');
+        expect(dropdown!.textContent).toContain('$config:');
+        // Field refs must NOT appear in the `$` dropdown.
+        expect(dropdown!.textContent).not.toContain('@name');
+      },
+      { timeout: 10000 }
+    );
 
     // Clear and switch to `@` → fields.
     await userEvent.clear(editable);
     await userEvent.type(editable, '@');
-    await sleep(500);
-    dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
-    expect(dropdown!.textContent).toContain('@name');
-    expect(dropdown!.textContent).not.toContain('$data:');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('@name');
+        expect(dropdown!.textContent).not.toContain('$data:');
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -1254,12 +1292,16 @@ export const WithAutosuggest: Story = {
     // Bare identifier — no trigger char. Autosuggest should open the
     // dropdown and narrow to `substr`.
     await userEvent.type(editable, 'sub');
-    await sleep(600);
-    const dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
-    expect(dropdown!.textContent).toContain('substr');
-    // Non-matching functions are filtered out by the typed prefix.
-    expect(dropdown!.textContent).not.toContain('round');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('substr');
+        // Non-matching functions are filtered out by the typed prefix.
+        expect(dropdown!.textContent).not.toContain('round');
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -1301,26 +1343,34 @@ export const LspCompletionRoundtrip: Story = {
     await userEvent.click(editable);
     await userEvent.type(editable, '@');
 
-    // The autocomplete debounce is 150ms; allow generous slack for the
-    // server round-trip + React re-render.
-    await sleep(500);
-
-    // Server received the completion request.
-    const completionReq = received.find(
-      (m) => m.method === 'textDocument/completion'
+    // Poll until the server received the completion request (the
+    // autocomplete debounce is 150ms; the round-trip + re-render follow).
+    await waitFor(
+      () => {
+        const completionReq = received.find(
+          (m) => m.method === 'textDocument/completion'
+        );
+        expect(completionReq).toBeDefined();
+        // useLspSession (Phase 1 + SmartEditor refactor) generates URIs as
+        // `${languageId}://session/<n>` — for DPQL that's `dpql://session/<n>`.
+        expect(completionReq.params.textDocument.uri).toMatch(
+          /^dpql:\/\/session\//
+        );
+      },
+      { timeout: 10000 }
     );
-    expect(completionReq).toBeDefined();
-    // useLspSession (Phase 1 + SmartEditor refactor) generates URIs as
-    // `${languageId}://session/<n>` — for DPQL that's `dpql://session/<n>`.
-    expect(completionReq.params.textDocument.uri).toMatch(/^dpql:\/\/session\//);
 
     // Dropdown rendered the canned items. They live outside the canvas
     // (Popover portal), so query the document directly.
-    await sleep(100);
-    const dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
-    expect(dropdown!.textContent).toContain('@name');
-    expect(dropdown!.textContent).toContain('@status');
-    expect(dropdown!.textContent).toContain('@age');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('@name');
+        expect(dropdown!.textContent).toContain('@status');
+        expect(dropdown!.textContent).toContain('@age');
+      },
+      { timeout: 10000 }
+    );
   },
 };

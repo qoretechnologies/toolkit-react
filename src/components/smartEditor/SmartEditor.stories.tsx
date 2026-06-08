@@ -8,10 +8,9 @@
 // component proper.
 
 import { StoryObj } from '@storybook/react';
-import { fn, userEvent, within, expect } from '@storybook/test';
+import { fn, userEvent, waitFor, within, expect } from '@storybook/test';
 import { Server } from 'mock-socket';
 import { useState } from 'react';
-import { sleep } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';
 import { SmartEditor } from './SmartEditor';
 import { useLspSession } from './useLspSession';
@@ -57,6 +56,13 @@ const meta = {
   args: {
     initialValue: '',
     onChange: fn(),
+  },
+  parameters: {
+    // The play tests wait on an async mock-LSP WebSocket round-trip
+    // (connect → didOpen → completion) before the dropdown renders.
+    // Give the runner headroom over its short default so a slow/cold
+    // CI runner doesn't time out the `waitFor` polls below.
+    jest: { timeout: 60000 },
   },
 } as StoryMeta<typeof SmartEditorPlayground>;
 
@@ -124,11 +130,17 @@ export const BasicMock: Story = {
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
     await userEvent.type(editable, 'hello ');
-    await sleep(500);
-    const dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
-    expect(dropdown!.textContent).toContain('apple');
-    expect(dropdown!.textContent).toContain('banana');
+    // Poll until the async mock-LSP round-trip renders the dropdown —
+    // never a fixed sleep, which races the WebSocket on slow CI.
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('apple');
+        expect(dropdown!.textContent).toContain('banana');
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -249,21 +261,30 @@ export const WithMarkdownDocs: Story = {
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
     await userEvent.type(editable, 'arr.');
-    await sleep(500);
-    let dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
-    expect(dropdown!.textContent).toContain('forEach');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('forEach');
+      },
+      { timeout: 10000 }
+    );
 
     // Regression guard: typing the method name after the `.` must
     // NARROW the list (not clear it). The filter needle is the segment
     // after the last `.` (`for`), not the whole `arr.for` token —
-    // otherwise every suggestion would wrongly disappear.
+    // otherwise every suggestion would wrongly disappear. Poll until
+    // the list has settled to the narrowed state (`reduce` gone).
     await userEvent.type(editable, 'for');
-    await sleep(400);
-    dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
-    expect(dropdown!.textContent).toContain('forEach');
-    expect(dropdown!.textContent).not.toContain('reduce');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('forEach');
+        expect(dropdown!.textContent).not.toContain('reduce');
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -344,13 +365,17 @@ export const WithGroupedKinds: Story = {
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
     await userEvent.type(editable, 'x.');
-    await sleep(500);
-    const dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
-    // Items from multiple kinds render.
-    expect(dropdown!.textContent).toContain('concat');
-    expect(dropdown!.textContent).toContain('length');
-    expect(dropdown!.textContent).toContain('return');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        // Items from multiple kinds render.
+        expect(dropdown!.textContent).toContain('concat');
+        expect(dropdown!.textContent).toContain('length');
+        expect(dropdown!.textContent).toContain('return');
+      },
+      { timeout: 10000 }
+    );
   },
 };
 

@@ -5,7 +5,7 @@
 // backend before integrating into qorus-ide's QonsoleInput.
 
 import { StoryObj } from '@storybook/react';
-import { expect, fn, userEvent, within } from '@storybook/test';
+import { expect, fn, userEvent, waitFor, within } from '@storybook/test';
 import { Server } from 'mock-socket';
 import { useState } from 'react';
 import { sleep } from '../../../__tests__/utils';
@@ -532,6 +532,12 @@ const meta = {
     initialValue: '',
     onChange: fn(),
   },
+  parameters: {
+    // Play tests wait on async mock-LSP WebSocket round-trips before the
+    // dropdown / diagnostics render. Give the runner headroom over its
+    // short default so the `waitFor` polls don't time out on slow CI.
+    jest: { timeout: 60000 },
+  },
 } as StoryMeta<typeof QonsoleSmartInputWithState>;
 
 export default meta;
@@ -578,29 +584,39 @@ export const BasicMock: Story = {
     // landed on a position whose char-before-cursor is a trigger
     // character. Initial value `/list services ` ends in a space (a
     // trigger char), so on mount + on click the dropdown must stay
-    // closed.
+    // closed. A "must NOT open" check needs a fixed settle — `waitFor`
+    // would pass instantly, before the dropdown could have (wrongly)
+    // opened, and prove nothing.
     await sleep(500);
     expect(document.querySelector('.reqore-menu')).toBeNull();
     await userEvent.click(editable);
     await sleep(500);
     expect(document.querySelector('.reqore-menu')).toBeNull();
 
-    // Now the user actually types — dropdown should open.
+    // Now the user actually types — dropdown should open. Poll for it.
     await userEvent.type(editable, '-');
-    await sleep(500);
-    const dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
-    expect(dropdown!.textContent).toContain('--desc');
-    expect(dropdown!.textContent).toContain('--limit');
-    expect(dropdown!.textContent).toContain('--search');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('--desc');
+        expect(dropdown!.textContent).toContain('--limit');
+        expect(dropdown!.textContent).toContain('--search');
+      },
+      { timeout: 10000 }
+    );
 
     // Accept the first item with Enter and check the editor doesn't
     // double-dash. The mock returns `textEdit` covering the typed `-`,
     // so the result must be `/list services --desc=`, not `---desc=`.
     await userEvent.keyboard('{Enter}');
-    await sleep(200);
-    expect(editable.textContent).toBe('/list services --desc=');
-    expect(editable.textContent).not.toContain('---');
+    await waitFor(
+      () => {
+        expect(editable.textContent).toBe('/list services --desc=');
+        expect(editable.textContent).not.toContain('---');
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -755,10 +771,16 @@ export const WithDiagnostics: Story = {
   // → the stacked `ReqoreMessage` panel below the editor). Both pushed
   // messages must render.
   play: async ({ canvasElement }) => {
-    await sleep(700);
-    const text = canvasElement.textContent ?? '';
-    expect(text).toContain('Pipeline "pricing" not found in workspace.');
-    expect(text).toContain('Unknown resource "services"');
+    // Poll until the server's publishDiagnostics round-trip renders both
+    // messages in the stacked panel below the editor.
+    await waitFor(
+      () => {
+        const text = canvasElement.textContent ?? '';
+        expect(text).toContain('Pipeline "pricing" not found in workspace.');
+        expect(text).toContain('Unknown resource "services"');
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -804,23 +826,34 @@ export const WithCommitCharacters: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
-    // Let the LSP session connect before typing (mirrors BasicMock).
+    // Let the LSP session connect before typing — the completion only
+    // fires on the keystroke, so the keystroke must land post-connect (a
+    // dropped pre-connect trigger never opens, and `waitFor` can't undo
+    // that). A short fixed settle is the right tool here.
     await sleep(500);
     await userEvent.click(editable);
     // `-` opens the flag list (first item `--desc` is auto-focused).
     await userEvent.type(editable, '-');
-    await sleep(500);
-    const dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
-    expect(dropdown!.textContent).toContain('--desc');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('--desc');
+      },
+      { timeout: 10000 }
+    );
     // `=` is a commit character → auto-accept the focused `--desc`.
     // Use `userEvent.keyboard` (not `type`) so the keydown reaches the
     // document-capture commit handler cleanly. Its insertText already
     // ends with `=`, so the typed `=` is suppressed (no `--desc==`).
     await userEvent.keyboard('=');
-    await sleep(300);
-    expect(editable.textContent).toBe('/list services --desc=');
-    expect(editable.textContent).not.toContain('==');
+    await waitFor(
+      () => {
+        expect(editable.textContent).toBe('/list services --desc=');
+        expect(editable.textContent).not.toContain('==');
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -870,17 +903,26 @@ export const WithWizardItems: Story = {
     await userEvent.click(editable);
     await userEvent.clear(editable);
     await userEvent.type(editable, '/');
-    await sleep(400);
-    const dropdown = document.querySelector('.reqore-menu');
-    expect(dropdown).not.toBeNull();
+    // Poll until the verb dropdown opens and includes the wizard item.
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        const item = Array.from(
+          document.querySelectorAll('.reqore-menu-item')
+        ).find((el) => el.textContent?.includes('Create connection'));
+        expect(item).toBeDefined();
+      },
+      { timeout: 10000 }
+    );
     const wizardItem = Array.from(
       document.querySelectorAll('.reqore-menu-item')
     ).find((el) => el.textContent?.includes('Create connection'));
-    expect(wizardItem).toBeDefined();
     await userEvent.click(wizardItem as HTMLElement);
-    await sleep(200);
     // The callback fired with the wizard descriptor.
-    expect(args.onWizardStart).toHaveBeenCalled();
+    await waitFor(() => expect(args.onWizardStart).toHaveBeenCalled(), {
+      timeout: 10000,
+    });
     const callArg = (args.onWizardStart as ReturnType<typeof fn>).mock
       .calls[0][0];
     expect(callArg).toMatchObject({ action: 'start-wizard' });
