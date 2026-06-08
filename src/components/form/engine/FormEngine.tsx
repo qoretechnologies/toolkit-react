@@ -2,19 +2,25 @@ import {
   ReqoreButton,
   ReqoreCollection,
   ReqoreControlGroup,
+  ReqoreDropdown,
   ReqoreErrorBoundary,
+  ReqoreIcon,
+  ReqoreInput,
   ReqoreMessage,
+  ReqorePanel,
   ReqoreSkeleton,
   ReqoreTag,
   ReqoreTagGroup,
   ReqoreVerticalSpacer,
   useReqoreProperty,
+  useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { IReqoreCollectionProps } from '@qoretechnologies/reqore/dist/components/Collection';
 import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/components/Collection/item';
 import { IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
+import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import {
   IQorusFormField,
   IQorusFormFieldMessage,
@@ -36,6 +42,7 @@ import size from 'lodash/size';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce, useUpdateEffect } from 'react-use';
 import { createContext } from 'use-context-selector';
+import styled from 'styled-components';
 import { getDefaultValue, insertAtIndex, richtextToString } from '../../../helpers/common';
 import { getRequiredOptionMessage } from '../../../helpers/options';
 import {
@@ -57,6 +64,12 @@ import {
 } from '../fields/template/TemplateField';
 import { OptionFieldMessages } from './OptionFieldMessages';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
+import {
+  formatOptionValue,
+  getOptionGroup,
+  getOptionGroupLabel,
+  getReadFirstCompletion,
+} from './readFirst';
 
 // Re-export types for consumers
 export type IOptions = TQorusForm;
@@ -98,6 +111,115 @@ const PositiveColorEffect: any = {
   color: '#ffffff',
   glow: 'success',
 };
+
+// ─── compact (read-first) layout ────────────────────────────────────────────────
+// Flat two-column rows (label | value | action) inside collapsible group panels,
+// rather than the classic card-per-field. Colours are theme-derived and passed in
+// as props so the layout adapts to light/dark/custom Reqore themes.
+
+const StyledCompactWrap = styled.div`
+  display: flex;
+  flex-flow: column;
+  gap: 10px;
+  width: 100%;
+
+  /* Option logos (e.g. language images) render as <img> inside ReqoreIcon's
+     square box; constrain them so portrait PNGs don't overflow the row. */
+  .reqore-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+`;
+
+const StyledGroupBody = styled.div<{ $divider: string; $hover: string; $focus: string }>`
+  display: flex;
+  flex-flow: column;
+
+  .readfirst-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 240px) 1fr auto;
+    align-items: center;
+    gap: 14px;
+    min-height: 38px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+  }
+  .readfirst-row + .readfirst-row {
+    border-top: 1px solid ${({ $divider }) => $divider};
+  }
+  .readfirst-row:hover {
+    background: ${({ $hover }) => $hover};
+  }
+  .readfirst-row:focus-visible {
+    outline: 2px solid ${({ $focus }) => $focus};
+    outline-offset: -2px;
+    background: ${({ $hover }) => $hover};
+  }
+  /* A hidden (not-yet-added) field surfaced by the search is dimmed. */
+  .readfirst-row-hidden {
+    opacity: 0.65;
+  }
+  .readfirst-action {
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+  .readfirst-row:hover .readfirst-action,
+  .readfirst-row:focus-visible .readfirst-action {
+    opacity: 0.85;
+  }
+`;
+
+// Sticky "additional options" bar that appears at the bottom once the toolbar
+// (and its Fields menu) has scrolled out of view, so optional fields stay
+// reachable without scrolling back up.
+const StyledStickyAdd = styled.div<{ $bg: string; $border: string }>`
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  margin: 2px -2px 0;
+  padding: 8px 2px;
+  background: ${({ $bg }) => $bg};
+  border-top: 1px solid ${({ $border }) => $border};
+`;
+
+const StyledEditCard = styled.div<{ $bg: string; $border: string }>`
+  padding: 12px;
+  display: flex;
+  flex-flow: column;
+  gap: 8px;
+  background: ${({ $bg }) => $bg};
+  border: 1px solid ${({ $border }) => $border};
+  border-radius: 8px;
+`;
+
+// Completion meter: a single inline row — label | track (fills remaining) | percent.
+const StyledCompletion = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 2px;
+`;
+const StyledCompletionTrack = styled.div<{ $bg: string; $fill: string }>`
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: ${({ $bg }) => $bg};
+  overflow: hidden;
+  & > div {
+    height: 100%;
+    border-radius: 3px;
+    background: ${({ $fill }) => $fill};
+    transition: width 0.25s ease;
+  }
+`;
+const StyledCompletionLabel = styled.span<{ $color: string }>`
+  font-size: 12px;
+  color: ${({ $color }) => $color};
+  white-space: nowrap;
+`;
 
 export const getType = (
   type: TQorusType | TQorusType[],
@@ -270,6 +392,19 @@ export const getTypeAndCanBeNull = (
   };
 };
 
+/**
+ * Display metadata for a read-first group, keyed by the option's raw `group`
+ * string (e.g. `info`, `scaling`). The server only sends the bare group key, so
+ * the consumer supplies the label / icon / order here; anything omitted falls
+ * back to a title-cased key, no icon, and schema order.
+ */
+export interface IFormEngineGroup {
+  label?: string;
+  icon?: IReqoreIconName;
+  subtitle?: string;
+  sort?: number;
+}
+
 export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange'> {
   name: string;
   uniqueName?: string;
@@ -293,7 +428,20 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   stringTemplates?: IReqoreFormTemplates;
   templateFieldProps?: Partial<ITemplateFieldProps>;
   showTypeToggle?: boolean;
+  /**
+   * Render the form in **compact (read-first)** mode: each option is shown as a
+   * row with its current value, grouped by the option's `group`, with a
+   * completion meter at the top; clicking a row expands the real editor inline
+   * and a "Done" action collapses it again. The search box, sort, and outer
+   * label are hidden. Defaults to the classic always-expanded layout.
+   */
   compact?: boolean;
+  /**
+   * Compact mode only: per-group display metadata (label / icon / subtitle /
+   * order), keyed by the option's raw `group` string. The server doesn't define
+   * group display info, so the consumer supplies it here.
+   */
+  groups?: Record<string, IFormEngineGroup>;
   onValidityChange?: (isValid: boolean, data: IFormValidityData) => void;
 }
 
@@ -314,16 +462,43 @@ export const FormEngine = ({
   templateFieldProps,
   showTypeToggle = true,
   compact,
+  groups,
   onValidityChange,
   ...rest
 }: IFormEngineProps) => {
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
   const [operators] = useState<IOperatorsSchema | undefined>(undefined);
   const confirmAction = useReqoreProperty('confirmAction');
+  const theme = useReqoreTheme();
   const [focusedEditing, setFocusedEditing] = useState<string>();
   const [showFieldTypes, setShowFieldTypes] = useState<boolean>(false);
   const [showHelpForOption, setShowHelpForOption] = useState<string | undefined>();
   const [showInvalidOptionsOnly, setShowInvalidOptionsOnly] = useState<boolean>(false);
+  // Read-first (compact) mode: which options are currently expanded into their
+  // editor. Collapsed options show their formatted value only; clicking a row
+  // reveals the real field. Multiple rows can be open at once.
+  const [expandedOptions, setExpandedOptions] = useState<string[]>([]);
+  // Compact-mode toolbar state: narrow the rows to required fields, and/or
+  // free-text filter by label. Both only affect which rows are listed — the
+  // completion meter still reflects the full set.
+  const [requiredOnly, setRequiredOnly] = useState<boolean>(false);
+  const [compactQuery, setCompactQuery] = useState<string>('');
+  // When the compact toolbar scrolls out of view, surface a sticky "additional
+  // options" bar at the bottom so optional fields stay reachable. Tracked via an
+  // IntersectionObserver on a sentinel placed just under the toolbar.
+  const [toolbarOffscreen, setToolbarOffscreen] = useState<boolean>(false);
+  const toolbarObserverRef = useRef<IntersectionObserver | null>(null);
+  const setToolbarSentinel = useCallback((node: HTMLDivElement | null) => {
+    toolbarObserverRef.current?.disconnect();
+    if (node && typeof IntersectionObserver !== 'undefined') {
+      const observer = new IntersectionObserver(
+        ([entry]) => setToolbarOffscreen(!entry.isIntersecting),
+        { threshold: 0 }
+      );
+      observer.observe(node);
+      toolbarObserverRef.current = observer;
+    }
+  }, []);
   const [localValue, setLocalValue] = useState<{
     fields: TQorusForm | TQorusFlatForm;
     meta?: IOptionsOnChangeMeta;
@@ -798,6 +973,21 @@ export const FormEngine = ({
     setShowHelpForOption(optionName);
   }, []);
 
+  const toggleExpandedOption = useCallback((optionName: string) => {
+    setExpandedOptions((prev) =>
+      prev.includes(optionName) ?
+        prev.filter((name) => name !== optionName)
+      : [...prev, optionName]
+    );
+  }, []);
+
+  // Read-first completion summary (how many shown options have a value set),
+  // surfaced as a progress meter at the top of the compact form.
+  const readFirstCompletion = useMemo(
+    () => getReadFirstCompletion(availableOptions as Record<string, IQorusFormField | undefined>),
+    [JSON.stringify(availableOptions)]
+  );
+
   const optionalFields = useMemo(
     () =>
       Object.keys(filteredOptions).map((option) => ({
@@ -811,6 +1001,40 @@ export const FormEngine = ({
       })),
     [JSON.stringify(filteredOptions), JSON.stringify(options)]
   );
+
+  // Compact "Fields" menu — Select all: add every not-yet-selected, enabled
+  // optional field (mirrors the IDE's handleAddAll).
+  const handleAddAllOptional = useCallback(() => {
+    forEach(filteredOptions, (schema, optionName) => {
+      if (!schema?.disabled) {
+        handleAddOptionalFieldChange('options', optionName);
+      }
+    });
+  }, [JSON.stringify(filteredOptions), handleAddOptionalFieldChange]);
+
+  // Compact "Fields" menu — Default fields: drop the optional fields the user
+  // added (keep required / preselected / data-carried fields and their values),
+  // and clear the required-only filter (mirrors the IDE's handleResetToDefault).
+  const handleResetToDefaultFields = useCallback(() => {
+    setLocalValue(({ fields }) => {
+      const current = (fields || {}) as TQorusForm;
+      const next: TQorusForm = {};
+      forEach(current, (value, optionName) => {
+        const schema = options?.[optionName];
+        const isDefault = !!(
+          schema?.required ||
+          schema?.required_groups ||
+          schema?.preselected ||
+          originalValue.current?.[optionName]
+        );
+        if (isDefault) {
+          next[optionName] = value as IQorusFormField;
+        }
+      });
+      return { fields: fixOptions(next, options || {}, operators), meta: undefined };
+    });
+    setRequiredOnly(false);
+  }, [JSON.stringify(options), JSON.stringify(operators)]);
 
   const getCustomMenuTemplateItems = useCallback<(optionName: string) => TCustomTemplateItems>(
     (optionName) => {
@@ -978,6 +1202,516 @@ export const FormEngine = ({
     );
   };
 
+  // ─── compact (read-first) rendering ───────────────────────────────────────────
+  // Theme-derived colours so the flat-row layout adapts to light/dark/custom themes.
+  const cText = theme?.text?.color || '#ffffff';
+  const cMuted = `${cText}99`;
+  const cFaint = `${cText}66`;
+  const cKey = `${cText}cc`;
+  const cDivider = `${cText}14`;
+  const cHover = `${cText}0d`;
+  const cDanger = theme?.intents?.danger || '#e35a5a';
+  const cInfo = theme?.intents?.info || '#3b8eea';
+  const cSuccess = theme?.intents?.success || '#36b37e';
+  const cBg = (theme as { main?: string } | undefined)?.main || '#181818';
+
+  // A single read-first row. Collapsed: label | formatted value | edit affordance.
+  // Expanded: the real editor (same `renderOption` as the classic layout, so all
+  // field wiring is preserved) with a "Done" action to collapse it again.
+  // `hidden` marks an optional field surfaced by the search that isn't part of
+  // the form yet — activating its row adds it, then opens the editor.
+  const renderCompactRow = (
+    optionName: string,
+    optionField: IQorusFormField,
+    hidden = false
+  ) => {
+    const schema = options?.[optionName];
+    const label = schema?.display_name || optionName;
+    const required = !!(schema?.required || schema?.required_groups);
+    const valid = isOptionValid(
+      optionName,
+      (schema?.ui_type as TQorusType) || (schema?.type as TQorusType),
+      optionField?.value
+    );
+    const removable =
+      !readOnly && !schema?.preselected && !schema?.required && !schema?.required_groups;
+
+    if (expandedOptions.includes(optionName)) {
+      return (
+        <StyledEditCard
+          key={optionName}
+          data-field={optionName}
+          className='options-readfirst-card'
+          $bg={cHover}
+          $border={`${cInfo}66`}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div style={{ display: 'flex', flexFlow: 'column', minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.07em',
+                  color: cMuted,
+                }}
+              >
+                {label}
+                {required ? <span style={{ color: cDanger }}> *</span> : null}
+              </div>
+              {schema?.short_desc ?
+                <div style={{ color: cMuted, fontSize: 12, marginTop: 2 }}>{schema.short_desc}</div>
+              : null}
+            </div>
+            <ReqoreButton
+              size='small'
+              icon='CheckLine'
+              intent='success'
+              fixed
+              className='options-readfirst-done'
+              onClick={() => toggleExpandedOption(optionName)}
+            >
+              {readOnly ? 'Close' : 'Done'}
+            </ReqoreButton>
+          </div>
+          {renderOption(optionName, optionField)}
+        </StyledEditCard>
+      );
+    }
+
+    const formatted = formatOptionValue(optionField, schema);
+    const empty = formatted === '';
+    const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
+    const typeLabel =
+      showFieldTypes ?
+        `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
+      : null;
+    const activate = () => {
+      if (hidden) {
+        handleAddOptionalFieldChange('options', optionName);
+      }
+      toggleExpandedOption(optionName);
+    };
+
+    return (
+      <div
+        key={optionName}
+        data-field={optionName}
+        role='button'
+        tabIndex={0}
+        aria-label={`${label}${hidden ? ' (add field)' : ''}`}
+        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}`}
+        onClick={activate}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            activate();
+          }
+        }}
+      >
+        <div
+          title={schema?.short_desc || undefined}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 3,
+            color: cKey,
+            fontWeight: 600,
+            fontSize: 13,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {label}
+          {required ? <span style={{ color: cDanger }}> *</span> : null}
+          {typeLabel ?
+            <span style={{ color: cFaint, fontWeight: 400, fontSize: 11, marginLeft: 6 }}>
+              {typeLabel}
+            </span>
+          : null}
+          {schema?.desc ?
+            <span
+              role='button'
+              tabIndex={-1}
+              aria-label='Help'
+              className='options-readfirst-help'
+              style={{ cursor: 'help', display: 'inline-flex', opacity: 0.55, marginLeft: 5 }}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleOptionLabelClick(optionName);
+              }}
+            >
+              <ReqoreIcon icon='QuestionLine' size='12px' />
+            </span>
+          : null}
+        </div>
+        <div
+          style={{
+            color: empty || hidden ? cFaint : cText,
+            fontStyle: empty || hidden ? 'italic' : 'normal',
+            fontSize: 13,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {hidden ?
+            'Not in form — add'
+          : empty ?
+            required ?
+              'Required — not set'
+            : 'Not set'
+          : formatted}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {hidden ?
+            <ReqoreIcon icon='AddLine' intent='info' size='14px' />
+          : !valid ?
+            <ReqoreTag label='Required' intent='danger' size='small' minimal />
+          : <ReqoreIcon
+              className='readfirst-action'
+              icon={readOnly ? 'EyeLine' : 'EditLine'}
+              size='14px'
+            />
+          }
+          {changed ?
+            <ReqoreButton
+              className='readfirst-action options-readfirst-revert'
+              size='small'
+              flat
+              minimal
+              icon='HistoryLine'
+              tooltip='Revert changes'
+              onClick={(e: any) => {
+                e.stopPropagation();
+                handleValueChange(
+                  optionName,
+                  originalValue.current?.[optionName]?.value,
+                  originalValue.current?.[optionName]?.type
+                );
+              }}
+            />
+          : null}
+          {removable && !hidden ?
+            <ReqoreButton
+              className='readfirst-action'
+              size='small'
+              flat
+              minimal
+              intent='danger'
+              icon='DeleteBinLine'
+              tooltip='Remove field'
+              onClick={(e: any) => {
+                e.stopPropagation();
+                confirmAction({
+                  title: 'Remove field',
+                  onConfirm: () => removeSelectedOption(optionName),
+                });
+              }}
+            />
+          : null}
+        </div>
+      </div>
+    );
+  };
+
+  // The full compact (read-first) form: a completion meter, an optional
+  // invalid-fields message, the options as flat rows grouped into collapsible
+  // panels by their `group`, and the "more options" adder. Bypasses the classic
+  // ReqoreCollection card layout entirely; the classic path is untouched.
+  const renderCompact = () => {
+    // Filter rows by the toolbar: required-only and/or a free-text label query.
+    // Filters only affect which rows are listed — the completion meter reflects
+    // the full set.
+    const query = compactQuery.trim().toLowerCase();
+    const matchesQuery = (optionName: string): boolean =>
+      !query || (options?.[optionName]?.display_name || optionName).toLowerCase().includes(query);
+    const matchesFilters = (optionName: string): boolean => {
+      const schema = options?.[optionName];
+      if (requiredOnly && !(schema?.required || schema?.required_groups)) {
+        return false;
+      }
+      return matchesQuery(optionName);
+    };
+
+    // Group the options by their raw `group` key, remembering the order groups
+    // first appear in the schema. Each row carries a `hidden` flag.
+    const groupOrder: string[] = [];
+    const grouped: Record<string, Array<{ name: string; hidden: boolean }>> = {};
+    const pushRow = (optionName: string, hidden: boolean) => {
+      const group = getOptionGroup(options?.[optionName]);
+      if (!grouped[group]) {
+        grouped[group] = [];
+        groupOrder.push(group);
+      }
+      grouped[group].push({ name: optionName, hidden });
+    };
+    // Listed (added / preselected / required) options that pass the filters.
+    forEach(shownOptions, (_option, optionName) => {
+      if (matchesFilters(optionName)) {
+        pushRow(optionName, false);
+      }
+    });
+    // When searching, also surface matching hidden optional fields (not yet
+    // added) so the search spans the whole schema, not just the visible rows.
+    if (query) {
+      forEach(filteredOptions, (_schema, optionName) => {
+        if (matchesQuery(optionName)) {
+          pushRow(optionName, true);
+        }
+      });
+    }
+
+    // Order groups by the consumer-supplied `sort` (when given), else first-seen.
+    const groupKeys = groupOrder.slice().sort((a, b) => {
+      const sa = groups?.[a]?.sort;
+      const sb = groups?.[b]?.sort;
+      if (sa != null && sb != null && sa !== sb) return sa - sb;
+      if (sa != null && sb == null) return -1;
+      if (sb != null && sa == null) return 1;
+      return groupOrder.indexOf(a) - groupOrder.indexOf(b);
+    });
+
+    return (
+      <OptionsContext.Provider value={{ schema: options, value: availableOptions }}>
+        <ReqoreErrorBoundary>
+          {showHelpForOption && (
+            <OptionsHelpDialog
+              onClose={() => setShowHelpForOption(undefined)}
+              option={options[showHelpForOption]}
+            />
+          )}
+          <StyledCompactWrap>
+            {readFirstCompletion.total ?
+              <StyledCompletion className='options-readfirst-completion'>
+                <StyledCompletionLabel $color={cMuted}>
+                  {readFirstCompletion.set} / {readFirstCompletion.total} fields set
+                </StyledCompletionLabel>
+                <StyledCompletionTrack
+                  $bg={cDivider}
+                  $fill={readFirstCompletion.set === readFirstCompletion.total ? cSuccess : cInfo}
+                >
+                  <div style={{ width: `${readFirstCompletion.pct}%` }} />
+                </StyledCompletionTrack>
+                <StyledCompletionLabel $color={cMuted}>
+                  {readFirstCompletion.pct}%
+                </StyledCompletionLabel>
+              </StyledCompletion>
+            : null}
+
+            {size(availableOptions) > 1 ?
+              <ReqoreControlGroup fluid verticalAlign='center'>
+                <ReqoreInput
+                  fluid
+                  pill
+                  icon='Search2Line'
+                  iconColor='muted'
+                  placeholder='Filter fields...'
+                  value={compactQuery}
+                  intent={compactQuery ? 'info' : undefined}
+                  className='options-readfirst-search'
+                  onChange={(event: React.FormEvent<HTMLInputElement>) =>
+                    setCompactQuery(event.currentTarget.value)
+                  }
+                  onClearClick={() => setCompactQuery('')}
+                />
+                {!readOnly ?
+                  <ReqoreDropdown
+                    fixed
+                    minimal
+                    filterable
+                    icon='Filter3Line'
+                    label='Fields'
+                    className='options-readfirst-fields'
+                    intent={requiredOnly ? 'info' : undefined}
+                    badge={requiredOnly ? 'Required only' : undefined}
+                    onItemSelect={({ value }: any) =>
+                      value && handleAddOptionalFieldChange('options', value)
+                    }
+                    items={
+                      [
+                        {
+                          label: 'Required only',
+                          selected: requiredOnly,
+                          icon: requiredOnly ? 'CheckboxCircleLine' : 'CheckboxBlankCircleLine',
+                          tooltip: 'Show only required fields',
+                          onClick: () => setRequiredOnly((value) => !value),
+                        },
+                        {
+                          label: 'Show field types',
+                          selected: showFieldTypes,
+                          icon:
+                            showFieldTypes ? 'CheckboxCircleLine' : 'CheckboxBlankCircleLine',
+                          tooltip: 'Annotate each field with its type',
+                          onClick: handleShowFieldTypesClick,
+                        },
+                        {
+                          label: 'Select all',
+                          icon: 'MenuAddLine',
+                          tooltip: 'Add every optional field',
+                          disabled: size(filteredOptions) === 0,
+                          onClick: handleAddAllOptional,
+                        },
+                        {
+                          label: 'Default fields',
+                          icon: 'RestartLine',
+                          tooltip: 'Reset to the default set of fields',
+                          onClick: handleResetToDefaultFields,
+                        },
+                        {
+                          label: 'Revert all changes',
+                          icon: 'HistoryLine',
+                          tooltip: 'Undo all edits back to the loaded values',
+                          disabled: !(
+                            originalValue.current &&
+                            !isEqual(localValue.fields, originalValue.current)
+                          ),
+                          onClick: handleRevertChangesClick,
+                        },
+                        ...(size(filteredOptions) ?
+                          [
+                            {
+                              label: 'Add optional fields',
+                              readOnly: true,
+                              disabled: true,
+                              icon: 'AddLine',
+                            },
+                          ]
+                        : []),
+                        ...optionalFields.map((field) => ({
+                          label: field.display_name || field.value,
+                          value: field.value,
+                          description: field.short_desc,
+                          disabled: field.disabled,
+                        })),
+                      ] as any
+                    }
+                  />
+                : null}
+              </ReqoreControlGroup>
+            : null}
+
+            {size(availableOptions) > 1 ?
+              <div ref={setToolbarSentinel} aria-hidden='true' style={{ height: 1, marginTop: -1 }} />
+            : null}
+
+            {size(validityData.invalidFields) && !readOnly ?
+              <ReqoreMessage
+                intent={showInvalidOptionsOnly ? 'info' : 'danger'}
+                opaque={false}
+                size='small'
+                onClick={() => setShowInvalidOptionsOnly(!showInvalidOptionsOnly)}
+              >
+                {showInvalidOptionsOnly ?
+                  'Showing invalid fields only. Click here again to show all fields.'
+                : `${size(validityData.invalidFields) < 2 ? 'A field is not valid and requires' : `${size(validityData.invalidFields)} fields are not valid and require`} attention. Click here to only show invalid fields.`
+                }
+              </ReqoreMessage>
+            : null}
+
+            {size(groupKeys) === 0 ?
+              <ReqoreMessage flat opaque={false} size='small'>
+                No fields match the current filters.
+              </ReqoreMessage>
+            : null}
+
+            {groupKeys.map((groupName) => {
+              const names = grouped[groupName];
+              const groupConfig = groups?.[groupName];
+              const invalidCount = names.filter(
+                (entry) =>
+                  !entry.hidden &&
+                  !isOptionValid(
+                    entry.name,
+                    (options?.[entry.name]?.ui_type as TQorusType) ||
+                      (options?.[entry.name]?.type as TQorusType),
+                    (shownOptions as TQorusForm)[entry.name]?.value
+                  )
+              ).length;
+
+              return (
+                <ReqorePanel
+                  key={groupName}
+                  flat
+                  minimal
+                  collapsible
+                  label={getOptionGroupLabel(groupName, groups)}
+                  icon={groupConfig?.icon}
+                  className='options-readfirst-group'
+                  padded={false}
+                  contentStyle={{ padding: '4px 4px 6px' }}
+                  badge={
+                    groupName === 'optional' ?
+                      { label: `${names.length} optional` }
+                    : invalidCount ?
+                      {
+                        label: `${invalidCount} to resolve`,
+                        intent: 'warning',
+                        icon: 'ErrorWarningLine',
+                      }
+                    : { label: 'all set', intent: 'success', icon: 'CheckLine' }
+                  }
+                >
+                  {groupConfig?.subtitle ?
+                    <div style={{ color: cMuted, fontSize: 12, padding: '0 6px 6px' }}>
+                      {groupConfig.subtitle}
+                    </div>
+                  : null}
+                  <StyledGroupBody $divider={cDivider} $hover={cHover} $focus={cInfo}>
+                    {names.map((entry) =>
+                      renderCompactRow(
+                        entry.name,
+                        entry.hidden ?
+                          ({
+                            type: (options?.[entry.name]?.ui_type ||
+                              options?.[entry.name]?.type) as TQorusType,
+                            value: undefined,
+                          } as IQorusFormField)
+                        : ((shownOptions as TQorusForm)[entry.name] as IQorusFormField),
+                        entry.hidden
+                      )
+                    )}
+                  </StyledGroupBody>
+                </ReqorePanel>
+              );
+            })}
+
+            {toolbarOffscreen && !readOnly && size(filteredOptions) > 0 ?
+              <StyledStickyAdd $bg={cBg} $border={cDivider}>
+                <ReqoreDropdown
+                  fluid
+                  filterable
+                  icon='AddLine'
+                  label={`Additional options (${size(filteredOptions)})`}
+                  className='options-readfirst-sticky-add'
+                  onItemSelect={({ value }: any) =>
+                    value && handleAddOptionalFieldChange('options', value)
+                  }
+                  items={
+                    optionalFields.map((field) => ({
+                      label: field.display_name || field.value,
+                      value: field.value,
+                      description: field.short_desc,
+                      disabled: field.disabled,
+                    })) as any
+                  }
+                />
+              </StyledStickyAdd>
+            : null}
+          </StyledCompactWrap>
+        </ReqoreErrorBoundary>
+      </OptionsContext.Provider>
+    );
+  };
+
   if (rest.skeleton || templates.loading || typesLoading) {
     return (
       <ReqoreControlGroup vertical fill fluid style={{ flexGrow: 1 }} gapSize='big'>
@@ -1001,6 +1735,10 @@ export const FormEngine = ({
         No options available
       </ReqoreMessage>
     );
+  }
+
+  if (compact) {
+    return renderCompact();
   }
 
   return (

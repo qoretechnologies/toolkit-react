@@ -6,15 +6,26 @@ import { validateField } from '../../../helpers/validations';
 import FileFieldArgSchema from '../../../stories/Data/fileFieldArgSchema.json';
 import {
   _testsChangeRichText,
+  _testsChangeStringField,
   _testsClickButton,
+  _testsClickText,
   _testsOpenTemplateMenu,
   _testsOpenTemplates,
   _testsWaitForInputValue,
   _testsWaitForText,
+  _testsWaitForTextsCount,
   _testsWaitForTextToNotExist,
   sleep,
 } from '../../../stories/Tests/utils';
-import { FormEngine, IFormEngineProps, IFormValidityData, IOptionsSchema } from './FormEngine';
+import {
+  FormEngine,
+  IFormEngineGroup,
+  IFormEngineProps,
+  IFormValidityData,
+  IOptions,
+  IOptionsSchema,
+  IOptionsSchemaArg,
+} from './FormEngine';
 
 // ─── schema data ──────────────────────────────────────────────────────────────
 
@@ -1163,5 +1174,666 @@ export const OnValidityChange: Story = {
       expect(data.isValid).toBe(true);
       expect(data.invalidFields).toHaveLength(0);
     });
+  },
+};
+
+// ─── compact (read-first) mode ──────────────────────────────────────────────────
+
+// `group` is server-supplied metadata not yet in the typed schema; widen locally.
+type TCompactField = IOptionsSchemaArg & { group?: string };
+
+const CompactSchema: Record<string, TCompactField> = {
+  name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Name',
+    short_desc: 'Unique identifier for this interface',
+    required: true,
+    preselected: true,
+    group: 'info',
+  },
+  lang: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Language',
+    short_desc: 'Implementation language',
+    preselected: true,
+    group: 'info',
+    allowed_values: [
+      { value: { type: 'string', value: 'qore' }, display_name: 'Qore' },
+      { value: { type: 'string', value: 'python' }, display_name: 'Python' },
+      { value: { type: 'string', value: 'java' }, display_name: 'Java' },
+    ],
+  },
+  description: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Description',
+    short_desc: 'What this interface does',
+    required: true,
+    preselected: true,
+    group: 'general',
+  },
+  tags: {
+    type: 'list',
+    ui_type: 'list',
+    display_name: 'Tags',
+    preselected: true,
+    group: 'general',
+  },
+  autostart: {
+    type: 'number',
+    ui_type: 'number',
+    display_name: 'Autostart',
+    short_desc: 'Number of instances to start',
+    preselected: true,
+    group: 'scaling',
+  },
+  remote: {
+    type: 'bool',
+    ui_type: 'bool',
+    display_name: 'Remote',
+    short_desc: 'Run on a remote Qorus instance',
+    preselected: true,
+    group: 'scaling',
+  },
+};
+
+// `description` is intentionally left empty so the required-but-unset state is
+// visible (a "Required — not set" row and an invalid-field message).
+const CompactValue: IOptions = {
+  name: { type: 'string', value: 'order-fulfilment' },
+  lang: { type: 'string', value: 'python' },
+  tags: { type: 'list', value: ['orders', 'batch'] },
+  autostart: { type: 'number', value: 1 },
+  remote: { type: 'bool', value: true },
+};
+
+// Group display metadata (icon / subtitle / order), keyed by the raw `group`.
+// The server only sends the bare group key, so the consumer supplies this.
+const CompactGroups: Record<string, IFormEngineGroup> = {
+  info: { icon: 'IdCardLine', subtitle: 'Identity and core settings', sort: 0 },
+  general: { icon: 'FileTextLine', sort: 1 },
+  scaling: { icon: 'BroadcastLine', sort: 2 },
+};
+
+// Open the compact "Fields" dropdown and click the menu item with the given
+// label. The dropdown's popover renders in a portal (outside canvasElement), so
+// menu items are queried against the whole document.
+const clickFieldsMenuItem = async (text: string) => {
+  await _testsClickButton({ selector: '.options-readfirst-fields' });
+  let item: Element | undefined;
+  await waitFor(
+    () => {
+      item = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
+        element.textContent?.includes(text)
+      );
+      expect(item).toBeTruthy();
+    },
+    { timeout: 5000 }
+  );
+  await fireEvent.click(item as Element);
+};
+
+// CompactSchema plus one optional (non-preselected) field, to exercise the
+// "Fields" menu add / select-all / reset actions.
+const CompactFieldsMenuSchema: Record<string, TCompactField> = {
+  ...CompactSchema,
+  notes: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Notes',
+    short_desc: 'Free-form notes',
+    group: 'general',
+  },
+};
+
+export const Compact: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+  },
+};
+
+export const CompactReadOnly: Story = {
+  args: {
+    ...Compact.args,
+    readOnly: true,
+  },
+};
+
+export const CompactEmpty: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: {},
+    groups: CompactGroups,
+  },
+};
+
+export const CompactReadFirstEditing: Story = {
+  parameters: {
+    chromatic: { disable: true },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+  },
+  play: async ({ args }) => {
+    // Read-first: each set option shows its formatted value as a row, and the
+    // real editor is NOT mounted until a row is expanded.
+    await _testsWaitForText('order-fulfilment');
+    // Booleans render as Yes/No, allowed_values as their display label.
+    await _testsWaitForText('Yes');
+    await _testsWaitForText('Python');
+    // The required-but-empty field shows its placeholder instead of an editor.
+    await _testsWaitForText('Required — not set');
+    // No field editor (textarea) is mounted while everything is collapsed.
+    await expect(document.querySelectorAll('.options-readfirst-card .reqore-textarea')).toHaveLength(
+      0
+    );
+
+    // Group headers are rendered from each option's `group`.
+    await _testsWaitForText('Info');
+    await _testsWaitForText('Scaling');
+
+    // Expanding the Name row reveals the real editor pre-filled with the value.
+    await _testsClickText('order-fulfilment');
+    await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-card .reqore-textarea');
+
+    // Editing flows through the real onChange pipeline.
+    await _testsChangeStringField({
+      selector: '.options-readfirst-card .reqore-textarea',
+      value: 'updated-name',
+    });
+    await waitFor(() => {
+      const calls = (args.onChange as ReturnType<typeof fn>).mock.calls;
+      const last = calls[calls.length - 1];
+      expect((last[1] as IOptions)?.name?.value).toBe('updated-name');
+    });
+
+    // "Done" collapses the row back to read-first, showing the new value.
+    await _testsClickButton({ selector: '.options-readfirst-done' });
+    await _testsWaitForText('updated-name');
+  },
+};
+
+export const CompactRequiredOnlyAndSearch: Story = {
+  parameters: {
+    chromatic: { disable: true },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+  },
+  play: async () => {
+    // All groups/fields listed to start.
+    await _testsWaitForText('Language');
+    await _testsWaitForText('Scaling');
+
+    // "Required only" (in the Fields menu) narrows the list to required fields
+    // (Name, Description); optional fields and any now-empty group disappear.
+    await clickFieldsMenuItem('Required only');
+    await _testsWaitForTextToNotExist('Language');
+    await _testsWaitForTextToNotExist('Scaling');
+    await _testsWaitForText('Name');
+    await _testsWaitForText('Description');
+
+    // Toggle it back off — everything returns.
+    await clickFieldsMenuItem('Required only');
+    await _testsWaitForText('Language');
+
+    // The search box filters rows by label.
+    await _testsChangeStringField({
+      selector: 'input[placeholder="Filter fields..."]',
+      value: 'remote',
+    });
+    await _testsWaitForText('Remote');
+    await _testsWaitForTextToNotExist('Name');
+    await _testsWaitForTextToNotExist('Language');
+  },
+};
+
+export const CompactFieldsMenu: Story = {
+  parameters: {
+    chromatic: { disable: true },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactFieldsMenuSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+  },
+  play: async () => {
+    await _testsWaitForText('Tags');
+    // 'Notes' is optional and unset, so it is not listed as a row yet.
+    await _testsWaitForTextToNotExist('Notes');
+
+    // "Select all" adds every optional field — Notes now appears as a row.
+    await clickFieldsMenuItem('Select all');
+    await _testsWaitForText('Notes');
+
+    // "Default fields" drops the user-added optional fields — Notes is removed.
+    await clickFieldsMenuItem('Default fields');
+    await _testsWaitForTextToNotExist('Notes');
+  },
+};
+
+export const CompactSearchHidden: Story = {
+  parameters: {
+    chromatic: { disable: true },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactFieldsMenuSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+  },
+  play: async () => {
+    await _testsWaitForText('Tags');
+    // 'Notes' is an optional, unset field — not listed among the rows.
+    await _testsWaitForTextToNotExist('Notes');
+
+    // The top search spans hidden fields too: typing 'notes' surfaces it as an
+    // add-able row even though it isn't part of the form yet.
+    await _testsChangeStringField({
+      selector: 'input[placeholder="Filter fields..."]',
+      value: 'notes',
+    });
+    await _testsWaitForText('Notes');
+    await _testsWaitForText('Not in form — add');
+
+    // Rows are keyboard-operable (role=button + Enter): focusing the hidden row
+    // and pressing Enter adds the field and opens its editor.
+    const row = document.querySelector('[data-field="notes"]') as HTMLElement;
+    row.focus();
+    await userEvent.keyboard('{Enter}');
+    await waitFor(
+      () =>
+        expect(
+          document.querySelectorAll('.options-readfirst-card .reqore-textarea').length
+        ).toBeGreaterThan(0),
+      { timeout: 10000 }
+    );
+  },
+};
+
+// CompactSchema plus several optional fields, so the form is taller and there
+// are "additional options" to surface (used to show the sticky add bar).
+const CompactScrollableSchema: Record<string, TCompactField> = {
+  ...CompactSchema,
+  notes: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Notes',
+    short_desc: 'Free-form notes',
+    group: 'general',
+  },
+  order_keys: {
+    type: 'list',
+    ui_type: 'list',
+    display_name: 'Order keys',
+    short_desc: 'Workflow order keys',
+    group: 'general',
+  },
+  sla_warning: {
+    type: 'number',
+    ui_type: 'number',
+    display_name: 'SLA warning',
+    short_desc: 'SLA warning threshold (seconds)',
+    group: 'scaling',
+  },
+  alert_on_error: {
+    type: 'bool',
+    ui_type: 'bool',
+    display_name: 'Alert on error',
+    short_desc: 'Raise an alert when the workflow errors',
+    group: 'scaling',
+  },
+};
+
+export const CompactScrollable: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactScrollableSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+  },
+};
+
+// Verifies that compact mode honours the rich options-schema behaviours
+// (on_change/refetch + has_dependents/depends_on) — these flow through the same
+// `handleValueChange`/`renderOption` the classic layout uses, so editing a field
+// in the expanded read-first editor must still fire `on_change` events and reset
+// its dependents.
+export const CompactOnChangeAndDependents: Story = {
+  parameters: {
+    chromatic: { disable: true },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      source: {
+        type: 'string',
+        ui_type: 'long-string',
+        display_name: 'Source',
+        short_desc: 'Changing this refetches options and resets its dependents',
+        has_dependents: true,
+        on_change: ['refetch'],
+        required: true,
+        preselected: true,
+      },
+      target: {
+        type: 'string',
+        ui_type: 'long-string',
+        display_name: 'Target',
+        short_desc: 'Depends on Source',
+        depends_on: ['source'],
+        required: true,
+        preselected: true,
+      },
+    } as IOptionsSchema,
+    value: {
+      source: { type: 'long-string', value: 'orders' },
+      target: { type: 'long-string', value: 'staging' },
+    } as IOptions,
+  },
+  play: async ({ args }) => {
+    // Read-first: both fields show their values as rows.
+    await _testsWaitForText('orders');
+    await _testsWaitForText('staging');
+
+    // Expand the Source row and change it.
+    await _testsClickText('orders');
+    await _testsWaitForInputValue('orders', '.options-readfirst-card .reqore-textarea');
+    await _testsChangeStringField({
+      selector: '.options-readfirst-card .reqore-textarea',
+      value: 'invoices',
+    });
+
+    // The change must (a) carry the on_change 'refetch' event and (b) reset the
+    // dependent 'target' — exactly as in the classic layout.
+    await waitFor(() => {
+      const calls = (args.onChange as ReturnType<typeof fn>).mock.calls;
+      const refetchCall = calls.find((call) => (call[2] as any)?.events?.includes('refetch'));
+      expect(refetchCall).toBeTruthy();
+      const value = refetchCall![1] as IOptions;
+      expect(value?.source?.value).toBe('invoices');
+      expect(value?.target?.value).not.toBe('staging');
+    });
+  },
+};
+
+export const CompactRevertAndShowTypes: Story = {
+  parameters: {
+    chromatic: { disable: true },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+
+    // Edit Name, then collapse — because it now differs from the loaded value, a
+    // per-field revert (↺) appears on the row.
+    await _testsClickText('order-fulfilment');
+    await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-card .reqore-textarea');
+    await _testsChangeStringField({
+      selector: '.options-readfirst-card .reqore-textarea',
+      value: 'changed-name',
+    });
+    await sleep(300); // settle: let the edit propagate before collapsing
+    await _testsClickButton({ selector: '.options-readfirst-done' });
+    await _testsWaitForText('changed-name'); // gate
+
+    // Per-field revert restores the loaded value. (Hover-only action — click it
+    // directly rather than via _testsClickButton's userEvent visibility checks.)
+    const revert = document.querySelector(
+      '[data-field="name"] .options-readfirst-revert'
+    ) as HTMLElement;
+    expect(revert).toBeTruthy();
+    await fireEvent.click(revert);
+    await _testsWaitForText('order-fulfilment');
+    await _testsWaitForTextToNotExist('changed-name');
+
+    // "Show field types" (Fields menu) annotates each row with its type.
+    await clickFieldsMenuItem('Show field types');
+    await _testsWaitForText('<string>');
+
+    // Edit again, then the global "Revert all changes" restores everything.
+    await _testsClickText('order-fulfilment');
+    await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-card .reqore-textarea');
+    await _testsChangeStringField({
+      selector: '.options-readfirst-card .reqore-textarea',
+      value: 'edited-again',
+    });
+    await sleep(300); // settle
+    await _testsClickButton({ selector: '.options-readfirst-done' });
+    await _testsWaitForText('edited-again'); // gate
+
+    await clickFieldsMenuItem('Revert all changes');
+    await _testsWaitForText('order-fulfilment');
+  },
+};
+
+// ─── compact parity with the classic story matrix ──────────────────────────────
+
+// Read-first display + expand-to-edit across the field types.
+export const CompactFieldTypes: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      text: { type: 'string', ui_type: 'string', display_name: 'Text', preselected: true },
+      richText: { type: 'richtext', ui_type: 'richtext', display_name: 'Rich text', preselected: true },
+      count: { type: 'int', ui_type: 'number', display_name: 'Count', preselected: true },
+      enabled: { type: 'bool', ui_type: 'bool', display_name: 'Enabled', preselected: true },
+      items: { type: 'list', ui_type: 'list', display_name: 'Items', preselected: true },
+      config: { type: 'hash', ui_type: 'hash', display_name: 'Config', preselected: true },
+      colour: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Colour', preselected: true },
+      when: { type: 'string', ui_type: 'string', display_name: 'When', preselected: true },
+    } as IOptionsSchema,
+    value: {
+      text: { type: 'string', value: 'hello' },
+      richText: {
+        type: 'richtext',
+        value: [{ type: 'paragraph', children: [{ text: 'rich note' }] }],
+      },
+      count: { type: 'int', value: 42 },
+      enabled: { type: 'bool', value: true },
+      items: { type: 'list', value: ['a', 'b'] },
+      config: { type: 'hash', value: { k: 'v' } },
+      colour: { type: 'rgbcolor', value: { r: 0, g: 0, b: 255, a: 1 } },
+      when: { type: 'string', value: '2026-06-08' },
+    } as IOptions,
+  },
+  play: async () => {
+    // Each type renders a read-first value (no editor mounted yet).
+    await _testsWaitForText('hello'); // string
+    await _testsWaitForText('rich note'); // richtext flattened to plain text
+    await _testsWaitForText('42'); // number
+    await _testsWaitForText('Yes'); // bool → Yes/No
+    await _testsWaitForText('a, b'); // list joined
+    await _testsWaitForText('2026-06-08'); // scalar string
+    await _testsWaitForText('Set'); // opaque hash/colour → "Set"
+    await expect(document.querySelectorAll('.options-readfirst-card')).toHaveLength(0);
+
+    // Expanding a row mounts the real editor.
+    await _testsClickText('hello');
+    await waitFor(() => expect(document.querySelector('.options-readfirst-card')).toBeTruthy(), {
+      timeout: 10000,
+    });
+  },
+};
+
+// `required_groups` (one-of) renders the required marker on each member.
+export const CompactRequiredGroups: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      byUrl: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'By URL',
+        required_groups: ['target'],
+        preselected: true,
+      },
+      byHost: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'By host',
+        required_groups: ['target'],
+        preselected: true,
+      },
+    } as IOptionsSchema,
+    value: {} as IOptions,
+  },
+  play: async () => {
+    // Both members of the required group show the required placeholder.
+    await _testsWaitForTextsCount('Required — not set', undefined, 2);
+
+    // Setting one member: expand it, type a value, collapse — its value shows.
+    await _testsClickText('By URL');
+    await waitFor(
+      () => expect(document.querySelector('.options-readfirst-card .reqore-textarea')).toBeTruthy(),
+      { timeout: 10000 }
+    );
+    await _testsChangeStringField({
+      selector: '.options-readfirst-card .reqore-textarea',
+      value: 'https://example.com',
+    });
+    await sleep(300);
+    await _testsClickButton({ selector: '.options-readfirst-done' });
+    await _testsWaitForText('https://example.com');
+  },
+};
+
+// An `any`-typed option shows its value and expands to the type-aware editor.
+export const CompactAnyType: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      dynamic: { type: 'any', ui_type: 'any', display_name: 'Dynamic', preselected: true },
+    } as IOptionsSchema,
+    value: { dynamic: { type: 'string', value: 'flexible' } } as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('flexible');
+    await _testsClickText('flexible');
+    await waitFor(() => expect(document.querySelector('.options-readfirst-card')).toBeTruthy(), {
+      timeout: 10000,
+    });
+  },
+};
+
+// A schema-level `readonly` field whose value differs from its default is fixed
+// back to the default (engine `fixOptions`); the read row shows the default.
+export const CompactReadonlyDefaultFix: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      fixed: {
+        type: 'number',
+        ui_type: 'number',
+        display_name: 'Fixed',
+        readonly: true,
+        default_value: { type: 'number', value: 123 },
+        preselected: true,
+      },
+    } as IOptionsSchema,
+    value: { fixed: { type: 'number', value: 999 } } as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('123');
+    await _testsWaitForTextToNotExist('999');
+  },
+};
+
+// Values for options that aren't in the schema are filtered out, not rendered.
+export const CompactNonExistentFiltered: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      real: { type: 'string', ui_type: 'string', display_name: 'Real', preselected: true },
+    } as IOptionsSchema,
+    value: {
+      real: { type: 'string', value: 'shown' },
+      ghost: { type: 'string', value: 'should-not-show' },
+    } as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('shown');
+    await _testsWaitForTextToNotExist('should-not-show');
+  },
+};
+
+// A field with a long `desc` shows a help affordance that opens the help dialog.
+export const CompactHelpDialog: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      helped: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Helped',
+        short_desc: 'Short description',
+        desc: 'A longer help description shown in the dialog.',
+        preselected: true,
+      },
+    } as IOptionsSchema,
+    value: { helped: { type: 'string', value: 'value' } } as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('Helped');
+    // Clicking the row's help affordance opens the help dialog with the long desc.
+    await fireEvent.click(document.querySelector('.options-readfirst-help')!);
+    await _testsWaitForText('A longer help description shown in the dialog.');
+  },
+};
+
+// Read-first rendering is render-stable — it doesn't emit a storm of onChanges.
+export const CompactDoesNotCauseInfiniteRerenders: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+  },
+  play: async ({ args }) => {
+    await _testsWaitForText('order-fulfilment');
+    await sleep(800); // settle — let any render loop manifest
+    const calls = (args.onChange as ReturnType<typeof fn>).mock.calls.length;
+    expect(calls).toBeLessThan(10);
   },
 };
