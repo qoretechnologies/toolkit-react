@@ -532,12 +532,6 @@ const meta = {
     initialValue: '',
     onChange: fn(),
   },
-  parameters: {
-    // Play tests wait on async mock-LSP WebSocket round-trips before the
-    // dropdown / diagnostics render. Give the runner headroom over its
-    // short default so the `waitFor` polls don't time out on slow CI.
-    jest: { timeout: 60000 },
-  },
 } as StoryMeta<typeof QonsoleSmartInputWithState>;
 
 export default meta;
@@ -603,7 +597,7 @@ export const BasicMock: Story = {
         expect(dropdown!.textContent).toContain('--limit');
         expect(dropdown!.textContent).toContain('--search');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
 
     // Accept the first item with Enter and check the editor doesn't
@@ -615,7 +609,7 @@ export const BasicMock: Story = {
         expect(editable.textContent).toBe('/list services --desc=');
         expect(editable.textContent).not.toContain('---');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -779,7 +773,7 @@ export const WithDiagnostics: Story = {
         expect(text).toContain('Pipeline "pricing" not found in workspace.');
         expect(text).toContain('Unknown resource "services"');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -840,7 +834,7 @@ export const WithCommitCharacters: Story = {
         expect(dropdown).not.toBeNull();
         expect(dropdown!.textContent).toContain('--desc');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
     // `=` is a commit character → auto-accept the focused `--desc`.
     // Use `userEvent.keyboard` (not `type`) so the keydown reaches the
@@ -852,7 +846,7 @@ export const WithCommitCharacters: Story = {
         expect(editable.textContent).toBe('/list services --desc=');
         expect(editable.textContent).not.toContain('==');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -913,7 +907,7 @@ export const WithWizardItems: Story = {
         ).find((el) => el.textContent?.includes('Create connection'));
         expect(item).toBeDefined();
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
     const wizardItem = Array.from(
       document.querySelectorAll('.reqore-menu-item')

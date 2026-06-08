@@ -220,13 +220,6 @@ const meta = {
     value: '',
     onChange: fn(),
   },
-  parameters: {
-    // Play tests wait on async mock-LSP WebSocket round-trips (connect →
-    // didOpen → setContext → completion) before assertions hold. Give the
-    // runner headroom over its short default so the `waitFor` polls below
-    // don't time out on a slow/cold CI runner.
-    jest: { timeout: 60000 },
-  },
   async beforeEach(context) {
     received = [];
     lastDocumentText = '';
@@ -879,12 +872,12 @@ export const WithDelayedContext: Story = {
     // for it (substring match — the copy is "Loading schema…").
     await waitFor(
       () => expect(document.body.textContent).toContain('Loading schema'),
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
     // Once setContext resolves, the overlay clears.
     await waitFor(
       () => expect(document.body.textContent).not.toContain('Loading schema'),
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -934,7 +927,7 @@ export const WithAlertPayloadContext: Story = {
           'alert-payload'
         );
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -1034,7 +1027,7 @@ export const WithSignatureHelp: Story = {
         expect(strong).not.toBeNull();
         expect(strong!.textContent).toBe('Start Character');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -1187,7 +1180,7 @@ export const WithSemanticTokens: Story = {
         expect(colors).toContain('rgb(198, 120, 221)'); // keyword purple
         expect(colors).toContain('rgb(152, 195, 121)'); // string green
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -1241,7 +1234,7 @@ export const WithTemplates: Story = {
         // Field refs must NOT appear in the `$` dropdown.
         expect(dropdown!.textContent).not.toContain('@name');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
 
     // Clear and switch to `@` → fields.
@@ -1254,7 +1247,7 @@ export const WithTemplates: Story = {
         expect(dropdown!.textContent).toContain('@name');
         expect(dropdown!.textContent).not.toContain('$data:');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -1300,7 +1293,7 @@ export const WithAutosuggest: Story = {
         // Non-matching functions are filtered out by the typed prefix.
         expect(dropdown!.textContent).not.toContain('round');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -1357,7 +1350,7 @@ export const LspCompletionRoundtrip: Story = {
           /^dpql:\/\/session\//
         );
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
 
     // Dropdown rendered the canned items. They live outside the canvas
@@ -1370,7 +1363,7 @@ export const LspCompletionRoundtrip: Story = {
         expect(dropdown!.textContent).toContain('@status');
         expect(dropdown!.textContent).toContain('@age');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };

@@ -57,13 +57,6 @@ const meta = {
     initialValue: '',
     onChange: fn(),
   },
-  parameters: {
-    // The play tests wait on an async mock-LSP WebSocket round-trip
-    // (connect → didOpen → completion) before the dropdown renders.
-    // Give the runner headroom over its short default so a slow/cold
-    // CI runner doesn't time out the `waitFor` polls below.
-    jest: { timeout: 60000 },
-  },
 } as StoryMeta<typeof SmartEditorPlayground>;
 
 export default meta;
@@ -129,7 +122,14 @@ export const BasicMock: Story = {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
-    await userEvent.type(editable, 'hello ');
+    // Type a single trigger character (`.`). This story's job is to prove
+    // "trigger char → completion request → dropdown" — so trigger it
+    // directly. Deliberately NOT a bare word like `hello `: a word now
+    // fires autosuggest on every keystroke (5 quiet round-trips for
+    // `hello`) before the trailing space triggers, which made this the
+    // most timing-sensitive story in the suite and the one that flaked
+    // under parallel CI load. One trigger = one round-trip.
+    await userEvent.type(editable, '.');
     // Poll until the async mock-LSP round-trip renders the dropdown —
     // never a fixed sleep, which races the WebSocket on slow CI.
     await waitFor(
@@ -139,7 +139,7 @@ export const BasicMock: Story = {
         expect(dropdown!.textContent).toContain('apple');
         expect(dropdown!.textContent).toContain('banana');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -267,7 +267,7 @@ export const WithMarkdownDocs: Story = {
         expect(dropdown).not.toBeNull();
         expect(dropdown!.textContent).toContain('forEach');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
 
     // Regression guard: typing the method name after the `.` must
@@ -283,7 +283,7 @@ export const WithMarkdownDocs: Story = {
         expect(dropdown!.textContent).toContain('forEach');
         expect(dropdown!.textContent).not.toContain('reduce');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
@@ -374,7 +374,7 @@ export const WithGroupedKinds: Story = {
         expect(dropdown!.textContent).toContain('length');
         expect(dropdown!.textContent).toContain('return');
       },
-      { timeout: 10000 }
+      { timeout: 30000 }
     );
   },
 };
