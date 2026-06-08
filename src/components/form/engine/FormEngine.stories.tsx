@@ -1151,13 +1151,13 @@ export const OnValidityChange: Story = {
       expect(Array.isArray(invalidField.validation.reasons)).toBe(true);
     });
 
-    // Type a value into the required field to make the form valid
-    const requiredInput = document.querySelectorAll(
-      '.system-option .reqore-textarea'
-    )[0] as HTMLTextAreaElement;
-    await fireEvent.change(requiredInput, { target: { value: 'hello' } });
-
-    await sleep(300);
+    // Type a value into the required field to make the form valid. Wait for the
+    // editor to mount before firing the change — querying it unguarded was the
+    // source of an intermittent "please provide a DOM element" CI flake.
+    await _testsChangeStringField({
+      selector: '.system-option .reqore-textarea',
+      value: 'hello',
+    });
 
     // Now the form should be valid
     await waitFor(() => {
