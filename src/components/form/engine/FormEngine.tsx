@@ -592,7 +592,6 @@ export const FormEngine = ({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [optionsLoader]);
 
   useUpdateEffect(() => {
