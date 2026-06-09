@@ -1,5 +1,37 @@
 import { IQorusFormField, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
+import yaml from 'js-yaml';
 import { richtextToString } from '../../../helpers/common';
+
+/** Summarise a list value: join item names, or fall back to an "N items" count. */
+const formatList = (items: unknown[]): string => {
+  const parts = items
+    .map((item) =>
+      item && typeof item === 'object' ? ((item as any).name ?? (item as any).value ?? '') : item
+    )
+    .filter((part) => part !== '' && part !== undefined && part !== null);
+
+  return parts.length ?
+      parts.join(', ')
+    : `${items.length} item${items.length === 1 ? '' : 's'}`;
+};
+
+/**
+ * The object/list editor stores complex values as a serialized YAML *string*
+ * (`%YAML 1.2 --- [ … ]`). Parse it back so the read-first row can summarise it
+ * instead of dumping raw YAML. Returns undefined when the string isn't a
+ * serialized structure we should expand.
+ */
+const parseSerialized = (value: string, type?: string): unknown => {
+  const looksLikeYamlDoc = /^\s*(%YAML|---)\s/.test(value);
+  if (type !== 'list' && type !== 'hash' && !looksLikeYamlDoc) {
+    return undefined;
+  }
+  try {
+    return yaml.load(value);
+  } catch {
+    return undefined;
+  }
+};
 
 /**
  * Helpers for the FormEngine `compact` (read-first) mode.
@@ -89,15 +121,23 @@ export const formatOptionValue = (
   }
 
   if (Array.isArray(value)) {
-    const parts = value
-      .map((item) =>
-        item && typeof item === 'object' ? (item.name ?? item.value ?? '') : item
-      )
-      .filter((part) => part !== '' && part !== undefined && part !== null);
+    return formatList(value);
+  }
 
-    return parts.length ?
-        parts.join(', ')
-      : `${value.length} item${value.length === 1 ? '' : 's'}`;
+  // A serialized list/hash (the object editor stores them as a YAML string):
+  // parse it back and summarise rather than showing the raw `%YAML 1.2 --- …`.
+  if (typeof value === 'string') {
+    const parsed = parseSerialized(value, type);
+    if (Array.isArray(parsed)) {
+      return formatList(parsed);
+    }
+    if (parsed && typeof parsed === 'object') {
+      const keys = Object.keys(parsed);
+      return keys.length ? `${keys.length} field${keys.length === 1 ? '' : 's'}` : 'Set';
+    }
+    if (parsed !== undefined && parsed !== null && typeof parsed !== 'object') {
+      return String(parsed);
+    }
   }
 
   if (typeof value === 'object') {

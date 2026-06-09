@@ -1514,6 +1514,76 @@ export const CompactScrollable: Story = {
   },
 };
 
+// Repro for the "r.map is not a function" crash when opening a `list` field with
+// no element constraints (e.g. a connection's `oauth2_scopes`) that carries a
+// `default` array. Exact shape from the live server's protocol options.
+const OAuth2ScopesSchema = {
+  name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Name',
+    preselected: true,
+  },
+  oauth2_scopes: {
+    type: 'list',
+    display_name: 'OAuth2 Scopes',
+    short_desc: 'List of OAuth2 scopes to request',
+    desc: 'List of OAuth2 scope strings to request',
+    default: [
+      'https://www.googleapis.com/auth/youtube.force-ssl',
+      'https://www.googleapis.com/auth/youtube',
+      'email',
+      'profile',
+      'openid',
+    ],
+  },
+} as any;
+
+export const CompactListYamlField: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      ...OAuth2ScopesSchema,
+      oauth2_scopes: { ...OAuth2ScopesSchema.oauth2_scopes, preselected: true },
+    },
+    value: {
+      name: { type: 'string', value: 'youtube' },
+      // The real shape the IDE hands the field: the list serialized as a YAML
+      // string. The read row must SUMMARISE it (not print `%YAML 1.2 --- …`), and
+      // opening it must not crash (see __tests__/common.test.ts + readFirst.test.ts).
+      oauth2_scopes: {
+        type: 'list',
+        value:
+          '%YAML 1.2\n---\n["https://www.googleapis.com/auth/youtube.force-ssl", "https://www.googleapis.com/auth/youtube.upload", "email", "profile"]\n' as any,
+      },
+    },
+  },
+};
+
+// Regression guard for (a) horizontal overflow from a long unbroken value and
+// (b) the sticky-top toolbar. The `notes` value is a long URL-like string with no
+// break points: with a bare `1fr` value track it forced a horizontal scrollbar;
+// the value column is now `minmax(0, 1fr)` + the cell has `min-width: 0`, so it
+// ellipsis-truncates. Render in a short/narrow viewport and scroll to see the
+// completion + search + Fields header stay pinned.
+export const CompactOverflowAndStickyHeader: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactScrollableSchema,
+    groups: CompactGroups,
+    value: {
+      ...CompactValue,
+      notes: {
+        type: 'string',
+        value:
+          'tsrest-youtube://www.googleapis.com/youtube/v3/very/long/path/segment/that/keeps/going/and/going/without/any/spaces/to/break/on',
+      },
+    },
+  },
+};
+
 // Verifies that compact mode honours the rich options-schema behaviours
 // (on_change/refetch + has_dependents/depends_on) — these flow through the same
 // `handleValueChange`/`renderOption` the classic layout uses, so editing a field
@@ -1636,45 +1706,122 @@ export const CompactRevertAndShowTypes: Story = {
 
 // ─── compact parity with the classic story matrix ──────────────────────────────
 
-// Read-first display + expand-to-edit across the field types.
+// Read-first display + expand-to-edit across EVERY field type the engine
+// renders (one option per UI type). This is the comprehensive field-type
+// reference for compact mode — keep it in sync when a new field type is added.
 export const CompactFieldTypes: Story = {
   parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
     options: {
-      text: { type: 'string', ui_type: 'string', display_name: 'Text', preselected: true },
-      richText: { type: 'richtext', ui_type: 'richtext', display_name: 'Rich text', preselected: true },
-      count: { type: 'int', ui_type: 'number', display_name: 'Count', preselected: true },
-      enabled: { type: 'bool', ui_type: 'bool', display_name: 'Enabled', preselected: true },
-      items: { type: 'list', ui_type: 'list', display_name: 'Items', preselected: true },
-      config: { type: 'hash', ui_type: 'hash', display_name: 'Config', preselected: true },
+      text: { type: 'string', ui_type: 'string', display_name: 'String', preselected: true },
+      longText: {
+        type: 'string',
+        ui_type: 'long-string',
+        display_name: 'Long string',
+        preselected: true,
+      },
+      markdownText: {
+        type: 'string',
+        ui_type: 'markdown',
+        display_name: 'Markdown',
+        preselected: true,
+      },
+      richText: {
+        type: 'richtext',
+        ui_type: 'richtext',
+        display_name: 'Rich text',
+        preselected: true,
+      },
+      template: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Template (templated string)',
+        supports_templates: true,
+        preselected: true,
+      },
+      count: { type: 'int', ui_type: 'number', display_name: 'Integer', preselected: true },
+      ratio: { type: 'float', ui_type: 'number', display_name: 'Float', preselected: true },
+      enabled: { type: 'bool', ui_type: 'bool', display_name: 'Boolean', preselected: true },
+      when: { type: 'date', ui_type: 'date', display_name: 'Date', preselected: true },
+      schedule: { type: 'string', ui_type: 'cron', display_name: 'Cron', preselected: true },
       colour: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Colour', preselected: true },
-      when: { type: 'string', ui_type: 'string', display_name: 'When', preselected: true },
-    } as IOptionsSchema,
+      upload: { type: 'file', ui_type: 'file', display_name: 'File', preselected: true },
+      language: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Select (allowed_values)',
+        preselected: true,
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
+          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+        ],
+      },
+      tags: {
+        type: 'list',
+        ui_type: 'list',
+        display_name: 'Multi-select (element_allowed_values)',
+        preselected: true,
+        element_allowed_values: [
+          { display_name: 'Orders', value: { type: 'string', value: 'orders' } },
+          { display_name: 'Batch', value: { type: 'string', value: 'batch' } },
+        ],
+        element_allowed_values_creatable: false,
+      },
+      items: { type: 'list', ui_type: 'list', display_name: 'List', preselected: true },
+      config: { type: 'hash', ui_type: 'hash', display_name: 'Hash', preselected: true },
+      // cast through `unknown`: this set spans more ui_types (long-string, markdown,
+      // cron, file, date, float) than the IOptionsSchema literal union models,
+      // though the engine renders them all at runtime.
+    } as unknown as IOptionsSchema,
     value: {
       text: { type: 'string', value: 'hello' },
+      longText: {
+        type: 'string',
+        value: 'A longer paragraph of text that wraps across more than one line in the editor.',
+      },
+      markdownText: { type: 'string', value: '# Heading\nSome **bold** text' },
       richText: {
         type: 'richtext',
         value: [{ type: 'paragraph', children: [{ text: 'rich note' }] }],
       },
+      template: { type: 'string', value: '$config:billing_url' },
       count: { type: 'int', value: 42 },
+      ratio: { type: 'float', value: 0.75 },
       enabled: { type: 'bool', value: true },
+      when: { type: 'date', value: '2026-06-09' },
+      schedule: { type: 'string', value: '0 0 * * *' },
+      colour: { type: 'rgbcolor', value: { r: 0, g: 0, b: 255, a: 1 } },
+      upload: { type: 'file', value: { name: 'config.txt', size: 1234, content: 'data' } },
+      language: { type: 'string', value: 'python' },
+      tags: {
+        type: 'list',
+        value: [
+          { type: 'string', value: 'orders' },
+          { type: 'string', value: 'batch' },
+        ],
+      },
       items: { type: 'list', value: ['a', 'b'] },
       config: { type: 'hash', value: { k: 'v' } },
-      colour: { type: 'rgbcolor', value: { r: 0, g: 0, b: 255, a: 1 } },
-      when: { type: 'string', value: '2026-06-08' },
     } as IOptions,
   },
   play: async () => {
-    // Each type renders a read-first value (no editor mounted yet).
+    // Each type renders a read-first value (no editor mounted yet). Representative
+    // assertions across the display behaviours: scalars, Yes/No, allowed-value
+    // labels, list joins, richtext flattening, and the opaque "Set" marker.
     await _testsWaitForText('hello'); // string
+    await _testsWaitForText('$config:billing_url'); // templated string
     await _testsWaitForText('rich note'); // richtext flattened to plain text
-    await _testsWaitForText('42'); // number
+    await _testsWaitForText('42'); // integer
+    await _testsWaitForText('0.75'); // float
     await _testsWaitForText('Yes'); // bool → Yes/No
+    await _testsWaitForText('2026-06-09'); // date
+    await _testsWaitForText('0 0 * * *'); // cron
+    await _testsWaitForText('Python'); // select → allowed_value display label
+    await _testsWaitForText('orders, batch'); // multi-select joined
     await _testsWaitForText('a, b'); // list joined
-    await _testsWaitForText('2026-06-08'); // scalar string
-    await _testsWaitForText('Set'); // opaque hash/colour → "Set"
+    await _testsWaitForText('Set'); // opaque hash / colour / file → "Set"
     await expect(document.querySelectorAll('.options-readfirst-card')).toHaveLength(0);
 
     // Expanding a row mounts the real editor.
@@ -1835,5 +1982,60 @@ export const CompactDoesNotCauseInfiniteRerenders: Story = {
     await sleep(800); // settle — let any render loop manifest
     const calls = (args.onChange as ReturnType<typeof fn>).mock.calls.length;
     expect(calls).toBeLessThan(10);
+  },
+};
+
+// ─── optionsLoader (async, transport-agnostic schema source) ────────────────────
+
+// Resolve the schema after a short delay so the skeleton/loading state is
+// genuinely exercised before the rows render.
+const loadCompactSchemaAsync = (): Promise<IQorusFormSchema> =>
+  new Promise((resolve) => setTimeout(() => resolve(CompactSchema as IQorusFormSchema), 60));
+
+// Compact engine with NO `options` prop — the engine fetches the schema itself
+// via `optionsLoader`, owning the loading lifecycle, then renders read-first.
+export const CompactOptionsLoader: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    value: CompactValue,
+    groups: CompactGroups,
+    optionsLoader: loadCompactSchemaAsync,
+  },
+  play: async ({ args }) => {
+    // Rows appear only after the async load resolves, and `onOptionsLoaded`
+    // fires with the loaded schema.
+    await _testsWaitForText('Name');
+    await waitFor(() => expect(args.onOptionsLoaded).toHaveBeenCalled());
+  },
+};
+
+// A rejected load surfaces the engine's error state instead of the form.
+export const CompactOptionsLoaderError: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    value: CompactValue,
+    groups: CompactGroups,
+    optionsLoader: () =>
+      new Promise<IQorusFormSchema>((_resolve, reject) =>
+        setTimeout(() => reject(new Error('Could not load options from the server')), 60)
+      ),
+  },
+  play: async () => {
+    await _testsWaitForText('Could not load options from the server');
+  },
+};
+
+// Classic (non-compact) parity: the same async source feeds the standard layout.
+export const OptionsLoader: Story = {
+  args: {
+    minColumnWidth: '300px',
+    value: CompactValue,
+    optionsLoader: loadCompactSchemaAsync,
+  },
+  play: async ({ args }) => {
+    await _testsWaitForText('Name');
+    await waitFor(() => expect(args.onOptionsLoaded).toHaveBeenCalled());
   },
 };

@@ -122,6 +122,10 @@ const StyledCompactWrap = styled.div`
   flex-flow: column;
   gap: 10px;
   width: 100%;
+  /* Allow the wrap to shrink inside flex/grid parents so its rows' ellipsis can
+     engage instead of overflowing the container horizontally. */
+  min-width: 0;
+  max-width: 100%;
 
   /* Option logos (e.g. language images) render as <img> inside ReqoreIcon's
      square box; constrain them so portrait PNGs don't overflow the row. */
@@ -138,7 +142,11 @@ const StyledGroupBody = styled.div<{ $divider: string; $hover: string; $focus: s
 
   .readfirst-row {
     display: grid;
-    grid-template-columns: minmax(150px, 240px) 1fr auto;
+    /* The value column is minmax(0, 1fr) — a bare 1fr keeps its min-content
+       width, so a long unbroken value (e.g. a URL) would force the grid wider
+       than its container and produce a horizontal scrollbar. The 0 minimum lets
+       it shrink and the value cell's ellipsis take over instead. */
+    grid-template-columns: minmax(120px, 220px) minmax(0, 1fr) auto;
     align-items: center;
     gap: 14px;
     min-height: 38px;
@@ -172,17 +180,20 @@ const StyledGroupBody = styled.div<{ $divider: string; $hover: string; $focus: s
   }
 `;
 
-// Sticky "additional options" bar that appears at the bottom once the toolbar
-// (and its Fields menu) has scrolled out of view, so optional fields stay
-// reachable without scrolling back up.
-const StyledStickyAdd = styled.div<{ $bg: string; $border: string }>`
+// The completion meter + toolbar (search / Fields menu) stay pinned to the top of
+// the scroll area while the field groups scroll beneath, so filtering and adding
+// optional fields are always reachable. The opaque background masks rows passing
+// underneath. (Sticky needs a scrolling ancestor with no clipping `overflow`
+// between it and this element — the standard form container provides one.)
+const StyledCompactHeader = styled.div<{ $bg: string }>`
   position: sticky;
-  bottom: 0;
-  z-index: 6;
-  margin: 2px -2px 0;
-  padding: 8px 2px;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-flow: column;
+  gap: 10px;
+  padding-bottom: 10px;
   background: ${({ $bg }) => $bg};
-  border-top: 1px solid ${({ $border }) => $border};
 `;
 
 const StyledEditCard = styled.div<{ $bg: string; $border: string }>`
@@ -442,6 +453,18 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * group display info, so the consumer supplies it here.
    */
   groups?: Record<string, IFormEngineGroup>;
+  /**
+   * Async schema source. When provided (and `options` is not), the engine calls
+   * this on mount and whenever the callback's identity changes, owns the
+   * loading / error / refetch lifecycle itself, and renders the loaded schema.
+   *
+   * The callback is **transport-agnostic**: the consumer fetches the schema
+   * however it likes (e.g. from a backend endpoint) and resolves it — the engine
+   * never learns about any specific data source. Memoize it (e.g. `useCallback`)
+   * keyed on its inputs, since a new identity triggers a refetch. On success
+   * `onOptionsLoaded` fires with the loaded schema; a rejection renders an error.
+   */
+  optionsLoader?: () => Promise<IQorusFormSchema>;
   onValidityChange?: (isValid: boolean, data: IFormValidityData) => void;
 }
 
@@ -455,7 +478,7 @@ export const FormEngine = ({
   placeholder,
   noValueString, // eslint-disable-line @typescript-eslint/no-unused-vars
   isValid, // eslint-disable-line @typescript-eslint/no-unused-vars
-  onOptionsLoaded, // eslint-disable-line @typescript-eslint/no-unused-vars
+  onOptionsLoaded,
   recordRequiresSearchOptions,
   readOnly,
   allowTemplates = true,
@@ -463,10 +486,16 @@ export const FormEngine = ({
   showTypeToggle = true,
   compact,
   groups,
+  optionsLoader,
   onValidityChange,
   ...rest
 }: IFormEngineProps) => {
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
+  // When `optionsLoader` is supplied, the engine fetches the schema itself and
+  // tracks the async lifecycle here: `optionsLoading` feeds the skeleton gate,
+  // `optionsError` surfaces a failed load.
+  const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
+  const [optionsError, setOptionsError] = useState<string | undefined>();
   const [operators] = useState<IOperatorsSchema | undefined>(undefined);
   const confirmAction = useReqoreProperty('confirmAction');
   const theme = useReqoreTheme();
@@ -483,22 +512,6 @@ export const FormEngine = ({
   // completion meter still reflects the full set.
   const [requiredOnly, setRequiredOnly] = useState<boolean>(false);
   const [compactQuery, setCompactQuery] = useState<string>('');
-  // When the compact toolbar scrolls out of view, surface a sticky "additional
-  // options" bar at the bottom so optional fields stay reachable. Tracked via an
-  // IntersectionObserver on a sentinel placed just under the toolbar.
-  const [toolbarOffscreen, setToolbarOffscreen] = useState<boolean>(false);
-  const toolbarObserverRef = useRef<IntersectionObserver | null>(null);
-  const setToolbarSentinel = useCallback((node: HTMLDivElement | null) => {
-    toolbarObserverRef.current?.disconnect();
-    if (node && typeof IntersectionObserver !== 'undefined') {
-      const observer = new IntersectionObserver(
-        ([entry]) => setToolbarOffscreen(!entry.isIntersecting),
-        { threshold: 0 }
-      );
-      observer.observe(node);
-      toolbarObserverRef.current = observer;
-    }
-  }, []);
   const [localValue, setLocalValue] = useState<{
     fields: TQorusForm | TQorusFlatForm;
     meta?: IOptionsOnChangeMeta;
@@ -534,8 +547,53 @@ export const FormEngine = ({
   );
 
   useUpdateEffect(() => {
+    // When a loader owns the schema, ignore controlled `options` syncs so a
+    // late/undefined `options` prop can't clobber the loaded schema.
+    if (optionsLoader) {
+      return;
+    }
     setOptions(rest.options);
   }, [JSON.stringify(rest.options)]);
+
+  // `optionsLoader`: fetch the schema on mount and whenever the loader identity
+  // changes. The engine owns the loading/error lifecycle; the loader itself is
+  // transport-agnostic (the consumer decides how the schema is fetched).
+  useEffect(() => {
+    if (!optionsLoader) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    setOptionsLoading(true);
+    setOptionsError(undefined);
+
+    // `Promise.resolve().then(...)` so a synchronous throw in the loader is
+    // funnelled into the same rejection path as an async failure.
+    Promise.resolve()
+      .then(() => optionsLoader())
+      .then((loaded) => {
+        if (cancelled) {
+          return;
+        }
+        setOptions(loaded || {});
+        onOptionsLoaded?.(loaded || {});
+        setOptionsLoading(false);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setOptionsError(
+          error instanceof Error ? error.message : String(error ?? 'Failed to load options')
+        );
+        setOptionsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [optionsLoader]);
 
   useUpdateEffect(() => {
     const fixedValue = fixOptions(value, options || {});
@@ -1354,7 +1412,11 @@ export const FormEngine = ({
           : null}
         </div>
         <div
+          title={!empty && !hidden && typeof formatted === 'string' ? formatted : undefined}
           style={{
+            // min-width: 0 lets this grid cell shrink below its content's
+            // intrinsic width so the ellipsis engages instead of overflowing.
+            minWidth: 0,
             color: empty || hidden ? cFaint : cText,
             fontStyle: empty || hidden ? 'italic' : 'normal',
             fontSize: 13,
@@ -1490,6 +1552,7 @@ export const FormEngine = ({
             />
           )}
           <StyledCompactWrap>
+            <StyledCompactHeader $bg={cBg}>
             {readFirstCompletion.total ?
               <StyledCompletion className='options-readfirst-completion'>
                 <StyledCompletionLabel $color={cMuted}>
@@ -1598,10 +1661,7 @@ export const FormEngine = ({
                 : null}
               </ReqoreControlGroup>
             : null}
-
-            {size(availableOptions) > 1 ?
-              <div ref={setToolbarSentinel} aria-hidden='true' style={{ height: 1, marginTop: -1 }} />
-            : null}
+            </StyledCompactHeader>
 
             {size(validityData.invalidFields) && !readOnly ?
               <ReqoreMessage
@@ -1684,35 +1744,13 @@ export const FormEngine = ({
               );
             })}
 
-            {toolbarOffscreen && !readOnly && size(filteredOptions) > 0 ?
-              <StyledStickyAdd $bg={cBg} $border={cDivider}>
-                <ReqoreDropdown
-                  fluid
-                  filterable
-                  icon='AddLine'
-                  label={`Additional options (${size(filteredOptions)})`}
-                  className='options-readfirst-sticky-add'
-                  onItemSelect={({ value }: any) =>
-                    value && handleAddOptionalFieldChange('options', value)
-                  }
-                  items={
-                    optionalFields.map((field) => ({
-                      label: field.display_name || field.value,
-                      value: field.value,
-                      description: field.short_desc,
-                      disabled: field.disabled,
-                    })) as any
-                  }
-                />
-              </StyledStickyAdd>
-            : null}
           </StyledCompactWrap>
         </ReqoreErrorBoundary>
       </OptionsContext.Provider>
     );
   };
 
-  if (rest.skeleton || templates.loading || typesLoading) {
+  if (rest.skeleton || templates.loading || typesLoading || optionsLoading) {
     return (
       <ReqoreControlGroup vertical fill fluid style={{ flexGrow: 1 }} gapSize='big'>
         <ReqoreControlGroup fixed fill={false}>
@@ -1726,6 +1764,16 @@ export const FormEngine = ({
           <ReqoreSkeleton width='100%' height='150px' />
         </ReqoreControlGroup>
       </ReqoreControlGroup>
+    );
+  }
+
+  // A loader that rejected (and produced no usable schema) surfaces its error
+  // instead of the generic "No options available" empty state.
+  if (optionsError && (!options || !size(options))) {
+    return (
+      <ReqoreMessage intent='danger' opaque={false}>
+        {optionsError}
+      </ReqoreMessage>
     );
   }
 

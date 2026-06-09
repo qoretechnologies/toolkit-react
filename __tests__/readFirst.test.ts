@@ -88,6 +88,25 @@ describe('formatOptionValue', () => {
     expect(formatOptionValue({ type: 'number', value: 42 })).toBe('42');
     expect(formatOptionValue({ type: 'string', value: 'hello' })).toBe('hello');
   });
+
+  it('summarises a YAML-serialized list value instead of dumping raw YAML', () => {
+    // The object/list editor stores list values as a YAML string; the read row
+    // must summarise it, not print `%YAML 1.2 --- [ … ]`.
+    const yamlList = '%YAML 1.2\n---\n["https://x/youtube.force-ssl", "email", "profile"]\n';
+    expect(formatOptionValue({ type: 'list', value: yamlList })).toBe(
+      'https://x/youtube.force-ssl, email, profile'
+    );
+  });
+
+  it('summarises a YAML-serialized hash value as a field count', () => {
+    const yamlHash = '%YAML 1.2\n---\naccess_type: offline\nprompt: consent\n';
+    expect(formatOptionValue({ type: 'hash', value: yamlHash })).toBe('2 fields');
+  });
+
+  it('does not over-parse a plain string that merely looks bracketed', () => {
+    // type is not list/hash and there's no YAML doc marker → leave it alone.
+    expect(formatOptionValue({ type: 'string', value: '[draft]' })).toBe('[draft]');
+  });
 });
 
 describe('getOptionGroup', () => {

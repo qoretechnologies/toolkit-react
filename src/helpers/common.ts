@@ -26,14 +26,26 @@ const inferTypedValue = (raw: unknown): MaybeTyped => {
 };
 
 const typedToPlain = (typed: MaybeTyped): unknown => {
-  if (!typed) return undefined;
-  const { type, value } = typed;
-  if (type === 'list') return (value as MaybeTyped[]).map(typedToPlain);
-  if (type === 'hash') {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, MaybeTyped>).map(([k, v]) => [k, typedToPlain(v)])
-    );
+  if (typed === undefined || typed === null) return undefined;
+  // A raw primitive (string/number/bool) is already plain — e.g. a `list` whose
+  // items are bare values rather than `{ type, value }` wrappers. Destructuring it
+  // would lose the value (it became `null` items in the YAML editor).
+  if (typeof typed !== 'object') return typed;
+  const { type, value } = typed as { type?: string; value?: unknown };
+  if (type === 'list') {
+    // Guard the `.map`: a malformed/non-array list value (e.g. a string from a
+    // YAML round-trip) must not crash the editor — render it as-is instead.
+    return Array.isArray(value) ? value.map(typedToPlain) : value;
   }
+  if (type === 'hash') {
+    return value && typeof value === 'object' && !Array.isArray(value) ?
+        Object.fromEntries(
+          Object.entries(value as Record<string, MaybeTyped>).map(([k, v]) => [k, typedToPlain(v)])
+        )
+      : value;
+  }
+  // An object with no recognised `type` wrapper is already plain data.
+  if (type === undefined) return typed;
   return value;
 };
 
