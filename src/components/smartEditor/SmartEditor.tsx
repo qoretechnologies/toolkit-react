@@ -8,49 +8,32 @@
 // methods on the live client, and pass everything down here.
 
 import {
+  ReqoreCallout,
   ReqoreControlGroup,
   ReqoreMenu,
   ReqoreMenuDivider,
   ReqoreMenuItem,
   ReqoreMessage,
+  ReqorePanel,
   ReqoreSpinner,
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
-import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { ReqorePopover } from '@qoretechnologies/reqore/dist/components/Popover';
 import {
   ReqoreRichTextEditor,
   TReqoreRichTextEditorRef,
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
-import React, {
-  forwardRef,
-  useCallback,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-} from 'react';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
+import React, { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef } from 'react';
 import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
-import {
-  defaultSlateConverter,
-  expandSnippet,
-  lspPositionToOffset,
-} from './helpers';
+import { ILspSignatureHelp } from '../../utils/lspClient.types';
+import { defaultSlateConverter, expandSnippet, lspPositionToOffset } from './helpers';
 import { MarkdownDoc } from './MarkdownDoc';
+import { COMPLETION_KIND_INTENTS, SMART_EDITOR_OVERLAY_EFFECT } from './styling';
 import { ISlateElement, ISmartEditorProps, TCompletionInserter } from './types';
-import {
-  ICompletionDropdownItem,
-  useLspAutocomplete,
-} from './useLspAutocomplete';
-import {
-  COMPLETION_KIND_INTENTS,
-  DIAGNOSTIC_SEVERITY_EFFECTS,
-  SMART_EDITOR_OVERLAY_EFFECT,
-} from './styling';
-import {
-  severityToIntent,
-  useLspDiagnosticDecorations,
-} from './useLspDiagnosticDecorations';
+import { ICompletionDropdownItem, useLspAutocomplete } from './useLspAutocomplete';
+import { severityToIntent, useLspDiagnosticDecorations } from './useLspDiagnosticDecorations';
 import { useLspHover } from './useLspHover';
 import { useLspSemanticTokens } from './useLspSemanticTokens';
 import { useLspSignatureHelp } from './useLspSignatureHelp';
@@ -101,24 +84,23 @@ const SEMANTIC_TOKEN_COLORS: Record<string, string> = {
  * Returns `undefined` when neither applies — keeps Reqore's prop
  * shape clean.
  */
-function buildKindBadge(item: ICompletionDropdownItem):
-  | Record<string, unknown>
-  | Array<Record<string, unknown>>
-  | undefined {
+function buildKindBadge(
+  item: ICompletionDropdownItem
+): Record<string, unknown> | Array<Record<string, unknown>> | undefined {
   const kindIntent =
-    item.metadata?.kind !== undefined
-      ? COMPLETION_KIND_INTENTS[item.metadata.kind]
-      : undefined;
-  const kindBadge = item.kindLabel
-    ? {
+    item.metadata?.kind !== undefined ? COMPLETION_KIND_INTENTS[item.metadata.kind] : undefined;
+  const kindBadge =
+    item.kindLabel ?
+      {
         label: item.kindLabel,
         minimal: true as const,
         size: 'small' as const,
         intent: kindIntent,
       }
     : null;
-  const warningBadge = item.warning
-    ? {
+  const warningBadge =
+    item.warning ?
+      {
         label: 'Warning',
         size: 'small' as const,
         intent: 'warning' as const,
@@ -140,9 +122,8 @@ function buildKindBadge(item: ICompletionDropdownItem):
 function buildDocTooltip(item: ICompletionDropdownItem) {
   const doc = item.documentation;
   if (!doc) return undefined;
-  const isMarkdown =
-    typeof doc === 'object' && doc !== null && doc.kind === 'markdown';
-  const text = typeof doc === 'string' ? doc : doc?.value ?? '';
+  const isMarkdown = typeof doc === 'object' && doc !== null && doc.kind === 'markdown';
+  const text = typeof doc === 'string' ? doc : (doc?.value ?? '');
   if (!text) return undefined;
   return {
     content: <MarkdownDoc content={text} markdown={isMarkdown} />,
@@ -171,8 +152,7 @@ const defaultCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
   // LSP snippet (`insertTextFormat === 2`): expand the TextMate
   // placeholder syntax to plain text so `slice(${1:List Value})$0`
   // doesn't leak `${…}$0` into the document.
-  const newText =
-    item.insertTextFormat === 2 ? expandSnippet(rawText) : rawText;
+  const newText = item.insertTextFormat === 2 ? expandSnippet(rawText) : rawText;
 
   // Replace mode — atomically swap the node at the chip's path for the
   // chosen completion as plain text. (Language wrappers that need tag
@@ -213,6 +193,181 @@ const defaultCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
     // Editor may not be focused.
   }
 };
+
+/**
+ * Stable style object for completion rows — monospace makes code-shaped
+ * tokens (`@field`, `--flag=`, `$template:value`) line up predictably and
+ * matches the editor's own monospace body. Hoisted to module scope so the
+ * reference is identical across renders (an inline `{ fontFamily }` would
+ * allocate a fresh object per row per render and defeat `ReqoreMenuItem`'s
+ * own memoization).
+ */
+const COMPLETION_ITEM_STYLE: React.CSSProperties = { fontFamily: 'monospace' };
+
+interface ICompletionMenuItemProps {
+  item: ICompletionDropdownItem;
+  isFocused: boolean;
+  onSelect: (item: ICompletionDropdownItem) => void;
+}
+
+/**
+ * A single completion-dropdown row. Extracted from SmartEditor's render
+ * body (was an inline `.map()` callback inside an IIFE) into a memoized
+ * component so the badge/tooltip derivation runs once per item — not on
+ * every SmartEditor re-render — and so an unchanged row whose focus state
+ * didn't flip skips re-rendering entirely. The `onSelect`/`COMPLETION_ITEM_STYLE`
+ * props are referentially stable, so `memo` is effective in practice.
+ */
+const CompletionMenuItem = memo(({ item, isFocused, onSelect }: ICompletionMenuItemProps) => {
+  const badge = useMemo(() => buildKindBadge(item), [item]);
+  const tooltip = useMemo(() => buildDocTooltip(item), [item]);
+  const handleClick = useCallback(() => onSelect(item), [onSelect, item]);
+
+  return (
+    <ReqoreMenuItem
+      icon={item.icon as any}
+      label={item.label}
+      description={item.description}
+      badge={badge as any}
+      tooltip={tooltip as any}
+      selected={isFocused}
+      // Focused row uses the host's primary brand intent so the selection
+      // matches the embedding app (QorusPurple inside qorus-ide); degrades
+      // to the host theme's default selected styling elsewhere.
+      active={isFocused}
+      minimal
+      scrollIntoView={isFocused}
+      onClick={handleClick}
+      compact
+      style={COMPLETION_ITEM_STYLE}
+    />
+  );
+});
+CompletionMenuItem.displayName = 'CompletionMenuItem';
+
+interface ISignatureHelpPillProps {
+  signature: ILspSignatureHelp;
+  position: { left: number; top: number };
+}
+
+/**
+ * Signature-help pill rendered ABOVE the caret line (falling back to
+ * BELOW when the caret is near the viewport top). Pulled out of
+ * SmartEditor's render body — it used to be a ~130-line inline IIFE that
+ * re-ran the active-parameter resolution, label-highlight slicing, and
+ * viewport-clamp math on EVERY SmartEditor re-render (typing echo, hover
+ * moves, autocomplete state changes, …). As a memoized component the work
+ * only re-runs when `signature` / `position` actually change.
+ *
+ * Position strategy: prefer ABOVE the caret line; if that would clip the
+ * viewport top, fall back to BELOW. Estimated pill height (64px) covers a
+ * single-line label plus a short markdown doc paragraph. The horizontal
+ * clamp keeps the pill inside the viewport when the caret sits near the
+ * right edge.
+ */
+const SignatureHelpPill = memo(({ signature, position }: ISignatureHelpPillProps) => {
+  const theme = useReqoreTheme();
+
+  const sig = signature.signatures[signature.activeSignature ?? 0];
+  if (!sig) return null;
+
+  const activeIdx = sig.activeParameter ?? signature.activeParameter ?? 0;
+  const params = sig.parameters ?? [];
+  const activeParam = params[activeIdx];
+
+  // Active-parameter accent: the theme's `info` intent (the same colour
+  // the markdown doc uses for links), falling back to a readable
+  // foreground — not a hardcoded hex.
+  const activeParamColor = theme.intents?.info ?? getReadableColor(theme);
+
+  // Highlight the active parameter substring inside the signature label
+  // when `label` is a [start, end] tuple (LSP spec allows either substring
+  // positions or literal names). For literal names we fall back to bolding
+  // the matching word. Kept as plain `<strong>` (not `ReqoreSpan`) because
+  // this is inline text-highlighting inside a flowing label — `ReqoreSpan`
+  // renders `inline-block`, which would break the text flow.
+  let label: React.ReactNode = sig.label;
+  if (activeParam) {
+    if (Array.isArray(activeParam.label)) {
+      const [start, end] = activeParam.label;
+      label = (
+        <>
+          {sig.label.slice(0, start)}
+          <strong style={{ color: activeParamColor }}>{sig.label.slice(start, end)}</strong>
+          {sig.label.slice(end)}
+        </>
+      );
+    } else {
+      const name = activeParam.label;
+      const idx = sig.label.indexOf(name);
+      if (idx >= 0) {
+        label = (
+          <>
+            {sig.label.slice(0, idx)}
+            <strong style={{ color: activeParamColor }}>{name}</strong>
+            {sig.label.slice(idx + name.length)}
+          </>
+        );
+      }
+    }
+  }
+
+  const paramDoc =
+    activeParam && activeParam.documentation ?
+      typeof activeParam.documentation === 'string' ?
+        activeParam.documentation
+      : activeParam.documentation.value
+    : null;
+
+  const PILL_HEIGHT_ESTIMATE = 64;
+  const PILL_WIDTH_ESTIMATE = 480; // matches maxWidth below
+  const VIEWPORT_MARGIN = 8;
+  const lineHeightEstimate = 18;
+  const placeBelow = position.top < PILL_HEIGHT_ESTIMATE + 8;
+  const pillTop = placeBelow ? position.top + lineHeightEstimate + 4 : position.top - 6;
+  // `window.innerWidth` is safe at render time.
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+  const maxLeft = viewportWidth - PILL_WIDTH_ESTIMATE - VIEWPORT_MARGIN;
+  const pillLeft = Math.max(VIEWPORT_MARGIN, Math.min(position.left, maxLeft));
+
+  return (
+    <ReqorePanel
+      // `key` remounts the panel when the above/below placement flips so
+      // the `transform` recalculates cleanly rather than animating across.
+      key={`sig-${position.left}-${position.top}-${placeBelow}`}
+      size='small'
+      opacity={0.85}
+      customTheme={{ main: '#11181c' }}
+      blur={5}
+      style={{
+        position: 'fixed',
+        top: pillTop,
+        left: pillLeft,
+        transform: placeBelow ? undefined : 'translate(0, -100%)',
+        maxWidth: 480,
+        minWidth: 280,
+        fontSize: 12,
+        boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+        pointerEvents: 'none',
+        zIndex: 100,
+      }}
+    >
+      <ReqoreCallout
+        size='small'
+        paddingSize='tiny'
+        style={{ fontFamily: 'monospace' }}
+        label={label}
+      />
+
+      {paramDoc && (
+        <div style={{ marginTop: 4, opacity: 0.85 }}>
+          <MarkdownDoc content={paramDoc} markdown />
+        </div>
+      )}
+    </ReqorePanel>
+  );
+});
+SignatureHelpPill.displayName = 'SignatureHelpPill';
 
 export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProps>(
   (
@@ -277,12 +432,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     // attaches a mousemove listener to the editor's contenteditable
     // element via `editorRef.current` and resolves LSP hover content
     // after 300ms of idle.
-    const hover = useLspHover(
-      session,
-      editorRef as React.RefObject<any>,
-      converter,
-      { enabled: enableHover }
-    );
+    const hover = useLspHover(session, editorRef as React.RefObject<any>, converter, {
+      enabled: enableHover,
+    });
 
     // Signature help — small pill above the caret showing the active
     // function/operator call's signature with the current parameter
@@ -297,10 +449,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       // Return the cached Slate nodes when `value` is just the echo of the
       // last plainText we emitted from the editor — Slate's internal state
       // already reflects that text, no need to re-tokenize.
-      if (
-        slateValueRef.current !== null &&
-        value === lastPlainTextRef.current
-      ) {
+      if (slateValueRef.current !== null && value === lastPlainTextRef.current) {
         return slateValueRef.current;
       }
       const next = converter.toSlateNodes(value);
@@ -320,11 +469,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     // LSP-driven syntax highlighting. Replaces the previous client-side
     // regex highlighter (which was SQL-keyword copy-paste — see design
     // doc §7). The server is the source of truth for token types.
-    const semanticDecorate = useLspSemanticTokens(
-      session,
-      converter,
-      slateValue
-    );
+    const semanticDecorate = useLspSemanticTokens(session, converter, slateValue);
 
     // Signature help. Hook self-fires on document changes; renders
     // as a small pinned popover ABOVE the caret line (so it can
@@ -373,11 +518,10 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
         // Start from the consumer's renderLeaf (or a plain span) so
         // any caller-defined marks render first.
-        let child = customRenderLeaf ? (
-          customRenderLeaf(props)
-        ) : (
-          <span {...props.attributes}>{props.children}</span>
-        );
+        let child =
+          customRenderLeaf ?
+            customRenderLeaf(props)
+          : <span {...props.attributes}>{props.children}</span>;
 
         // Apply semantic-token colouring. Wrap in an extra span when
         // the type is in our palette; absent types fall through with
@@ -411,11 +555,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         // underline visible if a host theme omits an intent.
         if (leaf.error) {
           const underlineColor =
-            leaf.severity === 2
-              ? (theme.intents?.warning ?? '#f0a500')
-              : leaf.severity && leaf.severity >= 3
-                ? (theme.intents?.info ?? '#3a86ff')
-                : (theme.intents?.danger ?? '#d62828');
+            leaf.severity === 2 ? (theme.intents?.warning ?? '#f0a500')
+            : leaf.severity && leaf.severity >= 3 ? (theme.intents?.info ?? '#3a86ff')
+            : (theme.intents?.danger ?? '#d62828');
           child = (
             <span
               title={leaf.errorMessage}
@@ -513,23 +655,32 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     resolvedTagClickRef.current = resolvedTagClick;
     const stableOnTagClick = useCallback((tag: any) => {
       if (editorRef.current) {
-        resolvedTagClickRef.current(
-          tag as ISlateElement,
-          editorRef.current
-        );
+        resolvedTagClickRef.current(tag as ISlateElement, editorRef.current);
       }
     }, []);
 
+    // Stable select handler passed to each `CompletionMenuItem`. The item
+    // is already in hand from the rendered row, so we forward it straight
+    // to `onItemSelect` — no `autocomplete.items.find()` round-trip.
     const handleCompletionSelect = useCallback(
-      (item: { value?: string }) => {
-        if (!item.value || !editorRef.current) return;
-        const matching = autocomplete.items.find((i) => i.value === item.value);
-        if (matching) {
-          autocomplete.onItemSelect(matching, editorRef.current as any);
-        }
+      (item: ICompletionDropdownItem) => {
+        if (!editorRef.current) return;
+        autocomplete.onItemSelect(item, editorRef.current as any);
       },
       [autocomplete]
     );
+
+    // Flatten the grouped completions into rows carrying their flat index
+    // (used to compare against `focusedIndex`, which is flat across all
+    // groups). Memoized so the index assignment only re-runs when the
+    // groups change — not on every keystroke echo / hover / focus move.
+    const completionGroups = useMemo(() => {
+      let flatIndex = 0;
+      return autocomplete.groups.map((group) => ({
+        label: group.label,
+        items: group.items.map((item) => ({ item, index: flatIndex++ })),
+      }));
+    }, [autocomplete.groups]);
 
     // Loading overlay rendered on top of the editor while the LSP
     // session is still connecting, the wrapper's language-specific
@@ -548,26 +699,25 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     // opts out entirely; a non-null override replaces the default
     // entirely.
     const showLoadingOverlay =
-      (!session.isReady || !session.isContextReady || isLoading) &&
-      loadingIndicator !== null;
-    const defaultLoadingLabel = !session.isReady
-      ? 'Connecting to language server…'
-      : !session.isContextReady
-        ? 'Loading schema…'
-        : 'Loading…';
+      (!session.isReady || !session.isContextReady || isLoading) && loadingIndicator !== null;
+    const defaultLoadingLabel =
+      !session.isReady ? 'Connecting to language server…'
+      : !session.isContextReady ? 'Loading schema…'
+      : 'Loading…';
+    // Only build the overlay node when it's actually shown — avoids
+    // allocating a `ReqoreSpinner` element on every render of an editor
+    // that's already connected (the common steady state).
     const overlayContent =
-      loadingIndicator !== undefined && loadingIndicator !== null ? (
-        loadingIndicator
-      ) : (
-        <ReqoreSpinner
+      !showLoadingOverlay ? null
+      : loadingIndicator !== undefined && loadingIndicator !== null ? loadingIndicator
+      : <ReqoreSpinner
           iconColor='info:lighten:2'
           size='small'
           centered
           labelEffect={{ textSize: 'small' }}
         >
           {defaultLoadingLabel}
-        </ReqoreSpinner>
-      );
+        </ReqoreSpinner>;
 
     return (
       <ReqoreControlGroup vertical fluid>
@@ -629,54 +779,50 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             (autocomplete.items.length > 0 ||
               autocomplete.isReplaceMode ||
               autocomplete.isFetching) && (
-            <ReqorePopover
-              key={autocomplete.popoverKey}
-              component='span'
-              wrapperStyle={{
-                // Viewport-positioned anchor placed at the cursor's
-                // screen coordinates (computed in `positionTrigger`).
-                // `fixed` avoids parent-offset math (panel padding,
-                // scroll position, etc.).
-                position: 'fixed',
-                top: autocomplete.position.top,
-                left: autocomplete.position.left,
-                width: '1px',
-                height: '1px',
-                pointerEvents: 'none',
-              }}
-              content={
-                <ReqoreMenu
-                  rounded
-                  flat
-                  maxHeight='300px'
-                  width='300px'
-                  padded={false}
-                  // No customTheme — inherit the ambient app theme so the
-                  // dropdown matches whatever host embeds the editor
-                  // (`#121212` inside qorus-ide). Frosted via the blur.
-                  effect={SMART_EDITOR_OVERLAY_EFFECT}
-                >
-                  {autocomplete.items.length === 0 &&
-                    (autocomplete.isReplaceMode ||
-                      autocomplete.isFetching) && (
-                      <ReqoreMenuItem
-                        icon='LoaderLine'
-                        label={
-                          !session.isReady
-                            ? 'Connecting to language server…'
-                            : !session.isContextReady
-                              ? 'Loading schema…'
-                              : autocomplete.isFetching
-                                ? 'Loading completions…'
-                                : 'No alternatives available'
-                        }
-                        disabled
-                        compact
-                      />
-                    )}
-                  {(() => {
-                    let flatIndex = 0;
-                    return autocomplete.groups.map((group) => (
+              <ReqorePopover
+                key={autocomplete.popoverKey}
+                component='span'
+                wrapperStyle={{
+                  // Viewport-positioned anchor placed at the cursor's
+                  // screen coordinates (computed in `positionTrigger`).
+                  // `fixed` avoids parent-offset math (panel padding,
+                  // scroll position, etc.).
+                  position: 'fixed',
+                  top: autocomplete.position.top,
+                  left: autocomplete.position.left,
+                  width: '1px',
+                  height: '1px',
+                  pointerEvents: 'none',
+                }}
+                content={
+                  <ReqoreMenu
+                    rounded
+                    flat
+                    maxHeight='300px'
+                    width='300px'
+                    // No customTheme — inherit the ambient app theme so the
+                    // dropdown matches whatever host embeds the editor
+                    // (`#121212` inside qorus-ide). Frosted via the blur.
+                    effect={SMART_EDITOR_OVERLAY_EFFECT}
+                    customTheme={{ main: '#1e0d29' }}
+                  >
+                    {autocomplete.items.length === 0 &&
+                      (autocomplete.isReplaceMode || autocomplete.isFetching) && (
+                        <ReqoreMenuItem
+                          icon='LoaderLine'
+                          label={
+                            !session.isReady ? 'Connecting to language server…'
+                            : !session.isContextReady ?
+                              'Loading schema…'
+                            : autocomplete.isFetching ?
+                              'Loading completions…'
+                            : 'No alternatives available'
+                          }
+                          disabled
+                          compact
+                        />
+                      )}
+                    {completionGroups.map((group) => (
                       <React.Fragment key={group.label || '_default'}>
                         {group.label && (
                           <ReqoreMenuDivider
@@ -688,64 +834,34 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                             intent='muted'
                           />
                         )}
-                        {group.items.map((item) => {
-                          const itemIndex = flatIndex++;
-                          const badge = buildKindBadge(item);
-                          const tooltip = buildDocTooltip(item);
-                          const isFocused =
-                            itemIndex === autocomplete.focusedIndex;
-                          return (
-                            <ReqoreMenuItem
-                              key={item.value}
-                              icon={item.icon as any}
-                              label={item.label}
-                              description={item.description}
-                              badge={badge as any}
-                              tooltip={tooltip as any}
-                              selected={isFocused}
-                              // Focused row uses the host's primary brand
-                              // intent (`custom1`) so the selection matches
-                              // the embedding app — QorusPurple inside
-                              // qorus-ide. Degrades to the host theme's
-                              // `custom1` elsewhere; falls back to the
-                              // default selected styling if undefined.
-                              intent={isFocused ? 'custom1' : undefined}
-                              scrollIntoView={isFocused}
-                              onClick={() =>
-                                handleCompletionSelect({ value: item.value })
-                              }
-                              compact
-                              // Monospace makes code-shaped tokens (`@field`,
-                              // `--flag=`, `$template:value`) line up
-                              // predictably and matches the editor's own
-                              // monospace body — feels like a code-editor
-                              // intellisense list, which is what users
-                              // expect here.
-                              style={{ fontFamily: 'monospace' }}
-                            />
-                          );
-                        })}
+                        {group.items.map(({ item, index }) => (
+                          <CompletionMenuItem
+                            key={item.value}
+                            item={item}
+                            isFocused={index === autocomplete.focusedIndex}
+                            onSelect={handleCompletionSelect}
+                          />
+                        ))}
                       </React.Fragment>
-                    ));
-                  })()}
-                </ReqoreMenu>
-              }
-              openOnMount
-              noArrow
-              placement='bottom-start'
-              handler='click'
-              closeOnOutsideClick
-              closeOnInsideClick={false}
-              minWidth='300px'
-              flat
-              // Transparent wrapper (like the hover/signature popovers)
-              // so the popover's own lighter surface + content padding
-              // don't form a frame around the menu — the `ReqoreMenu`
-              // card is the only visible surface.
-              transparent
-              onToggleChange={autocomplete.handleExternalClose}
-            />
-          )}
+                    ))}
+                  </ReqoreMenu>
+                }
+                openOnMount
+                noArrow
+                placement='bottom-start'
+                handler='click'
+                closeOnOutsideClick
+                closeOnInsideClick={false}
+                minWidth='300px'
+                flat
+                // Transparent wrapper (like the hover/signature popovers)
+                // so the popover's own lighter surface + content padding
+                // don't form a frame around the menu — the `ReqoreMenu`
+                // card is the only visible surface.
+                transparent
+                onToggleChange={autocomplete.handleExternalClose}
+              />
+            )}
           {hover.hoverContent && hover.hoverPosition && (
             // Hover popover anchored at the mouse coordinates. Pure
             // markdown content via `react-markdown` (or plaintext when
@@ -786,142 +902,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               }}
             />
           )}
-          {signatureHelp.signature && signatureHelp.position && (() => {
-            // Render the signature-help pill ABOVE the caret line.
-            // Pulled into an IIFE so we can compute the active
-            // parameter once per render.
-            const sig =
-              signatureHelp.signature.signatures[
-                signatureHelp.signature.activeSignature ?? 0
-              ];
-            if (!sig) return null;
-            const activeIdx =
-              sig.activeParameter ??
-              signatureHelp.signature.activeParameter ??
-              0;
-            const params = sig.parameters ?? [];
-            const activeParam = params[activeIdx];
-
-            // Active-parameter accent: the theme's `info` intent (the
-            // same colour the markdown doc uses for links), falling back
-            // to a readable foreground — not a hardcoded hex.
-            const activeParamColor =
-              theme.intents?.info ?? getReadableColor(theme);
-
-            // Highlight the active parameter substring inside the
-            // signature label when `label` is a [start, end] tuple
-            // (LSP spec allows either substring positions or literal
-            // names). For literal names we fall back to bolding the
-            // matching word.
-            const renderLabel = (): React.ReactNode => {
-              if (!activeParam) return sig.label;
-              if (Array.isArray(activeParam.label)) {
-                const [start, end] = activeParam.label;
-                return (
-                  <>
-                    {sig.label.slice(0, start)}
-                    <strong style={{ color: activeParamColor }}>
-                      {sig.label.slice(start, end)}
-                    </strong>
-                    {sig.label.slice(end)}
-                  </>
-                );
-              }
-              const name = activeParam.label;
-              const idx = sig.label.indexOf(name);
-              if (idx < 0) return sig.label;
-              return (
-                <>
-                  {sig.label.slice(0, idx)}
-                  <strong style={{ color: activeParamColor }}>{name}</strong>
-                  {sig.label.slice(idx + name.length)}
-                </>
-              );
-            };
-
-            const paramDoc =
-              activeParam && activeParam.documentation
-                ? typeof activeParam.documentation === 'string'
-                  ? activeParam.documentation
-                  : activeParam.documentation.value
-                : null;
-
-            // Render the pill as a plain absolutely-positioned div
-            // anchored relative to the caret line, not as a
-            // `ReqorePopover` — popovers want a meaningful trigger
-            // element, and the signature pill is purely visual (no
-            // hover/click target, no pointer events on the anchor).
-            // Earlier the wrapper was a 1×1 `pointer-events: none`
-            // span and `openOnMount` was silently no-opping because
-            // the popover ignores mount when the wrapper isn't an
-            // interactive trigger.
-            //
-            // Position strategy: prefer ABOVE the caret line; if
-            // that would clip the viewport top (e.g. when the editor
-            // is at y=0 of its container), fall back to BELOW the
-            // line. Estimated pill height = 64px which covers
-            // single-line label + a short markdown doc paragraph.
-            // Derive the pill surface from the active theme (the popover
-            // surface, falling back to the theme main) — not a hardcoded
-            // hex. The `backdropFilter` blur provides the frosted look.
-            const pillBgTheme = theme.popover?.main ?? theme.main;
-            // Readable foreground against the pill surface.
-            const pillTextColor = getReadableColor(theme);
-            const PILL_HEIGHT_ESTIMATE = 64;
-            const PILL_WIDTH_ESTIMATE = 480; // matches maxWidth below
-            const VIEWPORT_MARGIN = 8;
-            const lineHeightEstimate = 18;
-            const placeBelow =
-              signatureHelp.position.top < PILL_HEIGHT_ESTIMATE + 8;
-            const pillTop = placeBelow
-              ? signatureHelp.position.top + lineHeightEstimate + 4
-              : signatureHelp.position.top - 6;
-            // Horizontal clamp: keep the pill inside the viewport.
-            // Without this, when the caret sits near the right edge
-            // the pill clips off-screen (or in narrow Storybook
-            // canvases, hangs partly outside). `window.innerWidth` is
-            // safe at render time — we're inside the body of an IIFE
-            // that runs every render.
-            const desiredLeft = signatureHelp.position.left;
-            const viewportWidth =
-              typeof window !== 'undefined' ? window.innerWidth : 1920;
-            const maxLeft =
-              viewportWidth - PILL_WIDTH_ESTIMATE - VIEWPORT_MARGIN;
-            const pillLeft = Math.max(
-              VIEWPORT_MARGIN,
-              Math.min(desiredLeft, maxLeft)
-            );
-            return (
-              <div
-                key={`sig-${signatureHelp.position.left}-${signatureHelp.position.top}-${placeBelow}`}
-                style={{
-                  position: 'fixed',
-                  top: pillTop,
-                  left: pillLeft,
-                  transform: placeBelow ? undefined : 'translate(0, -100%)',
-                  maxWidth: 480,
-                  minWidth: 280,
-                  padding: '6px 10px',
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  color: pillTextColor,
-                  background: pillBgTheme,
-                  backdropFilter: 'blur(20px)',
-                  borderRadius: 4,
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
-                  pointerEvents: 'none',
-                  zIndex: 100,
-                }}
-              >
-                <div>{renderLabel()}</div>
-                {paramDoc && (
-                  <div style={{ marginTop: 4, opacity: 0.85 }}>
-                    <MarkdownDoc content={paramDoc} markdown />
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          {signatureHelp.signature && signatureHelp.position && (
+            <SignatureHelpPill
+              signature={signatureHelp.signature}
+              position={signatureHelp.position}
+            />
+          )}
         </div>
         {session.diagnostics.length > 0 && (
           // Stacked `ReqoreMessage`s under the editor — one per active
@@ -935,25 +921,16 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 key={`${diag.range.start.line}:${diag.range.start.character}:${i}`}
                 intent={severityToIntent(diag.severity)}
                 icon={
-                  diag.severity === 2
-                    ? 'AlertLine'
-                    : diag.severity && diag.severity >= 3
-                      ? 'InformationLine'
-                      : 'ErrorWarningLine'
+                  diag.severity === 2 ? 'AlertLine'
+                  : diag.severity && diag.severity >= 3 ?
+                    'InformationLine'
+                  : 'ErrorWarningLine'
                 }
                 size='small'
-                flat
                 // `opaque={false}` matches every Qonsole sub-surface —
                 // message blends with the host page gradient rather
                 // than putting its own opaque background on top.
                 opaque={false}
-                // Per-severity coloured gradient effect — matches the
-                // `NegativeColorEffect` / `WarningColorEffect` /
-                // `PendingColorEffect` vocabulary from qorus-ide.
-                effect={
-                  DIAGNOSTIC_SEVERITY_EFFECTS[diag.severity ?? 1] ??
-                  DIAGNOSTIC_SEVERITY_EFFECTS[1]
-                }
               >
                 {diag.message}
               </ReqoreMessage>
