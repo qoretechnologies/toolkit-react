@@ -26,14 +26,14 @@ $ yarn add @qoretechnologies/toolkit-react
 The smart-editor stack is layered:
 
 ```
-  LspClient            generic JSON-RPC 2.0 LSP client over WebSocket
+  ReqraftLspClient            generic JSON-RPC 2.0 LSP client over WebSocket
      ↓
   SmartEditor          generic Slate-based editor primitive
      ↓
   DpqlEditor           DPQL-flavored wrapper around SmartEditor
 ```
 
-Most apps will use `DpqlEditor` directly. Reach for `SmartEditor` when you need an editor for a different language (Qonsole, Qore, …); use `LspClient` directly only when you don't want an editor at all (CLI tools, scripts, headless validation).
+Most apps will use `DpqlEditor` directly. Reach for `SmartEditor` when you need an editor for a different language (Qonsole, Qore, …); use `ReqraftLspClient` directly only when you don't want an editor at all (CLI tools, scripts, headless validation).
 
 ### `DpqlEditor`
 
@@ -68,8 +68,7 @@ Props in brief:
 | `recordType` | `string` | `'record'` (default), `'create'`, or `'update'` |
 | `options` | `Record<string, any>` | Extra `dpql/setContext` options |
 | `actionCode` | `number` | FSM action code (`DPAT_FIND` / `DPAT_UPDATE` / `DPAT_DELETE`) — derives search-context semantics |
-| `templates` | `IReqoreFormTemplates` | Items for the template-picker dropdown |
-| `stateId` | `string` | FSM state ID — `$data:{stateId.field}` templates are inserted as `@field` |
+| `fsmContext` | `TDpqlFsmContext` | Binds FSM context via `dpql/setFsmContext` — enables `$data:` state-field completions |
 | `height` | `string` | CSS height of the editable area (default `'200px'`) |
 | `readOnly` | `boolean` | |
 | `onBlur` | `() => void` | |
@@ -122,14 +121,14 @@ Props in brief:
 
 For language-specific custom methods (e.g. `dpql/setContext`, `qonsole/assist`), call `session.client.customRequest(...)` directly from your wrapper — the session is yours.
 
-### `LspClient`
+### `ReqraftLspClient`
 
-A generic JSON-RPC 2.0 LSP client over `ReqraftWebSocket`. `SmartEditor` builds on it via `useLspSession`. Reach for `LspClient` directly when you want LSP machinery without an editor — CLI tools, validation pipelines, server-driven introspection.
+A generic JSON-RPC 2.0 LSP client over `ReqraftWebSocket`. `SmartEditor` builds on it via `useLspSession`. Reach for `ReqraftLspClient` directly when you want LSP machinery without an editor — CLI tools, validation pipelines, server-driven introspection.
 
 ```tsx
-import { LspClient } from '@qoretechnologies/reqraft';
+import { ReqraftLspClient } from '@qoretechnologies/reqraft';
 
-const client = new LspClient({
+const client = new ReqraftLspClient({
   languageId: 'qonsole',
   uri: 'qonsole://chat/abc',
 });
@@ -149,7 +148,7 @@ client.onNotification('qonsole/sessionStateChanged', (params) => { /* … */ });
 client.disconnect();
 ```
 
-Each client owns one isolated WebSocket (`pooled: false`) because LSP sessions carry per-document state on the server. Auto-reconnect, 15s request timeout, request/response correlation by `id`, pending requests rejected on close. Document URIs should be opaque and client-generated — per the Qonsole LSP contract they must not contain session tokens, usernames, sandbox identifiers, or other secrets that end up in server logs.
+Clients on the same LSP endpoint share ONE underlying WebSocket — each `ReqraftLspClient` is a per-document facade over the shared connection, multiplexed by document URI (the server keys language sessions per document), so N editors cost one socket. Auto-reconnect re-opens every document on the shared socket, 15s request timeout, request/response correlation by `id`, pending requests rejected on close. Document URIs should be opaque and client-generated — per the Qonsole LSP contract they must not contain session tokens, usernames, sandbox identifiers, or other secrets that end up in server logs.
 
 ## Community
 
