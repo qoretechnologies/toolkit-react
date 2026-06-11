@@ -12,7 +12,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreCollectionProps } from '@qoretechnologies/reqore/dist/components/Collection';
 import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/components/Collection/item';
-import { IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Panel';
+import { IReqorePanelAction, IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import {
@@ -34,10 +34,11 @@ import map from 'lodash/map';
 import reduce from 'lodash/reduce';
 import size from 'lodash/size';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useDebounce, useUpdateEffect } from 'react-use';
+import { useDebounce, useMount, useUpdateEffect } from 'react-use';
 import { createContext } from 'use-context-selector';
 import { getDefaultValue, insertAtIndex, richtextToString } from '../../../helpers/common';
 import { getRequiredOptionMessage } from '../../../helpers/options';
+import { query } from '../../../utils/fetch';
 import {
   IValidationResult,
   hasAllDependenciesFullfilled,
@@ -286,16 +287,41 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   placeholder?: string;
   noValueString?: string;
   isValid?: boolean;
+  /** Fetch the options schema from `options/{url}` (IDE Options parity). */
+  url?: string;
+  /** Fetch the options schema from a custom endpoint; wins over `url`. */
+  customUrl?: string;
+  /** Fetch the search-operators schema (enables the per-option operator UI). */
+  operatorsUrl?: string;
+  /** Fired with the fetched schema after a successful `url`/`customUrl` load. */
   onOptionsLoaded?: (options: IQorusFormSchema) => void;
   recordRequiresSearchOptions?: boolean;
   readOnly?: boolean;
   allowTemplates?: boolean;
   stringTemplates?: IReqoreFormTemplates;
+  /** Opt-in: fetch global templates from `system/getContextData` for this context. */
+  interfaceContext?: string;
   templateFieldProps?: Partial<ITemplateFieldProps>;
   showTypeToggle?: boolean;
   compact?: boolean;
   onValidityChange?: (isValid: boolean, data: IFormValidityData) => void;
+  /**
+   * SEAM (reqraft): extra hover actions prepended to each option row — where
+   * the IDE renders its `allowAi` AI-assist button. A factory receives the
+   * option's name/schema/value (the context the IDE's `AiAssistanceAction`
+   * captures); the consumer injects the button, reqraft stays AI-free.
+   */
+  optionActions?:
+    | IReqorePanelAction[]
+    | ((context: {
+        name: string;
+        schema: IQorusFormSchema[string];
+        value?: TOption;
+      }) => IReqorePanelAction[]);
 }
+
+// Option types rendered full-width (IDE Options parity, commit 8e6b7781).
+const STRECHABLE_TYPES = new Set<TQorusType>(['tool-catalog' as TQorusType]);
 
 export const FormEngine = ({
   name,
@@ -307,18 +333,26 @@ export const FormEngine = ({
   placeholder,
   noValueString, // eslint-disable-line @typescript-eslint/no-unused-vars
   isValid, // eslint-disable-line @typescript-eslint/no-unused-vars
-  onOptionsLoaded, // eslint-disable-line @typescript-eslint/no-unused-vars
+  url,
+  customUrl,
+  operatorsUrl,
+  onOptionsLoaded,
   recordRequiresSearchOptions,
   readOnly,
   allowTemplates = true,
+  interfaceContext,
   templateFieldProps,
   showTypeToggle = true,
   compact,
   onValidityChange,
+  optionActions,
   ...rest
 }: IFormEngineProps) => {
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
-  const [operators] = useState<IOperatorsSchema | undefined>(undefined);
+  const [operators, setOperators] = useState<IOperatorsSchema | undefined>(undefined);
+  // Remote-fetch loading (ported from IDE Options); only relevant when one of
+  // the fetch urls is set — schema-as-props consumers never see the skeleton.
+  const [loading, setLoading] = useState<boolean>(!!(url || customUrl || operatorsUrl));
   const confirmAction = useReqoreProperty('confirmAction');
   const [focusedEditing, setFocusedEditing] = useState<string>();
   const [showFieldTypes, setShowFieldTypes] = useState<boolean>(false);
@@ -342,7 +376,7 @@ export const FormEngine = ({
 
   const unavailableOptionsCount = useRef(0);
   const { compactValue, loading: typesLoading } = useQorusTypes();
-  const templates = useTemplates(allowTemplates, rest.stringTemplates);
+  const templates = useTemplates(allowTemplates, rest.stringTemplates, interfaceContext);
 
   useDebounce(
     () => {
@@ -361,6 +395,92 @@ export const FormEngine = ({
   useUpdateEffect(() => {
     setOptions(rest.options);
   }, [JSON.stringify(rest.options)]);
+
+  // --- Remote schema fetching, ported from IDE Options (systemOptions.tsx
+  // lines 394-462 + 504-522). reqraft's `query()` replaces the IDE's
+  // `fetchData` — same `{ data, ok, error }` shape and `api/latest/` prefix;
+  // the IDE's leading-slash URLs are normalised away.
+  const getFetchUrl = useCallback(() => customUrl || `options/${url}`, [customUrl, url]);
+
+  useMount(() => {
+    if (url || customUrl) {
+      (async () => {
+        setOptions(undefined);
+        setLoading(true);
+        const data = await query<IQorusFormSchema>({ url: getFetchUrl() });
+
+        if (!data.ok || data.data === null) {
+          setLoading(false);
+          setOptions({});
+          return;
+        }
+        setLocalValue({ fields: fixOptions(value, data.data), meta: undefined });
+        if (!operatorsUrl) {
+          setLoading(false);
+        }
+        setOptions(data.data);
+        onOptionsLoaded?.(data.data);
+      })();
+    }
+
+    if (operatorsUrl) {
+      (async () => {
+        setOperators(undefined);
+        setLoading(true);
+        const data = await query<IOperatorsSchema>({ url: operatorsUrl.replace(/^\//, '') });
+
+        if (!data.ok) {
+          setLoading(false);
+          setOperators({});
+          return;
+        }
+        setOperators(data.data);
+        setLoading(false);
+      })();
+    }
+  });
+
+  // Changing the source clears the current value and re-seeds the form from
+  // the freshly fetched schema (IDE semantics).
+  useUpdateEffect(() => {
+    if (url || customUrl) {
+      (async () => {
+        setOptions(undefined);
+        setLoading(true);
+        const data = await query<IQorusFormSchema>({ url: getFetchUrl() });
+
+        if (!data.ok) {
+          setLoading(false);
+          setOptions({});
+          return;
+        }
+        if (!operatorsUrl) {
+          setLoading(false);
+        }
+        setOptions(data.data);
+        onOptionsLoaded?.(data.data);
+        setLocalValue({ fields: fixOptions({}, data.data), meta: undefined });
+      })();
+    }
+  }, [url, customUrl]);
+
+  useUpdateEffect(() => {
+    if (operatorsUrl) {
+      (async () => {
+        setOperators(undefined);
+        setLoading(true);
+        const data = await query<IOperatorsSchema>({ url: operatorsUrl.replace(/^\//, '') });
+
+        if (!data.ok) {
+          setLoading(false);
+          setOperators({});
+          return;
+        }
+        setLoading(false);
+        setOperators(data.data);
+      })();
+    }
+  }, [operatorsUrl]);
 
   useUpdateEffect(() => {
     const fixedValue = fixOptions(value, options || {});
@@ -383,7 +503,7 @@ export const FormEngine = ({
   }, [JSON.stringify(options), JSON.stringify(value)]);
 
   const handleValueChange = useCallback(
-    (optionName: string, val?: any, _type?: string) => {
+    (optionName: string, val?: any, _type?: string, isFunction?: boolean) => {
       setLocalValue(({ fields = {} }) => {
         const schemaType = (options?.[optionName]?.ui_type ||
           options?.[optionName]?.type) as TQorusType;
@@ -422,6 +542,9 @@ export const FormEngine = ({
           }
         }
 
+        // IDE Options model: the 4th `onChange` argument (`isFunction`, sent
+        // by TemplateField/auto) drives the option's `is_expression` flag;
+        // the value itself is the raw AST `{ exp, args }`.
         const updatedValue: TQorusForm = {
           ...(fields as TQorusForm),
           [optionName]: {
@@ -431,7 +554,11 @@ export const FormEngine = ({
           },
         };
 
-        delete updatedValue[optionName].is_expression;
+        if (isFunction) {
+          (updatedValue[optionName] as { is_expression?: boolean }).is_expression = true;
+        } else {
+          delete updatedValue[optionName].is_expression;
+        }
 
         const meta: IOptionsOnChangeMeta = {};
 
@@ -681,6 +808,9 @@ export const FormEngine = ({
         optionSchema: options,
         options: availableOptions,
         ...options?.[optionName],
+        // The expression flag lives on the field value, not the schema — so an
+        // expression value is validated as an expression, not the base type.
+        isFunction: (availableOptions?.[optionName] as { is_expression?: boolean })?.is_expression,
       } as any);
     },
     [JSON.stringify(options), JSON.stringify(availableOptions), JSON.stringify(localValue.fields)]
@@ -710,6 +840,8 @@ export const FormEngine = ({
             optionSchema: options,
             options: availableOptions,
             ...options?.[optionName],
+            // The expression flag lives on the field value, not the schema.
+            isFunction: (option as { is_expression?: boolean }).is_expression,
           } as any);
         }
 
@@ -900,6 +1032,10 @@ export const FormEngine = ({
           fluid
           {...(options?.[optionName] as any)}
           allowTemplates={!!(allowTemplates && options?.[optionName]?.supports_templates)}
+          allowFunctions={!!options?.[optionName]?.supports_expressions}
+          // reqraft: form-level expression fields get the Visual/Text shell
+          // (DPQL text mode); opt out per-form via `templateFieldProps`.
+          allowTextExpressions
           allowCustomValues={
             options?.[optionName]?.supports_custom_values !== false && type !== 'any'
           }
@@ -912,13 +1048,13 @@ export const FormEngine = ({
           ui_type={type}
           name={optionName}
           uniqueName={`${uniqueName ? `${uniqueName}.` : `${name ? `${name}.` : ''}`}${optionName}`}
-          onChange={(name, value, type) => {
-            handleValueChange(name, value, type);
-          }}
+          onChange={handleValueChange}
           key={optionName}
           arg_schema={options?.[optionName]?.arg_schema}
           noSoft={!!rest?.options}
           value={other.value}
+          isFunction={(other as { is_expression?: boolean }).is_expression}
+          isDefaultFunction={options?.[optionName]?.default_view === 'expression'}
           sensitive={options?.[optionName]?.sensitive}
           default_value={getDefaultValue(options?.[optionName])}
           isDefaultTemplate={options?.[optionName]?.default_view === 'template'}
@@ -978,7 +1114,15 @@ export const FormEngine = ({
     );
   };
 
-  if (rest.skeleton || templates.loading || typesLoading) {
+  if (
+    rest.skeleton ||
+    templates.loading ||
+    typesLoading ||
+    // Remote-fetch gates, mirroring IDE Options (systemOptions.tsx:1097-1102).
+    loading ||
+    (operatorsUrl && !operators) ||
+    ((url || customUrl) && !options)
+  ) {
     return (
       <ReqoreControlGroup vertical fill fluid style={{ flexGrow: 1 }} gapSize='big'>
         <ReqoreControlGroup fixed fill={false}>
@@ -1139,9 +1283,26 @@ export const FormEngine = ({
               ),
               badge: buildBadges(options[optionName], optionName),
               className: 'system-option',
+              // Ported from IDE Options (commit 8e6b7781): full-width layout
+              // for stretchable option types.
+              stretch:
+                STRECHABLE_TYPES.has(options[optionName].type as TQorusType) ||
+                (options[optionName] as { stretch?: boolean }).stretch,
               size: 'small',
               floatingActions: true,
               actions: [
+                // SEAM (reqraft): per-option injected hover actions — where
+                // the IDE renders its `allowAi` AiAssistanceAction (with the
+                // option's schema as context). The consumer (the IDE) injects
+                // it; same factory pattern as the ExpressionBuilder's
+                // `extraActions`.
+                ...(typeof optionActions === 'function'
+                  ? optionActions({
+                      name: optionName,
+                      schema: options[optionName],
+                      value: availableOptions?.[optionName] as TOption,
+                    })
+                  : (optionActions ?? [])),
                 {
                   size: 'tiny',
                   icon: 'FullscreenLine',

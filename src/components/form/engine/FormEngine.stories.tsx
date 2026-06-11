@@ -733,8 +733,7 @@ export const OptionWithAnyType: Story = {
       },
     },
   },
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  play: async ({ canvasElement }) => {
+  play: async () => {
     // Fields without a value and ui_type='any' show a template dropdown labelled "Select Template"
     await _testsWaitForText('Select Template');
 
@@ -1140,7 +1139,16 @@ export const OnValidityChange: Story = {
       expect(Array.isArray(invalidField.validation.reasons)).toBe(true);
     });
 
-    // Type a value into the required field to make the form valid
+    // Type a value into the required field to make the form valid. The auto
+    // field resolves its concrete type in a mount effect, so the textarea can
+    // land a tick after validity is first reported — wait for it.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelectorAll('.system-option .reqore-textarea')[0]
+        ).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
     const requiredInput = document.querySelectorAll(
       '.system-option .reqore-textarea'
     )[0] as HTMLTextAreaElement;
