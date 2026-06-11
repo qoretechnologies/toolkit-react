@@ -3,3 +3,6 @@ dist
 output.json
 tests.json
 coverage
+*.local.*
+.yarn/
+.claude/launch.json
