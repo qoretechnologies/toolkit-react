@@ -1,12 +1,12 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Generic LSP session lifecycle hook. Manages a single `LspClient` instance
+// Generic LSP session lifecycle hook. Manages a single `ReqraftLspClient` instance
 // per-mount: connect → didOpen with optional metadata → forward subsequent
 // content changes via didChange → expose the live client so wrappers can
 // dispatch language-specific custom methods (e.g. `dpql/setContext`,
 // `qonsole/assist`). Cleans up on unmount.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { LspClient } from '../../utils/lspClient';
+import { ReqraftLspClient } from '../../utils/lspClient';
 import {
   ILspCompletionItem,
   ILspDiagnostic,
@@ -34,8 +34,8 @@ export interface IUseLspSessionOptions {
 }
 
 export interface IUseLspSessionResult {
-  /** The live `LspClient`, or `null` before connect resolves / after disconnect. */
-  client: LspClient | null;
+  /** The live `ReqraftLspClient`, or `null` before connect resolves / after disconnect. */
+  client: ReqraftLspClient | null;
   /** The URI bound to this session. */
   uri: string;
   /** Becomes `true` once `initialize` + `didOpen` complete. */
@@ -94,11 +94,11 @@ export function useLspSession(
 ): IUseLspSessionResult {
   const { languageId, uri: uriProp, initialMetadata, url, initialText = '' } = options;
 
-  const clientRef = useRef<LspClient | null>(null);
+  const clientRef = useRef<ReqraftLspClient | null>(null);
   const versionRef = useRef(1);
   const uriRef = useRef(uriProp ?? `${languageId}://session/${++lspUriCounter}`);
 
-  const [client, setClient] = useState<LspClient | null>(null);
+  const [client, setClient] = useState<ReqraftLspClient | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [diagnostics, setDiagnostics] = useState<ILspDiagnostic[]>([]);
   const [semanticTokensLegend, setSemanticTokensLegend] =
@@ -107,7 +107,7 @@ export function useLspSession(
     useState<ILspServerCapabilities | null>(null);
 
   useEffect(() => {
-    const c = new LspClient({
+    const c = new ReqraftLspClient({
       languageId,
       uri: uriRef.current,
       url,

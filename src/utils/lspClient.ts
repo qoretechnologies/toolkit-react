@@ -1,17 +1,4 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-//
-// Generic JSON-RPC 2.0 LSP client over a `ReqraftWebSocket`. Targets the
-// shared `/lsp` endpoint and is parameterized by `languageId` so the same
-// client class can drive any language server the backend exposes — DPQL,
-// Qonsole, Qore, Python, … The standard LSP document-sync + feature
-// requests live on this class; language-specific custom methods
-// (e.g. `dpql/setContext`) are exposed via `customRequest()` and are
-// typically wrapped by per-language convenience classes layered on top.
-//
-// Each LspClient instance owns one isolated WebSocket (`pooled: false`)
-// because LSP sessions have per-document state (a `dpql-${uri}` session
-// on the server, for instance). Sharing the socket between unrelated
-// editors would conflate diagnostics and request/response correlation.
 
 import { ReqraftWebSocket } from './websocket';
 import {
@@ -31,7 +18,7 @@ const DEFAULT_MAX_RECONNECT_TRIES = 10;
 const DEFAULT_RECONNECT_INTERVAL_MS = 5000;
 const DEFAULT_TAB_SIZE = 4;
 
-export interface ILspClientOptions {
+export interface IReqraftLspClientOptions {
   /**
    * LSP `languageId` — routes the document on a multi-language `/lsp`
    * endpoint. Must match a server-side language handler (e.g. `'dpql'`,
@@ -56,79 +43,64 @@ export interface ILspClientOptions {
 }
 
 interface IPendingRequest {
-  resolve: (value: any) => void;
+  resolve: (value: unknown) => void;
   reject: (err: Error) => void;
   timer: ReturnType<typeof setTimeout>;
   method: string;
 }
 
+interface IJsonRpcMessage {
+  jsonrpc: '2.0';
+  id?: number;
+  method: string;
+  params?: unknown;
+}
+
 /**
- * JSON-RPC 2.0 client speaking LSP over a single isolated `ReqraftWebSocket`.
- * One `LspClient` instance manages one document URI.
+ * One shared WebSocket + JSON-RPC session per LSP endpoint URL, multiplexing
+ * any number of `ReqraftLspClient` documents. The Qorus `/lsp` handler keys language
+ * sessions by document URI (`uriToDpqlSession` server-side), so a single
+ * connection serves N editors — the standard LSP architecture (one connection
+ * per language server, all documents on it). Responses route by JSON-RPC id;
+ * `publishDiagnostics` routes by `params.uri`; other notifications are
+ * delivered to every client that registered a handler for the method. The
+ * connection closes when its last client releases it.
  */
-export class LspClient {
-  private rws: ReqraftWebSocket | null = null;
-  private readonly languageId: string;
-  private readonly uri: string;
-  private readonly url: string;
-  private readonly requestTimeoutMs: number;
-  private readonly maxReconnectTries: number;
-  private readonly reconnectIntervalMs: number;
+class LspSharedConnection {
+  private static registry = new Map<string, LspSharedConnection>();
 
-  private nextId = 1;
-  private pending = new Map<number, IPendingRequest>();
-  private notificationHandlers = new Map<string, (params: any) => void>();
-
-  private diagnosticCallback: ((uri: string, diags: ILspDiagnostic[]) => void) | null = null;
-  private disconnectCallback: (() => void) | null = null;
-  private readyCallback: ((ready: boolean) => void) | null = null;
-
-  private connected = false;
-  private initPromise: Promise<void> | null = null;
-
-  // Stored so we can re-send didOpen on reconnect.
-  private lastText: TLspDocumentText | null = null;
-  private lastMetadata: Record<string, any> | undefined = undefined;
-
-  /**
-   * Captured from `initialize → capabilities.semanticTokensProvider.legend`.
-   * `null` until the initialize response arrives, and stays `null` if the
-   * server doesn't advertise semantic-token support. Consumers
-   * (`useLspSemanticTokens`) need this legend to resolve the
-   * `tokenType` / `tokenModifiers` int indices into human-readable
-   * names — both arrays are positional.
-   *
-   * Kept as a top-level field for backwards compatibility with the
-   * pre-`capabilities` API; new code should prefer
-   * `capabilities?.semanticTokensProvider?.legend`.
-   */
-  public semanticTokensLegend: ILspSemanticTokensLegend | null = null;
-
-  /**
-   * Full `capabilities` block from the server's `initialize` response.
-   * `null` until the handshake completes. Consumers gate optional
-   * features on the presence of the relevant provider — e.g.
-   * `useLspSignatureHelp` only fires requests when
-   * `capabilities?.signatureHelpProvider` is present, and reads
-   * `triggerCharacters` from it. Forward-compatible: unknown
-   * providers pass through the `[key: string]: unknown` index
-   * signature in `ILspServerCapabilities`.
-   */
-  public capabilities: ILspServerCapabilities | null = null;
-
-  constructor(options: ILspClientOptions) {
-    this.languageId = options.languageId;
-    this.uri = options.uri;
-    this.url = options.url ?? DEFAULT_URL;
-    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
-    this.maxReconnectTries = options.maxReconnectTries ?? DEFAULT_MAX_RECONNECT_TRIES;
-    this.reconnectIntervalMs = options.reconnectIntervalMs ?? DEFAULT_RECONNECT_INTERVAL_MS;
+  /** Get-or-create the connection for `url` and register `client` on it. */
+  static acquire(
+    url: string,
+    config: { maxReconnectTries: number; reconnectIntervalMs: number },
+    client: ReqraftLspClient
+  ): LspSharedConnection {
+    let conn = LspSharedConnection.registry.get(url);
+    if (!conn) {
+      // The first acquirer's reconnect config wins for the shared socket.
+      conn = new LspSharedConnection(url, config);
+      LspSharedConnection.registry.set(url, conn);
+    }
+    conn.clients.add(client);
+    return conn;
   }
 
-  /**
-   * Open the WebSocket, send `initialize`, resolve when the server replies.
-   * Re-entrant: subsequent calls return the in-flight (or resolved) promise.
-   */
+  private rws: ReqraftWebSocket | null = null;
+  private nextId = 1;
+  private pending = new Map<number, IPendingRequest>();
+  private readonly clients = new Set<ReqraftLspClient>();
+  private initPromise: Promise<void> | null = null;
+
+  connected = false;
+  capabilities: ILspServerCapabilities | null = null;
+  semanticTokensLegend: ILspSemanticTokensLegend | null = null;
+
+  private constructor(
+    private readonly url: string,
+    private readonly config: { maxReconnectTries: number; reconnectIntervalMs: number }
+  ) {}
+
+  /** Open the socket and `initialize` once; re-entrant for every client. */
   connect(): Promise<void> {
     if (this.initPromise) {
       return this.initPromise;
@@ -141,13 +113,13 @@ export class LspClient {
         url: this.url,
         pooled: false,
         reconnect: true,
-        maxReconnectTries: this.maxReconnectTries,
-        reconnectInterval: this.reconnectIntervalMs,
+        maxReconnectTries: this.config.maxReconnectTries,
+        reconnectInterval: this.config.reconnectIntervalMs,
         useHeartbeat: true,
         onOpen: () => {
           this.connected = true;
 
-          this.sendRequest('initialize', { capabilities: {} })
+          this.sendRequest('initialize', { capabilities: {} }, DEFAULT_REQUEST_TIMEOUT_MS)
             .then((initResult: any) => {
               // Capture the full capabilities block. Consumers gate
               // optional features (signatureHelp, semantic tokens, …)
@@ -155,14 +127,8 @@ export class LspClient {
               // gracefully against servers that don't support them.
               const caps = initResult?.capabilities;
               this.capabilities =
-                caps && typeof caps === 'object'
-                  ? (caps as ILspServerCapabilities)
-                  : null;
+                caps && typeof caps === 'object' ? (caps as ILspServerCapabilities) : null;
 
-              // Also keep the dedicated `semanticTokensLegend` field
-              // for backwards compat — `useLspSemanticTokens` reads it
-              // directly. Standard LSP shape:
-              // `{ tokenTypes: string[], tokenModifiers: string[] }`.
               const legend = caps?.semanticTokensProvider?.legend;
               if (
                 legend &&
@@ -178,19 +144,21 @@ export class LspClient {
               }
               if (initialConnect) {
                 initialConnect = false;
+                // Awaiting clients self-notify ready in their connect().
                 resolve();
-              } else if (this.lastText !== null) {
-                // Reconnect: re-open the document with last known text.
-                this.didOpen(this.lastText, this.lastMetadata);
+              } else {
+                // Reconnect: every registered document re-opens itself.
+                this.clients.forEach((c) => c._resyncAfterReconnect());
+                this.clients.forEach((c) => c._notifyReady(true));
               }
-              this.readyCallback?.(true);
             })
             .catch((err) => {
               if (initialConnect) {
                 initialConnect = false;
                 reject(err);
+              } else {
+                this.clients.forEach((c) => c._notifyReady(false));
               }
-              this.readyCallback?.(false);
             });
         },
         onMessage: (event: MessageEvent) => {
@@ -213,9 +181,7 @@ export class LspClient {
               clearTimeout(pending.timer);
               this.pending.delete(msg.id);
               if (msg.error) {
-                pending.reject(
-                  new Error(`${msg.error.code}: ${msg.error.message}`)
-                );
+                pending.reject(new Error(`${msg.error.code}: ${msg.error.message}`));
               } else {
                 pending.resolve(msg.result);
               }
@@ -225,21 +191,30 @@ export class LspClient {
 
           // Notification (has method, no id)
           if (msg.method) {
-            this.handleNotification(msg.method, msg.params);
+            if (msg.method === 'textDocument/publishDiagnostics' && msg.params?.uri) {
+              // Diagnostics belong to exactly one document — route by uri.
+              this.clients.forEach((c) => {
+                if (c.documentUri === msg.params.uri) {
+                  c._deliverNotification(msg.method, msg.params);
+                }
+              });
+              return;
+            }
+            this.clients.forEach((c) => c._deliverNotification(msg.method, msg.params));
           }
         },
         onClose: () => {
           this.connected = false;
-          this.readyCallback?.(false);
           // Reject all pending requests.
           this.pending.forEach((p) => {
             clearTimeout(p.timer);
             p.reject(new Error('WebSocket closed'));
           });
           this.pending.clear();
-          if (this.disconnectCallback) {
-            this.disconnectCallback();
-          }
+          this.clients.forEach((c) => {
+            c._notifyReady(false);
+            c._notifyDisconnect();
+          });
         },
         onError: () => {
           // onClose fires after onError; rejection happens there.
@@ -247,37 +222,39 @@ export class LspClient {
       });
     });
 
-    // Clear initPromise on failure so connect() can be retried after error.
+    // Reset on failure so connect() can be retried with a clean slate —
+    // close() also drops the dead socket, which would otherwise leak when
+    // a retry stacks a fresh ReqraftWebSocket on top of it.
     this.initPromise.catch(() => {
-      this.initPromise = null;
+      this.close();
     });
 
     return this.initPromise;
   }
 
-  /** Close the WebSocket and clean up. Sends `textDocument/didClose` first. */
-  disconnect(): void {
-    this.initPromise = null;
+  /** @internal Test hook — close and forget every shared connection. */
+  static _resetForTests(): void {
+    LspSharedConnection.registry.forEach((conn) => conn.close());
+    LspSharedConnection.registry.clear();
+  }
 
+  /** Deregister a client; the last one out closes the socket. */
+  release(client: ReqraftLspClient): void {
+    this.clients.delete(client);
+    if (this.clients.size === 0) {
+      LspSharedConnection.registry.delete(this.url);
+      this.close();
+    }
+  }
+
+  private close(): void {
+    this.initPromise = null;
     if (this.rws) {
       // Disable reconnect before cleanup to prevent zombie reconnect timers.
       this.rws.options.reconnect = false;
-      clearTimeout(this.rws.reconnectInterval);
-
-      if (this.connected) {
-        try {
-          this.sendNotification('textDocument/didClose', {
-            textDocument: { uri: this.uri },
-          });
-        } catch {
-          // best-effort
-        }
-      }
-
       this.rws.remove();
       this.rws = null;
     }
-
     this.connected = false;
     this.pending.forEach((p) => {
       clearTimeout(p.timer);
@@ -286,7 +263,154 @@ export class LspClient {
     this.pending.clear();
   }
 
-  // ── Standard LSP document sync ──────────────────────────────────────
+  sendRequest(method: string, params: any, timeoutMs: number): Promise<any> {
+    return new Promise((resolve, reject) => {
+      if (!this.rws?.socket || this.rws.socket.readyState !== WebSocket.OPEN) {
+        reject(new Error('WebSocket not connected'));
+        return;
+      }
+
+      const id = this.nextId++;
+
+      const timer = setTimeout(() => {
+        if (this.pending.has(id)) {
+          this.pending.delete(id);
+          reject(new Error(`Request ${method} timed out`));
+        }
+      }, timeoutMs);
+
+      this.pending.set(id, { resolve, reject, timer, method });
+
+      const msg: IJsonRpcMessage = { jsonrpc: '2.0', id, method };
+      if (params !== undefined) {
+        msg.params = params;
+      }
+      this.rws.socket.send(JSON.stringify(msg));
+    });
+  }
+
+  sendNotification(method: string, params?: any): void {
+    if (!this.rws?.socket || this.rws.socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+    const msg: IJsonRpcMessage = { jsonrpc: '2.0', method };
+    if (params !== undefined) {
+      msg.params = params;
+    }
+    this.rws.socket.send(JSON.stringify(msg));
+  }
+}
+
+/**
+ * JSON-RPC 2.0 client speaking LSP for ONE document URI. Transport is the
+ * shared per-endpoint connection (`LspSharedConnection`) — creating more
+ * clients does not open more sockets.
+ */
+export class ReqraftLspClient {
+  private conn: LspSharedConnection | null = null;
+  private connectPromise: Promise<void> | null = null;
+  private readonly languageId: string;
+  private readonly uri: string;
+  private readonly url: string;
+  private readonly requestTimeoutMs: number;
+  private readonly maxReconnectTries: number;
+  private readonly reconnectIntervalMs: number;
+
+  private notificationHandlers = new Map<string, (params: any) => void>();
+
+  private diagnosticCallback: ((uri: string, diags: ILspDiagnostic[]) => void) | null = null;
+  private disconnectCallback: (() => void) | null = null;
+  private readyCallback: ((ready: boolean) => void) | null = null;
+
+  // Stored so we can re-send didOpen on reconnect.
+  private lastText: TLspDocumentText | null = null;
+  private lastMetadata: Record<string, unknown> | undefined = undefined;
+
+  /**
+   * Captured from `initialize → capabilities.semanticTokensProvider.legend`
+   * on the shared connection. `null` until the initialize response arrives,
+   * and stays `null` if the server doesn't advertise semantic-token support.
+   * Consumers (`useLspSemanticTokens`) need this legend to resolve the
+   * `tokenType` / `tokenModifiers` int indices into names.
+   */
+  get semanticTokensLegend(): ILspSemanticTokensLegend | null {
+    return this.conn?.semanticTokensLegend ?? null;
+  }
+
+  /**
+   * Full `capabilities` block from the server's `initialize` response on the
+   * shared connection. `null` until the handshake completes. Consumers gate
+   * optional features on the presence of the relevant provider.
+   */
+  get capabilities(): ILspServerCapabilities | null {
+    return this.conn?.capabilities ?? null;
+  }
+
+  constructor(options: IReqraftLspClientOptions) {
+    this.languageId = options.languageId;
+    this.uri = options.uri;
+    this.url = options.url ?? DEFAULT_URL;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    this.maxReconnectTries = options.maxReconnectTries ?? DEFAULT_MAX_RECONNECT_TRIES;
+    this.reconnectIntervalMs = options.reconnectIntervalMs ?? DEFAULT_RECONNECT_INTERVAL_MS;
+  }
+
+  /**
+   * Acquire the shared connection for this endpoint — opening the socket and
+   * sending `initialize` only if this is the first client on it — and
+   * resolve when the handshake is done. Re-entrant.
+   */
+  connect(): Promise<void> {
+    if (this.connectPromise) {
+      return this.connectPromise;
+    }
+    if (!this.conn) {
+      this.conn = LspSharedConnection.acquire(
+        this.url,
+        {
+          maxReconnectTries: this.maxReconnectTries,
+          reconnectIntervalMs: this.reconnectIntervalMs,
+        },
+        this
+      );
+    }
+    this.connectPromise = this.conn
+      .connect()
+      .then(() => {
+        this.readyCallback?.(true);
+      })
+      .catch((err) => {
+        // Allow a retry after failure.
+        this.connectPromise = null;
+        this.readyCallback?.(false);
+        throw err;
+      });
+    return this.connectPromise;
+  }
+
+  /**
+   * Release the shared connection. Sends `textDocument/didClose` first; the
+   * socket itself only closes when the last client releases it. In-flight
+   * requests from this client are left to their timeouts (their results are
+   * ignored once the consumer has unmounted).
+   */
+  disconnect(): void {
+    this.connectPromise = null;
+    if (this.conn) {
+      if (this.conn.connected) {
+        try {
+          this.sendNotification('textDocument/didClose', {
+            textDocument: { uri: this.uri },
+          });
+        } catch {
+          // best-effort
+        }
+      }
+      this.conn.release(this);
+      this.conn = null;
+    }
+  }
+
 
   /**
    * Send `textDocument/didOpen`. The optional `metadata` field is a
@@ -295,7 +419,7 @@ export class LspClient {
    * `TextDocumentItem` does not include `metadata`, but the Qorus
    * `/lsp` handler reads it on open to bind context to the URI.
    */
-  didOpen(text: TLspDocumentText, metadata?: Record<string, any>): void {
+  didOpen(text: TLspDocumentText, metadata?: Record<string, unknown>): void {
     this.lastText = text;
     this.lastMetadata = metadata;
     this.sendNotification('textDocument/didOpen', {
@@ -309,7 +433,6 @@ export class LspClient {
     });
   }
 
-  /** Send `textDocument/didChange` with full document sync. */
   didChange(text: TLspDocumentText, version = 1): void {
     this.lastText = text;
     this.sendNotification('textDocument/didChange', {
@@ -318,14 +441,12 @@ export class LspClient {
     });
   }
 
-  /** Send `textDocument/didClose`. Usually `disconnect()` does this for you. */
   didClose(): void {
     this.sendNotification('textDocument/didClose', {
       textDocument: { uri: this.uri },
     });
   }
 
-  // ── Standard LSP feature requests ───────────────────────────────────
 
   /** Request completions at a cursor position. */
   async getCompletions(line: number, character: number): Promise<ILspCompletionItem[]> {
@@ -411,7 +532,6 @@ export class LspClient {
     return result as ILspSignatureHelp;
   }
 
-  // ── Custom-method dispatch (language-specific extensions) ───────────
 
   /**
    * Send a request with an arbitrary method name. Used by language-specific
@@ -428,7 +548,6 @@ export class LspClient {
     this.sendNotification(method, params);
   }
 
-  // ── Event registration ──────────────────────────────────────────────
 
   /** Register a callback for `textDocument/publishDiagnostics` notifications. */
   onDiagnostics(
@@ -460,29 +579,47 @@ export class LspClient {
     this.notificationHandlers.set(method, callback);
   }
 
-  /** Detach a previously registered notification handler. */
   offNotification(method: string): void {
     this.notificationHandlers.delete(method);
   }
 
-  // ── Introspection ───────────────────────────────────────────────────
 
-  /** True between successful `connect()` and `disconnect()` / socket close. */
   get isConnected(): boolean {
-    return this.connected;
+    return this.conn?.connected ?? false;
   }
 
-  /** The document URI this client is bound to. */
   get documentUri(): string {
     return this.uri;
   }
 
-  /** The LSP language ID this client opened the document with. */
   get documentLanguageId(): string {
     return this.languageId;
   }
 
-  // ── Internal ────────────────────────────────────────────────────────
+  // The `_`-prefixed methods are called by `LspSharedConnection` to route
+  // connection-level events to the right document client. Not public API.
+
+  /** @internal Re-send `didOpen` after the shared socket reconnects. */
+  _resyncAfterReconnect(): void {
+    if (this.lastText !== null) {
+      this.didOpen(this.lastText, this.lastMetadata);
+    }
+  }
+
+  /** @internal */
+  _notifyReady(ready: boolean): void {
+    this.readyCallback?.(ready);
+  }
+
+  /** @internal */
+  _notifyDisconnect(): void {
+    this.disconnectCallback?.();
+  }
+
+  /** @internal Notification delivery from the shared connection. */
+  _deliverNotification(method: string, params: any): void {
+    this.handleNotification(method, params);
+  }
 
   private handleNotification(method: string, params: any): void {
     if (method === 'textDocument/publishDiagnostics' && this.diagnosticCallback) {
@@ -496,45 +633,22 @@ export class LspClient {
   }
 
   private sendRequest(method: string, params?: any): Promise<any> {
-    return new Promise((resolve, reject) => {
-      if (
-        !this.rws?.socket ||
-        this.rws.socket.readyState !== WebSocket.OPEN
-      ) {
-        reject(new Error('WebSocket not connected'));
-        return;
-      }
-
-      const id = this.nextId++;
-
-      const timer = setTimeout(() => {
-        if (this.pending.has(id)) {
-          this.pending.delete(id);
-          reject(new Error(`Request ${method} timed out`));
-        }
-      }, this.requestTimeoutMs);
-
-      this.pending.set(id, { resolve, reject, timer, method });
-
-      const msg: any = { jsonrpc: '2.0', id, method };
-      if (params !== undefined) {
-        msg.params = params;
-      }
-      this.rws.socket.send(JSON.stringify(msg));
-    });
+    if (!this.conn) {
+      return Promise.reject(new Error('WebSocket not connected'));
+    }
+    return this.conn.sendRequest(method, params, this.requestTimeoutMs);
   }
 
   private sendNotification(method: string, params?: any): void {
-    if (
-      !this.rws?.socket ||
-      this.rws.socket.readyState !== WebSocket.OPEN
-    ) {
-      return;
-    }
-    const msg: any = { jsonrpc: '2.0', method };
-    if (params !== undefined) {
-      msg.params = params;
-    }
-    this.rws.socket.send(JSON.stringify(msg));
+    this.conn?.sendNotification(method, params);
   }
 }
+
+/**
+ * @internal Test hook: close and drop every shared LSP connection so each
+ * jest test starts with a clean registry (mirrors
+ * `ReqraftWebSocketsManager.connections = {}` in the websocket tests).
+ */
+export const _resetSharedLspConnectionsForTests = (): void => {
+  LspSharedConnection._resetForTests();
+};

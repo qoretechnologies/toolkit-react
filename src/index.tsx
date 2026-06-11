@@ -33,14 +33,20 @@ export {
 } from './stores/currentUser/currentUser';
 export { query } from './utils/fetch';
 export * from './utils/websocket';
-export { LspClient } from './utils/lspClient';
-export type { ILspClientOptions } from './utils/lspClient';
+export { ReqraftLspClient } from './utils/lspClient';
+export type { IReqraftLspClientOptions } from './utils/lspClient';
 export type {
   ILspCompletionItem,
   ILspDiagnostic,
   ILspMarkupContent,
+  ILspParameterInformation,
   ILspPosition,
   ILspRange,
+  ILspSemanticToken,
+  ILspSemanticTokensLegend,
+  ILspServerCapabilities,
+  ILspSignatureHelp,
+  ILspSignatureInformation,
   ILspTextEdit,
   TLspDocumentText,
 } from './utils/lspClient.types';

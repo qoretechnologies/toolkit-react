@@ -1,11 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 //
-// Minimal LSP type subset used by Reqraft's `LspClient`. The shapes follow
-// the Language Server Protocol JSON-RPC payloads but are intentionally narrow
-// — only what an editor consuming completions / diagnostics / hover / format
-// needs is exposed. Consumers can layer richer types on top in
-// language-specific wrappers (e.g. a DPQL-specific `IDpqlCompletionItem`
-// that extends `ILspCompletionItem`).
+// Minimal LSP type subset used by `ReqraftLspClient` — intentionally narrow;
+// language-specific wrappers layer richer types on top.
 
 /** Zero-based line + UTF-16 character offset. */
 export interface ILspPosition {
@@ -183,7 +179,7 @@ export interface ILspServerCapabilities {
     triggerCharacters?: string[];
     retriggerCharacters?: string[];
   };
-  hoverProvider?: boolean | object;
+  hoverProvider?: boolean | { workDoneProgress?: boolean };
   semanticTokensProvider?: {
     legend: ILspSemanticTokensLegend;
     full?: boolean | object;

@@ -1,5 +1,5 @@
 import { Server, WebSocket as MockWebSocket, Client as MockClient } from 'mock-socket';
-import { LspClient } from '../src/utils/lspClient';
+import { ReqraftLspClient, _resetSharedLspConnectionsForTests } from '../src/utils/lspClient';
 import { ReqraftWebSocketsManager } from '../src/utils/websocket';
 
 // Mock nanoid (ESM-only module) — same pattern as websocket.test.ts.
@@ -33,10 +33,13 @@ const WS_URL = 'ws://localhost:8092/lsp?token=test-token';
  */
 class LspServerHarness {
   received: any[] = [];
+  /** Number of physical WebSocket connections the server has accepted. */
+  connections = 0;
   private client: MockClient | null = null;
 
-  constructor(private server: Server) {
+  constructor(server: Server) {
     server.on('connection', (socket) => {
+      this.connections++;
       this.client = socket;
       socket.on('message', (raw) => {
         // Heartbeats from ReqraftWebSocket are plain 'ping' strings — ignore.
@@ -95,12 +98,13 @@ async function waitFor(predicate: () => boolean, timeoutMs = 1000): Promise<void
   }
 }
 
-describe('LspClient', () => {
+describe('ReqraftLspClient', () => {
   let mockServer: Server;
   let harness: LspServerHarness;
 
   beforeEach(() => {
     ReqraftWebSocketsManager.connections = {};
+    _resetSharedLspConnectionsForTests();
     mockServer = new Server(WS_URL);
     harness = new LspServerHarness(mockServer);
   });
@@ -112,7 +116,7 @@ describe('LspClient', () => {
   // ── Connect / initialize handshake ────────────────────────────────
 
   it('connects, sends initialize, and resolves connect()', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/1' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/1' });
     await client.connect();
 
     expect(harness.receivedFor('initialize')).toMatchObject({
@@ -126,7 +130,7 @@ describe('LspClient', () => {
   });
 
   it('reuses the in-flight connect() promise when called twice', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/2' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/2' });
     const p1 = client.connect();
     const p2 = client.connect();
     expect(p1).toBe(p2);
@@ -139,7 +143,7 @@ describe('LspClient', () => {
   // ── Request / response correlation ────────────────────────────────
 
   it('correlates request id with response and resolves with result', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/3' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/3' });
     await client.connect();
 
     const promise = client.customRequest<{ items: { label: string }[] }>(
@@ -161,7 +165,7 @@ describe('LspClient', () => {
   });
 
   it('rejects when the server returns a JSON-RPC error', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/4' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/4' });
     await client.connect();
 
     const promise = client.customRequest('dpql/setContext', { uri: 'dpql://test/4' });
@@ -175,7 +179,7 @@ describe('LspClient', () => {
   });
 
   it('times out unanswered requests', async () => {
-    const client = new LspClient({
+    const client = new ReqraftLspClient({
       languageId: 'dpql',
       uri: 'dpql://test/5',
       requestTimeoutMs: 50,
@@ -191,7 +195,7 @@ describe('LspClient', () => {
   // ── Notifications ──────────────────────────────────────────────────
 
   it('dispatches publishDiagnostics notifications to onDiagnostics callback', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/6' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/6' });
     const cb = jest.fn();
     client.onDiagnostics(cb);
     await client.connect();
@@ -218,7 +222,7 @@ describe('LspClient', () => {
   });
 
   it('dispatches arbitrary notifications via onNotification', async () => {
-    const client = new LspClient({ languageId: 'qonsole', uri: 'qonsole://chat/1' });
+    const client = new ReqraftLspClient({ languageId: 'qonsole', uri: 'qonsole://chat/1' });
     const cb = jest.fn();
     client.onNotification('qonsole/sessionStateChanged', cb);
     await client.connect();
@@ -231,7 +235,7 @@ describe('LspClient', () => {
   });
 
   it('offNotification removes a previously registered handler', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/7' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/7' });
     const cb = jest.fn();
     client.onNotification('dpql/event', cb);
     client.offNotification('dpql/event');
@@ -248,7 +252,7 @@ describe('LspClient', () => {
   // ── Document sync ──────────────────────────────────────────────────
 
   it('didOpen sends textDocument/didOpen with languageId and metadata', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/8' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/8' });
     await client.connect();
 
     client.didOpen('@status == "active"', { provider: 'datasource:mydb', recordType: 'record' });
@@ -267,7 +271,7 @@ describe('LspClient', () => {
   });
 
   it('didChange sends textDocument/didChange with the new text', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/9' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/9' });
     await client.connect();
 
     client.didChange('@status == "pending"', 2);
@@ -285,7 +289,7 @@ describe('LspClient', () => {
   // ── Standard feature wrappers ─────────────────────────────────────
 
   it('getCompletions unwraps both bare-array and {items: [...]} server responses', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/10' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/10' });
     await client.connect();
 
     // First call: server returns {items: [...]}
@@ -306,7 +310,7 @@ describe('LspClient', () => {
   });
 
   it('format returns newText from the first edit, null when no edits', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/11' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/11' });
     await client.connect();
 
     // First: server returns an edit array
@@ -337,7 +341,7 @@ describe('LspClient', () => {
   // ── Disconnect behavior ────────────────────────────────────────────
 
   it('disconnect sends didClose and rejects pending requests', async () => {
-    const client = new LspClient({ languageId: 'dpql', uri: 'dpql://test/12' });
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/12' });
     await client.connect();
 
     const stuck = client.customRequest('dpql/parse', { text: 'x' });
@@ -359,12 +363,160 @@ describe('LspClient', () => {
   });
 
   it('introspection getters reflect constructor arguments', () => {
-    const client = new LspClient({
+    const client = new ReqraftLspClient({
       languageId: 'qonsole',
       uri: 'qonsole://chat/abc',
     });
     expect(client.documentLanguageId).toBe('qonsole');
     expect(client.documentUri).toBe('qonsole://chat/abc');
     expect(client.isConnected).toBe(false);
+  });
+
+  // ── Shared connection multiplexing ──────────────────────────────────
+
+  it('multiplexes many clients over ONE shared socket, routing diagnostics by uri', async () => {
+    const a = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://shared/a' });
+    const b = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://shared/b' });
+    await Promise.all([a.connect(), b.connect()]);
+
+    // One physical connection, one initialize handshake — N editors, 1 socket.
+    expect(harness.connections).toBe(1);
+    expect(harness.receivedAllFor('initialize')).toHaveLength(1);
+
+    // Diagnostics route to the owning document only.
+    const got = { a: 0, b: 0 };
+    a.onDiagnostics(() => {
+      got.a++;
+    });
+    b.onDiagnostics(() => {
+      got.b++;
+    });
+    harness.notify('textDocument/publishDiagnostics', {
+      uri: 'dpql://shared/b',
+      diagnostics: [{ message: 'x' }],
+    });
+    await waitFor(() => got.b === 1);
+    expect(got.a).toBe(0);
+
+    // Releasing one client keeps the shared socket alive for the other.
+    a.disconnect();
+    const p = b.customRequest('dpql/parse', { text: 'x' });
+    await waitFor(() => !!harness.receivedFor('dpql/parse'));
+    harness.respond(harness.receivedFor('dpql/parse').id, { ok: true });
+    await expect(p).resolves.toEqual({ ok: true });
+    expect(b.isConnected).toBe(true);
+
+    b.disconnect();
+  });
+
+  // ── Reconnect & lifecycle edge cases ────────────────────────────────
+
+  // Drop the current socket and stand up a fresh server on the same URL.
+  // ReqraftWebSocket's first reconnect attempt is immediate, so the new
+  // server is in place before the retry lands.
+  const dropAndRecover = () => {
+    mockServer.close();
+    mockServer = new Server(WS_URL);
+    harness = new LspServerHarness(mockServer);
+  };
+
+  it('re-sends didOpen and re-fires ready after a transient socket drop', async () => {
+    const client = new ReqraftLspClient({
+      languageId: 'dpql',
+      uri: 'dpql://test/reconnect',
+      reconnectIntervalMs: 30,
+    });
+    const readyStates: boolean[] = [];
+    client.onReady((r) => readyStates.push(r));
+    await client.connect();
+    client.didOpen('@status == "active"', { provider: 'p' });
+    await waitFor(() => !!harness.receivedFor('textDocument/didOpen'));
+    expect(readyStates).toEqual([true]);
+
+    dropAndRecover();
+
+    // The reconnect must re-handshake AND re-open the document so the
+    // server rebuilds its per-uri session state.
+    await waitFor(() => !!harness.receivedFor('textDocument/didOpen'), 3000);
+    const reopened = harness.receivedFor('textDocument/didOpen');
+    expect(reopened.params.textDocument.text).toBe('@status == "active"');
+    expect(reopened.params.textDocument.metadata).toEqual({ provider: 'p' });
+    expect(harness.receivedFor('initialize')).toBeDefined();
+
+    // Ready cycled false on the drop, then true again after resync.
+    await waitFor(() => readyStates.length >= 3 && readyStates[readyStates.length - 1] === true);
+    expect(readyStates).toContain(false);
+    expect(readyStates[readyStates.length - 1]).toBe(true);
+
+    client.disconnect();
+  });
+
+  it('resyncs every multiplexed client after a single shared reconnect', async () => {
+    const a = new ReqraftLspClient({
+      languageId: 'dpql',
+      uri: 'dpql://shared/ra',
+      reconnectIntervalMs: 30,
+    });
+    const b = new ReqraftLspClient({
+      languageId: 'dpql',
+      uri: 'dpql://shared/rb',
+      reconnectIntervalMs: 30,
+    });
+    await Promise.all([a.connect(), b.connect()]);
+    a.didOpen('a-text');
+    b.didOpen('b-text');
+    await waitFor(() => harness.receivedAllFor('textDocument/didOpen').length === 2);
+
+    dropAndRecover();
+
+    // One physical reconnect, one re-handshake — BOTH documents re-open.
+    await waitFor(() => harness.receivedAllFor('textDocument/didOpen').length === 2, 3000);
+    expect(harness.connections).toBe(1);
+    expect(harness.receivedAllFor('initialize')).toHaveLength(1);
+    const texts = harness
+      .receivedAllFor('textDocument/didOpen')
+      .map((m) => m.params.textDocument.text)
+      .sort();
+    expect(texts).toEqual(['a-text', 'b-text']);
+
+    a.disconnect();
+    b.disconnect();
+  });
+
+  it('a late client joining an already-open connection is ready without a second initialize', async () => {
+    const a = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://shared/la' });
+    await a.connect();
+    expect(harness.receivedAllFor('initialize')).toHaveLength(1);
+
+    // B arrives AFTER A's handshake already resolved.
+    const b = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://shared/lb' });
+    const bReady: boolean[] = [];
+    b.onReady((r) => bReady.push(r));
+    await b.connect();
+
+    expect(bReady).toEqual([true]);
+    expect(harness.connections).toBe(1);
+    expect(harness.receivedAllFor('initialize')).toHaveLength(1);
+
+    a.disconnect();
+    b.disconnect();
+  });
+
+  it('handles disconnect() called before connect() resolves', async () => {
+    const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/dispose' });
+    const connectP = client.connect();
+    // The in-flight handshake may reject when the socket is torn down
+    // mid-connect — swallow it so it doesn't surface as an unhandled
+    // rejection; the assertion is on the resulting state.
+    connectP.catch(() => undefined);
+    client.disconnect();
+
+    expect(client.isConnected).toBe(false);
+
+    // The shared connection was released cleanly — a fresh client connects.
+    const fresh = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/dispose2' });
+    await fresh.connect();
+    expect(fresh.isConnected).toBe(true);
+    fresh.disconnect();
   });
 });

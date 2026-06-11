@@ -1,7 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // QonsoleSmartInput — Qorus Qonsole-flavored wrapper around the generic
 // SmartEditor primitive. Provides predictive text + diagnostics for
-// Qonsole command and natural-language input by pointing `LspClient` at
+// Qonsole command and natural-language input by pointing `ReqraftLspClient` at
 // the server's `/lsp` endpoint with `languageId: 'qonsole'` and the
 // server-advertised trigger characters from the live spike.
 
