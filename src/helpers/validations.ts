@@ -10,6 +10,7 @@ import isNaN from 'lodash/isNaN';
 import isNumber from 'lodash/isNumber';
 import isObject from 'lodash/isPlainObject';
 import size from 'lodash/size';
+import { getAddress, getProtocol, splitByteSize } from './common';
 import { getOptionsFromRequiredGroups } from './options';
 import { getTemplateKey, getTemplateValue, isValueTemplate } from './templates';
 
@@ -110,6 +111,16 @@ export const _validateField = (
   // If the value can be null and is null, immediately return valid
   if (canBeNull && (value === null || value === undefined)) {
     return validResult();
+  }
+  // Expression values (`is_expression`) carry the AST `{ exp, args }` instead
+  // of a typed literal — validate that an expression is chosen, not the
+  // base type. (`isFunction` is set by FormEngine for expression options.)
+  if (field?.isFunction) {
+    const ast = (value as { value?: any })?.value ?? value;
+    return resultFromBoolean(
+      !!(ast as { exp?: string })?.exp,
+      'Expression operation is required'
+    );
   }
   // Strip type parameters e.g. hash<string, int> → hash
   const pos: number = type.indexOf('<');
@@ -463,6 +474,123 @@ export const _validateField = (
 
       return getIsValid(value, field?.optionSchema);
     }
+    case 'byte-size': {
+      // Ported from qorus-ide validations (`sizeUnit` instead of the IDE's
+      // `size`, which would shadow the lodash import here).
+      if (typeof value !== 'string') return invalidResult('Byte size must be a string');
+
+      const [bytes, sizeUnit] = splitByteSize(value);
+
+      const bytesResult = validateFieldWithResult('number', bytes);
+
+      if (!bytesResult.isValid) {
+        return withContext(bytesResult, 'Byte size numeric part is invalid');
+      }
+
+      const sizeResult = validateFieldWithResult('string', sizeUnit);
+
+      if (!sizeResult.isValid) {
+        return withContext(sizeResult, 'Byte size unit is invalid');
+      }
+
+      return validResult();
+    }
+    case 'url': {
+      const protocolResult = validateFieldWithResult('string', getProtocol(value));
+
+      if (!protocolResult.isValid) {
+        return withContext(protocolResult, 'URL protocol is invalid');
+      }
+
+      const addressResult = validateFieldWithResult('string', getAddress(value));
+
+      if (!addressResult.isValid) {
+        return withContext(addressResult, 'URL address is invalid');
+      }
+
+      return validResult();
+    }
+    case 'schema-definition': {
+      // No IDE counterpart (the editor validates inline there); this is the
+      // minimal NEW_FIELD.md shape check so malformed definitions can't
+      // silently save through FormEngine.
+      if (!isObject(value)) {
+        return invalidResult('Schema definition must be an object');
+      }
+      if (!isObject((value as { schema?: unknown }).schema)) {
+        return invalidResult('Schema definition must contain a `schema` section');
+      }
+      return validResult();
+    }
+    case 'expression': {
+      // Ported from qorus-ide validations `'expression'` case. The catalogue
+      // is supplied via `field.expressions` (the ExpressionBuilder passes it),
+      // not a global store as in the IDE.
+      const castedValue = value as {
+        value?: { exp?: string; args?: any[] };
+        is_expression?: boolean;
+        type?: string;
+      };
+      const expressions: any[] = (field as { expressions?: any[] })?.expressions ?? [];
+
+      // Expressions not loaded yet — skip validation until they're available.
+      if (!size(expressions)) {
+        return validResult();
+      }
+      if (!castedValue) {
+        return invalidResult('Expression value is empty');
+      }
+      if (!castedValue.value?.exp) {
+        return invalidResult('Expression operation is required');
+      }
+      const expressionDefinition = expressions.find((expr) => expr.name === castedValue.value?.exp);
+      if (!expressionDefinition) {
+        return invalidResult(`Expression definition ${String(castedValue.value?.exp)} not found`);
+      }
+      const hasRequiredArgs = expressionDefinition.args?.some((arg: any) => arg.required);
+      if (!hasRequiredArgs && size(castedValue.value?.args || []) === 0) {
+        return validResult();
+      }
+      if (size(castedValue.value?.args || []) < (expressionDefinition.min_args || 1)) {
+        return invalidResult('Not enough arguments provided');
+      }
+      const args = castedValue.value?.args ?? [];
+      for (let index = 0; index < args.length; index++) {
+        const argValue: any = args[index];
+        const argDefinition = expressionDefinition.varargs
+          ? expressionDefinition.args[0]
+          : expressionDefinition.args[index];
+        if (!argValue?.value && !argDefinition?.required) {
+          continue;
+        }
+        if (argValue?.is_expression) {
+          const result = validateFieldWithResult('expression', argValue, {
+            expressions,
+            has_to_have_value: argDefinition?.required,
+          } as any);
+          if (!result.isValid) {
+            return withContext(
+              result,
+              `Sub-expression for argument ${index + 1} ("${argDefinition?.display_name}") is invalid`
+            );
+          }
+          continue;
+        }
+        const result = validateFieldWithResult(argValue.type, argValue.value, {
+          expressions,
+          allowed_values: argDefinition?.allowed_values,
+          element_allowed_values: argDefinition?.element_allowed_values,
+          has_to_have_value: argDefinition?.required,
+        } as any);
+        if (!result.isValid) {
+          return withContext(
+            result,
+            `Value for argument ${index + 1} ("${argDefinition?.display_name}") is invalid`
+          );
+        }
+      }
+      return validResult();
+    }
     case 'nothing':
       return invalidResult('Nothing is not a valid value');
     default:
@@ -532,6 +660,18 @@ export const isValueSet = (value: any, canBeNull?: boolean): boolean => {
   }
 
   return !isNull(value) && !isUndefined(value);
+};
+
+export const getValueOrDefaultValue = (value: any, defaultValue: any, canBeNull?: boolean) => {
+  if (isValueSet(value, canBeNull)) {
+    return value;
+  }
+
+  if (isValueSet(defaultValue, canBeNull)) {
+    return defaultValue;
+  }
+
+  return undefined;
 };
 
 export const getTypeFromValue = (value: any): string => {

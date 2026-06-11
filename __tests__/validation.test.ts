@@ -647,8 +647,8 @@ describe('hasAllDependenciesFullfilled', () => {
     expect(hasAllDependenciesFullfilled(['parent'], options, schema)).toBe(false);
   });
 
-  it('returns true when dependencies is undefined', () => {
-    expect(hasAllDependenciesFullfilled(undefined, {}, schema)).toBe(true);
+  it('returns true for an empty dependencies array', () => {
+    expect(hasAllDependenciesFullfilled([], {}, schema)).toBe(true);
   });
 
   it('handles OR-group dependencies (nested array)', () => {
@@ -751,5 +751,164 @@ describe('validateFieldWithResult returns detailed IValidationResult', () => {
     });
     expect(result.isValid).toBe(false);
     expect(result.reasons.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── byte-size ────────────────────────────────────────────────────────────────
+
+describe('byte-size', () => {
+  it('accepts a number + unit string', () => {
+    expect(validateField('byte-size', '512MiB')).toBe(true);
+    expect(validateField('byte-size', '10KiB')).toBe(true);
+  });
+
+  it('rejects non-strings', () => {
+    expect(validateField('byte-size', 512)).toBe(false);
+    expect(validateField('byte-size', { value: '512MiB' })).toBe(false);
+  });
+
+  it('rejects a missing unit, missing amount, or empty string', () => {
+    expect(validateField('byte-size', '512')).toBe(false);
+    expect(validateField('byte-size', 'MiB')).toBe(false);
+    expect(validateField('byte-size', '')).toBe(false);
+  });
+
+  it('accepts null/undefined only when canBeNull', () => {
+    expect(validateField('byte-size', null)).toBe(false);
+    expect(validateField('byte-size', undefined)).toBe(false);
+    expect(validateField('byte-size', null, {}, true)).toBe(true);
+    expect(validateField('byte-size', undefined, {}, true)).toBe(true);
+  });
+
+  it('returns a reason on failure', () => {
+    const result = validateFieldWithResult('byte-size', 'MiB');
+    expect(result.isValid).toBe(false);
+    expect(result.reason).toBeDefined();
+  });
+});
+
+// ─── url ──────────────────────────────────────────────────────────────────────
+
+describe('url', () => {
+  it('accepts protocol://address values', () => {
+    expect(validateField('url', 'https://example.com')).toBe(true);
+    expect(validateField('url', 'rest://host:8011/api')).toBe(true);
+  });
+
+  it('rejects values without a protocol', () => {
+    expect(validateField('url', 'example.com')).toBe(false);
+    expect(validateField('url', '')).toBe(false);
+  });
+
+  it('rejects a protocol with an empty address', () => {
+    expect(validateField('url', 'https://')).toBe(false);
+  });
+
+  it('keeps :// inside the address intact', () => {
+    expect(validateField('url', 'https://proxy/forward?to=http://inner')).toBe(true);
+  });
+
+  it('accepts null/undefined only when canBeNull', () => {
+    expect(validateField('url', null)).toBe(false);
+    expect(validateField('url', null, {}, true)).toBe(true);
+  });
+});
+
+// ─── schema-definition ────────────────────────────────────────────────────────
+
+describe('expression', () => {
+  const expressions = [
+    {
+      name: 'CONTAINS',
+      display_name: 'String Contains',
+      args: [
+        { name: 'softstring', display_name: 'Value', ui_type: 'richtext', required: true },
+        { name: 'softstring', display_name: 'Substring', ui_type: 'richtext', required: true },
+      ],
+      min_args: 2,
+      varargs: false,
+    },
+  ];
+  const field = { expressions } as any;
+  const valid = {
+    is_expression: true,
+    value: {
+      exp: 'CONTAINS',
+      args: [
+        { type: 'string', value: 'haystack' },
+        { type: 'string', value: 'needle' },
+      ],
+    },
+  };
+
+  it('accepts a complete expression with a known operation', () => {
+    expect(validateField('expression', valid, field)).toBe(true);
+  });
+
+  it('skips validation while the catalogue has not loaded', () => {
+    expect(validateField('expression', valid, { expressions: [] } as any)).toBe(true);
+  });
+
+  it('rejects a missing operation', () => {
+    expect(
+      validateField('expression', { is_expression: true, value: { args: [] } }, field)
+    ).toBe(false);
+  });
+
+  it('rejects an unknown operation', () => {
+    expect(
+      validateField('expression', { is_expression: true, value: { exp: 'NOPE', args: [] } }, field)
+    ).toBe(false);
+  });
+
+  it('rejects too few arguments', () => {
+    expect(
+      validateField(
+        'expression',
+        { is_expression: true, value: { exp: 'CONTAINS', args: [{ type: 'string', value: 'x' }] } },
+        field
+      )
+    ).toBe(false);
+  });
+
+  it('validates nested sub-expressions recursively', () => {
+    const nested = {
+      is_expression: true,
+      value: {
+        exp: 'CONTAINS',
+        args: [
+          { is_expression: true, value: { exp: 'NOPE', args: [] } },
+          { type: 'string', value: 'needle' },
+        ],
+      },
+    };
+    expect(validateField('expression', nested, field)).toBe(false);
+  });
+});
+
+// ─── schema-definition ────────────────────────────────────────────────────────
+
+describe('schema-definition', () => {
+  const definition = {
+    schema: { name: 'shop', version: '1.0' },
+    tables: {},
+  };
+
+  it('accepts an object with a schema section', () => {
+    expect(validateField('schema-definition', definition)).toBe(true);
+  });
+
+  it('rejects non-objects and arrays', () => {
+    expect(validateField('schema-definition', 'shop')).toBe(false);
+    expect(validateField('schema-definition', [definition])).toBe(false);
+  });
+
+  it('rejects an object without a schema section', () => {
+    expect(validateField('schema-definition', { tables: {} })).toBe(false);
+  });
+
+  it('accepts null/undefined only when canBeNull', () => {
+    expect(validateField('schema-definition', null)).toBe(false);
+    expect(validateField('schema-definition', null, {}, true)).toBe(true);
   });
 });
