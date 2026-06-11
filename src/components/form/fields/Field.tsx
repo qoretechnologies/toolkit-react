@@ -27,12 +27,19 @@ import { RichTextFormField } from './rich-text/RichText';
 import { SelectFormField } from './select/Select';
 import { StringFormField } from './string/String';
 import { ArrayAutoField } from './array/ArrayAutoField';
+import { AutoFormField } from './auto/AutoFormField';
+import { ByteSizeFormField } from './byte-size/ByteSize';
+import { UrlFormField } from './url/Url';
+import { SchemaDefinitionEditor } from './schema-definition';
+import { IDataSchemaDefinition } from './schema-definition/types';
 // Direct import — circular dep (FormEngine → TemplateField → FormField → FormEngine) is safe
 // because modules are all loaded before any component renders
 import { FormEngine } from '../engine/FormEngine';
 
 const mapQorusTypeToFormFieldType = (type: string): TFormFieldType => {
-  switch (type) {
+  // Soft Qore types (softint, softstring, …) render as their concrete base.
+  const base = type?.startsWith('soft') ? type.slice(4) : type;
+  switch (base) {
     case 'richtext': return 'richtext';
     case 'bool': case 'boolean': return 'bool';
     case 'int': case 'integer': case 'float': case 'number': return 'int';
@@ -41,6 +48,8 @@ const mapQorusTypeToFormFieldType = (type: string): TFormFieldType => {
     case 'rgbcolor': return 'rgbcolor';
     case 'hash': case 'free-hash': return 'hash';
     case 'list': case 'free-list': return 'list';
+    case 'auto': case 'any': return 'auto';
+    case 'schema-definition': return 'schema-definition';
     default: return 'long-string';
   }
 };
@@ -110,12 +119,34 @@ export const FormField = <T extends TFormFieldType>({
   };
 
   const renderField = (type: T) => {
+    // Soft Qore types (softint, softstring, …) render identically to their
+    // concrete counterpart — the soft/hard distinction is value-level, not UI.
+    const renderType = (type as string)?.startsWith('soft')
+      ? (type as string).slice(4)
+      : (type as string);
+
+    // Multi-select consumes `allowed_values` directly as its option list and
+    // is always an array value, so it must render even when the values are
+    // fixed — unlike the single-value short-circuit below.
+    if (renderType === 'multi-select' || renderType === 'select-array') {
+      return (
+        <MultiSelectFormField
+          items={allowed_values ?? []}
+          value={(value as unknown[]) ?? []}
+          onChange={(selected) => handleChange(selected as TFormFieldValueType<T>)}
+          canCreateItems={allowed_values_creatable || !size(allowed_values)}
+          disabled={(rest as { disabled?: boolean }).disabled}
+          size={fieldSize}
+        />
+      );
+    }
+
     // When allowed_values are set without creatable, hide the raw field
     if (allowed_values?.length && !allowed_values_creatable) {
       return null;
     }
 
-    switch (type as string) {
+    switch (renderType) {
       case 'string':
         return (
           <StringFormField
@@ -170,6 +201,7 @@ export const FormField = <T extends TFormFieldType>({
         );
 
       case 'long-string':
+      case 'binary':
         return (
           <LongStringFormField
             {...rest}
@@ -259,6 +291,29 @@ export const FormField = <T extends TFormFieldType>({
               handleChange(val as TFormFieldValueType<T>);
             }}
             fluid
+          />
+        );
+
+      case 'byte-size':
+        return (
+          <ByteSizeFormField
+            {...(fieldProps as any)}
+            value={value as string}
+            onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
+            disabled={(rest as { disabled?: boolean }).disabled}
+            readOnly={readonly}
+            size={fieldSize}
+          />
+        );
+
+      case 'url':
+        return (
+          <UrlFormField
+            {...rest}
+            {...(fieldProps as any)}
+            value={value as string}
+            onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
+            size={fieldSize as any}
           />
         );
 
@@ -406,6 +461,36 @@ export const FormField = <T extends TFormFieldType>({
         );
       }
 
+      case 'auto':
+      case 'any':
+        return (
+          <AutoFormField
+            {...rest}
+            {...(fieldProps as any)}
+            type={type as string}
+            defaultType={type as string}
+            value={value}
+            onChange={(_name, val) => handleChange(val as TFormFieldValueType<T>)}
+            arg_schema={finalArgSchema}
+            element_type={element_type}
+            ui_element_type={ui_element_type}
+            display_name={display_name}
+            name={name}
+            readonly={readonly}
+            size={fieldSize}
+          />
+        );
+
+      case 'schema-definition':
+        return (
+          <SchemaDefinitionEditor
+            {...(fieldProps as any)}
+            value={value as IDataSchemaDefinition | undefined}
+            onChange={(definition) => handleChange(definition as TFormFieldValueType<T>)}
+            readOnly={readonly || (rest as { disabled?: boolean }).disabled}
+          />
+        );
+
       default:
         return null;
     }
@@ -437,6 +522,10 @@ export const FormField = <T extends TFormFieldType>({
    */
   const renderAllowedValues = () => {
     if (!allowed_values?.length) return null;
+
+    // Multi-select renders its own picker from allowed_values in renderField;
+    // don't also render the single-value allowed-values control.
+    if ((type as string) === 'multi-select' || (type as string) === 'select-array') return null;
 
     // Creatable: "Saved & Suggested Values" style — no value, fills field and resets
     if (allowed_values_creatable) {
