@@ -1,0 +1,147 @@
+{
+  "_context": {
+    "display_name": "Context Data",
+    "short_desc": "Data from the current execution context",
+    "app": "Qorus",
+    "logo": "https://hq.qoretechnologies.com:8092/api/public/apps/Qorus/qorus-logo.svg",
+    "internal": true,
+    "items": [
+      {
+        "name": "current_timestamp",
+        "display_name": "Current Timestamp",
+        "short_desc": "The current timestamp as a date/time value",
+        "desc": "The current timestamp as a date/time value",
+        "value": "$timestamp:now",
+        "type": "date",
+        "example_value": "2024-01-17T13:46:25.899859+01:00"
+      },
+      {
+        "name": "test_deep_hash",
+        "display_name": "Testing Hash",
+        "short_desc": "Hash for Testing",
+        "desc": "Hash for Testing",
+        "value": "$local:hash",
+        "type": "hash",
+        "example_value": "{ some: hash }",
+        "items": [
+          {
+            "name": "test_deep_hash_item",
+            "display_name": "Testing String Item",
+            "short_desc": "String Item for Testing",
+            "desc": "String Item for Testing",
+            "value": "$local:string",
+            "type": "string",
+            "example_value": "Test"
+          },
+          {
+            "name": "test_deep_hash_item2",
+            "display_name": "Testing Int Item ",
+            "short_desc": "Int Item 2 for Testing",
+            "desc": "Int Item for Testing",
+            "value": "$local:int",
+            "type": "int",
+            "example_value": 42
+          },
+          {
+            "name": "test_deep_hash_item3",
+            "display_name": "Testing List Item ",
+            "short_desc": "List Item for Testing",
+            "desc": "List Item for Testing",
+            "value": "$data:{test:list}",
+            "items": [
+              {
+                "name": "test_deep_hash_item3_item",
+                "display_name": "Testing List Item",
+                "short_desc": "Deep List Item for Testing",
+                "desc": "Deep List Item for Testing",
+                "value": "$data:{deep:test:list}",
+                "type": "string",
+                "example_value": "Test"
+              }
+            ],
+            "type": "list",
+            "example_value": "[test1, test2, test3]"
+          },
+          {
+            "name": "test_deep_hash_item4",
+            "display_name": "Testing Hash Item ",
+            "short_desc": "Hash Item for Testing",
+            "desc": "Hash Item for Testing",
+            "value": "$data:{test:hash}",
+            "type": "hash",
+            "items": [
+              {
+                "name": "test_deep_hash_item",
+                "display_name": "Testing String Item",
+                "short_desc": "String Item for Testing",
+                "desc": "String Item for Testing",
+                "value": "$deep:local:string",
+                "type": "string",
+                "example_value": "Test"
+              },
+              {
+                "name": "test_deep_hash_item2",
+                "display_name": "Testing Int Item ",
+                "short_desc": "Int Item 2 for Testing",
+                "desc": "Int Item for Testing",
+                "value": "$deep:local:int",
+                "type": "int",
+                "example_value": 42
+              }
+            ],
+            "example_value": "{ key1: 'value1', key2: 'value2' }"
+          }
+        ]
+      },
+      {
+        "name": "test_deep_hash_item10",
+        "display_name": "Testing List Item ",
+        "short_desc": "List Item for Testing",
+        "desc": "List Item for Testing",
+        "value": "$data:{test:list}",
+        "items": [
+          {
+            "name": "test_deep_hash_item3_item",
+            "display_name": "Testing List Item",
+            "short_desc": "Deep List Item for Testing",
+            "desc": "Deep List Item for Testing",
+            "value": "$data:{deep:test:list}",
+            "type": "string",
+            "example_value": "Test"
+          },
+          {
+            "name": "test_deep_hash_item4",
+            "display_name": "Testing Hash Item ",
+            "short_desc": "Hash Item for Testing",
+            "desc": "Hash Item for Testing",
+            "value": "$data:{test-in-list:hash}",
+            "type": "hash",
+            "items": [
+              {
+                "name": "test_deep_hash_item",
+                "display_name": "Testing String Item",
+                "short_desc": "String Item for Testing",
+                "desc": "String Item for Testing",
+                "value": "$deep:local:string",
+                "type": "string",
+                "example_value": "Test"
+              },
+              {
+                "name": "test_deep_hash_item2",
+                "display_name": "Testing Int Item ",
+                "short_desc": "Int Item 2 for Testing",
+                "desc": "Int Item for Testing",
+                "value": "$deep:local:int",
+                "type": "int",
+                "example_value": 42
+              }
+            ],
+            "example_value": "{ key1: 'value1', key2: 'value2' }"
+          }
+        ],
+        "type": "list",
+        "example_value": "[test1, test2, test3]"
+      }
+    ]
+  }
+}

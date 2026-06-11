@@ -87,3 +87,38 @@ export const richtextToString = (richtext: IReqoreRichTextEditorProps['value']):
 export const insertAtIndex = (array: any[] = [], index = 0, value: any): any[] => {
   return [...array.slice(0, index), value, ...array.slice(index)];
 };
+
+/** Splits a byte-size string (e.g. `"10MiB"`) into `[amount, unit]`. */
+export const splitByteSize = (value?: string): [number | undefined, string | undefined] => {
+  const amount = String(value ?? '').match(/\d+/g);
+  const unit = String(value ?? '').match(/[a-zA-Z]+/g);
+  return [amount?.[0] ? Number(amount[0]) : undefined, unit?.[0]];
+};
+
+// URL value splitting (IDE `urlField.tsx` behavior). Lives here rather than
+// in the Url component so `validations.ts` can use it without pulling the
+// component chain into non-DOM consumers (jest).
+export const getProtocol = (v?: string): string => {
+  const valueList = v?.split('://');
+
+  if (!valueList || valueList.length <= 1) {
+    return '';
+  }
+
+  return valueList[0];
+};
+
+export const getAddress = (v?: string): string => {
+  const valueList = v?.split('://');
+
+  if (!valueList || valueList.length === 0) {
+    return '';
+  }
+
+  if (valueList.length === 1) {
+    return valueList[0];
+  }
+
+  // We need to join back the rest of the address in case there were :// in it
+  return valueList.slice(1).join('://');
+};
