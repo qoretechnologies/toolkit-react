@@ -1,11 +1,18 @@
+// Verbatim port of qorus-ide `src/components/Field/template.tsx` (774 LOC,
+// FIELD_STACK_REPORT batch) — keep edits to the documented seams (leaf-API
+// onChange adapters, the reqraft `useExpressions` signature, dropped
+// SaveValueButton / useGetAppActionData). Full seam list:
+// `.tasks/FIELD_STACK_REPORT.md`.
 import {
   ReqoreButton,
   ReqoreControlGroup,
   ReqoreDropdown,
+  ReqoreErrorBoundary,
   ReqoreMenu,
   ReqoreMenuSection,
   ReqoreMessage,
   ReqorePopover,
+  ReqoreSkeleton,
   ReqoreTag,
   ReqoreTagGroup,
 } from '@qoretechnologies/reqore';
@@ -14,6 +21,7 @@ import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/D
 import ReqoreMenuDivider, {
   IReqoreMenuDividerProps,
 } from '@qoretechnologies/reqore/dist/components/Menu/divider';
+import { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import {
   IReqoreFormTemplates,
   IReqoreTextareaProps,
@@ -23,19 +31,32 @@ import { size } from 'lodash';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
-  filterTemplatesByType,
+  filterTemplatesByType as templatesFilterFunc,
   findTemplate,
   getTemplateKey,
   getTemplateValue,
   isValueTemplate,
 } from '../../../../helpers/templates';
 import { getTypeFromValue } from '../../../../helpers/validations';
-import { TFormFieldType } from '../../../../types/Form';
-import { FormField } from '../Field';
-import { LongStringFormField } from '../long-string/LongString';
+import { useQorusTypes } from '../../../../hooks/useQorusTypes';
+import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
+import { ExpressionBuilder } from '../../expressions/builder';
+// Direct import — the cycle (TemplateField → ExpressionField → builder →
+// TemplateField) is render-time only, safe like the other Field cycles.
+import { ExpressionField } from '../../expressions/ExpressionField';
+import { IExpression } from '../../expressions/types';
+import { useExpressions } from '../../expressions/useExpressions';
+import { AutoFormField as Auto, IQorusType as IQorusFormType } from '../auto/AutoFormField';
+import BooleanFormField from '../boolean/Boolean';
+import { DateFormField } from '../date/Date';
+import { ReqraftFileFormField } from '../file/File';
+import LongStringFormField from '../long-string/LongString';
+import NumberFormField from '../number/Number';
+import { RichTextFormField } from '../rich-text/RichText';
 
 // Re-export template utilities for consumers
 export { getTemplateKey, getTemplateValue, isValueTemplate };
+export type { IQorusFormType as IQorusType };
 
 export const TemplatesListProps: IReqoreDropdownProps = {
   useTargetWidth: true,
@@ -46,34 +67,88 @@ export const TemplatesListProps: IReqoreDropdownProps = {
   },
 };
 
-export const mapQorusTypeToFormFieldType = (type: string): TFormFieldType => {
-  switch (type) {
-    case 'richtext':
-      return 'richtext';
-    case 'bool':
-    case 'boolean':
-      return 'bool';
-    case 'int':
-    case 'integer':
-    case 'float':
-    case 'number':
-      return 'int';
-    case 'date':
-      return 'date';
-    case 'file':
-      return 'file';
-    case 'rgbcolor':
-      return 'rgbcolor';
-    case 'hash':
-    case 'free-hash':
-      return 'hash';
-    case 'list':
-    case 'free-list':
-      return 'list';
-    default:
-      // string, auto, any, binary → textarea
-      return 'long-string';
-  }
+// IDE leaf-field modules take `onChange(name, value)` and a `name` prop;
+// reqraft leaf fields are single-arg. These wrappers restore the IDE API for
+// the ComponentMap (and the template-string editor below) so the ported
+// markup stays verbatim. `type`/`level`/`allowTemplates` are destructured
+// only to keep them off the underlying ReQore component / DOM.
+/* eslint-disable @typescript-eslint/no-unused-vars */
+const LongStringField = ({ name, onChange, type, level, allowTemplates, ...rest }: any) => (
+  <LongStringFormField {...rest} onChange={(value: string) => onChange?.(name, value)} />
+);
+const Number = ({ name, onChange, type, level, allowTemplates, ...rest }: any) => (
+  <NumberFormField {...rest} onChange={(value: number | string) => onChange?.(name, value)} />
+);
+const BooleanField = ({ name, onChange, value, type, level, allowTemplates, ...rest }: any) => (
+  <BooleanFormField
+    {...rest}
+    checked={!!value}
+    onChange={(checked: boolean) => onChange?.(name, checked)}
+  />
+);
+const DateField = ({ name, onChange, type, level, allowTemplates, ...rest }: any) => (
+  <DateFormField {...rest} onChange={(value: string) => onChange?.(name, value)} />
+);
+const RichTextField = ({ name, onChange, type, level, ...rest }: any) => (
+  <RichTextFormField {...rest} onChange={(value: any) => onChange?.(name, value)} />
+);
+const FileField = ({ name, onChange, type, level, allowTemplates, ...rest }: any) => (
+  <ReqraftFileFormField {...rest} onChange={(value: any) => onChange?.(name, value)} />
+);
+/* eslint-enable @typescript-eslint/no-unused-vars */
+
+export interface ITemplateFieldProps extends Partial<
+  Omit<IQorusFormFieldSchemaBase, 'default_value'>
+> {
+  value?: any;
+  name?: string;
+  uniqueName?: string;
+  label?: string;
+  onChange?: (name: string, value: any, type?: TQorusType, isFunction?: boolean) => void;
+  // React element
+  component?: React.FC<any>;
+  interfaceContext?: string;
+  allowTemplates?: boolean;
+  templates?: IReqoreTextareaProps['templates'];
+  componentFromType?: boolean;
+  allowCustomValues?: boolean;
+  allowFunctions?: boolean;
+
+  filterTemplatesByType?: boolean;
+  filterTemplatesFunc?: (templates: IReqoreFormTemplates) => IReqoreFormTemplates;
+  returnType?: TQorusType | IQorusFormType[];
+  level?: number;
+  className?: string;
+
+  isFunction?: boolean;
+  isDefaultFunction?: boolean;
+  isDefaultTemplate?: boolean;
+  menuItems?: TCustomTemplateItems;
+  /**
+   * SEAM (reqraft, additive): render expression mode through the
+   * `ExpressionField` shell — Visual (the ported builder) + Text (the
+   * net-new DPQL editor) — instead of the IDE's bare builder. FormEngine
+   * turns this on for its (top-level) fields; nested operands (builder
+   * arguments, array items) never receive it and stay IDE-verbatim.
+   */
+  allowTextExpressions?: boolean;
+  [key: string]: any;
+  default_value?: unknown;
+}
+
+export const ComponentMap = {
+  string: LongStringField,
+  number: Number,
+  int: Number,
+  float: Number,
+  list: LongStringField,
+  hash: LongStringField,
+  binary: LongStringField,
+  bool: BooleanField,
+  boolean: BooleanField,
+  date: DateField,
+  richtext: RichTextField,
+  file: FileField,
 };
 
 export interface ITemplateDropdownSelectorProps extends IReqoreDropdownProps {
@@ -108,9 +183,10 @@ export const CustomMenuItems = memo(
     return (
       <ReqoreMenuSection label='Set Custom Value' isCollapsed transparent icon='Text' {...rest}>
         {items.map((menuItem, index) =>
-          'isDivider' in menuItem ?
+          'isDivider' in menuItem ? (
             <ReqoreMenuDivider key={index} {...menuItem} />
-          : <ReqoreButton
+          ) : (
+            <ReqoreButton
               {...(rest as any)}
               {...menuItem}
               key={index}
@@ -122,6 +198,7 @@ export const CustomMenuItems = memo(
                 });
               }}
             />
+          )
         )}
       </ReqoreMenuSection>
     );
@@ -137,11 +214,10 @@ export const TemplateDropdownSelector = memo(
     allowCustomValues,
     hasOnlyAllowedValues,
     value,
-    size: fieldSize,
+    size,
     ...rest
   }: ITemplateDropdownSelectorProps) => {
     const template = findTemplate(templates, value);
-
     const label = template?.label || value || rest.label || 'Select Template';
     const leftIconProps = useMemo(
       (): IReqoreButtonProps['leftIconProps'] => ({
@@ -150,6 +226,9 @@ export const TemplateDropdownSelector = memo(
       }),
       [template]
     );
+    // SEAM (reqraft): the IDE resolves the template's app/action via
+    // `useGetAppActionData` and renders the action's display name as a badge
+    // here — the app catalogue is IDE-only, so the badge is dropped.
 
     return (
       <ReqoreControlGroup vertical fluid>
@@ -171,10 +250,10 @@ export const TemplateDropdownSelector = memo(
             leftIconProps={leftIconProps}
             caretPosition='right'
             filterable
-            size={fieldSize}
+            size={size}
             {...TemplatesListProps}
           />
-          {allowCustomValues || value ?
+          {allowCustomValues || value ? (
             <ReqoreButton
               customTheme={TemplatesListProps.listCustomTheme}
               fixed
@@ -183,65 +262,65 @@ export const TemplateDropdownSelector = memo(
               minimal
               className='template-remove'
               compact
-              size={fieldSize}
+              size={size}
               onClick={onRemoveClick}
             />
-          : null}
+          ) : null}
         </ReqoreControlGroup>
       </ReqoreControlGroup>
     );
   }
 );
 
-export interface ITemplateFieldProps extends Partial<
-  Omit<IQorusFormFieldSchemaBase, 'default_value'>
-> {
-  value?: any;
-  name?: string;
-  label?: string;
-  onChange?: (name: string, value: any, type?: TQorusType) => void;
-  component?: React.FC<any>;
-  allowTemplates?: boolean;
-  templates?: IReqoreTextareaProps['templates'];
-  componentFromType?: boolean;
-  allowCustomValues?: boolean;
-  filterTemplatesByType?: boolean;
-  filterTemplatesFunc?: (templates: IReqoreFormTemplates) => IReqoreFormTemplates;
-  returnType?: TQorusType;
-  level?: number;
-  className?: string;
-  isDefaultTemplate?: boolean;
-  menuItems?: TCustomTemplateItems;
-  default_value?: unknown;
-  [key: string]: any;
-}
-
 export const TemplateField = memo(
   ({
     value,
     name,
     onChange,
-    component: Comp,
+    component: Comp = Auto,
     templates,
+    interfaceContext, // eslint-disable-line @typescript-eslint/no-unused-vars
     allowTemplates = true,
+    allowFunctions,
+    allowTextExpressions,
     allowCustomValues = true,
-    filterTemplatesByType: filterByType = true,
+    filterTemplatesByType = true,
     filterTemplatesFunc,
     componentFromType,
+    isFunction,
+    isDefaultFunction,
     isDefaultTemplate,
-    returnType: _returnType, // eslint-disable-line @typescript-eslint/no-unused-vars
+    returnType,
     level,
     className,
     menuItems,
     label,
     ...rest
   }: ITemplateFieldProps) => {
-    const type: string = (rest.ui_type || rest.type || rest.defaultType) as string;
+    const qorusTypes = useQorusTypes();
+    const functions = useExpressions({
+      allow: !!allowFunctions,
+      expressionsUrl: rest.expressions_url,
+      extraExpressions: rest.expressions,
+    });
+    const type = rest.ui_type || rest.type || rest.defaultType;
 
     const [isTemplate, setIsTemplate] = useState<boolean>(
       (isDefaultTemplate || isValueTemplate(value) || !allowCustomValues) && allowTemplates
     );
+    const [internalIsFunction, setInternalIsFunction] = useState<boolean>(
+      !!isDefaultFunction && !!allowFunctions
+    );
     const [templateValue, setTemplateValue] = useState<string | null>(value);
+
+    const effectiveIsFunction = isFunction || internalIsFunction;
+
+    useWhyDidYouUpdate(`Template field ${name}`, {
+      name,
+      onChange,
+      value,
+      ...rest,
+    });
 
     useEffect(() => {
       if (isTemplate && isValueTemplate(value)) {
@@ -257,6 +336,7 @@ export const TemplateField = memo(
 
     useEffect(() => {
       if (!isTemplate && isValueTemplate(value) && allowTemplates) {
+        // Do not set the template value if the value is a string in auto mode
         if (type === 'auto' && getTypeFromValue(value) === 'string') {
           return;
         }
@@ -266,10 +346,10 @@ export const TemplateField = memo(
       }
     }, [JSON.stringify(value), allowTemplates]);
 
-    // When templateValue changes, fire onChange
+    // When template key or template value change run the onChange function
     useUpdateEffect(() => {
       if (templateValue) {
-        onChange?.(name, templateValue, type as TQorusType);
+        onChange?.(name, templateValue, type as TQorusType, effectiveIsFunction);
       }
     }, [JSON.stringify(templateValue)]);
 
@@ -284,6 +364,7 @@ export const TemplateField = memo(
       allowCustomValues && type === 'string' && !hasOnlyAllowedValues;
     const showTemplatesDropdown =
       allowTemplates && (!allowCustomValues || (isTemplate && !templateSupportsCustomValues));
+    const hasOnlyExpressions = !allowCustomValues && !allowTemplates && allowFunctions;
     // True when some input control renders besides the ⋮ menu. When nothing
     // does (an empty `any` field: custom values are disallowed and the value's
     // type is picked FROM the menu), the menu trigger is the field's only
@@ -293,15 +374,8 @@ export const TemplateField = memo(
       (isTemplate && templateSupportsCustomValues) ||
       showTemplatesDropdown;
 
-    // Determine which component to render for the raw field
-    const Component: React.FC<any> = useMemo(() => {
-      if (Comp) return Comp;
-      if (componentFromType) {
-        const mappedType = mapQorusTypeToFormFieldType(type);
-        return (props: any) => <FormField {...props} type={mappedType} />;
-      }
-      return (props: any) => <FormField {...props} type={mapQorusTypeToFormFieldType(type)} />;
-    }, [Comp, componentFromType, type]);
+    const Component = componentFromType ? ComponentMap[type] : Comp;
+    const fieldAriaLabel = rest['aria-label'] ?? label ?? rest.display_name ?? name;
 
     const filteredTemplates = useMemo<IReqoreFormTemplates>(():
       | IReqoreFormTemplates
@@ -312,8 +386,8 @@ export const TemplateField = memo(
 
       let result: IReqoreFormTemplates = templates;
 
-      if (filterByType) {
-        result = filterTemplatesByType(templates, type, !!rest.arg_schema);
+      if (filterTemplatesByType) {
+        result = templatesFilterFunc(templates, type, !!rest.arg_schema);
       }
 
       if (filterTemplatesFunc) {
@@ -325,7 +399,7 @@ export const TemplateField = memo(
       JSON.stringify(templates),
       type,
       allowTemplates,
-      filterByType,
+      filterTemplatesByType,
       JSON.stringify(rest.arg_schema),
       filterTemplatesFunc,
     ]);
@@ -335,7 +409,7 @@ export const TemplateField = memo(
         if (!val) {
           setIsTemplate(false);
           setTemplateValue(null);
-          onChange?.(name, undefined);
+          onChange(name, undefined);
         } else {
           setTemplateValue(val);
         }
@@ -344,34 +418,128 @@ export const TemplateField = memo(
     );
 
     const handleSelectTemplateFromList = useCallback(
-      (item: any) => {
-        onChange?.(
-          name,
-          item.value,
-          hasOnlyAllowedValues ? (type as TQorusType) : (item.badge as TQorusType)
-        );
+      // If the field has allowed values and supports templates, we do not want to overwrite the field type with the template type
+      (item) => {
+        // If the template type is richtext, we need to wrap the template value in the richtext template format
+        const value =
+          item.badge === 'richtext'
+            ? ([
+                {
+                  type: 'paragraph',
+                  children: [
+                    {
+                      children: [{ text: '' }],
+                      label: item.label,
+                      type: 'tag',
+                      value: item.value,
+                      metadata: item.metadata,
+                    },
+                  ],
+                },
+              ] as IReqoreRichTextEditorProps['value'])
+            : item.value;
+
+        onChange(name, value, hasOnlyAllowedValues ? (type as TQorusType) : (item.badge as TQorusType));
       },
-      [name, onChange, hasOnlyAllowedValues, type]
+      [name, onChange]
     );
+
+    // SEAM (reqraft): the IDE computes `canSaveValue` here and renders a
+    // `SaveValueButton` in the controls menu — the saved-values storage is
+    // IDE-only, so the menu item is dropped (`allowSaving` is inert).
 
     const handleRemoveTemplateClick = useCallback(() => {
       if (allowCustomValues) {
         setIsTemplate(false);
       }
+
       setTemplateValue(null);
       onChange?.(name, undefined);
     }, [allowCustomValues, name, onChange]);
 
+    const handleSelectFunctionChange = useCallback(() => {
+      setInternalIsFunction(true);
+      setIsTemplate(false);
+      setTemplateValue(null);
+
+      let firstArg: IExpression;
+
+      if (type !== 'bool' && value !== undefined && value !== rest.default_value) {
+        firstArg = {
+          type: type as TQorusType,
+          value,
+        };
+      }
+
+      onChange?.(
+        name,
+        {
+          args: [firstArg],
+        },
+        undefined,
+        true
+      );
+    }, [
+      JSON.stringify(functions.expressions),
+      JSON.stringify(qorusTypes.value),
+      name,
+      onChange,
+      type,
+      value,
+    ]);
+
     const handleTemplateToggleClick = useCallback(() => {
-      onChange?.(name, undefined);
+      setInternalIsFunction(false);
+      onChange(name, undefined, undefined, false);
       setTemplateValue(null);
       setIsTemplate(true);
     }, [onChange, name]);
 
+    const handleExpressionChange = useCallback(
+      (expressionValue: IExpression | undefined, remove: boolean) => {
+        if (remove) {
+          setInternalIsFunction(false);
+        }
+        onChange(name, expressionValue?.value, type as TQorusType, !remove);
+      },
+      [name, onChange, type, value]
+    );
+
     const renderControls = useCallback(() => {
+      const showFunctionsDropdown =
+        allowFunctions && !hasOnlyAllowedValues && !rest.readonly && !internalIsFunction;
       const showTemplatesButton = showTemplateToggle && !isTemplate;
 
-      if (showTemplatesButton || size(menuItems) > 0) {
+      if (hasOnlyExpressions) {
+        return showFunctionsDropdown ? (
+          functions.loading ? (
+            <ReqoreSkeleton size={rest.size} />
+          ) : (
+            <ReqoreButton
+              compact
+              minimal
+              label='Create New Expression'
+              className='function-selector'
+              icon='Functions'
+              tooltip='This field only accepts expressions'
+              onClick={() => {
+                setIsTemplate(false);
+                setTemplateValue(null);
+                onChange?.(
+                  name,
+                  {
+                    args: [],
+                  },
+                  undefined,
+                  true
+                );
+              }}
+            />
+          )
+        ) : null;
+      }
+
+      if (showFunctionsDropdown || showTemplatesButton || size(menuItems) > 0) {
         return (
           <ReqorePopover
             component={ReqoreButton}
@@ -414,12 +582,28 @@ export const TemplateField = memo(
             handler='click'
             content={
               <ReqoreMenu size={rest.size} maxHeight='400px' style={{ overflow: 'auto' }}>
-                {showTemplatesButton ?
+                {showFunctionsDropdown ? (
+                  functions.loading ? (
+                    <ReqoreSkeleton size={rest.size} />
+                  ) : (
+                    <ReqoreButton
+                      compact
+                      transparent
+                      label='Use Expression'
+                      className='function-selector'
+                      icon='Functions'
+                      tooltip='Run a function on this value'
+                      onClick={handleSelectFunctionChange}
+                    />
+                  )
+                ) : null}
+
+                {showTemplatesButton ? (
                   <ReqoreButton
                     transparent
                     icon='MoneyDollarCircleLine'
                     className='template-toggle'
-                    tooltip='Use a template'
+                    tooltip={'Use a template'}
                     compact
                     size={rest.size}
                     onClick={handleTemplateToggleClick}
@@ -427,15 +611,15 @@ export const TemplateField = memo(
                     {' '}
                     Use Template{' '}
                   </ReqoreButton>
-                : null}
+                ) : null}
 
-                {size(menuItems) > 0 ?
+                {size(menuItems) > 0 ? (
                   <CustomMenuItems
                     items={menuItems}
                     setIsTemplate={setIsTemplate}
                     setTemplateValue={setTemplateValue}
                   />
-                : null}
+                ) : null}
               </ReqoreMenu>
             }
           />
@@ -444,32 +628,91 @@ export const TemplateField = memo(
 
       return null;
     }, [
+      allowFunctions,
+      functions.expressions,
+      handleSelectFunctionChange,
       handleTemplateToggleClick,
+      hasOnlyAllowedValues,
       isTemplate,
+      rest.readonly,
       rest.size,
       showTemplateToggle,
+      hasOnlyExpressions,
+      type,
+      value,
       menuItems,
+      internalIsFunction,
       hasInputAffordance,
     ]);
 
-    // When the type is a list with element type, pass full templates so the child can filter
+    // When the type is a list, and it has an element type - that element type is different
+    // from the field type, so we need to send down the full templates object
+    // and the actual rendered field will filter it's own templates
+    // This is a special case only for lists with element types
     const componentTemplates = useMemo(
       () =>
-        type === 'list' && (rest.ui_element_type || rest.element_type) ?
-          templates
-        : {
-            ...filteredTemplates,
-            ...TemplatesListProps,
-          },
+        type === 'list' && (rest.ui_element_type || rest.element_type)
+          ? templates
+          : {
+              ...filteredTemplates,
+              ...TemplatesListProps,
+            },
       [JSON.stringify(filteredTemplates), rest.ui_element_type, rest.element_type, type]
     );
 
-    const handleChange = useCallback(
-      (value: unknown) => {
-        onChange?.(name, value);
-      },
-      [onChange, name]
-    );
+    if (effectiveIsFunction && !hasOnlyAllowedValues) {
+      // SEAM (reqraft): `allowTextExpressions` swaps the IDE's bare builder
+      // for the ExpressionField shell (Visual = the same builder, Text = the
+      // DPQL editor). `handleExpressionChange` serves both — the shell emits
+      // the identical `({ is_expression, value }, remove)` contract.
+      if (allowTextExpressions) {
+        return (
+          <ReqoreControlGroup>
+            <ReqoreErrorBoundary>
+              <ExpressionField
+                value={{
+                  is_expression: true,
+                  value,
+                }}
+                localTemplates={templates}
+                type={type as string}
+                returnType={(returnType || type) as any}
+                onChange={handleExpressionChange}
+                readOnly={rest.readOnly || rest.disabled}
+                expressions={rest.expressions}
+                expressionsUrl={rest.expressions_url}
+                serverHandled={rest.server_expression_handling}
+                size={rest.size}
+              />
+            </ReqoreErrorBoundary>
+            {renderControls()}
+          </ReqoreControlGroup>
+        );
+      }
+
+      return (
+        <ReqoreControlGroup>
+          <ReqoreErrorBoundary>
+            <ExpressionBuilder
+              value={{
+                is_expression: true,
+                value,
+              }}
+              localTemplates={templates}
+              level={level}
+              type={type as string}
+              returnType={(returnType || type) as any}
+              onChange={handleExpressionChange}
+              readOnly={rest.readOnly || rest.disabled}
+              expressions={rest.expressions}
+              expressionsUrl={rest.expressions_url}
+              serverHandled={rest.server_expression_handling}
+            />
+          </ReqoreErrorBoundary>
+          {renderControls()}
+        </ReqoreControlGroup>
+      );
+    }
 
     if (rest.disabled) {
       if (isTemplate) {
@@ -480,7 +723,7 @@ export const TemplateField = memo(
         );
       }
 
-      return <Component value={value} onChange={handleChange} name={name} {...rest} />;
+      return <Comp value={value} onChange={onChange} name={name} {...rest} />;
     }
 
     return (
@@ -488,37 +731,42 @@ export const TemplateField = memo(
         fluid={rest.fluid}
         fixed={rest.fixed}
         size={rest.size}
+        {...rest}
         stack={false}
         verticalAlign='flex-start'
       >
-        {!isTemplate && allowCustomValues ?
+        {!isTemplate && allowCustomValues ? (
           <Component
             value={value}
             allowTemplates={allowTemplates}
-            onChange={handleChange}
+            onChange={onChange}
             name={name}
             level={level}
             {...rest}
-            className={`${className || ''} template-selector`}
+            aria-label={fieldAriaLabel}
+            className={`${className} template-selector`}
             templates={componentTemplates}
           />
-        : null}
+        ) : null}
 
-        {isTemplate && templateSupportsCustomValues ?
-          <LongStringFormField
+        {isTemplate && templateSupportsCustomValues ? (
+          <LongStringField
             className='template-selector'
+            type='string'
             name='templateVal'
+            level={level}
             value={templateValue}
             templates={{
               ...filteredTemplates,
               ...TemplatesListProps,
             }}
-            onChange={(val) => handleTemplateFieldChange('templateVal', val)}
-            {...(rest as any)}
+            onChange={handleTemplateFieldChange}
+            {...rest}
+            aria-label={fieldAriaLabel}
           />
-        : null}
+        ) : null}
 
-        {showTemplatesDropdown ?
+        {showTemplatesDropdown ? (
           <TemplateDropdownSelector
             allowCustomValues={allowCustomValues}
             templates={templates}
@@ -530,7 +778,7 @@ export const TemplateField = memo(
             label={label}
             hasOnlyAllowedValues={hasOnlyAllowedValues}
           />
-        : null}
+        ) : null}
 
         {renderControls()}
       </ReqoreControlGroup>

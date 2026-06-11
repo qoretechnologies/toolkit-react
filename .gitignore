@@ -3,6 +3,25 @@ dist
 output.json
 tests.json
 coverage
+# OS / IDE
+.DS_Store
+
+# Local secrets (Qorus instance token for live stories / authed storybook)
+.env
+.env.local
+
+# Local-only scratch files (verification notes, agent prompts, etc.)
+# Convention: name any non-committed companion file `*.local.md` /
+# `*.local.txt` and it stays out of git.
 *.local.*
+*.local.md
+*.local.txt
+*.local.json
+*.local.mjs
+.local/
+
+# Yarn berry artifacts (this repo uses Yarn classic)
 .yarn/
+
+# Per-agent local-only config (Claude Preview launch, etc.)
 .claude/launch.json

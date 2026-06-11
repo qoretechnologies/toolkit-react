@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       QORUS_TOKEN: ${{ secrets.QORUS_TOKEN }}
+      REACT_APP_QORUS_TOKEN: ${{ secrets.QORUS_TOKEN }}
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Get current time for the commit

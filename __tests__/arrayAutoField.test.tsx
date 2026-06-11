@@ -9,8 +9,6 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import React from 'react';
-
 // ── Mock @qoretechnologies/reqore ────────────────────────────────────────────
 jest.mock('@qoretechnologies/reqore', () => ({
   ReqoreButton: ({ children, onClick, disabled, className, icon, ...rest }: any) => (

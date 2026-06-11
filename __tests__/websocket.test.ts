@@ -88,7 +88,8 @@ describe('ReqraftWebSocket', () => {
         reconnect: false,
       });
 
-      const ws2 = new ReqraftWebSocket({
+      // Second client on the same pool key — only the side effect matters.
+      new ReqraftWebSocket({
         url: 'lsp',
         useHeartbeat: false,
         reconnect: false,
@@ -125,14 +126,15 @@ describe('ReqraftWebSocket', () => {
     });
 
     it('should use unique pool keys for isolated connections', () => {
-      const ws1 = new ReqraftWebSocket({
+      // Instances matter only for their pool-registry side effects.
+      new ReqraftWebSocket({
         url: 'lsp',
         pooled: false,
         useHeartbeat: false,
         reconnect: false,
       });
 
-      const ws2 = new ReqraftWebSocket({
+      new ReqraftWebSocket({
         url: 'lsp',
         pooled: false,
         useHeartbeat: false,
