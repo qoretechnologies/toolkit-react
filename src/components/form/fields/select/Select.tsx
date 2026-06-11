@@ -32,6 +32,7 @@ export interface ISelectFormFieldProps {
   hideItemCount?: boolean;
   forceDropdown?: boolean;
   fluid?: boolean;
+  flat?: boolean;
   intent?: TReqoreIntent;
   tooltip?: IReqoreButtonProps['tooltip'];
   size?: IReqoreButtonProps['size'];
@@ -69,6 +70,10 @@ export const SelectFormField = memo(
     hideItemCount,
     forceDropdown,
     fluid,
+    flat,
+    intent,
+    // Renamed: `size` would shadow lodash's `size(items)` used below.
+    size: componentSize,
     ...rest
   }: ISelectFormFieldProps) => {
     const [items, setItems] = useState<ISelectFormFieldItem[]>(fixItems(rawItems));
@@ -215,7 +220,7 @@ export const SelectFormField = memo(
           {
             label: size(items),
             align: 'right' as const,
-            flat: false,
+            flat: flat ?? false,
             intent:
               hasError(items) ? 'danger'
               : hasWarning(items) ? 'warning'
@@ -235,8 +240,13 @@ export const SelectFormField = memo(
 
       return (
         <ReqoreButton
+          // Pass-through parity with the IDE's Select: unknown caller props
+          // (className, id, tooltip, …) reach ReQore; the computed props
+          // below stay authoritative.
+          {...(rest as any)}
           fluid={fluid}
-          flat={false}
+          flat={flat ?? false}
+          size={componentSize}
           label={getLabel(items, value ?? filteredItems[0].value)}
           description={getItemShortDescription(value as string) as string}
           readOnly
@@ -247,7 +257,7 @@ export const SelectFormField = memo(
             itemHasError ? 'danger'
             : itemHasWarning ?
               'warning'
-            : 'info'
+            : (intent ?? 'info')
           }
           disabled={false}
         />
@@ -255,20 +265,38 @@ export const SelectFormField = memo(
     }
 
     if (!filteredItems || filteredItems.length === 0) {
-      return <ReqoreTag intent='muted' label='No data available' icon='ForbidLine' fixed />;
+      return (
+        <ReqoreTag
+          {...(rest as any)}
+          intent='muted'
+          label='No data available'
+          icon='ForbidLine'
+          fixed
+          size={componentSize}
+        />
+      );
     }
 
     return (
       <>
         {collectionOpen && (
-          <SelectFieldCollection
-            items={filteredItems}
-            filters={filters}
-            getItemDescription={(v) => getItemDescription(v) as string}
-            value={value}
-            onItemSelect={handleSelectClick}
-            onClose={() => setCollectionOpen(false)}
-          />
+          // SEAM (reqraft): the IDE mounts this collection modal at the app
+          // root via its global `modalStore`, so clicks inside it never reach
+          // the opener's React tree. Here the modal is rendered inline, and
+          // React portal events bubble through it — a collapsible ancestor
+          // (e.g. the ExpressionBuilder card whose title hosts this Select)
+          // would treat an item click as a title-bar click and collapse.
+          // `display: contents` keeps the barrier box-less.
+          <div style={{ display: 'contents' }} onClick={(e) => e.stopPropagation()}>
+            <SelectFieldCollection
+              items={filteredItems}
+              filters={filters}
+              getItemDescription={(v) => getItemDescription(v) as string}
+              value={value}
+              onItemSelect={handleSelectClick}
+              onClose={() => setCollectionOpen(false)}
+            />
+          </div>
         )}
         {asMenu ?
           <ReqoreMenu>
@@ -284,15 +312,18 @@ export const SelectFormField = memo(
           </ReqoreMenu>
         : hasItemsWithDesc(items) && !forceDropdown ?
           <ReqoreButton
+            {...(rest as any)}
             transparent={!value}
             minimal
+            flat={flat}
+            size={componentSize}
             intent={
               hasError(items, value) ? 'danger'
               : hasWarning(items, value) ?
                 'warning'
               : value ?
-                'info'
-              : (rest.intent as TReqoreIntent)
+                (intent ?? 'info')
+              : intent
             }
             fluid={fluid}
             compact
@@ -315,6 +346,7 @@ export const SelectFormField = memo(
             : undefined}
           </ReqoreButton>
         : <ReqoreDropdown
+            {...(rest as any)}
             items={reqoreItems}
             listCustomTheme={{
               main: '#010811',
@@ -334,11 +366,13 @@ export const SelectFormField = memo(
             }}
             description={getItemShortDescription(value as string) as string}
             minimal
+            flat={flat}
+            size={componentSize}
             intent={
               hasError(items, value) ? 'danger'
               : value ?
-                'info'
-              : (rest.intent as TReqoreIntent)
+                (intent ?? 'info')
+              : intent
             }
           >
             {value ?
