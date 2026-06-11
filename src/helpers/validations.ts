@@ -22,6 +22,9 @@ export interface IValidationResult {
 interface IFieldValidationProps {
   has_to_have_value?: boolean;
   has_to_be_valid_identifier?: boolean;
+  /** Server options-schema validation rules (e.g. `['valid_identifier']`) —
+   *  mapped onto the corresponding `has_to_be_*` flags. */
+  rules?: string[];
   validation_regex?: string;
   required_groups?: string[];
   optionSchema?: IQorusFormSchema;
@@ -225,7 +228,13 @@ export const _validateField = (
         reasons.push('Value does not match validation pattern');
       }
 
-      if (field?.has_to_be_valid_identifier) {
+      // Server `rules[]` contract: 'valid_identifier' is the only rule the
+      // server sends today; unknown rule strings are deliberately ignored
+      // (validation passes) — extend this mapping when the server grows rules.
+      if (
+        field?.has_to_be_valid_identifier ||
+        (Array.isArray(field?.rules) && field.rules.includes('valid_identifier'))
+      ) {
         if (value.match(/^[0-9]|\W/)) {
           reasons.push('Value is not a valid identifier');
         }

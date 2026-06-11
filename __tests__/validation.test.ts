@@ -6,7 +6,6 @@
  */
 
 import {
-  _validateField,
   getTypeFromValue,
   hasAllDependenciesFullfilled,
   isValueSet,
@@ -751,5 +750,34 @@ describe('validateFieldWithResult returns detailed IValidationResult', () => {
     });
     expect(result.isValid).toBe(false);
     expect(result.reasons.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── rules: valid_identifier (options-schema rules wiring) ─────────────────────
+
+describe('rules: valid_identifier', () => {
+  it('rejects values starting with a digit or containing non-word chars', () => {
+    expect(validateField('string', '1bad', { rules: ['valid_identifier'] } as never)).toBe(false);
+    expect(validateField('string', 'has space', { rules: ['valid_identifier'] } as never)).toBe(
+      false
+    );
+    const result = validateFieldWithResult('string', '1bad', {
+      rules: ['valid_identifier'],
+    } as never);
+    expect(result.isValid).toBe(false);
+    expect(result.reasons).toContain('Value is not a valid identifier');
+  });
+
+  it('accepts valid identifiers and ignores unrelated rules', () => {
+    expect(validateField('string', 'valid_name2', { rules: ['valid_identifier'] } as never)).toBe(
+      true
+    );
+    expect(validateField('string', '1bad', { rules: ['something_else'] } as never)).toBe(true);
+  });
+
+  it('still honours the legacy has_to_be_valid_identifier flag', () => {
+    expect(validateField('string', '1bad', { has_to_be_valid_identifier: true } as never)).toBe(
+      false
+    );
   });
 });

@@ -7,7 +7,12 @@
  */
 
 import {
+  colorToCss,
+  formatBytes,
+  formatColorValue,
+  formatFileValue,
   formatOptionValue,
+  getHashEntries,
   getOptionGroup,
   getOptionGroupLabel,
   getReadFirstCompletion,
@@ -40,6 +45,47 @@ describe('formatOptionValue', () => {
   it('formats booleans as Yes / No', () => {
     expect(formatOptionValue({ type: 'bool', value: true })).toBe('Yes');
     expect(formatOptionValue({ type: 'bool', value: false })).toBe('No');
+  });
+
+  // Security: a sensitive option (password/token) must never leak its value
+  // into the read-first row or its hover title.
+  it('masks sensitive option values', () => {
+    expect(
+      formatOptionValue({ type: 'string', value: 'hunter2' }, { sensitive: true } as never)
+    ).toBe('••••••');
+    // Empty sensitive values still show as empty (the "Not set" placeholder).
+    expect(formatOptionValue({ type: 'string', value: '' }, { sensitive: true } as never)).toBe(
+      ''
+    );
+  });
+
+  // Regression: a `richtext` ui_type option can hold a plain scalar (set
+  // programmatically / loaded from the server) — `richtextToString` used to
+  // call `.map` on it and crash the compact row.
+  it('formats richtext options that hold plain scalar values', () => {
+    const schema = { type: 'string', ui_type: 'richtext' } as never;
+    expect(formatOptionValue({ type: 'string', value: '123' }, schema)).toBe('123');
+    expect(formatOptionValue({ type: 'string', value: 123 as never }, schema)).toBe('123');
+  });
+
+  it('formats richtext Slate documents as their text content', () => {
+    expect(
+      formatOptionValue(
+        {
+          type: 'richtext' as never,
+          value: [
+            {
+              type: 'paragraph',
+              children: [
+                { text: 'Hello ' },
+                { type: 'tag', value: '$local:x', children: [{ text: '' }] },
+              ],
+            },
+          ] as never,
+        },
+        { type: 'richtext', ui_type: 'richtext' } as never
+      )
+    ).toBe('Hello $local:x');
   });
 
   it('resolves allowed_values to their display label', () => {
@@ -80,8 +126,43 @@ describe('formatOptionValue', () => {
     ).toBe('Expression');
   });
 
-  it('collapses opaque hash values to a generic marker', () => {
-    expect(formatOptionValue({ type: 'hash', value: { a: 1 } })).toBe('Set');
+  it('summarises a hash object by its field count', () => {
+    expect(formatOptionValue({ type: 'hash', value: { a: 1 } })).toBe('1 field');
+    expect(formatOptionValue({ type: 'hash', value: { a: 1, b: 2 } })).toBe('2 fields');
+  });
+
+  it('summarises a structured (arg_schema) hash value by its sub-field count', () => {
+    expect(
+      formatOptionValue({
+        type: 'hash',
+        value: {
+          host: { type: 'string', value: 'db.local' },
+          port: { type: 'int', value: 5432 },
+        },
+      })
+    ).toBe('2 fields');
+  });
+
+  it('falls back to the generic marker for an empty object', () => {
+    expect(formatOptionValue({ type: 'hash', value: {} as any })).toBe('Set');
+  });
+
+  it('formats an rgbcolor value as an uppercase hex string', () => {
+    expect(formatOptionValue({ type: 'rgbcolor', value: { r: 0, g: 0, b: 255, a: 1 } })).toBe(
+      '#0000FF'
+    );
+  });
+
+  it('formats a non-opaque rgbcolor value as rgba(…)', () => {
+    expect(formatOptionValue({ type: 'rgbcolor', value: { r: 255, g: 0, b: 0, a: 0.5 } })).toBe(
+      'rgba(255, 0, 0, 0.5)'
+    );
+  });
+
+  it('formats a file value as its filename', () => {
+    expect(
+      formatOptionValue({ type: 'file', value: { name: 'config.txt', size: 1234, content: 'x' } })
+    ).toBe('config.txt');
   });
 
   it('stringifies scalars', () => {
@@ -106,6 +187,169 @@ describe('formatOptionValue', () => {
   it('does not over-parse a plain string that merely looks bracketed', () => {
     // type is not list/hash and there's no YAML doc marker → leave it alone.
     expect(formatOptionValue({ type: 'string', value: '[draft]' })).toBe('[draft]');
+  });
+});
+
+describe('formatColorValue', () => {
+  it('converts an RGB object to uppercase hex', () => {
+    expect(formatColorValue({ r: 0, g: 0, b: 255 })).toBe('#0000FF');
+    expect(formatColorValue({ r: 255, g: 165, b: 0 })).toBe('#FFA500');
+  });
+
+  it('renders rgba(…) only when alpha is below 1', () => {
+    expect(formatColorValue({ r: 0, g: 0, b: 0, a: 1 })).toBe('#000000');
+    expect(formatColorValue({ r: 0, g: 0, b: 0, a: 0.25 })).toBe('rgba(0, 0, 0, 0.25)');
+  });
+
+  it('accepts a { hex } object or a raw hex string', () => {
+    expect(formatColorValue({ hex: '#abcdef' })).toBe('#ABCDEF');
+    expect(formatColorValue('#abcdef')).toBe('#ABCDEF');
+  });
+
+  it('prefers rgba over an accompanying opaque hex when alpha is below 1', () => {
+    // react-color emits both `hex` (opaque) and `{ r, g, b, a }`; a semi-
+    // transparent colour must render as rgba(), not the opaque hex.
+    expect(formatColorValue({ hex: '#0000ff', r: 0, g: 0, b: 255, a: 0.5 })).toBe(
+      'rgba(0, 0, 255, 0.5)'
+    );
+  });
+
+  it('returns undefined for unrecognisable colour values', () => {
+    expect(formatColorValue('not-a-colour')).toBeUndefined();
+    expect(formatColorValue({})).toBeUndefined();
+    expect(formatColorValue(undefined)).toBeUndefined();
+  });
+});
+
+describe('colorToCss', () => {
+  it('keeps the alpha channel for the swatch preview', () => {
+    expect(colorToCss({ r: 0, g: 0, b: 255, a: 1 })).toBe('rgba(0, 0, 255, 1)');
+    expect(colorToCss({ r: 255, g: 0, b: 0, a: 0.5 })).toBe('rgba(255, 0, 0, 0.5)');
+  });
+
+  it('passes through hex forms', () => {
+    expect(colorToCss({ hex: '#abcdef' })).toBe('#abcdef');
+    expect(colorToCss('#abcdef')).toBe('#abcdef');
+  });
+});
+
+describe('formatFileValue', () => {
+  it('returns the filename from the upload descriptor', () => {
+    expect(formatFileValue({ name: 'config.txt', size: 10, content: 'x' })).toBe('config.txt');
+  });
+
+  it('reads the build-tab { name: { value } } shape', () => {
+    expect(formatFileValue({ name: { value: 'built.json' } })).toBe('built.json');
+  });
+
+  it('takes the basename of a path string', () => {
+    expect(formatFileValue('/tmp/uploads/report.pdf')).toBe('report.pdf');
+  });
+
+  it('returns undefined when no filename is present', () => {
+    expect(formatFileValue({ size: 10 })).toBeUndefined();
+    expect(formatFileValue(undefined)).toBeUndefined();
+  });
+});
+
+describe('formatBytes', () => {
+  it('formats raw bytes, KB, MB and GB', () => {
+    expect(formatBytes(512)).toBe('512 B');
+    expect(formatBytes(1234)).toBe('1.2 KB');
+    expect(formatBytes(1024 * 1024)).toBe('1 MB');
+    expect(formatBytes(5 * 1024 * 1024 * 1024)).toBe('5 GB');
+  });
+});
+
+describe('getHashEntries', () => {
+  it('expands a structured (arg_schema) hash into labelled sub-rows', () => {
+    const schema: any = {
+      type: 'hash',
+      arg_schema: {
+        host: { type: 'string', display_name: 'Host' },
+        secure: { type: 'bool', display_name: 'Secure' },
+      },
+    };
+    const entries = getHashEntries(
+      {
+        type: 'hash',
+        value: {
+          host: { type: 'string', value: 'db.local' },
+          secure: { type: 'bool', value: true },
+        },
+      },
+      schema
+    );
+    expect(entries).toEqual([
+      { name: 'host', label: 'Host', value: 'db.local' },
+      { name: 'secure', label: 'Secure', value: 'Yes' },
+    ]);
+  });
+
+  it('expands a plain free-hash object using keys as labels', () => {
+    expect(getHashEntries({ type: 'hash', value: { a: '1', b: '2' } })).toEqual([
+      { name: 'a', label: 'a', value: '1' },
+      { name: 'b', label: 'b', value: '2' },
+    ]);
+  });
+
+  it('expands a YAML-serialized hash string', () => {
+    const yamlHash = '%YAML 1.2\n---\naccess_type: offline\nprompt: consent\n';
+    expect(getHashEntries({ type: 'hash', value: yamlHash })).toEqual([
+      { name: 'access_type', label: 'access_type', value: 'offline' },
+      { name: 'prompt', label: 'prompt', value: 'consent' },
+    ]);
+  });
+
+  it('does not mistake a free-hash value with a `value` key for a field descriptor', () => {
+    // Without an arg_schema this is a plain free-hash; the inner object must be
+    // summarised whole, not collapsed to its `value` property.
+    expect(getHashEntries({ type: 'hash', value: { conf: { value: 'prod', env: 'eu' } } })).toEqual(
+      [{ name: 'conf', label: 'conf', value: '2 fields' }]
+    );
+  });
+
+  // Regression: a schema-less hash whose entries are typed envelopes (the
+  // server's serialization — e.g. the Basic fixture's `selectedOption`
+  // default_value) must unwrap each envelope, not count its own keys as
+  // "2 fields".
+  it('unwraps typed-envelope entries in a schema-less hash', () => {
+    const entries = getHashEntries({
+      type: 'hash',
+      value: {
+        option1: { type: 'string', value: 'value1' },
+        option2: {
+          type: 'hash',
+          value: {
+            option3: { type: 'string', value: 'value3' },
+            option4: { type: 'list', value: [{ type: 'string', value: 'value4' }] },
+          },
+        },
+      } as never,
+    });
+    expect(entries).toEqual([
+      { name: 'option1', label: 'option1', value: 'value1' },
+      { name: 'option2', label: 'option2', value: '2 fields' },
+    ]);
+  });
+
+  // The engine has ONE envelope definition (structuredData's allow-list): an
+  // entry carrying extended envelope keys (`sensitive`, `required`, …) must
+  // unwrap in the summary exactly like the structured tree unwraps it.
+  it('unwraps envelopes carrying extended allow-list keys', () => {
+    const entries = getHashEntries({
+      type: 'hash',
+      value: {
+        token: { type: 'string', value: 'secret', sensitive: true, required: true },
+      } as never,
+    });
+    expect(entries).toEqual([{ name: 'token', label: 'token', value: 'secret' }]);
+  });
+
+  it('returns [] for empty or non-hash values', () => {
+    expect(getHashEntries({ type: 'hash', value: undefined })).toEqual([]);
+    expect(getHashEntries({ type: 'list', value: ['a', 'b'] })).toEqual([]);
+    expect(getHashEntries(undefined)).toEqual([]);
   });
 });
 

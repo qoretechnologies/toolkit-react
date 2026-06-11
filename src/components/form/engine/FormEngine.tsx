@@ -40,7 +40,7 @@ import map from 'lodash/map';
 import reduce from 'lodash/reduce';
 import size from 'lodash/size';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useDebounce, useUpdateEffect } from 'react-use';
+import { useDebounce, useMeasure, useUpdateEffect } from 'react-use';
 import { createContext } from 'use-context-selector';
 import styled from 'styled-components';
 import { getDefaultValue, insertAtIndex, richtextToString } from '../../../helpers/common';
@@ -62,13 +62,21 @@ import {
   TemplateField,
   isValueTemplate,
 } from '../fields/template/TemplateField';
-import { OptionFieldMessages } from './OptionFieldMessages';
+import { ReqraftCollapsibleContent } from '../../collapsible/CollapsibleContent';
+import { StructuredDataView } from './_structuredData/StructuredDataView';
+import { getOptionFieldMessages, OptionFieldMessages } from './OptionFieldMessages';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
+  colorToCss,
+  formatBytes,
   formatOptionValue,
+  getFileSize,
+  getHashEntries,
   getOptionGroup,
   getOptionGroupLabel,
   getReadFirstCompletion,
+  getValueType,
+  isOptionValueEmpty,
 } from './readFirst';
 
 // Re-export types for consumers
@@ -81,7 +89,10 @@ export type IOptionsSchemaArg = TQorusFormFieldSchema;
 export interface IOptionsSchema extends IQorusFormSchema {}
 export interface IOperator extends IQorusFormOperator {}
 export interface IOperatorsSchema extends IQorusFormOperatorsSchema {}
-export interface IOptionsOnChangeMeta extends IQorusFormFieldOnChangeMeta {}
+export interface IOptionsOnChangeMeta extends IQorusFormFieldOnChangeMeta {
+  /** `commitMode='batched'`: the emitted value is staged (a draft), not committed. */
+  draft?: boolean;
+}
 
 export interface IFormFieldValidityData {
   fieldName: string;
@@ -112,10 +123,8 @@ const PositiveColorEffect: any = {
   glow: 'success',
 };
 
-// ─── compact (read-first) layout ────────────────────────────────────────────────
-// Flat two-column rows (label | value | action) inside collapsible group panels,
-// rather than the classic card-per-field. Colours are theme-derived and passed in
-// as props so the layout adapts to light/dark/custom Reqore themes.
+// Compact (read-first) layout: flat label | value | action rows in collapsible
+// group panels; colours come in as props so the layout follows the Reqore theme.
 
 const StyledCompactWrap = styled.div`
   display: flex;
@@ -136,9 +145,12 @@ const StyledCompactWrap = styled.div`
   }
 `;
 
-const StyledGroupBody = styled.div<{ $divider: string; $hover: string; $focus: string }>`
+const StyledGroupBody = styled.div<{ $divider: string; $hover: string; $focus: string; $zebra: string }>`
   display: flex;
   flex-flow: column;
+  /* Field blocks separate with real space + the zebra tint — the old hairline
+     dividers between rows became noise once both arrived and were retired. */
+  gap: 8px;
 
   .readfirst-row {
     display: grid;
@@ -150,13 +162,15 @@ const StyledGroupBody = styled.div<{ $divider: string; $hover: string; $focus: s
     align-items: center;
     gap: 14px;
     min-height: 38px;
-    padding: 8px 10px;
+    /* 3px vertical: the hover-revealed action buttons (revert/delete) are
+       ~32px tall and occupy layout even at opacity 0 — with 8px padding they
+       inflated removable rows to ~48px while plain rows sat at the 38px
+       min-height. 32 + 6 = 38 keeps every one-line row the same height; the
+       min-height keeps the click target for rows with shorter content. */
+    padding: 3px 10px;
     border-radius: 6px;
     cursor: pointer;
     transition: background 0.12s ease;
-  }
-  .readfirst-row + .readfirst-row {
-    border-top: 1px solid ${({ $divider }) => $divider};
   }
   .readfirst-row:hover {
     background: ${({ $hover }) => $hover};
@@ -170,6 +184,32 @@ const StyledGroupBody = styled.div<{ $divider: string; $hover: string; $focus: s
   .readfirst-row-hidden {
     opacity: 0.65;
   }
+  /* A disabled field (schema disabled flag or unmet dependencies) is not a
+     click target — no hover invite, not-allowed cursor; a lock replaces the
+     pencil. */
+  .readfirst-row-disabled {
+    cursor: not-allowed;
+  }
+  .readfirst-row-disabled:hover {
+    background: transparent;
+  }
+  /* Required-group linkage: hovering a "One of" chip highlights every member
+     row; locating a sibling from the chip's popover flashes it briefly. */
+  .readfirst-row-group-highlight {
+    background: ${({ $focus }) => `${$focus}1f`};
+    box-shadow: inset 3px 0 0 ${({ $focus }) => $focus};
+  }
+  .readfirst-row-flash {
+    animation: readfirstRowFlash 1.4s ease;
+  }
+  @keyframes readfirstRowFlash {
+    0% {
+      background: ${({ $focus }) => `${$focus}59`};
+    }
+    100% {
+      background: transparent;
+    }
+  }
   .readfirst-action {
     opacity: 0;
     transition: opacity 0.12s ease;
@@ -178,13 +218,134 @@ const StyledGroupBody = styled.div<{ $divider: string; $hover: string; $focus: s
   .readfirst-row:focus-visible .readfirst-action {
     opacity: 0.85;
   }
+
+  /* A scalar row being edited in place: the real editor replaces the value
+     cell. The row stops being a click target (the editor owns the clicks) and
+     keeps a constant active background. Vertical padding is tightened so the
+     editor fits inside the same ~38px the read row occupies — switching into
+     (and out of) inline editing must not shift the rows around it. */
+  .readfirst-row-editing {
+    cursor: default;
+    /* Top-anchor the cells: with multi-line editors (e.g. allowed-values =
+       input + picker), per-cell centring gives every control a different
+       anchor. Instead everything aligns to the FIRST editor line — label and
+       the ✓/↺ cluster get small offsets to sit optically centred on it. */
+    align-items: start;
+    background: ${({ $hover }) => $hover};
+    /* Zero vertical padding: the pinned min-height (captured from the read
+       row at activation) owns the height; the editor centres within it. */
+    padding-top: 0;
+    padding-bottom: 0;
+    /* Tighter column gap: the editor's trailing template ⋮ and our ✓ should
+       read as one control cluster, not two separated groups. */
+    column-gap: 6px;
+  }
+  .readfirst-row-editing > div:nth-child(1) {
+    padding-top: 10px;
+  }
+  .readfirst-row-editing > div:nth-child(3) {
+    padding-top: 3px;
+  }
+  /* The editor's trailing ⋮ (template menu): reqore gives group buttons
+     align-self: flex-start plus a bottom margin that inflates their flex box
+     (32px button + 6px margin = the 38px line) — together they rendered the ⋮
+     3px above our vertically-centred ✓. Scope STRICTLY to direct buttons of
+     the editor cell's TOP-LEVEL (horizontal) group: any broader and the rule
+     reaches buttons inside nested vertical groups, where align-self is the
+     HORIZONTAL axis (it centred the bool switch, then the allowed-values
+     dropdown). */
+  .readfirst-row-editing > div:nth-child(2) > .reqore-control-group > .reqore-button {
+    align-self: flex-start !important;
+    margin-top: 3px !important;
+    margin-bottom: 0 !important;
+  }
+  .readfirst-row-editing:hover {
+    background: ${({ $hover }) => $hover};
+  }
+
+  /* Narrow FORMS (phone / slim drawer): stack each row — label + actions share
+     the first line, the value cell (or the inline editor) takes the full width
+     beneath. The class is set from a measured wrap width (react-use useMeasure)
+     rather than a viewport media query, so a slim desktop drawer stacks too.
+     The 3 row children are placed explicitly:
+     label (1,1) · actions (1,2) · value (2, span both). */
+  &.readfirst-narrow .readfirst-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 14px;
+  }
+  &.readfirst-narrow .readfirst-row > :nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  &.readfirst-narrow .readfirst-row > :nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  &.readfirst-narrow .readfirst-row > :nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* Zebra-tint each field BLOCK (a bare row, or a wrapper carrying the row
+     plus its strips/preview, tints as one unit) so every field owns a visible
+     territory — message strips stop floating ownerless. The edit card keeps
+     its own surface. (Trialled mobile-first, promoted to all widths for
+     review.) */
+  > :nth-child(odd):not(.options-readfirst-card) {
+    background: ${({ $zebra }) => $zebra};
+    border-radius: 6px;
+  }
+  /* Narrow forms get the stronger tint — on a phone the zebra is the main
+     structure; on desktop the grid columns carry most of it, so 3% suffices
+     (and stays clearly below the 5% hover). */
+  &.readfirst-narrow > :nth-child(odd):not(.options-readfirst-card) {
+    background: ${({ $hover }) => $hover};
+  }
+  /* Narrow only: content under the label indents 12px (left rail) so each
+     stacked block shares the same internal shape — label at the edge, content
+     inset. The desktop grid's columns provide this structure already. */
+  &.readfirst-narrow .readfirst-row > :nth-child(2) {
+    padding-left: 12px;
+  }
+  /* Touch layouts have no hover: a slot reserved for the hover-revealed edit
+     pencil is permanent dead space that insets every chip from the edge —
+     drop it (rows are tap-to-edit; the lock/add slots stay, they're static). */
+  &.readfirst-narrow .options-readfirst-trailing-hover-only {
+    /* !important: the slot carries an inline display for the desktop layout. */
+    display: none !important;
+  }
+  /* Phone air: stacked blocks get slightly taller inner padding. The in-place
+     editor keeps zero padding so its pinned height still matches. */
+  &.readfirst-narrow .readfirst-row {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  &.readfirst-narrow .readfirst-row-editing {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  /* A hash block = its parent row + the revealed sub-rows. Highlight the whole
+     block as one unit on hover (rather than only the parent row), and neutralise
+     the parent row's own hover so the two don't stack into a darker band. The
+     parent row's hover actions still surface whenever the block is hovered. */
+  .options-readfirst-hash-row {
+    border-radius: 6px;
+    transition: background 0.12s ease;
+  }
+  .options-readfirst-hash-row:hover {
+    background: ${({ $hover }) => $hover};
+  }
+  .options-readfirst-hash-row:hover .readfirst-row {
+    background: transparent;
+  }
+  .options-readfirst-hash-row:hover .readfirst-action {
+    opacity: 0.85;
+  }
 `;
 
-// The completion meter + toolbar (search / Fields menu) stay pinned to the top of
-// the scroll area while the field groups scroll beneath, so filtering and adding
-// optional fields are always reachable. The opaque background masks rows passing
-// underneath. (Sticky needs a scrolling ancestor with no clipping `overflow`
-// between it and this element — the standard form container provides one.)
+// Pinned toolbar (meter + search + Fields menu); the opaque background masks
+// rows scrolling beneath. Sticky needs an unclipped scrolling ancestor.
 const StyledCompactHeader = styled.div<{ $bg: string }>`
   position: sticky;
   top: 0;
@@ -204,6 +365,183 @@ const StyledEditCard = styled.div<{ $bg: string; $border: string }>`
   background: ${({ $bg }) => $bg};
   border: 1px solid ${({ $border }) => $border};
   border-radius: 8px;
+`;
+
+// Batched-commit dock: a floating Save/Discard card pinned bottom-right. Sticky
+// (not fixed) so it stays within the form's own scroll bounds when the engine
+// renders inside a drawer/panel; align-self pushes it to the right edge, and it
+// elevates above the rows with an opaque surface + border + shadow.
+const StyledCommitDock = styled.div<{ $bg: string; $border: string }>`
+  position: sticky;
+  bottom: 8px;
+  z-index: 6;
+  align-self: flex-end;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 10px;
+  background: ${({ $bg }) => $bg};
+  border: 1px solid ${({ $border }) => $border};
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+`;
+
+// Recurring micro-layouts of the read-first rows and their popovers.
+const StyledPopColumn = styled.div`
+  display: flex;
+  flex-flow: column;
+  gap: 6px;
+  max-width: 300px;
+`;
+
+const StyledPopGroup = styled.div`
+  display: flex;
+  flex-flow: column;
+  gap: 4px;
+`;
+
+const StyledPopHint = styled.span<{ $small?: boolean }>`
+  font-size: ${({ $small }) => ($small ? 11 : 12)}px;
+  opacity: ${({ $small }) => ($small ? 0.6 : 0.7)};
+`;
+
+const StyledLabelBlock = styled.div`
+  display: flex;
+  flex-flow: column;
+  gap: 2px;
+  min-width: 0;
+`;
+
+const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: ${({ $color }) => $color};
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: ${({ $pointer }) => ($pointer ? 'pointer' : 'inherit')};
+`;
+
+const StyledCardHeading = styled.div`
+  display: flex;
+  flex-flow: column;
+  min-width: 0;
+`;
+
+const StyledCardLabel = styled.div<{ $color: string }>`
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: ${({ $color }) => $color};
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+/* min-width: 0 lets the grid cell shrink below its content's intrinsic width
+   so the ellipsis engages instead of overflowing. */
+const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
+  min-width: 0;
+  color: ${({ $color }) => $color};
+  font-style: ${({ $empty }) => ($empty ? 'italic' : 'normal')};
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+const StyledRowActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const StyledActionSlot = styled.span<{ $width: number }>`
+  display: inline-flex;
+  justify-content: center;
+  width: ${({ $width }) => $width}px;
+  flex: 0 0 auto;
+`;
+
+const StyledStar = styled.span<{ $color: string }>`
+  color: ${({ $color }) => $color};
+`;
+
+const StyledTypeTag = styled.span<{ $color: string }>`
+  color: ${({ $color }) => $color};
+  font-weight: 400;
+  font-size: 11px;
+  margin-left: 6px;
+`;
+
+const StyledHelpIcon = styled.span`
+  cursor: help;
+  display: inline-flex;
+  opacity: 0.55;
+  margin-left: 5px;
+`;
+
+const StyledMutedNote = styled.div<{ $color: string }>`
+  color: ${({ $color }) => $color};
+  font-size: 12px;
+`;
+
+const StyledColumn = styled.div`
+  display: flex;
+  flex-flow: column;
+`;
+
+const StyledInfoPanel = styled.div`
+  display: flex;
+  flex-flow: column;
+  gap: 4px;
+  padding: 0 10px 8px 24px;
+`;
+
+const StyledRowInset = styled.div`
+  padding: 0 10px 6px 24px;
+`;
+
+// Types whose editors are too tall/nested to edit in-row — these keep the edit
+// card; `arg_schema` and operator fields are excluded separately.
+const COMPACT_COMPLEX_TYPES = new Set([
+  'hash',
+  'free-hash',
+  'list',
+  'free-list',
+  'array',
+  'array-auto',
+  'file',
+  'file-string',
+  'richtext',
+  'long-string',
+  'any',
+  'auto',
+  'schema',
+  'schema-definition',
+  'data-provider',
+  'processor-mappings',
+  'options',
+  'system-options',
+  'byte-size',
+  'markdown',
+  'method-name',
+  'class-connectors',
+  'class-array',
+  'yaml',
+]);
+
+// A small inline colour swatch shown before an rgbcolor value's hex string.
+const StyledColorSwatch = styled.span<{ $color: string; $border: string }>`
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+  background: ${({ $color }) => $color};
+  border: 1px solid ${({ $border }) => $border};
 `;
 
 // Completion meter: a single inline row — label | track (fills remaining) | percent.
@@ -403,12 +741,8 @@ export const getTypeAndCanBeNull = (
   };
 };
 
-/**
- * Display metadata for a read-first group, keyed by the option's raw `group`
- * string (e.g. `info`, `scaling`). The server only sends the bare group key, so
- * the consumer supplies the label / icon / order here; anything omitted falls
- * back to a title-cased key, no icon, and schema order.
- */
+/** Display metadata for a read-first group, keyed by the raw `group` string;
+ * omissions fall back to a title-cased key, no icon, and schema order. */
 export interface IFormEngineGroup {
   label?: string;
   icon?: IReqoreIconName;
@@ -422,6 +756,19 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   value?: TQorusForm | TQorusFlatForm;
   options?: IQorusFormSchema;
   onChange?: (name: string, value?: TQorusForm, meta?: IOptionsOnChangeMeta) => void;
+  /**
+   * `'immediate'` (default): edits flow out via the debounced `onChange`.
+   * `'batched'`: edits stage locally (Draft chips + Save/Discard bar); Save
+   * fires `onCommit`, gated on validity; staged `onChange` carries `meta.draft`.
+   */
+  commitMode?: 'immediate' | 'batched';
+  /** `commitMode='batched'` only: the user applied the staged changes. */
+  onCommit?: (name: string, value?: TQorusForm, meta?: IOptionsOnChangeMeta) => void;
+  /**
+   * Operator schema (`WHERE <field> IS <op>`): adds the operator selector rows;
+   * operator-bearing fields always card-edit in compact mode.
+   */
+  operators?: IOperatorsSchema;
   onSingleOptionsChange?: (name: string, value: TOption) => void;
   onDependableOptionChange?: (
     name: string,
@@ -440,29 +787,17 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   templateFieldProps?: Partial<ITemplateFieldProps>;
   showTypeToggle?: boolean;
   /**
-   * Render the form in **compact (read-first)** mode: each option is shown as a
-   * row with its current value, grouped by the option's `group`, with a
-   * completion meter at the top; clicking a row expands the real editor inline
-   * and a "Done" action collapses it again. The search box, sort, and outer
-   * label are hidden. Defaults to the classic always-expanded layout.
+   * Compact (read-first) mode: each option renders as a row with its formatted
+   * value; clicking expands the real editor inline, Done collapses it.
    */
   compact?: boolean;
-  /**
-   * Compact mode only: per-group display metadata (label / icon / subtitle /
-   * order), keyed by the option's raw `group` string. The server doesn't define
-   * group display info, so the consumer supplies it here.
-   */
+  /** Compact mode only: per-group display metadata (label / icon / subtitle /
+   * order) — the server only sends the bare group key. */
   groups?: Record<string, IFormEngineGroup>;
   /**
-   * Async schema source. When provided (and `options` is not), the engine calls
-   * this on mount and whenever the callback's identity changes, owns the
-   * loading / error / refetch lifecycle itself, and renders the loaded schema.
-   *
-   * The callback is **transport-agnostic**: the consumer fetches the schema
-   * however it likes (e.g. from a backend endpoint) and resolves it — the engine
-   * never learns about any specific data source. Memoize it (e.g. `useCallback`)
-   * keyed on its inputs, since a new identity triggers a refetch. On success
-   * `onOptionsLoaded` fires with the loaded schema; a rejection renders an error.
+   * Async schema source (used when `options` is absent): transport-agnostic,
+   * called on mount and on identity change (memoize it); the engine owns the
+   * loading/error lifecycle and fires `onOptionsLoaded` on success.
    */
   optionsLoader?: () => Promise<IQorusFormSchema>;
   onValidityChange?: (isValid: boolean, data: IFormValidityData) => void;
@@ -485,31 +820,55 @@ export const FormEngine = ({
   templateFieldProps,
   showTypeToggle = true,
   compact,
+  commitMode = 'immediate',
+  onCommit,
+  operators,
   groups,
   optionsLoader,
   onValidityChange,
   ...rest
 }: IFormEngineProps) => {
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
-  // When `optionsLoader` is supplied, the engine fetches the schema itself and
-  // tracks the async lifecycle here: `optionsLoading` feeds the skeleton gate,
-  // `optionsError` surfaces a failed load.
+  // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
   const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
   const [optionsError, setOptionsError] = useState<string | undefined>();
-  const [operators] = useState<IOperatorsSchema | undefined>(undefined);
   const confirmAction = useReqoreProperty('confirmAction');
   const theme = useReqoreTheme();
   const [focusedEditing, setFocusedEditing] = useState<string>();
   const [showFieldTypes, setShowFieldTypes] = useState<boolean>(false);
   const [showHelpForOption, setShowHelpForOption] = useState<string | undefined>();
   const [showInvalidOptionsOnly, setShowInvalidOptionsOnly] = useState<boolean>(false);
-  // Read-first (compact) mode: which options are currently expanded into their
-  // editor. Collapsed options show their formatted value only; clicking a row
-  // reveals the real field. Multiple rows can be open at once.
+  // Which options are expanded into their editor (several can be open at once).
   const [expandedOptions, setExpandedOptions] = useState<string[]>([]);
-  // Compact-mode toolbar state: narrow the rows to required fields, and/or
-  // free-text filter by label. Both only affect which rows are listed — the
-  // completion meter still reflects the full set.
+  // Measured form width (not viewport — the form lives in drawers/panels of
+  // arbitrary width) drives the stacked narrow layout.
+  const [compactWrapRef, { width: compactWrapWidth }] = useMeasure<HTMLDivElement>();
+  // Editing rows pin min-height to the measured read row they replace, so the
+  // toggle never shifts neighbours (height varies with chrome — measure it).
+  const readRowHeights = useRef<Record<string, number>>({});
+  // Required-groups linkage: hovering a group chip highlights every member row;
+  // clicking a sibling in the chip's popover scrolls to it and flashes it.
+  const [highlightedOptions, setHighlightedOptions] = useState<string[]>([]);
+  const [flashedOptions, setFlashedOptions] = useState<string[]>([]);
+  const flashTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const flashOptions = useCallback((optionNames: string[], scrollToFirst = false) => {
+    if (scrollToFirst && optionNames[0]) {
+      document
+        .querySelector(`.readfirst-row[data-field="${optionNames[0]}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    setFlashedOptions(optionNames);
+    clearTimeout(flashTimeout.current);
+    flashTimeout.current = setTimeout(() => setFlashedOptions([]), 1400);
+  }, []);
+  const flashOption = useCallback(
+    (optionName: string) => flashOptions([optionName], true),
+    [flashOptions]
+  );
+  const compactNarrow = !!compactWrapWidth && compactWrapWidth < 480;
+  // Info panels auto-open on Tier-1 content; the per-row user override sticks.
+  const [infoPanelOverrides, setInfoPanelOverrides] = useState<Record<string, boolean>>({});
+  // Toolbar filters affect the listed rows only — the meter reflects the full set.
   const [requiredOnly, setRequiredOnly] = useState<boolean>(false);
   const [compactQuery, setCompactQuery] = useState<string>('');
   const [localValue, setLocalValue] = useState<{
@@ -540,7 +899,10 @@ export const FormEngine = ({
 
       const toEmit = size(localValue.fields) ? (localValue.fields as TQorusForm) : undefined;
       lastEmittedValue.current = toEmit;
-      onChange?.(name, toEmit, size(localValue.meta) ? localValue.meta : undefined);
+      const meta = size(localValue.meta) ? localValue.meta : undefined;
+      // Batched mode still emits every staged change (consumers may want to
+      // live-validate), but flags it as a draft — persistence waits for Save.
+      onChange?.(name, toEmit, commitMode === 'batched' ? { ...(meta || {}), draft: true } : meta);
     },
     0,
     [JSON.stringify(localValue)]
@@ -555,9 +917,7 @@ export const FormEngine = ({
     setOptions(rest.options);
   }, [JSON.stringify(rest.options)]);
 
-  // `optionsLoader`: fetch the schema on mount and whenever the loader identity
-  // changes. The engine owns the loading/error lifecycle; the loader itself is
-  // transport-agnostic (the consumer decides how the schema is fetched).
+  // Fetch the schema on mount and on loader identity change.
   useEffect(() => {
     if (!optionsLoader) {
       return undefined;
@@ -861,9 +1221,8 @@ export const FormEngine = ({
           };
         }
 
-        // For any/auto schema types the user can pick a specific type — preserve it.
-        // For all other schema types, normalize to the schema's type so rendering and
-        // validation always use the correct field type (e.g. ui_type:'richtext' wins over type:'string').
+        // any/auto: preserve the user-picked type; otherwise normalize to the
+        // schema type (ui_type wins) so rendering and validation agree.
         const isAnyLike = schemaType === 'any' || schemaType === 'auto';
         const effectiveType =
           isAnyLike && (option as IQorusFormField)?.type ?
@@ -882,6 +1241,53 @@ export const FormEngine = ({
     JSON.stringify(operators),
     showInvalidOptionsOnly,
   ]);
+
+  // Per required-group: its member options, and which member (if any) already
+  // satisfies it — drives the "One of" chips and the "covered by" notes.
+  const requiredGroupsInfo = useMemo(() => {
+    const members: Record<string, string[]> = {};
+    forEach(options || {}, (optionSchema, name) => {
+      (optionSchema?.required_groups || []).forEach((groupName: string) => {
+        (members[groupName] = members[groupName] || []).push(name);
+      });
+    });
+    const satisfiedBy: Record<string, string | undefined> = {};
+    Object.keys(members).forEach((groupName) => {
+      satisfiedBy[groupName] = members[groupName].find(
+        (name) => !isOptionValueEmpty((availableOptions as TQorusForm)?.[name]?.value)
+      );
+    });
+    return { members, satisfiedBy };
+  }, [JSON.stringify(options), JSON.stringify(availableOptions)]);
+
+  // Dependency linkage (3a): when filling a dependency unlocks rows, flash
+  // them once — the form visibly "opens up" instead of silently changing.
+  const dependencyLockedNames = useMemo(() => {
+    const names: string[] = [];
+    forEach(options || {}, (optionSchema, name) => {
+      if (
+        optionSchema?.depends_on &&
+        !hasAllDependenciesFullfilled(optionSchema.depends_on, availableOptions, options || {})
+      ) {
+        names.push(name);
+      }
+    });
+    return names;
+  }, [JSON.stringify(options), JSON.stringify(availableOptions)]);
+  const previousDependencyLocked = useRef<string[] | null>(null);
+  useEffect(() => {
+    const previous = previousDependencyLocked.current;
+    previousDependencyLocked.current = dependencyLockedNames;
+    if (!previous) {
+      return;
+    }
+    const unlocked = previous.filter(
+      (name) => !dependencyLockedNames.includes(name) && !options?.[name]?.disabled
+    );
+    if (unlocked.length) {
+      flashOptions(unlocked);
+    }
+  }, [dependencyLockedNames.join('|')]);
 
   const filteredOptions: IQorusFormSchema = useMemo(
     () =>
@@ -1019,6 +1425,34 @@ export const FormEngine = ({
     });
   }, [JSON.stringify(options), JSON.stringify(originalValue.current)]);
 
+  // `commitMode='batched'`: which options differ from the committed baseline —
+  // drives the per-row Draft chips and the Save/Discard bar.
+  const dirtyOptionNames = useMemo(() => {
+    if (commitMode !== 'batched') {
+      return [];
+    }
+    const keys = new Set([
+      ...Object.keys((localValue.fields as TQorusForm) || {}),
+      ...Object.keys((originalValue.current as TQorusForm) || {}),
+    ]);
+    return Array.from(keys).filter(
+      (key) =>
+        !isEqual(
+          (localValue.fields as TQorusForm)?.[key]?.value,
+          originalValue.current?.[key]?.value
+        )
+    );
+  }, [commitMode, JSON.stringify(localValue.fields), JSON.stringify(originalValue.current)]);
+
+  // Save: emit the staged form via onCommit and make it the new baseline, so
+  // the Draft chips and the bar clear. Validation gates the button itself.
+  const handleCommitClick = useCallback(() => {
+    const toEmit = size(localValue.fields) ? (localValue.fields as TQorusForm) : undefined;
+    onCommit?.(name, toEmit, size(localValue.meta) ? localValue.meta : undefined);
+    originalValue.current = localValue.fields;
+    setLocalValue((current) => ({ ...current }));
+  }, [JSON.stringify(localValue), name, onCommit]);
+
   const hasOptionChanged = useCallback(
     (optionValue: unknown, optionName: string): boolean => {
       return !isEqual(optionValue, originalValue.current?.[optionName]?.value);
@@ -1069,9 +1503,8 @@ export const FormEngine = ({
     });
   }, [JSON.stringify(filteredOptions), handleAddOptionalFieldChange]);
 
-  // Compact "Fields" menu — Default fields: drop the optional fields the user
-  // added (keep required / preselected / data-carried fields and their values),
-  // and clear the required-only filter (mirrors the IDE's handleResetToDefault).
+  // Default fields: drop user-added optionals, keep required/preselected/valued,
+  // clear the required-only filter (mirrors the IDE's handleResetToDefault).
   const handleResetToDefaultFields = useCallback(() => {
     setLocalValue(({ fields }) => {
       const current = (fields || {}) as TQorusForm;
@@ -1109,10 +1542,19 @@ export const FormEngine = ({
 
   const getTypeForOption = useCallback((type: string) => type, []);
 
-  const renderOption = (optionName: string, { type, ...other }: IQorusFormField) => {
+  const renderOption = (
+    optionName: string,
+    { type, ...other }: IQorusFormField,
+    // Inline (in-row) editing renders the editor a size down so it fits the
+    // read row's height without shifting the rows around it.
+    editorSize?: 'small',
+    // The info panel below the row keeps showing schema messages while editing —
+    // rendering them in the editor too would balloon a one-line edit.
+    suppressSchemaMessages?: boolean
+  ) => {
     return (
       <>
-        {((options?.[optionName] as any)?.messages || []).map(
+        {(suppressSchemaMessages ? [] : (options?.[optionName] as any)?.messages || []).map(
           ({ intent, title, content }: any, index: number) => (
             <ReqoreMessage
               intent={intent}
@@ -1193,9 +1635,12 @@ export const FormEngine = ({
           ui_type={type}
           name={optionName}
           uniqueName={`${uniqueName ? `${uniqueName}.` : `${name ? `${name}.` : ''}`}${optionName}`}
-          onChange={(name, value, type) => {
-            handleValueChange(name, value, type);
-          }}
+          onChange={
+            // Identity-stable on purpose: the typed fields debounce on
+            // `[localValue, onChange]` — an inline lambda resets the pending emit
+            // every render and the typed value can starve.
+            handleValueChange
+          }
           key={optionName}
           arg_schema={options?.[optionName]?.arg_schema}
           noSoft={!!rest?.options}
@@ -1214,7 +1659,7 @@ export const FormEngine = ({
             )
           }
           readOnly={readOnly}
-          size={rest.size}
+          size={editorSize || rest.size}
           menuItems={
             (options?.[optionName] as any)?.ui_type === 'any' ?
               getCustomMenuTemplateItems(optionName)
@@ -1259,7 +1704,7 @@ export const FormEngine = ({
     );
   };
 
-  // ─── compact (read-first) rendering ───────────────────────────────────────────
+  // Compact (read-first) rendering.
   // Theme-derived colours so the flat-row layout adapts to light/dark/custom themes.
   const cText = theme?.text?.color || '#ffffff';
   const cMuted = `${cText}99`;
@@ -1268,15 +1713,61 @@ export const FormEngine = ({
   const cDivider = `${cText}14`;
   const cHover = `${cText}0d`;
   const cDanger = theme?.intents?.danger || '#e35a5a';
+  const cWarning = theme?.intents?.warning || '#ffdf34';
   const cInfo = theme?.intents?.info || '#3b8eea';
   const cSuccess = theme?.intents?.success || '#36b37e';
   const cBg = (theme as { main?: string } | undefined)?.main || '#181818';
 
-  // A single read-first row. Collapsed: label | formatted value | edit affordance.
-  // Expanded: the real editor (same `renderOption` as the classic layout, so all
-  // field wiring is preserved) with a "Done" action to collapse it again.
-  // `hidden` marks an optional field surfaced by the search that isn't part of
-  // the form yet — activating its row adds it, then opens the editor.
+  // Value-cell content: colour adds a swatch, file an icon + size; hash keeps
+  // its "N fields" summary (sub-fields reveal beneath the row).
+  const renderReadFirstValue = (
+    optionField: IQorusFormField,
+    schema: TQorusFormFieldSchema | undefined,
+    formatted: string
+  ): React.ReactNode => {
+    const valueType = getValueType(optionField, schema);
+    const wrapStyle: React.CSSProperties = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 6,
+      minWidth: 0,
+      maxWidth: '100%',
+    };
+    const textStyle: React.CSSProperties = {
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+    };
+
+    if (valueType === 'rgbcolor') {
+      const swatch = colorToCss(optionField?.value);
+      return (
+        <span style={wrapStyle}>
+          {swatch ? <StyledColorSwatch aria-hidden $color={swatch} $border={cDivider} /> : null}
+          <span style={textStyle}>{formatted}</span>
+        </span>
+      );
+    }
+
+    if (valueType === 'file') {
+      const fileSize = getFileSize(optionField?.value);
+      return (
+        <span style={wrapStyle}>
+          <ReqoreIcon icon='File2Line' size='13px' style={{ opacity: 0.7, flexShrink: 0 }} />
+          <span style={textStyle}>{formatted}</span>
+          {fileSize !== undefined ?
+            <span style={{ color: cFaint, fontSize: 11, flexShrink: 0 }}>{formatBytes(fileSize)}</span>
+          : null}
+        </span>
+      );
+    }
+
+    return formatted;
+  };
+
+  // One read-first row: label | value | action collapsed; the real editor (the
+  // classic renderOption) expanded. `hidden` = search-surfaced optional —
+  // activating the row adds the field first.
   const renderCompactRow = (
     optionName: string,
     optionField: IQorusFormField,
@@ -1292,15 +1783,315 @@ export const FormEngine = ({
     );
     const removable =
       !readOnly && !schema?.preselected && !schema?.required && !schema?.required_groups;
+    const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
+    // Unmet groups drive the "One of" chip; a group satisfied by a SIBLING
+    // drives the "covered by" note.
+    const memberGroups: string[] = (schema?.required_groups as string[]) || [];
+    const unmetGroups = memberGroups.filter(
+      (groupName) => !requiredGroupsInfo.satisfiedBy[groupName]
+    );
+    const coveredByGroup = memberGroups.find(
+      (groupName) =>
+        requiredGroupsInfo.satisfiedBy[groupName] &&
+        requiredGroupsInfo.satisfiedBy[groupName] !== optionName
+    );
+    const coveredByLabel =
+      coveredByGroup && !schema?.required ?
+        (options?.[requiredGroupsInfo.satisfiedBy[coveredByGroup] as string]
+          ?.display_name as string) || requiredGroupsInfo.satisfiedBy[coveredByGroup]
+      : undefined;
+    const requiredGroupChip =
+      !hidden && !readOnly && unmetGroups.length && !schema?.required ?
+        <span
+          style={{ display: 'inline-flex' }}
+          role='presentation'
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          onMouseEnter={() => setHighlightedOptions(requiredGroupsInfo.members[unmetGroups[0]] || [])}
+          onMouseLeave={() => setHighlightedOptions([])}
+        >
+          <ReqoreTag
+            className='options-readfirst-required-group'
+            size='small'
+            minimal
+            intent='warning'
+            icon='LinkM'
+            label={`One of: ${unmetGroups[0]}`}
+            tooltip={{
+              handler: 'click',
+              content: (
+                <StyledPopColumn>
+                  {unmetGroups.map((groupName) => (
+                    <StyledPopGroup key={groupName}>
+                      <StyledPopHint>
+                        Set one of these fields ({groupName}):
+                      </StyledPopHint>
+                      {requiredGroupsInfo.members[groupName].map((member) => (
+                        <ReqoreTag
+                          key={member}
+                          className='options-readfirst-group-member'
+                          size='small'
+                          minimal
+                          intent={member === optionName ? undefined : 'info'}
+                          icon={member === optionName ? 'MapPinLine' : 'ArrowRightLine'}
+                          label={(options?.[member]?.display_name as string) || member}
+                          onClick={member === optionName ? undefined : () => flashOption(member)}
+                        />
+                      ))}
+                    </StyledPopGroup>
+                  ))}
+                </StyledPopColumn>
+              ),
+            }}
+          />
+        </span>
+      : null;
+    const editType = ((schema?.ui_type as string) || (schema?.type as string)) ?? '';
+    // Scalars edit in place inside the row; complex fields (tall or nested
+    // editors) still open the expanded card below.
+    const inlineEditable =
+      !readOnly &&
+      !schema?.arg_schema &&
+      !(operators && size(operators)) &&
+      !COMPACT_COMPLEX_TYPES.has(editType);
+    const revertButton =
+      changed ?
+        <ReqoreButton
+          className='options-readfirst-revert'
+          size='small'
+          flat
+          minimal
+          icon='HistoryLine'
+          tooltip='Revert changes'
+          onClick={(e: any) => {
+            e.stopPropagation();
+            handleValueChange(
+              optionName,
+              originalValue.current?.[optionName]?.value,
+              originalValue.current?.[optionName]?.type
+            );
+          }}
+        />
+      : null;
+    // Batched commit: a changed row is a draft until Save — mark it with the
+    // product's Draft chip (always visible, unlike the hover-revealed revert).
+    const draftChip =
+      commitMode === 'batched' && changed ?
+        <ReqoreTag
+          className='options-readfirst-draft'
+          label='Draft'
+          intent='warning'
+          icon='EditLine'
+          size='small'
+          minimal
+          fixed
+        />
+      : null;
+
+    // Info tiers: Tier 1 (danger/warning + dependency hints) must be visible
+    // without interaction; Tier 2 (info/success, default notes) sits behind ⓘ.
+    const infoActive = !hidden;
+    type TInfoMsg = { intent?: string; title?: string; content: string };
+    const schemaMessages: TInfoMsg[] =
+      infoActive ?
+        ((((schema as any)?.messages || []) as any[]).map((m) => ({
+          intent: m.intent,
+          title: m.title,
+          content: m.content,
+        })) as TInfoMsg[])
+      : [];
+    const fieldMessages: TInfoMsg[] =
+      infoActive ?
+        getOptionFieldMessages({
+          schema: options || {},
+          option: optionField || ({} as IQorusFormField),
+          name: optionName,
+          allOptions: availableOptions,
+          getType: getTypeForOption,
+        })
+          // The row already shows the Required tag — the plain required
+          // message would duplicate it.
+          .filter((m) => m.label !== 'This field is required')
+          .map((m) => ({ intent: m.intent as string, content: String(m.label) }))
+      : [];
+    const isCriticalMsg = (m: TInfoMsg) => m.intent === 'danger' || m.intent === 'warning';
+    const tier1 = [...schemaMessages, ...fieldMessages].filter(isCriticalMsg);
+    const tier2: TInfoMsg[] = [
+      ...[...schemaMessages, ...fieldMessages].filter((m) => !isCriticalMsg(m)),
+      ...(infoActive && schema?.default_value_desc ?
+        [
+          {
+            content:
+              `Default: ${schema.default_value_display_name || ''} — ${schema.default_value_desc}`.trim(),
+          },
+        ]
+      : []),
+    ];
+    const worstIntent =
+      tier1.some((m) => m.intent === 'danger') ? 'danger'
+      : tier1.length ? 'warning'
+      : undefined;
+    const intentColor =
+      worstIntent === 'danger' ? cDanger
+      : worstIntent === 'warning' ? cWarning
+      : undefined;
+    const showStripe = infoActive && !!intentColor;
+    const hasInfoPanelContent =
+      infoActive && (tier1.length > 0 || tier2.length > 0 || !!schema?.short_desc);
+    const infoPanelOpen =
+      hasInfoPanelContent && (infoPanelOverrides[optionName] ?? tier1.length > 0);
+
+    const renderInfoStrip = (m: TInfoMsg, index: number) => (
+      <ReqoreMessage
+        key={`${m.content}-${index}`}
+        size='small'
+        opaque={false}
+        flat
+        intent={m.intent as never}
+        title={m.title}
+      >
+        {m.content}
+      </ReqoreMessage>
+    );
+
+    const infoToggle =
+      hasInfoPanelContent ?
+        <span
+          style={{ display: 'inline-flex', cursor: 'pointer' }}
+          role='button'
+          tabIndex={0}
+          aria-label={`${infoPanelOpen ? 'Hide' : 'Show'} field information`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setInfoPanelOverrides((prev) => ({ ...prev, [optionName]: !infoPanelOpen }));
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              e.stopPropagation();
+              setInfoPanelOverrides((prev) => ({ ...prev, [optionName]: !infoPanelOpen }));
+            }
+          }}
+        >
+          <ReqoreIcon
+            icon={infoPanelOpen ? 'InformationFill' : 'InformationLine'}
+            size='14px'
+            intent={worstIntent as never}
+            style={{ opacity: infoPanelOpen ? 0.9 : 0.55 }}
+          />
+        </span>
+      : null;
+
+    const infoBlock =
+      infoPanelOpen ?
+        <StyledInfoPanel className='options-readfirst-info-panel'>
+          {schema?.short_desc ?
+            <StyledMutedNote $color={cMuted}>{schema.short_desc}</StyledMutedNote>
+          : null}
+          {[...tier1, ...tier2].map(renderInfoStrip)}
+        </StyledInfoPanel>
+      : null;
+
 
     if (expandedOptions.includes(optionName)) {
+      if (inlineEditable) {
+        const collapse = () => toggleExpandedOption(optionName);
+        const editingRow = (
+          <div
+            key={optionName}
+            data-field={optionName}
+            className='readfirst-row readfirst-row-editing options-readfirst-inline options-readfirst-value'
+            style={
+              readRowHeights.current[optionName] ?
+                { minHeight: readRowHeights.current[optionName] }
+              : undefined
+            }
+          >
+            <StyledRowLabel
+              role='button'
+              tabIndex={0}
+              aria-label={`Collapse ${label}`}
+              title={schema?.short_desc || undefined}
+              $color={cKey}
+              $pointer
+              onClick={collapse}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  collapse();
+                }
+              }}
+            >
+              {label}
+              {required ? <StyledStar $color={cDanger}> *</StyledStar> : null}
+            </StyledRowLabel>
+            <div
+              style={{ minWidth: 0 }}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.stopPropagation();
+                  collapse();
+                }
+              }}
+            >
+              {renderOption(optionName, optionField, 'small', true)}
+            </div>
+            <StyledRowActions>
+              {draftChip}
+              {/* No Required tag here: while editing, the editor's own
+                  OptionFieldMessages strip below already says it — showing
+                  both was redundant. The tag stays on READ rows, where no
+                  message strip is visible. */}
+              {revertButton}
+              <ReqoreButton
+                className='options-readfirst-done'
+                size='small'
+                flat
+                minimal
+                intent='success'
+                icon='CheckLine'
+                tooltip='Done'
+                onClick={collapse}
+              />
+            </StyledRowActions>
+          </div>
+        );
+        // The panel stays below the editing row — messages neither vanish nor
+        // balloon the editor.
+        return infoBlock ?
+            <StyledColumn
+              key={optionName}
+              data-field={optionName}
+              className='options-readfirst-info-row'
+            >
+              {editingRow}
+              {infoBlock}
+            </StyledColumn>
+          : editingRow;
+      }
+      // Card chrome: badge / actions / tags render here — the row only fits
+      // icon/image + the intent stripe.
+      const schemaBadge = (schema as { badge?: unknown } | undefined)?.badge;
+      const cardBadges =
+        schemaBadge !== undefined && schemaBadge !== null ?
+          ((Array.isArray(schemaBadge) ? schemaBadge : [schemaBadge]) as unknown[])
+        : [];
+      const cardActions =
+        (schema as { actions?: unknown[] } | undefined)?.actions?.filter(
+          (action) => !!action && typeof action === 'object'
+        ) || [];
+      const cardTags = ((schema as { tags?: unknown[] } | undefined)?.tags || []) as object[];
+      const schemaIntentColor =
+        schema?.intent ?
+          (theme?.intents as Record<string, string> | undefined)?.[schema.intent as string]
+        : undefined;
       return (
         <StyledEditCard
           key={optionName}
           data-field={optionName}
           className='options-readfirst-card'
           $bg={cHover}
-          $border={`${cInfo}66`}
+          $border={schemaIntentColor ? `${schemaIntentColor}66` : `${cInfo}66`}
         >
           <div
             style={{
@@ -1310,139 +2101,273 @@ export const FormEngine = ({
               gap: 12,
             }}
           >
-            <div style={{ display: 'flex', flexFlow: 'column', minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 11,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.07em',
-                  color: cMuted,
-                }}
-              >
-                {label}
-                {required ? <span style={{ color: cDanger }}> *</span> : null}
-              </div>
+            <StyledCardHeading>
+              <StyledCardLabel $color={cMuted}>
+                {(schema as { icon?: string } | undefined)?.icon || (schema as { image?: string } | undefined)?.image ?
+                  <ReqoreIcon
+                    icon={(schema as { icon?: string } | undefined)?.icon as never}
+                    image={(schema as { image?: string } | undefined)?.image}
+                    size='14px'
+                  />
+                : null}
+                <span>
+                  {label}
+                  {required ? <StyledStar $color={cDanger}> *</StyledStar> : null}
+                </span>
+                {cardBadges.map((badge, index) =>
+                  typeof badge === 'object' ?
+                    <ReqoreTag
+                      size='small'
+                      minimal
+                      key={index}
+                      className='options-readfirst-card-badge'
+                      {...(badge as object)}
+                    />
+                  : <ReqoreTag
+                      size='small'
+                      minimal
+                      key={index}
+                      className='options-readfirst-card-badge'
+                      label={badge as string | number}
+                    />
+                )}
+              </StyledCardLabel>
               {schema?.short_desc ?
-                <div style={{ color: cMuted, fontSize: 12, marginTop: 2 }}>{schema.short_desc}</div>
+                <StyledMutedNote $color={cMuted} style={{ marginTop: 2 }}>
+                  {schema.short_desc}
+                </StyledMutedNote>
               : null}
-            </div>
-            <ReqoreButton
-              size='small'
-              icon='CheckLine'
-              intent='success'
-              fixed
-              className='options-readfirst-done'
-              onClick={() => toggleExpandedOption(optionName)}
-            >
-              {readOnly ? 'Close' : 'Done'}
-            </ReqoreButton>
+              {cardTags.length ?
+                <ReqoreTagGroup size='small' className='options-readfirst-card-tags'>
+                  {cardTags.map((tag, index) => (
+                    <ReqoreTag size='small' minimal key={index} {...(tag as object)} />
+                  ))}
+                </ReqoreTagGroup>
+              : null}
+            </StyledCardHeading>
+            <ReqoreControlGroup fixed verticalAlign='center'>
+              {cardActions.map((action, index) => {
+                const { label: actionLabel, ...actionProps } = action as {
+                  label?: string;
+                } & Record<string, unknown>;
+                return (
+                  <ReqoreButton
+                    size='small'
+                    minimal
+                    flat
+                    fixed
+                    key={index}
+                    className='options-readfirst-card-action'
+                    {...(actionProps as object)}
+                  >
+                    {actionLabel}
+                  </ReqoreButton>
+                );
+              })}
+              <ReqoreButton
+                size='small'
+                icon='FullscreenLine'
+                minimal
+                flat
+                fixed
+                className='options-readfirst-fullscreen'
+                tooltip='Edit fullscreen'
+                onClick={() => setFocusedEditing(optionName)}
+              />
+              <ReqoreButton
+                size='small'
+                icon='CheckLine'
+                intent='success'
+                fixed
+                className='options-readfirst-done'
+                onClick={() => toggleExpandedOption(optionName)}
+              >
+                {readOnly ? 'Close' : 'Done'}
+              </ReqoreButton>
+            </ReqoreControlGroup>
           </div>
-          {renderOption(optionName, optionField)}
+          {/* Same fullscreen focused-editing affordance as the classic cards —
+              the modal mounts when this option is focused. */}
+          <FocusedEditing
+            isFullscreen={focusedEditing === optionName}
+            onClose={() => setFocusedEditing(undefined)}
+            description={(schema?.display_name as string) || optionName}
+          >
+            {focusedEditing === optionName ?
+              <Description
+                longDescription={schema?.desc}
+                shortDescription={schema?.short_desc}
+                longDescriptionShownByDefault
+              />
+            : null}
+            {renderOption(optionName, optionField)}
+          </FocusedEditing>
         </StyledEditCard>
       );
     }
 
     const formatted = formatOptionValue(optionField, schema);
     const empty = formatted === '';
-    const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
+    // A hash row reveals its sub-fields as read-only sub-rows under a "view
+    // more" disclosure; the row itself still expands the real editor on click.
+    const valueType = getValueType(optionField, schema);
+    const hashEntries =
+      !hidden && (valueType === 'hash' || valueType === 'free-hash') ?
+        getHashEntries(optionField, schema)
+      : [];
     const typeLabel =
       showFieldTypes ?
         `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
       : null;
-    const activate = () => {
+    // Disabled rows (schema flag or unmet deps) can't open — a lock + reason
+    // renders instead. Form-level readOnly still opens in view mode (Close).
+    const fieldDisabled =
+      !hidden &&
+      !readOnly &&
+      (!!schema?.disabled ||
+        !hasAllDependenciesFullfilled(schema?.depends_on, availableOptions, options || {}));
+    const fieldDisabledReason =
+      schema?.disabled ? 'This field is disabled' : 'Disabled — dependencies are not fulfilled';
+    // Dependency contract: top-level entries must ALL hold; a nested array
+    // means ANY of its entries; `name=value` requires that exact value.
+    const dependencyEntries =
+      fieldDisabled && !schema?.disabled ?
+        ((schema?.depends_on || []) as (string | string[])[])
+      : [];
+    const describeDependency = (dep: string) => {
+      const eqIndex = dep.indexOf('=');
+      const depName = eqIndex === -1 ? dep : dep.slice(0, eqIndex);
+      const expected = eqIndex === -1 ? undefined : dep.slice(eqIndex + 1);
+      const depLabel = (options?.[depName]?.display_name as string) || depName;
+      const depValue = (availableOptions as TQorusForm)?.[depName]?.value;
+      return {
+        name: depName,
+        exists: !!options?.[depName],
+        label: expected === undefined ? depLabel : `${depLabel} = ${expected}`,
+        fulfilled:
+          expected === undefined ?
+            !isOptionValueEmpty(depValue)
+          : depValue != null && String(depValue) === expected,
+      };
+    };
+    const depHighlightNames = (flatten(dependencyEntries as never[]) as string[])
+      .map((dep) => describeDependency(dep).name)
+      .filter((depName) => !!options?.[depName]);
+    const renderDependencyTag = (dep: string) => {
+      const info = describeDependency(dep);
+      if (!info.exists) {
+        return null;
+      }
+      return (
+        <ReqoreTag
+          key={dep}
+          className='options-readfirst-dep'
+          size='small'
+          minimal
+          intent={info.fulfilled ? 'success' : 'info'}
+          icon={info.fulfilled ? 'CheckLine' : 'ArrowRightLine'}
+          label={info.label}
+          onClick={() => flashOption(info.name)}
+        />
+      );
+    };
+    const activate = (event?: { currentTarget?: Element | null }) => {
+      if (fieldDisabled) {
+        return;
+      }
+      const target = event?.currentTarget as HTMLElement | undefined;
+      if (target?.classList?.contains('readfirst-row')) {
+        readRowHeights.current[optionName] = Math.round(target.getBoundingClientRect().height);
+      }
       if (hidden) {
         handleAddOptionalFieldChange('options', optionName);
       }
       toggleExpandedOption(optionName);
     };
 
-    return (
+    // Row chrome: icon/image before the label; schema `intent` as the edge
+    // stripe (message-severity stripes win when both apply).
+    const rowChromeIcon =
+      (schema as { icon?: string } | undefined)?.icon || (schema as { image?: string } | undefined)?.image ?
+        <ReqoreIcon
+          icon={(schema as { icon?: string } | undefined)?.icon as never}
+          image={(schema as { image?: string } | undefined)?.image}
+          size='14px'
+          className='options-readfirst-row-icon'
+        />
+      : null;
+    const rowSchemaIntentColor =
+      schema?.intent ?
+        (theme?.intents as Record<string, string> | undefined)?.[schema.intent as string]
+      : undefined;
+    const rowStripeColor = (showStripe ? intentColor : undefined) || rowSchemaIntentColor;
+
+    const row = (
       <div
         key={optionName}
         data-field={optionName}
         role='button'
         tabIndex={0}
         aria-label={`${label}${hidden ? ' (add field)' : ''}`}
-        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}`}
+        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${highlightedOptions.includes(optionName) ? ' readfirst-row-group-highlight' : ''}${flashedOptions.includes(optionName) ? ' readfirst-row-flash' : ''}`}
+        aria-disabled={fieldDisabled || undefined}
+        style={rowStripeColor ? { boxShadow: `inset 3px 0 0 ${rowStripeColor}` } : undefined}
         onClick={activate}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            activate();
+            activate(event);
           }
         }}
       >
-        <div
-          title={schema?.short_desc || undefined}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 3,
-            color: cKey,
-            fontWeight: 600,
-            fontSize: 13,
-            minWidth: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {label}
-          {required ? <span style={{ color: cDanger }}> *</span> : null}
-          {typeLabel ?
-            <span style={{ color: cFaint, fontWeight: 400, fontSize: 11, marginLeft: 6 }}>
-              {typeLabel}
-            </span>
-          : null}
-          {schema?.desc ?
-            <span
-              role='button'
-              tabIndex={-1}
-              aria-label='Help'
-              className='options-readfirst-help'
-              style={{ cursor: 'help', display: 'inline-flex', opacity: 0.55, marginLeft: 5 }}
-              onClick={(event) => {
-                event.stopPropagation();
-                handleOptionLabelClick(optionName);
-              }}
-            >
-              <ReqoreIcon icon='QuestionLine' size='12px' />
-            </span>
-          : null}
-        </div>
-        <div
+        <StyledLabelBlock>
+          <StyledRowLabel title={schema?.short_desc || undefined} $color={cKey}>
+            {rowChromeIcon}
+            {label}
+            {required ? <StyledStar $color={cDanger}> *</StyledStar> : null}
+            {typeLabel ? <StyledTypeTag $color={cFaint}>{typeLabel}</StyledTypeTag> : null}
+            {schema?.desc ?
+              <StyledHelpIcon
+                role='button'
+                tabIndex={-1}
+                aria-label='Help'
+                className='options-readfirst-help'
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleOptionLabelClick(optionName);
+                }}
+              >
+                <ReqoreIcon icon='QuestionLine' size='12px' />
+              </StyledHelpIcon>
+            : null}
+          </StyledRowLabel>
+        </StyledLabelBlock>
+        <StyledRowValue
           title={!empty && !hidden && typeof formatted === 'string' ? formatted : undefined}
-          style={{
-            // min-width: 0 lets this grid cell shrink below its content's
-            // intrinsic width so the ellipsis engages instead of overflowing.
-            minWidth: 0,
-            color: empty || hidden ? cFaint : cText,
-            fontStyle: empty || hidden ? 'italic' : 'normal',
-            fontSize: 13,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
+          $color={empty || hidden ? cFaint : cText}
+          $empty={empty || hidden}
         >
           {hidden ?
             'Not in form — add'
           : empty ?
-            required ?
+            coveredByLabel ?
+              `Not set — covered by “${coveredByLabel}”`
+            : required ?
               'Required — not set'
             : 'Not set'
-          : formatted}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {hidden ?
-            <ReqoreIcon icon='AddLine' intent='info' size='14px' />
-          : !valid ?
+          : renderReadFirstValue(optionField, schema, formatted)}
+        </StyledRowValue>
+        <StyledRowActions>
+          {/* Column discipline (table treatment): variable-width chips lead and
+              rag INWARD; the info badge and the trailing edit/lock icon live in
+              fixed-width slots pinned at the right, so the same affordance sits
+              at the same x on every row. Hover utilities (revert/delete) sit
+              between the chips and the fixed slots. */}
+          {!hidden && !fieldDisabled && !valid ?
+            requiredGroupChip ||
             <ReqoreTag label='Required' intent='danger' size='small' minimal />
-          : <ReqoreIcon
-              className='readfirst-action'
-              icon={readOnly ? 'EyeLine' : 'EditLine'}
-              size='14px'
-            />
-          }
+          : null}
+          {draftChip}
           {changed ?
             <ReqoreButton
               className='readfirst-action options-readfirst-revert'
@@ -1479,19 +2404,125 @@ export const FormEngine = ({
               }}
             />
           : null}
-        </div>
+          {infoToggle ?
+            <StyledActionSlot className='options-readfirst-info-slot' $width={26}>
+              {infoToggle}
+            </StyledActionSlot>
+          : null}
+          <StyledActionSlot
+            className={`options-readfirst-trailing-slot${!hidden && !fieldDisabled ? ' options-readfirst-trailing-hover-only' : ''}`}
+            $width={18}
+          >
+            {hidden ?
+              <ReqoreIcon icon='AddLine' intent='info' size='14px' />
+            : fieldDisabled ?
+              dependencyEntries.length ?
+                <span
+                  role='presentation'
+                  style={{ display: 'inline-flex' }}
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  onMouseEnter={() => setHighlightedOptions(depHighlightNames)}
+                  onMouseLeave={() => setHighlightedOptions([])}
+                >
+                  <ReqoreIcon
+                    className='options-readfirst-locked options-readfirst-lock-deps'
+                    icon='LockLine'
+                    size='14px'
+                    style={{ opacity: 0.45, cursor: 'pointer' }}
+                    tooltip={{
+                      handler: 'click',
+                      content: (
+                        <StyledPopColumn>
+                          <StyledPopHint>Unlocked by:</StyledPopHint>
+                          {dependencyEntries.map((entry, index) =>
+                            Array.isArray(entry) ?
+                              <StyledPopGroup key={index}>
+                                <StyledPopHint $small>any of:</StyledPopHint>
+                                {entry.map(renderDependencyTag)}
+                              </StyledPopGroup>
+                            : renderDependencyTag(entry)
+                          )}
+                        </StyledPopColumn>
+                      ),
+                    }}
+                  />
+                </span>
+              : <span
+                  title={fieldDisabledReason}
+                  style={{ display: 'inline-flex', opacity: 0.45 }}
+                >
+                  <ReqoreIcon className='options-readfirst-locked' icon='LockLine' size='14px' />
+                </span>
+            : <ReqoreIcon
+                className='readfirst-action'
+                icon={readOnly ? 'EyeLine' : 'EditLine'}
+                size='14px'
+              />
+            }
+          </StyledActionSlot>
+        </StyledRowActions>
       </div>
     );
+
+    if (hashEntries.length) {
+      return (
+        <StyledColumn
+          key={optionName}
+          data-field={optionName}
+          className='options-readfirst-hash-row'
+        >
+          {row}
+          <StyledRowInset>
+            <ReqraftCollapsibleContent
+              maxCollapsedHeight={96}
+              fadeColor={cBg}
+              accentColor={cBg}
+              buttonProps={{ className: 'options-readfirst-viewmore' }}
+            >
+              {/* The IDE workflow-orders renderer (ReqoreDataView): a nested,
+                  type-coloured tree. Section summaries own their
+                  expand/collapse clicks, but clicking a VALUE chip opens the
+                  hash's editor. The Fields-menu "Show field types" toggle also
+                  drives the per-scalar type chips here. Depth 2 = root + first
+                  level open; deeper nests start collapsed so the preview stays
+                  short before the fade's "Show more". */}
+              <div className='options-readfirst-structured'>
+                <StructuredDataView
+                  value={optionField?.value}
+                  collapsibleRoot={false}
+                  showTypes={showFieldTypes}
+                  defaultExpandDepth={2}
+                  onItemClick={() => activate()}
+                />
+              </div>
+            </ReqraftCollapsibleContent>
+          </StyledRowInset>
+          {infoBlock}
+        </StyledColumn>
+      );
+    }
+
+    if (infoBlock) {
+      return (
+        <StyledColumn
+          key={optionName}
+          data-field={optionName}
+          className='options-readfirst-info-row'
+        >
+          {row}
+          {infoBlock}
+        </StyledColumn>
+      );
+    }
+
+    return row;
   };
 
-  // The full compact (read-first) form: a completion meter, an optional
-  // invalid-fields message, the options as flat rows grouped into collapsible
-  // panels by their `group`, and the "more options" adder. Bypasses the classic
-  // ReqoreCollection card layout entirely; the classic path is untouched.
+  // The compact form: meter + invalid banner + grouped rows + the field adder.
+  // Bypasses the classic ReqoreCollection layout; the classic path is untouched.
   const renderCompact = () => {
-    // Filter rows by the toolbar: required-only and/or a free-text label query.
-    // Filters only affect which rows are listed — the completion meter reflects
-    // the full set.
+    // Toolbar filters narrow the listed rows; the meter reflects the full set.
     const query = compactQuery.trim().toLowerCase();
     const matchesQuery = (optionName: string): boolean =>
       !query || (options?.[optionName]?.display_name || optionName).toLowerCase().includes(query);
@@ -1550,10 +2581,37 @@ export const FormEngine = ({
               option={options[showHelpForOption]}
             />
           )}
-          <StyledCompactWrap>
+          <StyledCompactWrap ref={compactWrapRef}>
             <StyledCompactHeader $bg={cBg}>
             {readFirstCompletion.total ?
               <StyledCompletion className='options-readfirst-completion'>
+                {/* Draft/Ready readiness badge — the IDE restyled-creator hero
+                    convention (RestyledFields): warning EditLine "Draft" while
+                    fields still need attention, success CheckLine "Ready" once
+                    everything validates. Driven by the same validity data as
+                    the invalid-fields banner. Hidden in readOnly (nothing is
+                    being drafted). */}
+                {!readOnly ?
+                  size(validityData.invalidFields) ?
+                    <ReqoreTag
+                      className='options-readfirst-status'
+                      label='Draft'
+                      intent='warning'
+                      icon='EditLine'
+                      minimal
+                      size='small'
+                      fixed
+                    />
+                  : <ReqoreTag
+                      className='options-readfirst-status'
+                      label='Ready'
+                      intent='success'
+                      icon='CheckLine'
+                      minimal
+                      size='small'
+                      fixed
+                    />
+                : null}
                 <StyledCompletionLabel $color={cMuted}>
                   {readFirstCompletion.set} / {readFirstCompletion.total} fields set
                 </StyledCompletionLabel>
@@ -1720,11 +2778,17 @@ export const FormEngine = ({
                   }
                 >
                   {groupConfig?.subtitle ?
-                    <div style={{ color: cMuted, fontSize: 12, padding: '0 6px 6px' }}>
+                    <StyledMutedNote $color={cMuted} style={{ padding: '0 6px 6px' }}>
                       {groupConfig.subtitle}
-                    </div>
+                    </StyledMutedNote>
                   : null}
-                  <StyledGroupBody $divider={cDivider} $hover={cHover} $focus={cInfo}>
+                  <StyledGroupBody
+                    $divider={cDivider}
+                    $hover={cHover}
+                    $focus={cInfo}
+                    $zebra={`${cText}08`}
+                    className={compactNarrow ? 'readfirst-narrow' : undefined}
+                  >
                     {names.map((entry) =>
                       renderCompactRow(
                         entry.name,
@@ -1742,6 +2806,55 @@ export const FormEngine = ({
                 </ReqorePanel>
               );
             })}
+
+            {/* Batched commit: the Save/Discard bar docks bottom-right, floating
+                over the rows while anything is staged — the product's draft
+                convention (edits are a draft until explicitly applied). Save is
+                gated on overall validity; Discard is the existing revert-all. */}
+            {commitMode === 'batched' && !readOnly && dirtyOptionNames.length ?
+              <StyledCommitDock $bg={cBg} $border={cDivider}>
+                <ReqoreControlGroup
+                  className='options-readfirst-commitbar'
+                  verticalAlign='center'
+                  wrap
+                >
+                  <ReqoreTag
+                    size='small'
+                    minimal
+                    intent='warning'
+                    icon='EditLine'
+                    label={`${dirtyOptionNames.length} unsaved change${dirtyOptionNames.length === 1 ? '' : 's'}`}
+                  />
+                  <ReqoreButton
+                    size='small'
+                    intent='success'
+                    icon='CheckLine'
+                    fixed
+                    className='options-readfirst-save'
+                    disabled={!validityData.isValid}
+                    tooltip={
+                      validityData.isValid ?
+                        'Apply the staged changes'
+                      : 'Resolve the invalid fields before saving'
+                    }
+                    onClick={handleCommitClick}
+                  >
+                    Save
+                  </ReqoreButton>
+                  <ReqoreButton
+                    size='small'
+                    minimal
+                    flat
+                    fixed
+                    icon='HistoryLine'
+                    className='options-readfirst-discard'
+                    onClick={handleRevertChangesClick}
+                  >
+                    Discard
+                  </ReqoreButton>
+                </ReqoreControlGroup>
+              </StyledCommitDock>
+            : null}
 
           </StyledCompactWrap>
         </ReqoreErrorBoundary>

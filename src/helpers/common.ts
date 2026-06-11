@@ -81,7 +81,22 @@ export const getDefaultValue = (schema: TQorusFormFieldSchema): unknown | undefi
 };
 
 export const richtextToString = (richtext: IReqoreRichTextEditorProps['value']): string => {
+  // A `richtext` ui_type option can still hold a plain scalar value (set
+  // programmatically or loaded from the server before the editor ever touched
+  // it) — only a real Slate document is an array of nodes.
+  if (!Array.isArray(richtext)) {
+    return richtext === undefined || richtext === null ? '' : String(richtext);
+  }
+
   const processElement = (element: any | { text: string }): string => {
+    if (element === null || element === undefined) {
+      return '';
+    }
+
+    if (typeof element !== 'object') {
+      return String(element);
+    }
+
     if ('text' in element) {
       return element.text;
     }
@@ -90,7 +105,7 @@ export const richtextToString = (richtext: IReqoreRichTextEditorProps['value']):
       return element.value?.toString() || '';
     }
 
-    return element.children.map(processElement).join('');
+    return Array.isArray(element.children) ? element.children.map(processElement).join('') : '';
   };
 
   return richtext.map(processElement).join('');

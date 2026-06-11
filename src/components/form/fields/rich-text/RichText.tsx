@@ -40,7 +40,12 @@ export const RichTextFormField = memo(({
       }
     },
     100,
-    [localValue, onChange]
+    // Deliberately NOT keyed on `onChange`: parents (FormEngine/TemplateField)
+    // re-render freely while the user types, and an identity-changing callback
+    // would keep resetting the timer — the pending emission then starves and
+    // the typed value never reaches the form. react-use runs the latest
+    // closure from a ref, so the fresh `onChange` is used either way.
+    [localValue]
   );
 
   const handleChange = (val: any): void => {

@@ -284,6 +284,14 @@ export const TemplateField = memo(
       allowCustomValues && type === 'string' && !hasOnlyAllowedValues;
     const showTemplatesDropdown =
       allowTemplates && (!allowCustomValues || (isTemplate && !templateSupportsCustomValues));
+    // True when some input control renders besides the ⋮ menu. When nothing
+    // does (an empty `any` field: custom values are disallowed and the value's
+    // type is picked FROM the menu), the menu trigger is the field's only
+    // affordance and gets a label — a bare ⋮ alone reads as a broken editor.
+    const hasInputAffordance =
+      (!isTemplate && allowCustomValues) ||
+      (isTemplate && templateSupportsCustomValues) ||
+      showTemplatesDropdown;
 
     // Determine which component to render for the raw field
     const Component: React.FC<any> = useMemo(() => {
@@ -381,11 +389,15 @@ export const TemplateField = memo(
                 transparent: true,
                 size: rest.size,
                 fixed: true,
-                style: {
-                  paddingLeft: 0,
-                  paddingRight: 0,
-                  minWidth: '10px',
-                },
+                label: hasInputAffordance ? undefined : 'Set value',
+                style:
+                  hasInputAffordance ?
+                    {
+                      paddingLeft: 0,
+                      paddingRight: 0,
+                      minWidth: '10px',
+                    }
+                  : undefined,
                 effect: {
                   gradient: {
                     direction: 'to bottom right',
@@ -431,7 +443,14 @@ export const TemplateField = memo(
       }
 
       return null;
-    }, [handleTemplateToggleClick, isTemplate, rest.size, showTemplateToggle, menuItems]);
+    }, [
+      handleTemplateToggleClick,
+      isTemplate,
+      rest.size,
+      showTemplateToggle,
+      menuItems,
+      hasInputAffordance,
+    ]);
 
     // When the type is a list with element type, pass full templates so the child can filter
     const componentTemplates = useMemo(

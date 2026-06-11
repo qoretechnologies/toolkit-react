@@ -77,6 +77,16 @@ export async function _testsOpenTemplates(nth: number = 1) {
   );
 }
 
+// Storybook's iframe shell keeps hidden skeleton markup in the DOM at all
+// times (the `.sb-wrapper` preparing-story/docs blocks, whose args table
+// carries headers like "Name" and "Description"). It sorts BEFORE the story
+// root, so an unscoped text query can match the chrome instead of the story.
+function _queryAllByStoryText(text: string | number | RegExp, selector?: string) {
+  return screen
+    .queryAllByText(text, { selector })
+    .filter((element) => !element.closest('.sb-wrapper'));
+}
+
 export async function _testsWaitForText(
   text: string | number | RegExp,
   selector?: string,
@@ -85,10 +95,10 @@ export async function _testsWaitForText(
 ) {
   await waitFor(
     () => {
-      const element = screen.queryAllByText(text, { selector })[nth - 1];
+      const element = _queryAllByStoryText(text, selector)[nth - 1];
 
-      if (!exist && !element) {
-        return Promise.resolve();
+      if (!exist) {
+        return expect(element, `Expected text ${text} to not exist`).toBeUndefined();
       }
 
       return expect(element, `Expected text ${text}`).toBeInTheDocument();
@@ -113,8 +123,8 @@ export async function _testsWaitForInputValue(
 
       const element = elements[nth - 1];
 
-      if (!exist && !element) {
-        return Promise.resolve();
+      if (!exist) {
+        return expect(element, `Expected input value ${value} to not exist`).toBeUndefined();
       }
 
       return expect(element, `Expected input value ${value}`).toBeInTheDocument();
@@ -128,13 +138,13 @@ export async function _testsWaitForInputValue(
 export async function _testsClickText(text: string, selector?: string, nth: number = 1) {
   await _testsWaitForText(text, selector, nth);
 
-  await fireEvent.click(screen.queryAllByText(text, { selector })[nth - 1]);
+  await fireEvent.click(_queryAllByStoryText(text, selector)[nth - 1]);
 }
 
 export async function _testsWaitForTextsCount(text: string, selector?: string, count: number = 1) {
   await waitFor(
     () => {
-      const texts = screen.queryAllByText(text, { selector });
+      const texts = _queryAllByStoryText(text, selector);
 
       return expect(texts, `Expected text ${text} with count ${count}`).toHaveLength(count);
     },
