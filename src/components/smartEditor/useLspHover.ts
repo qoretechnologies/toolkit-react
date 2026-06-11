@@ -124,9 +124,12 @@ export function useLspHover(
   }, []);
 
   // Debounced fetch. Re-created in the effect below whenever any of
-  // its inputs change (session, converter, etc.). Started as a no-op
-  // so the ref is always a function — avoids null-checks in the
-  // mousemove listener.
+  // its inputs change. Started as a no-op so the ref is always a
+  // function — avoids null-checks in the mousemove listener. The dep
+  // array lists the stable primitives inside `session`, not the object
+  // itself — `useLspSession` rebuilds its return object every render,
+  // which would cancel and recreate this debounce on every parent
+  // re-render (see useLspSemanticTokens for the original incident).
   const fetchHover = useRef<ReturnType<typeof debounce>>(
     debounce(() => undefined)
   );
@@ -177,7 +180,16 @@ export function useLspHover(
       }
     }, debounceMs);
     return () => fetchHover.current.cancel();
-  }, [session, editorRef, converter, enabled, debounceMs, clearHover]);
+  }, [
+    session.client,
+    session.isReady,
+    session.isContextReady,
+    editorRef,
+    converter,
+    enabled,
+    debounceMs,
+    clearHover,
+  ]);
 
   useEffect(() => {
     if (!enabled) return undefined;

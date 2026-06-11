@@ -156,6 +156,16 @@ export interface ISmartEditorProps {
   /** Read-only mode. */
   readOnly?: boolean;
 
+  /**
+   * Whether to render diagnostic decorations (wavy error/warning
+   * underlines) from `publishDiagnostics`. Default `true`. Set `false`
+   * for read-only display surfaces showing text that is not expected to
+   * be valid in the session's language — e.g. the expression "Explain"
+   * panel, which renders the server's human-readable rendering through
+   * the editor for chips + token colours but is not parseable DPQL.
+   */
+  showDiagnostics?: boolean;
+
   /** Called when the editor loses focus. */
   onBlur?: () => void;
 

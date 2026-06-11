@@ -1,11 +1,4 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Generic Slate-based smart editor primitive. Wraps Reqore's
-// `ReqoreRichTextEditor` plus a caller-provided `useLspSession` result —
-// rendering of completions, diagnostics, and language-specific styling
-// flows from the props. The primitive itself has no language semantics:
-// language wrappers (e.g. `DpqlEditor`) own the session (via
-// `useLspSession`), react to prop changes by dispatching `<lang>/*` custom
-// methods on the live client, and pass everything down here.
 
 import {
   ReqoreCallout,
@@ -24,6 +17,7 @@ import {
   TReqoreRichTextEditorRef,
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import React, { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef } from 'react';
 import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
@@ -38,14 +32,8 @@ import { useLspHover } from './useLspHover';
 import { useLspSemanticTokens } from './useLspSemanticTokens';
 import { useLspSignatureHelp } from './useLspSignatureHelp';
 
-/**
- * Theme-leaning colour palette keyed off the LSP-standard
- * `SemanticTokenType` legend. Maps to a One-Dark-ish vocabulary that
- * reads on both light and dark Reqore themes. Token types absent from
- * this map fall through with no colour — Slate's default text colour
- * applies, which is the right behaviour for `namespace` / `decorator` /
- * tokens we don't have a strong opinion about.
- */
+// One-Dark-ish palette keyed off the LSP semantic-token legend; absent
+// types fall through to Slate's default text colour.
 const SEMANTIC_TOKEN_COLORS: Record<string, string> = {
   keyword: '#c678dd', // purple — control flow, `in`, `not`, `between`, …
   operator: '#56b6c2', // cyan — ==, !=, &&, ||, =~, !~, …
@@ -59,31 +47,14 @@ const SEMANTIC_TOKEN_COLORS: Record<string, string> = {
   method: '#e5c07b', // yellow
   class: '#e5c07b', // yellow — Qonsole resource names (`services`, …)
   type: '#e5c07b', // yellow
-  regexp: '#d16969', // coral — /pattern/flags. Distinct from operator
-  //                    cyan so `=~ /…/` reads as two tokens, not one
-  //                    cyan run. Matches VS Code Dark+ regex hue;
-  //                    distinct from variable's `#e06c75` pink.
+  regexp: '#d16969', // coral — kept distinct from operator cyan + variable pink
   modifier: '#c678dd', // purple
   decorator: '#c678dd', // purple
   namespace: '#e5c07b', // yellow
 };
 
-/**
- * Build the `badge` prop for a completion row's right-side kind chip
- * (e.g. `Field`, `Keyword`). Returns `undefined` when the item has no
- * kind, so the badge is simply not rendered. The chip uses Reqore's
- * `minimal` style + smaller size for a subdued, IntelliSense-style
- * appearance that doesn't compete with the label.
- */
-/**
- * Build the `badge` prop for a completion row. Returns the kind chip
- * (Field / Method / …) plus a "Warning" chip when the item carries
- * server-side warning copy (Qonsole emits this on mutating verbs).
- * Both chips are right-aligned on the row.
- *
- * Returns `undefined` when neither applies — keeps Reqore's prop
- * shape clean.
- */
+// Kind chip + a Warning chip (Qonsole flags mutating verbs) for a
+// completion row; undefined when neither applies.
 function buildKindBadge(
   item: ICompletionDropdownItem
 ): Record<string, unknown> | Array<Record<string, unknown>> | undefined {
@@ -113,12 +84,8 @@ function buildKindBadge(
   return undefined;
 }
 
-/**
- * Build the tooltip prop for a completion row. Returns a JSX-rendering
- * tooltip when the item has LSP `documentation` (markdown or plaintext);
- * `undefined` otherwise. The tooltip body is constrained in width and
- * scrollable so long docs don't blow up the layout.
- */
+// Tooltip prop rendering a row's LSP `documentation` (markdown/plaintext),
+// or undefined when there is none.
 function buildDocTooltip(item: ICompletionDropdownItem) {
   const doc = item.documentation;
   if (!doc) return undefined;
@@ -129,34 +96,23 @@ function buildDocTooltip(item: ICompletionDropdownItem) {
     content: <MarkdownDoc content={text} markdown={isMarkdown} />,
     placement: 'right' as const,
     delay: 200,
-    // Dark frosted surface to match the completion dropdown + the hover
-    // popover (Reqore tooltips are popovers at runtime; these props
-    // aren't in the older tooltip type declarations).
+    // The cast covers popover props missing from the older tooltip type.
     flat: true,
     transparent: true,
     backgroundBlur: 20,
-  } as any;
+  } as IReqoreTooltip;
 }
 
-/**
- * Default completion inserter — applies the server-provided `textEdit`
- * when present (LSP-compliant: replace the exact span the server
- * specified with `newText`), or falls back to inserting `insertText` at
- * the cursor. Without the `textEdit` path, the partial token the user
- * typed before requesting completions would be duplicated — e.g. typed
- * `-` + inserted `--desc=` becomes `---desc=`. Wrappers (DPQL) override
- * this entirely to insert Slate tag elements for `@field` / `$template`.
- */
+// Applies the server's `textEdit` (replacing the typed partial token so
+// `-` + `--desc=` doesn't become `---desc=`), else inserts at the cursor.
+// DPQL/Qonsole wrappers override this to insert tag chips.
 const defaultCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
   const rawText = item.textEdit?.newText ?? item.insertText ?? item.label;
-  // LSP snippet (`insertTextFormat === 2`): expand the TextMate
-  // placeholder syntax to plain text so `slice(${1:List Value})$0`
-  // doesn't leak `${…}$0` into the document.
+  // Expand LSP snippet placeholders so `slice(${1:List Value})$0` doesn't
+  // leak `${…}$0` into the document.
   const newText = item.insertTextFormat === 2 ? expandSnippet(rawText) : rawText;
 
-  // Replace mode — atomically swap the node at the chip's path for the
-  // chosen completion as plain text. (Language wrappers that need tag
-  // chips override this entirely.)
+  // Replace mode — atomically swap the node at the chip's path.
   if (ctx.replacementPath) {
     const path = ctx.replacementPath;
     Editor.withoutNormalizing(editor, () => {
@@ -176,10 +132,7 @@ const defaultCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
 
   if (item.textEdit) {
     const startOffset = lspPositionToOffset(ctx.plainText, item.textEdit.range.start);
-    // `cursorOffset - startOffset` is the number of plain-text characters
-    // between the start of the LSP-specified replacement range and the
-    // current caret. Those characters are the partial token the user
-    // typed; delete them before inserting.
+    // Delete the partial token between the edit-range start and the caret.
     const charsToDelete = Math.max(0, ctx.cursorOffset - startOffset);
     for (let i = 0; i < charsToDelete; i++) {
       Editor.deleteBackward(editor, { unit: 'character' });
@@ -194,14 +147,8 @@ const defaultCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
   }
 };
 
-/**
- * Stable style object for completion rows — monospace makes code-shaped
- * tokens (`@field`, `--flag=`, `$template:value`) line up predictably and
- * matches the editor's own monospace body. Hoisted to module scope so the
- * reference is identical across renders (an inline `{ fontFamily }` would
- * allocate a fresh object per row per render and defeat `ReqoreMenuItem`'s
- * own memoization).
- */
+// Module-scoped so the reference is stable across renders — an inline
+// object would defeat ReqoreMenuItem's memoization.
 const COMPLETION_ITEM_STYLE: React.CSSProperties = { fontFamily: 'monospace' };
 
 interface ICompletionMenuItemProps {
@@ -210,14 +157,8 @@ interface ICompletionMenuItemProps {
   onSelect: (item: ICompletionDropdownItem) => void;
 }
 
-/**
- * A single completion-dropdown row. Extracted from SmartEditor's render
- * body (was an inline `.map()` callback inside an IIFE) into a memoized
- * component so the badge/tooltip derivation runs once per item — not on
- * every SmartEditor re-render — and so an unchanged row whose focus state
- * didn't flip skips re-rendering entirely. The `onSelect`/`COMPLETION_ITEM_STYLE`
- * props are referentially stable, so `memo` is effective in practice.
- */
+// Memoized completion row so badge/tooltip derivation runs once per item,
+// not on every SmartEditor re-render.
 const CompletionMenuItem = memo(({ item, isFocused, onSelect }: ICompletionMenuItemProps) => {
   const badge = useMemo(() => buildKindBadge(item), [item]);
   const tooltip = useMemo(() => buildDocTooltip(item), [item]);
@@ -231,9 +172,6 @@ const CompletionMenuItem = memo(({ item, isFocused, onSelect }: ICompletionMenuI
       badge={badge as any}
       tooltip={tooltip as any}
       selected={isFocused}
-      // Focused row uses the host's primary brand intent so the selection
-      // matches the embedding app (QorusPurple inside qorus-ide); degrades
-      // to the host theme's default selected styling elsewhere.
       active={isFocused}
       minimal
       scrollIntoView={isFocused}
@@ -250,21 +188,9 @@ interface ISignatureHelpPillProps {
   position: { left: number; top: number };
 }
 
-/**
- * Signature-help pill rendered ABOVE the caret line (falling back to
- * BELOW when the caret is near the viewport top). Pulled out of
- * SmartEditor's render body — it used to be a ~130-line inline IIFE that
- * re-ran the active-parameter resolution, label-highlight slicing, and
- * viewport-clamp math on EVERY SmartEditor re-render (typing echo, hover
- * moves, autocomplete state changes, …). As a memoized component the work
- * only re-runs when `signature` / `position` actually change.
- *
- * Position strategy: prefer ABOVE the caret line; if that would clip the
- * viewport top, fall back to BELOW. Estimated pill height (64px) covers a
- * single-line label plus a short markdown doc paragraph. The horizontal
- * clamp keeps the pill inside the viewport when the caret sits near the
- * right edge.
- */
+// Memoized signature pill. Prefers ABOVE the caret line, falling back to
+// BELOW when that would clip the viewport top; horizontally clamped to the
+// viewport.
 const SignatureHelpPill = memo(({ signature, position }: ISignatureHelpPillProps) => {
   const theme = useReqoreTheme();
 
@@ -275,17 +201,11 @@ const SignatureHelpPill = memo(({ signature, position }: ISignatureHelpPillProps
   const params = sig.parameters ?? [];
   const activeParam = params[activeIdx];
 
-  // Active-parameter accent: the theme's `info` intent (the same colour
-  // the markdown doc uses for links), falling back to a readable
-  // foreground — not a hardcoded hex.
   const activeParamColor = theme.intents?.info ?? getReadableColor(theme);
 
-  // Highlight the active parameter substring inside the signature label
-  // when `label` is a [start, end] tuple (LSP spec allows either substring
-  // positions or literal names). For literal names we fall back to bolding
-  // the matching word. Kept as plain `<strong>` (not `ReqoreSpan`) because
-  // this is inline text-highlighting inside a flowing label — `ReqoreSpan`
-  // renders `inline-block`, which would break the text flow.
+  // Bold the active parameter inside the label — by [start, end] tuple or
+  // by literal-name match. Plain `<strong>` (not `ReqoreSpan`, whose
+  // `inline-block` would break the flowing label text).
   let label: React.ReactNode = sig.label;
   if (activeParam) {
     if (Array.isArray(activeParam.label)) {
@@ -325,15 +245,13 @@ const SignatureHelpPill = memo(({ signature, position }: ISignatureHelpPillProps
   const lineHeightEstimate = 18;
   const placeBelow = position.top < PILL_HEIGHT_ESTIMATE + 8;
   const pillTop = placeBelow ? position.top + lineHeightEstimate + 4 : position.top - 6;
-  // `window.innerWidth` is safe at render time.
   const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
   const maxLeft = viewportWidth - PILL_WIDTH_ESTIMATE - VIEWPORT_MARGIN;
   const pillLeft = Math.max(VIEWPORT_MARGIN, Math.min(position.left, maxLeft));
 
   return (
     <ReqorePanel
-      // `key` remounts the panel when the above/below placement flips so
-      // the `transform` recalculates cleanly rather than animating across.
+      // Remount on placement flip so `transform` recalculates cleanly.
       key={`sig-${position.left}-${position.top}-${placeBelow}`}
       size='small'
       opacity={0.85}
@@ -385,6 +303,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       topActions,
       height,
       readOnly = false,
+      showDiagnostics = true,
       onBlur,
       loadingIndicator,
       enableHover = true,
@@ -396,28 +315,19 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const theme = useReqoreTheme();
     const editorRef = useRef<TReqoreRichTextEditorRef>(null);
     const lastPlainTextRef = useRef(value);
-    // Cached Slate nodes. Updated only on EXTERNAL value changes (initial
-    // mount, programmatic setValue, format result, etc.) — not on the
-    // round-trip echo from user typing. Slate's internal state is the
-    // source of truth between renders; passing a fresh `slateValue` ref
-    // on every keystroke triggers `useUpdateEffect` in ReqoreRichTextEditor
-    // which re-runs `plainTextToSlate` and aggressively re-tokenizes
-    // partial input (e.g. typed `@s` collapses to a single tag chip,
-    // making the rest of the field name impossible to type).
+    // Cached Slate nodes, refreshed only on EXTERNAL value changes — not on
+    // the typing echo. Passing a fresh ref every keystroke re-runs
+    // ReqoreRichTextEditor's tokenizer mid-token (typed `@s` collapses to a
+    // tag chip, making the rest of the field name impossible to type).
     const slateValueRef = useRef<ISlateElement[] | null>(null);
 
-    // Forward the underlying Slate editor ref so wrappers can do
-    // programmatic focus / selection / transforms.
     useImperativeHandle(ref, () => editorRef.current as TReqoreRichTextEditorRef, []);
 
-    // Combined readiness signal — gates ALL LSP-driven hooks. We want
-    // both (a) the LSP connection established (`isReady`) AND (b) any
-    // wrapper-defined context binding to have resolved
-    // (`isContextReady`). Without (b), typing `@` during the
-    // ~50–200ms window between LSP-ready and `dpql/setContext`-bound
-    // hits the server context-less and gets empty results — the
-    // dropdown auto-closes silently. Generic primitive sessions have
-    // `isContextReady: true` so this collapses to `isReady` for them.
+    // Gates all LSP hooks on both the connection (`isReady`) and any
+    // wrapper context binding (`isContextReady`) — without the latter,
+    // typing `@` in the ~50–200ms before `dpql/setContext` resolves hits
+    // the server context-less and the dropdown silently closes. Generic
+    // sessions set `isContextReady: true`, collapsing this to `isReady`.
     const lspReady = session.isReady && session.isContextReady;
 
     const autocomplete = useLspAutocomplete({
@@ -428,27 +338,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       inserter: completionInserter,
     });
 
-    // Hover support — disabled when `enableHover === false`. The hook
-    // attaches a mousemove listener to the editor's contenteditable
-    // element via `editorRef.current` and resolves LSP hover content
-    // after 300ms of idle.
     const hover = useLspHover(session, editorRef as React.RefObject<any>, converter, {
       enabled: enableHover,
     });
 
-    // Signature help — small pill above the caret showing the active
-    // function/operator call's signature with the current parameter
-    // highlighted. Silently no-ops when the server doesn't advertise
-    // `signatureHelpProvider` capability.
-    // (Hook needs `slateValue` so its `plainText` memo recomputes on
-    // document changes — it's declared further down, so we use a
-    // forward reference via the editor's live children inside the
-    // hook. We call the hook AFTER slateValue is defined.)
-
     const slateValue = useMemo(() => {
-      // Return the cached Slate nodes when `value` is just the echo of the
-      // last plainText we emitted from the editor — Slate's internal state
-      // already reflects that text, no need to re-tokenize.
+      // Reuse the cache when `value` is just the editor's own typing echo.
       if (slateValueRef.current !== null && value === lastPlainTextRef.current) {
         return slateValueRef.current;
       }
@@ -457,25 +352,17 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       return next;
     }, [value, converter]);
 
-    // Build the diagnostic-decoration function from `session.diagnostics`.
-    // Composed below with the caller's `decorate` so syntax highlighting
-    // and error underlines can coexist on the same leaf.
     const diagnosticDecorate = useLspDiagnosticDecorations(
       session.diagnostics,
       converter,
       slateValue
     );
 
-    // LSP-driven syntax highlighting. Replaces the previous client-side
-    // regex highlighter (which was SQL-keyword copy-paste — see design
-    // doc §7). The server is the source of truth for token types.
+    // Server-driven syntax highlighting (replaces the old client-side regex
+    // highlighter — see design doc §7).
     const semanticDecorate = useLspSemanticTokens(session, converter, slateValue);
 
-    // Signature help. Hook self-fires on document changes; renders
-    // as a small pinned popover ABOVE the caret line (so it can
-    // coexist with the completion popover, which anchors below).
-    // Silently no-ops when the server doesn't advertise
-    // `signatureHelpProvider` capability.
+    // No-ops when the server doesn't advertise `signatureHelpProvider`.
     const signatureHelp = useLspSignatureHelp(
       session,
       editorRef as React.RefObject<any>,
@@ -488,24 +375,15 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       (entry: NodeEntry): Range[] => {
         const userRanges = decorate?.(entry) ?? [];
         const semanticRanges = semanticDecorate(entry);
-        const diagRanges = diagnosticDecorate(entry);
-        // Order matters when the same leaf carries multiple marks —
-        // diagnostics last so the wavy underline isn't overdrawn by
-        // anything else.
+        const diagRanges = showDiagnostics ? diagnosticDecorate(entry) : [];
+        // Diagnostics last so the wavy underline isn't overdrawn.
         return [...userRanges, ...semanticRanges, ...diagRanges];
       },
-      [decorate, semanticDecorate, diagnosticDecorate]
+      [decorate, semanticDecorate, diagnosticDecorate, showDiagnostics]
     );
 
-    /**
-     * Render-leaf wrapper that paints both LSP-driven syntax
-     * highlighting (`tokenType` / `tokenModifiers` marks from
-     * `useLspSemanticTokens`) and diagnostic underlines (`error` /
-     * `errorMessage` / `severity` marks from
-     * `useLspDiagnosticDecorations`). Falls through to the
-     * consumer-supplied `customRenderLeaf` for anything else, so
-     * wrappers can still inject extra marks via a caller `decorate`.
-     */
+    // Paints semantic-token colours and diagnostic underlines, falling
+    // through to the consumer's `customRenderLeaf` for everything else.
     const renderLeafWithMarks = useCallback(
       (props: RenderLeafProps) => {
         const leaf = props.leaf as RenderLeafProps['leaf'] & {
@@ -516,16 +394,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           tokenModifiers?: string[];
         };
 
-        // Start from the consumer's renderLeaf (or a plain span) so
-        // any caller-defined marks render first.
         let child =
           customRenderLeaf ?
             customRenderLeaf(props)
           : <span {...props.attributes}>{props.children}</span>;
 
-        // Apply semantic-token colouring. Wrap in an extra span when
-        // the type is in our palette; absent types fall through with
-        // default text colour.
         if (leaf.tokenType) {
           const color = SEMANTIC_TOKEN_COLORS[leaf.tokenType];
           const italic = leaf.tokenModifiers?.includes('declaration');
@@ -546,13 +419,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           }
         }
 
-        // Diagnostic underline goes outermost so it overlays the
-        // syntax colour. Native `title` tooltip carries the message.
-        // Colours derive from the theme's diagnostic intents — the same
-        // vocabulary the diagnostic panel uses via
-        // `DIAGNOSTIC_SEVERITY_EFFECTS` (Error→danger, Warning→warning,
-        // Info/Hint→info) — not hardcoded hex. Hex fallbacks keep the
-        // underline visible if a host theme omits an intent.
+        // Underline outermost so it overlays the syntax colour; hex
+        // fallbacks cover host themes that omit a diagnostic intent.
         if (leaf.error) {
           const underlineColor =
             leaf.severity === 2 ? (theme.intents?.warning ?? '#f0a500')
@@ -560,6 +428,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             : (theme.intents?.danger ?? '#d62828');
           child = (
             <span
+              data-testid='diagnostic-underline'
               title={leaf.errorMessage}
               style={{
                 textDecoration: 'underline wavy',
@@ -583,17 +452,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
         if (plainText !== lastPlainTextRef.current) {
           lastPlainTextRef.current = plainText;
-          // CRITICAL: also refresh `slateValueRef` to the live Slate
-          // nodes. The `slateValue` useMemo's cache check returns
-          // `slateValueRef.current` when `value === lastPlainTextRef`,
-          // and that condition fires on the re-render immediately
-          // after this callback (parent's `setState(plainText)` makes
-          // the next `value` prop equal to `lastPlainTextRef`). If we
-          // don't update `slateValueRef` here, downstream hooks
-          // (signature help, semantic decoration's `plainText` memo)
-          // see STALE nodes and don't recompute — manifests as the
-          // signature pill's active-parameter never advancing on
-          // typing.
+          // CRITICAL: refresh `slateValueRef` to the live nodes too. The
+          // next render's `value` equals `lastPlainTextRef` (the typing
+          // echo), so `slateValue`'s cache returns this ref — leave it
+          // stale and downstream hooks (signature help, semantic tokens)
+          // never recompute, so the signature pill's active parameter
+          // never advances.
           slateValueRef.current = newNodes;
           onChange(plainText);
           session.didChange(plainText);
@@ -606,18 +470,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       [onChange, session, readOnly, autocomplete, converter]
     );
 
-    /**
-     * Default tag-click handler — Replace mode. The clicked chip stays
-     * visible, the autocomplete dropdown opens anchored at the chip's
-     * viewport rect, and the chosen completion atomically swaps the
-     * chip for the new value (no flicker, no partial plain-text state).
-     *
-     * Picking up the chip's DOM rect (via `ReactEditor.toDOMNode`) avoids
-     * relying on the editor selection — clicks on a Slate VOID inline
-     * don't always update `editor.selection` reliably. The chip path
-     * (from `findPath`) is what the autocomplete forwards to the inserter
-     * via `ctx.replacementPath` to do the atomic swap.
-     */
+    // Replace mode: open the dropdown at the chip's DOM rect (not the
+    // editor selection — clicks on a Slate VOID inline don't reliably
+    // update `editor.selection`) and atomically swap the chip on select.
     const handleTagClickDefault = useCallback(
       (tag: ISlateElement, editor: TReqoreRichTextEditorRef) => {
         if (readOnly) return;
@@ -638,19 +493,10 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
     const resolvedTagClick = onTagClick ?? handleTagClickDefault;
 
-    // Reqore's `ReqoreRichTextEditor` memoizes its `renderElement` over
-    // deps that do NOT include `onTagClick`. That means whichever
-    // `onTagClick` we passed on the FIRST render gets captured forever —
-    // subsequent renders' fresh closures (with up-to-date `isReady`,
-    // `autocomplete`, etc.) are silently ignored. The chip click ends up
-    // calling a stale handler with a stale `isReady`, which is why we
-    // see `isReady: false` in `openAtChip` even after the LSP has long
-    // since connected.
-    //
-    // Workaround: pass a STABLE wrapper to Reqore that internally reads
-    // the latest `resolvedTagClick` from a ref. Reqore captures the
-    // wrapper once, but every call indirects through the ref so the
-    // user-visible behaviour is always current.
+    // ReqoreRichTextEditor memoizes `renderElement` without `onTagClick` in
+    // its deps, so it captures the FIRST render's handler forever (stale
+    // `isReady` etc.). Pass a stable wrapper that indirects through a ref
+    // to the latest handler.
     const resolvedTagClickRef = useRef(resolvedTagClick);
     resolvedTagClickRef.current = resolvedTagClick;
     const stableOnTagClick = useCallback((tag: any) => {
@@ -659,9 +505,6 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       }
     }, []);
 
-    // Stable select handler passed to each `CompletionMenuItem`. The item
-    // is already in hand from the rendered row, so we forward it straight
-    // to `onItemSelect` — no `autocomplete.items.find()` round-trip.
     const handleCompletionSelect = useCallback(
       (item: ICompletionDropdownItem) => {
         if (!editorRef.current) return;
@@ -670,10 +513,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       [autocomplete]
     );
 
-    // Flatten the grouped completions into rows carrying their flat index
-    // (used to compare against `focusedIndex`, which is flat across all
-    // groups). Memoized so the index assignment only re-runs when the
-    // groups change — not on every keystroke echo / hover / focus move.
+    // Flatten groups into rows carrying a flat index to compare against
+    // `focusedIndex` (which is flat across all groups).
     const completionGroups = useMemo(() => {
       let flatIndex = 0;
       return autocomplete.groups.map((group) => ({
@@ -682,31 +523,18 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       }));
     }, [autocomplete.groups]);
 
-    // Loading overlay rendered on top of the editor while the LSP
-    // session is still connecting, the wrapper's language-specific
-    // context binding is still resolving, OR the wrapper has signalled
-    // a higher-level busy state via `isLoading` (e.g. DpqlEditor's
-    // `useServerParse` mode while awaiting `dpql/toRichtext`).
-    //
-    // The default copy varies by which signal is the cause:
-    //   - `!isReady`         → "Connecting to language server…"
-    //   - `!isContextReady`  → "Loading schema…"
-    //   - `isLoading` only   → "Loading…"
-    //
-    // The editor stays mounted so the initial value is visible
-    // underneath; the overlay just signals "completions / diagnostics
-    // / hover are temporarily unavailable". `loadingIndicator === null`
-    // opts out entirely; a non-null override replaces the default
-    // entirely.
+    // Overlay shown while the session connects, a context binding resolves,
+    // or the wrapper signals `isLoading` (e.g. DpqlEditor awaiting
+    // `dpql/toRichtext`). The editor stays mounted underneath;
+    // `loadingIndicator === null` opts out, a non-null value overrides.
     const showLoadingOverlay =
       (!session.isReady || !session.isContextReady || isLoading) && loadingIndicator !== null;
     const defaultLoadingLabel =
       !session.isReady ? 'Connecting to language server…'
       : !session.isContextReady ? 'Loading schema…'
       : 'Loading…';
-    // Only build the overlay node when it's actually shown — avoids
-    // allocating a `ReqoreSpinner` element on every render of an editor
-    // that's already connected (the common steady state).
+    // Built only when shown — skips a ReqoreSpinner alloc on every render
+    // of an already-connected editor.
     const overlayContent =
       !showLoadingOverlay ? null
       : loadingIndicator !== undefined && loadingIndicator !== null ? loadingIndicator
@@ -783,10 +611,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 key={autocomplete.popoverKey}
                 component='span'
                 wrapperStyle={{
-                  // Viewport-positioned anchor placed at the cursor's
-                  // screen coordinates (computed in `positionTrigger`).
-                  // `fixed` avoids parent-offset math (panel padding,
-                  // scroll position, etc.).
+                  // `fixed` anchor at the cursor's screen coords — avoids
+                  // parent-offset math.
                   position: 'fixed',
                   top: autocomplete.position.top,
                   left: autocomplete.position.left,
@@ -800,9 +626,6 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                     flat
                     maxHeight='300px'
                     width='300px'
-                    // No customTheme — inherit the ambient app theme so the
-                    // dropdown matches whatever host embeds the editor
-                    // (`#121212` inside qorus-ide). Frosted via the blur.
                     effect={SMART_EDITOR_OVERLAY_EFFECT}
                     customTheme={{ main: '#1e0d29' }}
                   >
@@ -827,9 +650,6 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                         {group.label && (
                           <ReqoreMenuDivider
                             label={group.label}
-                            // Muted intent: section labels read as
-                            // navigation chrome, not as content.
-                            // Matches qorus-ide's "tiny label" pattern.
                             // @ts-expect-error — intent type not in older Reqore
                             intent='muted'
                           />
@@ -854,21 +674,14 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 closeOnInsideClick={false}
                 minWidth='300px'
                 flat
-                // Transparent wrapper (like the hover/signature popovers)
-                // so the popover's own lighter surface + content padding
-                // don't form a frame around the menu — the `ReqoreMenu`
-                // card is the only visible surface.
+                // Transparent so the popover wrapper doesn't frame the menu.
                 transparent
                 onToggleChange={autocomplete.handleExternalClose}
               />
             )}
           {hover.hoverContent && hover.hoverPosition && (
-            // Hover popover anchored at the mouse coordinates. Pure
-            // markdown content via `react-markdown` (or plaintext when
-            // the server says so). The popover is non-interactive
-            // (`pointerEvents: none` on the wrapper) so the user can
-            // continue typing / clicking without dismissing it via
-            // accidental focus traps.
+            // Non-interactive (`pointerEvents: none`) so typing/clicking
+            // doesn't dismiss it via a focus trap.
             <ReqorePopover
               key={`hover-${hover.hoverPosition.left}-${hover.hoverPosition.top}`}
               component='span'
@@ -909,12 +722,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             />
           )}
         </div>
-        {session.diagnostics.length > 0 && (
-          // Stacked `ReqoreMessage`s under the editor — one per active
-          // diagnostic. Severity drives the intent (`danger` / `warning`
-          // / `info`); the inline wavy underline above and this panel
-          // both speak to the same `session.diagnostics` array, so they
-          // can never disagree.
+        {showDiagnostics && session.diagnostics.length > 0 && (
+          // One ReqoreMessage per diagnostic, severity → intent. Same
+          // `session.diagnostics` source as the inline underline above.
           <ReqoreControlGroup vertical fluid size='small'>
             {session.diagnostics.map((diag, i) => (
               <ReqoreMessage
@@ -927,9 +737,6 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   : 'ErrorWarningLine'
                 }
                 size='small'
-                // `opaque={false}` matches every Qonsole sub-surface —
-                // message blends with the host page gradient rather
-                // than putting its own opaque background on top.
                 opaque={false}
               >
                 {diag.message}

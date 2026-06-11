@@ -23,46 +23,6 @@ export const SMART_EDITOR_OVERLAY_EFFECT = {
 } as const satisfies IReqoreEffect;
 
 /**
- * Severity → Reqore effect mapping for the diagnostic message panel
- * below the editor. Each severity gets a coloured gradient (cloned
- * shape from `qorus-ide/src/components/Field/multiPair.tsx`
- * `NegativeColorEffect` / `WarningColorEffect` / `PendingColorEffect`).
- *
- * LSP DiagnosticSeverity:
- *   1 Error    → danger gradient
- *   2 Warning  → warning gradient
- *   3 Info     → pending gradient (subtle muted-purple)
- *   4 Hint     → pending gradient (same as info)
- */
-export const DIAGNOSTIC_SEVERITY_EFFECTS: Record<number, IReqoreEffect> = {
-  1: {
-    gradient: {
-      direction: 'to right bottom',
-      colors: { 0: 'danger:lighten:3', 100: 'danger:darken:3' },
-      animate: 'hover',
-    },
-  },
-  2: {
-    gradient: {
-      direction: 'to right',
-      colors: { 0: 'warning:lighten:2', 100: 'warning:lighten:3' },
-    },
-  },
-  3: {
-    gradient: {
-      direction: 'to right bottom',
-      colors: { 0: 'pending:lighten:3', 100: 'pending:darken:2' },
-    },
-  },
-  4: {
-    gradient: {
-      direction: 'to right bottom',
-      colors: { 0: 'pending:lighten:3', 100: 'pending:darken:2' },
-    },
-  },
-};
-
-/**
  * LSP `CompletionItemKind` → Reqore intent for the per-row kind chip.
  * Lets the chip carry visual weight beyond just `minimal: true` while
  * still being subdued enough not to compete with the row label.

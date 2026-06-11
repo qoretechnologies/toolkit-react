@@ -9,13 +9,12 @@
 
 import { StoryObj } from '@storybook/react';
 import { fn, userEvent, waitFor, within, expect } from '@storybook/test';
-import { Server } from 'mock-socket';
+import { sleep } from '../../../__tests__/utils';
 import { useState } from 'react';
 import { StoryMeta } from '../../types';
+import { createMockLspServer, MOCK_LSP_URL } from './__fixtures__/mockLspServer';
 import { SmartEditor } from './SmartEditor';
 import { useLspSession } from './useLspSession';
-
-const MOCK_LSP_URL = `wss://hq.qoretechnologies.com:8092/lsp?token=${process.env.REACT_APP_QORUS_TOKEN}`;
 
 interface IDemoArgs {
   languageId?: string;
@@ -74,49 +73,18 @@ export const BasicMock: Story = {
     triggerCharacters: new Set([' ', '.']),
   },
   async beforeEach() {
-    const server = new Server(MOCK_LSP_URL);
-    server.on('connection', (socket) => {
-      socket.on('message', (raw) => {
-        if (raw === 'ping') {
-          socket.send('pong');
-          return;
-        }
-        let msg: any;
-        try {
-          msg = JSON.parse(raw as string);
-        } catch {
-          return;
-        }
-        if (msg.id === undefined) return;
-        if (msg.method === 'initialize') {
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: { capabilities: {} },
-            })
-          );
-        } else if (msg.method === 'textDocument/completion') {
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: {
-                items: [
-                  { label: 'apple', insertText: 'apple', kind: 14 },
-                  { label: 'banana', insertText: 'banana', kind: 14 },
-                ],
-              },
-            })
-          );
-        } else {
-          socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: null }));
-        }
-      });
+    const lsp = createMockLspServer(MOCK_LSP_URL, {
+      capabilities: {},
+      handlers: {
+        'textDocument/completion': () => ({
+          items: [
+            { label: 'apple', insertText: 'apple', kind: 14 },
+            { label: 'banana', insertText: 'banana', kind: 14 },
+          ],
+        }),
+      },
     });
-    return () => {
-      server.close();
-    };
+    return () => lsp.close();
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -168,90 +136,59 @@ export const WithMarkdownDocs: Story = {
     },
   },
   async beforeEach() {
-    const server = new Server(MOCK_LSP_URL);
-    server.on('connection', (socket) => {
-      socket.on('message', (raw) => {
-        if (raw === 'ping') {
-          socket.send('pong');
-          return;
-        }
-        let msg: any;
-        try {
-          msg = JSON.parse(raw as string);
-        } catch {
-          return;
-        }
-        if (msg.id === undefined) return;
-        if (msg.method === 'initialize') {
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: { capabilities: {} },
-            })
-          );
-        } else if (msg.method === 'textDocument/completion') {
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: {
-                items: [
-                  {
-                    label: 'forEach',
-                    insertText: 'forEach',
-                    kind: 2,
-                    detail: '(callback: (item) => void) => void',
-                    documentation: {
-                      kind: 'markdown',
-                      value:
-                        '### `forEach`\n\n' +
-                        'Invoke a callback for **each** element in the collection.\n\n' +
-                        '```ts\n' +
-                        "['a','b','c'].forEach((x) => console.log(x))\n" +
-                        '```\n\n' +
-                        '- Stops on `break` ✗ (use `for…of` instead)\n' +
-                        '- Returns `undefined`',
-                    },
-                  },
-                  {
-                    label: 'map',
-                    insertText: 'map',
-                    kind: 2,
-                    detail: '<U>(fn: (item: T) => U) => U[]',
-                    documentation: {
-                      kind: 'markdown',
-                      value:
-                        '### `map`\n\n' +
-                        'Project each element through `fn`, returning a new array.\n\n' +
-                        '- Pure / no side effects\n- Preserves length',
-                    },
-                  },
-                  {
-                    label: 'reduce',
-                    insertText: 'reduce',
-                    kind: 2,
-                    detail: '<U>(fn, init: U) => U',
-                    documentation: {
-                      kind: 'plaintext',
-                      value:
-                        'Fold the collection into a single value using fn.\n\n' +
-                        'Be careful with the initial value — without one, ' +
-                        'reduce throws on empty input.',
-                    },
-                  },
-                ],
+    const lsp = createMockLspServer(MOCK_LSP_URL, {
+      capabilities: {},
+      handlers: {
+        'textDocument/completion': () => ({
+          items: [
+            {
+              label: 'forEach',
+              insertText: 'forEach',
+              kind: 2,
+              detail: '(callback: (item) => void) => void',
+              documentation: {
+                kind: 'markdown',
+                value:
+                  '### `forEach`\n\n' +
+                  'Invoke a callback for **each** element in the collection.\n\n' +
+                  '```ts\n' +
+                  "['a','b','c'].forEach((x) => console.log(x))\n" +
+                  '```\n\n' +
+                  '- Stops on `break` ✗ (use `for…of` instead)\n' +
+                  '- Returns `undefined`',
               },
-            })
-          );
-        } else {
-          socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: null }));
-        }
-      });
+            },
+            {
+              label: 'map',
+              insertText: 'map',
+              kind: 2,
+              detail: '<U>(fn: (item: T) => U) => U[]',
+              documentation: {
+                kind: 'markdown',
+                value:
+                  '### `map`\n\n' +
+                  'Project each element through `fn`, returning a new array.\n\n' +
+                  '- Pure / no side effects\n- Preserves length',
+              },
+            },
+            {
+              label: 'reduce',
+              insertText: 'reduce',
+              kind: 2,
+              detail: '<U>(fn, init: U) => U',
+              documentation: {
+                kind: 'plaintext',
+                value:
+                  'Fold the collection into a single value using fn.\n\n' +
+                  'Be careful with the initial value — without one, ' +
+                  'reduce throws on empty input.',
+              },
+            },
+          ],
+        }),
+      },
     });
-    return () => {
-      server.close();
-    };
+    return () => lsp.close();
   },
   // Open the dropdown so the story snapshot is distinct from the other
   // empty-at-rest SmartEditor stories (and to guard the markdown-item
@@ -310,53 +247,22 @@ export const WithGroupedKinds: Story = {
     },
   },
   async beforeEach() {
-    const server = new Server(MOCK_LSP_URL);
-    server.on('connection', (socket) => {
-      socket.on('message', (raw) => {
-        if (raw === 'ping') {
-          socket.send('pong');
-          return;
-        }
-        let msg: any;
-        try {
-          msg = JSON.parse(raw as string);
-        } catch {
-          return;
-        }
-        if (msg.id === undefined) return;
-        if (msg.method === 'initialize') {
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: { capabilities: {} },
-            })
-          );
-        } else if (msg.method === 'textDocument/completion') {
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: {
-                items: [
-                  { label: 'concat', insertText: 'concat', kind: 2, detail: 'method' },
-                  { label: 'slice', insertText: 'slice', kind: 2, detail: 'method' },
-                  { label: 'length', insertText: 'length', kind: 6, detail: 'number' },
-                  { label: 'name', insertText: 'name', kind: 6, detail: 'string' },
-                  { label: 'if', insertText: 'if', kind: 14 },
-                  { label: 'return', insertText: 'return', kind: 14 },
-                ],
-              },
-            })
-          );
-        } else {
-          socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: null }));
-        }
-      });
+    const lsp = createMockLspServer(MOCK_LSP_URL, {
+      capabilities: {},
+      handlers: {
+        'textDocument/completion': () => ({
+          items: [
+            { label: 'concat', insertText: 'concat', kind: 2, detail: 'method' },
+            { label: 'slice', insertText: 'slice', kind: 2, detail: 'method' },
+            { label: 'length', insertText: 'length', kind: 6, detail: 'number' },
+            { label: 'name', insertText: 'name', kind: 6, detail: 'string' },
+            { label: 'if', insertText: 'if', kind: 14 },
+            { label: 'return', insertText: 'return', kind: 14 },
+          ],
+        }),
+      },
     });
-    return () => {
-      server.close();
-    };
+    return () => lsp.close();
   },
   // Open the grouped dropdown so the snapshot is distinct + guard the
   // kind-grouping render (Methods / Variables / Keywords sections).
@@ -380,18 +286,124 @@ export const WithGroupedKinds: Story = {
 };
 
 /**
+ * Server-pushed diagnostics on the bare primitive — wavy inline
+ * underlines plus the stacked message panel below the editor, with no
+ * language wrapper involved.
+ */
+export const WithDiagnostics: Story = {
+  args: {
+    languageId: 'demo',
+    initialValue: 'list services in pricing',
+  },
+  async beforeEach() {
+    const lsp = createMockLspServer(MOCK_LSP_URL, {
+      capabilities: {},
+      handlers: {
+        // Push diagnostics as soon as the document opens.
+        'textDocument/didOpen': (msg, server) => {
+          server.notify('textDocument/publishDiagnostics', {
+            uri: msg.params?.textDocument?.uri,
+            diagnostics: [
+              {
+                range: { start: { line: 0, character: 5 }, end: { line: 0, character: 13 } },
+                message: 'Unknown resource "services".',
+                severity: 1,
+              },
+              {
+                range: { start: { line: 0, character: 17 }, end: { line: 0, character: 24 } },
+                message: 'Pipeline "pricing" not found.',
+                severity: 2,
+              },
+            ],
+          });
+        },
+      },
+    });
+    return () => lsp.close();
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () => {
+        // Both pushed diagnostics render in the message panel…
+        expect(canvasElement.textContent).toContain('Unknown resource "services"');
+        expect(canvasElement.textContent).toContain('Pipeline "pricing" not found');
+        // …and the inline wavy underline is decorated.
+        expect(canvasElement.querySelector('[data-testid="diagnostic-underline"]')).not.toBeNull();
+      },
+      { timeout: 30000 }
+    );
+  },
+};
+
+/** Read-only mode — the content renders but cannot be edited. */
+export const ReadOnly: Story = {
+  args: {
+    languageId: 'demo',
+    initialValue: 'frozen content',
+    readOnly: true,
+  },
+  async beforeEach() {
+    const lsp = createMockLspServer(MOCK_LSP_URL, { capabilities: {} });
+    return () => lsp.close();
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText('frozen content')).toBeInTheDocument();
+    // Slate renders read-only editors as non-editable.
+    await expect(canvasElement.querySelector('[contenteditable="false"]')).not.toBeNull();
+    await expect(canvasElement.querySelector('[contenteditable="true"]')).toBeNull();
+  },
+};
+
+/**
+ * The not-ready overlay: the mock delays `initialize`, so the session
+ * stays connecting and the spinner overlay covers the editor, then
+ * clears by itself once the delayed handshake lands.
+ */
+export const LoadingOverlay: Story = {
+  args: {
+    languageId: 'demo',
+    initialValue: 'visible under the overlay',
+  },
+  async beforeEach() {
+    const lsp = createMockLspServer(MOCK_LSP_URL, {
+      capabilities: {},
+      delays: { initialize: 4000 },
+    });
+    return () => lsp.close();
+  },
+  play: async ({ canvasElement }) => {
+    // Overlay visible while the handshake is delayed…
+    await waitFor(
+      () => expect(canvasElement.textContent).toContain('Connecting to language server'),
+      { timeout: 10000 }
+    );
+    // …and gone once `initialize` resolves.
+    await waitFor(
+      () => expect(canvasElement.textContent).not.toContain('Connecting to language server'),
+      { timeout: 30000 }
+    );
+  },
+};
+
+/**
  * **Live spike — hits the real Qorus `/lsp` endpoint** at
  * `wss://hq.qoretechnologies.com:8092/lsp`. No mock-socket. Used to
- * validate the SmartEditor + LspClient abstraction end-to-end against
+ * validate the SmartEditor + ReqraftLspClient abstraction end-to-end against
  * the shipped Qonsole LSP before committing to a `QonsoleSmartInput`
  * wrapper API. Type a slash-command like `/list services ` and the
  * server's real completions / signature / hover should render.
  *
- * **Prereq:** export `REACT_APP_QORUS_TOKEN=2f58cd78-...` before
+ * **Prereq:** export `REACT_APP_QORUS_TOKEN=<token>` before
  * running storybook. Without a valid token the WebSocket handshake
  * fails with 401.
  */
 export const LiveQonsole: Story = {
+  // `!test` excludes this from the play-test runner and Chromatic is
+  // disabled below — it connects to the REAL Qonsole LSP, which CI
+  // (no token/network) can't reach. Mirrors qorus-ide's `Views/FullIDE`
+  // (`useRealWebsockets` + `tags: ['!test']`).
+  tags: ['!test'],
   args: {
     languageId: 'qonsole',
     initialValue: '/list services ',
@@ -399,13 +411,36 @@ export const LiveQonsole: Story = {
     height: '200px',
   },
   parameters: {
+    chromatic: { disable: true },
     docs: {
       description: {
         story:
           'Lives against the real Qonsole LSP — no mock. Validates the ' +
-          'SmartEditor + LspClient abstraction against the shipped server. ' +
+          'SmartEditor + ReqraftLspClient abstraction against the shipped server. ' +
           'Set REACT_APP_QORUS_TOKEN before launching storybook.',
       },
     },
+  },
+  // Open real flag completions when run manually against the live
+  // server: `/list services ` (trailing space) → 10 flag items via
+  // `textDocument/completion`. Clear + retype that exact command so the
+  // trailing-space trigger lands on the populated position — a lone `-`
+  // returns 0 items there. Generous settle/timeout for the real
+  // round-trip; story is `!test` so the CI play-test runner skips it.
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    await sleep(3000); // let the live LSP session connect before typing (real WS handshake)
+    await userEvent.click(editable);
+    await userEvent.clear(editable);
+    await userEvent.type(editable, '/list services ');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('--desc');
+      },
+      { timeout: 30000 }
+    );
   },
 };

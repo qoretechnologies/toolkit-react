@@ -102,8 +102,8 @@ export function slateToPlainText(elements: ISlateElement[]): string {
   return elements.map(processElement).join('\n');
 }
 
-function processElement(element: any): string {
-  if ('text' in element && element.type !== 'tag') {
+function processElement(element: TSlateNode): string {
+  if ('text' in element) {
     return element.text;
   }
   if (element.type === 'tag') {

@@ -7,7 +7,7 @@
 // `converter` prop on `SmartEditor`.
 
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
-import { ISlateConverter, ISlateElement, ISlateText } from './types';
+import { ISlateConverter, ISlateElement, ISlateText, TSlateNode } from './types';
 
 /**
  * Default plain-text → Slate conversion. Splits on `\n`; each line becomes
@@ -34,8 +34,8 @@ export function defaultFromSlateNodes(nodes: ISlateElement[]): string {
   return nodes.map(processElement).join('\n');
 }
 
-function processElement(element: any): string {
-  if ('text' in element && element.type !== 'tag') {
+function processElement(element: TSlateNode): string {
+  if ('text' in element) {
     return element.text;
   }
   if (element.type === 'tag') {

@@ -56,6 +56,15 @@ export interface IDpqlEditorProps {
   height?: string;
   /** Read-only mode. */
   readOnly?: boolean;
+  /**
+   * Whether to render diagnostic underlines. Default `true`. Set `false`
+   * for display-only surfaces whose text is not valid DPQL — e.g. the
+   * expression "Explain" panel (server rendering shown through the editor
+   * for template chips + LSP token colours). See `ISmartEditorProps`.
+   */
+  showDiagnostics?: boolean;
+  /** Whether to show hover popovers (`textDocument/hover`). Default `true`. */
+  enableHover?: boolean;
   /** Called when the editor loses focus. */
   onBlur?: () => void;
   /**

@@ -19,6 +19,7 @@ export {
   defaultSelectionToOffset,
   defaultSlateConverter,
   defaultToSlateNodes,
+  lspPositionToOffset,
   mapCompletionKindToIcon,
   offsetToLspPosition,
 } from './helpers';

@@ -1,10 +1,4 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Generic autocomplete state for the SmartEditor — trigger character
-// detection, debounced LSP completion requests, dropdown item state,
-// keyboard navigation, and item insertion. Lifted and generalized from
-// qorus-ide's DPQL `useDpqlAutocomplete` hook. Language-specific behaviour
-// (which characters trigger, how items are inserted) is supplied by the
-// SmartEditor caller via props.
 
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -17,17 +11,10 @@ import { ISlateConverter, ISlateElement, TCompletionInserter } from './types';
 
 const DEFAULT_TRIGGER_CHARS = new Set(['.', ':', ' ']);
 const DEBOUNCE_MS = 150;
-/**
- * Delay before `isFetching=true` is set after a completion request
- * fires. Mirrors VS Code's "delay progress indicator" pattern — only
- * show the "Loading completions…" stub for genuinely slow responses.
- * Fast responses (mock, warm cache, sub-250ms live) never set the
- * flag at all, so no visible flash.
- */
+// Defer `isFetching=true` so the "Loading…" stub only shows for genuinely
+// slow responses; sub-250ms responses never set the flag.
 const LOADER_DELAY_MS = 250;
 
-/** LSP CompletionItemKind values → group labels for the dropdown. */
-/** LSP `CompletionItemKind` → plural group header in the dropdown. */
 const COMPLETION_KIND_LABELS: Record<number, string> = {
   2: 'Methods',
   3: 'Functions',
@@ -37,11 +24,6 @@ const COMPLETION_KIND_LABELS: Record<number, string> = {
   15: 'Snippets',
 };
 
-/**
- * LSP `CompletionItemKind` → short singular chip label rendered on the
- * right of each row (e.g. "Field", "Keyword"). Falls back to no chip
- * when the kind isn't in the table.
- */
 const COMPLETION_KIND_CHIPS: Record<number, string> = {
   1: 'Text',
   2: 'Method',
@@ -74,30 +56,11 @@ export interface ICompletionDropdownItem {
   label: string;
   value: string;
   icon?: string;
-  /**
-   * Short type hint (LSP `item.detail`) — rendered as the row's
-   * subtitle. Typically a single word like "string", "int", "boolean".
-   */
   description?: string;
-  /**
-   * Rich documentation (LSP `item.documentation`). Wrappers can render
-   * it as markdown (when `kind === 'markdown'`) or plain text. Currently
-   * surfaced via the hover-tooltip on each row.
-   */
   documentation?: ILspCompletionItem['documentation'];
-  /**
-   * Short singular kind label (e.g. "Field", "Keyword") rendered as a
-   * right-aligned chip on the row. `undefined` when the LSP kind isn't
-   * one of the standard values.
-   */
   kindLabel?: string;
-  /**
-   * Server-side warning copy (LSP `item.warning` — non-standard,
-   * Qonsole emits this on mutating verbs). Rendered as a right-aligned
-   * "Warning" chip alongside the kind chip.
-   */
+  // Non-standard LSP field; Qonsole emits it on mutating verbs.
   warning?: string;
-  /** Raw LSP item — passed to the inserter so wrappers can use any LSP field. */
   raw: ILspCompletionItem;
   metadata?: {
     insertTextFormat?: number;
@@ -131,18 +94,9 @@ export interface IUseLspAutocompleteResult {
   items: ICompletionDropdownItem[];
   groups: ICompletionGroup[];
   isOpen: boolean;
-  /**
-   * True while the dropdown is anchored at an existing chip (via
-   * `openAtChip`) — SmartEditor uses this to keep the popover rendered
-   * with a "Connecting…" / "No alternatives" stub even when `items` is
-   * empty (whereas normal typing closes the popover on empty results).
-   */
+  // True while anchored at a chip (via `openAtChip`); keeps the popover
+  // open with a stub even when `items` is empty, unlike normal typing.
   isReplaceMode: boolean;
-  /**
-   * True while a completion request is in flight. SmartEditor uses
-   * this together with `items.length === 0` to render a "Loading…"
-   * stub inside the popover during slow LSP roundtrips.
-   */
   isFetching: boolean;
   focusedIndex: number;
   close: () => void;
@@ -154,36 +108,19 @@ export interface IUseLspAutocompleteResult {
     item: ICompletionDropdownItem,
     editor: BaseEditor & ReactEditor & HistoryEditor
   ) => void;
-  /**
-   * Open the dropdown in "replace mode" at the position of an existing
-   * tag chip. The chip stays visible while the user picks a new
-   * completion; the inserter then atomically swaps the chip for the
-   * chosen value. Triggered by SmartEditor's default chip click handler.
-   *
-   * `chipRect` is the chip's viewport-coordinate bounding rect — the
-   * popover anchors at `(left, bottom)`. `chipPath` and `chipOffset`
-   * are forwarded to the inserter so it knows which node to replace
-   * and where (in plain text) the replacement falls.
-   */
+  // Open in "replace mode" anchored at an existing tag chip; `chipRect`
+  // is the chip's viewport rect, `chipPath` is forwarded to the inserter.
   openAtChip: (
     editor: BaseEditor & ReactEditor & HistoryEditor,
     chipPath: number[],
     chipRect: { left: number; bottom: number }
   ) => void;
-  /**
-   * Callback for the popover's `onToggleChange` — drops the spurious
-   * close event that Reqore's outside-click detector fires on the same
-   * click that opened the popover (via `openAtChip`). Without this
-   * filter, the chip click would open and immediately close, and a
-   * second chip click would no-op.
-   */
+  // Drops the spurious close Reqore's outside-click detector fires on the
+  // same click that opened the popover; without it the chip click would
+  // open then immediately close.
   handleExternalClose: (open: boolean) => void;
-  /**
-   * Monotonically-increasing key that changes whenever the dropdown is
-   * (re)opened — particularly via `openAtChip`. SmartEditor passes this
-   * as the popover's `key` so a fresh `ReqorePopover` is mounted each
-   * time, keeping its internal `showing` state in sync with ours.
-   */
+  // Bumped on every (re)open; used as the ReqorePopover `key` to force a
+  // fresh mount so its internal `showing` state stays in sync with ours.
   popoverKey: number;
   position: { top: number; left: number };
 }
@@ -203,90 +140,47 @@ export function useLspAutocomplete(
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [focusedIndex, setFocusedIndex] = useState(0);
-  // True while a completion request is in flight AND we've shown the
-  // popover. Used by SmartEditor to render a "Loading…" stub instead
-  // of the bare empty-list flash on slow LSP responses. Set on a
-  // `LOADER_DELAY_MS` timer rather than synchronously — fast
-  // responses clear before the timer fires, so the stub never flashes
-  // on a sub-250ms response.
   const [isFetching, setIsFetching] = useState(false);
-  // The setTimeout handle for the deferred `setIsFetching(true)`.
-  // Cleared by either: (a) the request resolving (success / error),
-  // or (b) `close()` being called. Either path nulls the ref and
-  // calls clearTimeout to ensure the loader never flashes on a
-  // fast-resolved request.
+  // Handle for the deferred `setIsFetching(true)`; cleared on resolve or
+  // close so the loader never flashes on a fast-resolved request.
   const fetchingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The partial token the user has typed since the trigger opened the
-  // dropdown — e.g. when typing `@status`, the prefix evolves as `@` →
-  // `@s` → `@st` → … The dropdown should narrow to items whose
-  // `filterText || label` starts with this prefix (LSP convention: the
-  // server returns a candidate set, the client filters as the user
-  // types). Empty string when no token is being typed yet.
+  // Partial token typed since the trigger opened the dropdown; the list
+  // narrows to items whose `filterText || label` matches it.
   const [filterPrefix, setFilterPrefix] = useState('');
   const focusedIndexRef = useRef(0);
   const editorRef = useRef<(BaseEditor & ReactEditor & HistoryEditor) | null>(null);
-  // When set, the dropdown is open in "replace mode" — the user clicked
-  // an existing tag chip and the chosen completion should atomically
-  // replace that node (rather than insert at the cursor). The path
-  // points to the chip's Slate location; the inserter consumes it via
-  // `ctx.replacementPath`.
+  // "Replace mode": the user clicked a chip and the chosen completion
+  // should replace that node. Holds the chip's Slate path, consumed by
+  // the inserter via `ctx.replacementPath`.
   const replacingChipPathRef = useRef<number[] | null>(null);
-  // Set when the user clicked a chip before the LSP session was ready.
-  // The completion request is deferred and fired by the effect below
-  // once `isReady` flips on — so a click made during the connection
-  // race doesn't get silently dropped.
+  // Holds a chip-click request made before `isReady`; fired by the effect
+  // below once the session connects so the click isn't dropped.
   const pendingChipRequestRef = useRef<{
     plainText: string;
     offset: number;
   } | null>(null);
-  // Timestamp of the most recent `openAtChip` call. SmartEditor's
-  // `handleExternalClose` consults this to suppress the close that
-  // Reqore's popover fires from its own mousedown-outside detector on
-  // the very same click that opened the dropdown. Without the
-  // suppression, the chip click would open AND immediately close the
-  // popover — and a second chip click would no-op because the popover's
-  // toggle state is already "open then closed" from the first burst.
+  // Timestamp of the last `openAtChip`; `handleExternalClose` uses it to
+  // suppress the close Reqore fires on the same mousedown that opened it.
   const justOpenedAtChipAtRef = useRef(0);
   const [isReplaceMode, setIsReplaceMode] = useState(false);
-  // Bumped on every `openAtChip` call. SmartEditor uses it as the
-  // ReqorePopover `key` — when it changes, React unmounts and re-mounts
-  // the popover, which re-fires its `openOnMount` and resyncs Reqore's
-  // internal open state with ours. Without this bump, ReqorePopover's
-  // outside-click detector can close its internal state while our
-  // `isOpen` stays true, leaving the popover stuck mounted-but-closed
-  // (no amount of `setIsOpen(true)` re-opens it).
+  // See `popoverKey` in the result interface — forces a popover re-mount.
   const [popoverKey, setPopoverKey] = useState(0);
 
   useEffect(() => {
     focusedIndexRef.current = focusedIndex;
   }, [focusedIndex]);
 
-  // Items the dropdown actually shows after the client-side prefix
-  // filter is applied. Case-insensitive match against the
-  // server-supplied `filterText` (falls back to `label`).
-  //
-  // The needle is built by stripping any leading sigil character
-  // (`@`, `$`, `/`, `-`) from `filterPrefix` — the server normally
-  // returns items WITHOUT the sigil baked into `label` / `filterText`
-  // (e.g. Qonsole returns `list` not `/list`, DPQL returns `name`
-  // not `@name` in completion items). A literal-prefix match on the
-  // sigil-ful form filters everything out as soon as the user types
-  // one more char after the trigger; stripping the sigil restores the
-  // expected "narrow as you type" behaviour.
-  //
-  // We also try a substring match as a fallback so e.g. `@stat` still
-  // matches an item whose label is `status` — common when the LSP
-  // returns a static catalog and lets the client narrow.
+  // Server completions omit the sigil from `label`/`filterText` (Qonsole
+  // returns `list` not `/list`, DPQL `name` not `@name`), so strip it off
+  // both sides before matching or the filter hides everything after the
+  // trigger char.
   const filteredItems = useMemo(() => {
     if (!filterPrefix) return items;
-    // Reduce the prefix to the segment the user is actually typing:
-    // strip a leading sigil (`@`, `$`, `/`, `-`) AND any member-access /
-    // namespace prefix up to the last `.` or `:`. `findTokenStart`
-    // intentionally includes `.`/`:` in the token (for paths like
-    // `$data:state.field`), but for FILTERING we only want the trailing
-    // word — otherwise after `arr.` typing `for` yields the needle
-    // `arr.for`, which matches no `forEach`-style label and wrongly
-    // hides every suggestion.
+    // Strip the leading sigil AND any member-access/namespace prefix up to
+    // the last `.`/`:`. The token deliberately includes `.`/`:` (for paths
+    // like `$data:state.field`), but filtering wants only the trailing
+    // word — else after `arr.` typing `for` yields needle `arr.for`, which
+    // matches no `forEach`-style label and hides every suggestion.
     const segment = filterPrefix
       .replace(/^[@$/-]+/, '')
       .replace(/^.*[.:]/, '');
@@ -296,13 +190,10 @@ export function useLspAutocomplete(
       const haystack = (item.raw.filterText ?? item.label)
         .toLowerCase()
         .replace(/^[@$/-]+/, '');
-      // Prefer prefix match (typical LSP completion shape); fall
-      // through to a substring match if no prefix hit.
       return haystack.startsWith(needle) || haystack.includes(needle);
     });
   }, [items, filterPrefix]);
 
-  // Keep the focused index from running off the end of the filtered list.
   useEffect(() => {
     if (focusedIndex >= filteredItems.length) {
       setFocusedIndex(Math.max(0, filteredItems.length - 1));
@@ -312,11 +203,9 @@ export function useLspAutocomplete(
   const groups = useMemo((): ICompletionGroup[] => {
     if (filteredItems.length === 0) return [];
 
-    // When the server populates `sortText`, it has already ranked
-    // items (group_rank embedded in sortText's first segment). Use
-    // the flat list directly so we don't re-order across kinds and
-    // contradict the server's intent. Qonsole takes this path; DPQL
-    // (no sortText) falls through to kind-grouping below.
+    // When the server populates `sortText` it has already ranked items;
+    // use the flat list directly rather than re-ordering across kinds.
+    // Qonsole takes this path; DPQL has no sortText and falls through.
     const hasSortText = filteredItems.some((i) => i.raw.sortText);
     if (hasSortText) {
       return [{ label: '', items: filteredItems }];
@@ -340,53 +229,40 @@ export function useLspAutocomplete(
     }));
   }, [filteredItems]);
 
-  // Underlying fetch — synchronously kicks off the LSP request and
-  // commits results into state. Extracted from the debounced wrapper so
-  // imperative entry points (e.g. `openAtChip` on tag-click) can fire it
-  // immediately, bypassing the typing-debounce.
+  // Fires the LSP request and commits results into state. Separate from
+  // the debounced wrapper so imperative callers (`openAtChip`) can bypass
+  // the typing debounce.
   const performCompletionRequest = useCallback(
     async (
       plainText: string,
       offset: number,
       opts: { eager?: boolean } = {}
     ) => {
-      // `eager` (default) opens the popover immediately for instant
-      // feedback — right for explicit triggers (`@`, `$`, `.`) where
-      // we know items are coming. Autosuggest passes `eager: false`
-      // ("quiet"): the popover stays closed until items actually
-      // arrive, so typing in no-suggestion spots (inside a string, a
-      // dead-end identifier) never flickers a dropdown open-then-shut.
+      // `eager` (default) opens the popover immediately, for explicit
+      // triggers where items are coming. Autosuggest passes `eager: false`
+      // so the popover stays closed until items arrive and doesn't flicker
+      // in no-suggestion spots (inside a string, a dead-end identifier).
       const { eager = true } = opts;
       if (!isReady) return;
-      // Re-measure the caret position just before opening — by this
-      // point the typing-debounce has expired (~150ms) and Slate has
-      // committed the new character to the DOM, so
-      // `ReactEditor.toDOMRange` returns a valid rect. The earlier
-      // call inside `onSlateChangeImpl` can fire during Slate's
-      // onChange BEFORE the DOM commit, in which case `toDOMRange`
-      // throws or returns the previous (stale) range and the popover
-      // ends up at the initial `{top: 0, left: 0}`.
+      // Re-measure the caret now that the debounce expired and Slate has
+      // committed the char to the DOM. The earlier measure in
+      // `onSlateChangeImpl` can fire before the DOM commit, where
+      // `toDOMRange` throws or returns a stale range and the popover lands
+      // at {top: 0, left: 0}.
       const editor = editorRef.current;
       if (editor && editor.selection) {
         try {
           const domRange = ReactEditor.toDOMRange(editor, editor.selection);
           const rect = domRange.getBoundingClientRect();
-          // Only update when we got a meaningful rect — a 0,0,0,0 rect
-          // means the DOM still isn't ready; keep whatever the earlier
-          // measure produced rather than slamming back to origin.
+          // A 0,0,0,0 rect means the DOM still isn't ready — keep the
+          // earlier measure rather than slamming back to origin.
           if (rect.width || rect.height || rect.left || rect.top) {
             setPosition({ left: rect.left, top: rect.bottom });
           }
         } catch {
-          // Editor unmounted mid-request — proceed with whatever
-          // position state we last computed.
+          // Editor unmounted mid-request.
         }
       }
-      // Open the popover immediately so the user sees feedback on
-      // the click / keystroke. `isFetching` is set ONLY after a
-      // delay — fast responses (mock, warm cache, sub-250ms live)
-      // never set the flag and never flash the "Loading…" stub.
-      // Skipped for autosuggest (`eager: false`) — see above.
       if (eager) {
         setIsOpen(true);
         if (fetchingTimerRef.current !== null) {
@@ -401,17 +277,14 @@ export function useLspAutocomplete(
         const lspItems = await getCompletions(plainText, offset);
         if (lspItems.length === 0) {
           setItems([]);
-          // Keep popover open in replace mode so the user sees "No
-          // alternatives available" rather than a silent close.
+          // Replace mode keeps the popover open to show "No alternatives".
           if (!replacingChipPathRef.current) {
             setIsOpen(false);
           }
           return;
         }
-        // Sort by `sortText` when present (Qonsole encodes
-        // group_rank + match_rank into sortText for stable order).
-        // For items without sortText, preserve server order — DPQL
-        // doesn't populate sortText consistently.
+        // Sort by `sortText` when present (Qonsole encodes rank into it);
+        // otherwise preserve server order, as DPQL doesn't populate it.
         const sortedLspItems = lspItems.some((i) => i.sortText)
           ? [...lspItems].sort((a, b) =>
               (a.sortText ?? a.label).localeCompare(b.sortText ?? b.label)
@@ -446,8 +319,6 @@ export function useLspAutocomplete(
         setItems([]);
         setIsOpen(false);
       } finally {
-        // Cancel the pending "show loader" timer AND clear any
-        // already-set fetching state. Idempotent.
         if (fetchingTimerRef.current !== null) {
           clearTimeout(fetchingTimerRef.current);
           fetchingTimerRef.current = null;
@@ -476,8 +347,6 @@ export function useLspAutocomplete(
     setFilterPrefix('');
     setIsReplaceMode(false);
     setIsFetching(false);
-    // Cancel any pending "show loader" timer — the popover is closing,
-    // we don't want the stub to pop up mid-close.
     if (fetchingTimerRef.current !== null) {
       clearTimeout(fetchingTimerRef.current);
       fetchingTimerRef.current = null;
@@ -493,12 +362,9 @@ export function useLspAutocomplete(
       try {
         const domRange = ReactEditor.toDOMRange(editor, editor.selection);
         const rect = domRange.getBoundingClientRect();
-        // Position the popover anchor in VIEWPORT coordinates. Earlier
-        // versions used offset-from-editor-container which broke when the
-        // editor was wrapped in a panel with non-zero padding — the
-        // anchor span ended up inside the editor body and Popper put the
-        // popover overlapping the input. Viewport coords + `position:
-        // fixed` on the wrapper avoids any parent-offset math.
+        // Viewport coordinates (+ `position: fixed` on the wrapper) avoid
+        // parent-offset math that broke when the editor sat in a padded
+        // panel and Popper overlapped the popover onto the input.
         setPosition({
           left: rect.left,
           top: rect.bottom,
@@ -510,19 +376,14 @@ export function useLspAutocomplete(
     []
   );
 
-  /**
-   * Scan backwards from cursor to find the start of the current token.
-   * Generic enough for any language whose tokens are alphanumeric word
-   * sequences possibly prefixed with a special character (DPQL: `@` / `$`;
-   * Qonsole: `/`). Returns the start offset in `plainText`.
-   */
+  // Scan back from the cursor to the start offset of the current token
+  // (a word sequence optionally prefixed with `@` / `$` / `/`).
   const findTokenStart = useCallback(
     (plainText: string, cursorOffset: number): number => {
       let i = cursorOffset - 1;
       while (i >= 0 && /[\w.:{}-]/.test(plainText[i])) {
         i--;
       }
-      // Include a leading sigil if present — `@`, `$`, `/`, `-`.
       if (i >= 0 && /[@$/-]/.test(plainText[i])) {
         i--;
       }
@@ -531,15 +392,21 @@ export function useLspAutocomplete(
     []
   );
 
+  // Live ref to the change handler defined below — selectItem's retrigger
+  // path runs in a timeout and must see the CURRENT impl, not whatever its
+  // own (intentionally narrow) deps closed over. Same workaround as
+  // `stableOnTagClick` in SmartEditor.
+  const onSlateChangeImplRef = useRef<
+    (editor: BaseEditor & ReactEditor & HistoryEditor, nodes: ISlateElement[]) => void
+  >(() => undefined);
+
   const selectItem = useCallback(
     (item: ICompletionDropdownItem) => {
       const editor = editorRef.current;
       if (!editor) return;
       const replacementPath = replacingChipPathRef.current;
-      // Normal (typing) path requires a live selection — the inserter
-      // computes how many chars of partial token to delete before
-      // inserting. Replace mode (chip-click) operates on a path instead
-      // and doesn't need a selection.
+      // The typing path needs a live selection so the inserter knows how
+      // much partial token to delete; replace mode works off a path.
       if (!editor.selection && !replacementPath) return;
 
       const nodes = editor.children as ISlateElement[];
@@ -563,18 +430,15 @@ export function useLspAutocomplete(
       if (item.metadata?.retrigger) {
         setTimeout(() => {
           const newNodes = editor.children as ISlateElement[];
-          // eslint-disable-next-line @typescript-eslint/no-use-before-define
-          onSlateChangeImpl(editor, newNodes);
+          onSlateChangeImplRef.current(editor, newNodes);
         }, 50);
       }
     },
-    // onSlateChangeImpl is referenced below; deps deliberately omit it.
     [close, inserter, converter]
   );
 
   useEffect(() => {
-    // Keyboard nav operates on the FILTERED list (what the user sees),
-    // not the server-returned raw items.
+    // Keyboard nav operates on the filtered list, not the raw items.
     if (!isOpen || filteredItems.length === 0) return undefined;
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
@@ -604,12 +468,8 @@ export function useLspAutocomplete(
           close();
           break;
         default: {
-          // `commitCharacters` support: when the typed key matches one
-          // of the focused item's commit characters, accept the
-          // completion AND insert the typed character (VS-Code semantics).
-          // Skip when the completion's inserted text already ends with
-          // that character (server may have baked it into the textEdit /
-          // insertText — e.g. `--limit=` for an `=`-committed flag).
+          // `commitCharacters`: typing a commit char accepts the item and
+          // inserts the char (VS Code semantics).
           if (e.key.length !== 1) break;
           const focusedItem = filteredItems[focusedIndexRef.current];
           const commits = focusedItem?.raw.commitCharacters;
@@ -618,18 +478,14 @@ export function useLspAutocomplete(
           if (!editor) break;
           e.preventDefault();
           e.stopPropagation();
-          // Inspect what the inserter will actually insert. If the
-          // string ends with the typed character, the server's edit
-          // already includes it; don't double-insert.
+          // Don't double-insert when the server's edit already ends with
+          // the committed char (e.g. `--limit=` for an `=`-committed flag).
           const inserted =
             focusedItem.raw.textEdit?.newText ??
             focusedItem.raw.insertText ??
             focusedItem.raw.label;
           selectItem(focusedItem);
           if (!inserted.endsWith(e.key)) {
-            // Re-insert the committed character at the cursor so it's
-            // preserved in the document. (selectItem closes the
-            // popover; we run after.)
             Transforms.insertText(editor, e.key);
           }
           break;
@@ -654,33 +510,24 @@ export function useLspAutocomplete(
         close();
         return;
       }
-      // Slate's `onChange` fires for BOTH content edits and selection-only
-      // changes (cursor moves, click-to-focus, etc.). The trigger-detection
-      // logic below should only OPEN the dropdown on content edits —
-      // otherwise clicking into a document whose char-before-cursor happens
-      // to be a trigger character (e.g. cursor lands after a space in
-      // `/list services `) pops the dropdown open without the user typing
-      // anything.
-      //
-      // `editor.operations` is the array of operations applied in this
-      // change batch. If every operation is `set_selection`, the change
-      // is selection-only — keep any open dropdown closed and bail.
+      // `onChange` fires for content edits AND selection-only changes
+      // (cursor moves, click-to-focus). Only OPEN on content edits — else
+      // clicking after a trigger char (e.g. the space in `/list services `)
+      // pops the dropdown without the user typing. An all-`set_selection`
+      // op batch is selection-only.
       const isContentChange = editor.operations.some(
         (op) => op.type !== 'set_selection'
       );
       if (!isContentChange) {
-        // Replace mode anchors on a chip — selection echoes from the
-        // click that opened the dropdown must NOT close it. The popover's
-        // outside-click handler closes the dropdown when the user moves
-        // focus elsewhere.
+        // Replace mode anchors on a chip; the selection echo from the
+        // opening click must not close it (outside-click handler does).
         if (isOpen && !replacingChipPathRef.current) {
           close();
         }
         return;
       }
-      // Any content edit while in replace mode cancels — the user
-      // started typing instead of picking a replacement, so step back
-      // to normal completion flow.
+      // A content edit in replace mode means the user typed instead of
+      // picking a replacement — fall back to normal flow.
       if (replacingChipPathRef.current) {
         close();
         return;
@@ -695,15 +542,10 @@ export function useLspAutocomplete(
       );
       const charBefore = cursorOffset > 0 ? plainText[cursorOffset - 1] : '';
 
-      // After inserting a tag completion (e.g. accepting `@status`), the
-      // cursor lands at offset 0 of a fresh text node immediately after
-      // the tag element. Plain-text-wise, the cursor appears to be in
-      // the middle of an `@field` token, so `findTokenStart` below would
-      // happily re-fire completions for the just-inserted tag.
-      //
-      // Detect this case via Slate's structure: cursor at the start of
-      // a text node whose previous sibling is a `tag` element. The user
-      // has finished selecting that completion; don't reopen.
+      // After accepting a tag completion the cursor sits at offset 0 of a
+      // fresh text node right after the tag, which in plain text looks
+      // mid-`@field` token and would re-fire completions. Detect it via
+      // Slate structure (prev sibling is a `tag` element) and don't reopen.
       const cursorPath = anchor.path as number[];
       if (
         anchor.offset === 0 &&
@@ -724,31 +566,24 @@ export function useLspAutocomplete(
         }
       }
 
-      // Trigger on the configured trigger chars.
       if (triggerCharacters.has(charBefore)) {
-        // A trigger character was just typed — the token is fresh, no
-        // prefix typed yet.
         setFilterPrefix('');
         positionTrigger(editor);
         requestCompletions(plainText, cursorOffset);
         return;
       }
 
-      // Also trigger if we're typing inside a sigil-prefixed token.
+      // Typing inside a sigil-prefixed token.
       const tokenStart = findTokenStart(plainText, cursorOffset);
       const tokenPrefix = plainText[tokenStart];
       if (tokenPrefix && /[@$/]/.test(tokenPrefix)) {
-        // Narrow the dropdown to items matching the partial token the
-        // user has typed since the trigger fired.
         setFilterPrefix(plainText.slice(tokenStart, cursorOffset));
         positionTrigger(editor);
         requestCompletions(plainText, cursorOffset);
         return;
       }
 
-      // If dropdown is open and the user is typing alphanumeric, keep
-      // narrowing — update the filter prefix and re-request with the new
-      // cursor position.
+      // Dropdown open and typing alphanumeric — keep narrowing.
       if (isOpen && /\w/.test(charBefore)) {
         setFilterPrefix(plainText.slice(tokenStart, cursorOffset));
         positionTrigger(editor);
@@ -756,15 +591,10 @@ export function useLspAutocomplete(
         return;
       }
 
-      // Autosuggest: typing inside a BARE identifier (a function /
-      // keyword name — no leading sigil) fires a QUIET completion
-      // request. The DPQL server is position-aware — it returns
-      // functions / keywords for identifier positions and `[]`
-      // elsewhere (inside strings, etc.) — so the dropdown only
-      // appears when there's actually something to suggest, and
-      // `eager: false` keeps it from flickering where there isn't.
-      // (Sigil tokens and the already-open case are handled above; a
-      // bare identifier is one whose first char is a word char.)
+      // Autosuggest inside a bare identifier: quiet request. The DPQL
+      // server is position-aware — it returns `[]` inside strings etc., so
+      // `eager: false` keeps the dropdown from flickering where there's
+      // nothing to suggest.
       if (/\w/.test(charBefore) && tokenPrefix && /\w/.test(tokenPrefix)) {
         setFilterPrefix(plainText.slice(tokenStart, cursorOffset));
         positionTrigger(editor);
@@ -785,6 +615,7 @@ export function useLspAutocomplete(
       converter,
     ]
   );
+  onSlateChangeImplRef.current = onSlateChangeImpl;
 
   const onItemSelect = useCallback(
     (
@@ -797,23 +628,18 @@ export function useLspAutocomplete(
     [selectItem]
   );
 
-  /**
-   * Imperative entry point for "replace this chip" flow. Anchors the
-   * popover at the chip's viewport rect, records the chip path for the
-   * inserter to consume, and fires a completion request immediately
-   * (bypassing the typing debounce — the user expects the dropdown to
-   * appear instantly on click).
-   */
+  // Imperative entry for the "replace this chip" flow. Anchors at the
+  // chip's viewport rect and fires a request immediately, bypassing the
+  // typing debounce.
   const openAtChip = useCallback(
     (
       editor: BaseEditor & ReactEditor & HistoryEditor,
       chipPath: number[],
       chipRect: { left: number; bottom: number }
     ) => {
-      // Toggle behaviour: clicking the SAME chip that the dropdown is
-      // already anchored to closes it. Without this, the user has no
-      // way to dismiss replace mode via the chip itself (the outside-
-      // click suppression below would re-open it on every chip click).
+      // Clicking the chip the dropdown is already anchored to closes it;
+      // without this the outside-click suppression below re-opens it on
+      // every chip click.
       const prevPath = replacingChipPathRef.current;
       if (
         isOpen &&
@@ -829,25 +655,18 @@ export function useLspAutocomplete(
       justOpenedAtChipAtRef.current = Date.now();
       setFilterPrefix('');
       setPosition({ left: chipRect.left, top: chipRect.bottom });
-      // Pre-open the popover so the user gets immediate visual feedback
-      // on the click — even if the LSP isn't ready yet, the popover
-      // appears anchored at the chip (showing a "Connecting…" stub
-      // rendered by SmartEditor). Items populate when the request
-      // returns; until then, `items` is empty.
+      // Pre-open for immediate feedback even before the LSP is ready (the
+      // popover shows a "Connecting…" stub); items populate on response.
       setItems([]);
       setFocusedIndex(0);
       setIsReplaceMode(true);
       setIsOpen(true);
-      // Force the popover to re-mount so its internal open state
-      // syncs with ours — see comment on `popoverKey` above.
       setPopoverKey((k) => k + 1);
       const nodes = editor.children as ISlateElement[];
       const plainText = converter.fromSlateNodes(nodes);
-      // Request completions at the END of the chip's plain-text span —
-      // that's the natural "what could complete this token" position for
-      // the LSP server. For chip `@status` the cursor sits right after
-      // `@status`, so the server returns matching `@field` candidates
-      // the user can swap in.
+      // Request at the END of the chip's span — the natural "what could
+      // complete this token" position, so the server returns swappable
+      // candidates.
       const chipChildIdx = chipPath[chipPath.length - 1];
       const paragraph = nodes[chipPath[0]];
       const chipNode = paragraph?.children?.[chipChildIdx];
@@ -860,7 +679,6 @@ export function useLspAutocomplete(
       if (isReady) {
         performCompletionRequest(plainText, chipEnd);
       } else {
-        // Defer until isReady — see effect below.
         pendingChipRequestRef.current = { plainText, offset: chipEnd };
       }
     },
@@ -870,9 +688,8 @@ export function useLspAutocomplete(
   const handleExternalClose = useCallback(
     (open: boolean) => {
       if (open) return;
-      // Within ~300ms of `openAtChip`, the close event is the popover's
-      // own outside-click handler reacting to the same mousedown that
-      // opened it — ignore.
+      // Within ~300ms of `openAtChip`, this close is the popover reacting
+      // to the same mousedown that opened it — ignore.
       if (Date.now() - justOpenedAtChipAtRef.current < 300) {
         return;
       }
@@ -881,9 +698,8 @@ export function useLspAutocomplete(
     [close]
   );
 
-  // Auto-fire a deferred chip-click request once the LSP session is
-  // ready. Covers the race where the user clicks a chip during the
-  // initialize handshake.
+  // Fire a deferred chip-click request once the session connects — covers
+  // a click made during the initialize handshake.
   useEffect(() => {
     if (
       isReady &&
@@ -897,9 +713,7 @@ export function useLspAutocomplete(
   }, [isReady, performCompletionRequest]);
 
   return {
-    // Expose the post-filter list as `items` — consumers (SmartEditor's
-    // render, click handlers) iterate this and don't need to see the
-    // raw server set. `groups` is also already filter-derived.
+    // Expose the post-filter list as `items`; `groups` is filter-derived too.
     items: filteredItems,
     groups,
     isOpen,

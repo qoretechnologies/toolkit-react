@@ -1,36 +1,20 @@
-// Stories for QonsoleSmartInput. `BasicMock` exercises the full client↔
-// server completion path against a mock-socket LSP that mirrors the
-// shapes from the live spike. `LiveQonsole` hits the real `/lsp` endpoint
-// (no mock) so the wrapper can be validated against the shipped Qorus
-// backend before integrating into qorus-ide's QonsoleInput.
-
 import { StoryObj } from '@storybook/react';
 import { expect, fn, userEvent, waitFor, within } from '@storybook/test';
-import { Server } from 'mock-socket';
 import { useState } from 'react';
 import { sleep } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';
+import {
+  createMockLspServer,
+  DEFAULT_LSP_CAPABILITIES,
+  IMockLspServer,
+  MOCK_LSP_URL,
+} from '../smartEditor/__fixtures__/mockLspServer';
 import { QonsoleSmartInput } from './QonsoleSmartInput';
 import { IQonsoleAssistContext } from './types';
 
-const MOCK_LSP_URL = `wss://hq.qoretechnologies.com:8092/lsp?token=${process.env.REACT_APP_QORUS_TOKEN}`;
-
-/**
- * Most-recent document text the client has sent via didOpen / didChange.
- * The mock's completion handler inspects this so it can return
- * contextually-correct items per the user's cursor position.
- */
-let lastQonsoleText = '';
-
-/**
- * Walk backward from `cursorChar` to find the start of the current
- * Qonsole token. Tokens are word-chars-and-sigils sequences (`/list`,
- * `--desc`, `services`, `qorus-ide`). Used to compute the `textEdit.range`
- * the server-side handler would compute so that accepting an item
- * REPLACES the partial token rather than appending to it (otherwise
- * accepting `/list` while the user has `/l` typed would produce
- * `/l/list`).
- */
+// Start of the current Qonsole token; drives the textEdit range so
+// accepting an item replaces the partial token (else `/l` + `/list` →
+// `/l/list`).
 function findQonsoleTokenStart(text: string, cursorChar: number): number {
   let i = cursorChar - 1;
   while (i >= 0 && /[\w/=:.-]/.test(text[i])) {
@@ -39,24 +23,10 @@ function findQonsoleTokenStart(text: string, cursorChar: number): number {
   return i + 1;
 }
 
-/**
- * Detect which completion context the cursor is in. Looks at the
- * current partial token + how many `/verb resource` slots have
- * already been consumed before the cursor to decide between verb /
- * resource / flag / flag-value / nothing.
- *
- * Grammar the mock assumes (simplified from the real server):
- *   `/verb resource [--flag[=value]]…`
- * So the slot the cursor is in depends on how many non-flag word
- * tokens precede it:
- *   - 0 word tokens → verb position (`/list…`)
- *   - 1 word token  → resource position (`services…`)
- *   - 2+ word tokens → flag position (`--desc…`) — the verb + resource
- *     slots are filled, so any subsequent word-position is a flag
- *
- * Returns `null` when no context matches — the dropdown stays closed
- * for free-typing positions the mock has no opinion about.
- */
+// Which completion slot the cursor sits in, for the mock's naive
+// `/verb resource [--flag[=value]]…` grammar: slot is decided by the
+// count of non-flag word tokens before the cursor. `null` = no opinion,
+// dropdown stays closed.
 function detectQonsoleContext(
   text: string,
   cursorChar: number
@@ -98,27 +68,10 @@ function detectQonsoleContext(
   return null;
 }
 
-/**
- * Mock Qonsole semantic-tokens producer. Returns a flat int-5-tuple
- * array per LSP spec, types resolved against the standard 16-type
- * legend.
- *
- * **Deliberately conservative**: we only emit tokens for sigil-bracketed
- * syntactic forms whose grammar position is unambiguous from the text
- * alone. The real qorus server tokenises resource names and flag
- * values as classes / strings because it has a live type registry —
- * the mock has no such schema and any heuristic for "this word looks
- * like a resource" is bound to false-positive on user-typed garbage.
- * For full class / string coverage check `LiveQonsole` (real server)
- * or `Components/SmartEditor → WithSemanticTokens` (hand-crafted
- * deterministic response).
- *
- * Token types we emit:
- *  8 = keyword  → `/verb`
- *  9 = modifier → `--flag`
- * 11 = string   → `"quoted string"`
- * 12 = number   → integer or float literal
- */
+// Mock semantic-tokens producer (LSP delta-5-tuple int array). Having no
+// schema, it only paints sigil-bracketed forms — `/verb` (keyword 8),
+// `--flag` (modifier 9), `"strings"` (11), numbers (12); resource names
+// and flag values stay plain. See `LiveQonsole` for the real coverage.
 function mockTokenizeQonsole(text: string): number[] {
   const tokens: Array<{
     line: number;
@@ -129,8 +82,7 @@ function mockTokenizeQonsole(text: string): number[] {
   const lines = text.split('\n');
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx];
-    // Regex alternation in priority order — strings first so they
-    // swallow any `--` / digits inside their quotes.
+    // Strings first so they swallow any `--`/digits inside their quotes.
     const TOKEN_RE =
       /("(?:\\.|[^"\\])*")|(\d+(?:\.\d+)?)|(--[A-Za-z][\w-]*)|(\/[A-Za-z][\w-]*)/g;
     let match: RegExpExecArray | null;
@@ -150,8 +102,6 @@ function mockTokenizeQonsole(text: string): number[] {
       }
     }
   }
-  // Stable sort by (line, char) — the regex above is left-to-right
-  // per line already, but sort defensively in case priorities collide.
   tokens.sort((a, b) => (a.line - b.line) || (a.char - b.char));
   // Delta-encode per LSP spec.
   const data: number[] = [];
@@ -167,336 +117,204 @@ function mockTokenizeQonsole(text: string): number[] {
   return data;
 }
 
-/**
- * Standard LSP 16-type / 6-modifier legend — same as the real Qorus
- * server advertises in `initialize` (see
- * `qorus/Classes/QorusLspWebSocketHandler.qc:847-895`).
- */
-const QONSOLE_SEMANTIC_TOKENS_LEGEND = {
-  tokenTypes: [
-    'namespace',
-    'type',
-    'class',
-    'parameter',
-    'variable',
-    'property',
-    'function',
-    'method',
-    'keyword',
-    'modifier',
-    'comment',
-    'string',
-    'number',
-    'regexp',
-    'operator',
-    'decorator',
-  ],
-  tokenModifiers: [
-    'declaration',
-    'definition',
-    'readonly',
-    'static',
-    'defaultLibrary',
-    'documentation',
-  ],
-};
+// Mock LSP server for `BasicMock`, `WithCommitCharacters`, and
+// `WithWizardItems`: contextual completion, the conservative tokenizer,
+// and `qonsole/*` methods on the shared mock plumbing.
+function setupBasicQonsoleMockServer(): IMockLspServer {
+  return createMockLspServer(MOCK_LSP_URL, {
+    capabilities: {
+      ...DEFAULT_LSP_CAPABILITIES,
+      experimental: {
+        qonsole: {
+          version: '1.0',
+          methods: [
+            'qonsole/assist',
+            'qonsole/validate',
+            'qonsole/setContext',
+          ],
+        },
+      },
+    },
+    handlers: {
+      'textDocument/semanticTokens/full': (_msg, server) => ({
+        data: mockTokenizeQonsole(server.documentText),
+      }),
 
-/**
- * Set up the BasicMock-style mock LSP server — used by `BasicMock`,
- * `WithCommitCharacters`, and `WithWizardItems`. Returns the server
- * instance so the caller can close it in their `beforeEach` teardown.
- *
- * Encapsulates: `initialize` (with full capabilities incl. semantic
- * tokens), contextual `textDocument/completion`, `qonsole/*` custom
- * methods, `textDocument/semanticTokens/full`, didOpen/didChange
- * text-tracking, and the default-null catch-all.
- *
- * **Not a real-server simulator.** See the docstring on `BasicMock`
- * for what this mock does and does not pretend to do — in particular
- * the slot grammar is a naive word counter and the tokenizer only
- * paints sigil-bracketed forms.
- */
-function setupBasicQonsoleMockServer(): Server {
-  lastQonsoleText = '';
-  const server = new Server(MOCK_LSP_URL);
-  server.on('connection', (socket) => {
-    socket.on('message', (raw) => {
-      if (raw === 'ping') {
-        socket.send('pong');
-        return;
-      }
-      let msg: any;
-      try {
-        msg = JSON.parse(raw as string);
-      } catch {
-        return;
-      }
-      if (msg.method === 'textDocument/didOpen') {
-        lastQonsoleText = msg.params?.textDocument?.text ?? '';
-      } else if (msg.method === 'textDocument/didChange') {
-        const change = msg.params?.contentChanges?.[0];
-        if (change && typeof change.text === 'string') {
-          lastQonsoleText = change.text;
-        }
-      }
-      if (msg.id === undefined) return;
-
-      switch (msg.method) {
-        case 'initialize':
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: {
-                capabilities: {
-                  semanticTokensProvider: {
-                    legend: QONSOLE_SEMANTIC_TOKENS_LEGEND,
-                    full: true,
-                    range: true,
-                  },
-                  experimental: {
-                    qonsole: {
-                      version: '1.0',
-                      methods: [
-                        'qonsole/assist',
-                        'qonsole/validate',
-                        'qonsole/setContext',
-                      ],
+      'textDocument/completion': (msg, server) => {
+        // textEdit range `[tokenStart, cursor)` so accepting an item
+        // replaces the partial token (no `/l/list` duplication).
+        const position = msg.params?.position ?? { line: 0, character: 0 };
+        const text = server.documentText;
+        const ctx = detectQonsoleContext(text, position.character);
+        let items: any[] = [];
+        if (ctx) {
+          const replaceRange = {
+            start: { line: position.line, character: ctx.tokenStart },
+            end: position,
+          };
+          const withTextEdit = (item: any) => ({
+            ...item,
+            textEdit: { range: replaceRange, newText: item.insertText ?? item.label },
+          });
+          if (ctx.type === 'verb') {
+            items = [
+              withTextEdit({
+                label: '/list',
+                insertText: '/list',
+                kind: 14,
+                detail: 'List resources',
+                commitCharacters: [' '],
+                sortText: '10_00_/list',
+              }),
+              withTextEdit({
+                label: '/show',
+                insertText: '/show',
+                kind: 14,
+                detail: 'Show resource details',
+                commitCharacters: [' '],
+                sortText: '10_01_/show',
+              }),
+              withTextEdit({
+                label: '/count',
+                insertText: '/count',
+                kind: 14,
+                detail: 'Count matching resources',
+                commitCharacters: [' '],
+                sortText: '10_02_/count',
+              }),
+              // Mutating verb — server attaches a `warning` chip.
+              withTextEdit({
+                label: '/delete',
+                insertText: '/delete',
+                kind: 14,
+                detail: 'Delete a resource',
+                commitCharacters: [' '],
+                warning: 'Mutates system state',
+                sortText: '20_00_/delete',
+              }),
+              withTextEdit({
+                label: '/help',
+                insertText: '/help',
+                kind: 14,
+                detail: 'Show help',
+                commitCharacters: [' '],
+                sortText: '30_00_/help',
+              }),
+              // Wizard launch item — `command` fires `onWizardStart`
+              // instead of inserting text, so no textEdit.
+              {
+                label: 'Start "Create connection" wizard',
+                kind: 15,
+                detail: 'Guided setup',
+                data: {
+                  action: 'start-wizard',
+                  name: 'create-connection',
+                  title: 'Create connection',
+                  short_desc: 'Guided setup for a new connection',
+                  verb: 'create',
+                  resource: 'connections',
+                  start_path:
+                    '/api/latest/qonsole/wizards/create-connection/start',
+                },
+                command: {
+                  title: 'Start Create connection wizard',
+                  command: 'qonsole.startWizard',
+                  arguments: [
+                    {
+                      action: 'start-wizard',
+                      name: 'create-connection',
+                      title: 'Create connection',
+                      short_desc: 'Guided setup for a new connection',
+                      verb: 'create',
+                      resource: 'connections',
+                      start_path:
+                        '/api/latest/qonsole/wizards/create-connection/start',
                     },
-                  },
-                },
-              },
-            })
-          );
-          break;
-
-        case 'textDocument/semanticTokens/full':
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: { data: mockTokenizeQonsole(lastQonsoleText) },
-            })
-          );
-          break;
-
-        case 'textDocument/completion': {
-          // Detect the completion context from cursor position +
-          // partial token. The resulting `tokenStart` is the start
-          // of the partial token the user has typed; the textEdit
-          // range covers `[tokenStart, cursor)` so accepting an
-          // item REPLACES the partial token cleanly (no
-          // `/l/list` duplication).
-          const position = msg.params?.position ?? { line: 0, character: 0 };
-          const text = lastQonsoleText;
-          const ctx = detectQonsoleContext(text, position.character);
-          let items: any[] = [];
-          if (ctx) {
-            const replaceRange = {
-              start: { line: position.line, character: ctx.tokenStart },
-              end: position,
-            };
-            const withTextEdit = (item: any) => ({
-              ...item,
-              textEdit: { range: replaceRange, newText: item.insertText ?? item.label },
-            });
-            if (ctx.type === 'verb') {
-              items = [
-                withTextEdit({
-                  label: '/list',
-                  insertText: '/list',
-                  kind: 14,
-                  detail: 'List resources',
-                  commitCharacters: [' '],
-                  sortText: '10_00_/list',
-                }),
-                withTextEdit({
-                  label: '/show',
-                  insertText: '/show',
-                  kind: 14,
-                  detail: 'Show resource details',
-                  commitCharacters: [' '],
-                  sortText: '10_01_/show',
-                }),
-                withTextEdit({
-                  label: '/count',
-                  insertText: '/count',
-                  kind: 14,
-                  detail: 'Count matching resources',
-                  commitCharacters: [' '],
-                  sortText: '10_02_/count',
-                }),
-                // Mutating verb — server attaches a `warning` chip.
-                withTextEdit({
-                  label: '/delete',
-                  insertText: '/delete',
-                  kind: 14,
-                  detail: 'Delete a resource',
-                  commitCharacters: [' '],
-                  warning: 'Mutates system state',
-                  sortText: '20_00_/delete',
-                }),
-                withTextEdit({
-                  label: '/help',
-                  insertText: '/help',
-                  kind: 14,
-                  detail: 'Show help',
-                  commitCharacters: [' '],
-                  sortText: '30_00_/help',
-                }),
-                // Wizard launch item — `command` triggers
-                // `onWizardStart` instead of text insertion. The
-                // inserter doesn't read textEdit for wizard items,
-                // so we omit it.
-                {
-                  label: 'Start "Create connection" wizard',
-                  kind: 15,
-                  detail: 'Guided setup',
-                  data: {
-                    action: 'start-wizard',
-                    name: 'create-connection',
-                    title: 'Create connection',
-                    short_desc: 'Guided setup for a new connection',
-                    verb: 'create',
-                    resource: 'connections',
-                    start_path:
-                      '/api/latest/qonsole/wizards/create-connection/start',
-                  },
-                  command: {
-                    title: 'Start Create connection wizard',
-                    command: 'qonsole.startWizard',
-                    arguments: [
-                      {
-                        action: 'start-wizard',
-                        name: 'create-connection',
-                        title: 'Create connection',
-                        short_desc: 'Guided setup for a new connection',
-                        verb: 'create',
-                        resource: 'connections',
-                        start_path:
-                          '/api/latest/qonsole/wizards/create-connection/start',
-                      },
-                    ],
-                  },
-                  sortText: '40_00_wizard',
-                },
-              ];
-            } else if (ctx.type === 'resource') {
-              items = [
-                withTextEdit({ label: 'services', insertText: 'services', kind: 7, detail: 'Service interfaces', commitCharacters: [' '] }),
-                withTextEdit({ label: 'workflows', insertText: 'workflows', kind: 7, detail: 'Workflow interfaces', commitCharacters: [' '] }),
-                withTextEdit({ label: 'jobs', insertText: 'jobs', kind: 7, detail: 'Job interfaces', commitCharacters: [' '] }),
-                withTextEdit({ label: 'users', insertText: 'users', kind: 7, detail: 'IDP users', commitCharacters: [' '] }),
-              ];
-            } else if (ctx.type === 'flag') {
-              items = [
-                withTextEdit({
-                  label: '--desc',
-                  insertText: '--desc=',
-                  kind: 10,
-                  detail: 'sort descending',
-                  commitCharacters: ['='],
-                }),
-                withTextEdit({
-                  label: '--limit',
-                  insertText: '--limit=',
-                  kind: 10,
-                  detail: 'maximum number of results',
-                  commitCharacters: ['='],
-                }),
-                withTextEdit({
-                  label: '--search',
-                  insertText: '--search=',
-                  kind: 10,
-                  detail: 'filter by name using a regex',
-                  commitCharacters: ['='],
-                }),
-                withTextEdit({
-                  label: '--app',
-                  insertText: '--app=',
-                  kind: 10,
-                  detail: 'filter by application',
-                  commitCharacters: ['='],
-                }),
-              ];
-            } else if (ctx.type === 'flag-value') {
-              items = [
-                withTextEdit({ label: 'qorus', insertText: 'qorus', kind: 12, detail: 'Qorus core app' }),
-                withTextEdit({ label: 'qorus-ide', insertText: 'qorus-ide', kind: 12, detail: 'Qorus IDE' }),
-                withTextEdit({ label: 'qorus-creator', insertText: 'qorus-creator', kind: 12, detail: 'Qorus Creator' }),
-              ];
-            }
-          }
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: { items },
-            })
-          );
-          break;
-        }
-
-        case 'qonsole/setContext':
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: { ok: true, context: msg.params?.context ?? null },
-            })
-          );
-          break;
-
-        case 'qonsole/validate':
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: { diagnostics: [] },
-            })
-          );
-          break;
-
-        case 'qonsole/assist':
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: {
-                version: '1.0',
-                mode: 'command',
-                context: {},
-                canonical: {
-                  command_name: 'list-services',
-                  verb: 'list',
-                  resource: 'services',
-                },
-                completion: {
-                  state: 'flag',
-                  prefix: '',
-                  replace_start: 15,
-                  replace_end: 15,
-                  items: [
-                    { label: '--desc', kind: 'flag' },
-                    { label: '--limit', kind: 'flag' },
                   ],
                 },
-                diagnostics: [],
-                metrics: { duration_ms: 5 },
+                sortText: '40_00_wizard',
               },
-            })
-          );
-          break;
+            ];
+          } else if (ctx.type === 'resource') {
+            items = [
+              withTextEdit({ label: 'services', insertText: 'services', kind: 7, detail: 'Service interfaces', commitCharacters: [' '] }),
+              withTextEdit({ label: 'workflows', insertText: 'workflows', kind: 7, detail: 'Workflow interfaces', commitCharacters: [' '] }),
+              withTextEdit({ label: 'jobs', insertText: 'jobs', kind: 7, detail: 'Job interfaces', commitCharacters: [' '] }),
+              withTextEdit({ label: 'users', insertText: 'users', kind: 7, detail: 'IDP users', commitCharacters: [' '] }),
+            ];
+          } else if (ctx.type === 'flag') {
+            items = [
+              withTextEdit({
+                label: '--desc',
+                insertText: '--desc=',
+                kind: 10,
+                detail: 'sort descending',
+                commitCharacters: ['='],
+              }),
+              withTextEdit({
+                label: '--limit',
+                insertText: '--limit=',
+                kind: 10,
+                detail: 'maximum number of results',
+                commitCharacters: ['='],
+              }),
+              withTextEdit({
+                label: '--search',
+                insertText: '--search=',
+                kind: 10,
+                detail: 'filter by name using a regex',
+                commitCharacters: ['='],
+              }),
+              withTextEdit({
+                label: '--app',
+                insertText: '--app=',
+                kind: 10,
+                detail: 'filter by application',
+                commitCharacters: ['='],
+              }),
+            ];
+          } else if (ctx.type === 'flag-value') {
+            items = [
+              withTextEdit({ label: 'qorus', insertText: 'qorus', kind: 12, detail: 'Qorus core app' }),
+              withTextEdit({ label: 'qorus-ide', insertText: 'qorus-ide', kind: 12, detail: 'Qorus IDE' }),
+              withTextEdit({ label: 'qorus-creator', insertText: 'qorus-creator', kind: 12, detail: 'Qorus Creator' }),
+            ];
+          }
+        }
+        return { items };
+      },
 
-        default:
-          socket.send(
-            JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: null })
-          );
-          break;
-      }
-    });
+      'qonsole/setContext': (msg) => ({
+        ok: true,
+        context: msg.params?.context ?? null,
+      }),
+
+      'qonsole/validate': () => ({ diagnostics: [] }),
+
+      'qonsole/assist': () => ({
+        version: '1.0',
+        mode: 'command',
+        context: {},
+        canonical: {
+          command_name: 'list-services',
+          verb: 'list',
+          resource: 'services',
+        },
+        completion: {
+          state: 'flag',
+          prefix: '',
+          replace_start: 15,
+          replace_end: 15,
+          items: [
+            { label: '--desc', kind: 'flag' },
+            { label: '--limit', kind: 'flag' },
+          ],
+        },
+        diagnostics: [],
+        metrics: { duration_ms: 5 },
+      }),
+    },
   });
-  return server;
 }
 
 interface IDemoArgs {
@@ -537,31 +355,10 @@ const meta = {
 export default meta;
 export type Story = StoryObj<typeof meta>;
 
-/**
- * Mock-socket variant that mirrors the Qonsole LSP wire shape captured
- * in `qorus-frontend/QONSOLE_LSP_REFERENCE.md`. Replies to `initialize`,
- * `textDocument/completion`, `qonsole/setContext`, `qonsole/assist`,
- * `qonsole/validate`. Play test types `-` after `/list services ` and
- * asserts the canned completions render.
- *
- * **Scope of this mock** (read before you go down a rabbit hole):
- * - This is a minimal scaffold for the deterministic play test and for
- *   poking at the editor without a Qorus server. It is **not** a
- *   robustness simulation of the real Qonsole grammar.
- * - The slot grammar is a naive word-counter (`/verb` → resource →
- *   flag…). Feed it malformed input like `"hello world" 43 /list ` and
- *   it WILL pick a weird slot — that's expected. The real server has
- *   the type registry to handle that; the mock does not.
- * - The semantic tokenizer is deliberately conservative — it only
- *   colors sigil-bracketed forms (`/verb`, `--flag`, `"strings"`,
- *   numbers). Resource names, flag values, and any free-form
- *   identifier stay plain because the mock has no schema.
- * - For real-server behavior use `LiveQonsole` /
- *   `LiveQonsoleWithContext`.
- * - For deterministic full-fidelity semantic tokens (hand-crafted
- *   response, no heuristics) see
- *   `Components/SmartEditor → WithSemanticTokens`.
- */
+// Mock-socket variant mirroring the Qonsole LSP wire shape. Play test
+// types `-` after `/list services ` and asserts the canned completions
+// render. The slot grammar is a naive word-counter and the tokenizer
+// only paints sigil-bracketed forms; use `LiveQonsole` for real behaviour.
 export const BasicMock: Story = {
   args: {
     initialValue: '/list services ',
@@ -625,10 +422,14 @@ export const BasicMock: Story = {
  * Without a valid token the WebSocket handshake fails with 401.
  */
 export const LiveQonsole: Story = {
+  // Real Qonsole LSP — excluded from the play-test runner and from
+  // Chromatic (CI has no token/network).
+  tags: ['!test'],
   args: {
     initialValue: '/list services ',
   },
   parameters: {
+    chromatic: { disable: true },
     docs: {
       description: {
         story:
@@ -636,6 +437,25 @@ export const LiveQonsole: Story = {
           'space (or `-`, `=`, `/`, etc.) to see real completions render.',
       },
     },
+  },
+  // Open real flag completions (via `qonsole/assist`) when run manually
+  // against the live server. Verified: `/list services ` → 10 flag
+  // items. Clear + retype so the trailing-space trigger fires.
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    await sleep(3000); // let the live LSP session connect before typing (real WS handshake)
+    await userEvent.click(editable);
+    await userEvent.clear(editable);
+    await userEvent.type(editable, '/list services ');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('--desc');
+      },
+      { timeout: 30000 }
+    );
   },
 };
 
@@ -645,9 +465,15 @@ export const LiveQonsole: Story = {
  * `qonsole/setContext` via the `useQonsoleSession` hook.
  */
 export const LiveQonsoleWithContext: Story = {
+  // Real Qonsole LSP — excluded from the play-test runner and from
+  // Chromatic (CI has no token/network).
+  tags: ['!test'],
   args: {
     initialValue: 'show me services in the pricing pipeline ',
     useContext: { resource: 'services' },
+  },
+  parameters: {
+    chromatic: { disable: true },
   },
 };
 
@@ -679,87 +505,39 @@ export const WithDiagnostics: Story = {
     },
   },
   async beforeEach() {
-    lastQonsoleText = '';
-    const server = new Server(MOCK_LSP_URL);
-    server.on('connection', (socket) => {
-      socket.on('message', (raw) => {
-        if (raw === 'ping') {
-          socket.send('pong');
-          return;
-        }
-        let msg: any;
-        try {
-          msg = JSON.parse(raw as string);
-        } catch {
-          return;
-        }
-        if (msg.id !== undefined) {
-          switch (msg.method) {
-            case 'initialize':
-              socket.send(
-                JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: msg.id,
-                  result: { capabilities: {} },
-                })
-              );
-              break;
-            case 'qonsole/setContext':
-            case 'qonsole/validate':
-              socket.send(
-                JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: msg.id,
-                  result: null,
-                })
-              );
-              break;
-            default:
-              socket.send(
-                JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: null })
-              );
-              break;
-          }
-        }
+    const lsp = createMockLspServer(MOCK_LSP_URL, {
+      capabilities: {},
+      handlers: {
         // After didOpen, push a publishDiagnostics notification so the
         // editor renders inline + panel feedback. `didOpen` carries the
         // uri in params.textDocument.uri.
-        if (msg.method === 'textDocument/didOpen') {
-          const uri = msg.params?.textDocument?.uri;
-          socket.send(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              method: 'textDocument/publishDiagnostics',
-              params: {
-                uri,
-                diagnostics: [
-                  {
-                    range: {
-                      start: { line: 0, character: 6 },
-                      end: { line: 0, character: 14 },
-                    },
-                    message:
-                      'Unknown resource "services" — did you mean "service"?',
-                    severity: 1,
-                  },
-                  {
-                    range: {
-                      start: { line: 0, character: 18 },
-                      end: { line: 0, character: 25 },
-                    },
-                    message: 'Pipeline "pricing" not found in workspace.',
-                    severity: 2,
-                  },
-                ],
+        'textDocument/didOpen': (msg, server) => {
+          server.notify('textDocument/publishDiagnostics', {
+            uri: msg.params?.textDocument?.uri,
+            diagnostics: [
+              {
+                range: {
+                  start: { line: 0, character: 6 },
+                  end: { line: 0, character: 14 },
+                },
+                message:
+                  'Unknown resource "services" — did you mean "service"?',
+                severity: 1,
               },
-            })
-          );
-        }
-      });
+              {
+                range: {
+                  start: { line: 0, character: 18 },
+                  end: { line: 0, character: 25 },
+                },
+                message: 'Pipeline "pricing" not found in workspace.',
+                severity: 2,
+              },
+            ],
+          });
+        },
+      },
     });
-    return () => {
-      server.close();
-    };
+    return () => lsp.close();
   },
   // CI guard for the diagnostics round-trip (server `publishDiagnostics`
   // → the stacked `ReqoreMessage` panel below the editor). Both pushed
@@ -852,20 +630,17 @@ export const WithCommitCharacters: Story = {
 };
 
 /**
- * Demonstrates wizard launch via `command: 'qonsole.startWizard'`
- * (QONSOLE_ASSIST_FEATURES). The mock returns a synthetic
- * "Create connection" wizard item when no resource is set yet
- * (cursor on `/…`). Accepting the wizard item fires the wrapper's
- * `onWizardStart` callback INSTEAD of inserting text.
+ * Demonstrates wizard items in the completion dropdown
+ * (QONSOLE_ASSIST_FEATURES). The mock returns a synthetic "Create
+ * connection" wizard item (carrying `command: 'qonsole.startWizard'`)
+ * when no resource is set yet (cursor on `/…`), alongside the verb
+ * commands.
  *
- * Reqraft ships NO wizard runner UI — that's qorus-ide-side
- * (separate task). This story exists to verify the hand-off path:
- *   - The mock attaches a `command` field on the wizard item
- *   - The Qonsole inserter branches on `command.command === "qonsole.startWizard"`
- *   - The wrapper's `onWizardStart` fires with `command.arguments[0]`
- *
- * The args.onWizardStart is a `fn()` spy so the play test (and the
- * Storybook Actions panel) can confirm it was invoked.
+ * This story is the **visual** of the feature: it opens the dropdown
+ * and leaves it open so the wizard item is what you see (in Storybook
+ * and Chromatic). The behaviour of *selecting* it — firing
+ * `onWizardStart` instead of inserting text — is covered by
+ * `SelectingWizardItemFiresCallback` below.
  */
 export const WithWizardItems: Story = {
   args: {
@@ -876,10 +651,9 @@ export const WithWizardItems: Story = {
     docs: {
       description: {
         story:
-          'Wizard-launch path. Initial value `/`; the dropdown opens ' +
-          'on `/` with both commands AND a "Start Create connection ' +
-          'wizard" item. Selecting the wizard item fires ' +
-          '`onWizardStart` (visible in the Actions panel).',
+          'Wizard item in the dropdown. The `/` verb dropdown includes ' +
+          'a "Start Create connection wizard" entry alongside the ' +
+          'commands. Left open so the item is visible.',
       },
     },
   },
@@ -887,17 +661,17 @@ export const WithWizardItems: Story = {
     const server = setupBasicQonsoleMockServer();
     return () => server.close();
   },
-  // CI guard: selecting the wizard item fires `onWizardStart` with the
-  // descriptor INSTEAD of inserting text. The initial `/` doesn't
-  // auto-open (trigger-on-typing) — clear and re-type `/` to open the
-  // verb dropdown that includes the wizard item.
-  play: async ({ canvasElement, args }) => {
+  // Open the verb dropdown and STOP with it open, so the snapshot shows
+  // the wizard item. (The initial `/` doesn't auto-open —
+  // trigger-on-typing — so clear and re-type `/`.) Selecting it is a
+  // separate story; clicking here would dismiss the dropdown and leave
+  // an empty-looking snapshot.
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
     await userEvent.clear(editable);
     await userEvent.type(editable, '/');
-    // Poll until the verb dropdown opens and includes the wizard item.
     await waitFor(
       () => {
         const dropdown = document.querySelector('.reqore-menu');
@@ -909,16 +683,68 @@ export const WithWizardItems: Story = {
       },
       { timeout: 30000 }
     );
+  },
+};
+
+/**
+ * Behavioural counterpart to `WithWizardItems`: selecting the wizard
+ * item fires the wrapper's `onWizardStart` callback with the wizard
+ * descriptor and inserts **no** text (the input stays `/`). Reqraft
+ * ships no wizard runner UI — that's qorus-ide-side; this verifies the
+ * hand-off path:
+ *   - the mock attaches `command: 'qonsole.startWizard'` on the item
+ *   - the Qonsole inserter branches on that command
+ *   - `onWizardStart` fires with `command.arguments[0]`
+ *
+ * `args.onWizardStart` is a `fn()` spy so the play test (and the
+ * Actions panel) can confirm the invocation.
+ */
+export const SelectingWizardItemFiresCallback: Story = {
+  args: {
+    initialValue: '/',
+    onWizardStart: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Selecting the wizard item fires `onWizardStart` with the ' +
+          'descriptor and inserts no text — the input stays `/`. The ' +
+          'visual of the item itself is in `WithWizardItems`.',
+      },
+    },
+  },
+  async beforeEach() {
+    const server = setupBasicQonsoleMockServer();
+    return () => server.close();
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.clear(editable);
+    await userEvent.type(editable, '/');
+    await waitFor(
+      () => {
+        const item = Array.from(
+          document.querySelectorAll('.reqore-menu-item')
+        ).find((el) => el.textContent?.includes('Create connection'));
+        expect(item).toBeDefined();
+      },
+      { timeout: 30000 }
+    );
     const wizardItem = Array.from(
       document.querySelectorAll('.reqore-menu-item')
     ).find((el) => el.textContent?.includes('Create connection'));
     await userEvent.click(wizardItem as HTMLElement);
-    // The callback fired with the wizard descriptor.
+    // The callback fired with the wizard descriptor...
     await waitFor(() => expect(args.onWizardStart).toHaveBeenCalled(), {
-      timeout: 10000,
+      timeout: 30000,
     });
     const callArg = (args.onWizardStart as ReturnType<typeof fn>).mock
       .calls[0][0];
     expect(callArg).toMatchObject({ action: 'start-wizard' });
+    // ...and NO text was inserted (wizard launch ≠ completion insert).
+    expect(editable.textContent).toBe('/');
   },
 };

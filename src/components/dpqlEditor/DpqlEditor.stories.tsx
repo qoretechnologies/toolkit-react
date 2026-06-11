@@ -1,70 +1,22 @@
-// Stories for DpqlEditor. Each story is wrapped by `DpqlEditorWithState`
-// because the component is fully controlled (value/onChange). A `beforeEach`
-// hook stands up an in-process `mock-socket` LSP server that handles the
-// JSON-RPC handshake plus the methods the component actually calls —
-// `initialize`, `textDocument/didOpen`, `textDocument/didChange`,
-// `textDocument/didClose`, `textDocument/completion`, `dpql/setContext`,
-// `dpql/validate`. Notifications are silently accepted; requests get canned
-// responses.
-//
-// The end of the file includes a `LspCompletionRoundtrip` play test that
-// exercises the full client↔server completion path: type `@`, wait for the
-// mock server to receive `textDocument/completion`, then assert the
-// dropdown rendered.
-
 import { StoryObj } from '@storybook/react';
 import { expect, fn, userEvent, waitFor, within } from '@storybook/test';
-import { Server } from 'mock-socket';
+import { sleep } from '../../../__tests__/utils';
 import { useState } from 'react';
 import { StoryMeta } from '../../types';
+import {
+  createMockLspServer,
+  DEFAULT_LSP_CAPABILITIES,
+  IMockLspServer,
+  MOCK_LSP_URL,
+} from '../smartEditor/__fixtures__/mockLspServer';
 import { DpqlEditor } from './DpqlEditor';
+import { TDpqlFsmContext } from './types';
 
-const STORY_LSP_URL = `wss://hq.qoretechnologies.com:8092/lsp?token=${process.env.REACT_APP_QORUS_TOKEN}`;
+let lsp: IMockLspServer;
 
-/**
- * Shared per-story state for the mock server. Reset in `beforeEach`.
- * The `LspCompletionRoundtrip` play test inspects `received` to verify
- * the full request reached the server.
- */
-let received: any[] = [];
-
-/**
- * Most-recent document text the client has sent via `didOpen` /
- * `didChange`. The semantic-tokens mock tokenises this string so the
- * response always matches what the user sees. Reset in `beforeEach`.
- */
-let lastDocumentText = '';
-
-/**
- * Story-level override for the artificial delay applied to
- * `dpql/setContext` responses. Used by the `WithDelayedContext`
- * story to demonstrate the `isContextReady` race-fix: while the
- * delay is in flight, the editor shows the "Loading schema…"
- * overlay and gates LSP-driven hooks (completions, hover, semantic
- * tokens) so they don't fire against a context-less server. Reset
- * by `beforeEach` on every other story.
- */
-let setContextDelayMs = 0;
-
-/**
- * Minimal DPQL-correct tokenizer used only by the story mock to
- * produce a plausible `textDocument/semanticTokens/full` response.
- * Returns the LSP-encoded flat int array (delta-encoded 5-tuples).
- *
- * Token type indices match the legend advertised in the mock's
- * `initialize` response:
- *   4 = variable   (`@field`)
- *   2 = class      (`$context:value` template references)
- *   8 = keyword    (`in`, `not`, `between`, `and`, `like`, `true`,
- *                  `false`, `null`)
- *   11 = string    (single- / double-quoted)
- *   12 = number    (int / float)
- *   14 = operator  (==, !=, <=, >=, <, >, &&, ||, !, =~, !~, +, -,
- *                  *, /, %, .., comma, parens, brackets, braces)
- *   13 = regexp    (/pattern/flags)
- *   10 = comment   (DPQL has no comments, but we keep this for
- *                  completeness if extended later)
- */
+// Mock tokenizer for the `semanticTokens/full` response; returns the
+// LSP-encoded delta-5-tuple int array. Type indices match the legend in
+// the mock's `initialize`.
 function mockTokenizeDpql(text: string): number[] {
   const DPQL_KEYWORDS = new Set([
     'in',
@@ -76,9 +28,6 @@ function mockTokenizeDpql(text: string): number[] {
     'false',
     'null',
   ]);
-  // DPQL built-in functions per qore-2/design/dpql-syntax.md
-  // §"Built-in Functions". When an identifier appears immediately
-  // before `(`, classify it as a function call.
   const DPQL_FUNCTIONS = new Set([
     'abs',
     'round',
@@ -114,9 +63,7 @@ function mockTokenizeDpql(text: string): number[] {
     'hash_map',
     'contains',
   ]);
-  // Order matters: longer operators must come first so `==` doesn't
-  // get matched as two `=` etc. The regex's alternation groups identify
-  // the token type at match time.
+  // Longer operators must come first so `==` isn't matched as two `=`.
   const TOKEN_RE = new RegExp(
     [
       `("(?:\\\\.|[^"\\\\])*")`, // 1: double-quoted string
@@ -157,13 +104,9 @@ function mockTokenizeDpql(text: string): number[] {
         if (DPQL_KEYWORDS.has(word)) {
           type = 8; // keyword
         } else if (DPQL_FUNCTIONS.has(word)) {
-          // Treat as a function regardless of trailing `(` — the live
-          // server might be more contextual but this is good enough
-          // for visual demos.
           type = 6; // function
         } else {
-          // Plain identifier — no decoration in the mock.
-          continue;
+          continue; // plain identifier — undecorated
         }
       }
       if (type >= 0) {
@@ -172,8 +115,6 @@ function mockTokenizeDpql(text: string): number[] {
     }
   }
 
-  // Sort by position (stable; lines already sorted, char within line
-  // sorted by regex iteration order).
   // Delta-encode per LSP spec.
   const data: number[] = [];
   let prevLine = 0;
@@ -196,7 +137,7 @@ interface IDpqlEditorStoryArgs {
   recordType?: string;
   useServerParse?: boolean;
   alertPayloadContext?: boolean;
-  fsmContext?: any;
+  fsmContext?: TDpqlFsmContext;
 }
 
 const DpqlEditorWithState = (props: IDpqlEditorStoryArgs) => {
@@ -221,9 +162,6 @@ const meta = {
     onChange: fn(),
   },
   async beforeEach(context) {
-    received = [];
-    lastDocumentText = '';
-    setContextDelayMs = 0;
     // Live stories (those with `parameters: { live: true }`) skip
     // the mock-socket server so the editor's WebSocket reaches the
     // real Qorus `/lsp` endpoint at `wss://hq.qoretechnologies.com:8092/lsp`.
@@ -231,530 +169,340 @@ const meta = {
     if (context.parameters?.live) {
       return undefined;
     }
-    const server = new Server(STORY_LSP_URL);
+    // Captured from the most recent `dpql/setFsmContext`; surfaced inside
+    // a `$data:` template, mirroring the real server where `$data:{…}`
+    // resolves against the bound FSM state.
+    let fsmStateDataKeys: string[] = [];
+    lsp = createMockLspServer(MOCK_LSP_URL, {
+      capabilities: {
+        ...DEFAULT_LSP_CAPABILITIES,
+        // Trigger chars mirror the real server (QorusLspWebSocketHandler.qc:847).
+        signatureHelpProvider: {
+          triggerCharacters: ['(', ',', ' ', '-', '='],
+        },
+      },
+      handlers: {
+        'textDocument/semanticTokens/full': (_msg, server) => ({
+          data: mockTokenizeDpql(server.documentText),
+        }),
 
-    server.on('connection', (socket) => {
-      socket.on('message', (raw) => {
-        // ReqraftWebSocket sends heartbeat pings as plain strings.
-        if (raw === 'ping') {
-          socket.send('pong');
-          return;
-        }
-        let msg: any;
-        try {
-          msg = JSON.parse(raw as string);
-        } catch {
-          return;
-        }
-        received.push(msg);
+        // Position-aware like the real `dpql-get-completions`: `$` →
+        // templates, `@` → fields, no sigil → functions/keywords. The
+        // mock decides from the char before the cursor.
+        'textDocument/completion': (msg, server) => {
+          const cpos = msg.params?.position ?? { line: 0, character: 0 };
+          const cline = server.documentText.split('\n')[cpos.line] ?? '';
+          const chead = cline.slice(0, cpos.character);
+          const sigilMatch = chead.match(/[@$][\w:.{}]*$/);
+          const sigilToken = sigilMatch ? sigilMatch[0] : '';
+          const sigil = sigilToken ? sigilToken[0] : '';
+          // `$data:` with a bound FSM context resolves against the FSM
+          // state — surface its data keys.
+          const inFsmDataTemplate =
+            sigilToken.startsWith('$data:') && fsmStateDataKeys.length > 0;
 
-        // Track document text from didOpen / didChange notifications so
-        // the semantic-tokens mock can tokenise the current content.
-        if (msg.method === 'textDocument/didOpen') {
-          lastDocumentText = msg.params?.textDocument?.text ?? '';
-        } else if (msg.method === 'textDocument/didChange') {
-          // The client sends a single full-document content change.
-          const change = msg.params?.contentChanges?.[0];
-          if (change && typeof change.text === 'string') {
-            lastDocumentText = change.text;
-          }
-        }
-
-        // Auto-respond to requests; notifications (no `id`) are accepted silently.
-        if (msg.id === undefined) {
-          return;
-        }
-
-        switch (msg.method) {
-          case 'initialize':
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: msg.id,
-                result: {
-                  capabilities: {
-                    // Advertise semantic tokens with the LSP-standard
-                    // 16-type / 6-modifier legend — same shape as the
-                    // real Qorus `/lsp` endpoint (captured in
-                    // `QONSOLE_LSP_RESPONSES.txt`).
-                    semanticTokensProvider: {
-                      legend: {
-                        tokenTypes: [
-                          'namespace',
-                          'type',
-                          'class',
-                          'parameter',
-                          'variable',
-                          'property',
-                          'function',
-                          'method',
-                          'keyword',
-                          'modifier',
-                          'comment',
-                          'string',
-                          'number',
-                          'regexp',
-                          'operator',
-                          'decorator',
-                        ],
-                        tokenModifiers: [
-                          'declaration',
-                          'definition',
-                          'readonly',
-                          'static',
-                          'defaultLibrary',
-                          'documentation',
-                        ],
-                      },
-                      full: true,
-                      range: true,
-                    },
-                    // Advertise signatureHelp so the client wires it
-                    // up. Trigger chars mirror the real server
-                    // (qorus/Classes/QorusLspWebSocketHandler.qc:847).
-                    signatureHelpProvider: {
-                      triggerCharacters: ['(', ',', ' ', '-', '='],
-                    },
-                  },
-                },
-              })
-            );
-            break;
-
-          case 'textDocument/semanticTokens/full':
-            // Tokenise the document text the client has just sent (via
-            // the most recent didOpen / didChange). The story mock
-            // doesn't track per-uri state — we use a small DPQL-correct
-            // tokenizer here so the response matches the visible text.
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: msg.id,
-                result: {
-                  data: mockTokenizeDpql(lastDocumentText),
-                },
-              })
-            );
-            break;
-
-          case 'textDocument/completion': {
-            // Position-aware, mirroring the real DPQL server's single
-            // `dpql-get-completions`: after `$` → templates, after `@`
-            // → field references. The server decides from cursor
-            // context; the mock looks at the char before the cursor.
-            const cpos = msg.params?.position ?? { line: 0, character: 0 };
-            const cline = lastDocumentText.split('\n')[cpos.line] ?? '';
-            const chead = cline.slice(0, cpos.character);
-            // Most-recent unclosed sigil before the cursor decides
-            // context: scan back to the last `@` or `$` not separated
-            // by whitespace.
-            const sigilMatch = chead.match(/[@$][\w:.{}]*$/);
-            const sigil = sigilMatch ? sigilMatch[0][0] : '';
-
-            const FIELD_ITEMS = [
-              {
-                label: '@name',
-                insertText: '@name',
-                kind: 5,
-                detail: 'string',
-                documentation: {
-                  kind: 'markdown',
-                  value:
-                    '**Display name** of the record.\n\n' +
-                    '- Indexed, case-insensitive\n' +
-                    '- Maps to the `name` column on the underlying table',
-                },
+          const FIELD_ITEMS = [
+            {
+              label: '@name',
+              insertText: '@name',
+              kind: 5,
+              detail: 'string',
+              documentation: {
+                kind: 'markdown',
+                value:
+                  '**Display name** of the record.\n\n' +
+                  '- Indexed, case-insensitive\n' +
+                  '- Maps to the `name` column on the underlying table',
               },
-              {
-                label: '@status',
-                insertText: '@status',
-                kind: 5,
-                detail: 'string',
-                documentation: {
-                  kind: 'markdown',
-                  value:
-                    '**Lifecycle status** — one of:\n\n' +
-                    '- `active`\n- `paused`\n- `archived`',
-                },
+            },
+            {
+              label: '@status',
+              insertText: '@status',
+              kind: 5,
+              detail: 'string',
+              documentation: {
+                kind: 'markdown',
+                value:
+                  '**Lifecycle status** — one of:\n\n' +
+                  '- `active`\n- `paused`\n- `archived`',
               },
-              {
-                label: '@age',
-                insertText: '@age',
-                kind: 5,
-                detail: 'int',
-                documentation: {
-                  kind: 'plaintext',
-                  value: 'Age in years, computed from birth_date.',
-                },
+            },
+            {
+              label: '@age',
+              insertText: '@age',
+              kind: 5,
+              detail: 'int',
+              documentation: {
+                kind: 'plaintext',
+                value: 'Age in years, computed from birth_date.',
               },
-            ];
+            },
+          ];
 
-            // Template namespaces — mirrors the real server's
-            // `$`-context completions (QorusExpressionMap), e.g.
-            // `$data:`, `$config:`, `$static:`, `$timestamp:`.
-            const TEMPLATE_ITEMS = [
-              {
-                label: '$data:',
-                insertText: '$data:',
-                kind: 1,
-                detail: 'template',
-                documentation: { kind: 'plaintext', value: 'FSM state data.' },
+          // Template namespaces — the real server's `$`-context
+          // completions (QorusExpressionMap).
+          const TEMPLATE_ITEMS = [
+            {
+              label: '$data:',
+              insertText: '$data:',
+              kind: 1,
+              detail: 'template',
+              documentation: { kind: 'plaintext', value: 'FSM state data.' },
+            },
+            {
+              label: '$config:',
+              insertText: '$config:',
+              kind: 1,
+              detail: 'template',
+              documentation: {
+                kind: 'plaintext',
+                value: 'Interface configuration item.',
               },
-              {
-                label: '$config:',
-                insertText: '$config:',
-                kind: 1,
-                detail: 'template',
-                documentation: {
-                  kind: 'plaintext',
-                  value: 'Interface configuration item.',
-                },
+            },
+            {
+              label: '$static:',
+              insertText: '$static:',
+              kind: 1,
+              detail: 'template',
+              documentation: {
+                kind: 'plaintext',
+                value: 'Static workflow data.',
               },
-              {
-                label: '$static:',
-                insertText: '$static:',
-                kind: 1,
-                detail: 'template',
-                documentation: {
-                  kind: 'plaintext',
-                  value: 'Static workflow data.',
-                },
+            },
+            {
+              label: '$timestamp:',
+              insertText: '$timestamp:',
+              kind: 1,
+              detail: 'template',
+              documentation: {
+                kind: 'plaintext',
+                value: 'Timestamp value (e.g. `now`).',
               },
-              {
-                label: '$timestamp:',
-                insertText: '$timestamp:',
-                kind: 1,
-                detail: 'template',
-                documentation: {
-                  kind: 'plaintext',
-                  value: 'Timestamp value (e.g. `now`).',
-                },
-              },
-            ];
+            },
+          ];
 
-            // Bare-identifier context (no sigil) → functions / keywords,
-            // matching the real server's identifier-position completions
-            // (e.g. typing `sub` → `substr`). This is what autosuggest
-            // surfaces.
-            const FUNCTION_ITEMS = [
-              {
-                label: 'substr',
-                insertText: 'substr',
-                kind: 3,
-                detail: '(string, start, length) → string',
-                documentation: {
-                  kind: 'markdown',
-                  value: 'Extract a substring.',
-                },
+          // No sigil → functions/keywords (what autosuggest surfaces).
+          const FUNCTION_ITEMS = [
+            {
+              label: 'substr',
+              insertText: 'substr',
+              kind: 3,
+              detail: '(string, start, length) → string',
+              documentation: {
+                kind: 'markdown',
+                value: 'Extract a substring.',
               },
-              {
-                label: 'coalesce',
-                insertText: 'coalesce',
-                kind: 3,
-                detail: '(value, …) → auto',
-                documentation: {
-                  kind: 'markdown',
-                  value: 'First non-null value.',
-                },
+            },
+            {
+              label: 'coalesce',
+              insertText: 'coalesce',
+              kind: 3,
+              detail: '(value, …) → auto',
+              documentation: {
+                kind: 'markdown',
+                value: 'First non-null value.',
               },
-              {
-                label: 'round',
-                insertText: 'round',
-                kind: 3,
-                detail: '(number, precision) → auto',
-                documentation: {
-                  kind: 'markdown',
-                  value: 'Round a number.',
-                },
+            },
+            {
+              label: 'round',
+              insertText: 'round',
+              kind: 3,
+              detail: '(number, precision) → auto',
+              documentation: {
+                kind: 'markdown',
+                value: 'Round a number.',
               },
-            ];
+            },
+          ];
 
-            const items =
-              sigil === '$'
-                ? TEMPLATE_ITEMS
-                : sigil === '@'
-                  ? FIELD_ITEMS
-                  : // No sigil → bare identifier: functions / keywords
-                    // (autosuggest surfaces these as you type, e.g.
-                    // `sub` → `substr`).
-                    FUNCTION_ITEMS;
+          // FSM state-data keys from `dpql/setFsmContext`, surfaced inside
+          // `$data:` when a context is bound.
+          const FSM_DATA_KEY_ITEMS = fsmStateDataKeys.map((key) => ({
+            label: key,
+            insertText: key,
+            kind: 5, // Field
+            detail: 'FSM state data',
+            documentation: {
+              kind: 'plaintext',
+              value: `\`${key}\` — resolved from the bound FSM state.`,
+            },
+          }));
 
-            socket.send(
-              JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { items } })
-            );
-            break;
-          }
+          const items = inFsmDataTemplate
+            ? FSM_DATA_KEY_ITEMS
+            : sigil === '$'
+              ? TEMPLATE_ITEMS
+              : sigil === '@'
+                ? FIELD_ITEMS
+                : // no sigil → functions/keywords
+                  FUNCTION_ITEMS;
 
-          case 'dpql/setContext': {
-            const response = JSON.stringify({
-              jsonrpc: '2.0',
-              id: msg.id,
-              result: {
-                provider: msg.params?.provider ?? null,
-                recordType: msg.params?.recordType ?? 'record',
-                fields: {
-                  name: { display_name: 'Name', type: { name: 'string' } },
-                  status: { display_name: 'Status', type: { name: 'string' } },
-                  age: { display_name: 'Age', type: { name: 'int' } },
-                },
-              },
+          return { items };
+        },
+
+        // `WithDelayedContext` slows this via `lsp.delays['dpql/setContext']`
+        // to show the `isContextReady` overlay.
+        'dpql/setContext': (msg) => ({
+          provider: msg.params?.provider ?? null,
+          recordType: msg.params?.recordType ?? 'record',
+          fields: {
+            name: { display_name: 'Name', type: { name: 'string' } },
+            status: { display_name: 'Status', type: { name: 'string' } },
+            age: { display_name: 'Age', type: { name: 'int' } },
+          },
+        }),
+
+        'dpql/validate': () => ({ diagnostics: [] }),
+
+        'dpql/parse': () => ({
+          success: true,
+          expression: { exp: 'noop', args: [] },
+          diagnostics: [],
+        }),
+
+        'dpql/serialize': () => ({ dpql: '' }),
+
+        // Canonical alert-payload schema; mirrors the real
+        // `setDpqlAlertPayloadContext` (QorusLspWebSocketHandler.qc:8439).
+        'dpql/setAlertPayloadContext': () => ({
+          context: 'alert-payload',
+          fields: {
+            severity: { display_name: 'Severity', type: { name: 'string' } },
+            alert_type: { display_name: 'Alert Type', type: { name: 'string' } },
+            alert_code: { display_name: 'Alert Code', type: { name: 'string' } },
+            alert_class: { display_name: 'Alert Class', type: { name: 'string' } },
+            interface_type: { display_name: 'Interface Type', type: { name: 'string' } },
+            interface_name: { display_name: 'Interface Name', type: { name: 'string' } },
+            alert_object: { display_name: 'Alert Object', type: { name: 'string' } },
+          },
+        }),
+
+        // Echoes a synthetic state_data_keys list; mirrors the real
+        // response shape (QorusLspWebSocketHandler.qc:8509).
+        'dpql/setFsmContext': (msg) => {
+          const sourceType = msg.params?.fsm
+            ? 'inline'
+            : msg.params?.draft_id
+              ? 'draft'
+              : msg.params?.fsmid
+                ? 'published'
+                : 'cleared';
+          const stateDataKeys = ['order_id', 'user_name', 'event_type'];
+          // Keep the keys while bound so completions can surface them in
+          // `$data:`; a cleared binding drops them.
+          fsmStateDataKeys = sourceType === 'cleared' ? [] : stateDataKeys;
+          return {
+            source_type: sourceType,
+            current_state: msg.params?.current_state ?? null,
+            state_data_keys: stateDataKeys,
+          };
+        },
+
+        // Synthetic parser mirroring the real response shape
+        // (UserApi.qc:_priv_get_richtext_string): `$prefix:value` /
+        // `$prefix:{value}` become tag children, everything else is text.
+        'dpql/toRichtext': (msg) => {
+          const text = msg.params?.text ?? '';
+          const TEMPLATE_RE = /\$[a-z][-a-z]+:(?:\{[^}]*\}|[\w.]+)/g;
+          const children: Array<Record<string, unknown>> = [];
+          let last = 0;
+          let m: RegExpExecArray | null;
+          while ((m = TEMPLATE_RE.exec(text)) !== null) {
+            if (m.index > last) {
+              children.push({ text: text.slice(last, m.index) });
+            }
+            children.push({
+              type: 'tag',
+              value: m[0],
+              label: m[0],
+              children: [{ text: '' }],
             });
-            // Honour the story-level delay so the
-            // `WithDelayedContext` story can demonstrate the
-            // `isContextReady` overlay during a slow setContext
-            // roundtrip. Most stories leave this at 0.
-            if (setContextDelayMs > 0) {
-              setTimeout(() => socket.send(response), setContextDelayMs);
-            } else {
-              socket.send(response);
-            }
-            break;
+            last = m.index + m[0].length;
           }
-
-          case 'dpql/validate':
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: msg.id,
-                result: { diagnostics: [] },
-              })
-            );
-            break;
-
-          case 'dpql/parse':
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: msg.id,
-                result: {
-                  success: true,
-                  expression: { exp: 'noop', args: [] },
-                  diagnostics: [],
-                },
-              })
-            );
-            break;
-
-          case 'dpql/serialize':
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: msg.id,
-                result: { dpql: '' },
-              })
-            );
-            break;
-
-          case 'dpql/setAlertPayloadContext':
-            // Returns the canonical alert-payload schema. Mirrors
-            // the real server's `setDpqlAlertPayloadContext`
-            // (qorus/Classes/QorusLspWebSocketHandler.qc:8439).
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: msg.id,
-                result: {
-                  context: 'alert-payload',
-                  fields: {
-                    severity: { display_name: 'Severity', type: { name: 'string' } },
-                    alert_type: { display_name: 'Alert Type', type: { name: 'string' } },
-                    alert_code: { display_name: 'Alert Code', type: { name: 'string' } },
-                    alert_class: { display_name: 'Alert Class', type: { name: 'string' } },
-                    interface_type: { display_name: 'Interface Type', type: { name: 'string' } },
-                    interface_name: { display_name: 'Interface Name', type: { name: 'string' } },
-                    alert_object: { display_name: 'Alert Object', type: { name: 'string' } },
-                  },
-                },
-              })
-            );
-            break;
-
-          case 'dpql/setFsmContext':
-            // Captures which source the client passed and echoes
-            // back a synthetic state_data_keys list so consumers
-            // can verify the binding was sent. Mirrors the real
-            // server's response shape from
-            // `qorus/Classes/QorusLspWebSocketHandler.qc:8509`.
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: msg.id,
-                result: {
-                  source_type: msg.params?.fsm
-                    ? 'inline'
-                    : msg.params?.draft_id
-                      ? 'draft'
-                      : msg.params?.fsmid
-                        ? 'published'
-                        : 'cleared',
-                  current_state: msg.params?.current_state ?? null,
-                  state_data_keys: ['order_id', 'user_name', 'event_type'],
-                },
-              })
-            );
-            break;
-
-          case 'dpql/toRichtext':
-            // Mirror the real server's response shape (see
-            // `qorus/Classes/UserApi.qc:_priv_get_richtext_string`).
-            // Synthetic small parser: turn `$prefix:value` and
-            // `$prefix:{value}` patterns into tag children; everything
-            // else is a text child. (The live server also recognises a
-            // subset of patterns — we match what we know works.)
-            (() => {
-              const text = msg.params?.text ?? '';
-              const TEMPLATE_RE =
-                /\$[a-z][-a-z]+:(?:\{[^}]*\}|[\w.]+)/g;
-              const children: any[] = [];
-              let last = 0;
-              let m: RegExpExecArray | null;
-              while ((m = TEMPLATE_RE.exec(text)) !== null) {
-                if (m.index > last) {
-                  children.push({ text: text.slice(last, m.index) });
-                }
-                children.push({
-                  type: 'tag',
-                  value: m[0],
-                  label: m[0],
-                  children: [{ text: '' }],
-                });
-                last = m.index + m[0].length;
-              }
-              if (last < text.length) {
-                children.push({ text: text.slice(last) });
-              }
-              if (children.length === 0) children.push({ text: '' });
-              socket.send(
-                JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: msg.id,
-                  result: {
-                    type: 'richtext',
-                    value: [{ type: 'paragraph', children }],
-                  },
-                })
-              );
-            })();
-            break;
-
-          case 'textDocument/formatting':
-            // Return empty edit list — the editor treats this as "no change".
-            socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: [] }));
-            break;
-
-          case 'textDocument/signatureHelp': {
-            // Synthetic `coalesce(value1, value2, default)` signature
-            // for visual demos. Real server returns the active call's
-            // canonical signature via `dpql-get-signature-help`.
-            const position = msg.params?.position ?? { line: 0, character: 0 };
-            const lineText =
-              lastDocumentText.split('\n')[position.line] ?? '';
-            const head = lineText.slice(0, position.character);
-            // Find the innermost unclosed `(` before the cursor. If
-            // none, the cursor isn't inside any open call — return
-            // empty signatures so the pill dismisses. Walk backward
-            // tracking nesting depth: every `)` adds to depth, every
-            // `(` at depth 0 is the one we're inside.
-            let depth = 0;
-            let openPos = -1;
-            for (let i = head.length - 1; i >= 0; i--) {
-              const c = head[i];
-              if (c === ')') depth++;
-              else if (c === '(') {
-                if (depth === 0) {
-                  openPos = i;
-                  break;
-                }
-                depth--;
-              }
-            }
-            if (openPos < 0) {
-              // No open call at the cursor — empty signatures, pill
-              // dismisses on the client side.
-              socket.send(
-                JSON.stringify({
-                  jsonrpc: '2.0',
-                  id: msg.id,
-                  result: {
-                    signatures: [],
-                    activeSignature: 0,
-                    activeParameter: 0,
-                  },
-                })
-              );
-              break;
-            }
-            // Count commas inside the matched open call, ignoring any
-            // nested calls. (Crude: scan forward from openPos+1, track
-            // paren depth, count commas at depth 0.)
-            const argsRegion = head.slice(openPos + 1);
-            let nestDepth = 0;
-            let activeParameter = 0;
-            for (let i = 0; i < argsRegion.length; i++) {
-              const c = argsRegion[i];
-              if (c === '(') nestDepth++;
-              else if (c === ')') nestDepth--;
-              else if (c === ',' && nestDepth === 0) activeParameter++;
-            }
-            // Synthetic `substr(...)` signature — mirrors the shape the
-            // real Qorus server returns (captured during live probing).
-            // Choosing `substr` (3 distinct params) over `coalesce`
-            // (single-variadic-param) so active-parameter advancement
-            // is visible on typing commas. Human-friendly capitalized
-            // parameter names match the real server's convention.
-            socket.send(
-              JSON.stringify({
-                jsonrpc: '2.0',
-                id: msg.id,
-                result: {
-                  signatures: [
-                    {
-                      label:
-                        'substr(String Value, Start Character, Length) → string',
-                      documentation: {
-                        kind: 'markdown',
-                        value:
-                          'Extracts a substring from `String Value`, ' +
-                          'starting at `Start Character` (0-based) and ' +
-                          'taking at most `Length` characters.',
-                      },
-                      parameters: [
-                        {
-                          label: 'String Value',
-                          documentation: 'The source string to extract from.',
-                        },
-                        {
-                          label: 'Start Character',
-                          documentation:
-                            'The starting character position where the first character is 0.',
-                        },
-                        {
-                          label: 'Length',
-                          documentation:
-                            'The maximum number of characters to return.',
-                        },
-                      ],
-                    },
-                  ],
-                  activeSignature: 0,
-                  activeParameter,
-                },
-              })
-            );
-            break;
+          if (last < text.length) {
+            children.push({ text: text.slice(last) });
           }
+          if (children.length === 0) children.push({ text: '' });
+          return {
+            type: 'richtext',
+            value: [{ type: 'paragraph', children }],
+          };
+        },
 
-          default:
-            // Unknown request: return null so the client's promise still resolves.
-            socket.send(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: null }));
-            break;
-        }
-      });
+        // Empty edit list — the editor treats this as "no change".
+        'textDocument/formatting': () => [],
+
+        // Synthetic `substr(...)` signature; the real server returns the
+        // active call's signature via `dpql-get-signature-help`.
+        'textDocument/signatureHelp': (msg, server) => {
+          const position = msg.params?.position ?? { line: 0, character: 0 };
+          const lineText = server.documentText.split('\n')[position.line] ?? '';
+          const head = lineText.slice(0, position.character);
+          // Innermost unclosed `(` before the cursor; none means the
+          // cursor isn't inside a call, so the pill dismisses.
+          let depth = 0;
+          let openPos = -1;
+          for (let i = head.length - 1; i >= 0; i--) {
+            const c = head[i];
+            if (c === ')') depth++;
+            else if (c === '(') {
+              if (depth === 0) {
+                openPos = i;
+                break;
+              }
+              depth--;
+            }
+          }
+          if (openPos < 0) {
+            return { signatures: [], activeSignature: 0, activeParameter: 0 };
+          }
+          // Active parameter = commas at depth 0 inside the open call.
+          const argsRegion = head.slice(openPos + 1);
+          let nestDepth = 0;
+          let activeParameter = 0;
+          for (let i = 0; i < argsRegion.length; i++) {
+            const c = argsRegion[i];
+            if (c === '(') nestDepth++;
+            else if (c === ')') nestDepth--;
+            else if (c === ',' && nestDepth === 0) activeParameter++;
+          }
+          // `substr` (3 distinct params) makes active-parameter
+          // advancement visible as commas are typed.
+          return {
+            signatures: [
+              {
+                label: 'substr(String Value, Start Character, Length) → string',
+                documentation: {
+                  kind: 'markdown',
+                  value:
+                    'Extracts a substring from `String Value`, ' +
+                    'starting at `Start Character` (0-based) and ' +
+                    'taking at most `Length` characters.',
+                },
+                parameters: [
+                  {
+                    label: 'String Value',
+                    documentation: 'The source string to extract from.',
+                  },
+                  {
+                    label: 'Start Character',
+                    documentation:
+                      'The starting character position where the first character is 0.',
+                  },
+                  {
+                    label: 'Length',
+                    documentation: 'The maximum number of characters to return.',
+                  },
+                ],
+              },
+            ],
+            activeSignature: 0,
+            activeParameter,
+          };
+        },
+      },
     });
-
-    return () => {
-      server.close();
-    };
+    return () => lsp.close();
   },
 } as StoryMeta<typeof DpqlEditorWithState>;
 
@@ -848,10 +596,9 @@ export const WithDelayedContext: Story = {
     recordType: 'record',
   },
   async beforeEach() {
-    setContextDelayMs = 1500;
-    return () => {
-      setContextDelayMs = 0;
-    };
+    // The meta-level beforeEach has already created the per-story
+    // harness; slow down setContext for this story only.
+    lsp.delays['dpql/setContext'] = 1500;
   },
   parameters: {
     docs: {
@@ -919,7 +666,7 @@ export const WithAlertPayloadContext: Story = {
     // alert-payload binding metadata — no fixed sleep racing the socket.
     await waitFor(
       () => {
-        const didOpen = received.find(
+        const didOpen = lsp.received.find(
           (m) => m.method === 'textDocument/didOpen'
         );
         expect(didOpen).toBeDefined();
@@ -948,7 +695,7 @@ export const WithAlertPayloadContext: Story = {
  */
 export const WithFsmContext: Story = {
   args: {
-    value: '@status == "active" && $data:{order_id} > 0',
+    value: '',
     provider: 'datasource:omq/table/orders',
     recordType: 'record',
     fsmContext: { fsmId: 42, currentState: 'process_order' },
@@ -957,12 +704,36 @@ export const WithFsmContext: Story = {
     docs: {
       description: {
         story:
-          'Composes provider context (for `@field` completions) ' +
-          'with FSM context (for `$data:` template completions). ' +
-          'Mock server replies with `source_type: "published"` and ' +
-          'a synthetic state-data keys list.',
+          'Composes provider context (`@field` completions) with FSM ' +
+          'context. Typing a `$data:` template surfaces the bound FSM ' +
+          "state's data keys (`order_id`, `user_name`, `event_type`) — " +
+          'the distinctive payload of `fsmContext`. The mock answers ' +
+          '`dpql/setFsmContext` with `source_type: "published"` and that ' +
+          'key list, then returns the keys as completions inside `$data:`.',
       },
     },
+  },
+  // Open the `$data:` template so the snapshot shows the FSM-driven
+  // state-data keys — this is what makes the story self-explanatory in
+  // Chromatic and answers "which template is the FSM context": `$data:`.
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.type(editable, '$data:');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        // FSM state-data keys (from the bound fsmContext), NOT the
+        // generic template namespaces — proves the FSM binding drives
+        // these completions.
+        expect(dropdown!.textContent).toContain('order_id');
+        expect(dropdown!.textContent).toContain('user_name');
+        expect(dropdown!.textContent).toContain('event_type');
+      },
+      { timeout: 30000 }
+    );
   },
 };
 
@@ -1078,11 +849,15 @@ export const WithSignatureHelp: Story = {
  * - The token is invalid (401 in DevTools Network).
  */
 export const LiveDpqlEditorWithSignatureHelp: Story = {
+  // Real DPQL LSP — excluded from the play-test runner and from Chromatic
+  // (CI has no token/network, so the play would flake the snapshot).
+  tags: ['!test'],
   args: {
     value: 'substr("hello", ',
   },
   parameters: {
     live: true,
+    chromatic: { disable: true },
     docs: {
       description: {
         story:
@@ -1093,6 +868,24 @@ export const LiveDpqlEditorWithSignatureHelp: Story = {
           '`REACT_APP_QORUS_TOKEN` before launching storybook.',
       },
     },
+  },
+  // The signature pill fires on mount (cursor inside the open `substr(`
+  // call) — no typing needed. Poll for it so a manual run shows the
+  // real pill. Verified live: `substr("hello", ` →
+  // `substr(String Value, Start Character, Length) → string`,
+  // activeParameter 1.
+  play: async () => {
+    await waitFor(
+      () => {
+        const pill = Array.from(document.querySelectorAll('div')).find(
+          (el) =>
+            (el as HTMLElement).style?.position === 'fixed' &&
+            el.textContent?.includes('substr(String Value')
+        );
+        expect(pill).toBeDefined();
+      },
+      { timeout: 30000 }
+    );
   },
 };
 
@@ -1114,12 +907,16 @@ export const LiveDpqlEditorWithSignatureHelp: Story = {
  * **Prereq:** export `REACT_APP_QORUS_TOKEN` before running storybook.
  */
 export const LiveDpqlEditorWithAlertPayload: Story = {
+  // Real DPQL LSP — excluded from the play-test runner and from Chromatic
+  // (CI has no token/network).
+  tags: ['!test'],
   args: {
     value: '@severity == "MAJOR" and ',
     alertPayloadContext: true,
   },
   parameters: {
     live: true,
+    chromatic: { disable: true },
     docs: {
       description: {
         story:
@@ -1128,6 +925,25 @@ export const LiveDpqlEditorWithAlertPayload: Story = {
           'context story you use to verify `@` field completions live.',
       },
     },
+  },
+  // Type `@` to open real alert-payload field completions so the
+  // Chromatic snapshot shows live data. Verified live (alert-payload
+  // context bound at didOpen): `…and @` → 21 fields (alert_type,
+  // alert_code, severity, …).
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    await sleep(3000); // let the live LSP session connect before typing (real WS handshake)
+    await userEvent.click(editable);
+    await userEvent.type(editable, '@');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('alert_type');
+      },
+      { timeout: 30000 }
+    );
   },
 };
 
@@ -1340,7 +1156,7 @@ export const LspCompletionRoundtrip: Story = {
     // autocomplete debounce is 150ms; the round-trip + re-render follow).
     await waitFor(
       () => {
-        const completionReq = received.find(
+        const completionReq = lsp.received.find(
           (m) => m.method === 'textDocument/completion'
         );
         expect(completionReq).toBeDefined();
@@ -1365,5 +1181,40 @@ export const LspCompletionRoundtrip: Story = {
       },
       { timeout: 30000 }
     );
+  },
+};
+
+/**
+ * Two editors mounted at once share ONE WebSocket — the `LspSharedConnection`
+ * multiplexing layer in `lspClient.ts`. Each editor opens its own document
+ * URI on the shared socket (`textDocument/didOpen` ×2) but the server sees a
+ * single physical connection and a single `initialize` handshake.
+ */
+export const TwoEditorsOneConnection: Story = {
+  render: () => (
+    <>
+      <DpqlEditorWithState value='name' />
+      <DpqlEditorWithState value='status' />
+    </>
+  ),
+  async play() {
+    await waitFor(
+      () => expect(document.querySelectorAll('[contenteditable="true"]')).toHaveLength(2),
+      { timeout: 10000 }
+    );
+    // Both documents opened…
+    await waitFor(
+      () =>
+        expect(lsp.received.filter((m) => m.method === 'textDocument/didOpen')).toHaveLength(2),
+      { timeout: 10000 }
+    );
+    // …over ONE physical connection with ONE handshake.
+    expect(lsp.connectionCount).toBe(1);
+    expect(lsp.received.filter((m) => m.method === 'initialize')).toHaveLength(1);
+    // And each under its own document URI.
+    const uris = lsp.received
+      .filter((m) => m.method === 'textDocument/didOpen')
+      .map((m) => m.params?.textDocument?.uri);
+    expect(new Set(uris).size).toBe(2);
   },
 };
