@@ -247,7 +247,7 @@ export const ShowsExplanation: Story = {
     await waitFor(
       () => {
         const body = within(document.body);
-        expect(body.queryByText(/startsWith|&&|\|\|/i)).toBeTruthy();
+        expect(body.queryAllByText(/startsWith|&&|\|\|/i).length).toBeGreaterThan(0);
       },
       { timeout: 10000 }
     );
