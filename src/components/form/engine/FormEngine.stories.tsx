@@ -2088,6 +2088,185 @@ export const CompactExpressions: Story = {
   },
 };
 
+const langImg = (color: string, letter: string): string =>
+  `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="${color}"/><text x="16" y="23" font-size="20" fill="white" text-anchor="middle" font-family="sans-serif">${letter}</text></svg>`
+  )}`;
+
+/**
+ * Enum field with per-value images (the IDE `language` field shape: `type:
+ * 'enum'` + `items: [{ value, title, image }]`). Read-first shows the selected
+ * value's label + logo on the VALUE side (not the field name); drilling in
+ * lists every choice in the radio editor. Regression guard for both: the enum
+ * editor previously read only `allowed_values` (empty for `items`), and the
+ * value cell never rendered the option image.
+ */
+export const CompactEnumWithImages: Story = {
+  // chromatic off: ends with the radio editor open in the card.
+  parameters: { chromatic: { disable: true } },
+  args: {
+    name: 'langForm',
+    compact: true,
+    options: {
+      lang: {
+        type: 'enum',
+        ui_type: 'enum',
+        display_name: 'Language',
+        items: [
+          { value: 'qore', title: 'Qore', image: langImg('#c0007a', 'Q') },
+          { value: 'python', title: 'Python', image: langImg('#3776ab', 'P') },
+          { value: 'java', title: 'Java', image: langImg('#e76f00', 'J') },
+        ],
+      },
+    } as unknown as IOptionsSchema,
+    value: {
+      lang: { type: 'enum', value: 'qore' },
+    } as unknown as IOptions,
+  },
+  play: async () => {
+    // Bug 1: read-first shows the selected option's label + its logo on the VALUE
+    // side (collapsed — a choice with logos cards rather than splaying inline).
+    await waitFor(
+      () => {
+        const row = document.querySelector('.readfirst-row[data-field="lang"]');
+        expect(row?.textContent).toContain('Qore');
+        expect(row?.querySelector('.reqore-icon img')).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+
+    // Bug 2: drilling in lists every enum choice WITH its logo (the editor was
+    // empty before — it only read `allowed_values`, never the IDE `items`).
+    await fireEvent.click(document.querySelector('.readfirst-row[data-field="lang"]') as HTMLElement);
+    await waitFor(
+      () => {
+        const card = document.querySelector('.options-readfirst-card[data-field="lang"]');
+        // labels are title-case in the DOM; the uppercase look is CSS only.
+        expect(card?.textContent).toContain('Python');
+        expect(card?.textContent).toContain('Java');
+        expect(card?.querySelectorAll('.reqore-checkbox img').length).toBeGreaterThan(0);
+      },
+      { timeout: 10000 }
+    );
+  },
+};
+
+/**
+ * The REAL IDE `lang` shape: `ui_type: 'enum'` whose values are richtext-wrapped
+ * (`{ type: 'richtext', value: 'qore' }`) and `allowed_values` carry per-option
+ * images. Regression guard: the editor must dispatch by the schema's `enum`,
+ * not the value's `richtext` type — otherwise drilling in shows a rich-text box
+ * instead of the language radio.
+ */
+export const CompactEnumRichtextValue: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    name: 'langForm',
+    compact: true,
+    options: {
+      lang: {
+        type: 'enum',
+        ui_type: 'enum',
+        display_name: 'Language',
+        required: true,
+        default_value: { type: 'richtext', value: 'qore' },
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'richtext', value: 'qore' }, image: langImg('#c0007a', 'Q') },
+          { display_name: 'Python', value: { type: 'richtext', value: 'python' }, image: langImg('#3776ab', 'P') },
+          { display_name: 'Java', value: { type: 'richtext', value: 'java' }, image: langImg('#e76f00', 'J') },
+        ],
+      },
+    } as unknown as IOptionsSchema,
+    value: {
+      lang: { type: 'richtext', value: 'qore' },
+    } as unknown as IOptions,
+  },
+  play: async () => {
+    // Read-first resolves the richtext-wrapped value to its label + logo.
+    await waitFor(
+      () => {
+        const row = document.querySelector('.readfirst-row[data-field="lang"]');
+        expect(row?.textContent).toContain('Qore');
+        expect(row?.querySelector('.reqore-icon img')).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+    // Drill in → the RADIO renders (not a rich-text box) with every language.
+    await fireEvent.click(document.querySelector('.readfirst-row[data-field="lang"]') as HTMLElement);
+    await waitFor(
+      () => {
+        const card = document.querySelector('.options-readfirst-card[data-field="lang"]');
+        expect(card?.textContent).toContain('Python');
+        expect(card?.textContent).toContain('Java');
+        expect(card?.querySelectorAll('.reqore-checkbox').length).toBeGreaterThan(0);
+      },
+      { timeout: 10000 }
+    );
+  },
+};
+
+const expandModeFixture = {
+  options: {
+    alpha: { type: 'string', ui_type: 'string', display_name: 'Alpha' },
+    beta: { type: 'string', ui_type: 'string', display_name: 'Beta' },
+  } as unknown as IOptionsSchema,
+  value: {
+    alpha: { type: 'string', value: 'one' },
+    beta: { type: 'string', value: 'two' },
+  } as unknown as IOptions,
+};
+const _isRowOpen = (field: string): boolean =>
+  !!document.querySelector(
+    `.readfirst-row[data-field="${field}"].readfirst-row-editing, .options-readfirst-card[data-field="${field}"]`
+  );
+
+/**
+ * `expandMode: 'single'` (the default): opening a second row collapses the
+ * first — the accordion model that keeps the read-first list scannable.
+ */
+export const CompactSingleExpand: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: { name: 'expandSingle', compact: true, ...expandModeFixture },
+  play: async () => {
+    await waitFor(
+      () => expect(document.querySelector('.readfirst-row[data-field="beta"]')).toBeTruthy(),
+      { timeout: 10000 }
+    );
+    await fireEvent.click(document.querySelector('.readfirst-row[data-field="alpha"]') as HTMLElement);
+    await waitFor(() => expect(_isRowOpen('alpha')).toBe(true), { timeout: 10000 });
+    await fireEvent.click(document.querySelector('.readfirst-row[data-field="beta"]') as HTMLElement);
+    await waitFor(
+      () => {
+        expect(_isRowOpen('beta')).toBe(true);
+        expect(_isRowOpen('alpha')).toBe(false); // collapsed by opening beta
+      },
+      { timeout: 10000 }
+    );
+  },
+};
+
+/** `expandMode: 'multi'`: several rows can stay open at once (form-fill flow). */
+export const CompactMultiExpand: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: { name: 'expandMulti', compact: true, expandMode: 'multi', ...expandModeFixture },
+  play: async () => {
+    await waitFor(
+      () => expect(document.querySelector('.readfirst-row[data-field="beta"]')).toBeTruthy(),
+      { timeout: 10000 }
+    );
+    await fireEvent.click(document.querySelector('.readfirst-row[data-field="alpha"]') as HTMLElement);
+    await waitFor(() => expect(_isRowOpen('alpha')).toBe(true), { timeout: 10000 });
+    await fireEvent.click(document.querySelector('.readfirst-row[data-field="beta"]') as HTMLElement);
+    await waitFor(
+      () => {
+        expect(_isRowOpen('beta')).toBe(true);
+        expect(_isRowOpen('alpha')).toBe(true); // stays open
+      },
+      { timeout: 10000 }
+    );
+  },
+};
+
 export const CompactFieldTypes: Story = {
   args: {
     compact: true,
@@ -2628,7 +2807,8 @@ const _compactExpandAllRows = async () => {
 export const CompactFieldTypesEditing: Story = {
   // chromatic off: 69 live editors (async mounts) — flaky and snapshot-heavy.
   parameters: { chromatic: { disable: true } },
-  args: CompactFieldTypes.args,
+  // multi: this story expands every row at once (single-open would collapse them).
+  args: { ...CompactFieldTypes.args, expandMode: 'multi' as const },
   play: async () => {
     await _testsWaitForText('hello');
     await _compactExpandAllRows();
@@ -2643,6 +2823,7 @@ export const CompactFieldTypesEditingAllRequired: Story = {
   parameters: { chromatic: { disable: true } },
   args: {
     ...CompactFieldTypes.args,
+    expandMode: 'multi' as const,
     options: Object.fromEntries(
       Object.entries(CompactFieldTypes.args!.options as IOptionsSchema).map(([name, option]) => [
         name,

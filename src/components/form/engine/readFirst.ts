@@ -63,27 +63,41 @@ export const isOptionValueEmpty = (value: unknown): boolean =>
 
 /** Prefer the matching allowed_values entry's display_name (fallback `name`)
  * over the raw stored value. */
+const findAllowedOption = (value: unknown, schema?: TQorusFormFieldSchema): any | undefined => {
+  const s = schema as { allowed_values?: any[]; items?: any[] } | undefined;
+  const options = s?.allowed_values?.length ? s.allowed_values : s?.items;
+  if (!options?.length) {
+    return undefined;
+  }
+  return options.find(
+    (option) =>
+      option?.value?.value === value || option?.value === value || option?.name === value
+  );
+};
+
 const getAllowedValueLabel = (
   value: unknown,
   schema?: TQorusFormFieldSchema
 ): string | undefined => {
-  const allowed = (schema as { allowed_values?: any[] } | undefined)?.allowed_values;
-  if (!allowed?.length) {
-    return undefined;
-  }
+  const match = findAllowedOption(value, schema);
+  return match ? match.display_name || match.title || match.name || undefined : undefined;
+};
 
-  const match = allowed.find(
-    (allowedValue) =>
-      allowedValue?.value?.value === value ||
-      allowedValue?.value === value ||
-      allowedValue?.name === value
-  );
+/** True when the field's selectable options carry images (logos). Such a choice
+ * renders too tall/rich for an inline row, so compact opens it in the card. */
+export const optionHasImages = (schema?: TQorusFormFieldSchema): boolean => {
+  const s = schema as { allowed_values?: any[]; items?: any[] } | undefined;
+  const options = s?.allowed_values?.length ? s.allowed_values : s?.items;
+  return !!options?.some((option) => !!option?.image);
+};
 
-  if (!match) {
-    return undefined;
-  }
-
-  return match.display_name || match.name || undefined;
+/** The selected option's image (logo), when it carries one — for the value cell. */
+export const getAllowedValueImage = (
+  value: unknown,
+  schema?: TQorusFormFieldSchema
+): string | undefined => {
+  const match = findAllowedOption(value, schema);
+  return (match?.image as string) || undefined;
 };
 
 /** Clamp an RGB channel to a 0–255 integer. */

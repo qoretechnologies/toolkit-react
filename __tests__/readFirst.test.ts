@@ -12,6 +12,7 @@ import {
   formatColorValue,
   formatFileValue,
   formatOptionValue,
+  getAllowedValueImage,
   getHashEntries,
   getOptionGroup,
   getOptionGroupLabel,
@@ -344,6 +345,21 @@ describe('getHashEntries', () => {
       } as never,
     });
     expect(entries).toEqual([{ name: 'token', label: 'token', value: 'secret' }]);
+  });
+
+  it('resolves enum items (label + image) the same as allowed_values', () => {
+    // IDE enum shape: { items: [{ value, title, image }] }
+    const enumSchema = { items: [{ value: 'qore', title: 'Qore', image: 'q.png' }] };
+    expect(formatOptionValue({ type: 'enum', value: 'qore' } as never, enumSchema as never)).toBe(
+      'Qore'
+    );
+    expect(getAllowedValueImage('qore', enumSchema as never)).toBe('q.png');
+    // reqraft allowed_values shape still resolves label + image
+    const avSchema = {
+      allowed_values: [{ value: { type: 'string', value: 'x' }, display_name: 'X', image: 'x.png' }],
+    };
+    expect(formatOptionValue({ type: 'string', value: 'x' } as never, avSchema as never)).toBe('X');
+    expect(getAllowedValueImage('x', avSchema as never)).toBe('x.png');
   });
 
   it('renders an expression value as an offline DPQL-ish summary', () => {

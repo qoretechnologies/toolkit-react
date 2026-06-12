@@ -71,7 +71,9 @@ import {
   colorToCss,
   formatBytes,
   formatOptionValue,
+  getAllowedValueImage,
   getFileSize,
+  optionHasImages,
   getHashEntries,
   getOptionGroup,
   getOptionGroupLabel,
@@ -763,6 +765,13 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * fires `onCommit`, gated on validity; staged `onChange` carries `meta.draft`.
    */
   commitMode?: 'immediate' | 'batched';
+  /**
+   * How many read-first rows can be expanded (editing) at once. `'single'`
+   * (default) collapses the previously-open row when another is opened — the
+   * accordion model that keeps the read-first list scannable. `'multi'` lets
+   * several stay open (e.g. filling an empty form top-to-bottom).
+   */
+  expandMode?: 'single' | 'multi';
   /** `commitMode='batched'` only: the user applied the staged changes. */
   onCommit?: (name: string, value?: TQorusForm, meta?: IOptionsOnChangeMeta) => void;
   /**
@@ -851,6 +860,7 @@ export const FormEngine = ({
   showTypeToggle = true,
   compact,
   commitMode = 'immediate',
+  expandMode = 'single',
   onCommit,
   operators: operatorsProp,
   groups,
@@ -1599,13 +1609,17 @@ export const FormEngine = ({
     setShowHelpForOption(optionName);
   }, []);
 
-  const toggleExpandedOption = useCallback((optionName: string) => {
-    setExpandedOptions((prev) =>
-      prev.includes(optionName) ?
-        prev.filter((name) => name !== optionName)
-      : [...prev, optionName]
-    );
-  }, []);
+  const toggleExpandedOption = useCallback(
+    (optionName: string) => {
+      setExpandedOptions((prev) =>
+        prev.includes(optionName) ? prev.filter((name) => name !== optionName)
+          // single (default): opening a row collapses any other open one.
+        : expandMode === 'single' ? [optionName]
+        : [...prev, optionName]
+      );
+    },
+    [expandMode]
+  );
 
   // Read-first completion summary (how many shown options have a value set),
   // surfaced as a progress meter at the top of the compact form.
@@ -1903,6 +1917,18 @@ export const FormEngine = ({
       );
     }
 
+    // Selected allowed-value / enum item with a logo (e.g. language images):
+    // render it beside the value, where it belongs — not as the field's icon.
+    const allowedImage = getAllowedValueImage(optionField?.value, schema);
+    if (allowedImage) {
+      return (
+        <span style={wrapStyle}>
+          <ReqoreIcon image={allowedImage} size='16px' style={{ flexShrink: 0 }} />
+          <span style={textStyle}>{formatted}</span>
+        </span>
+      );
+    }
+
     return formatted;
   };
 
@@ -1996,6 +2022,8 @@ export const FormEngine = ({
       !(operators && size(operators)) &&
       // Expression fields open the builder/DPQL editor — too tall for inline.
       !(optionField as { is_expression?: boolean }).is_expression &&
+      // A choice with per-option logos (e.g. language) reads better collapsed.
+      !optionHasImages(schema) &&
       !COMPACT_COMPLEX_TYPES.has(editType);
     const revertButton =
       changed ?

@@ -458,7 +458,23 @@ function AutoField<T = any>({
     }
 
     if (rest.allowed_values && !rest.allowed_values_creatable) {
-      return null;
+      const selected =
+        value && typeof value === 'object' && 'value' in (value as object)
+          ? (value as { value: unknown }).value
+          : value;
+      return (
+        <RadioGroupFormField
+          items={(rest.allowed_values as any[]).map((av) => ({
+            label: av.display_name ?? String(av.value?.value ?? av.value),
+            value: av.value?.value ?? av.value,
+            image: av.image,
+            icon: av.icon,
+          }))}
+          value={selected as string}
+          onChange={(val) => handleChange(name, val)}
+          disabled={rest.disabled}
+        />
+      );
     }
 
     const renderFieldComponent = () => {
@@ -672,18 +688,34 @@ function AutoField<T = any>({
               aria-label={rest['aria-label']}
             />
           );
-        case 'enum':
+        case 'enum': {
+          // Two option shapes describe the same enum: reqraft `allowed_values`
+          // ({ value: { type, value }, display_name, image }) and the IDE
+          // `items` ({ value, title, display_name?, image? }). Accept both so a
+          // server-driven enum field (e.g. language) renders its choices —
+          // previously only `allowed_values` was read, leaving `items` empty.
+          const enumItems = (rest.allowed_values as any[] | undefined)?.length
+            ? (rest.allowed_values as any[]).map((av) => ({
+                label: av.display_name ?? String(av.value?.value ?? av.value),
+                value: av.value?.value ?? av.value,
+                image: av.image,
+                icon: av.icon,
+              }))
+            : ((rest as any).items as any[] | undefined ?? []).map((it) => ({
+                label: it.display_name ?? it.title ?? String(it.value),
+                value: it.value,
+                image: it.image,
+                icon: it.icon,
+              }));
           return (
             <RadioGroupFormField
-              items={(rest.allowed_values || []).map((av) => ({
-                label: av.display_name ?? String(av.value?.value),
-                value: av.value?.value,
-              }))}
+              items={enumItems}
               value={value}
               onChange={(val) => handleChange(name, val)}
               disabled={rest.disabled}
             />
           );
+        }
         case 'url': {
           return (
             <UrlFormField
