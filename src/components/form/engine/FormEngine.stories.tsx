@@ -275,12 +275,18 @@ export const ValueCanBeRemoved: Story = {
   play: async () => {
     await _testsWaitForText('Click here to upload a different file');
     await userEvent.hover(document.querySelectorAll('.system-option')[0]);
+    await waitFor(() => expect(document.querySelector('.options-item-remove')).toBeTruthy(), {
+      timeout: 10000,
+    });
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
     await waitFor(
       () => expect(document.querySelectorAll('.options-item-revert').length).toBe(1),
       { timeout: 10000 }
     );
     await userEvent.hover(document.querySelectorAll('.system-option')[1]);
+    await waitFor(() => expect(document.querySelector('.options-item-remove')).toBeTruthy(), {
+      timeout: 10000,
+    });
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
     await _testsWaitForTextToNotExist('Click here to upload a different file');
   },

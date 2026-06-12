@@ -719,15 +719,21 @@ export const WithFsmContext: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
+    await waitFor(
+      () => {
+        expect(document.body.textContent).not.toContain('Connecting to language server');
+        expect(document.body.textContent).not.toContain('Loading schema');
+      },
+      { timeout: 30000 }
+    );
     await userEvent.click(editable);
     await userEvent.type(editable, '$data:');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.reqore-menu');
         expect(dropdown).not.toBeNull();
-        // FSM state-data keys (from the bound fsmContext), NOT the
-        // generic template namespaces — proves the FSM binding drives
-        // these completions.
+        // FSM state-data keys (from the bound fsmContext), NOT the generic
+        // template namespaces — proves the FSM binding drives these completions.
         expect(dropdown!.textContent).toContain('order_id');
         expect(dropdown!.textContent).toContain('user_name');
         expect(dropdown!.textContent).toContain('event_type');
