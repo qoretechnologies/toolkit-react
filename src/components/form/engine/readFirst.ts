@@ -1,5 +1,7 @@
 import { IQorusFormField, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import { isUiEncodedValue } from './_structuredData/structuredData';
+import { renderExpressionToText } from '../expressions/renderExpressionToText';
+import { IExpressionValue } from '../expressions/types';
 import yaml from 'js-yaml';
 import { richtextToString } from '../../../helpers/common';
 
@@ -217,6 +219,17 @@ export const formatBytes = (bytes: number): string => {
  * hex/rgba, file → filename, richtext → plain text, list → joined names,
  * hash → "N fields" (generic "Set" fallback).
  */
+/** Read-first summary of a `schema-definition` value: the schema name plus a
+ * table count (e.g. `orders · 2 tables`). */
+const formatSchemaDefinition = (value: unknown): string => {
+  if (!value || typeof value !== 'object') return 'Schema';
+  const def = value as { schema?: { name?: string }; tables?: object };
+  const name = def.schema?.name;
+  const count = def.tables ? Object.keys(def.tables).length : 0;
+  const tables = count ? ` · ${count} table${count === 1 ? '' : 's'}` : '';
+  return name ? `${name}${tables}` : 'Schema';
+};
+
 export const formatOptionValue = (
   option?: IQorusFormField,
   schema?: TQorusFormFieldSchema
@@ -234,7 +247,16 @@ export const formatOptionValue = (
   }
 
   if (option?.is_expression) {
-    return 'Expression';
+    // Offline summary of the {exp,args} AST already in the form value — the
+    // same client-side renderer the editor's "Explain" seam falls back to when
+    // the LSP is unreachable. The drill-in editor shows the canonical DPQL.
+    return renderExpressionToText(option?.value as IExpressionValue | undefined) || 'Expression';
+  }
+
+  // schema-definition is stored as a hash envelope; summarise it as the schema
+  // name + table count rather than a meaningless top-level key count.
+  if ((schema as { ui_type?: string } | undefined)?.ui_type === 'schema-definition') {
+    return formatSchemaDefinition(value);
   }
 
   const type = getValueType(option, schema);

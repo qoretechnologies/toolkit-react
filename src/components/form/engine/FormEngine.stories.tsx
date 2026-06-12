@@ -27,6 +27,9 @@ import {
 } from './FormEngine';
 import { basicFormValue, getBasicFormOptions as getOptions } from './__fixtures__/basicFormOptions';
 import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOptions';
+import { mockPopulatedDefinition } from '../fields/schema-definition/mockDefinition';
+import { startDpqlMockLsp } from '../expressions/dpqlMockLsp';
+import { mockExpressions } from '../expressions/mockExpressions';
 
 // schema data
 
@@ -1988,6 +1991,101 @@ const FieldTypeCatalogGroups: Record<string, IFormEngineGroup> = {
   chrome: { label: 'Field chrome (icon / image / intent / badge / actions / tags)', sort: 7 },
   info: { label: 'Descriptions & messages', sort: 8 },
   meta: { label: 'Meta (sensitive / rules / defaults)', sort: 9 },
+  fieldstack: { label: 'Field stack (merged: byte-size / url / schema-definition)', sort: 10 },
+};
+
+/**
+ * Expression fields in compact. The read-first row renders the offline DPQL
+ * summary of the `{exp,args}` AST (`renderExpressionToText`); drilling in opens
+ * the full `ExpressionField` in the card — the Visual builder (catalogue offline
+ * via `mockExpressions`) plus the Text/DPQL editor, whose seed + Explain are
+ * served by the in-test `dpqlMockLsp`. No instance/LSP required.
+ */
+export const CompactExpressions: Story = {
+  // chromatic off: ends with the live ExpressionField editor (Text mode) open.
+  parameters: { chromatic: { disable: true } },
+  args: {
+    name: 'exprForm',
+    compact: true,
+    options: {
+      condition: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Condition',
+        supports_expressions: true,
+        expressions: mockExpressions,
+      },
+    } as unknown as IOptionsSchema,
+    value: {
+      condition: {
+        type: 'string',
+        is_expression: true,
+        value: {
+          exp: '==',
+          args: [
+            { type: 'string', value: '$local:name' },
+            { type: 'string', value: 'John' },
+          ],
+        },
+      },
+    } as unknown as IOptions,
+  },
+  play: async () => {
+    const stop = startDpqlMockLsp();
+    try {
+      // Read-first: the offline DPQL summary of the AST.
+      await _testsWaitForText('"$local:name" == "John"');
+
+      // Drill in → the card hosts the ExpressionField (Visual builder).
+      await fireEvent.click(
+        document.querySelector('.readfirst-row[data-field="condition"]') as HTMLElement
+      );
+      await waitFor(
+        () =>
+          expect(
+            document.querySelector('.options-readfirst-card[data-field="condition"] .expression')
+          ).toBeInTheDocument(),
+        { timeout: 10000 }
+      );
+      // The builder resolves the operator from the offline catalogue.
+      await _testsWaitForText('Logical Equals');
+
+      // Text/DPQL tab — seeded from the AST via the mock LSP (dpql/serialize).
+      const textBtn = Array.from(
+        document.querySelectorAll(
+          '.options-readfirst-card[data-field="condition"] .expression-field button'
+        )
+      ).find((b) => b.textContent?.trim() === 'Text') as HTMLElement;
+      await fireEvent.click(textBtn);
+      await waitFor(
+        () =>
+          expect(
+            document.querySelector(
+              '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
+            )
+          ).toBeInTheDocument(),
+        { timeout: 10000 }
+      );
+
+      // Explain — the canonical rendering over the mock dpql/renderExpression.
+      await fireEvent.click(
+        document.querySelector(
+          '.options-readfirst-card[data-field="condition"] .expression-explain'
+        ) as HTMLElement
+      );
+      await waitFor(
+        () =>
+          expect(
+            document.querySelector(
+              '.options-readfirst-card[data-field="condition"] [data-testid="expression-explanation"]'
+            )
+          ).toBeInTheDocument(),
+        { timeout: 10000 }
+      );
+    } finally {
+      stop();
+    }
+  },
 };
 
 export const CompactFieldTypes: Story = {
@@ -2233,6 +2331,27 @@ export const CompactFieldTypes: Story = {
         group: 'meta',
       },
       metaDefault: { ...metaFieldBases.metaDefault, group: 'meta' },
+      // Field stack (merged from dpql): the upgraded field types compact now
+      // wraps. `url` is already covered above (the `endpoint` row).
+      byteSize: {
+        type: 'byte-size',
+        ui_type: 'byte-size',
+        display_name: 'Byte size',
+        group: 'fieldstack',
+      },
+      schemaDef: {
+        type: 'hash',
+        ui_type: 'schema-definition',
+        display_name: 'Schema definition',
+        group: 'fieldstack',
+      },
+      expr: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Expression',
+        supports_expressions: true,
+        group: 'fieldstack',
+      },
       // cast through `unknown`: this set spans the whole TQorusType union, far
       // more ui_types than the IOptionsSchema literal union models, though the
       // engine renders them all at runtime.
@@ -2353,6 +2472,20 @@ export const CompactFieldTypes: Story = {
       metaSensitive: { type: 'string', value: 'hunter2-token' },
       metaRule: { type: 'string', value: 'valid_name' },
       metaDefault: { type: 'number', value: 30 },
+      // Field stack (merged)
+      byteSize: { type: 'byte-size', value: '512MiB' },
+      schemaDef: { type: 'hash', value: mockPopulatedDefinition as never },
+      expr: {
+        type: 'string',
+        is_expression: true,
+        value: {
+          exp: '==',
+          args: [
+            { type: 'string', value: '$local:name' },
+            { type: 'string', value: 'John' },
+          ],
+        },
+      } as never,
     } as IOptions,
   },
   play: async () => {
@@ -2379,6 +2512,14 @@ export const CompactFieldTypes: Story = {
     await _testsWaitForText('config.txt'); // file → filename
     await _testsWaitForText('3 fields'); // structured hash → field count summary
     await _testsWaitForText('order-to-invoice'); // interface reference → raw value
+
+    // Field stack (merged from dpql): byte-size shows its value string; the
+    // schema-definition summarises as the schema name (+ table count) rather
+    // than a raw hash key-count.
+    await _testsWaitForText('512MiB');
+    await _testsWaitForText(/example_customer_addresses/);
+    // Expression field → read-first shows the offline DPQL summary of the AST.
+    await _testsWaitForText('"$local:name" == "John"');
     await expect(document.querySelectorAll('.options-readfirst-card')).toHaveLength(0);
 
     // A hash renders its read-first preview (the structured tree by default)

@@ -346,6 +346,38 @@ describe('getHashEntries', () => {
     expect(entries).toEqual([{ name: 'token', label: 'token', value: 'secret' }]);
   });
 
+  it('renders an expression value as an offline DPQL-ish summary', () => {
+    const expr = {
+      is_expression: true,
+      value: {
+        exp: '==',
+        args: [
+          { type: 'string', value: '$local:name' },
+          { type: 'string', value: 'John' },
+        ],
+      },
+    };
+    expect(formatOptionValue(expr as never)).toBe('"$local:name" == "John"');
+    // unrenderable / empty AST → the generic marker, never blank-looking
+    expect(formatOptionValue({ is_expression: true, value: { args: [] } } as never)).toBe(
+      'Expression'
+    );
+  });
+
+  it('summarises a schema-definition as the schema name + table count', () => {
+    const def = { schema: { name: 'orders_db' }, tables: { orders: {}, lines: {} } };
+    expect(
+      formatOptionValue({ type: 'hash', value: def } as never, { ui_type: 'schema-definition' } as never)
+    ).toBe('orders_db · 2 tables');
+    // no tables → name only; no name → generic marker
+    expect(
+      formatOptionValue({ type: 'hash', value: { schema: { name: 's' } } } as never, { ui_type: 'schema-definition' } as never)
+    ).toBe('s');
+    expect(
+      formatOptionValue({ type: 'hash', value: {} } as never, { ui_type: 'schema-definition' } as never)
+    ).toBe('Schema');
+  });
+
   it('returns [] for empty or non-hash values', () => {
     expect(getHashEntries({ type: 'hash', value: undefined })).toEqual([]);
     expect(getHashEntries({ type: 'list', value: ['a', 'b'] })).toEqual([]);

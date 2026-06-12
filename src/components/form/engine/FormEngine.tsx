@@ -1994,6 +1994,8 @@ export const FormEngine = ({
       !readOnly &&
       !schema?.arg_schema &&
       !(operators && size(operators)) &&
+      // Expression fields open the builder/DPQL editor — too tall for inline.
+      !(optionField as { is_expression?: boolean }).is_expression &&
       !COMPACT_COMPLEX_TYPES.has(editType);
     const revertButton =
       changed ?
@@ -2353,7 +2355,9 @@ export const FormEngine = ({
     // more" disclosure; the row itself still expands the real editor on click.
     const valueType = getValueType(optionField, schema);
     const hashEntries =
-      !hidden && (valueType === 'hash' || valueType === 'free-hash') ?
+      !hidden &&
+      (valueType === 'hash' || valueType === 'free-hash') &&
+      (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition' ?
         getHashEntries(optionField, schema)
       : [];
     const typeLabel =
