@@ -53,9 +53,10 @@ export const UrlFormField = memo(
     };
 
     return (
-      <ReqoreControlGroup fluid>
+      <ReqoreControlGroup fluid size={rest.size} verticalAlign='center'>
         <SelectFormField
           fixed
+          size={rest.size}
           items={protocols.map((prot) => ({ value: prot }))}
           onChange={(v) => setProtocol(v as string)}
           value={protocol}
@@ -63,8 +64,11 @@ export const UrlFormField = memo(
         />
         {/* IDE StringField renders its `label` as a muted paragraph beside
             the input — mirrored here since reqraft's StringFormField has no
-            label prop. */}
-        <ReqoreP intent='muted'>://</ReqoreP>
+            label prop. `flexShrink: 0` + nowrap keep `://` on one line; the
+            fluid group would otherwise squeeze it until the text wrapped. */}
+        <ReqoreP intent='muted' style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+          ://
+        </ReqoreP>
         {/* Rest props (`aria-label`, …) forward to the address input; the
             IDE's URLField ignores extras. */}
         <StringFormField
