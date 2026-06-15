@@ -1,5 +1,3 @@
-export { ReqraftCollapsibleContent } from './components/collapsible/CollapsibleContent';
-export type { IReqraftCollapsibleContentProps } from './components/collapsible/CollapsibleContent';
 export * from './components/form';
 export * from './components/log/Log';
 export {
