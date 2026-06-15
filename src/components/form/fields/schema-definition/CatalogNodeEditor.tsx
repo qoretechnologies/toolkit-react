@@ -28,7 +28,9 @@ import {
   ReqoreTable,
   ReqoreTag,
   useReqoreProperty,
+  useReqoreTheme,
 } from '@qoretechnologies/reqore';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { IReqoreTableColumn } from '@qoretechnologies/reqore/dist/components/Table';
 import { memo, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
@@ -111,7 +113,7 @@ const MONO_FONT =
  * `VARCHAR` / `TIMESTAMP`, the way a DBA expects, not the catalogue's
  * prose display name.
  */
-const MonoTag = styled.span`
+const MonoTag = styled.span<{ $color: string; $bg: string }>`
   display: inline-block;
   font-family: ${MONO_FONT};
   font-size: 11px;
@@ -119,19 +121,23 @@ const MonoTag = styled.span`
   letter-spacing: 0.04em;
   padding: 2px 7px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.07);
-  color: #cdd5e3;
+  background: ${({ $bg }) => $bg};
+  color: ${({ $color }) => $color};
 `;
 
 /** Monospace inline text for numeric / scalar table cells. */
-const MonoText = styled.span`
+const MonoText = styled.span<{ $color: string }>`
   font-family: ${MONO_FONT};
   font-size: 12px;
-  color: #cdd5e3;
+  color: ${({ $color }) => $color};
 `;
 
 /** Renders one leaf value as a table cell. */
-const renderCell = (leaf: ICatalogLeaf, value: unknown): ReactNode => {
+const renderCell = (
+  leaf: ICatalogLeaf,
+  value: unknown,
+  mono: { color: string; bg: string }
+): ReactNode => {
   if (value === undefined || value === null || value === '') {
     return (
       <ReqoreP size='small' effect={{ opacity: 0.3 }}>
@@ -154,13 +160,17 @@ const renderCell = (leaf: ICatalogLeaf, value: unknown): ReactNode => {
   // DB-ish token in a monospace pill — `VARCHAR`, not "Variable-length
   // string".
   if (leaf.allowed_values && typeof value === 'string') {
-    return <MonoTag>{value.toUpperCase()}</MonoTag>;
+    return (
+      <MonoTag $color={mono.color} $bg={mono.bg}>
+        {value.toUpperCase()}
+      </MonoTag>
+    );
   }
   if (typeof value === 'number') {
-    return <MonoText>{value}</MonoText>;
+    return <MonoText $color={mono.color}>{value}</MonoText>;
   }
   if (Array.isArray(value)) {
-    return <MonoText>{value.join(', ')}</MonoText>;
+    return <MonoText $color={mono.color}>{value.join(', ')}</MonoText>;
   }
   return <ReqoreP size='small'>{String(value)}</ReqoreP>;
 };
@@ -409,6 +419,14 @@ const CatalogMapEditor = memo(
     const { leaves } = partitionCatalogOptions(options);
     const addNotification = useReqoreProperty('addNotification');
     const [openKey, setOpenKey] = useState<string | null>(null);
+    const theme = useReqoreTheme();
+    const mono = useMemo(
+      () => ({
+        color: getReadableColor(theme, undefined, undefined, true),
+        bg: `${getReadableColor(theme)}14`,
+      }),
+      [theme]
+    );
 
     const addEntry = useCallback(() => {
       const key = uniqueKey(
@@ -457,11 +475,11 @@ const CatalogMapEditor = memo(
             header: { label: leaf.display_name },
             grow: 1,
             minWidth: 110,
-            cell: { content: (data) => renderCell(leaf, data[key]) },
+            cell: { content: (data) => renderCell(leaf, data[key], mono) },
           };
         }),
       ],
-      [columnKeys, leaves]
+      [columnKeys, leaves, mono]
     );
 
     const openEntry =
@@ -550,6 +568,14 @@ const CatalogListEditor = memo(
     const singular = singularize(title);
     const { leaves } = partitionCatalogOptions(options);
     const [openIndex, setOpenIndex] = useState<number | null>(null);
+    const theme = useReqoreTheme();
+    const mono = useMemo(
+      () => ({
+        color: getReadableColor(theme, undefined, undefined, true),
+        bg: `${getReadableColor(theme)}14`,
+      }),
+      [theme]
+    );
 
     const addItem = useCallback(() => {
       onChange([...value, seedNewEntry(options)]);
@@ -593,7 +619,7 @@ const CatalogListEditor = memo(
             header: { label: leaf.display_name },
             grow: 1,
             minWidth: 110,
-            cell: { content: (data) => renderCell(leaf, data[key]) },
+            cell: { content: (data) => renderCell(leaf, data[key], mono) },
           };
         }),
       ];
@@ -631,7 +657,7 @@ const CatalogListEditor = memo(
         });
       }
       return cols;
-    }, [columnKeys, leaves, readOnly, onChange, value]);
+    }, [columnKeys, leaves, readOnly, onChange, value, mono]);
 
     return (
       <ReqoreControlGroup vertical fluid gapSize='normal'>
