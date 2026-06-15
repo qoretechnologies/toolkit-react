@@ -236,8 +236,17 @@ const StyledGroupBody = styled.div<{ $divider: string; $hover: string; $focus: s
        read as one control cluster, not two separated groups. */
     column-gap: 6px;
   }
+  /* Centre each cell's content on the row's ~38px first-line band. The label
+     text (+10) and the ✓/↺ cluster (+3) were already nudged, but the editor
+     cell was not — so a single-line input sat ~3px above the buttons. A 32px
+     control needs +3 to centre in 38px, so the editor gets the same offset and
+     lines up with the buttons. (A multi-line editor's first line lands on the
+     band too; its extra rows grow downward.) */
   .readfirst-row-editing > div:nth-child(1) {
     padding-top: 10px;
+  }
+  .readfirst-row-editing > div:nth-child(2) {
+    padding-top: 3px;
   }
   .readfirst-row-editing > div:nth-child(3) {
     padding-top: 3px;
@@ -514,6 +523,30 @@ export const fixOptions = (
 
   return res;
 };
+
+// A required field with no value can arrive as `{ value: '' }` OR with no `value`
+// key at all — fixOptions emits either depending on the field's default. They mean
+// the same "empty", so drop the key before comparing: a value that differs ONLY by
+// that representation must read as unchanged, otherwise the controlled value-sync
+// effect re-fixes → re-emits → re-fixes forever (the echo loop).
+const normalizeEmptyFieldValues = (
+  fields: TQorusForm | TQorusFlatForm | undefined
+): TQorusForm =>
+  reduce(
+    (fields as TQorusForm) || {},
+    (acc, field, name) => {
+      const fieldValue = (field as IQorusFormField)?.value;
+      if (field && typeof field === 'object' && (fieldValue === '' || fieldValue === undefined)) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { value: _dropped, ...rest } = field as IQorusFormField;
+        acc[name] = rest as IQorusFormField;
+      } else {
+        acc[name] = field as IQorusFormField;
+      }
+      return acc;
+    },
+    {} as TQorusForm
+  );
 
 export const flattenOptions = (options: TQorusForm): TQorusFlatForm => {
   return reduce(
@@ -906,12 +939,19 @@ export const FormEngine = ({
     const fixedValue = fixOptions(value, options || {});
 
     // When the value we're receiving is the one we just emitted AND fixOptions has nothing to
-    // add or change (fixedValue equals value), skip the update. This breaks the controlled-component
-    // loop for arg_schema fields while still allowing required/preselected options to be restored
-    // (in that case fixedValue will differ from value, so we don't skip).
+    // meaningfully add or change, skip the update. This breaks the controlled-component loop for
+    // arg_schema fields while still allowing required/preselected options to be restored (in that
+    // case fixedValue will differ from value, so we don't skip).
+    // The compare is empty-normalized: fixOptions can round-trip a required-empty field between
+    // `{ value: '' }` and no `value` key — without normalizing, that cosmetic difference reads as a
+    // change and re-fixes forever (e.g. byte-size / expression / ruled string fields).
     // Note: compare fixedValue against value, not localValue.fields — localValue may have been
     // updated by nested FormEngine emissions, so comparing against it would never skip.
-    if (isEqual(value, lastEmittedValue.current) && isEqual(fixedValue, value)) {
+    const normalizedValue = normalizeEmptyFieldValues(value);
+    if (
+      isEqual(normalizedValue, normalizeEmptyFieldValues(lastEmittedValue.current)) &&
+      isEqual(normalizeEmptyFieldValues(fixedValue), normalizedValue)
+    ) {
       return;
     }
 
