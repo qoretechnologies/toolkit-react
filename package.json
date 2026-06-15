@@ -21,7 +21,9 @@
     "test-storybook": "DEBUG_PRINT_LIMIT=300 test-storybook --url http://localhost:6008",
     "install-playwright": "npx playwright@latest install --with-deps",
     "build-storybook": "storybook build",
-    "chromatic": "npx chromatic"
+    "chromatic": "npx chromatic",
+    "yalc:push": "yarn build && yalc push",
+    "yalc:watch": "tsc-watch --project tsconfig.prod.json --onSuccess \"yalc push\""
   },
   "repository": {
     "type": "git",
@@ -55,7 +57,7 @@
     "@babel/preset-typescript": "^7.12.7",
     "@chromatic-com/storybook": "^2.0.2",
     "@netsells/storybook-mockdate": "^0.3.3",
-    "@qoretechnologies/reqore": "^0.69.2",
+    "@qoretechnologies/reqore": "^0.69.4",
     "@storybook/addon-actions": "^8.3.5",
     "@storybook/addon-essentials": "^8.3.5",
     "@storybook/addon-interactions": "^8.3.5",
@@ -100,6 +102,7 @@
     "storybook-addon-mock": "^5.0.0",
     "ts-jest": "^29.1.2",
     "ts-node": "^9.1.1",
+    "tsc-watch": "^7.2.0",
     "type-fest": "^4.18.2",
     "typescript": "^5.4.5"
   },
