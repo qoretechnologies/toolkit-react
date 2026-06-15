@@ -32,9 +32,11 @@ import { ArrayAuto } from '../array/ArrayAuto';
 import BooleanFormField from '../boolean/Boolean';
 import { ByteSizeFormField } from '../byte-size/ByteSize';
 import ColorFormField from '../color/Color';
+import CronFormField from '../cron/Cron';
 import { DateFormField } from '../date/Date';
 import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
 import LongStringFormField from '../long-string/LongString';
+import MarkdownFormField from '../markdown/Markdown';
 import { MultiSelectFormField } from '../multi-select/MultiSelectFormField';
 import NumberFormField from '../number/Number';
 import { ReqraftObjectFormField } from '../object/Object';
@@ -457,24 +459,14 @@ function AutoField<T = any>({
       );
     }
 
-    if (rest.allowed_values && !rest.allowed_values_creatable) {
-      const selected =
-        value && typeof value === 'object' && 'value' in (value as object)
-          ? (value as { value: unknown }).value
-          : value;
-      return (
-        <RadioGroupFormField
-          items={(rest.allowed_values as any[]).map((av) => ({
-            label: av.display_name ?? String(av.value?.value ?? av.value),
-            value: av.value?.value ?? av.value,
-            image: av.image,
-            icon: av.icon,
-          }))}
-          value={selected as string}
-          onChange={(val) => handleChange(name, val)}
-          disabled={rest.disabled}
-        />
-      );
+    // Non-creatable allowed_values render through FieldAllowedValues
+    // (`renderAllowedValues` below) — a radio CheckGroup for ≤3 simple values, a
+    // Select otherwise — matching the IDE (which returns null here). `enum` is the
+    // exception: FieldAllowedValues skips it (it has its own `case 'enum'` radio
+    // renderer), so let enum fall through. f5f2e11 had returned a second RadioGroup
+    // here, which duplicated FieldAllowedValues for string allowed-value fields.
+    if (rest.allowed_values && !rest.allowed_values_creatable && currentType !== 'enum') {
+      return null;
     }
 
     const renderFieldComponent = () => {
@@ -488,6 +480,25 @@ function AutoField<T = any>({
         case 'long-string':
           return (
             <LongStringFormField
+              {...rest}
+              onChange={(value) => handleChange(name, value)}
+              value={value}
+            />
+          );
+        // reqraft ships these editors (see Field.tsx), but the compact /
+        // TemplateField path dispatches through AutoFormField — bridge them so
+        // they render here instead of falling through to "Unknown type!".
+        case 'markdown':
+          return (
+            <MarkdownFormField
+              {...rest}
+              onChange={(value) => handleChange(name, value)}
+              value={value}
+            />
+          );
+        case 'cron':
+          return (
+            <CronFormField
               {...rest}
               onChange={(value) => handleChange(name, value)}
               value={value}
