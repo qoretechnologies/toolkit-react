@@ -44,9 +44,7 @@ import { ConfirmUnsupportedTypeModal } from './confirmUnsupportedTypeModal';
 import { ExpressionItem } from './item';
 import { ExpressionRenderTemplate } from './renderTemplate';
 
-// SEAM (reqraft): the IDE's hints/tutorial subsystem (`useRegisterHintView`)
-// is not available here. Stubbed as a no-op so the call-site is unchanged.
-const useRegisterHintView = (...args: unknown[]): void => {
+const noopUseRegisterHintView = (...args: unknown[]): void => {
   void args;
 };
 
@@ -1092,7 +1090,7 @@ export const ExpressionBuilder = ({
     override: expressions,
   });
 
-  useRegisterHintView('expression_builder', level === 0 && index === 0);
+  noopUseRegisterHintView('expression_builder', level === 0 && index === 0);
 
   const handleChange = useCallback(
     (newValue: IExpression, newPath: string, remove?: boolean) => {
@@ -1207,11 +1205,10 @@ export const ExpressionBuilder = ({
               className='expression-operator'
             ></StyledExpressionItemLabel>
             {value.value.args?.map((arg, index) => (
-              <>
+              <React.Fragment key={index}>
                 <ExpressionBuilder
                   value={arg}
                   localTemplates={templates.value}
-                  key={index}
                   isChild
                   path={`${path ? `${path}.` : ''}value.args.${index}`}
                   level={level + 1}
@@ -1235,7 +1232,7 @@ export const ExpressionBuilder = ({
                     }}
                   />
                 )}
-              </>
+              </React.Fragment>
             ))}
           </ReqoreControlGroup>
         </ExpressionItem>
