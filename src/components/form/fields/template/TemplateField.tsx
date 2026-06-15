@@ -557,6 +557,10 @@ export const TemplateField = memo(
                 transparent: true,
                 size: rest.size,
                 fixed: true,
+                // Centre the trailing menu in its flex line so it lines up with
+                // sibling action buttons (reqore alignSelf; replaces a reqraft
+                // `align-self !important` override of this button).
+                alignSelf: 'center',
                 label: hasInputAffordance ? undefined : 'Set value',
                 style:
                   hasInputAffordance ?

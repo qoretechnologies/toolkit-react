@@ -2929,16 +2929,22 @@ export const CompactRequiredGroups: Story = {
     await _testsWaitForText('Draft');
     await _testsWaitForTextsCount('One of: target', undefined, 3);
 
-    // The chip's popover lists the siblings; locating one flashes its row
-    // (cross-panel: byUrl sits in General, byHost in Connection).
-    const chip = document.querySelector(
-      '.readfirst-row[data-field="byUrl"] .options-readfirst-required-group .reqore-tag-content'
+    // The chip is a ReqoreDropdown listing the siblings; selecting one flashes
+    // its row (cross-panel: byUrl sits in General, byHost in Connection).
+    const groupSelector = document.querySelector(
+      '.readfirst-row[data-field="byUrl"] .options-readfirst-required-group'
     ) as HTMLElement;
-    await fireEvent.click(chip);
-    await _testsWaitForText('Set one of these fields (target):');
-    const memberEntry = Array.from(
-      document.querySelectorAll('.options-readfirst-group-member .reqore-tag-content')
-    ).find((element) => element.textContent?.includes('By host')) as HTMLElement;
+    await fireEvent.click(groupSelector);
+    const memberEntry = await waitFor(
+      () => {
+        const item = Array.from(
+          document.querySelectorAll('.reqore-popover-content .reqore-menu-item')
+        ).find((element) => element.textContent?.includes('By host')) as HTMLElement;
+        expect(item).toBeTruthy();
+        return item;
+      },
+      { timeout: 10000 }
+    );
     await fireEvent.click(memberEntry);
     await waitFor(
       () =>
@@ -2949,7 +2955,6 @@ export const CompactRequiredGroups: Story = {
         ).toBe(true),
       { timeout: 10000 }
     );
-    await fireEvent.click(chip); // close the popover
 
     // Setting one member: expand it, type a value, collapse — its value shows.
     await _testsClickText('By URL');

@@ -4,9 +4,9 @@ import {
   ReqoreControlGroup,
   ReqoreDropdown,
   ReqoreErrorBoundary,
-  ReqoreIcon,
   ReqoreInput,
   ReqoreMessage,
+  ReqoreP,
   ReqorePanel,
   ReqoreSkeleton,
   ReqoreTag,
@@ -21,6 +21,7 @@ import { IReqorePanelAction, IReqorePanelProps } from '@qoretechnologies/reqore/
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import {
   IQorusFormField,
   IQorusFormFieldMessage,
@@ -40,7 +41,7 @@ import map from 'lodash/map';
 import reduce from 'lodash/reduce';
 import size from 'lodash/size';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useDebounce, useMeasure, useMount, useUpdateEffect } from 'react-use';
+import { useMeasure, useMount, useUpdateEffect } from 'react-use';
 import { createContext } from 'use-context-selector';
 import styled from 'styled-components';
 import { getDefaultValue, insertAtIndex, richtextToString } from '../../../helpers/common';
@@ -63,22 +64,14 @@ import {
   TemplateField,
   isValueTemplate,
 } from '../fields/template/TemplateField';
-import { ReqraftCollapsibleContent } from '../../collapsible/CollapsibleContent';
-import { StructuredDataView } from './_structuredData/StructuredDataView';
-import { getOptionFieldMessages, OptionFieldMessages } from './OptionFieldMessages';
+import { CompactRow } from './CompactRow';
+import { CompactRowContext, ICompactRowContext } from './compactRowContext';
+import { OptionFieldMessages } from './OptionFieldMessages';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
-  colorToCss,
-  formatBytes,
-  formatOptionValue,
-  getAllowedValueImage,
-  getFileSize,
-  optionHasImages,
-  getHashEntries,
   getOptionGroup,
   getOptionGroupLabel,
   getReadFirstCompletion,
-  getValueType,
   isOptionValueEmpty,
 } from './readFirst';
 
@@ -249,19 +242,6 @@ const StyledGroupBody = styled.div<{ $divider: string; $hover: string; $focus: s
   .readfirst-row-editing > div:nth-child(3) {
     padding-top: 3px;
   }
-  /* The editor's trailing ⋮ (template menu): reqore gives group buttons
-     align-self: flex-start plus a bottom margin that inflates their flex box
-     (32px button + 6px margin = the 38px line) — together they rendered the ⋮
-     3px above our vertically-centred ✓. Scope STRICTLY to direct buttons of
-     the editor cell's TOP-LEVEL (horizontal) group: any broader and the rule
-     reaches buttons inside nested vertical groups, where align-self is the
-     HORIZONTAL axis (it centred the bool switch, then the allowed-values
-     dropdown). */
-  .readfirst-row-editing > div:nth-child(2) > .reqore-control-group > .reqore-button {
-    align-self: flex-start !important;
-    margin-top: 3px !important;
-    margin-bottom: 0 !important;
-  }
   .readfirst-row-editing:hover {
     background: ${({ $hover }) => $hover};
   }
@@ -360,16 +340,6 @@ const StyledCompactHeader = styled.div<{ $bg: string }>`
   background: ${({ $bg }) => $bg};
 `;
 
-const StyledEditCard = styled.div<{ $bg: string; $border: string }>`
-  padding: 12px;
-  display: flex;
-  flex-flow: column;
-  gap: 8px;
-  background: ${({ $bg }) => $bg};
-  border: 1px solid ${({ $border }) => $border};
-  border-radius: 8px;
-`;
-
 // Batched-commit dock: a floating Save/Discard card pinned bottom-right. Sticky
 // (not fixed) so it stays within the form's own scroll bounds when the engine
 // renders inside a drawer/panel; align-self pushes it to the right edge, and it
@@ -386,165 +356,6 @@ const StyledCommitDock = styled.div<{ $bg: string; $border: string }>`
   border: 1px solid ${({ $border }) => $border};
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-`;
-
-// Recurring micro-layouts of the read-first rows and their popovers.
-const StyledPopColumn = styled.div`
-  display: flex;
-  flex-flow: column;
-  gap: 6px;
-  max-width: 300px;
-`;
-
-const StyledPopGroup = styled.div`
-  display: flex;
-  flex-flow: column;
-  gap: 4px;
-`;
-
-const StyledPopHint = styled.span<{ $small?: boolean }>`
-  font-size: ${({ $small }) => ($small ? 11 : 12)}px;
-  opacity: ${({ $small }) => ($small ? 0.6 : 0.7)};
-`;
-
-const StyledLabelBlock = styled.div`
-  display: flex;
-  flex-flow: column;
-  gap: 2px;
-  min-width: 0;
-`;
-
-const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  color: ${({ $color }) => $color};
-  font-weight: 600;
-  font-size: 13px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: ${({ $pointer }) => ($pointer ? 'pointer' : 'inherit')};
-`;
-
-const StyledCardHeading = styled.div`
-  display: flex;
-  flex-flow: column;
-  min-width: 0;
-`;
-
-const StyledCardLabel = styled.div<{ $color: string }>`
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: ${({ $color }) => $color};
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`;
-
-/* min-width: 0 lets the grid cell shrink below its content's intrinsic width
-   so the ellipsis engages instead of overflowing. */
-const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
-  min-width: 0;
-  color: ${({ $color }) => $color};
-  font-style: ${({ $empty }) => ($empty ? 'italic' : 'normal')};
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`;
-
-const StyledRowActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-`;
-
-const StyledActionSlot = styled.span<{ $width: number }>`
-  display: inline-flex;
-  justify-content: center;
-  width: ${({ $width }) => $width}px;
-  flex: 0 0 auto;
-`;
-
-const StyledStar = styled.span<{ $color: string }>`
-  color: ${({ $color }) => $color};
-`;
-
-const StyledTypeTag = styled.span<{ $color: string }>`
-  color: ${({ $color }) => $color};
-  font-weight: 400;
-  font-size: 11px;
-  margin-left: 6px;
-`;
-
-const StyledHelpIcon = styled.span`
-  cursor: help;
-  display: inline-flex;
-  opacity: 0.55;
-  margin-left: 5px;
-`;
-
-const StyledMutedNote = styled.div<{ $color: string }>`
-  color: ${({ $color }) => $color};
-  font-size: 12px;
-`;
-
-const StyledColumn = styled.div`
-  display: flex;
-  flex-flow: column;
-`;
-
-const StyledInfoPanel = styled.div`
-  display: flex;
-  flex-flow: column;
-  gap: 4px;
-  padding: 0 10px 8px 24px;
-`;
-
-const StyledRowInset = styled.div`
-  padding: 0 10px 6px 24px;
-`;
-
-// Types whose editors are too tall/nested to edit in-row — these keep the edit
-// card; `arg_schema` and operator fields are excluded separately.
-const COMPACT_COMPLEX_TYPES = new Set([
-  'hash',
-  'free-hash',
-  'list',
-  'free-list',
-  'array',
-  'array-auto',
-  'file',
-  'file-string',
-  'richtext',
-  'long-string',
-  'any',
-  'auto',
-  'schema',
-  'schema-definition',
-  'data-provider',
-  'processor-mappings',
-  'options',
-  'system-options',
-  'byte-size',
-  'markdown',
-  'method-name',
-  'class-connectors',
-  'class-array',
-  'yaml',
-]);
-
-// A small inline colour swatch shown before an rgbcolor value's hex string.
-const StyledColorSwatch = styled.span<{ $color: string; $border: string }>`
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  flex: 0 0 auto;
-  background: ${({ $color }) => $color};
-  border: 1px solid ${({ $border }) => $border};
 `;
 
 // Completion meter: a single inline row — label | track (fills remaining) | percent.
@@ -833,6 +644,12 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
         schema: IQorusFormSchema[string];
         value?: TOption;
       }) => IReqorePanelAction[]);
+  /**
+   * SEAM (reqraft): consumer-injected field editors for types reqraft doesn't
+   * ship (IDE domain fields). Keyed by field `type`/`ui_type`; forwarded through
+   * `TemplateField` to the `AutoFormField` override seam.
+   */
+  componentOverrides?: Record<string, React.FC<any>>;
 }
 
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
@@ -867,6 +684,7 @@ export const FormEngine = ({
   optionsLoader,
   onValidityChange,
   optionActions,
+  componentOverrides,
   ...rest
 }: IFormEngineProps) => {
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
@@ -912,6 +730,7 @@ export const FormEngine = ({
     (optionName: string) => flashOptions([optionName], true),
     [flashOptions]
   );
+  useEffect(() => () => clearTimeout(flashTimeout.current), []);
   const compactNarrow = !!compactWrapWidth && compactWrapWidth < 480;
   // Info panels auto-open on Tier-1 content; the per-row user override sticks.
   const [infoPanelOverrides, setInfoPanelOverrides] = useState<Record<string, boolean>>({});
@@ -938,22 +757,18 @@ export const FormEngine = ({
   const { compactValue, loading: typesLoading } = useQorusTypes();
   const templates = useTemplates(allowTemplates, rest.stringTemplates, interfaceContext);
 
-  useDebounce(
-    () => {
-      if (isEqual(localValue.fields, value)) {
-        return;
-      }
+  useEffect(() => {
+    if (isEqual(localValue.fields, value)) {
+      return;
+    }
 
-      const toEmit = size(localValue.fields) ? (localValue.fields as TQorusForm) : undefined;
-      lastEmittedValue.current = toEmit;
-      const meta = size(localValue.meta) ? localValue.meta : undefined;
-      // Batched mode still emits every staged change (consumers may want to
-      // live-validate), but flags it as a draft — persistence waits for Save.
-      onChange?.(name, toEmit, commitMode === 'batched' ? { ...(meta || {}), draft: true } : meta);
-    },
-    0,
-    [JSON.stringify(localValue)]
-  );
+    const toEmit = size(localValue.fields) ? (localValue.fields as TQorusForm) : undefined;
+    lastEmittedValue.current = toEmit;
+    const meta = size(localValue.meta) ? localValue.meta : undefined;
+    // Batched mode still emits every staged change (consumers may want to
+    // live-validate), but flags it as a draft — persistence waits for Save.
+    onChange?.(name, toEmit, commitMode === 'batched' ? { ...(meta || {}), draft: true } : meta);
+  }, [JSON.stringify(localValue)]);
 
   useUpdateEffect(() => {
     // When a loader owns the schema, ignore controlled `options` syncs so a
@@ -1691,16 +1506,18 @@ export const FormEngine = ({
 
   const getTypeForOption = useCallback((type: string) => type, []);
 
-  const renderOption = (
-    optionName: string,
-    { type, ...other }: IQorusFormField,
-    // Inline (in-row) editing renders the editor a size down so it fits the
-    // read row's height without shifting the rows around it.
-    editorSize?: 'small',
-    // The info panel below the row keeps showing schema messages while editing —
-    // rendering them in the editor too would balloon a one-line edit.
-    suppressSchemaMessages?: boolean
-  ) => {
+  const renderOption = useCallback(
+    (
+      optionName: string,
+      { type, ...other }: IQorusFormField,
+      // Inline (in-row) editing renders the editor a size down so it fits the
+      // read row's height without shifting the rows around it.
+      editorSize?: 'small',
+      // The info panel below the row keeps showing schema messages while editing —
+      // rendering them in the editor too would balloon a one-line edit.
+      suppressSchemaMessages?: boolean
+    ) => {
+    const operatorParts = fixOperatorValue(other.op);
     return (
       <>
         {(suppressSchemaMessages ? [] : (options?.[optionName] as any)?.messages || []).map(
@@ -1720,7 +1537,7 @@ export const FormEngine = ({
         {operators && size(operators) ?
           <>
             <ReqoreControlGroup fill wrap className='operators'>
-              {fixOperatorValue(other.op).map((operator, index) => (
+              {operatorParts.map((operator, index) => (
                 <React.Fragment key={index}>
                   <SelectFormField
                     items={map(operators, (op) => ({
@@ -1741,7 +1558,7 @@ export const FormEngine = ({
                     }}
                   />
                   {(
-                    index === fixOperatorValue(other.op).length - 1 &&
+                    index === operatorParts.length - 1 &&
                     operator &&
                     (operators as any)[operator as string]?.supports_nesting
                   ) ?
@@ -1753,7 +1570,7 @@ export const FormEngine = ({
                       onClick={() => handleAddOperator(optionName, fixedValue, index + 1)}
                     />
                   : null}
-                  {size(fixOperatorValue(other.op)) > 1 ?
+                  {size(operatorParts) > 1 ?
                     <ReqoreButton
                       disabled={readOnly}
                       icon='DeleteBinLine'
@@ -1771,6 +1588,9 @@ export const FormEngine = ({
         <TemplateField
           fluid
           {...(options?.[optionName] as any)}
+          // SEAM: forwarded through TemplateField's rest-spread to AutoFormField,
+          // which renders consumer-injected editors by field type/ui_type.
+          componentOverrides={componentOverrides}
           allowTemplates={!!(allowTemplates && options?.[optionName]?.supports_templates)}
           allowFunctions={!!options?.[optionName]?.supports_expressions}
           // reqraft: form-level expression fields get the Visual/Text shell
@@ -1838,7 +1658,7 @@ export const FormEngine = ({
                 <ReqoreTag
                   size='small'
                   labelKey='IS'
-                  label={fixOperatorValue(other.op).join(' ')}
+                  label={operatorParts.join(' ')}
                 />
                 <ReqoreTag
                   size='small'
@@ -1857,14 +1677,41 @@ export const FormEngine = ({
         : null}
       </>
     );
-  };
+    },
+    [
+      options,
+      operators,
+      readOnly,
+      allowTemplates,
+      templates,
+      name,
+      uniqueName,
+      componentOverrides,
+      templateFieldProps,
+      availableOptions,
+      fixedValue,
+      // Depend on the specific `rest` values used, not the whole `rest` object
+      // (which is a fresh `{...rest}` every render and would defeat the memo).
+      rest?.options,
+      rest?.size,
+      handleValueChange,
+      handleOperatorChange,
+      handleAddOperator,
+      handleRemoveOperator,
+      getCustomMenuTemplateItems,
+      getTypeForOption,
+    ]
+  );
 
   // Compact (read-first) rendering.
   // Theme-derived colours so the flat-row layout adapts to light/dark/custom themes.
   const cText = theme?.text?.color || '#ffffff';
-  const cMuted = `${cText}99`;
-  const cFaint = `${cText}66`;
-  const cKey = `${cText}cc`;
+  // Text emphasis tiers via reqore's readable-colour helper (key = full readable
+  // text, muted = its dimmed variant, faint = the dimmed variant softened
+  // further) instead of hand-rolled hex-alpha suffixes on the raw text colour.
+  const cKey = getReadableColor(theme);
+  const cMuted = getReadableColor(theme, undefined, undefined, true);
+  const cFaint = `${cMuted}99`;
   const cDivider = `${cText}14`;
   const cHover = `${cText}0d`;
   const cDanger = theme?.intents?.danger || '#e35a5a';
@@ -1873,824 +1720,95 @@ export const FormEngine = ({
   const cSuccess = theme?.intents?.success || '#36b37e';
   const cBg = (theme as { main?: string } | undefined)?.main || '#181818';
 
-  // Value-cell content: colour adds a swatch, file an icon + size; hash keeps
-  // its "N fields" summary (sub-fields reveal beneath the row).
-  const renderReadFirstValue = (
-    optionField: IQorusFormField,
-    schema: TQorusFormFieldSchema | undefined,
-    formatted: string
-  ): React.ReactNode => {
-    const valueType = getValueType(optionField, schema);
-    const wrapStyle: React.CSSProperties = {
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 6,
-      minWidth: 0,
-      maxWidth: '100%',
-    };
-    const textStyle: React.CSSProperties = {
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-    };
-
-    if (valueType === 'rgbcolor') {
-      const swatch = colorToCss(optionField?.value);
-      return (
-        <span style={wrapStyle}>
-          {swatch ? <StyledColorSwatch aria-hidden $color={swatch} $border={cDivider} /> : null}
-          <span style={textStyle}>{formatted}</span>
-        </span>
-      );
-    }
-
-    if (valueType === 'file') {
-      const fileSize = getFileSize(optionField?.value);
-      return (
-        <span style={wrapStyle}>
-          <ReqoreIcon icon='File2Line' size='13px' style={{ opacity: 0.7, flexShrink: 0 }} />
-          <span style={textStyle}>{formatted}</span>
-          {fileSize !== undefined ?
-            <span style={{ color: cFaint, fontSize: 11, flexShrink: 0 }}>{formatBytes(fileSize)}</span>
-          : null}
-        </span>
-      );
-    }
-
-    // Selected allowed-value / enum item with a logo (e.g. language images):
-    // render it beside the value, where it belongs — not as the field's icon.
-    const allowedImage = getAllowedValueImage(optionField?.value, schema);
-    if (allowedImage) {
-      return (
-        <span style={wrapStyle}>
-          <ReqoreIcon image={allowedImage} size='16px' style={{ flexShrink: 0 }} />
-          <span style={textStyle}>{formatted}</span>
-        </span>
-      );
-    }
-
-    return formatted;
-  };
-
-  // One read-first row: label | value | action collapsed; the real editor (the
-  // classic renderOption) expanded. `hidden` = search-surfaced optional —
-  // activating the row adds the field first.
-  const renderCompactRow = (
-    optionName: string,
-    optionField: IQorusFormField,
-    hidden = false
-  ) => {
-    const schema = options?.[optionName];
-    const label = schema?.display_name || optionName;
-    const required = !!(schema?.required || schema?.required_groups);
-    const valid = isOptionValid(
-      optionName,
-      (schema?.ui_type as TQorusType) || (schema?.type as TQorusType),
-      optionField?.value
-    );
-    const removable =
-      !readOnly && !schema?.preselected && !schema?.required && !schema?.required_groups;
-    const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
-    // Unmet groups drive the "One of" chip; a group satisfied by a SIBLING
-    // drives the "covered by" note.
-    const memberGroups: string[] = (schema?.required_groups as string[]) || [];
-    const unmetGroups = memberGroups.filter(
-      (groupName) => !requiredGroupsInfo.satisfiedBy[groupName]
-    );
-    const coveredByGroup = memberGroups.find(
-      (groupName) =>
-        requiredGroupsInfo.satisfiedBy[groupName] &&
-        requiredGroupsInfo.satisfiedBy[groupName] !== optionName
-    );
-    const coveredByLabel =
-      coveredByGroup && !schema?.required ?
-        (options?.[requiredGroupsInfo.satisfiedBy[coveredByGroup] as string]
-          ?.display_name as string) || requiredGroupsInfo.satisfiedBy[coveredByGroup]
-      : undefined;
-    const requiredGroupChip =
-      !hidden && !readOnly && unmetGroups.length && !schema?.required ?
-        <span
-          style={{ display: 'inline-flex' }}
-          role='presentation'
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => e.stopPropagation()}
-          onMouseEnter={() => setHighlightedOptions(requiredGroupsInfo.members[unmetGroups[0]] || [])}
-          onMouseLeave={() => setHighlightedOptions([])}
-        >
-          <ReqoreTag
-            className='options-readfirst-required-group'
-            size='small'
-            minimal
-            intent='warning'
-            icon='LinkM'
-            label={`One of: ${unmetGroups[0]}`}
-            tooltip={{
-              handler: 'click',
-              content: (
-                <StyledPopColumn>
-                  {unmetGroups.map((groupName) => (
-                    <StyledPopGroup key={groupName}>
-                      <StyledPopHint>
-                        Set one of these fields ({groupName}):
-                      </StyledPopHint>
-                      {requiredGroupsInfo.members[groupName].map((member) => (
-                        <ReqoreTag
-                          key={member}
-                          className='options-readfirst-group-member'
-                          size='small'
-                          minimal
-                          intent={member === optionName ? undefined : 'info'}
-                          icon={member === optionName ? 'MapPinLine' : 'ArrowRightLine'}
-                          label={(options?.[member]?.display_name as string) || member}
-                          onClick={member === optionName ? undefined : () => flashOption(member)}
-                        />
-                      ))}
-                    </StyledPopGroup>
-                  ))}
-                </StyledPopColumn>
-              ),
-            }}
-          />
-        </span>
-      : null;
-    const editType = ((schema?.ui_type as string) || (schema?.type as string)) ?? '';
-    // Scalars edit in place inside the row; complex fields (tall or nested
-    // editors) still open the expanded card below.
-    const inlineEditable =
-      !readOnly &&
-      !schema?.arg_schema &&
-      !(operators && size(operators)) &&
-      // Expression fields open the builder/DPQL editor — too tall for inline.
-      !(optionField as { is_expression?: boolean }).is_expression &&
-      // A choice with per-option logos (e.g. language) reads better collapsed.
-      !optionHasImages(schema) &&
-      !COMPACT_COMPLEX_TYPES.has(editType);
-    const revertButton =
-      changed ?
-        <ReqoreButton
-          className='options-readfirst-revert'
-          size='small'
-          flat
-          minimal
-          icon='HistoryLine'
-          tooltip='Revert changes'
-          onClick={(e: any) => {
-            e.stopPropagation();
-            handleValueChange(
-              optionName,
-              originalValue.current?.[optionName]?.value,
-              originalValue.current?.[optionName]?.type
-            );
-          }}
-        />
-      : null;
-    // Batched commit: a changed row is a draft until Save — mark it with the
-    // product's Draft chip (always visible, unlike the hover-revealed revert).
-    const draftChip =
-      commitMode === 'batched' && changed ?
-        <ReqoreTag
-          className='options-readfirst-draft'
-          label='Draft'
-          intent='warning'
-          icon='EditLine'
-          size='small'
-          minimal
-          fixed
-        />
-      : null;
-
-    // Info tiers: Tier 1 (danger/warning + dependency hints) must be visible
-    // without interaction; Tier 2 (info/success, default notes) sits behind ⓘ.
-    const infoActive = !hidden;
-    type TInfoMsg = { intent?: string; title?: string; content: string };
-    const schemaMessages: TInfoMsg[] =
-      infoActive ?
-        ((((schema as any)?.messages || []) as any[]).map((m) => ({
-          intent: m.intent,
-          title: m.title,
-          content: m.content,
-        })) as TInfoMsg[])
-      : [];
-    const fieldMessages: TInfoMsg[] =
-      infoActive ?
-        getOptionFieldMessages({
-          schema: options || {},
-          option: optionField || ({} as IQorusFormField),
-          name: optionName,
-          allOptions: availableOptions,
-          getType: getTypeForOption,
-        })
-          // The row already shows the Required tag — the plain required
-          // message would duplicate it.
-          .filter((m) => m.label !== 'This field is required')
-          .map((m) => ({ intent: m.intent as string, content: String(m.label) }))
-      : [];
-    const isCriticalMsg = (m: TInfoMsg) => m.intent === 'danger' || m.intent === 'warning';
-    const tier1 = [...schemaMessages, ...fieldMessages].filter(isCriticalMsg);
-    const tier2: TInfoMsg[] = [
-      ...[...schemaMessages, ...fieldMessages].filter((m) => !isCriticalMsg(m)),
-      ...(infoActive && schema?.default_value_desc ?
-        [
-          {
-            content:
-              `Default: ${schema.default_value_display_name || ''} — ${schema.default_value_desc}`.trim(),
-          },
-        ]
-      : []),
-    ];
-    const worstIntent =
-      tier1.some((m) => m.intent === 'danger') ? 'danger'
-      : tier1.length ? 'warning'
-      : undefined;
-    const intentColor =
-      worstIntent === 'danger' ? cDanger
-      : worstIntent === 'warning' ? cWarning
-      : undefined;
-    const showStripe = infoActive && !!intentColor;
-    const hasInfoPanelContent =
-      infoActive && (tier1.length > 0 || tier2.length > 0 || !!schema?.short_desc);
-    const infoPanelOpen =
-      hasInfoPanelContent && (infoPanelOverrides[optionName] ?? tier1.length > 0);
-
-    const renderInfoStrip = (m: TInfoMsg, index: number) => (
-      <ReqoreMessage
-        key={`${m.content}-${index}`}
-        size='small'
-        opaque={false}
-        flat
-        intent={m.intent as never}
-        title={m.title}
-      >
-        {m.content}
-      </ReqoreMessage>
-    );
-
-    const infoToggle =
-      hasInfoPanelContent ?
-        <span
-          style={{ display: 'inline-flex', cursor: 'pointer' }}
-          role='button'
-          tabIndex={0}
-          aria-label={`${infoPanelOpen ? 'Hide' : 'Show'} field information`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setInfoPanelOverrides((prev) => ({ ...prev, [optionName]: !infoPanelOpen }));
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              e.stopPropagation();
-              setInfoPanelOverrides((prev) => ({ ...prev, [optionName]: !infoPanelOpen }));
-            }
-          }}
-        >
-          <ReqoreIcon
-            icon={infoPanelOpen ? 'InformationFill' : 'InformationLine'}
-            size='14px'
-            intent={worstIntent as never}
-            style={{ opacity: infoPanelOpen ? 0.9 : 0.55 }}
-          />
-        </span>
-      : null;
-
-    const infoBlock =
-      infoPanelOpen ?
-        <StyledInfoPanel className='options-readfirst-info-panel'>
-          {schema?.short_desc ?
-            <StyledMutedNote $color={cMuted}>{schema.short_desc}</StyledMutedNote>
-          : null}
-          {[...tier1, ...tier2].map(renderInfoStrip)}
-        </StyledInfoPanel>
-      : null;
-
-
-    if (expandedOptions.includes(optionName)) {
-      if (inlineEditable) {
-        const collapse = () => toggleExpandedOption(optionName);
-        const editingRow = (
-          <div
-            key={optionName}
-            data-field={optionName}
-            className='readfirst-row readfirst-row-editing options-readfirst-inline options-readfirst-value'
-            style={
-              readRowHeights.current[optionName] ?
-                { minHeight: readRowHeights.current[optionName] }
-              : undefined
-            }
-          >
-            <StyledRowLabel
-              role='button'
-              tabIndex={0}
-              aria-label={`Collapse ${label}`}
-              title={schema?.short_desc || undefined}
-              $color={cKey}
-              $pointer
-              onClick={collapse}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  collapse();
-                }
-              }}
-            >
-              {label}
-              {required ? <StyledStar $color={cDanger}> *</StyledStar> : null}
-            </StyledRowLabel>
-            <div
-              style={{ minWidth: 0 }}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  event.stopPropagation();
-                  collapse();
-                }
-              }}
-            >
-              {renderOption(optionName, optionField, 'small', true)}
-            </div>
-            <StyledRowActions>
-              {draftChip}
-              {/* No Required tag here: while editing, the editor's own
-                  OptionFieldMessages strip below already says it — showing
-                  both was redundant. The tag stays on READ rows, where no
-                  message strip is visible. */}
-              {revertButton}
-              <ReqoreButton
-                className='options-readfirst-done'
-                size='small'
-                flat
-                minimal
-                intent='success'
-                icon='CheckLine'
-                tooltip='Done'
-                onClick={collapse}
-              />
-            </StyledRowActions>
-          </div>
-        );
-        // The panel stays below the editing row — messages neither vanish nor
-        // balloon the editor.
-        return infoBlock ?
-            <StyledColumn
-              key={optionName}
-              data-field={optionName}
-              className='options-readfirst-info-row'
-            >
-              {editingRow}
-              {infoBlock}
-            </StyledColumn>
-          : editingRow;
-      }
-      // Card chrome: badge / actions / tags render here — the row only fits
-      // icon/image + the intent stripe.
-      const schemaBadge = (schema as { badge?: unknown } | undefined)?.badge;
-      const cardBadges =
-        schemaBadge !== undefined && schemaBadge !== null ?
-          ((Array.isArray(schemaBadge) ? schemaBadge : [schemaBadge]) as unknown[])
-        : [];
-      const cardActions =
-        (schema as { actions?: unknown[] } | undefined)?.actions?.filter(
-          (action) => !!action && typeof action === 'object'
-        ) || [];
-      const cardTags = ((schema as { tags?: unknown[] } | undefined)?.tags || []) as object[];
-      const schemaIntentColor =
-        schema?.intent ?
-          (theme?.intents as Record<string, string> | undefined)?.[schema.intent as string]
-        : undefined;
-      return (
-        <StyledEditCard
-          key={optionName}
-          data-field={optionName}
-          className='options-readfirst-card'
-          $bg={cHover}
-          $border={schemaIntentColor ? `${schemaIntentColor}66` : `${cInfo}66`}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: 12,
-            }}
-          >
-            <StyledCardHeading>
-              <StyledCardLabel $color={cMuted}>
-                {(schema as { icon?: string } | undefined)?.icon || (schema as { image?: string } | undefined)?.image ?
-                  <ReqoreIcon
-                    icon={(schema as { icon?: string } | undefined)?.icon as never}
-                    image={(schema as { image?: string } | undefined)?.image}
-                    size='14px'
-                  />
-                : null}
-                <span>
-                  {label}
-                  {required ? <StyledStar $color={cDanger}> *</StyledStar> : null}
-                </span>
-                {cardBadges.map((badge, index) =>
-                  typeof badge === 'object' ?
-                    <ReqoreTag
-                      size='small'
-                      minimal
-                      key={index}
-                      className='options-readfirst-card-badge'
-                      {...(badge as object)}
-                    />
-                  : <ReqoreTag
-                      size='small'
-                      minimal
-                      key={index}
-                      className='options-readfirst-card-badge'
-                      label={badge as string | number}
-                    />
-                )}
-              </StyledCardLabel>
-              {schema?.short_desc ?
-                <StyledMutedNote $color={cMuted} style={{ marginTop: 2 }}>
-                  {schema.short_desc}
-                </StyledMutedNote>
-              : null}
-              {cardTags.length ?
-                <ReqoreTagGroup size='small' className='options-readfirst-card-tags'>
-                  {cardTags.map((tag, index) => (
-                    <ReqoreTag size='small' minimal key={index} {...(tag as object)} />
-                  ))}
-                </ReqoreTagGroup>
-              : null}
-            </StyledCardHeading>
-            <ReqoreControlGroup fixed verticalAlign='center'>
-              {cardActions.map((action, index) => {
-                const { label: actionLabel, ...actionProps } = action as {
-                  label?: string;
-                } & Record<string, unknown>;
-                return (
-                  <ReqoreButton
-                    size='small'
-                    minimal
-                    flat
-                    fixed
-                    key={index}
-                    className='options-readfirst-card-action'
-                    {...(actionProps as object)}
-                  >
-                    {actionLabel}
-                  </ReqoreButton>
-                );
-              })}
-              <ReqoreButton
-                size='small'
-                icon='FullscreenLine'
-                minimal
-                flat
-                fixed
-                className='options-readfirst-fullscreen'
-                tooltip='Edit fullscreen'
-                onClick={() => setFocusedEditing(optionName)}
-              />
-              <ReqoreButton
-                size='small'
-                icon='CheckLine'
-                intent='success'
-                fixed
-                className='options-readfirst-done'
-                onClick={() => toggleExpandedOption(optionName)}
-              >
-                {readOnly ? 'Close' : 'Done'}
-              </ReqoreButton>
-            </ReqoreControlGroup>
-          </div>
-          {/* Same fullscreen focused-editing affordance as the classic cards —
-              the modal mounts when this option is focused. */}
-          <FocusedEditing
-            isFullscreen={focusedEditing === optionName}
-            onClose={() => setFocusedEditing(undefined)}
-            description={(schema?.display_name as string) || optionName}
-          >
-            {focusedEditing === optionName ?
-              <Description
-                longDescription={schema?.desc}
-                shortDescription={schema?.short_desc}
-                longDescriptionShownByDefault
-              />
-            : null}
-            {renderOption(optionName, optionField)}
-          </FocusedEditing>
-        </StyledEditCard>
-      );
-    }
-
-    const formatted = formatOptionValue(optionField, schema);
-    const empty = formatted === '';
-    // A hash row reveals its sub-fields as read-only sub-rows under a "view
-    // more" disclosure; the row itself still expands the real editor on click.
-    const valueType = getValueType(optionField, schema);
-    const hashEntries =
-      !hidden &&
-      (valueType === 'hash' || valueType === 'free-hash') &&
-      (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition' ?
-        getHashEntries(optionField, schema)
-      : [];
-    const typeLabel =
-      showFieldTypes ?
-        `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
-      : null;
-    // Disabled rows (schema flag or unmet deps) can't open — a lock + reason
-    // renders instead. Form-level readOnly still opens in view mode (Close).
-    const fieldDisabled =
-      !hidden &&
-      !readOnly &&
-      (!!schema?.disabled ||
-        !hasAllDependenciesFullfilled(schema?.depends_on, availableOptions, options || {}));
-    const fieldDisabledReason =
-      schema?.disabled ? 'This field is disabled' : 'Disabled — dependencies are not fulfilled';
-    // Dependency contract: top-level entries must ALL hold; a nested array
-    // means ANY of its entries; `name=value` requires that exact value.
-    const dependencyEntries =
-      fieldDisabled && !schema?.disabled ?
-        ((schema?.depends_on || []) as (string | string[])[])
-      : [];
-    const describeDependency = (dep: string) => {
-      const eqIndex = dep.indexOf('=');
-      const depName = eqIndex === -1 ? dep : dep.slice(0, eqIndex);
-      const expected = eqIndex === -1 ? undefined : dep.slice(eqIndex + 1);
-      const depLabel = (options?.[depName]?.display_name as string) || depName;
-      const depValue = (availableOptions as TQorusForm)?.[depName]?.value;
-      return {
-        name: depName,
-        exists: !!options?.[depName],
-        label: expected === undefined ? depLabel : `${depLabel} = ${expected}`,
-        fulfilled:
-          expected === undefined ?
-            !isOptionValueEmpty(depValue)
-          : depValue != null && String(depValue) === expected,
-      };
-    };
-    const depHighlightNames = (flatten(dependencyEntries as never[]) as string[])
-      .map((dep) => describeDependency(dep).name)
-      .filter((depName) => !!options?.[depName]);
-    const renderDependencyTag = (dep: string) => {
-      const info = describeDependency(dep);
-      if (!info.exists) {
-        return null;
-      }
-      return (
-        <ReqoreTag
-          key={dep}
-          className='options-readfirst-dep'
-          size='small'
-          minimal
-          intent={info.fulfilled ? 'success' : 'info'}
-          icon={info.fulfilled ? 'CheckLine' : 'ArrowRightLine'}
-          label={info.label}
-          onClick={() => flashOption(info.name)}
-        />
-      );
-    };
-    const activate = (event?: { currentTarget?: Element | null }) => {
-      if (fieldDisabled) {
-        return;
-      }
-      const target = event?.currentTarget as HTMLElement | undefined;
-      if (target?.classList?.contains('readfirst-row')) {
-        readRowHeights.current[optionName] = Math.round(target.getBoundingClientRect().height);
-      }
-      if (hidden) {
-        handleAddOptionalFieldChange('options', optionName);
-      }
-      toggleExpandedOption(optionName);
-    };
-
-    // Row chrome: icon/image before the label; schema `intent` as the edge
-    // stripe (message-severity stripes win when both apply).
-    const rowChromeIcon =
-      (schema as { icon?: string } | undefined)?.icon || (schema as { image?: string } | undefined)?.image ?
-        <ReqoreIcon
-          icon={(schema as { icon?: string } | undefined)?.icon as never}
-          image={(schema as { image?: string } | undefined)?.image}
-          size='14px'
-          className='options-readfirst-row-icon'
-        />
-      : null;
-    const rowSchemaIntentColor =
-      schema?.intent ?
-        (theme?.intents as Record<string, string> | undefined)?.[schema.intent as string]
-      : undefined;
-    const rowStripeColor = (showStripe ? intentColor : undefined) || rowSchemaIntentColor;
-
-    const row = (
-      <div
-        key={optionName}
-        data-field={optionName}
-        role='button'
-        tabIndex={0}
-        aria-label={`${label}${hidden ? ' (add field)' : ''}`}
-        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${highlightedOptions.includes(optionName) ? ' readfirst-row-group-highlight' : ''}${flashedOptions.includes(optionName) ? ' readfirst-row-flash' : ''}`}
-        aria-disabled={fieldDisabled || undefined}
-        style={rowStripeColor ? { boxShadow: `inset 3px 0 0 ${rowStripeColor}` } : undefined}
-        onClick={activate}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            activate(event);
-          }
-        }}
-      >
-        <StyledLabelBlock>
-          <StyledRowLabel title={schema?.short_desc || undefined} $color={cKey}>
-            {rowChromeIcon}
-            {label}
-            {required ? <StyledStar $color={cDanger}> *</StyledStar> : null}
-            {typeLabel ? <StyledTypeTag $color={cFaint}>{typeLabel}</StyledTypeTag> : null}
-            {schema?.desc ?
-              <StyledHelpIcon
-                role='button'
-                tabIndex={-1}
-                aria-label='Help'
-                className='options-readfirst-help'
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleOptionLabelClick(optionName);
-                }}
-              >
-                <ReqoreIcon icon='QuestionLine' size='12px' />
-              </StyledHelpIcon>
-            : null}
-          </StyledRowLabel>
-        </StyledLabelBlock>
-        <StyledRowValue
-          title={!empty && !hidden && typeof formatted === 'string' ? formatted : undefined}
-          $color={empty || hidden ? cFaint : cText}
-          $empty={empty || hidden}
-        >
-          {hidden ?
-            'Not in form — add'
-          : empty ?
-            coveredByLabel ?
-              `Not set — covered by “${coveredByLabel}”`
-            : required ?
-              'Required — not set'
-            : 'Not set'
-          : renderReadFirstValue(optionField, schema, formatted)}
-        </StyledRowValue>
-        <StyledRowActions>
-          {/* Column discipline (table treatment): variable-width chips lead and
-              rag INWARD; the info badge and the trailing edit/lock icon live in
-              fixed-width slots pinned at the right, so the same affordance sits
-              at the same x on every row. Hover utilities (revert/delete) sit
-              between the chips and the fixed slots. */}
-          {!hidden && !fieldDisabled && !valid ?
-            requiredGroupChip ||
-            <ReqoreTag label='Required' intent='danger' size='small' minimal />
-          : null}
-          {draftChip}
-          {changed ?
-            <ReqoreButton
-              className='readfirst-action options-readfirst-revert'
-              size='small'
-              flat
-              minimal
-              icon='HistoryLine'
-              tooltip='Revert changes'
-              onClick={(e: any) => {
-                e.stopPropagation();
-                handleValueChange(
-                  optionName,
-                  originalValue.current?.[optionName]?.value,
-                  originalValue.current?.[optionName]?.type
-                );
-              }}
-            />
-          : null}
-          {removable && !hidden ?
-            <ReqoreButton
-              className='readfirst-action'
-              size='small'
-              flat
-              minimal
-              intent='danger'
-              icon='DeleteBinLine'
-              tooltip='Remove field'
-              onClick={(e: any) => {
-                e.stopPropagation();
-                confirmAction({
-                  title: 'Remove field',
-                  onConfirm: () => removeSelectedOption(optionName),
-                });
-              }}
-            />
-          : null}
-          {infoToggle ?
-            <StyledActionSlot className='options-readfirst-info-slot' $width={26}>
-              {infoToggle}
-            </StyledActionSlot>
-          : null}
-          <StyledActionSlot
-            className={`options-readfirst-trailing-slot${!hidden && !fieldDisabled ? ' options-readfirst-trailing-hover-only' : ''}`}
-            $width={18}
-          >
-            {hidden ?
-              <ReqoreIcon icon='AddLine' intent='info' size='14px' />
-            : fieldDisabled ?
-              dependencyEntries.length ?
-                <span
-                  role='presentation'
-                  style={{ display: 'inline-flex' }}
-                  onClick={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => e.stopPropagation()}
-                  onMouseEnter={() => setHighlightedOptions(depHighlightNames)}
-                  onMouseLeave={() => setHighlightedOptions([])}
-                >
-                  <ReqoreIcon
-                    className='options-readfirst-locked options-readfirst-lock-deps'
-                    icon='LockLine'
-                    size='14px'
-                    style={{ opacity: 0.45, cursor: 'pointer' }}
-                    tooltip={{
-                      handler: 'click',
-                      content: (
-                        <StyledPopColumn>
-                          <StyledPopHint>Unlocked by:</StyledPopHint>
-                          {dependencyEntries.map((entry, index) =>
-                            Array.isArray(entry) ?
-                              <StyledPopGroup key={index}>
-                                <StyledPopHint $small>any of:</StyledPopHint>
-                                {entry.map(renderDependencyTag)}
-                              </StyledPopGroup>
-                            : renderDependencyTag(entry)
-                          )}
-                        </StyledPopColumn>
-                      ),
-                    }}
-                  />
-                </span>
-              : <span
-                  title={fieldDisabledReason}
-                  style={{ display: 'inline-flex', opacity: 0.45 }}
-                >
-                  <ReqoreIcon className='options-readfirst-locked' icon='LockLine' size='14px' />
-                </span>
-            : <ReqoreIcon
-                className='readfirst-action'
-                icon={readOnly ? 'EyeLine' : 'EditLine'}
-                size='14px'
-              />
-            }
-          </StyledActionSlot>
-        </StyledRowActions>
-      </div>
-    );
-
-    if (hashEntries.length) {
-      return (
-        <StyledColumn
-          key={optionName}
-          data-field={optionName}
-          className='options-readfirst-hash-row'
-        >
-          {row}
-          <StyledRowInset>
-            <ReqraftCollapsibleContent
-              maxCollapsedHeight={96}
-              fadeColor={cBg}
-              accentColor={cBg}
-              buttonProps={{ className: 'options-readfirst-viewmore' }}
-            >
-              {/* The IDE workflow-orders renderer (ReqoreDataView): a nested,
-                  type-coloured tree. Section summaries own their
-                  expand/collapse clicks, but clicking a VALUE chip opens the
-                  hash's editor. The Fields-menu "Show field types" toggle also
-                  drives the per-scalar type chips here. Depth 2 = root + first
-                  level open; deeper nests start collapsed so the preview stays
-                  short before the fade's "Show more". */}
-              <div className='options-readfirst-structured'>
-                <StructuredDataView
-                  value={optionField?.value}
-                  collapsibleRoot={false}
-                  showTypes={showFieldTypes}
-                  defaultExpandDepth={2}
-                  onItemClick={() => activate()}
-                />
-              </div>
-            </ReqraftCollapsibleContent>
-          </StyledRowInset>
-          {infoBlock}
-        </StyledColumn>
-      );
-    }
-
-    if (infoBlock) {
-      return (
-        <StyledColumn
-          key={optionName}
-          data-field={optionName}
-          className='options-readfirst-info-row'
-        >
-          {row}
-          {infoBlock}
-        </StyledColumn>
-      );
-    }
-
-    return row;
-  };
+  // The closure surface the extracted CompactRow reads through context. Refs and
+  // setters are stable; the state/memo/handler fields change identity as they do
+  // today, so a row re-renders exactly when its inputs do.
+  const compactRowContextValue = useMemo<ICompactRowContext>(
+    () => ({
+      readOnly,
+      commitMode,
+      expandMode,
+      options,
+      operators,
+      focusedEditing,
+      showFieldTypes,
+      expandedOptions,
+      highlightedOptions,
+      flashedOptions,
+      infoPanelOverrides,
+      setHighlightedOptions,
+      setInfoPanelOverrides,
+      setFocusedEditing,
+      readRowHeights,
+      originalValue,
+      availableOptions,
+      requiredGroupsInfo,
+      handleValueChange,
+      handleAddOptionalFieldChange,
+      toggleExpandedOption,
+      flashOption,
+      hasOptionChanged,
+      handleOptionLabelClick,
+      removeSelectedOption,
+      getTypeForOption,
+      isOptionValid,
+      confirmAction,
+      renderOption,
+      theme,
+      cText,
+      cMuted,
+      cFaint,
+      cKey,
+      cDivider,
+      cHover,
+      cDanger,
+      cWarning,
+      cInfo,
+      cBg,
+    }),
+    [
+      readOnly,
+      commitMode,
+      expandMode,
+      options,
+      operators,
+      focusedEditing,
+      showFieldTypes,
+      expandedOptions,
+      highlightedOptions,
+      flashedOptions,
+      infoPanelOverrides,
+      setHighlightedOptions,
+      setInfoPanelOverrides,
+      setFocusedEditing,
+      readRowHeights,
+      originalValue,
+      availableOptions,
+      requiredGroupsInfo,
+      handleValueChange,
+      handleAddOptionalFieldChange,
+      toggleExpandedOption,
+      flashOption,
+      hasOptionChanged,
+      handleOptionLabelClick,
+      removeSelectedOption,
+      getTypeForOption,
+      isOptionValid,
+      confirmAction,
+      renderOption,
+      theme,
+      cText,
+      cMuted,
+      cFaint,
+      cKey,
+      cDivider,
+      cHover,
+      cDanger,
+      cWarning,
+      cInfo,
+      cBg,
+    ]
+  );
 
   // The compact form: meter + invalid banner + grouped rows + the field adder.
   // Bypasses the classic ReqoreCollection layout; the classic path is untouched.
@@ -2747,6 +1865,7 @@ export const FormEngine = ({
 
     return (
       <OptionsContext.Provider value={{ schema: options, value: availableOptions }}>
+        <CompactRowContext.Provider value={compactRowContextValue}>
         <ReqoreErrorBoundary>
           {showHelpForOption && (
             <OptionsHelpDialog
@@ -2951,9 +2070,9 @@ export const FormEngine = ({
                   }
                 >
                   {groupConfig?.subtitle ?
-                    <StyledMutedNote $color={cMuted} style={{ padding: '0 6px 6px' }}>
+                    <ReqoreP size='small' effect={{ opacity: 0.6 }} style={{ padding: '0 6px 6px' }}>
                       {groupConfig.subtitle}
-                    </StyledMutedNote>
+                    </ReqoreP>
                   : null}
                   <StyledGroupBody
                     $divider={cDivider}
@@ -2962,19 +2081,22 @@ export const FormEngine = ({
                     $zebra={`${cText}08`}
                     className={compactNarrow ? 'readfirst-narrow' : undefined}
                   >
-                    {names.map((entry) =>
-                      renderCompactRow(
-                        entry.name,
-                        entry.hidden ?
-                          ({
-                            type: (options?.[entry.name]?.ui_type ||
-                              options?.[entry.name]?.type) as TQorusType,
-                            value: undefined,
-                          } as IQorusFormField)
-                        : ((shownOptions as TQorusForm)[entry.name] as IQorusFormField),
-                        entry.hidden
-                      )
-                    )}
+                    {names.map((entry) => (
+                      <CompactRow
+                        key={entry.name}
+                        optionName={entry.name}
+                        optionField={
+                          entry.hidden ?
+                            ({
+                              type: (options?.[entry.name]?.ui_type ||
+                                options?.[entry.name]?.type) as TQorusType,
+                              value: undefined,
+                            } as IQorusFormField)
+                          : ((shownOptions as TQorusForm)[entry.name] as IQorusFormField)
+                        }
+                        hidden={entry.hidden}
+                      />
+                    ))}
                   </StyledGroupBody>
                 </ReqorePanel>
               );
@@ -3031,6 +2153,7 @@ export const FormEngine = ({
 
           </StyledCompactWrap>
         </ReqoreErrorBoundary>
+        </CompactRowContext.Provider>
       </OptionsContext.Provider>
     );
   };
