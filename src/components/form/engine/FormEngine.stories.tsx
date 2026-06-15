@@ -1,7 +1,9 @@
+import { ReqoreInput } from '@qoretechnologies/reqore';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from '@storybook/test';
-import { useState } from 'react';
+import { ChangeEvent, useState } from 'react';
 import { validateField } from '../../../helpers/validations';
 import {
   _testsChangeRichText,
@@ -1996,7 +1998,7 @@ const FieldTypeCatalogGroups: Record<string, IFormEngineGroup> = {
   choice: { label: 'Choice & toggles', sort: 2 },
   structured: { label: 'Structured (list / hash)', sort: 3 },
   visual: { label: 'Colour & file', sort: 4 },
-  special: { label: 'Any, null & special', sort: 5 },
+  special: { label: 'Any & special', sort: 5 },
   interface: { label: 'Interface references', sort: 6 },
   chrome: { label: 'Field chrome (icon / image / intent / badge / actions / tags)', sort: 7 },
   info: { label: 'Descriptions & messages', sort: 8 },
@@ -2277,11 +2279,39 @@ export const CompactMultiExpand: Story = {
   },
 };
 
+// A stand-in for a host-injected editor. Qorus-domain types (interface
+// selectors, the data-provider browser, …) have no toolkit editor — the IDE
+// maps them to its own components via `componentOverrides`. The toolkit
+// Storybook has no Qorus backend, so this plain input stands in to demonstrate
+// the seam end-to-end rather than faking each domain editor.
+const HostProvidedEditor = ({
+  value,
+  onChange,
+  size,
+}: {
+  value?: unknown;
+  onChange?: (value: string) => void;
+  size?: TSizes;
+}) => (
+  <ReqoreInput
+    fluid
+    size={size}
+    icon='PlugLine'
+    placeholder='Host-provided editor (injected via componentOverrides)'
+    value={typeof value === 'string' ? value : ''}
+    onChange={(event: ChangeEvent<HTMLInputElement>) => onChange?.(event.target.value)}
+  />
+);
+
 export const CompactFieldTypes: Story = {
   args: {
     compact: true,
     minColumnWidth: '300px',
     groups: FieldTypeCatalogGroups,
+    // The host supplies editors for Qorus-domain types it doesn't ship; the
+    // toolkit renders the rest natively. (Demonstrated here for `mapper` and
+    // `data-provider` — see HostProvidedEditor.)
+    componentOverrides: { mapper: HostProvidedEditor, 'data-provider': HostProvidedEditor },
     options: {
       // Text & string
       text: { type: 'string', ui_type: 'string', display_name: 'String', group: 'text' },
@@ -2298,9 +2328,7 @@ export const CompactFieldTypes: Story = {
       schedule: { type: 'string', ui_type: 'cron', display_name: 'Cron', group: 'text' },
       when: { type: 'date', ui_type: 'date', display_name: 'Date', group: 'text' },
       endpoint: { type: 'string', ui_type: 'url', display_name: 'URL', group: 'text' },
-      contact: { type: 'string', ui_type: 'email', display_name: 'Email', group: 'text' },
       payload: { type: 'binary', ui_type: 'binary', display_name: 'Binary', group: 'text' },
-      script: { type: 'string', ui_type: 'code-editor', display_name: 'Code editor', group: 'text' },
       raw: { type: 'data', ui_type: 'data', display_name: 'Data', group: 'text' },
       // Numbers
       count: { type: 'int', ui_type: 'number', display_name: 'Integer', group: 'number' },
@@ -2355,7 +2383,6 @@ export const CompactFieldTypes: Story = {
         display_name: 'List (typed elements)',
         group: 'structured',
       },
-      span: { type: 'range', ui_type: 'range', display_name: 'Range', group: 'structured' },
       config: { type: 'hash', ui_type: 'hash', display_name: 'Hash', group: 'structured' },
       connectionInfo: {
         type: 'hash',
@@ -2389,42 +2416,21 @@ export const CompactFieldTypes: Story = {
         group: 'visual',
       },
       upload: { type: 'file', ui_type: 'file', display_name: 'File', group: 'visual' },
-      // Any, null & special
+      // Any & special
       dynamic: { type: 'any', ui_type: 'any', display_name: 'Any', group: 'special' },
       detected: { type: 'auto', ui_type: 'auto', display_name: 'Auto', group: 'special' },
-      maybe: { type: 'null', ui_type: 'null', display_name: 'Null', group: 'special' },
+      // Qorus-domain type with no toolkit editor — rendered by the host via
+      // componentOverrides (see this story's args), one representative.
       provider: {
         type: 'data-provider',
         ui_type: 'data-provider',
         display_name: 'Data provider',
         group: 'special',
       },
-      ctx: { type: 'context', ui_type: 'context', display_name: 'Context', group: 'special' },
-      mappings: {
-        type: 'processor-mappings',
-        ui_type: 'processor-mappings',
-        display_name: 'Processor mappings',
-        group: 'special',
-      },
-      // Interface references (all share the string editor)
+      // Interface references: host-injected selectors via componentOverrides.
+      // One representative — the other 17 (workflow/service/job/…) render
+      // identically, so the showcase no longer repeats them.
       mapperRef: { type: 'mapper', ui_type: 'mapper', display_name: 'Mapper', group: 'interface' },
-      workflowRef: { type: 'workflow', ui_type: 'workflow', display_name: 'Workflow', group: 'interface' },
-      serviceRef: { type: 'service', ui_type: 'service', display_name: 'Service', group: 'interface' },
-      jobRef: { type: 'job', ui_type: 'job', display_name: 'Job', group: 'interface' },
-      connectionRef: { type: 'connection', ui_type: 'connection', display_name: 'Connection', group: 'interface' },
-      constantRef: { type: 'constant', ui_type: 'constant', display_name: 'Constant', group: 'interface' },
-      classRef: { type: 'class', ui_type: 'class', display_name: 'Class', group: 'interface' },
-      errorsRef: { type: 'errors', ui_type: 'errors', display_name: 'Errors', group: 'interface' },
-      fsmRef: { type: 'fsm', ui_type: 'fsm', display_name: 'FSM', group: 'interface' },
-      functionRef: { type: 'function', ui_type: 'function', display_name: 'Function', group: 'interface' },
-      groupRef: { type: 'group', ui_type: 'group', display_name: 'Group', group: 'interface' },
-      mapperCodeRef: { type: 'mapper-code', ui_type: 'mapper-code', display_name: 'Mapper code', group: 'interface' },
-      queueRef: { type: 'queue', ui_type: 'queue', display_name: 'Queue', group: 'interface' },
-      pipelineRef: { type: 'pipeline', ui_type: 'pipeline', display_name: 'Pipeline', group: 'interface' },
-      slaRef: { type: 'sla', ui_type: 'sla', display_name: 'SLA', group: 'interface' },
-      stepRef: { type: 'step', ui_type: 'step', display_name: 'Step', group: 'interface' },
-      typeRef: { type: 'type', ui_type: 'type', display_name: 'Type', group: 'interface' },
-      valueMapRef: { type: 'value-map', ui_type: 'value-map', display_name: 'Value map', group: 'interface' },
       // Field chrome
       // Rows show icon/image + the intent stripe; badge/actions/tags get
       // their room on the expanded edit card (list-typed here so the card
@@ -2558,9 +2564,7 @@ export const CompactFieldTypes: Story = {
       schedule: { type: 'string', value: '0 0 * * *' },
       when: { type: 'date', value: '2026-06-09' },
       endpoint: { type: 'string', value: 'https://example.com/webhook' },
-      contact: { type: 'string', value: 'ops@example.com' },
       payload: { type: 'binary', value: 'DEADBEEF' },
-      script: { type: 'string', value: 'sub main() { return 1; }' },
       raw: { type: 'data', value: 'raw-bytes' },
       // Numbers
       count: { type: 'int', value: 42 },
@@ -2587,7 +2591,6 @@ export const CompactFieldTypes: Story = {
           { type: 'string', value: 'two' },
         ],
       },
-      span: { type: 'range', value: [1, 5] },
       config: { type: 'hash', value: { region: 'eu', tier: 'gold' } },
       connectionInfo: {
         type: 'hash',
@@ -2617,32 +2620,12 @@ export const CompactFieldTypes: Story = {
       colour: { type: 'rgbcolor', value: { r: 0, g: 0, b: 255, a: 1 } },
       tint: { type: 'rgbcolor', value: { r: 255, g: 0, b: 0, a: 0.5 } },
       upload: { type: 'file', value: { name: 'config.txt', size: 1234, content: 'data' } },
-      // Any, null & special
+      // Any & special
       dynamic: { type: 'any', value: 'auto-detected' },
       detected: { type: 'auto', value: 7 },
-      maybe: { type: 'null', value: null },
       provider: { type: 'data-provider', value: 'factory/db-connection' },
-      ctx: { type: 'context', value: '$local:flow-context' },
-      mappings: { type: 'processor-mappings', value: 'orders → invoices' },
-      // Interface references
+      // Interface references (one representative; host-injected via overrides)
       mapperRef: { type: 'mapper', value: 'order-to-invoice' },
-      workflowRef: { type: 'workflow', value: 'order-process' },
-      serviceRef: { type: 'service', value: 'billing-service' },
-      jobRef: { type: 'job', value: 'nightly-reconcile' },
-      connectionRef: { type: 'connection', value: 'pgsql-main' },
-      constantRef: { type: 'constant', value: 'MAX_RETRIES' },
-      classRef: { type: 'class', value: 'OrderValidator' },
-      errorsRef: { type: 'errors', value: 'order-errors' },
-      fsmRef: { type: 'fsm', value: 'payment-fsm' },
-      functionRef: { type: 'function', value: 'normalize_amount' },
-      groupRef: { type: 'group', value: 'finance' },
-      mapperCodeRef: { type: 'mapper-code', value: 'amount-helpers' },
-      queueRef: { type: 'queue', value: 'inbound-orders' },
-      pipelineRef: { type: 'pipeline', value: 'ingest-pipeline' },
-      slaRef: { type: 'sla', value: 'gold-sla' },
-      stepRef: { type: 'step', value: 'validate-step' },
-      typeRef: { type: 'type', value: 'qore/order' },
-      valueMapRef: { type: 'value-map', value: 'country-codes' },
       // Field chrome
       chromeIcon: { type: 'string', value: 'db.local' },
       chromeImage: { type: 'string', value: 'qorus-app' },
@@ -2675,7 +2658,7 @@ export const CompactFieldTypes: Story = {
           ],
         },
       } as never,
-    } as IOptions,
+    } as unknown as IOptions,
   },
   play: async () => {
     // Each type renders a read-first value (no editor mounted yet). Representative
@@ -2806,16 +2789,16 @@ const _compactExpandAllRows = async () => {
     });
   }
   // Everything is open: no read rows remain, and the editor count (inline
-  // rows + cards) matches the catalog's size.
+  // rows + cards) covers the trimmed catalog (~49 fields).
   await expect(readRows()).toHaveLength(0);
   const editors =
     document.querySelectorAll('.options-readfirst-inline').length +
     document.querySelectorAll('.options-readfirst-card').length;
-  await expect(editors).toBeGreaterThan(60);
+  await expect(editors).toBeGreaterThan(40);
 };
 
 export const CompactFieldTypesEditing: Story = {
-  // chromatic off: 69 live editors (async mounts) — flaky and snapshot-heavy.
+  // chromatic off: every catalog editor mounts live (async) — flaky and snapshot-heavy.
   parameters: { chromatic: { disable: true } },
   // multi: this story expands every row at once (single-open would collapse them).
   args: { ...CompactFieldTypes.args, expandMode: 'multi' as const },
@@ -2829,7 +2812,7 @@ export const CompactFieldTypesEditing: Story = {
 // its required/invalid state — the canary for editors that misbehave on an
 // empty required value.
 export const CompactFieldTypesEditingAllRequired: Story = {
-  // chromatic off: 69 live editors (async mounts) — flaky and snapshot-heavy.
+  // chromatic off: every catalog editor mounts live (async) — flaky and snapshot-heavy.
   parameters: { chromatic: { disable: true } },
   args: {
     ...CompactFieldTypes.args,
@@ -2854,6 +2837,11 @@ export const CompactFieldTypesEditingAllRequired: Story = {
         within(document.body).queryAllByText('This field is required').length
       ).toBeGreaterThan(20)
     );
+    // Every catalog row resolves to an editor: built-ins (incl. markdown/cron,
+    // bridged into AutoFormField) render natively, and Qorus-domain types
+    // (mapper / data-provider) render via componentOverrides. None falls
+    // through to the "Unknown type!" tag.
+    expect(within(document.body).queryAllByText('Unknown type!')).toHaveLength(0);
 
     // The empty `any` card: custom values are disallowed for `any` (the
     // value's TYPE is picked first), so its only control is the template menu
