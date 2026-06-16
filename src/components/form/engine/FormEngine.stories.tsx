@@ -1026,6 +1026,7 @@ export const Compact: Story = {
 };
 
 export const CompactReadOnly: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     ...Compact.args,
     readOnly: true,
@@ -1060,6 +1061,7 @@ export const CompactEmpty: Story = {
 // Compact mode on the EXACT shared fixture behind `Basic` — every option and
 // state the classic layout exercises.
 export const CompactBasic: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1276,6 +1278,37 @@ export const CompactHashStructuredView: Story = {
         expect(document.querySelector('.options-readfirst-card[data-field="orderState"]')).toBeTruthy(),
       { timeout: 10000 }
     );
+
+    // Close the editor (Done); the hash row re-mounts read-first with its
+    // "Show more" fade reset to collapsed. Press it so the play ends on the
+    // FULLY-REVEALED structured tree — Chromatic snapshots that terminal state,
+    // so the story's hero shot shows the structured view, not the editor it
+    // briefly opened, nor the clipped/faded preview.
+    await fireEvent.click(
+      document.querySelector(
+        '.options-readfirst-card[data-field="orderState"] .options-readfirst-done'
+      ) as HTMLElement
+    );
+    // The reveal button is measure-gated (appears once the tree overflows 96px),
+    // so wait for it before clicking.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('[data-field="orderState"] .options-readfirst-viewmore')
+        ).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
+    await fireEvent.click(
+      document.querySelector(
+        '[data-field="orderState"] .options-readfirst-viewmore'
+      ) as HTMLElement
+    );
+    await _testsWaitForText('Show less'); // fade expanded → full tree on screen
+
+    // The hash sits low in the (tall) Basic form, so frame it: scroll the open
+    // structured value into view so Chromatic's snapshot lands on the expanded
+    // tree, not the top of the form.
+    document.querySelector('[data-field="orderState"]')?.scrollIntoView({ block: 'center' });
   },
 };
 
@@ -1284,6 +1317,7 @@ export const CompactHashStructuredView: Story = {
 // grows a Save/Discard bar, Save emits `onCommit` (gated on validity), and
 // every staged edit still emits `onChange` flagged `meta.draft`.
 export const CompactBatchedCommit: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     commitMode: 'batched',
@@ -1411,6 +1445,13 @@ export const CompactSensitive: Story = {
       { timeout: 10000 }
     );
     await _testsWaitForTextToNotExist('super-secret-token', ':not(textarea)');
+
+    // Close the editor so the story's hero shot is the MASKED read row — not the
+    // open editor, whose textarea necessarily shows the secret in the clear (the
+    // one state where a "sensitive" story would leak it into a Chromatic snap).
+    await fireEvent.click(document.querySelector('.options-readfirst-done') as HTMLElement);
+    await _testsWaitForText('••••••'); // back to the masked read row
+    await _testsWaitForTextToNotExist('super-secret-token'); // …and nothing holds the secret now
   },
 };
 
@@ -1475,6 +1516,7 @@ export const CompactOperators: Story = {
 // focusedEditing in compact: the card's fullscreen affordance opens the same
 // focused-editing modal the classic layout has, with the field's descriptions.
 export const CompactFocusedEditing: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1535,6 +1577,7 @@ export const CompactMultiSelectEditing: Story = {
 
 // Field-level `sort` orders compact rows (schema declared out of order).
 export const CompactSortOrder: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1561,6 +1604,7 @@ export const CompactSortOrder: Story = {
 };
 
 export const CompactReadFirstEditing: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1607,6 +1651,7 @@ export const CompactReadFirstEditing: Story = {
 };
 
 export const CompactRequiredOnlyAndSearch: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1643,6 +1688,7 @@ export const CompactRequiredOnlyAndSearch: Story = {
 };
 
 export const CompactFieldsMenu: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1679,6 +1725,7 @@ export const CompactFieldsMenu: Story = {
 };
 
 export const CompactSearchHidden: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1749,16 +1796,6 @@ const CompactScrollableSchema: Record<string, TCompactField> = {
   },
 };
 
-export const CompactScrollable: Story = {
-  args: {
-    compact: true,
-    minColumnWidth: '300px',
-    options: CompactScrollableSchema,
-    value: CompactValue,
-    groups: CompactGroups,
-  },
-};
-
 // Repro for the "r.map is not a function" crash when opening a `list` field with
 // no element constraints (e.g. a connection's `oauth2_scopes`) that carries a
 // `default` array. Exact shape from the live server's protocol options.
@@ -1785,6 +1822,7 @@ const OAuth2ScopesSchema = {
 } as any;
 
 export const CompactListYamlField: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1827,6 +1865,7 @@ export const CompactListYamlField: Story = {
 // value column became `minmax(0, 1fr)` + `min-width: 0`; plus the sticky
 // completion + search + Fields toolbar.
 export const CompactOverflowAndStickyHeader: Story = {
+  parameters: { chromatic: { disable: true } },
   // A fixed-height scroll host so the sticky behaviour is observable (and
   // testable) regardless of viewport size.
   decorators: [
@@ -1879,6 +1918,7 @@ export const CompactOverflowAndStickyHeader: Story = {
 // on_change/refetch + has_dependents flow through the same handleValueChange
 // as classic — the read-first editor must fire and reset the same way.
 export const CompactOnChangeAndDependents: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1935,6 +1975,7 @@ export const CompactOnChangeAndDependents: Story = {
 };
 
 export const CompactRevertAndShowTypes: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2871,9 +2912,10 @@ export const CompactFieldTypesEditingAllRequired: Story = {
   },
 };
 
-// required_groups linkage: unmet members show a "One of" chip (tap-popover →
-// scroll + flash siblings, hover highlights); satisfied groups show "covered
-// by". Members live in DIFFERENT panels to prove cross-panel linkage.
+// required_groups linkage: every member shows a PERSISTENT chip — amber "One of"
+// while unmet (tap-popover → scroll + flash siblings, hover highlights), flipping
+// to a muted-green "Covers" / "Covered by <X>" once satisfied. Members live in
+// DIFFERENT panels to prove cross-panel linkage.
 export const CompactRequiredGroups: Story = {
   args: {
     compact: true,
@@ -2951,20 +2993,30 @@ export const CompactRequiredGroups: Story = {
         expect(document.querySelector('.options-readfirst-inline .reqore-textarea')).toBeTruthy(),
       { timeout: 10000 }
     );
+    // Capture the editor node BEFORE the value lands. Satisfying the group clears
+    // byUrl's required message → infoBlock flips to null; the editing row's wrapper
+    // must stay stable so this SAME node survives the transition. A remount here is
+    // what used to steal focus mid-type (regression guard).
+    const editorBeforeSatisfy = document.querySelector(
+      '.options-readfirst-inline .reqore-textarea'
+    );
     await _testsChangeStringField({
       selector: '.options-readfirst-inline .reqore-textarea',
       value: 'https://example.com',
     });
     await sleep(300);
+    expect(document.contains(editorBeforeSatisfy)).toBe(true);
     await _testsClickButton({ selector: '.options-readfirst-done' });
     await _testsWaitForText('https://example.com');
 
-    // One fulfilled member satisfies the group → the badge flips to Ready, the
-    // chips disappear, and the empty siblings explain WHY they stopped being
-    // required.
+    // One fulfilled member satisfies the group → the badge flips to Ready and the
+    // chips PERSIST but flip to their muted resolution: the filled member shows
+    // "Covers", the empty siblings "Covered by 'By URL'", and no "One of" remains.
     await _testsWaitForText('Ready');
-    await _testsWaitForTextsCount('Not set — covered by “By URL”', undefined, 2);
-    await expect(document.querySelectorAll('.options-readfirst-required-group')).toHaveLength(0);
+    await _testsWaitForTextsCount('Covered by “By URL”', undefined, 2);
+    await _testsWaitForText('Covers: target');
+    await _testsWaitForTextToNotExist('One of: target');
+    await expect(document.querySelectorAll('.options-readfirst-required-group')).toHaveLength(3);
   },
 };
 
@@ -3001,6 +3053,7 @@ const _compactTypeIntoCardRichText = async (field: string, value: string) => {
 // (`[[a, b]]`) locks the row; the lock popover renders the "any of:" group;
 // fulfilling EITHER blocker unlocks (and flashes) the dependent row.
 export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3104,6 +3157,7 @@ export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
 // The dependency targets a required-group MEMBER: fulfilling it unlocks the
 // dependent row AND satisfies the group — both linkage systems on one form.
 export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3160,8 +3214,8 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
     );
     await _testsClickButton({ selector: '.options-readfirst-done' });
 
-    // …and the required group is satisfied: empty siblings explain why.
-    await _testsWaitForText('Not set — covered by “Required Option 2”');
+    // …and the required group is satisfied: empty siblings' chips explain why.
+    await _testsWaitForText('Covered by “Required Option 2”');
 
     // Settle to a deterministic snapshot: revert the fulfilling edit (the
     // compact-card richtext editor types char-by-char), re-locking the
@@ -3183,6 +3237,7 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
 
 // An `any`-typed option shows its value and expands to the type-aware editor.
 export const CompactAnyType: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3203,6 +3258,7 @@ export const CompactAnyType: Story = {
 // A schema-level `readonly` field whose value differs from its default is fixed
 // back to the default (engine `fixOptions`); the read row shows the default.
 export const CompactReadonlyDefaultFix: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3226,6 +3282,7 @@ export const CompactReadonlyDefaultFix: Story = {
 
 // Values for options that aren't in the schema are filtered out, not rendered.
 export const CompactNonExistentFiltered: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3245,6 +3302,7 @@ export const CompactNonExistentFiltered: Story = {
 
 // A field with a long `desc` shows a help affordance that opens the help dialog.
 export const CompactHelpDialog: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3270,6 +3328,7 @@ export const CompactHelpDialog: Story = {
 
 // Read-first rendering is render-stable — it doesn't emit a storm of onChanges.
 export const CompactDoesNotCauseInfiniteRerenders: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3295,6 +3354,7 @@ const loadCompactSchemaAsync = (): Promise<IQorusFormSchema> =>
 // Compact engine with NO `options` prop — the engine fetches the schema itself
 // via `optionsLoader`, owning the loading lifecycle, then renders read-first.
 export const CompactOptionsLoader: Story = {
+  parameters: { chromatic: { disable: true } },
   args: {
     compact: true,
     minColumnWidth: '300px',

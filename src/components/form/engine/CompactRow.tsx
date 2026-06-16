@@ -231,8 +231,12 @@ export const CompactRow = memo(
     const removable =
       !readOnly && !schema?.preselected && !schema?.required && !schema?.required_groups;
     const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
-    // Unmet groups drive the "One of" chip; a group satisfied by a SIBLING
-    // drives the "covered by" note.
+    // Required-group membership shows a PERSISTENT chip on every member: amber
+    // "One of: <group>" while the group is unmet (tap → flash siblings), then a
+    // muted-green resolution once satisfied — "Covers: <group>" on the field that
+    // satisfied it, "Covered by <X>" on the rest. The resolution folds in what
+    // used to be a separate value-slot note. `required` fields belong to no group
+    // and carry the plain Required tag instead.
     const memberGroups: string[] = (schema?.required_groups as string[]) || [];
     const unmetGroups = memberGroups.filter(
       (groupName) => !requiredGroupsInfo.satisfiedBy[groupName]
@@ -247,14 +251,19 @@ export const CompactRow = memo(
         (options?.[requiredGroupsInfo.satisfiedBy[coveredByGroup] as string]
           ?.display_name as string) || requiredGroupsInfo.satisfiedBy[coveredByGroup]
       : undefined;
+    // Unmet → drive the chip off the unmet groups; resolved → keep listing the
+    // members so the "covers / covered by" chip stays a locate-the-siblings
+    // dropdown rather than going inert.
+    const chipGroups = unmetGroups.length ? unmetGroups : memberGroups;
+    const groupResolved = !!memberGroups.length && !unmetGroups.length;
     const requiredGroupChip =
-      !hidden && !readOnly && unmetGroups.length && !schema?.required ?
+      !hidden && !readOnly && memberGroups.length && !schema?.required ?
         <span
           style={{ display: 'inline-flex' }}
           role='presentation'
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
-          onMouseEnter={() => setHighlightedOptions(requiredGroupsInfo.members[unmetGroups[0]] || [])}
+          onMouseEnter={() => setHighlightedOptions(requiredGroupsInfo.members[chipGroups[0]] || [])}
           onMouseLeave={() => setHighlightedOptions([])}
         >
           <ReqoreDropdown
@@ -263,14 +272,18 @@ export const CompactRow = memo(
             minimal
             flat
             compact
-            intent='warning'
-            icon='LinkM'
-            label={`One of: ${unmetGroups[0]}`}
-            filterable={
-              unmetGroups.reduce((n, g) => n + requiredGroupsInfo.members[g].length, 0) > 6
+            intent={groupResolved ? 'success' : 'warning'}
+            icon={groupResolved ? 'CheckLine' : 'LinkM'}
+            label={
+              !groupResolved ? `One of: ${chipGroups[0]}`
+              : coveredByLabel ? `Covered by “${coveredByLabel}”`
+              : `Covers: ${chipGroups[0]}`
             }
-            items={unmetGroups.flatMap((groupName): IReqoreDropdownItem[] => [
-              ...(unmetGroups.length > 1 ?
+            filterable={
+              chipGroups.reduce((n, g) => n + requiredGroupsInfo.members[g].length, 0) > 6
+            }
+            items={chipGroups.flatMap((groupName): IReqoreDropdownItem[] => [
+              ...(chipGroups.length > 1 ?
                 [{ divider: true, label: groupName, dividerAlign: 'left' } as IReqoreDropdownItem]
               : []),
               ...requiredGroupsInfo.members[groupName].map(
@@ -502,18 +515,24 @@ export const CompactRow = memo(
             </StyledRowActions>
           </div>
         );
-        // The panel stays below the editing row — messages neither vanish nor
-        // balloon the editor.
-        return infoBlock ?
-            <StyledColumn
-              key={optionName}
-              data-field={optionName}
-              className='options-readfirst-info-row'
-            >
-              {editingRow}
-              {infoBlock}
-            </StyledColumn>
-          : editingRow;
+        // ALWAYS wrap the editing row in the same StyledColumn so its parent stays
+        // stable when infoBlock toggles. A field going valid mid-type clears its
+        // required message → infoBlock flips to null; a conditional wrapper would
+        // reparent `editingRow`, and React can't preserve a subtree across a parent
+        // change — the editor would remount and steal focus on that first
+        // keystroke. Toggling the className (not the element) keeps the editor, and
+        // its focus, mounted across the transition. The panel still sits below the
+        // row — messages neither vanish nor balloon the editor.
+        return (
+          <StyledColumn
+            key={optionName}
+            data-field={optionName}
+            className={infoBlock ? 'options-readfirst-info-row' : undefined}
+          >
+            {editingRow}
+            {infoBlock}
+          </StyledColumn>
+        );
       }
       // Card chrome: badge / actions / tags render here — the row only fits
       // icon/image + the intent stripe.
@@ -805,7 +824,11 @@ export const CompactRow = memo(
             'Not in form — add'
           : empty ?
             coveredByLabel ?
-              `Not set — covered by “${coveredByLabel}”`
+              // Editable rows carry the "covered by" explanation in the group
+              // chip; read-only rows have no chip, so keep it inline here.
+              readOnly ?
+                `Not set — covered by “${coveredByLabel}”`
+              : 'Not set'
             : required ?
               'Required — not set'
             : 'Not set'
@@ -817,9 +840,11 @@ export const CompactRow = memo(
               fixed-width slots pinned at the right, so the same affordance sits
               at the same x on every row. Hover utilities (revert/delete) sit
               between the chips and the fixed slots. */}
-          {!hidden && !fieldDisabled && !valid ?
-            requiredGroupChip ||
-            <ReqoreTag label='Required' intent='danger' size='small' minimal />
+          {!hidden && !fieldDisabled ?
+            requiredGroupChip ??
+              (!valid ?
+                <ReqoreTag label='Required' intent='danger' size='small' minimal />
+              : null)
           : null}
           {draftChip}
           {changed ?
