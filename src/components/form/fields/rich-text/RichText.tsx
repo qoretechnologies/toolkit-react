@@ -98,15 +98,21 @@ export const RichTextFormField = memo(({
     : localValue === null ? undefined
     : localValue;
 
+  // Read-only: ReqoreRichTextEditor makes the Slate surface non-editable (and
+  // disables tag click/remove) when `readOnly` is set. Honour the field-level
+  // flags — the IDE Options model passes `readonly`, the compact form passes
+  // `readOnly` + `disabled` — so a read-only form renders the formatted content
+  // rather than an editable box, and the toolbar actions are dropped to match.
+  const readOnly = !!(
+    (rest as { readOnly?: boolean }).readOnly ||
+    (rest as { readonly?: boolean }).readonly ||
+    (rest as { disabled?: boolean }).disabled
+  );
+
   return (
     <ReqoreRichTextEditor
       value={formattedValue}
       onChange={handleChange}
-      actions={{
-        redo: true,
-        undo: true,
-        styling: false,
-      }}
       tagsListProps={{
         useTargetWidth: true,
         minWidth: '300px',
@@ -120,6 +126,12 @@ export const RichTextFormField = memo(({
       tags={tags}
       panelProps={{ fluid: true, style: { minWidth: '150px', ...rest.panelProps?.style } }}
       {...rest}
+      readOnly={readOnly}
+      actions={
+        readOnly ?
+          { undo: false, redo: false, styling: false }
+        : { redo: true, undo: true, styling: false }
+      }
     />
   );
 });

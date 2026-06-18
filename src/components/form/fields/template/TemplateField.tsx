@@ -720,9 +720,19 @@ export const TemplateField = memo(
 
     if (rest.disabled) {
       if (isTemplate) {
+        // SEAM (reqraft): the IDE renders a bare `<ReqoreTag label={templateValue}/>`
+        // here; reqraft upgrades the read-only template to a proper picker chip —
+        // TemplateDropdownSelector's trigger shape ($-dollar icon + the resolved
+        // display name + app image), raw value in the tooltip.
+        const disabledTemplate = findTemplate(templates, templateValue);
         return (
           <ReqoreTagGroup size={rest.size}>
-            <ReqoreTag label={templateValue} />
+            <ReqoreTag
+              icon='ExchangeDollarLine'
+              leftIconProps={{ image: disabledTemplate?.metadata?.image }}
+              label={disabledTemplate?.label || templateValue}
+              tooltip={templateValue}
+            />
           </ReqoreTagGroup>
         );
       }
