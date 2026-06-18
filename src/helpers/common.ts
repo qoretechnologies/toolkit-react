@@ -111,6 +111,58 @@ export const richtextToString = (richtext: IReqoreRichTextEditorProps['value']):
   return richtext.map(processElement).join('');
 };
 
+/** One piece of a richtext document, flattened to a single line: a run of
+ * plain prose (`text`) or an embedded template tag (`tag`). Used by the
+ * read-first row to render tags as `$`-chips instead of raw `$prefix:name`. */
+export interface IRichtextSegment {
+  kind: 'text' | 'tag';
+  /** Prose for `text`; the tag's display label (or its value) for `tag`. */
+  text: string;
+  /** The raw template value for `tag` (e.g. `$local:some-richtext`). */
+  value?: string;
+}
+
+/** Like {@link richtextToString}, but keeps embedded template tags as discrete
+ * segments (adjacent prose is coalesced) so a caller can render the tags as
+ * chips. A non-document scalar collapses to a single text segment. */
+export const richtextToSegments = (
+  richtext: IReqoreRichTextEditorProps['value']
+): IRichtextSegment[] => {
+  if (!Array.isArray(richtext)) {
+    const text = richtext === undefined || richtext === null ? '' : String(richtext);
+    return text ? [{ kind: 'text', text }] : [];
+  }
+
+  const segments: IRichtextSegment[] = [];
+  const pushText = (text: string): void => {
+    if (!text) return;
+    const last = segments[segments.length - 1];
+    if (last?.kind === 'text') last.text += text;
+    else segments.push({ kind: 'text', text });
+  };
+
+  const walk = (element: any): void => {
+    if (element === null || element === undefined) return;
+    if (typeof element !== 'object') {
+      pushText(String(element));
+      return;
+    }
+    if ('text' in element) {
+      pushText(element.text);
+      return;
+    }
+    if (element.type === 'tag') {
+      const value = element.value?.toString() || '';
+      segments.push({ kind: 'tag', value, text: (element.label ?? value)?.toString() || value });
+      return;
+    }
+    if (Array.isArray(element.children)) element.children.forEach(walk);
+  };
+
+  richtext.forEach(walk);
+  return segments;
+};
+
 export const insertAtIndex = (array: any[] = [], index = 0, value: any): any[] => {
   return [...array.slice(0, index), value, ...array.slice(index)];
 };

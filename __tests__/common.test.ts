@@ -7,7 +7,7 @@
  * (a string from a YAML round-trip) crashed `typedToPlain`'s unguarded `.map`.
  * Each test calls the real production `typedToYaml`.
  */
-import { typedToYaml } from '../src/helpers/common';
+import { richtextToSegments, typedToYaml } from '../src/helpers/common';
 
 describe('typedToYaml', () => {
   it('renders a list of typed { type, value } items', () => {
@@ -50,5 +50,39 @@ describe('typedToYaml', () => {
 
   it('does not throw on a non-object hash value', () => {
     expect(() => typedToYaml({ type: 'hash', value: 'oops' } as any)).not.toThrow();
+  });
+});
+
+describe('richtextToSegments', () => {
+  it('keeps embedded template tags as discrete segments, coalescing prose', () => {
+    const segments = richtextToSegments([
+      {
+        type: 'paragraph',
+        children: [
+          { text: 'This is a rich text option ' },
+          { type: 'tag', label: 'Richtext Template', value: '$local:some-richtext', children: [{ text: '' }] },
+          { text: '' },
+        ],
+      },
+    ] as any);
+    expect(segments).toEqual([
+      { kind: 'text', text: 'This is a rich text option ' },
+      { kind: 'tag', value: '$local:some-richtext', text: 'Richtext Template' },
+    ]);
+  });
+
+  it('falls back to the tag value when it has no label', () => {
+    const segments = richtextToSegments([
+      { type: 'paragraph', children: [{ type: 'tag', value: '$config:url', children: [{ text: '' }] }] },
+    ] as any);
+    expect(segments).toEqual([{ kind: 'tag', value: '$config:url', text: '$config:url' }]);
+  });
+
+  it('returns a single text segment for a plain scalar (non-document) value', () => {
+    expect(richtextToSegments('plain note' as any)).toEqual([{ kind: 'text', text: 'plain note' }]);
+  });
+
+  it('returns no segments for an empty value', () => {
+    expect(richtextToSegments(undefined as any)).toEqual([]);
   });
 });
