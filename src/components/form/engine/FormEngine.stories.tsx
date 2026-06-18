@@ -1,4 +1,6 @@
-import { ReqoreInput } from '@qoretechnologies/reqore';
+import {
+  ReqoreInput
+} from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react';
@@ -18,6 +20,9 @@ import {
   _testsWaitForTextToNotExist,
   sleep,
 } from '../../../stories/Tests/utils';
+import { startDpqlMockLsp } from '../expressions/dpqlMockLsp';
+import { mockExpressions } from '../expressions/mockExpressions';
+import { mockPopulatedDefinition } from '../fields/schema-definition/mockDefinition';
 import {
   FormEngine,
   IFormEngineGroup,
@@ -29,9 +34,6 @@ import {
 } from './FormEngine';
 import { basicFormValue, getBasicFormOptions as getOptions } from './__fixtures__/basicFormOptions';
 import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOptions';
-import { mockPopulatedDefinition } from '../fields/schema-definition/mockDefinition';
-import { startDpqlMockLsp } from '../expressions/dpqlMockLsp';
-import { mockExpressions } from '../expressions/mockExpressions';
 
 // schema data
 
@@ -110,6 +112,11 @@ const meta: Meta<typeof FormEngine> = {
           stringTemplates={{
             label: 'Testing',
             items: [
+              {
+                label: 'Test (local)',
+                badge: 'local',
+                value: '$local:test',
+              },
               {
                 label: 'Testing bool',
                 badge: 'Test',
@@ -1072,9 +1079,9 @@ export const CompactBasic: Story = {
     // Unresolved required/invalid fields → the header shows the Draft badge
     // (the IDE restyled-hero convention).
     await _testsWaitForText('Draft');
-    // Values resolve in read-first rows: templates raw, colour as hex, hash as
-    // a field-count summary.
-    await _testsWaitForText('$local:test');
+    // Values resolve in read-first rows: a template shows its display name (from
+    // the supplied templates list), colour as hex, hash as a field-count summary.
+    await _testsWaitForText('Test (local)');
     await _testsWaitForText('#0000FF');
     await _testsWaitForText('Selected option'); // multilevel hash option
     await _testsWaitForText('Schema Option'); // nested arg_schema hash option
@@ -1188,6 +1195,56 @@ export const CompactBasic: Story = {
       expect(
         document.querySelector('.readfirst-row[data-field="basicOption"] .options-readfirst-revert')
       ).toBeFalsy()
+    );
+  },
+};
+
+// Read-only richtext + template picker. Opening a field in a read-only form
+// must not yield an editable surface: a richtext value renders as a NON-editable
+// rich-text view (formatted content, contenteditable=false, no toolbar), and a
+// field whose value is a template ($local:…) as a read-only template-picker chip
+// ($-token + resolved name). Regression cover for the review note "this should
+// show as a readonly richtext or a readonly template picker".
+export const CompactReadOnlyRichText: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    ...CompactBasic.args,
+    readOnly: true,
+    expandMode: 'multi' as const,
+  },
+  play: async () => {
+    await _testsWaitForText('Rich Text option');
+
+    // Read-only rows open in view mode (not edit mode). The richtext field's
+    // Slate surface must be non-editable — the bug was it stayed
+    // contenteditable="true", so a read-only form was fully editable.
+    await _testsClickText('Rich Text option');
+    await waitFor(
+      () => {
+        const editable = document.querySelector(
+          '.options-readfirst-card[data-field="richTextOption"] [contenteditable]'
+        );
+        expect(editable).toBeTruthy();
+        expect(editable?.getAttribute('contenteditable')).toBe('false');
+      },
+      { timeout: 10000 }
+    );
+
+    // A template-valued field renders the read-only template-picker chip — a
+    // $-token tag with the resolved name — never an editable input.
+    await _testsClickText('Template option');
+    await waitFor(
+      () => {
+        const card = document.querySelector(
+          '.options-readfirst-card[data-field="templateOption"]'
+        );
+        expect(card).toBeTruthy();
+        expect(card?.querySelector('.reqore-tag')).toBeTruthy();
+        expect(
+          card?.querySelector('input, textarea, [contenteditable="true"]')
+        ).toBeFalsy();
+      },
+      { timeout: 10000 }
     );
   },
 };
@@ -1510,6 +1567,17 @@ export const CompactOperators: Story = {
     // The operator row + the WHERE <field> IS <op> summary render.
     await _testsWaitForText('WHERE');
     await _testsWaitForText('equals');
+
+    // Single clear: a single-value card hides the editor's own input ✕ (it has
+    // no Reqore prop, so the card marks itself `-single` and CSS hides it) and
+    // shows the card-action Clear between Fullscreen and Done instead.
+    const card = document.querySelector('.options-readfirst-card[data-field="status"]') as HTMLElement;
+    await expect(card.className).toContain('options-readfirst-card-single');
+    await expect(card.querySelector('.options-readfirst-clear')).toBeInTheDocument();
+    const builtInClear = card.querySelector('.reqore-clear-input-button') as HTMLElement | null;
+    if (builtInClear) {
+      await expect(getComputedStyle(builtInClear).display).toBe('none');
+    }
   },
 };
 
@@ -1724,6 +1792,48 @@ export const CompactFieldsMenu: Story = {
   },
 };
 
+// Toolbar ⓘ: a global toggle that reveals every field's short_desc at once,
+// without opening each row's info panel by hand.
+export const CompactDescriptionsToggle: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      host: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Host',
+        short_desc: 'The server hostname or IP address',
+        preselected: true,
+      },
+      port: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Port',
+        short_desc: 'TCP port to connect on',
+        preselected: true,
+      },
+    } as IOptionsSchema,
+    value: {
+      host: { type: 'string', value: 'db.local' },
+      port: { type: 'string', value: '5432' },
+    } as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('Host');
+    // Descriptions are hidden until the toolbar ⓘ is toggled on.
+    await _testsWaitForTextToNotExist('The server hostname or IP address');
+    await _testsClickButton({ selector: '.options-readfirst-descriptions' });
+    // One toggle reveals the short_desc on every field that has one.
+    await _testsWaitForText('The server hostname or IP address');
+    await _testsWaitForText('TCP port to connect on');
+    // Toggling off hides them again.
+    await _testsClickButton({ selector: '.options-readfirst-descriptions' });
+    await _testsWaitForTextToNotExist('The server hostname or IP address');
+  },
+};
+
 export const CompactSearchHidden: Story = {
   parameters: { chromatic: { disable: true } },
   args: {
@@ -1901,16 +2011,19 @@ export const CompactOverflowAndStickyHeader: Story = {
     await expect(notesCell.getAttribute('title')).toContain('tsrest-youtube://');
     await expect(document.body.scrollWidth).toBeLessThanOrEqual(document.body.clientWidth);
     // (b) The completion + search toolbar stays pinned while the form scrolls.
-    const host = document.querySelector('[data-testid="compact-scroll-host"]') as HTMLElement;
-    host.scrollTop = host.scrollHeight;
+    // The engine owns its scroll body (`.options-readfirst-scroll`, an unpadded
+    // box), so it — not the bounding host div — is what scrolls; the sticky
+    // toolbar pins flush to its top.
+    const scroller = document.querySelector('.options-readfirst-scroll') as HTMLElement;
+    scroller.scrollTop = scroller.scrollHeight;
     await waitFor(() => {
-      expect(host.scrollTop).toBeGreaterThan(0);
+      expect(scroller.scrollTop).toBeGreaterThan(0);
       const search = document.querySelector(
         'input[placeholder="Filter fields..."]'
       ) as HTMLElement;
-      const hostTop = host.getBoundingClientRect().top;
-      expect(search.getBoundingClientRect().top).toBeGreaterThanOrEqual(hostTop - 1);
-      expect(search.getBoundingClientRect().top).toBeLessThan(hostTop + 150);
+      const scrollerTop = scroller.getBoundingClientRect().top;
+      expect(search.getBoundingClientRect().top).toBeGreaterThanOrEqual(scrollerTop - 1);
+      expect(search.getBoundingClientRect().top).toBeLessThan(scrollerTop + 150);
     });
   },
 };
@@ -2518,8 +2631,8 @@ export const CompactFieldTypes: Story = {
       infoShortDesc: {
         type: 'string',
         ui_type: 'string',
-        display_name: 'short_desc (ⓘ panel + hover title)',
-        short_desc: 'A one-line summary shown in the info panel and the hover title.',
+        display_name: 'short_desc (ⓘ under name + hover title)',
+        short_desc: 'A one-line summary shown under the field name and in the hover title.',
         group: 'info',
       },
       infoLongDesc: {
@@ -2533,7 +2646,7 @@ export const CompactFieldTypes: Story = {
         type: 'string',
         ui_type: 'string',
         display_name: 'short_desc + desc',
-        short_desc: 'Summary line for the panel.',
+        short_desc: 'Summary line shown under the name.',
         desc: 'And the long-form markdown behind the `?`.',
         group: 'info',
       },
@@ -2751,15 +2864,17 @@ export const CompactFieldTypes: Story = {
     );
     await waitFor(() => {
       const intentRow = document.querySelector('[data-field="chromeIntent"]') as HTMLElement;
-      expect(intentRow?.style?.boxShadow).toBeTruthy();
+      // Intent stripe = the value surface's left border, fed by --readfirst-stripe.
+      expect(intentRow?.style?.getPropertyValue('--readfirst-stripe')).toBeTruthy();
     });
     await _testsWaitForText('••••••');
     await _testsWaitForTextToNotExist('hunter2-token');
 
     // Descriptions & messages: Tier-1 messages auto-open the row's info panel
-    // (visible without interaction); Tier-2 messages and short_desc wait
-    // behind the ⓘ toggle. NB: toggling rebuilds the row's DOM (the info-row
-    // wrapper appears/disappears) — query fresh nodes per click.
+    // (visible without interaction); Tier-2 messages wait behind the ⓘ toggle,
+    // and a field's short_desc renders UNDER the name when toggled. NB: opening a
+    // message panel rebuilds the row's DOM (the info-row wrapper appears) — query
+    // fresh nodes per click.
     await _testsWaitForText('This value fails validation upstream.');
     await _testsWaitForText('Deprecated — migrate before 2026-09.');
     const catalogPanel = (field: string) =>
@@ -2769,19 +2884,20 @@ export const CompactFieldTypes: Story = {
     await expect(catalogPanel('infoMsgQuiet')).toBeNull();
     await fireEvent.click(
       document.querySelector(
-        '.readfirst-row[data-field="infoMsgQuiet"] .options-readfirst-info-slot [role="button"]'
+        '.readfirst-row[data-field="infoMsgQuiet"] .options-readfirst-info-slot .options-readfirst-info-toggle'
       ) as HTMLElement
     );
     await _testsWaitForText('Requests are signed automatically.');
     await _testsWaitForText('Connection verified.');
-    // short_desc sits behind ⓘ too; desc renders the ? help affordance.
+    // A short_desc-only field has no value-side panel; the ⓘ reveals the short_desc
+    // under the name. desc renders the ? help affordance.
     await expect(catalogPanel('infoShortDesc')).toBeNull();
     await fireEvent.click(
       document.querySelector(
-        '.readfirst-row[data-field="infoShortDesc"] .options-readfirst-info-slot [role="button"]'
+        '.readfirst-row[data-field="infoShortDesc"] .options-readfirst-info-slot .options-readfirst-info-toggle'
       ) as HTMLElement
     );
-    await _testsWaitForText('A one-line summary shown in the info panel and the hover title.');
+    await _testsWaitForText('A one-line summary shown under the field name and in the hover title.');
     await expect(
       document.querySelector('.readfirst-row[data-field="infoLongDesc"] .options-readfirst-help')
     ).toBeTruthy();
@@ -2846,6 +2962,35 @@ export const CompactFieldTypesEditing: Story = {
   play: async () => {
     await _testsWaitForText('hello');
     await _compactExpandAllRows();
+
+    // Clear-value affordance. Editors WITHOUT a built-in clear (toggles,
+    // fixed-choice pickers) get the row-level Clear button; text/number inputs
+    // keep ReqoreInput's own clear instead — so a row never shows two. Clearing
+    // empties the value, which trips `changed`, so Clear gives way to Revert in
+    // the same slot.
+    const editRow = (field: string) =>
+      document.querySelector(`[data-field="${field}"].readfirst-row-editing`)!;
+
+    // A text input relies on its own built-in clear, and must NOT also show ours.
+    await expect(editRow('text').querySelectorAll('.reqore-clear-input-button')).toHaveLength(1);
+    await expect(editRow('text').querySelectorAll('.options-readfirst-clear')).toHaveLength(0);
+
+    // The boolean (value: true) has no built-in clear, so the row-level Clear is
+    // the only one — and there is no Revert yet (value matches the original).
+    await expect(
+      editRow('enabled').querySelectorAll('.reqore-clear-input-button')
+    ).toHaveLength(0);
+    await expect(editRow('enabled').querySelector('.options-readfirst-clear')).toBeInTheDocument();
+    await expect(
+      editRow('enabled').querySelector('.options-readfirst-revert')
+    ).not.toBeInTheDocument();
+
+    // Clear it → the value empties, so Clear is replaced by Revert in place.
+    await fireEvent.click(editRow('enabled').querySelector('.options-readfirst-clear')!);
+    await waitFor(() => {
+      expect(editRow('enabled').querySelector('.options-readfirst-clear')).not.toBeInTheDocument();
+      expect(editRow('enabled').querySelector('.options-readfirst-revert')).toBeInTheDocument();
+    });
   },
 };
 
@@ -2957,7 +3102,7 @@ export const CompactRequiredGroups: Story = {
     // linking chip.
     await _testsWaitForTextsCount('Required — not set', undefined, 3);
     await _testsWaitForText('Draft');
-    await _testsWaitForTextsCount('One of: target', undefined, 3);
+    await _testsWaitForTextsCount('One of', undefined, 3);
 
     // The chip is a ReqoreDropdown listing the siblings; selecting one flashes
     // its row (cross-panel: byUrl sits in General, byHost in Connection).
@@ -3014,8 +3159,8 @@ export const CompactRequiredGroups: Story = {
     // "Covers", the empty siblings "Covered by 'By URL'", and no "One of" remains.
     await _testsWaitForText('Ready');
     await _testsWaitForTextsCount('Covered by “By URL”', undefined, 2);
-    await _testsWaitForText('Covers: target');
-    await _testsWaitForTextToNotExist('One of: target');
+    await _testsWaitForText('Covers');
+    await _testsWaitForTextToNotExist('One of');
     await expect(document.querySelectorAll('.options-readfirst-required-group')).toHaveLength(3);
   },
 };
@@ -3180,7 +3325,7 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
 
     // Both linkage systems are visible at once: group chips on the members,
     // the dependency lock on the dependent row.
-    await _testsWaitForText('One of: RequiredGroup');
+    await _testsWaitForText('One of');
     const depLock = document.querySelector(
       '.readfirst-row[data-field="RequiredOption6"] .options-readfirst-lock-deps'
     ) as HTMLElement;
@@ -3527,33 +3672,34 @@ export const CompactShowcase: Story = {
     ).toBeTruthy();
     await expect(document.querySelector('[data-field="chromeImage"] .reqore-icon img')).toBeTruthy();
     await waitFor(() => {
-      // The message-bearing row is wrapped in an info-row div with the same
-      // data-field — target the .readfirst-row itself for the stripe.
+      // The intent stripe rides the value surface's left border, fed by
+      // --readfirst-stripe on the field's BLOCK root. This field carries a
+      // message, so the block root is the info-row wrapper (not the inner row).
       const intentRow = document.querySelector(
-        '.readfirst-row[data-field="chromeIntent"]'
+        '.options-readfirst-info-row[data-field="chromeIntent"]'
       ) as HTMLElement;
-      expect(intentRow?.style?.boxShadow).toBeTruthy();
+      expect(intentRow?.style?.getPropertyValue('--readfirst-stripe')).toBeTruthy();
     });
     await _testsWaitForText('••••••');
     await _testsWaitForText('This field also carries a warning message.');
     // The required-group linkage chips render alongside the info affordances.
-    await _testsWaitForText('One of: auth');
+    await _testsWaitForText('One of');
 
     // Toggling a panel adds/removes the info-row wrapper, REBUILDING the row's
     // DOM — re-query the toggle for every click and assert panel state on the
     // wrapper element.
     const infoToggle = (field: string) =>
       document.querySelector(
-        `.readfirst-row[data-field="${field}"] .options-readfirst-info-slot [role="button"]`
+        `.readfirst-row[data-field="${field}"] .options-readfirst-info-slot .options-readfirst-info-toggle`
       ) as HTMLElement;
     const infoPanel = (field: string) =>
       document.querySelector(
         `.options-readfirst-info-row[data-field="${field}"] .options-readfirst-info-panel`
       );
 
-    // Tier-2-only fields (info messages, default-value notes, short_desc) stay
-    // one line: panel closed, ⓘ toggle in the fixed slot. Toggling open reveals
-    // the default-value note; toggling again hides it.
+    // Tier-2-only fields (info messages, default-value notes) stay one line:
+    // panel closed, ⓘ toggle in the fixed slot. Toggling open reveals the
+    // default-value note; toggling again hides it.
     await expect(infoPanel('metaDefault')).toBeNull();
     await expect(infoToggle('metaDefault')).toBeTruthy();
     await fireEvent.click(infoToggle('metaDefault'));
@@ -3567,6 +3713,14 @@ export const CompactShowcase: Story = {
     await waitFor(() => expect(infoPanel('apiEndpoint')).toBeNull());
     await fireEvent.click(infoToggle('apiEndpoint'));
     await _testsWaitForText('v1 endpoints are deprecated — migrate to /v2 before 2026-09.');
+
+    // short_desc renders UNDER the field name, gated by the same ⓘ: a message-free
+    // field keeps it hidden until toggled, then reveals it under the name.
+    const labelDesc = (field: string) =>
+      document.querySelector(`.readfirst-row[data-field="${field}"] .options-readfirst-label-desc`);
+    await expect(labelDesc('chromeIcon')).toBeNull();
+    await fireEvent.click(infoToggle('chromeIcon'));
+    await waitFor(() => expect(labelDesc('chromeIcon')).toBeTruthy());
   },
 };
 
@@ -3583,5 +3737,137 @@ export const CompactShowcaseMobile: Story = {
   play: async () => {
     await _testsWaitForText('API endpoint');
     await _testsWaitForText('v1 endpoints are deprecated — migrate to /v2 before 2026-09.');
+  },
+};
+
+// Required-group "connection rails": members of a one-of group are pulled into a
+// contiguous cluster joined by a rail, each with a status node. A 2-member
+// credential pair (one provided → green node + Provided badge) and a 4-member
+// notification group (none set → violet, pending).
+export const CompactRequiredGroupRails: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '320px',
+    groups: {
+      connection: { label: 'Connection', sort: 0 },
+      notify: { label: 'Notification target', sort: 1 },
+    },
+    options: {
+      apiKey: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'API key',
+        required_groups: ['credential'],
+        group: 'connection',
+        short_desc: 'Server-to-server key used to authenticate requests.',
+      },
+      oauthToken: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'OAuth token',
+        required_groups: ['credential'],
+        group: 'connection',
+        short_desc: 'Bearer token for delegated access.',
+      },
+      email: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Email address',
+        required_groups: ['target'],
+        group: 'notify',
+      },
+      slack: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Slack channel',
+        required_groups: ['target'],
+        group: 'notify',
+      },
+      webhook: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Webhook URL',
+        required_groups: ['target'],
+        group: 'notify',
+      },
+      sms: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'SMS number',
+        required_groups: ['target'],
+        group: 'notify',
+      },
+    } as IOptionsSchema,
+    value: {
+      apiKey: { type: 'string', value: 'sk_live_••••4f2a' },
+    } as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('API key');
+    // Members are clustered with a status node each; the two groups give 6 nodes.
+    await waitFor(() =>
+      expect(document.querySelectorAll('.options-readfirst-node').length).toBe(6)
+    );
+    // The set member's node is filled (satisfies its group); pending ones are
+    // hollow (transparent centre → painted the form bg).
+    await waitFor(() => {
+      const apiNode = document.querySelector(
+        '.readfirst-row[data-field="apiKey"] .options-readfirst-node'
+      ) as HTMLElement;
+      const oauthNode = document.querySelector(
+        '.readfirst-row[data-field="oauthToken"] .options-readfirst-node'
+      ) as HTMLElement;
+      const apiBg = getComputedStyle(apiNode).backgroundColor;
+      const oauthBg = getComputedStyle(oauthNode).backgroundColor;
+      // apiKey filled with its (non-transparent, non-bg) border colour; oauth bg
+      // equals the row background (hollow).
+      expect(apiBg).not.toBe(oauthBg);
+    });
+  },
+};
+
+// Field sorting (Fields menu → "Sort by") reorders fields WITHIN each group and
+// keeps required-group clusters contiguous (rails intact) — never interleaving
+// across groups. Regression cover for the compact sort.
+export const CompactFieldSortWithinGroups: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: CompactRequiredGroupRails.args,
+  play: async () => {
+    await _testsWaitForText('API key');
+    const order = () =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.readfirst-row[data-field]:not(.readfirst-row-editing)'
+        )
+      ).map((row) => row.getAttribute('data-field'));
+
+    // Default = the schema's declared order.
+    await waitFor(() =>
+      expect(order()).toEqual(['apiKey', 'oauthToken', 'email', 'slack', 'webhook', 'sms'])
+    );
+
+    // Open the Fields menu, drill into the (collapsed) "Sort by" submenu, then
+    // pick "Name A→Z". Match the exact LEAF — the menu wraps items, so a
+    // substring search can land on a container.
+    await fireEvent.click(document.querySelector('.options-readfirst-fields') as HTMLElement);
+    const menuItem = (label: string): HTMLElement | null => {
+      const leaf = Array.from(document.querySelectorAll<HTMLElement>('*')).find(
+        (el) => el.children.length === 0 && el.textContent?.trim() === label
+      );
+      return (leaf?.closest('button, .reqore-menu-item') as HTMLElement) || leaf || null;
+    };
+    await waitFor(() => expect(menuItem('Sort by')).toBeTruthy());
+    await fireEvent.click(menuItem('Sort by') as HTMLElement);
+    await waitFor(() => expect(menuItem('Name A→Z')).toBeTruthy());
+    await fireEvent.click(menuItem('Name A→Z') as HTMLElement);
+
+    // Sorted by display name inside each group; the two groups stay separate
+    // (Connection: apiKey/oauthToken | Notification: email/slack/sms/webhook).
+    await waitFor(() =>
+      expect(order()).toEqual(['apiKey', 'oauthToken', 'email', 'slack', 'sms', 'webhook'])
+    );
+    // The required-group clusters survive the re-sort: all 6 nodes + both rails.
+    await expect(document.querySelectorAll('.options-readfirst-node')).toHaveLength(6);
+    await expect(document.querySelectorAll('.readfirst-cluster-first')).toHaveLength(2);
   },
 };

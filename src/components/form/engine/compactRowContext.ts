@@ -1,4 +1,5 @@
 import { IReqoreTheme } from '@qoretechnologies/reqore/dist/constants/theme';
+import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { useReqoreProperty } from '@qoretechnologies/reqore';
 import {
   IQorusFormField,
@@ -26,6 +27,12 @@ export interface ICompactRowContext {
   operators?: IOperatorsSchema;
   focusedEditing?: string;
   showFieldTypes: boolean;
+  // Global field-info visibility (tri-state): undefined = default (critical
+  // messages auto-open), true = show all, false = hide all.
+  showAllDescriptions: boolean | undefined;
+  // Form templates ($local:…, etc.) — used to resolve a template value to its
+  // display name in the read-first chip.
+  templates?: IReqoreFormTemplates;
   expandedOptions: string[];
   highlightedOptions: string[];
   flashedOptions: string[];
