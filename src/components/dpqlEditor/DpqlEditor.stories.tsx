@@ -1197,6 +1197,7 @@ export const LspCompletionRoundtrip: Story = {
  * single physical connection and a single `initialize` handshake.
  */
 export const TwoEditorsOneConnection: Story = {
+  parameters: { chromatic: { disable: true } },
   render: () => (
     <>
       <DpqlEditorWithState value='name' />

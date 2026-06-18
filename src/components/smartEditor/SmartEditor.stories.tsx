@@ -356,9 +356,11 @@ export const ReadOnly: Story = {
 };
 
 /**
- * The not-ready overlay: the mock delays `initialize`, so the session
- * stays connecting and the spinner overlay covers the editor, then
- * clears by itself once the delayed handshake lands.
+ * The not-ready overlay: the mock holds `initialize` open for the whole
+ * session, so the spinner overlay stays over the editor. Chromatic snapshots
+ * after `play`, so the overlay has to be the terminal state — a self-clearing
+ * one would be gone by capture time. (The clear-on-connect path is covered by
+ * every other story here, which only renders once the overlay lifts.)
  */
 export const LoadingOverlay: Story = {
   args: {
@@ -368,20 +370,15 @@ export const LoadingOverlay: Story = {
   async beforeEach() {
     const lsp = createMockLspServer(MOCK_LSP_URL, {
       capabilities: {},
-      delays: { initialize: 4000 },
+      delays: { initialize: 600000 },
     });
     return () => lsp.close();
   },
   play: async ({ canvasElement }) => {
-    // Overlay visible while the handshake is delayed…
+    // Assert the overlay is up and stop — leaving it on screen for Chromatic.
     await waitFor(
       () => expect(canvasElement.textContent).toContain('Connecting to language server'),
       { timeout: 10000 }
-    );
-    // …and gone once `initialize` resolves.
-    await waitFor(
-      () => expect(canvasElement.textContent).not.toContain('Connecting to language server'),
-      { timeout: 30000 }
     );
   },
 };
