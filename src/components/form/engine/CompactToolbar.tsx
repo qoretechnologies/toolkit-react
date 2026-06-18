@@ -4,9 +4,15 @@ import {
   ReqoreDropdown,
   ReqoreInput,
   ReqoreMessage,
+  ReqoreProgress,
+  ReqoreSpan,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
 import { IReqoreControlGroupProps } from '@qoretechnologies/reqore/dist/components/ControlGroup';
+import {
+  IReqoreDropdownItem,
+  TReqoreDropdownItems,
+} from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import React, { memo } from 'react';
 import { useContext } from 'use-context-selector';
 import styled from 'styled-components';
@@ -22,29 +28,19 @@ const SORT_MODES: { value: TCompactSort; label: string; tooltip: string }[] = [
   { value: 'invalid', label: 'Invalid first', tooltip: 'Fields needing attention first' },
 ];
 
+// Custom flex, not ReqoreControlGroup: the meter needs the middle bar to absorb
+// all width changes while the fixed-width labels never shrink/truncate — and a
+// 12px gap that isn't on ReqoreControlGroup's gapSize scale (5 or 18). The
+// `flex: 1; min-width: 0` makes only the bar yield as the row narrows.
 const StyledCompletion = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 0 2px;
-`;
-const StyledCompletionTrack = styled.div<{ $bg: string; $fill: string }>`
-  flex: 1;
-  height: 6px;
-  border-radius: 3px;
-  background: ${({ $bg }) => $bg};
-  overflow: hidden;
-  & > div {
-    height: 100%;
-    border-radius: 3px;
-    background: ${({ $fill }) => $fill};
-    transition: width 0.25s ease;
+  & > .reqore-progress {
+    flex: 1;
+    min-width: 0;
   }
-`;
-const StyledCompletionLabel = styled.span<{ $color: string }>`
-  font-size: 12px;
-  color: ${({ $color }) => $color};
-  white-space: nowrap;
 `;
 
 /**
@@ -80,10 +76,6 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     onAddAll,
     onResetDefaults,
     onRevertAll,
-    cMuted,
-    cDivider,
-    cSuccess,
-    cInfo,
   } = useContext(CompactToolbarContext);
 
   return (
@@ -112,16 +104,19 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
               />
 
           : null}
-          <StyledCompletionLabel $color={cMuted}>
+          <ReqoreSpan size='small' effect={{ opacity: 0.7, noWrap: true }}>
             {completion.set} / {completion.total} fields set
-          </StyledCompletionLabel>
-          <StyledCompletionTrack
-            $bg={cDivider}
-            $fill={completion.set === completion.total ? cSuccess : cInfo}
-          >
-            <div style={{ width: `${completion.pct}%` }} />
-          </StyledCompletionTrack>
-          <StyledCompletionLabel $color={cMuted}>{completion.pct}%</StyledCompletionLabel>
+          </ReqoreSpan>
+          <ReqoreProgress
+            className='options-readfirst-completion-bar'
+            value={completion.pct}
+            intent={completion.set === completion.total ? 'success' : 'info'}
+            size='normal'
+            flat
+          />
+          <ReqoreSpan size='small' effect={{ opacity: 0.7, noWrap: true }}>
+            {completion.pct}%
+          </ReqoreSpan>
         </StyledCompletion>
       : null}
 
@@ -153,7 +148,9 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
               className='options-readfirst-fields'
               intent={requiredOnly ? 'info' : undefined}
               badge={requiredOnly ? 'Required only' : undefined}
-              onItemSelect={({ value }: any) => value && onAddOptionalField(value)}
+              onItemSelect={(item: IReqoreDropdownItem) =>
+                item.value && onAddOptionalField(item.value)
+              }
               items={
                 [
                   {
@@ -229,7 +226,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                     description: field.short_desc,
                     disabled: field.disabled,
                   })),
-                ] as any
+                ] as TReqoreDropdownItems
               }
             />
           : null}

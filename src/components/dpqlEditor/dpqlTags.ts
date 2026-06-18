@@ -38,6 +38,12 @@ export const FIELD_REF_COLOR = {
   fg: '#7dd4f0',
 };
 
+export const getTemplatePrefixColor = (value: string): string => {
+  const colonIdx = value.indexOf(':');
+  const prefix = colonIdx > 1 ? value.slice(1, colonIdx).toLowerCase() : '';
+  return (TEMPLATE_COLORS[prefix] || DEFAULT_TEMPLATE_COLOR).fg;
+};
+
 /**
  * Build the `tagRenderer` callback for DpqlEditor. Closes over the live
  * `fieldMeta` map so `@field` tooltips reflect the latest schema returned
@@ -66,13 +72,9 @@ export function makeDpqlTagRenderer(fieldMeta: Record<string, IDpqlFieldMeta>) {
     }
 
     if (tagValue.startsWith('$')) {
-      const colonIdx = tagValue.indexOf(':');
-      const prefix =
-        colonIdx > 1 ? tagValue.slice(1, colonIdx).toLowerCase() : '';
-      const colors = TEMPLATE_COLORS[prefix] || DEFAULT_TEMPLATE_COLOR;
       return {
         icon: 'ExchangeDollarLine',
-        color: colors.fg as `#${string}`,
+        color: getTemplatePrefixColor(tagValue) as `#${string}`,
       };
     }
 

@@ -1112,7 +1112,7 @@ export const CompactBasic: Story = {
     await fireEvent.click(depLock);
     await _testsWaitForText('Unlocked by:');
     const depEntry = Array.from(
-      document.querySelectorAll('.options-readfirst-dep .reqore-tag-content')
+      document.querySelectorAll('.reqore-popover-content .reqore-menu-item')
     ).find((element) => element.textContent?.includes('basicOption')) as HTMLElement;
     await fireEvent.click(depEntry);
     await waitFor(
@@ -3098,11 +3098,13 @@ export const CompactRequiredGroups: Story = {
     value: {} as IOptions,
   },
   play: async () => {
-    // All members show the required placeholder, the Draft badge, and the
-    // linking chip.
+    // All three members show the required placeholder + the Draft badge. The two
+    // contiguous members (byHost/byFile in Connection) cluster into a rail, which
+    // carries the grouping in place of a chip; only the lone member (byUrl in
+    // General) keeps a "One of" chip — so exactly one chip, not three.
     await _testsWaitForTextsCount('Required — not set', undefined, 3);
     await _testsWaitForText('Draft');
-    await _testsWaitForTextsCount('One of', undefined, 3);
+    await _testsWaitForTextsCount('One of', undefined, 1);
 
     // The chip is a ReqoreDropdown listing the siblings; selecting one flashes
     // its row (cross-panel: byUrl sits in General, byHost in Connection).
@@ -3230,7 +3232,7 @@ export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
 
     // Locate the second blocker from the popover (scroll + flash).
     const depEntry = Array.from(
-      document.querySelectorAll('.options-readfirst-dep .reqore-tag-content')
+      document.querySelectorAll('.reqore-popover-content .reqore-menu-item')
     ).find((element) => element.textContent?.includes('Required Option 5')) as HTMLElement;
     await fireEvent.click(depEntry);
     await waitFor(
@@ -3682,8 +3684,12 @@ export const CompactShowcase: Story = {
     });
     await _testsWaitForText('••••••');
     await _testsWaitForText('This field also carries a warning message.');
-    // The required-group linkage chips render alongside the info affordances.
-    await _testsWaitForText('One of');
+    // The required-group pair (authToken/authCertFile, contiguous) clusters into a
+    // connection rail — a status node per member, not a per-row "One of" chip —
+    // alongside the info affordances.
+    await waitFor(() =>
+      expect(document.querySelectorAll('.options-readfirst-node').length).toBeGreaterThan(0)
+    );
 
     // Toggling a panel adds/removes the info-row wrapper, REBUILDING the row's
     // DOM — re-query the toggle for every click and assert panel state on the

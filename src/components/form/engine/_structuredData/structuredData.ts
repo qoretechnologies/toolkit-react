@@ -24,13 +24,6 @@ export interface IUiEncodedValue {
   ui_type?: string;
 }
 
-export interface IStructuredScalar {
-  display: string;
-  raw?: string;
-  type?: string;
-  isDate: boolean;
-}
-
 // The keys a Qorus UI-encoded value envelope may carry — exported as the
 // `allowedKeys` allow-list for `ReqoreDataView`'s envelope matcher.
 export const UI_ENVELOPE_KEY_LIST: ReadonlyArray<string> = [
@@ -66,9 +59,6 @@ export const isUiEncodedValue = (value: unknown): value is IUiEncodedValue => {
 
   return Object.keys(value).every((key) => UI_ENVELOPE_KEYS.has(key));
 };
-
-export const unwrapUiEncodedValue = (value: unknown): unknown =>
-  isUiEncodedValue(value) ? value.value : value;
 
 const normalizeYamlText = (text: string): string =>
   text
@@ -123,14 +113,6 @@ export const parseSerializedStructuredText = (
   return undefined;
 };
 
-const normalizedType = (type: unknown): string | undefined =>
-  typeof type === 'string' && type.trim() ? type.trim().toLowerCase() : undefined;
-
-export const isDateType = (type: unknown): boolean => {
-  const normalized = normalizedType(type);
-  return !!normalized && /^(date|datetime|time|timestamp|qore::date)$/i.test(normalized);
-};
-
 export const qorusDateStringToIso = (value: string): string | undefined => {
   const match = value.trim().match(QORUS_DATE_PATTERN);
   if (!match) return undefined;
@@ -140,82 +122,4 @@ export const qorusDateStringToIso = (value: string): string | undefined => {
   const offset = offsetHours && offsetMinutes ? `${offsetHours}:${offsetMinutes}` : '';
 
   return `${date}T${time}${ms}${offset}`;
-};
-
-export const dateLikeStringToIso = (value: string, type?: unknown): string | undefined => {
-  const qorusIso = qorusDateStringToIso(value);
-  if (qorusIso) return qorusIso;
-
-  const trimmed = value.trim();
-  const parsed = Date.parse(trimmed);
-  if (Number.isNaN(parsed)) return undefined;
-
-  if (!isDateType(type) && !/\d{4}-\d{2}-\d{2}|T\d{2}:\d{2}|\d{2}:\d{2}:\d{2}/.test(trimmed)) {
-    return undefined;
-  }
-
-  return new Date(parsed).toISOString();
-};
-
-export const formatStructuredScalar = (value: unknown, type?: unknown): IStructuredScalar => {
-  const displayType = normalizedType(type);
-
-  if (value === undefined || value === null || value === '') {
-    return { display: '-', type: displayType, isDate: false };
-  }
-
-  if (value instanceof Date) {
-    return {
-      display: formatIdeTimestamp(value.toISOString()),
-      raw: value.toISOString(),
-      type: displayType ?? 'date',
-      isDate: true,
-    };
-  }
-
-  if (typeof value === 'string') {
-    const iso = dateLikeStringToIso(value, type);
-    if (iso) {
-      return {
-        display: formatIdeTimestamp(iso),
-        raw: value,
-        type: displayType ?? 'date',
-        isDate: true,
-      };
-    }
-
-    return { display: value, type: displayType, isDate: false };
-  }
-
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return { display: String(value), type: displayType, isDate: false };
-  }
-
-  try {
-    return {
-      display: JSON.stringify(value, null, 2),
-      type: displayType,
-      isDate: false,
-    };
-  } catch {
-    return { display: String(value), type: displayType, isDate: false };
-  }
-};
-
-export const hasStructuredValue = (value: unknown): boolean => {
-  const unwrapped = unwrapUiEncodedValue(value);
-
-  if (unwrapped === undefined || unwrapped === null || unwrapped === '') {
-    return false;
-  }
-
-  if (Array.isArray(unwrapped)) {
-    return unwrapped.length > 0;
-  }
-
-  if (isRecord(unwrapped)) {
-    return Object.keys(unwrapped).length > 0;
-  }
-
-  return true;
 };

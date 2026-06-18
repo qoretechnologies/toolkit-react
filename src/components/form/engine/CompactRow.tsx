@@ -1,5 +1,6 @@
 import {
   ReqoreButton,
+  ReqoreCollapsibleContent,
   ReqoreControlGroup,
   ReqoreDropdown,
   ReqoreIcon,
@@ -21,8 +22,7 @@ import { useContextSelector } from 'use-context-selector';
 import { hasAllDependenciesFullfilled } from '../../../helpers/validations';
 import { findTemplate, isValueTemplate } from '../../../helpers/templates';
 import { richtextToSegments } from '../../../helpers/common';
-import { DEFAULT_TEMPLATE_COLOR, TEMPLATE_COLORS } from '../../dpqlEditor/dpqlTags';
-import { ReqoreCollapsibleContent } from '@qoretechnologies/reqore';
+import { getTemplatePrefixColor } from '../../dpqlEditor/dpqlTags';
 import { Description } from '../../Description';
 import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
@@ -101,13 +101,6 @@ const COMPACT_SINGLE_VALUE_TYPES = new Set([
   'method-name',
 ]);
 
-// The $-token colour for a template value ($local:… → the 'local' hue), shared
-// by the read-row template chip and the richtext inline tag chips.
-const templateColor = (value: string): string => {
-  const colonIdx = value.indexOf(':');
-  const prefix = colonIdx > 1 ? value.slice(1, colonIdx).toLowerCase() : '';
-  return (TEMPLATE_COLORS[prefix] || DEFAULT_TEMPLATE_COLOR).fg;
-};
 
 // One read-first row: label | value | action collapsed; the real editor (the
 // classic renderOption) expanded. `hidden` = search-surfaced optional —
@@ -300,7 +293,7 @@ export const CompactRow = memo(
           <ReqoreTag
             size='small'
             icon='ExchangeDollarLine'
-            color={templateColor(field.value) as `#${string}`}
+            color={getTemplatePrefixColor(field.value) as `#${string}`}
             label={String(tmpl?.label ?? formatted)}
             tooltip={field.value}
           />
@@ -323,7 +316,7 @@ export const CompactRow = memo(
                     key={index}
                     size='tiny'
                     icon='ExchangeDollarLine'
-                    color={templateColor(segment.value || '') as `#${string}`}
+                    color={getTemplatePrefixColor(segment.value || '') as `#${string}`}
                     label={segment.text || segment.value}
                     tooltip={segment.value}
                   />

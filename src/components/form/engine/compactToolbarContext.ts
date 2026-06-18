@@ -53,11 +53,6 @@ export interface ICompactToolbarContext {
   onAddAll: () => void;
   onResetDefaults: () => void;
   onRevertAll: () => void;
-  // Theme-derived colours for the meter
-  cMuted: string;
-  cDivider: string;
-  cSuccess: string;
-  cInfo: string;
 }
 
 export const CompactToolbarContext = createContext<ICompactToolbarContext>(

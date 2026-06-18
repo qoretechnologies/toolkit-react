@@ -244,3 +244,289 @@ export const StyledColorSwatch = styled.span<{ $color: string; $border: string }
   background: ${({ $color }) => $color};
   border: 1px solid ${({ $border }) => $border};
 `;
+
+export const StyledGroupBody = styled.div<{
+  $divider: string;
+  $hover: string;
+  $focus: string;
+  $success: string;
+  $rowBg: string;
+  $lineColor: string;
+}>`
+  display: flex;
+  flex-flow: column;
+  position: relative;
+  gap: 8px;
+
+  /* Indent each field block under the group header by a FLUID step. The %
+     resolves against this container's width (not the screen), so it tracks the
+     form even inside a narrow drawer; the clamp keeps it from vanishing on a
+     slim form or ballooning into a big gutter on a wide one. */
+  > * {
+    margin-left: ${GROUP_INDENT};
+  }
+
+  /* The group spine: a faint vertical line down the block gutter. Drawn here (not
+     on the panel) so it lives in the SAME coordinate space as the required-group
+     rail and lands on the exact same x — GROUP_INDENT minus 9px matches the rail's
+     left: -9px on each (indented) block. The rail is a descendant ::after, so it
+     paints over this spine and wins where a required cluster overlaps it. */
+  &::before {
+    content: '';
+    position: absolute;
+    left: calc(${GROUP_INDENT} - 9px);
+    top: 0;
+    bottom: 8px;
+    width: 2px;
+    background: linear-gradient(to bottom, ${({ $lineColor }) => $lineColor}, transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .readfirst-row {
+    display: grid;
+    /* Fixed label column: the recessed value surface (::before below) starts at a
+       constant x, so the label width can't flex or the stripe would drift off the
+       value edge. The value column is minmax(0, 1fr) — a bare 1fr keeps its
+       min-content width, so a long unbroken value (e.g. a URL) would force the
+       grid wider than its container and produce a horizontal scrollbar. The 0
+       minimum lets it shrink and the value cell's ellipsis take over instead. */
+    grid-template-columns: ${LABEL_COL} minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    min-height: 38px;
+    /* 3px vertical: the hover-revealed action buttons (revert/delete) are
+       ~32px tall and occupy layout even at opacity 0 — with 8px padding they
+       inflated removable rows to ~48px while plain rows sat at the 38px
+       min-height. 32 + 6 = 38 keeps every one-line row the same height; the
+       min-height keeps the click target for rows with shorter content. */
+    padding: 3px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s ease;
+  }
+  .readfirst-row:hover {
+    background: ${({ $hover }) => $hover};
+  }
+  .readfirst-row:focus-visible {
+    outline: 2px solid ${({ $focus }) => $focus};
+    outline-offset: -2px;
+    background: ${({ $hover }) => $hover};
+  }
+  /* A hidden (not-yet-added) field surfaced by the search is dimmed. */
+  .readfirst-row-hidden {
+    opacity: 0.65;
+  }
+  /* A disabled field (schema disabled flag or unmet dependencies) is not a
+     click target — no hover invite, not-allowed cursor; a lock replaces the
+     pencil. */
+  .readfirst-row-disabled {
+    cursor: not-allowed;
+  }
+  .readfirst-row-disabled:hover {
+    background: transparent;
+  }
+  /* Required-group linkage: hovering a member highlights every sibling row —
+     just a background tint, no left stripe (that reads as an intent edge). */
+  .readfirst-row-group-highlight {
+    background: ${({ $focus }) => `${$focus}1f`};
+  }
+  .readfirst-row-flash {
+    animation: readfirstRowFlash 1.4s ease;
+  }
+  @keyframes readfirstRowFlash {
+    0% {
+      background: ${({ $focus }) => `${$focus}59`};
+    }
+    100% {
+      background: transparent;
+    }
+  }
+  .readfirst-action {
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+  .readfirst-row:hover .readfirst-action,
+  .readfirst-row:focus-visible .readfirst-action {
+    opacity: 0.85;
+  }
+
+  /* A scalar row being edited in place: the real editor replaces the value
+     cell. The row stops being a click target (the editor owns the clicks) and
+     keeps a constant active background. Vertical padding is tightened so the
+     editor fits inside the same ~38px the read row occupies — switching into
+     (and out of) inline editing must not shift the rows around it. */
+  .readfirst-row-editing {
+    cursor: default;
+    /* Top-anchor the cells: with multi-line editors (e.g. allowed-values =
+       input + picker), per-cell centring gives every control a different
+       anchor. Instead everything aligns to the FIRST editor line — label and
+       the ✓/↺ cluster get small offsets to sit optically centred on it. */
+    align-items: start;
+    background: ${({ $hover }) => $hover};
+    /* Zero vertical padding: the pinned min-height (captured from the read
+       row at activation) owns the height; the editor centres within it. */
+    padding-top: 0;
+    padding-bottom: 0;
+    /* Tighter column gap: the editor's trailing template ⋮ and our ✓ should
+       read as one control cluster, not two separated groups. */
+    column-gap: 6px;
+  }
+  /* Centre each cell's content on the row's ~38px first-line band. The label
+     text (+10) and the ✓/↺ cluster (+3) were already nudged, but the editor
+     cell was not — so a single-line input sat ~3px above the buttons. A 32px
+     control needs +3 to centre in 38px, so the editor gets the same offset and
+     lines up with the buttons. (A multi-line editor's first line lands on the
+     band too; its extra rows grow downward.) */
+  .readfirst-row-editing > div:nth-child(1) {
+    padding-top: 10px;
+  }
+  .readfirst-row-editing > div:nth-child(2) {
+    padding-top: 3px;
+  }
+  .readfirst-row-editing > div:nth-child(3) {
+    padding-top: 3px;
+  }
+  .readfirst-row-editing:hover {
+    background: ${({ $hover }) => $hover};
+  }
+
+  /* Narrow FORMS (phone / slim drawer): stack each row — label + actions share
+     the first line, the value cell (or the inline editor) takes the full width
+     beneath. The class is set from a measured wrap width (react-use useMeasure)
+     rather than a viewport media query, so a slim desktop drawer stacks too.
+     The 3 row children are placed explicitly:
+     label (1,1) · actions (1,2) · value (2, span both). */
+  &.readfirst-narrow .readfirst-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 14px;
+  }
+  &.readfirst-narrow .readfirst-row > :nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  &.readfirst-narrow .readfirst-row > :nth-child(3) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  &.readfirst-narrow .readfirst-row > :nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  /* The surface backs every field BLOCK (direct children of the body). */
+  > *:not(.options-readfirst-card) {
+    position: relative;
+  }
+  > *:not(.options-readfirst-card)::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    left: ${PANEL_LEFT_CSS};
+    background: ${({ $rowBg }) => $rowBg};
+    border-radius: 6px;
+    border-left: 3px solid var(--readfirst-stripe, transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
+  /* Content rides above the surface layer — except the cluster node, which is
+     absolutely positioned in the gutter and must keep its own positioning. */
+  > *:not(.options-readfirst-card) > *:not(.options-readfirst-node) {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Required-group connection rail. Drawn on the member's BLOCK ROOT (so it spans
+     the whole member, including a message panel below the row), the rail is one
+     continuous line: each segment BRIDGES the 8px gap into the next member
+     (bottom: -8px) and the end members trim to their node centre, so it reads as a
+     single unbroken rail node-to-node. It sits in the existing left gutter (node
+     centre ~10px left of the row), so labels keep their place. The node (drawn by
+     the row) is opaque and overlaps the rail, masking it — no line through the
+     ring. The node centre sits ~19px below the block top (13px node top + 6px). */
+  .readfirst-cluster-rail::after {
+    content: '';
+    position: absolute;
+    left: -9px;
+    top: 0;
+    bottom: -8px;
+    width: 2px;
+    /* muted info — the connection is a quiet structural hint, not a loud accent */
+    background: ${({ $focus }) => `${$focus}99`};
+    box-shadow: 0 0 4px ${({ $focus }) => `${$focus}99`};
+    pointer-events: none;
+    z-index: 0;
+  }
+  .readfirst-cluster-rail.readfirst-cluster-first::after {
+    top: 19px;
+  }
+  .readfirst-cluster-rail.readfirst-cluster-last::after {
+    bottom: calc(100% - 19px);
+  }
+  /* Group fulfilled (any member set): the whole rail reads success, not just the
+     satisfying node. */
+  .readfirst-cluster-rail.readfirst-cluster-satisfied::after {
+    background: ${({ $success }) => `${$success}99`};
+    box-shadow: 0 0 4px ${({ $success }) => `${$success}99`};
+  }
+  /* Sub-panels (messages, hash preview) indent to the value column so they sit on
+     the surface, not in the bare label gutter. */
+  .options-readfirst-info-panel,
+  .options-readfirst-inset {
+    padding-left: ${VALUE_LEFT_CSS};
+  }
+  /* A field's short_desc renders under its NAME (revealed by the ⓘ toggle),
+     growing the label block to multiple lines. Top-anchor those open rows so the
+     value lines up with the name rather than the middle of the taller label;
+     closed (single-line) rows keep the centred read-row rhythm. */
+  .readfirst-row-info-open {
+    align-items: start;
+  }
+  /* Narrow stacks label-over-value, so the value-column offset is meaningless —
+     the surface spans the full block and the sub-panels drop to the 12px rail. */
+  &.readfirst-narrow .readfirst-row > :nth-child(2) {
+    padding-left: 12px;
+  }
+  &.readfirst-narrow > *:not(.options-readfirst-card)::before {
+    left: 0;
+  }
+  &.readfirst-narrow .options-readfirst-info-panel,
+  &.readfirst-narrow .options-readfirst-inset {
+    padding-left: 12px;
+  }
+  /* Touch layouts have no hover: a slot reserved for the hover-revealed edit
+     pencil is permanent dead space that insets every chip from the edge —
+     drop it (rows are tap-to-edit; the lock/add slots stay, they're static). */
+  &.readfirst-narrow .options-readfirst-trailing-hover-only {
+    /* !important: the slot carries an inline display for the desktop layout. */
+    display: none !important;
+  }
+  /* Phone air: stacked blocks get slightly taller inner padding. The in-place
+     editor keeps zero padding so its pinned height still matches. */
+  &.readfirst-narrow .readfirst-row {
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  &.readfirst-narrow .readfirst-row-editing {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  /* A hash block = its parent row + the revealed sub-rows. Highlight the whole
+     block as one unit on hover (rather than only the parent row), and neutralise
+     the parent row's own hover so the two don't stack into a darker band. The
+     parent row's hover actions still surface whenever the block is hovered. */
+  .options-readfirst-hash-row {
+    border-radius: 6px;
+    transition: background 0.12s ease;
+  }
+  .options-readfirst-hash-row:hover {
+    background: ${({ $hover }) => $hover};
+  }
+  .options-readfirst-hash-row:hover .readfirst-row {
+    background: transparent;
+  }
+  .options-readfirst-hash-row:hover .readfirst-action {
+    opacity: 0.85;
+  }
+`;
