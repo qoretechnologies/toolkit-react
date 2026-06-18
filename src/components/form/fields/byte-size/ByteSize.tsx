@@ -44,6 +44,7 @@ export const ByteSizeFormField = memo(
           readOnly={readOnly}
         />
         <SelectFormField
+          fixed
           items={SIZE_UNITS}
           value={unit}
           onChange={(next) => onChange?.(`${amount ?? ''}${next ?? ''}`)}

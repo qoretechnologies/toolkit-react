@@ -233,7 +233,7 @@ export const ExpressionField = memo(
               readOnly={readOnly}
               height='48px'
             />
-            <ReqoreMessage intent='muted' size='small' flat opaque={false}>
+            <ReqoreMessage intent='info' size='small' flat opaque={false}>
               Parsed: <code data-testid='expression-preview'>{preview || '(empty)'}</code>
             </ReqoreMessage>
             {showExplain ? (
