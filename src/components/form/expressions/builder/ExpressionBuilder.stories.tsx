@@ -84,7 +84,7 @@ const localTemplates = {
 
 const meta = {
   component: ExpressionBuilder,
-  title: 'Components/Form/Expressions/ExpressionBuilder (Ported)',
+  title: 'Components/Form/Expressions/ExpressionBuilder',
   args: {
     expressions: mockExpressions,
     localTemplates,
