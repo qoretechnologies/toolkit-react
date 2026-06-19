@@ -9,6 +9,7 @@ import {
   IMockLspServer,
   MOCK_LSP_URL,
 } from '../smartEditor/__fixtures__/mockLspServer';
+import { ReqraftWebSocketsManager } from '../../utils/websocket';
 import { DpqlEditor } from './DpqlEditor';
 import { TDpqlFsmContext } from './types';
 
@@ -162,6 +163,7 @@ const meta = {
     onChange: fn(),
   },
   async beforeEach(context) {
+    ReqraftWebSocketsManager.closeAll();
     // Live stories (those with `parameters: { live: true }`) skip
     // the mock-socket server so the editor's WebSocket reaches the
     // real Qorus `/lsp` endpoint at `wss://hq.qoretechnologies.com:8092/lsp`.
