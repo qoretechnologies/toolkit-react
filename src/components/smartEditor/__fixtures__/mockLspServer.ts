@@ -75,6 +75,7 @@ export interface IMockLspServerOptions {
 export interface IMockLspServer {
   received: IMockLspMessage[];
   connectionCount: number;
+  getOpenConnectionCount: () => number;
   // Most-recent document text from didOpen / didChange.
   documentText: string;
   delays: Record<string, number>;
@@ -91,6 +92,7 @@ export const createMockLspServer = (
   const lsp: IMockLspServer = {
     received: [],
     connectionCount: 0,
+    getOpenConnectionCount: () => sockets.filter((socket) => socket.readyState === 1).length,
     documentText: '',
     delays: { ...options.delays },
     notify: (method, params) =>

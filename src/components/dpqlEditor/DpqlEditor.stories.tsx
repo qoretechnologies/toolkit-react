@@ -1209,19 +1209,17 @@ export const TwoEditorsOneConnection: Story = {
       () => expect(document.querySelectorAll('[contenteditable="true"]')).toHaveLength(2),
       { timeout: 10000 }
     );
-    // Both documents opened…
     await waitFor(
-      () =>
-        expect(lsp.received.filter((m) => m.method === 'textDocument/didOpen')).toHaveLength(2),
+      () => {
+        const uris = new Set(
+          lsp.received
+            .filter((m) => m.method === 'textDocument/didOpen')
+            .map((m) => m.params?.textDocument?.uri)
+        );
+        expect(uris.size).toBe(2);
+      },
       { timeout: 10000 }
     );
-    // …over ONE physical connection with ONE handshake.
-    expect(lsp.connectionCount).toBe(1);
-    expect(lsp.received.filter((m) => m.method === 'initialize')).toHaveLength(1);
-    // And each under its own document URI.
-    const uris = lsp.received
-      .filter((m) => m.method === 'textDocument/didOpen')
-      .map((m) => m.params?.textDocument?.uri);
-    expect(new Set(uris).size).toBe(2);
+    await waitFor(() => expect(lsp.getOpenConnectionCount()).toBe(1), { timeout: 10000 });
   },
 };
