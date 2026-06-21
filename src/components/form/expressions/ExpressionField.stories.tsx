@@ -45,7 +45,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** The shell with a populated expression — Visual/Text toggle + Explain. */
+/** The shell with a populated expression — the Visual/Text mode toggle. */
 export const Default: Story = {
   args: {
     value: SAMPLE,
@@ -184,7 +184,10 @@ export const ViaFormEngineTextMode: Story = {
       },
       { timeout: 10000 }
     );
-    await expect(canvas.getByTestId('expression-preview').textContent).toContain('John');
+    await waitFor(
+      () => expect(canvas.getByTestId('expression-preview').textContent).toContain('John'),
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -410,13 +413,13 @@ export const Live: Story = {
 };
 
 /**
- * LIVE — server-side Explain over the LSP (`dpql/renderExpression`). Text
- * mode against the real instance: the "Parsed" preview and the Explain
- * button should show the server rendering — `"test".startsWith("t", true)`
- * — not the DPQL form (`"test" startsWith "t"`) or the client-side
- * approximation. Compare with qorus-ide's Explain (storybook :6007) for the
- * same AST. Prereq: same as `Live`; note the LSP WebSocket is NOT
- * CORS-blocked, unlike REST fetches from storybook to localhost:8012.
+ * LIVE — server-side rendering over the LSP (`dpql/renderExpression`). Text
+ * mode against the real instance: the live "Parsed" line should show the
+ * server rendering — `"test".startsWith("t", true)` — not the DPQL form
+ * (`"test" startsWith "t"`) or the client-side approximation. Compare with
+ * qorus-ide's Explain (storybook :6007) for the same AST. Prereq: same as
+ * `Live`; note the LSP WebSocket is NOT CORS-blocked, unlike REST fetches
+ * from storybook to localhost:8012.
  */
 export const LiveExplain: Story = {
   tags: ['!test'],

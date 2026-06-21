@@ -1,9 +1,10 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // The shell `TemplateField` renders when a field is in expression mode.
 // Owns the `IExpression` value and offers two views of the same AST —
-// Visual (the builder, Phase 3) and Text (DPQL, this phase) — plus Explain.
-// The DPQL text editor bridges to the AST via the LSP `dpql/parse` (text →
-// AST on edit) and `dpql/serialize` (AST → text on entering Text mode).
+// Visual (the builder, Phase 3) and Text (DPQL, this phase). The DPQL text
+// editor bridges to the AST via the LSP `dpql/parse` (text → AST on edit)
+// and `dpql/serialize` (AST → text on entering Text mode); a live "Parsed"
+// line renders the current AST (`dpql/renderExpression`).
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -74,12 +75,13 @@ export const ExpressionField = memo(
       override: expressionsOverride,
       expressionsUrl,
     });
-    const { render, serverRendering } = useRenderExpression();
+    const { renderRich } = useRenderExpression();
 
     const [mode, setMode] = useState<TExpressionMode>(defaultMode);
-    const [explanation, setExplanation] = useState('');
-    const [showExplain, setShowExplain] = useState(false);
-    const [preview, setPreview] = useState('');
+    const [preview, setPreview] = useState<{ text: string; server: boolean }>({
+      text: '',
+      server: false,
+    });
 
     // Text mode state. `text` is the DPQL string the editor shows; the AST
     // (`value`) stays the source of truth, kept in sync via parse-on-edit.
@@ -89,22 +91,18 @@ export const ExpressionField = memo(
 
     const ast = useMemo<IExpressionValue | undefined>(() => value?.value, [value]);
 
-    // Keep a readable preview of the current expression in sync.
+    // Keep a readable rendering of the current expression in sync — the
+    // single live mirror of the AST (server `dpql/renderExpression` when
+    // reachable, the client-side approximation otherwise).
     useEffect(() => {
       let live = true;
-      render(ast ?? {}, expressions).then((t) => {
-        if (live) setPreview(t);
+      renderRich(ast ?? {}, expressions).then((r) => {
+        if (live) setPreview({ text: r.text, server: r.server });
       });
       return () => {
         live = false;
       };
-    }, [render, ast, expressions]);
-
-    const handleExplain = useCallback(async () => {
-      const t = await render(ast ?? {}, expressions);
-      setExplanation(t || '(empty expression)');
-      setShowExplain(true);
-    }, [render, ast, expressions]);
+    }, [renderRich, ast, expressions]);
 
     // Tracks whether the user has typed since entering Text mode, so a
     // slow seed response can't clobber their input.
@@ -207,19 +205,6 @@ export const ExpressionField = memo(
           >
             Text
           </ReqoreButton>
-          {/* The ported builder has its own Explain in Visual mode; only the
-              DPQL Text editor needs the shell's Explain button. */}
-          {mode === 'text' ? (
-            <ReqoreButton
-              icon='QuestionLine'
-              onClick={handleExplain}
-              size={size as any}
-              fixed
-              className='expression-explain'
-            >
-              Explain
-            </ReqoreButton>
-          ) : null}
         </ReqoreControlGroup>
 
         {mode === 'text' ? (
@@ -233,29 +218,24 @@ export const ExpressionField = memo(
               readOnly={readOnly}
               height='48px'
             />
-            <ReqoreMessage intent='info' size='small' flat opaque={false}>
-              Parsed: <code data-testid='expression-preview'>{preview || '(empty)'}</code>
+            <ReqoreMessage intent='info' size='small' title='Parsed' flat opaque={false}>
+              {preview.server ? (
+                // Server rendering shown through a read-only DpqlEditor:
+                // template-ref chips + LSP token colours; diagnostics off
+                // (the rendering is readable text, not parseable DPQL).
+                <div data-testid='expression-preview' style={{ width: '100%' }}>
+                  <DpqlEditor
+                    value={preview.text}
+                    onChange={noop}
+                    readOnly
+                    showDiagnostics={false}
+                    enableHover={false}
+                  />
+                </div>
+              ) : (
+                <code data-testid='expression-preview'>{preview.text || '(empty)'}</code>
+              )}
             </ReqoreMessage>
-            {showExplain ? (
-              <ReqoreMessage intent='info' size='small' title='Explanation' flat>
-                {serverRendering ? (
-                  // Server rendering shown through a read-only DpqlEditor:
-                  // template-ref chips + LSP token colours; diagnostics off
-                  // (the rendering is readable text, not parseable DPQL).
-                  <div data-testid='expression-explanation' style={{ width: '100%' }}>
-                    <DpqlEditor
-                      value={explanation}
-                      onChange={noop}
-                      readOnly
-                      showDiagnostics={false}
-                      enableHover={false}
-                    />
-                  </div>
-                ) : (
-                  <code data-testid='expression-explanation'>{explanation}</code>
-                )}
-              </ReqoreMessage>
-            ) : null}
           </>
         ) : (
           <ExpressionBuilder
