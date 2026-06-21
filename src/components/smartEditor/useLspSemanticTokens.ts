@@ -24,6 +24,10 @@ import { lspPositionToOffset } from './helpers';
 import { ISlateConverter, ISlateElement } from './types';
 import type { IUseLspSessionResult } from './useLspSession';
 
+/** Re-fetches when an empty token set comes back for a non-empty document. */
+const EMPTY_RETRY_MAX = 3;
+const EMPTY_RETRY_DELAY_MS = 300;
+
 /**
  * Decode the LSP flat int-array semantic-tokens payload into
  * absolute-position `ILspSemanticToken[]`. Pure function — extracted
@@ -191,6 +195,11 @@ export function useLspSemanticTokens(
     [converter, nodes]
   );
 
+  const plainTextRef = useRef(plainText);
+  plainTextRef.current = plainText;
+  const emptyRetryRef = useRef(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Debounced fetch. Re-created in the effect below so each call
   // closes over the latest session + plainText. Started as a no-op so
   // the ref always holds a function (avoids null-checks in the firing
@@ -226,12 +235,28 @@ export function useLspSemanticTokens(
         if (reqId !== requestIdRef.current) return; // stale
         const decoded = decodeSemanticTokens(data, legend);
         setTokens(decoded);
+
+        if (
+          decoded.length === 0 &&
+          plainTextRef.current.trim() !== '' &&
+          emptyRetryRef.current < EMPTY_RETRY_MAX
+        ) {
+          emptyRetryRef.current += 1;
+          if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+          retryTimerRef.current = setTimeout(
+            () => fetchTokens.current(),
+            EMPTY_RETRY_DELAY_MS
+          );
+        }
       } catch {
         // Keep last-known tokens on error so highlighting doesn't
         // flash off mid-edit.
       }
     }, debounceMs);
-    return () => fetchTokens.current.cancel();
+    return () => {
+      fetchTokens.current.cancel();
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    };
   }, [
     session.client,
     session.isReady,
@@ -251,6 +276,9 @@ export function useLspSemanticTokens(
       !session.semanticTokensLegend
     )
       return;
+    // Fresh document (or fresh ready session) — allow the empty-result
+    // retries again.
+    emptyRetryRef.current = 0;
     fetchTokens.current();
     // No cleanup — the debounce is cancelled by the outer effect on
     // session/enabled changes.
