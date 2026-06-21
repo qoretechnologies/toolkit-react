@@ -11,6 +11,16 @@ import { areQorusTypesCompatible } from './expressions';
  * Used by both validations and TemplateField.
  */
 
+export type TTemplateMeta = { image?: string; builtIn?: boolean; isEventTrigger?: boolean };
+
+export const getTemplateTagStyle = (
+  meta?: TTemplateMeta
+): { intent: 'success' | 'info' | 'custom1' } => {
+  if (meta?.isEventTrigger) return { intent: 'success' };
+  if (meta?.builtIn) return { intent: 'custom1' };
+  return { intent: 'info' };
+};
+
 export const isValueTemplate = (value: string): boolean => {
   if (!value || typeof value !== 'string') {
     return false;

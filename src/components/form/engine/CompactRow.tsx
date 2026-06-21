@@ -20,9 +20,14 @@ import size from 'lodash/size';
 import React, { memo } from 'react';
 import { useContextSelector } from 'use-context-selector';
 import { hasAllDependenciesFullfilled } from '../../../helpers/validations';
-import { findTemplate, isValueTemplate } from '../../../helpers/templates';
+import {
+  findTemplate,
+  getTemplateTagStyle,
+  isValueTemplate,
+  TTemplateMeta,
+} from '../../../helpers/templates';
 import { richtextToSegments } from '../../../helpers/common';
-import { getTemplatePrefixColor } from '../../dpqlEditor/dpqlTags';
+import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
 import { Description } from '../../Description';
 import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
@@ -277,34 +282,22 @@ export const CompactRow = memo(
         );
       }
 
-      // Template value ($local:…): render the template's DISPLAY NAME as a chip
-      // (resolved from the templates list), with the raw value in the tooltip.
-      // Falls back to the raw value when the template isn't in the list.
+      // Template value ($local:…): the read-only template picker — the SAME chip
+      // TemplateField renders when disabled, so a template reads identically here
+      // and in the editor (qorus-ide intent scheme: info / qorus purple).
       if (
         typeof field?.value === 'string' &&
         !(field as { is_expression?: boolean }).is_expression &&
         isValueTemplate(field.value)
       ) {
-        const tmpl = templates ? findTemplate(templates, field.value) : undefined;
-        // Match the DpqlEditor's template tag: the $-dollar icon and the same
-        // per-prefix colour (shared TEMPLATE_COLORS), so a `$local:…` reads the
-        // same here as it does in the expression editor.
-        return (
-          <ReqoreTag
-            size='small'
-            icon='ExchangeDollarLine'
-            color={getTemplatePrefixColor(field.value) as `#${string}`}
-            label={String(tmpl?.label ?? formatted)}
-            tooltip={field.value}
-          />
-        );
+        return <ReadOnlyTemplateTag value={field.value} templates={templates} size='small' />;
       }
 
-      // Richtext read-first summary: render embedded template tags as inline
-      // $-chips (the same $-token as everywhere else) with the prose around
-      // them, instead of flattening the whole document to text. Pure-text
-      // richtext (no tags) falls through to the plain `formatted` string, which
-      // keeps the single-line ellipsis.
+      // Richtext read-first summary: inline $-chips for embedded template tags
+      // with the prose around them (the IDE intent scheme via getTemplateTagStyle),
+      // kept lightweight instead of mounting the full editor — that lives in the
+      // expanded card. Pure-text richtext (no tags) falls through to the plain
+      // `formatted` string and keeps the single-line ellipsis.
       if (valueType === 'richtext' && Array.isArray(field?.value)) {
         const segments = richtextToSegments(field.value as never);
         if (segments.some((segment) => segment.kind === 'tag')) {
@@ -316,9 +309,12 @@ export const CompactRow = memo(
                     key={index}
                     size='tiny'
                     icon='ExchangeDollarLine'
-                    color={getTemplatePrefixColor(segment.value || '') as `#${string}`}
                     label={segment.text || segment.value}
                     tooltip={segment.value}
+                    {...getTemplateTagStyle(
+                      (templates ? findTemplate(templates, segment.value || '') : undefined)
+                        ?.metadata as TTemplateMeta | undefined
+                    )}
                   />
                 : <span key={index} style={{ whiteSpace: 'pre' }}>
                     {segment.text}
@@ -484,9 +480,12 @@ export const CompactRow = memo(
           label='Draft'
           intent='warning'
           icon='EditLine'
-          size='small'
+          size='tiny'
           minimal
           fixed
+          flat
+          compact
+          effect={{ uppercase: true, spaced: 1 }}
         />
       : null;
 
@@ -611,7 +610,7 @@ export const CompactRow = memo(
           className='options-readfirst-node'
           $filled={!!memberSet}
           $color={
-            memberSet ?
+            clusterSatisfied ?
               (theme?.intents as Record<string, string> | undefined)?.success || cInfo
             : `${cWarning}99`
           }
@@ -937,6 +936,7 @@ export const CompactRow = memo(
             compact
             icon='LockLine'
             label='Depends on'
+            effect={{uppercase: true, spaced: 1}}
             items={[
               { divider: true, label: 'Unlocked by:', dividerAlign: 'left' } as IReqoreDropdownItem,
               ...dependencyEntries.flatMap((entry): IReqoreDropdownItem[] => [
@@ -1098,9 +1098,10 @@ export const CompactRow = memo(
           {changed ?
             <ReqoreButton
               className='options-readfirst-revert'
-              size='small'
+              size='tiny'
               flat
               minimal
+              compact
               icon='HistoryLine'
               tooltip='Revert changes'
               onClick={(e: React.MouseEvent) => {

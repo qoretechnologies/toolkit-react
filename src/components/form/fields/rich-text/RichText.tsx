@@ -7,6 +7,7 @@ import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { isEqual, size } from 'lodash';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useDebounce } from 'react-use';
+import { getTemplateTagStyle } from '../../../../helpers/templates';
 
 export interface IRichTextFormFieldProps extends Omit<
   IReqoreRichTextEditorProps,
@@ -70,7 +71,7 @@ export const RichTextFormField = memo(({
           image: tag.metadata?.image,
         },
         labelKey: tag.metadata?.displayName,
-        intent: tag.metadata?.builtIn ? 'pending' : 'info',
+        ...getTemplateTagStyle(tag.metadata),
       };
     }
 

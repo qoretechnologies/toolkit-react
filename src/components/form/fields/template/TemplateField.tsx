@@ -13,8 +13,6 @@ import {
   ReqoreMessage,
   ReqorePopover,
   ReqoreSkeleton,
-  ReqoreTag,
-  ReqoreTagGroup,
 } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
@@ -52,6 +50,7 @@ import { DateFormField } from '../date/Date';
 import { ReqraftFileFormField } from '../file/File';
 import LongStringFormField from '../long-string/LongString';
 import NumberFormField from '../number/Number';
+import { ReadOnlyTemplateTag } from './ReadOnlyTemplateTag';
 import { RichTextFormField } from '../rich-text/RichText';
 
 // Re-export template utilities for consumers
@@ -722,19 +721,9 @@ export const TemplateField = memo(
       if (isTemplate) {
         // SEAM (reqraft): the IDE renders a bare `<ReqoreTag label={templateValue}/>`
         // here; reqraft upgrades the read-only template to a proper picker chip —
-        // TemplateDropdownSelector's trigger shape ($-dollar icon + the resolved
-        // display name + app image), raw value in the tooltip.
-        const disabledTemplate = findTemplate(templates, templateValue);
-        return (
-          <ReqoreTagGroup size={rest.size}>
-            <ReqoreTag
-              icon='ExchangeDollarLine'
-              leftIconProps={{ image: disabledTemplate?.metadata?.image }}
-              label={disabledTemplate?.label || templateValue}
-              tooltip={templateValue}
-            />
-          </ReqoreTagGroup>
-        );
+        // the $-dollar icon + resolved display name + app image, coloured by the
+        // IDE's intent scheme. Shared with the compact read-first row.
+        return <ReadOnlyTemplateTag value={templateValue} templates={templates} size={rest.size} />;
       }
 
       return <Comp value={value} onChange={onChange} name={name} {...rest} />;
