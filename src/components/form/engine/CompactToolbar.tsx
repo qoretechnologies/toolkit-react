@@ -90,8 +90,10 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 intent='warning'
                 icon='EditLine'
                 minimal
-                size='small'
+                size='tiny'
+                compact
                 fixed
+                effect={{ uppercase: true, spaced: 1 }}
               />
             : <ReqoreTag
                 className='options-readfirst-status'
