@@ -2240,19 +2240,16 @@ export const CompactExpressions: Story = {
         { timeout: 10000 }
       );
 
-      // Explain — the canonical rendering over the mock dpql/renderExpression.
-      await fireEvent.click(
-        document.querySelector(
-          '.options-readfirst-card[data-field="condition"] .expression-explain'
-        ) as HTMLElement
-      );
+      // The "Parsed" line is the single live rendering of the AST (over the
+      // mock dpql/renderExpression) — it reflects the seeded expression. The
+      // separate Text-mode "Explain" button was dropped; Parsed is canonical.
       await waitFor(
         () =>
           expect(
             document.querySelector(
-              '.options-readfirst-card[data-field="condition"] [data-testid="expression-explanation"]'
-            )
-          ).toBeInTheDocument(),
+              '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
+            )?.textContent
+          ).toContain('John'),
         { timeout: 10000 }
       );
     } finally {
