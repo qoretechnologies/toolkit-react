@@ -1239,7 +1239,14 @@ export const CompactReadOnlyRichText: Story = {
           '.options-readfirst-card[data-field="templateOption"]'
         );
         expect(card).toBeTruthy();
-        expect(card?.querySelector('.reqore-tag')).toBeTruthy();
+        const tag = card?.querySelector('.reqore-tag');
+        expect(tag).toBeTruthy();
+        // The chip resolves the catalogue display name ('$local:test' →
+        // 'Test (local)') — the whole point of the read-only picker. The raw
+        // value is tooltip-only (portalled, not in the tag), so the visible
+        // label must be the resolved name, never the raw reference.
+        expect(tag?.textContent).toContain('Test (local)');
+        expect(tag?.textContent).not.toContain('$local:test');
         expect(
           card?.querySelector('input, textarea, [contenteditable="true"]')
         ).toBeFalsy();
@@ -3500,6 +3507,9 @@ const loadCompactSchemaAsync = (): Promise<IQorusFormSchema> =>
 
 // Compact engine with NO `options` prop — the engine fetches the schema itself
 // via `optionsLoader`, owning the loading lifecycle, then renders read-first.
+// Snapshot disabled: once resolved this looks like any other compact form, so
+// the story earns its keep through the play test (the resolve path), not a
+// snapshot — the loading state has its own story below.
 export const CompactOptionsLoader: Story = {
   parameters: { chromatic: { disable: true } },
   args: {
@@ -3534,16 +3544,22 @@ export const CompactOptionsLoaderError: Story = {
   },
 };
 
-// Classic (non-compact) parity: the same async source feeds the standard layout.
+// The loading state of `optionsLoader`. The loader never resolves, so the engine
+// stays in its skeleton gate — this is what the story name promises (a loader),
+// and the snapshot Chromatic captures. The resolve path (load → form →
+// `onOptionsLoaded`) is exercised by `CompactOptionsLoader` above.
 export const OptionsLoader: Story = {
   args: {
     minColumnWidth: '300px',
     value: CompactValue,
-    optionsLoader: loadCompactSchemaAsync,
+    optionsLoader: () => new Promise<IQorusFormSchema>(() => undefined),
   },
-  play: async ({ args }) => {
-    await _testsWaitForText('Name');
-    await waitFor(() => expect(args.onOptionsLoaded).toHaveBeenCalled());
+  play: async ({ canvasElement }) => {
+    // The skeleton is shown and the form rows never render.
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.options-loading-skeleton')).toBeInTheDocument()
+    );
+    await expect(canvasElement.querySelector('.readfirst-row')).not.toBeInTheDocument();
   },
 };
 
@@ -3823,11 +3839,24 @@ export const CompactRequiredGroupRails: Story = {
       const oauthNode = document.querySelector(
         '.readfirst-row[data-field="oauthToken"] .options-readfirst-node'
       ) as HTMLElement;
-      const apiBg = getComputedStyle(apiNode).backgroundColor;
-      const oauthBg = getComputedStyle(oauthNode).backgroundColor;
-      // apiKey filled with its (non-transparent, non-bg) border colour; oauth bg
-      // equals the row background (hollow).
-      expect(apiBg).not.toBe(oauthBg);
+      // email is in the `target` group, which has NO member set — still unmet.
+      const emailNode = document.querySelector(
+        '.readfirst-row[data-field="email"] .options-readfirst-node'
+      ) as HTMLElement;
+      // Fill marks the member carrying the value: apiKey filled (bg = its border
+      // colour), oauthToken hollow (bg = the form background).
+      expect(getComputedStyle(apiNode).backgroundColor).not.toBe(
+        getComputedStyle(oauthNode).backgroundColor
+      );
+      // Colour follows the GROUP, not the member. The credential group is satisfied
+      // by apiKey, so its empty alternative (oauthToken) reads the SAME colour as
+      // the filled node — not warning. The still-unmet target group's node (email)
+      // keeps the warning colour, so it differs.
+      const apiBorder = getComputedStyle(apiNode).borderTopColor;
+      const oauthBorder = getComputedStyle(oauthNode).borderTopColor;
+      const emailBorder = getComputedStyle(emailNode).borderTopColor;
+      expect(oauthBorder).toBe(apiBorder);
+      expect(oauthBorder).not.toBe(emailBorder);
     });
   },
 };

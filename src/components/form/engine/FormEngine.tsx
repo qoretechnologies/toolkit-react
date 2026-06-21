@@ -144,7 +144,7 @@ const PositiveColorEffect: any = {
 // Compact (read-first) layout: flat label | value | action rows in collapsible
 // group panels; colours come in as props so the layout follows the Reqore theme.
 
-const StyledCompactWrap = styled.div`
+const StyledCompactWrap = styled.div<{ $flush?: boolean }>`
   display: flex;
   flex-flow: column;
   gap: 10px;
@@ -155,8 +155,10 @@ const StyledCompactWrap = styled.div`
   max-width: 100%;
   /* A bit of horizontal breathing room for the whole form (header + content
      alike). Horizontal only — top padding would break the sticky toolbar's
-     flush pin (see the scroll-context note below). */
-  padding: 0 12px;
+     flush pin (see the scroll-context note below). Dropped to flush via the
+     compactFlush prop, for embeds that own their own gutters (e.g. the
+     SchemaDefinition tab body). */
+  padding: ${({ $flush }) => ($flush ? '0' : '0 12px')};
 
   /* Own our scroll context instead of borrowing the host's. The sticky toolbar
      pins to whatever scrolls; if that scroller carries top padding (e.g. a
@@ -182,7 +184,6 @@ const StyledCompactWrap = styled.div`
     object-fit: contain;
   }
 `;
-
 
 // Batched-commit dock: a floating Save/Discard card pinned bottom-right. Sticky
 // (not fixed) so it stays within the form's own scroll bounds when the engine
@@ -461,6 +462,13 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * value; clicking expands the real editor inline, Done collapses it.
    */
   compact?: boolean;
+  /**
+   * Compact mode only: drop the read-first wrap's horizontal gutter (the 12px
+   * breathing room) so the form sits flush to its container's edges. For embeds
+   * that own their own gutters — e.g. the SchemaDefinition tab body, where the
+   * form should line up with the section description above it. Default `false`.
+   */
+  compactFlush?: boolean;
   /** Compact mode only: per-group display metadata (label / icon / subtitle /
    * order) — the server only sends the bare group key. */
   groups?: Record<string, IFormEngineGroup>;
@@ -516,6 +524,7 @@ export const FormEngine = ({
   templateFieldProps,
   showTypeToggle = true,
   compact,
+  compactFlush = false,
   commitMode = 'immediate',
   expandMode = 'single',
   onCommit,
@@ -1278,10 +1287,7 @@ export const FormEngine = ({
     setInfoPanelOverrides({});
     setShowAllDescriptions((prev) => prev !== true);
   }, []);
-  const handleToggleInvalidOnly = useCallback(
-    () => setShowInvalidOptionsOnly((prev) => !prev),
-    []
-  );
+  const handleToggleInvalidOnly = useCallback(() => setShowInvalidOptionsOnly((prev) => !prev), []);
   const handleRevertChangesClick = useCallback(() => {
     setLocalValue({
       fields: originalValue.current,
@@ -1736,9 +1742,7 @@ export const FormEngine = ({
       onToggleAllDescriptions: handleToggleAllDescriptions,
       filteredCount: size(filteredOptions),
       optionalFields,
-      canRevert: !!(
-        originalValue.current && !isEqual(localValue.fields, originalValue.current)
-      ),
+      canRevert: !!(originalValue.current && !isEqual(localValue.fields, originalValue.current)),
       onAddOptionalField: (value) => handleAddOptionalFieldChange('options', value),
       onAddAll: handleAddAllOptional,
       onResetDefaults: handleResetToDefaultFields,
@@ -1822,8 +1826,7 @@ export const FormEngine = ({
     // still pulls required-group members together at the first member's — now
     // sorted — slot.
     if (compactSort !== 'schema') {
-      const labelOf = (name: string) =>
-        (options?.[name]?.display_name || name).toLowerCase();
+      const labelOf = (name: string) => (options?.[name]?.display_name || name).toLowerCase();
       const isUnset = (name: string) =>
         isOptionValueEmpty((shownOptions as TQorusForm)[name]?.value);
       const isFieldInvalid = (name: string) =>
@@ -1832,10 +1835,7 @@ export const FormEngine = ({
           (options?.[name]?.ui_type || options?.[name]?.type) as TQorusType,
           (shownOptions as TQorusForm)[name]?.value
         );
-      const comparator = (
-        a: { name: string },
-        b: { name: string }
-      ): number => {
+      const comparator = (a: { name: string }, b: { name: string }): number => {
         switch (compactSort) {
           case 'alpha':
             return labelOf(a.name).localeCompare(labelOf(b.name));
@@ -1880,8 +1880,7 @@ export const FormEngine = ({
           optionField={
             entry.hidden ?
               ({
-                type: (options?.[entry.name]?.ui_type ||
-                  options?.[entry.name]?.type) as TQorusType,
+                type: (options?.[entry.name]?.ui_type || options?.[entry.name]?.type) as TQorusType,
                 value: undefined,
               } as IQorusFormField)
             : ((shownOptions as TQorusForm)[entry.name] as IQorusFormField)
@@ -1920,158 +1919,170 @@ export const FormEngine = ({
               />
             )}
             <CompactToolbarContext.Provider value={compactToolbarContextValue}>
-            <StyledCompactWrap ref={setCompactWrap} className='options-readfirst-scroll'>
-              <StyledCompactPanel
-                $headerBg={headerBg}
-                flat
-                stickyHeader
-                padded={false}
-                actions={compactHeaderActions}
-                contentStyle={{
-                  display: 'flex',
-                  flexFlow: 'column',
-                  gap: '10px',
-                  padding: '0 0 12px',
-                }}
+              <StyledCompactWrap
+                ref={setCompactWrap}
+                className='options-readfirst-scroll'
+                $flush={compactFlush}
               >
-              {size(groupKeys) === 0 ?
-                <ReqoreMessage flat opaque={false} size='small'>
-                  No fields match the current filters.
-                </ReqoreMessage>
-              : null}
+                <StyledCompactPanel
+                  $headerBg={headerBg}
+                  flat
+                  stickyHeader
+                  padded={false}
+                  actions={compactHeaderActions}
+                  contentStyle={{
+                    display: 'flex',
+                    flexFlow: 'column',
+                    gap: '10px',
+                    padding: '0 0 12px',
+                  }}
+                >
+                  {size(groupKeys) === 0 ?
+                    <ReqoreMessage flat opaque={false} size='small'>
+                      No fields match the current filters.
+                    </ReqoreMessage>
+                  : null}
 
-              {groupKeys.map((groupName) => {
-                const names = grouped[groupName];
-                const groupConfig = groups?.[groupName];
-                const invalidCount = names.filter(
-                  (entry) =>
-                    !entry.hidden &&
-                    !isOptionValid(
-                      entry.name,
-                      (options?.[entry.name]?.ui_type as TQorusType) ||
-                        (options?.[entry.name]?.type as TQorusType),
-                      (shownOptions as TQorusForm)[entry.name]?.value
-                    )
-                ).length;
+                  {groupKeys.map((groupName) => {
+                    const names = grouped[groupName];
+                    const groupConfig = groups?.[groupName];
+                    const invalidCount = names.filter(
+                      (entry) =>
+                        !entry.hidden &&
+                        !isOptionValid(
+                          entry.name,
+                          (options?.[entry.name]?.ui_type as TQorusType) ||
+                            (options?.[entry.name]?.type as TQorusType),
+                          (shownOptions as TQorusForm)[entry.name]?.value
+                        )
+                    ).length;
 
-                return (
-                  <ReqorePanel
-                    key={groupName}
-                    flat
-                    minimal
-                    collapseButtonProps={{flat: true, minimal: true, size: 'small'}}
-                    collapsible
-                    label={
-                      <StyledGroupHeader>
-                        <ReqoreP effect={{weight: 'bold'}} size='big'>{getOptionGroupLabel(groupName, groups)}</ReqoreP>
-                        <StyledGroupHeaderLine $color={cGroupLine} />
-                        <ReqoreTag
-                          size='small'
-                          minimal
-                          {...(groupName === 'optional' ?
-                            { label: `${names.length} optional` }
-                          : invalidCount ?
-                            {
-                              label: `${invalidCount} to resolve`,
-                              intent: 'warning' as const,
-                              icon: 'ErrorWarningLine' as const,
-                            }
-                          : {
-                              label: 'all set',
-                              intent: 'success' as const,
-                              icon: 'CheckLine' as const,
-                            })}
-                        />
-                      </StyledGroupHeader>
-                    }
-                    icon={groupConfig?.icon}
-                    className='options-readfirst-group'
-                    padded={false}
-                    contentStyle={{ padding: '4px 4px 6px' }}
-                  >
-                    {groupConfig?.subtitle ?
-                      <ReqoreP
-                        size='small'
-                        effect={{ opacity: 0.6 }}
-                        // Indent to the same content line as the rows (StyledGroupBody's
-                        // `margin-left` clamp) so the subtitle sits tucked under the group
-                        // name instead of at the panel edge — and clears the group's
-                        // vertical rule (left:16px) rather than crossing it.
-                        style={{
-                          marginTop: 2,
-                          marginBottom: 8,
-                          marginLeft: GROUP_INDENT,
-                          paddingRight: 10,
-                        }}
+                    return (
+                      <ReqorePanel
+                        key={groupName}
+                        flat
+                        minimal
+                        collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
+                        collapsible
+                        label={
+                          <StyledGroupHeader>
+                            <ReqoreP effect={{ weight: 'bold' }} size='big'>
+                              {getOptionGroupLabel(groupName, groups)}
+                            </ReqoreP>
+                            <StyledGroupHeaderLine $color={cGroupLine} />
+                            <ReqoreButton
+                              readOnly
+                              size='tiny'
+                              minimal
+                              flat
+                              compact
+                              effect={{uppercase: true, spaced: 1}}
+                              {...(groupName === 'optional' ? { label: `${names.length} optional` }
+                              : invalidCount ?
+                                {
+                                  label: `${invalidCount} to resolve`,
+                                  intent: 'warning' as const,
+                                  icon: 'ErrorWarningLine' as const,
+                                }
+                              : {
+                                  label: 'All set',
+                                  intent: 'success' as const,
+                                  icon: 'CheckLine' as const,
+                                })}
+                            />
+                          </StyledGroupHeader>
+                        }
+                        icon={groupConfig?.icon}
+                        className='options-readfirst-group'
+                        padded={false}
+                        contentStyle={{ padding: '4px 4px 6px' }}
                       >
-                        {groupConfig.subtitle}
-                      </ReqoreP>
-                    : null}
-                    <StyledGroupBody
-                      $divider={cDivider}
-                      $hover={cHover}
-                      $focus={cWarning}
-                      $success={cSuccess}
-                      $rowBg={cRowBg}
-                      $lineColor={cGroupLine}
-                      className={compactNarrow ? 'readfirst-narrow' : undefined}
-                    >
-                      {renderGroupRows(names)}
-                    </StyledGroupBody>
-                  </ReqorePanel>
-                );
-              })}
-              </StyledCompactPanel>
+                        {groupConfig?.subtitle ?
+                          <ReqoreP
+                            size='small'
+                            effect={{ opacity: 0.6 }}
+                            // Indent to the same content line as the rows (StyledGroupBody's
+                            // `margin-left` clamp) so the subtitle sits tucked under the group
+                            // name instead of at the panel edge — and clears the group's
+                            // vertical rule (left:16px) rather than crossing it.
+                            style={{
+                              marginTop: 2,
+                              marginBottom: 8,
+                              marginLeft: GROUP_INDENT,
+                              paddingRight: 10,
+                            }}
+                          >
+                            {groupConfig.subtitle}
+                          </ReqoreP>
+                        : null}
+                        <StyledGroupBody
+                          $divider={cDivider}
+                          $hover={cHover}
+                          $focus={cWarning}
+                          $success={cSuccess}
+                          $rowBg={cRowBg}
+                          $lineColor={cGroupLine}
+                          className={compactNarrow ? 'readfirst-narrow' : undefined}
+                        >
+                          {renderGroupRows(names)}
+                        </StyledGroupBody>
+                      </ReqorePanel>
+                    );
+                  })}
+                </StyledCompactPanel>
 
-              {/* Batched commit: the Save/Discard bar docks bottom-right, floating
+                {/* Batched commit: the Save/Discard bar docks bottom-right, floating
                 over the rows while anything is staged — the product's draft
                 convention (edits are a draft until explicitly applied). Save is
                 gated on overall validity; Discard is the existing revert-all. */}
-              {commitMode === 'batched' && !readOnly && dirtyOptionNames.length ?
-                <StyledCommitDock $bg={cBg} $border={cDivider}>
-                  <ReqoreControlGroup
-                    className='options-readfirst-commitbar'
-                    verticalAlign='center'
-                    wrap
-                  >
-                    <ReqoreTag
-                      size='small'
-                      minimal
-                      intent='warning'
-                      icon='EditLine'
-                      label={`${dirtyOptionNames.length} unsaved change${dirtyOptionNames.length === 1 ? '' : 's'}`}
-                    />
-                    <ReqoreButton
-                      size='small'
-                      intent='success'
-                      icon='CheckLine'
-                      fixed
-                      className='options-readfirst-save'
-                      disabled={!validityData.isValid}
-                      tooltip={
-                        validityData.isValid ?
-                          'Apply the staged changes'
-                        : 'Resolve the invalid fields before saving'
-                      }
-                      onClick={handleCommitClick}
+                {commitMode === 'batched' && !readOnly && dirtyOptionNames.length ?
+                  <StyledCommitDock $bg={cBg} $border={cDivider}>
+                    <ReqoreControlGroup
+                      className='options-readfirst-commitbar'
+                      verticalAlign='center'
+                      wrap
                     >
-                      Save
-                    </ReqoreButton>
-                    <ReqoreButton
-                      size='small'
-                      minimal
-                      flat
-                      fixed
-                      icon='HistoryLine'
-                      className='options-readfirst-discard'
-                      onClick={handleRevertChangesClick}
-                    >
-                      Discard
-                    </ReqoreButton>
-                  </ReqoreControlGroup>
-                </StyledCommitDock>
-              : null}
-            </StyledCompactWrap>
+                      <ReqoreTag
+                        size='tiny'
+                        minimal
+                        flat
+                        compact
+                        effect={{ uppercase: true, spaced: 1 }}
+                        intent='warning'
+                        icon='EditLine'
+                        label={`${dirtyOptionNames.length} unsaved change${dirtyOptionNames.length === 1 ? '' : 's'}`}
+                      />
+                      <ReqoreButton
+                        size='small'
+                        intent='success'
+                        icon='CheckLine'
+                        fixed
+                        className='options-readfirst-save'
+                        disabled={!validityData.isValid}
+                        tooltip={
+                          validityData.isValid ?
+                            'Apply the staged changes'
+                          : 'Resolve the invalid fields before saving'
+                        }
+                        onClick={handleCommitClick}
+                      >
+                        Save
+                      </ReqoreButton>
+                      <ReqoreButton
+                        size='small'
+                        minimal
+                        flat
+                        fixed
+                        icon='HistoryLine'
+                        className='options-readfirst-discard'
+                        onClick={handleRevertChangesClick}
+                      >
+                        Discard
+                      </ReqoreButton>
+                    </ReqoreControlGroup>
+                  </StyledCommitDock>
+                : null}
+              </StyledCompactWrap>
             </CompactToolbarContext.Provider>
           </ReqoreErrorBoundary>
         </CompactRowContext.Provider>
@@ -2090,7 +2101,14 @@ export const FormEngine = ({
     ((url || customUrl) && !options)
   ) {
     return (
-      <ReqoreControlGroup vertical fill fluid style={{ flexGrow: 1 }} gapSize='big'>
+      <ReqoreControlGroup
+        className='options-loading-skeleton'
+        vertical
+        fill
+        fluid
+        style={{ flexGrow: 1 }}
+        gapSize='big'
+      >
         <ReqoreControlGroup fixed fill={false}>
           <ReqoreSkeleton />
           <ReqoreSkeleton />

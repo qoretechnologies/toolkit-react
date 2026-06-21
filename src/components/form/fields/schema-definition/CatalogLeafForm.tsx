@@ -230,7 +230,7 @@ export const CatalogLeafForm = memo(
         compact
         padded={false}
         showTypeToggle={false}
-        wrapperPadding='none'
+        compactFlush
         value={optionsValue}
         options={schema}
         onChange={handleChange}
