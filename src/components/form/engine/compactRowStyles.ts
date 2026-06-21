@@ -156,9 +156,8 @@ export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>
   font-weight: 600;
   font-size: 13px;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   cursor: ${({ $pointer }) => ($pointer ? 'pointer' : 'inherit')};
 `;
 
