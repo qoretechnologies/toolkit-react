@@ -44,12 +44,28 @@ export const getTemplatePrefixColor = (value: string): string => {
   return (TEMPLATE_COLORS[prefix] || DEFAULT_TEMPLATE_COLOR).fg;
 };
 
+export interface IDpqlTagRendererOptions {
+  /**
+   * Color template (`$…`) tags with the `info` intent instead of the per-prefix
+   * palette. For read-only render surfaces (the Explain panel) that mirror
+   * qorus-ide, where template tags are uniformly `info`. The server's
+   * `renderExpression` carries no built-in / event-trigger metadata (verified
+   * against the live LSP), so `info` is the whole scheme here — there's nothing
+   * to promote to qorus purple / success. The editable editor omits this and
+   * keeps the per-prefix palette for telling prefixes apart at a glance.
+   */
+  templateTagsUseIntent?: boolean;
+}
+
 /**
  * Build the `tagRenderer` callback for DpqlEditor. Closes over the live
  * `fieldMeta` map so `@field` tooltips reflect the latest schema returned
  * by `dpql/setContext`.
  */
-export function makeDpqlTagRenderer(fieldMeta: Record<string, IDpqlFieldMeta>) {
+export function makeDpqlTagRenderer(
+  fieldMeta: Record<string, IDpqlFieldMeta>,
+  options: IDpqlTagRendererOptions = {}
+) {
   return (tag: ISlateElement): IReqoreTagProps => {
     const tagValue = tag.value?.toString();
     if (!tagValue) return {};
@@ -74,7 +90,9 @@ export function makeDpqlTagRenderer(fieldMeta: Record<string, IDpqlFieldMeta>) {
     if (tagValue.startsWith('$')) {
       return {
         icon: 'ExchangeDollarLine',
-        color: getTemplatePrefixColor(tagValue) as `#${string}`,
+        ...(options.templateTagsUseIntent
+          ? { intent: 'info' as const }
+          : { color: getTemplatePrefixColor(tagValue) as `#${string}` }),
       };
     }
 

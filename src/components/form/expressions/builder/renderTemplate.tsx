@@ -69,6 +69,7 @@ export const ExpressionRenderTemplate = ({ exp, expressions }: IExpressionRender
       readOnly
       showDiagnostics={false}
       enableHover={false}
+      templateTagsUseIntent
     />
   );
 };

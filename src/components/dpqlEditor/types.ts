@@ -65,6 +65,13 @@ export interface IDpqlEditorProps {
   showDiagnostics?: boolean;
   /** Whether to show hover popovers (`textDocument/hover`). Default `true`. */
   enableHover?: boolean;
+  /**
+   * Color template (`$…`) tags with the `info` intent instead of the per-prefix
+   * palette — for read-only render surfaces (the Explain panel) that mirror
+   * qorus-ide's uniform `info` template styling. Default `false` (per-prefix
+   * palette, the editor's at-a-glance prefix coloring).
+   */
+  templateTagsUseIntent?: boolean;
   /** Called when the editor loses focus. */
   onBlur?: () => void;
   /**
