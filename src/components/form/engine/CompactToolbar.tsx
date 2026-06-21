@@ -90,6 +90,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 intent='warning'
                 icon='EditLine'
                 minimal
+                flat
                 size='tiny'
                 compact
                 fixed
@@ -101,8 +102,11 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 intent='success'
                 icon='CheckLine'
                 minimal
-                size='small'
+                flat
+                size='tiny'
+                compact
                 fixed
+                effect={{ uppercase: true, spaced: 1 }}
               />
 
           : null}

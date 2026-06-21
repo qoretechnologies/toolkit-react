@@ -380,6 +380,7 @@ export const CompactRow = memo(
             minimal
             flat
             compact
+            effect={{ uppercase: true, spaced: 1 }}
             intent={groupResolved ? 'success' : 'warning'}
             icon={groupResolved ? 'CheckLine' : 'LinkM'}
             label={
