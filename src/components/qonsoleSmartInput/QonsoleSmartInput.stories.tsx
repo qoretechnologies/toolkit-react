@@ -705,6 +705,7 @@ export const SelectingWizardItemFiresCallback: Story = {
     onWizardStart: fn(),
   },
   parameters: {
+    chromatic: { disable: true },
     docs: {
       description: {
         story:
