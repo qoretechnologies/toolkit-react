@@ -42,13 +42,26 @@ export const argTypes = {
 export const decorators = [
   withMockdate,
   (Story, context) => {
+    // Live stories (`parameters: { live: true }`) hit this instance. Override
+    // it to point at your own Qorus for live data, e.g.
+    //   REACT_APP_QORUS_INSTANCE=https://localhost:8012/ \
+    //   REACT_APP_QORUS_TOKEN=<token> yarn storybook
+    // (the instance must allow the storybook origin via CORS).
     const Reqraft = initializeReqraft({
-      instance: 'https://hq.qoretechnologies.com:8092/',
+      instance: process.env.REACT_APP_QORUS_INSTANCE || 'https://hq.qoretechnologies.com:8092/',
       instanceToken: process.env.REACT_APP_QORUS_TOKEN,
     });
 
     return (
       <ReqoreUIProvider
+        theme={{
+          main: '#121212',
+          intents: {
+            success: '#4a7110',
+            custom1: '#762f7e',
+            custom2: '#b34e1d',
+          },
+        }}
         options={{
           animations: {
             buttons: false,

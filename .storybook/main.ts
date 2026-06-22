@@ -23,7 +23,12 @@ export default {
     ...config,
     NODE_ENV: 'storybook',
     BROWSER: 'chrome',
-    REACT_APP_QORUS_TOKEN: '2f58cd78-a400-4d98-8de2-90fbaa6f805d',
+    ...(process.env.REACT_APP_QORUS_TOKEN
+      ? { REACT_APP_QORUS_TOKEN: process.env.REACT_APP_QORUS_TOKEN }
+      : {}),
+    ...(process.env.REACT_APP_QORUS_INSTANCE
+      ? { REACT_APP_QORUS_INSTANCE: process.env.REACT_APP_QORUS_INSTANCE }
+      : {}),
   }),
 
   typescript: { reactDocgen: 'react-docgen' },

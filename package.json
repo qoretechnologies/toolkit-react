@@ -1,9 +1,10 @@
 {
   "name": "@qoretechnologies/reqraft",
-  "version": "0.8.11",
+  "version": "0.10.0",
   "description": "ReQraft is a collection of React components and hooks that are used across Qore Technologies' products made using the ReQore component library from Qore.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "packageManager": "yarn@1.22.22",
   "scripts": {
     "source": "source ~/.profile",
     "test": "./node_modules/.bin/jest --passWithNoTests",
@@ -20,7 +21,9 @@
     "test-storybook": "DEBUG_PRINT_LIMIT=300 test-storybook --url http://localhost:6008",
     "install-playwright": "npx playwright@latest install --with-deps",
     "build-storybook": "storybook build",
-    "chromatic": "npx chromatic"
+    "chromatic": "npx chromatic",
+    "yalc:push": "yarn build && yalc push",
+    "yalc:watch": "tsc-watch --project tsconfig.prod.json --onSuccess \"yalc push\""
   },
   "repository": {
     "type": "git",
@@ -54,7 +57,7 @@
     "@babel/preset-typescript": "^7.12.7",
     "@chromatic-com/storybook": "^2.0.2",
     "@netsells/storybook-mockdate": "^0.3.3",
-    "@qoretechnologies/reqore": "^0.64.3",
+    "@qoretechnologies/reqore": "^0.69.4",
     "@storybook/addon-actions": "^8.3.5",
     "@storybook/addon-essentials": "^8.3.5",
     "@storybook/addon-interactions": "^8.3.5",
@@ -99,11 +102,12 @@
     "storybook-addon-mock": "^5.0.0",
     "ts-jest": "^29.1.2",
     "ts-node": "^9.1.1",
+    "tsc-watch": "^7.2.0",
     "type-fest": "^4.18.2",
     "typescript": "^5.4.5"
   },
   "peerDependencies": {
-    "@qoretechnologies/reqore": ">=0.48.8-beta",
+    "@qoretechnologies/reqore": ">=0.68.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

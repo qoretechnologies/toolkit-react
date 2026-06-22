@@ -7,6 +7,7 @@ import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { isEqual, size } from 'lodash';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useDebounce } from 'react-use';
+import { getTemplateTagStyle } from '../../../../helpers/templates';
 
 export interface IRichTextFormFieldProps extends Omit<
   IReqoreRichTextEditorProps,
@@ -40,7 +41,12 @@ export const RichTextFormField = memo(({
       }
     },
     100,
-    [localValue, onChange]
+    // Deliberately NOT keyed on `onChange`: parents (FormEngine/TemplateField)
+    // re-render freely while the user types, and an identity-changing callback
+    // would keep resetting the timer — the pending emission then starves and
+    // the typed value never reaches the form. react-use runs the latest
+    // closure from a ref, so the fresh `onChange` is used either way.
+    [localValue]
   );
 
   const handleChange = (val: any): void => {
@@ -65,7 +71,7 @@ export const RichTextFormField = memo(({
           image: tag.metadata?.image,
         },
         labelKey: tag.metadata?.displayName,
-        intent: tag.metadata?.builtIn ? 'pending' : 'info',
+        ...getTemplateTagStyle(tag.metadata),
       };
     }
 
@@ -93,15 +99,21 @@ export const RichTextFormField = memo(({
     : localValue === null ? undefined
     : localValue;
 
+  // Read-only: ReqoreRichTextEditor makes the Slate surface non-editable (and
+  // disables tag click/remove) when `readOnly` is set. Honour the field-level
+  // flags — the IDE Options model passes `readonly`, the compact form passes
+  // `readOnly` + `disabled` — so a read-only form renders the formatted content
+  // rather than an editable box, and the toolbar actions are dropped to match.
+  const readOnly = !!(
+    (rest as { readOnly?: boolean }).readOnly ||
+    (rest as { readonly?: boolean }).readonly ||
+    (rest as { disabled?: boolean }).disabled
+  );
+
   return (
     <ReqoreRichTextEditor
       value={formattedValue}
       onChange={handleChange}
-      actions={{
-        redo: true,
-        undo: true,
-        styling: false,
-      }}
       tagsListProps={{
         useTargetWidth: true,
         minWidth: '300px',
@@ -115,6 +127,12 @@ export const RichTextFormField = memo(({
       tags={tags}
       panelProps={{ fluid: true, style: { minWidth: '150px', ...rest.panelProps?.style } }}
       {...rest}
+      readOnly={readOnly}
+      actions={
+        readOnly ?
+          { undo: false, redo: false, styling: false }
+        : { redo: true, undo: true, styling: false }
+      }
     />
   );
 });

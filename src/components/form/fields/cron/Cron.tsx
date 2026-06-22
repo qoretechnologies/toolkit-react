@@ -6,6 +6,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreControlGroupProps } from '@qoretechnologies/reqore/dist/components/ControlGroup';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import cronstrue from 'cronstrue';
 import { useMemo } from 'react';
 
@@ -14,13 +15,15 @@ export interface ICronFormFieldProps {
   onChange?(value: string): void;
   wrapperProps?: Partial<IReqoreControlGroupProps>;
   inputProps?: IReqoreInputProps[];
+  size?: TSizes;
 }
 
 export const CronFormField = ({
   onChange,
-  value,
+  value = '',
   wrapperProps,
   inputProps,
+  size,
 }: ICronFormFieldProps) => {
   const { message, isError } = useMemo(() => {
     try {
@@ -34,12 +37,12 @@ export const CronFormField = ({
   }, [value]);
 
   return (
-    <ReqoreControlGroup fluid stack={false} vertical gapSize='big' {...wrapperProps}>
-      <ReqoreControlGroup fluid stack>
+    <ReqoreControlGroup fluid stack={false} vertical gapSize='big' size={size} {...wrapperProps}>
+      <ReqoreControlGroup fluid stack size={size}>
         {['Minute', 'Hour', 'Day', 'Month', 'Weekday'].map((label, index) => {
           return (
             <ReqoreInput
-              {...inputProps[index]}
+              {...(inputProps?.[index] ?? {})}
               key={index}
               aria-label={label}
               placeholder={label}

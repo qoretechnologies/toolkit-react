@@ -4,17 +4,30 @@ import {
   ReqoreControlGroup,
   ReqoreErrorBoundary,
   ReqoreMessage,
+  ReqoreP,
+  ReqorePanel,
   ReqoreSkeleton,
   ReqoreTag,
   ReqoreTagGroup,
   ReqoreVerticalSpacer,
   useReqoreProperty,
+  useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { IReqoreCollectionProps } from '@qoretechnologies/reqore/dist/components/Collection';
 import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/components/Collection/item';
-import { IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Panel';
+import {
+  IReqorePanelAction,
+  IReqorePanelProps,
+} from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
+import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
+import {
+  changeDarkness,
+  getMainBackgroundColor,
+  getReadableColor,
+  percentToHexAlpha,
+} from '@qoretechnologies/reqore/dist/helpers/colors';
 import {
   IQorusFormField,
   IQorusFormFieldMessage,
@@ -33,11 +46,13 @@ import isArray from 'lodash/isArray';
 import map from 'lodash/map';
 import reduce from 'lodash/reduce';
 import size from 'lodash/size';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useDebounce, useUpdateEffect } from 'react-use';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useMeasure, useMount, useUpdateEffect } from 'react-use';
 import { createContext } from 'use-context-selector';
+import styled from 'styled-components';
 import { getDefaultValue, insertAtIndex, richtextToString } from '../../../helpers/common';
 import { getRequiredOptionMessage } from '../../../helpers/options';
+import { query } from '../../../utils/fetch';
 import {
   IValidationResult,
   hasAllDependenciesFullfilled,
@@ -55,8 +70,32 @@ import {
   TemplateField,
   isValueTemplate,
 } from '../fields/template/TemplateField';
+import { CompactRow } from './CompactRow';
+import { CompactRowContext, ICompactRowContext } from './compactRowContext';
+import { CompactToolbar } from './CompactToolbar';
+import {
+  CompactToolbarContext,
+  ICompactToolbarContext,
+  TCompactSort,
+} from './compactToolbarContext';
+import {
+  GROUP_INDENT,
+  LABEL_COL_MAX,
+  LABEL_COL_MIN,
+  LABEL_COL_VAR,
+  StyledCompactPanel,
+  StyledGroupBody,
+  StyledGroupHeader,
+  StyledGroupHeaderLine,
+} from './compactRowStyles';
 import { OptionFieldMessages } from './OptionFieldMessages';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
+import {
+  getOptionGroup,
+  getOptionGroupLabel,
+  getReadFirstCompletion,
+  isOptionValueEmpty,
+} from './readFirst';
 
 // Re-export types for consumers
 export type IOptions = TQorusForm;
@@ -68,7 +107,10 @@ export type IOptionsSchemaArg = TQorusFormFieldSchema;
 export interface IOptionsSchema extends IQorusFormSchema {}
 export interface IOperator extends IQorusFormOperator {}
 export interface IOperatorsSchema extends IQorusFormOperatorsSchema {}
-export interface IOptionsOnChangeMeta extends IQorusFormFieldOnChangeMeta {}
+export interface IOptionsOnChangeMeta extends IQorusFormFieldOnChangeMeta {
+  /** `commitMode='batched'`: the emitted value is staged (a draft), not committed. */
+  draft?: boolean;
+}
 
 export interface IFormFieldValidityData {
   fieldName: string;
@@ -98,6 +140,68 @@ const PositiveColorEffect: any = {
   color: '#ffffff',
   glow: 'success',
 };
+
+// Compact (read-first) layout: flat label | value | action rows in collapsible
+// group panels; colours come in as props so the layout follows the Reqore theme.
+
+const StyledCompactWrap = styled.div<{ $flush?: boolean }>`
+  display: flex;
+  flex-flow: column;
+  gap: 10px;
+  width: 100%;
+  /* Allow the wrap to shrink inside flex/grid parents so its rows' ellipsis can
+     engage instead of overflowing the container horizontally. */
+  min-width: 0;
+  max-width: 100%;
+  /* A bit of horizontal breathing room for the whole form (header + content
+     alike). Horizontal only — top padding would break the sticky toolbar's
+     flush pin (see the scroll-context note below). Dropped to flush via the
+     compactFlush prop, for embeds that own their own gutters (e.g. the
+     SchemaDefinition tab body). */
+  padding: ${({ $flush }) => ($flush ? '0' : '0 12px')};
+
+  /* Own our scroll context instead of borrowing the host's. The sticky toolbar
+     pins to whatever scrolls; if that scroller carries top padding (e.g. a
+     ReqorePanel/ReqoreContent body), sticky \`top: 0\` resolves against its
+     padding box and leaves an unblurred strip above the toolbar. By scrolling
+     here — an UNPADDED box — the toolbar always pins flush and content ghosts
+     cleanly beneath it, regardless of host padding (mirrors how the IDE
+     dashboard keeps its StyledScrollBody scroller unpadded).
+     We cap at the host's available height and scroll past it, but do NOT grow
+     to fill it — short forms still hug their content. When the host height is
+     indefinite, \`max-height: 100%\` resolves to none and the box grows so the
+     host scrolls as before (graceful fallback). */
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* Option logos (e.g. language images) render as <img> inside ReqoreIcon's
+     square box; constrain them so portrait PNGs don't overflow the row. */
+  .reqore-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+`;
+
+// Batched-commit dock: a floating Save/Discard card pinned bottom-right. Sticky
+// (not fixed) so it stays within the form's own scroll bounds when the engine
+// renders inside a drawer/panel; align-self pushes it to the right edge, and it
+// elevates above the rows with an opaque surface + border + shadow.
+const StyledCommitDock = styled.div<{ $bg: string; $border: string }>`
+  position: sticky;
+  bottom: 8px;
+  z-index: 6;
+  align-self: flex-end;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 10px;
+  background: ${({ $bg }) => $bg};
+  border: 1px solid ${({ $border }) => $border};
+  border-radius: 8px;
+  box-shadow: 0 4px 16px ${({ $bg }) => `${changeDarkness($bg, 0.4)}${percentToHexAlpha(55)}`};
+`;
 
 export const getType = (
   type: TQorusType | TQorusType[],
@@ -230,6 +334,28 @@ export const fixOptions = (
   return res;
 };
 
+// A required field with no value can arrive as `{ value: '' }` OR with no `value`
+// key at all — fixOptions emits either depending on the field's default. They mean
+// the same "empty", so drop the key before comparing: a value that differs ONLY by
+// that representation must read as unchanged, otherwise the controlled value-sync
+// effect re-fixes → re-emits → re-fixes forever (the echo loop).
+const normalizeEmptyFieldValues = (fields: TQorusForm | TQorusFlatForm | undefined): TQorusForm =>
+  reduce(
+    (fields as TQorusForm) || {},
+    (acc, field, name) => {
+      const fieldValue = (field as IQorusFormField)?.value;
+      if (field && typeof field === 'object' && (fieldValue === '' || fieldValue === undefined)) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { value: _dropped, ...rest } = field as IQorusFormField;
+        acc[name] = rest as IQorusFormField;
+      } else {
+        acc[name] = field as IQorusFormField;
+      }
+      return acc;
+    },
+    {} as TQorusForm
+  );
+
 export const flattenOptions = (options: TQorusForm): TQorusFlatForm => {
   return reduce(
     options,
@@ -270,12 +396,41 @@ export const getTypeAndCanBeNull = (
   };
 };
 
+/** Display metadata for a read-first group, keyed by the raw `group` string;
+ * omissions fall back to a title-cased key, no icon, and schema order. */
+export interface IFormEngineGroup {
+  label?: string;
+  icon?: IReqoreIconName;
+  subtitle?: string;
+  sort?: number;
+}
+
 export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange'> {
   name: string;
   uniqueName?: string;
   value?: TQorusForm | TQorusFlatForm;
   options?: IQorusFormSchema;
   onChange?: (name: string, value?: TQorusForm, meta?: IOptionsOnChangeMeta) => void;
+  /**
+   * `'immediate'` (default): edits flow out via the debounced `onChange`.
+   * `'batched'`: edits stage locally (Draft chips + Save/Discard bar); Save
+   * fires `onCommit`, gated on validity; staged `onChange` carries `meta.draft`.
+   */
+  commitMode?: 'immediate' | 'batched';
+  /**
+   * How many read-first rows can be expanded (editing) at once. `'single'`
+   * (default) collapses the previously-open row when another is opened — the
+   * accordion model that keeps the read-first list scannable. `'multi'` lets
+   * several stay open (e.g. filling an empty form top-to-bottom).
+   */
+  expandMode?: 'single' | 'multi';
+  /** `commitMode='batched'` only: the user applied the staged changes. */
+  onCommit?: (name: string, value?: TQorusForm, meta?: IOptionsOnChangeMeta) => void;
+  /**
+   * Operator schema (`WHERE <field> IS <op>`): adds the operator selector rows;
+   * operator-bearing fields always card-edit in compact mode.
+   */
+  operators?: IOperatorsSchema;
   onSingleOptionsChange?: (name: string, value: TOption) => void;
   onDependableOptionChange?: (
     name: string,
@@ -286,16 +441,67 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   placeholder?: string;
   noValueString?: string;
   isValid?: boolean;
+  /** Fetch the options schema from `options/{url}` (IDE Options parity). */
+  url?: string;
+  /** Fetch the options schema from a custom endpoint; wins over `url`. */
+  customUrl?: string;
+  /** Fetch the search-operators schema (enables the per-option operator UI). */
+  operatorsUrl?: string;
+  /** Fired with the fetched schema after a successful `url`/`customUrl` load. */
   onOptionsLoaded?: (options: IQorusFormSchema) => void;
   recordRequiresSearchOptions?: boolean;
   readOnly?: boolean;
   allowTemplates?: boolean;
   stringTemplates?: IReqoreFormTemplates;
+  /** Opt-in: fetch global templates from `system/getContextData` for this context. */
+  interfaceContext?: string;
   templateFieldProps?: Partial<ITemplateFieldProps>;
   showTypeToggle?: boolean;
+  /**
+   * Compact (read-first) mode: each option renders as a row with its formatted
+   * value; clicking expands the real editor inline, Done collapses it.
+   */
   compact?: boolean;
+  /**
+   * Compact mode only: drop the read-first wrap's horizontal gutter (the 12px
+   * breathing room) so the form sits flush to its container's edges. For embeds
+   * that own their own gutters — e.g. the SchemaDefinition tab body, where the
+   * form should line up with the section description above it. Default `false`.
+   */
+  compactFlush?: boolean;
+  /** Compact mode only: per-group display metadata (label / icon / subtitle /
+   * order) — the server only sends the bare group key. */
+  groups?: Record<string, IFormEngineGroup>;
+  /**
+   * Async schema source (used when `options` is absent): transport-agnostic,
+   * called on mount and on identity change (memoize it); the engine owns the
+   * loading/error lifecycle and fires `onOptionsLoaded` on success.
+   */
+  optionsLoader?: () => Promise<IQorusFormSchema>;
   onValidityChange?: (isValid: boolean, data: IFormValidityData) => void;
+  /**
+   * SEAM (reqraft): extra hover actions prepended to each option row — where
+   * the IDE renders its `allowAi` AI-assist button. A factory receives the
+   * option's name/schema/value (the context the IDE's `AiAssistanceAction`
+   * captures); the consumer injects the button, reqraft stays AI-free.
+   */
+  optionActions?:
+    | IReqorePanelAction[]
+    | ((context: {
+        name: string;
+        schema: IQorusFormSchema[string];
+        value?: TOption;
+      }) => IReqorePanelAction[]);
+  /**
+   * SEAM (reqraft): consumer-injected field editors for types reqraft doesn't
+   * ship (IDE domain fields). Keyed by field `type`/`ui_type`; forwarded through
+   * `TemplateField` to the `AutoFormField` override seam.
+   */
+  componentOverrides?: Record<string, React.FC<any>>;
 }
+
+// Option types rendered full-width (IDE Options parity, commit 8e6b7781).
+const STRECHABLE_TYPES = new Set<TQorusType>(['tool-catalog' as TQorusType]);
 
 export const FormEngine = ({
   name,
@@ -307,23 +513,128 @@ export const FormEngine = ({
   placeholder,
   noValueString, // eslint-disable-line @typescript-eslint/no-unused-vars
   isValid, // eslint-disable-line @typescript-eslint/no-unused-vars
-  onOptionsLoaded, // eslint-disable-line @typescript-eslint/no-unused-vars
+  url,
+  customUrl,
+  operatorsUrl,
+  onOptionsLoaded,
   recordRequiresSearchOptions,
   readOnly,
   allowTemplates = true,
+  interfaceContext,
   templateFieldProps,
   showTypeToggle = true,
   compact,
+  compactFlush = false,
+  commitMode = 'immediate',
+  expandMode = 'single',
+  onCommit,
+  operators: operatorsProp,
+  groups,
+  optionsLoader,
   onValidityChange,
+  optionActions,
+  componentOverrides,
   ...rest
 }: IFormEngineProps) => {
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
-  const [operators] = useState<IOperatorsSchema | undefined>(undefined);
+  // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
+  const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
+  const [optionsError, setOptionsError] = useState<string | undefined>();
+  // Operators: prop-provided (compact) or fetched via operatorsUrl (dpql,
+  // ported from IDE Options) — the fetch overrides the seeded prop value.
+  const [operators, setOperators] = useState<IOperatorsSchema | undefined>(operatorsProp);
+  // Remote-fetch loading (ported from IDE Options); only relevant when one of
+  // the fetch urls is set — schema-as-props consumers never see the skeleton.
+  const [loading, setLoading] = useState<boolean>(!!(url || customUrl || operatorsUrl));
   const confirmAction = useReqoreProperty('confirmAction');
+  const theme = useReqoreTheme();
   const [focusedEditing, setFocusedEditing] = useState<string>();
   const [showFieldTypes, setShowFieldTypes] = useState<boolean>(false);
+  // Global toggle (toolbar ⓘ): reveal the short-description info panel on every
+  // field that has a short_desc. Per-row ⓘ overrides still win over it.
+  // Global field-info visibility, tri-state: `undefined` = default (critical
+  // messages auto-open, the rest closed); `true` = show all; `false` = hide all
+  // (even message fields). The toolbar ⓘ drives it.
+  const [showAllDescriptions, setShowAllDescriptions] = useState<boolean | undefined>(undefined);
   const [showHelpForOption, setShowHelpForOption] = useState<string | undefined>();
   const [showInvalidOptionsOnly, setShowInvalidOptionsOnly] = useState<boolean>(false);
+  // Which options are expanded into their editor (several can be open at once).
+  const [expandedOptions, setExpandedOptions] = useState<string[]>([]);
+  // Measured form width (not viewport — the form lives in drawers/panels of
+  // arbitrary width) drives the stacked narrow layout.
+  const [compactWrapRef, { width: compactWrapWidth }] = useMeasure<HTMLDivElement>();
+  // Own handle on the scroll wrap (useMeasure's ref is a callback, no `.current`)
+  // so the label-column measurement can publish its CSS var on the element. It's
+  // STATE, not a ref: the wrap mounts only after the loading-skeleton gate
+  // resolves, so the measurement effect must re-run when the node appears — a
+  // ref wouldn't retrigger it.
+  const [compactWrapNode, setCompactWrapNode] = useState<HTMLDivElement | null>(null);
+  const setCompactWrap = useCallback(
+    (node: HTMLDivElement | null) => {
+      compactWrapRef(node);
+      setCompactWrapNode((prev) => (prev === node ? prev : node));
+    },
+    [compactWrapRef]
+  );
+
+  // Global label-column sizing: size the label column to the WIDEST field label
+  // across the whole form, clamped to [MIN, MAX], and publish it as a CSS var on
+  // the scroll wrap. Both the grid column and the value-surface offsets read the
+  // var, so the surface stays glued to the (now variable) column edge. Measured
+  // off-DOM from the option labels — stable regardless of filtering/scroll, so it
+  // never reflows as rows come and go.
+  useLayoutEffect(() => {
+    const wrap = compactWrapNode;
+    if (!compact || !wrap) {
+      return;
+    }
+    const family = getComputedStyle(wrap).fontFamily || 'sans-serif';
+    const measurer = document.createElement('span');
+    // Match StyledRowLabel's typography (font-weight 600, 13px) so the measured
+    // width matches what the row actually renders.
+    measurer.style.cssText = `position:absolute;left:-9999px;top:-9999px;visibility:hidden;white-space:nowrap;font:600 13px ${family};`;
+    document.body.appendChild(measurer);
+    let widest = 0;
+    forEach(options || {}, (schema, name) => {
+      measurer.textContent = (schema?.display_name as string) || name;
+      widest = Math.max(widest, measurer.offsetWidth);
+    });
+    document.body.removeChild(measurer);
+    // Allowance for the required asterisk + help icon + the label's inner gaps.
+    const col = Math.max(LABEL_COL_MIN, Math.min(LABEL_COL_MAX, Math.round(widest) + 28));
+    wrap.style.setProperty(LABEL_COL_VAR, `${col}px`);
+  }, [compact, options, theme, compactWrapNode]);
+  // Editing rows pin min-height to the measured read row they replace, so the
+  // toggle never shifts neighbours (height varies with chrome — measure it).
+  const readRowHeights = useRef<Record<string, number>>({});
+  // Required-groups linkage: hovering a group chip highlights every member row;
+  // clicking a sibling in the chip's popover scrolls to it and flashes it.
+  const [highlightedOptions, setHighlightedOptions] = useState<string[]>([]);
+  const [flashedOptions, setFlashedOptions] = useState<string[]>([]);
+  const flashTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const flashOptions = useCallback((optionNames: string[], scrollToFirst = false) => {
+    if (scrollToFirst && optionNames[0]) {
+      document
+        .querySelector(`.readfirst-row[data-field="${optionNames[0]}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    }
+    setFlashedOptions(optionNames);
+    clearTimeout(flashTimeout.current);
+    flashTimeout.current = setTimeout(() => setFlashedOptions([]), 1400);
+  }, []);
+  const flashOption = useCallback(
+    (optionName: string) => flashOptions([optionName], true),
+    [flashOptions]
+  );
+  useEffect(() => () => clearTimeout(flashTimeout.current), []);
+  const compactNarrow = !!compactWrapWidth && compactWrapWidth < 480;
+  // Info panels auto-open on Tier-1 content; the per-row user override sticks.
+  const [infoPanelOverrides, setInfoPanelOverrides] = useState<Record<string, boolean>>({});
+  // Toolbar filters affect the listed rows only — the meter reflects the full set.
+  const [requiredOnly, setRequiredOnly] = useState<boolean>(false);
+  const [compactQuery, setCompactQuery] = useState<string>('');
+  // Compact field sort (Fields menu → "Sort by"); 'schema' = declared order.
+  const [compactSort, setCompactSort] = useState<TCompactSort>('schema');
   const [localValue, setLocalValue] = useState<{
     fields: TQorusForm | TQorusFlatForm;
     meta?: IOptionsOnChangeMeta;
@@ -342,36 +653,170 @@ export const FormEngine = ({
 
   const unavailableOptionsCount = useRef(0);
   const { compactValue, loading: typesLoading } = useQorusTypes();
-  const templates = useTemplates(allowTemplates, rest.stringTemplates);
+  const templates = useTemplates(allowTemplates, rest.stringTemplates, interfaceContext);
 
-  useDebounce(
-    () => {
-      if (isEqual(localValue.fields, value)) {
-        return;
-      }
+  useEffect(() => {
+    if (isEqual(localValue.fields, value)) {
+      return;
+    }
 
-      const toEmit = size(localValue.fields) ? (localValue.fields as TQorusForm) : undefined;
-      lastEmittedValue.current = toEmit;
-      onChange?.(name, toEmit, size(localValue.meta) ? localValue.meta : undefined);
-    },
-    0,
-    [JSON.stringify(localValue)]
-  );
+    const toEmit = size(localValue.fields) ? (localValue.fields as TQorusForm) : undefined;
+    lastEmittedValue.current = toEmit;
+    const meta = size(localValue.meta) ? localValue.meta : undefined;
+    // Batched mode still emits every staged change (consumers may want to
+    // live-validate), but flags it as a draft — persistence waits for Save.
+    onChange?.(name, toEmit, commitMode === 'batched' ? { ...(meta || {}), draft: true } : meta);
+  }, [JSON.stringify(localValue)]);
 
   useUpdateEffect(() => {
+    // When a loader owns the schema, ignore controlled `options` syncs so a
+    // late/undefined `options` prop can't clobber the loaded schema.
+    if (optionsLoader) {
+      return;
+    }
     setOptions(rest.options);
   }, [JSON.stringify(rest.options)]);
+
+  // Fetch the schema on mount and on loader identity change.
+  useEffect(() => {
+    if (!optionsLoader) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    setOptionsLoading(true);
+    setOptionsError(undefined);
+
+    // `Promise.resolve().then(...)` so a synchronous throw in the loader is
+    // funnelled into the same rejection path as an async failure.
+    Promise.resolve()
+      .then(() => optionsLoader())
+      .then((loaded) => {
+        if (cancelled) {
+          return;
+        }
+        setOptions(loaded || {});
+        onOptionsLoaded?.(loaded || {});
+        setOptionsLoading(false);
+      })
+      .catch((error) => {
+        if (cancelled) {
+          return;
+        }
+        setOptionsError(
+          error instanceof Error ? error.message : String(error ?? 'Failed to load options')
+        );
+        setOptionsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [optionsLoader]);
+
+  // --- Remote schema fetching, ported from IDE Options (systemOptions.tsx
+  // lines 394-462 + 504-522). reqraft's `query()` replaces the IDE's
+  // `fetchData` — same `{ data, ok, error }` shape and `api/latest/` prefix;
+  // the IDE's leading-slash URLs are normalised away.
+  const getFetchUrl = useCallback(() => customUrl || `options/${url}`, [customUrl, url]);
+
+  useMount(() => {
+    if (url || customUrl) {
+      (async () => {
+        setOptions(undefined);
+        setLoading(true);
+        const data = await query<IQorusFormSchema>({ url: getFetchUrl() });
+
+        if (!data.ok || data.data === null) {
+          setLoading(false);
+          setOptions({});
+          return;
+        }
+        setLocalValue({ fields: fixOptions(value, data.data), meta: undefined });
+        if (!operatorsUrl) {
+          setLoading(false);
+        }
+        setOptions(data.data);
+        onOptionsLoaded?.(data.data);
+      })();
+    }
+
+    if (operatorsUrl) {
+      (async () => {
+        setOperators(undefined);
+        setLoading(true);
+        const data = await query<IOperatorsSchema>({ url: operatorsUrl.replace(/^\//, '') });
+
+        if (!data.ok) {
+          setLoading(false);
+          setOperators({});
+          return;
+        }
+        setOperators(data.data);
+        setLoading(false);
+      })();
+    }
+  });
+
+  // Changing the source clears the current value and re-seeds the form from
+  // the freshly fetched schema (IDE semantics).
+  useUpdateEffect(() => {
+    if (url || customUrl) {
+      (async () => {
+        setOptions(undefined);
+        setLoading(true);
+        const data = await query<IQorusFormSchema>({ url: getFetchUrl() });
+
+        if (!data.ok) {
+          setLoading(false);
+          setOptions({});
+          return;
+        }
+        if (!operatorsUrl) {
+          setLoading(false);
+        }
+        setOptions(data.data);
+        onOptionsLoaded?.(data.data);
+        setLocalValue({ fields: fixOptions({}, data.data), meta: undefined });
+      })();
+    }
+  }, [url, customUrl]);
+
+  useUpdateEffect(() => {
+    if (operatorsUrl) {
+      (async () => {
+        setOperators(undefined);
+        setLoading(true);
+        const data = await query<IOperatorsSchema>({ url: operatorsUrl.replace(/^\//, '') });
+
+        if (!data.ok) {
+          setLoading(false);
+          setOperators({});
+          return;
+        }
+        setLoading(false);
+        setOperators(data.data);
+      })();
+    }
+  }, [operatorsUrl]);
 
   useUpdateEffect(() => {
     const fixedValue = fixOptions(value, options || {});
 
     // When the value we're receiving is the one we just emitted AND fixOptions has nothing to
-    // add or change (fixedValue equals value), skip the update. This breaks the controlled-component
-    // loop for arg_schema fields while still allowing required/preselected options to be restored
-    // (in that case fixedValue will differ from value, so we don't skip).
+    // meaningfully add or change, skip the update. This breaks the controlled-component loop for
+    // arg_schema fields while still allowing required/preselected options to be restored (in that
+    // case fixedValue will differ from value, so we don't skip).
+    // The compare is empty-normalized: fixOptions can round-trip a required-empty field between
+    // `{ value: '' }` and no `value` key — without normalizing, that cosmetic difference reads as a
+    // change and re-fixes forever (e.g. byte-size / expression / ruled string fields).
     // Note: compare fixedValue against value, not localValue.fields — localValue may have been
     // updated by nested FormEngine emissions, so comparing against it would never skip.
-    if (isEqual(value, lastEmittedValue.current) && isEqual(fixedValue, value)) {
+    const normalizedValue = normalizeEmptyFieldValues(value);
+    if (
+      isEqual(normalizedValue, normalizeEmptyFieldValues(lastEmittedValue.current)) &&
+      isEqual(normalizeEmptyFieldValues(fixedValue), normalizedValue)
+    ) {
       return;
     }
 
@@ -383,7 +828,7 @@ export const FormEngine = ({
   }, [JSON.stringify(options), JSON.stringify(value)]);
 
   const handleValueChange = useCallback(
-    (optionName: string, val?: any, _type?: string) => {
+    (optionName: string, val?: any, _type?: string, isFunction?: boolean) => {
       setLocalValue(({ fields = {} }) => {
         const schemaType = (options?.[optionName]?.ui_type ||
           options?.[optionName]?.type) as TQorusType;
@@ -422,6 +867,9 @@ export const FormEngine = ({
           }
         }
 
+        // IDE Options model: the 4th `onChange` argument (`isFunction`, sent
+        // by TemplateField/auto) drives the option's `is_expression` flag;
+        // the value itself is the raw AST `{ exp, args }`.
         const updatedValue: TQorusForm = {
           ...(fields as TQorusForm),
           [optionName]: {
@@ -431,7 +879,11 @@ export const FormEngine = ({
           },
         };
 
-        delete updatedValue[optionName].is_expression;
+        if (isFunction) {
+          (updatedValue[optionName] as { is_expression?: boolean }).is_expression = true;
+        } else {
+          delete updatedValue[optionName].is_expression;
+        }
 
         const meta: IOptionsOnChangeMeta = {};
 
@@ -629,9 +1081,8 @@ export const FormEngine = ({
           };
         }
 
-        // For any/auto schema types the user can pick a specific type — preserve it.
-        // For all other schema types, normalize to the schema's type so rendering and
-        // validation always use the correct field type (e.g. ui_type:'richtext' wins over type:'string').
+        // any/auto: preserve the user-picked type; otherwise normalize to the
+        // schema type (ui_type wins) so rendering and validation agree.
         const isAnyLike = schemaType === 'any' || schemaType === 'auto';
         const effectiveType =
           isAnyLike && (option as IQorusFormField)?.type ?
@@ -650,6 +1101,53 @@ export const FormEngine = ({
     JSON.stringify(operators),
     showInvalidOptionsOnly,
   ]);
+
+  // Per required-group: its member options, and which member (if any) already
+  // satisfies it — drives the "One of" chips and the "covered by" notes.
+  const requiredGroupsInfo = useMemo(() => {
+    const members: Record<string, string[]> = {};
+    forEach(options || {}, (optionSchema, name) => {
+      (optionSchema?.required_groups || []).forEach((groupName: string) => {
+        (members[groupName] = members[groupName] || []).push(name);
+      });
+    });
+    const satisfiedBy: Record<string, string | undefined> = {};
+    Object.keys(members).forEach((groupName) => {
+      satisfiedBy[groupName] = members[groupName].find(
+        (name) => !isOptionValueEmpty((availableOptions as TQorusForm)?.[name]?.value)
+      );
+    });
+    return { members, satisfiedBy };
+  }, [JSON.stringify(options), JSON.stringify(availableOptions)]);
+
+  // Dependency linkage (3a): when filling a dependency unlocks rows, flash
+  // them once — the form visibly "opens up" instead of silently changing.
+  const dependencyLockedNames = useMemo(() => {
+    const names: string[] = [];
+    forEach(options || {}, (optionSchema, name) => {
+      if (
+        optionSchema?.depends_on &&
+        !hasAllDependenciesFullfilled(optionSchema.depends_on, availableOptions, options || {})
+      ) {
+        names.push(name);
+      }
+    });
+    return names;
+  }, [JSON.stringify(options), JSON.stringify(availableOptions)]);
+  const previousDependencyLocked = useRef<string[] | null>(null);
+  useEffect(() => {
+    const previous = previousDependencyLocked.current;
+    previousDependencyLocked.current = dependencyLockedNames;
+    if (!previous) {
+      return;
+    }
+    const unlocked = previous.filter(
+      (name) => !dependencyLockedNames.includes(name) && !options?.[name]?.disabled
+    );
+    if (unlocked.length) {
+      flashOptions(unlocked);
+    }
+  }, [dependencyLockedNames.join('|')]);
 
   const filteredOptions: IQorusFormSchema = useMemo(
     () =>
@@ -681,6 +1179,9 @@ export const FormEngine = ({
         optionSchema: options,
         options: availableOptions,
         ...options?.[optionName],
+        // The expression flag lives on the field value, not the schema — so an
+        // expression value is validated as an expression, not the base type.
+        isFunction: (availableOptions?.[optionName] as { is_expression?: boolean })?.is_expression,
       } as any);
     },
     [JSON.stringify(options), JSON.stringify(availableOptions), JSON.stringify(localValue.fields)]
@@ -710,6 +1211,8 @@ export const FormEngine = ({
             optionSchema: options,
             options: availableOptions,
             ...options?.[optionName],
+            // The expression flag lives on the field value, not the schema.
+            isFunction: (option as { is_expression?: boolean }).is_expression,
           } as any);
         }
 
@@ -780,12 +1283,45 @@ export const FormEngine = ({
   );
 
   const handleShowFieldTypesClick = useCallback(() => setShowFieldTypes((prev) => !prev), []);
+  const handleToggleAllDescriptions = useCallback(() => {
+    setInfoPanelOverrides({});
+    setShowAllDescriptions((prev) => prev !== true);
+  }, []);
+  const handleToggleInvalidOnly = useCallback(() => setShowInvalidOptionsOnly((prev) => !prev), []);
   const handleRevertChangesClick = useCallback(() => {
     setLocalValue({
       fields: originalValue.current,
       meta: undefined,
     });
   }, [JSON.stringify(options), JSON.stringify(originalValue.current)]);
+
+  // `commitMode='batched'`: which options differ from the committed baseline —
+  // drives the per-row Draft chips and the Save/Discard bar.
+  const dirtyOptionNames = useMemo(() => {
+    if (commitMode !== 'batched') {
+      return [];
+    }
+    const keys = new Set([
+      ...Object.keys((localValue.fields as TQorusForm) || {}),
+      ...Object.keys((originalValue.current as TQorusForm) || {}),
+    ]);
+    return Array.from(keys).filter(
+      (key) =>
+        !isEqual(
+          (localValue.fields as TQorusForm)?.[key]?.value,
+          originalValue.current?.[key]?.value
+        )
+    );
+  }, [commitMode, JSON.stringify(localValue.fields), JSON.stringify(originalValue.current)]);
+
+  // Save: emit the staged form via onCommit and make it the new baseline, so
+  // the Draft chips and the bar clear. Validation gates the button itself.
+  const handleCommitClick = useCallback(() => {
+    const toEmit = size(localValue.fields) ? (localValue.fields as TQorusForm) : undefined;
+    onCommit?.(name, toEmit, size(localValue.meta) ? localValue.meta : undefined);
+    originalValue.current = localValue.fields;
+    setLocalValue((current) => ({ ...current }));
+  }, [JSON.stringify(localValue), name, onCommit]);
 
   const hasOptionChanged = useCallback(
     (optionValue: unknown, optionName: string): boolean => {
@@ -797,6 +1333,25 @@ export const FormEngine = ({
   const handleOptionLabelClick = useCallback((optionName: string) => {
     setShowHelpForOption(optionName);
   }, []);
+
+  const toggleExpandedOption = useCallback(
+    (optionName: string) => {
+      setExpandedOptions((prev) =>
+        prev.includes(optionName) ? prev.filter((name) => name !== optionName)
+          // single (default): opening a row collapses any other open one.
+        : expandMode === 'single' ? [optionName]
+        : [...prev, optionName]
+      );
+    },
+    [expandMode]
+  );
+
+  // Read-first completion summary (how many shown options have a value set),
+  // surfaced as a progress meter at the top of the compact form.
+  const readFirstCompletion = useMemo(
+    () => getReadFirstCompletion(availableOptions as Record<string, IQorusFormField | undefined>),
+    [JSON.stringify(availableOptions)]
+  );
 
   const optionalFields = useMemo(
     () =>
@@ -811,6 +1366,39 @@ export const FormEngine = ({
       })),
     [JSON.stringify(filteredOptions), JSON.stringify(options)]
   );
+
+  // Compact "Fields" menu — Select all: add every not-yet-selected, enabled
+  // optional field (mirrors the IDE's handleAddAll).
+  const handleAddAllOptional = useCallback(() => {
+    forEach(filteredOptions, (schema, optionName) => {
+      if (!schema?.disabled) {
+        handleAddOptionalFieldChange('options', optionName);
+      }
+    });
+  }, [JSON.stringify(filteredOptions), handleAddOptionalFieldChange]);
+
+  // Default fields: drop user-added optionals, keep required/preselected/valued,
+  // clear the required-only filter (mirrors the IDE's handleResetToDefault).
+  const handleResetToDefaultFields = useCallback(() => {
+    setLocalValue(({ fields }) => {
+      const current = (fields || {}) as TQorusForm;
+      const next: TQorusForm = {};
+      forEach(current, (value, optionName) => {
+        const schema = options?.[optionName];
+        const isDefault = !!(
+          schema?.required ||
+          schema?.required_groups ||
+          schema?.preselected ||
+          originalValue.current?.[optionName]
+        );
+        if (isDefault) {
+          next[optionName] = value as IQorusFormField;
+        }
+      });
+      return { fields: fixOptions(next, options || {}, operators), meta: undefined };
+    });
+    setRequiredOnly(false);
+  }, [JSON.stringify(options), JSON.stringify(operators)]);
 
   const getCustomMenuTemplateItems = useCallback<(optionName: string) => TCustomTemplateItems>(
     (optionName) => {
@@ -828,159 +1416,699 @@ export const FormEngine = ({
 
   const getTypeForOption = useCallback((type: string) => type, []);
 
-  const renderOption = (optionName: string, { type, ...other }: IQorusFormField) => {
-    return (
-      <>
-        {((options?.[optionName] as any)?.messages || []).map(
-          ({ intent, title, content }: any, index: number) => (
-            <ReqoreMessage
-              intent={intent}
-              title={title}
-              key={title || index}
-              opaque={false}
-              size='small'
-              margin='bottom'
-            >
-              {content}
-            </ReqoreMessage>
-          )
-        )}
-        {operators && size(operators) ?
-          <>
-            <ReqoreControlGroup fill wrap className='operators'>
-              {fixOperatorValue(other.op).map((operator, index) => (
-                <React.Fragment key={index}>
-                  <SelectFormField
-                    items={map(operators, (op) => ({
-                      ...op,
-                      value: op.name,
-                    }))}
-                    disabled={readOnly}
-                    value={operator && `${(operators as any)?.[operator as string]?.name}`}
-                    onChange={(val) => {
-                      if (val !== undefined) {
-                        handleOperatorChange(
-                          optionName,
-                          fixedValue,
-                          findKey(operators, (op) => op.name === val) as string,
-                          index
-                        );
-                      }
-                    }}
-                  />
-                  {(
-                    index === fixOperatorValue(other.op).length - 1 &&
-                    operator &&
-                    (operators as any)[operator as string]?.supports_nesting
-                  ) ?
-                    <ReqoreButton
-                      icon='AddLine'
-                      disabled={readOnly}
-                      fixed
-                      effect={PositiveColorEffect}
-                      onClick={() => handleAddOperator(optionName, fixedValue, index + 1)}
-                    />
-                  : null}
-                  {size(fixOperatorValue(other.op)) > 1 ?
-                    <ReqoreButton
-                      disabled={readOnly}
-                      icon='DeleteBinLine'
-                      effect={NegativeColorEffect}
-                      fixed
-                      onClick={() => handleRemoveOperator(optionName, fixedValue, index)}
-                    />
-                  : null}
-                </React.Fragment>
-              ))}
-            </ReqoreControlGroup>
-            <ReqoreVerticalSpacer height={5} />
-          </>
-        : null}
-        <TemplateField
-          fluid
-          {...(options?.[optionName] as any)}
-          allowTemplates={!!(allowTemplates && options?.[optionName]?.supports_templates)}
-          allowCustomValues={
-            options?.[optionName]?.supports_custom_values !== false && type !== 'any'
-          }
-          templates={templates.value}
-          {...getTypeAndCanBeNull(
-            type as TQorusType,
-            options?.[optionName]?.allowed_values,
-            other.op
-          )}
-          ui_type={type}
-          name={optionName}
-          uniqueName={`${uniqueName ? `${uniqueName}.` : `${name ? `${name}.` : ''}`}${optionName}`}
-          onChange={(name, value, type) => {
-            handleValueChange(name, value, type);
-          }}
-          key={optionName}
-          arg_schema={options?.[optionName]?.arg_schema}
-          noSoft={!!rest?.options}
-          value={other.value}
-          sensitive={options?.[optionName]?.sensitive}
-          default_value={getDefaultValue(options?.[optionName])}
-          isDefaultTemplate={options?.[optionName]?.default_view === 'template'}
-          allowed_values={options?.[optionName]?.allowed_values}
-          disabled={
-            options?.[optionName]?.disabled ||
-            readOnly ||
-            !hasAllDependenciesFullfilled(
-              options?.[optionName]?.depends_on,
-              availableOptions,
-              options || {}
+  const renderOption = useCallback(
+    (
+      optionName: string,
+      { type, ...other }: IQorusFormField,
+      // Inline (in-row) editing renders the editor a size down so it fits the
+      // read row's height without shifting the rows around it.
+      editorSize?: 'small',
+      // The info panel below the row keeps showing schema messages while editing —
+      // rendering them in the editor too would balloon a one-line edit.
+      suppressSchemaMessages?: boolean
+    ) => {
+      const operatorParts = fixOperatorValue(other.op);
+      return (
+        <>
+          {(suppressSchemaMessages ? [] : (options?.[optionName] as any)?.messages || []).map(
+            ({ intent, title, content }: any, index: number) => (
+              <ReqoreMessage
+                intent={intent}
+                title={title}
+                key={title || index}
+                opaque={false}
+                size='small'
+                margin='bottom'
+              >
+                {content}
+              </ReqoreMessage>
             )
+          )}
+          {operators && size(operators) ?
+            <>
+              <ReqoreControlGroup fill wrap className='operators'>
+                {operatorParts.map((operator, index) => (
+                  <React.Fragment key={index}>
+                    <SelectFormField
+                      items={map(operators, (op) => ({
+                        ...op,
+                        value: op.name,
+                      }))}
+                      disabled={readOnly}
+                      value={operator && `${(operators as any)?.[operator as string]?.name}`}
+                      onChange={(val) => {
+                        if (val !== undefined) {
+                          handleOperatorChange(
+                            optionName,
+                            fixedValue,
+                            findKey(operators, (op) => op.name === val) as string,
+                            index
+                          );
+                        }
+                      }}
+                    />
+                    {(
+                      index === operatorParts.length - 1 &&
+                      operator &&
+                      (operators as any)[operator as string]?.supports_nesting
+                    ) ?
+                      <ReqoreButton
+                        icon='AddLine'
+                        disabled={readOnly}
+                        fixed
+                        effect={PositiveColorEffect}
+                        onClick={() => handleAddOperator(optionName, fixedValue, index + 1)}
+                      />
+                    : null}
+                    {size(operatorParts) > 1 ?
+                      <ReqoreButton
+                        disabled={readOnly}
+                        icon='DeleteBinLine'
+                        effect={NegativeColorEffect}
+                        fixed
+                        onClick={() => handleRemoveOperator(optionName, fixedValue, index)}
+                      />
+                    : null}
+                  </React.Fragment>
+                ))}
+              </ReqoreControlGroup>
+              <ReqoreVerticalSpacer height={5} />
+            </>
+          : null}
+          <TemplateField
+            fluid
+            {...(options?.[optionName] as any)}
+            // SEAM: forwarded through TemplateField's rest-spread to AutoFormField,
+            // which renders consumer-injected editors by field type/ui_type.
+            componentOverrides={componentOverrides}
+            allowTemplates={!!(allowTemplates && options?.[optionName]?.supports_templates)}
+            allowFunctions={!!options?.[optionName]?.supports_expressions}
+            // reqraft: form-level expression fields get the Visual/Text shell
+            // (DPQL text mode); opt out per-form via `templateFieldProps`.
+            allowTextExpressions
+            allowCustomValues={
+              options?.[optionName]?.supports_custom_values !== false && type !== 'any'
+            }
+            templates={templates.value}
+            {...getTypeAndCanBeNull(
+              type as TQorusType,
+              options?.[optionName]?.allowed_values,
+              other.op
+            )}
+            ui_type={type}
+            name={optionName}
+            uniqueName={`${uniqueName ? `${uniqueName}.` : `${name ? `${name}.` : ''}`}${optionName}`}
+            onChange={
+              // Identity-stable on purpose: the typed fields debounce on
+              // `[localValue, onChange]` — an inline lambda resets the pending emit
+              // every render and the typed value can starve.
+              handleValueChange
+            }
+            key={optionName}
+            arg_schema={options?.[optionName]?.arg_schema}
+            noSoft={!!rest?.options}
+            value={other.value}
+            isFunction={(other as { is_expression?: boolean }).is_expression}
+            isDefaultFunction={options?.[optionName]?.default_view === 'expression'}
+            sensitive={options?.[optionName]?.sensitive}
+            default_value={getDefaultValue(options?.[optionName])}
+            isDefaultTemplate={options?.[optionName]?.default_view === 'template'}
+            allowed_values={options?.[optionName]?.allowed_values}
+            disabled={
+              options?.[optionName]?.disabled ||
+              readOnly ||
+              !hasAllDependenciesFullfilled(
+                options?.[optionName]?.depends_on,
+                availableOptions,
+                options || {}
+              )
+            }
+            readOnly={readOnly}
+            size={editorSize || rest.size}
+            menuItems={
+              (options?.[optionName] as any)?.ui_type === 'any' ?
+                getCustomMenuTemplateItems(optionName)
+              : undefined
+            }
+            {...templateFieldProps}
+          />
+          <OptionFieldMessages
+            schema={options || {}}
+            allOptions={availableOptions}
+            name={optionName}
+            option={{ type, ...other }}
+            getType={getTypeForOption}
+          />
+          {operators && size(operators) && size(other.op) ?
+            <>
+              <ReqoreVerticalSpacer height={5} />
+              <ReqoreMessage size='small'>
+                <ReqoreTagGroup>
+                  <ReqoreTag size='small' labelKey='WHERE' label={optionName} />
+                  <ReqoreTag size='small' labelKey='IS' label={operatorParts.join(' ')} />
+                  <ReqoreTag
+                    size='small'
+                    intent='info'
+                    label={
+                      other.value ?
+                        type === 'richtext' ?
+                          richtextToString(other.value)
+                        : JSON.stringify(other.value)
+                      : ''
+                    }
+                  />
+                </ReqoreTagGroup>
+              </ReqoreMessage>
+            </>
+          : null}
+        </>
+      );
+    },
+    [
+      options,
+      operators,
+      readOnly,
+      allowTemplates,
+      templates,
+      name,
+      uniqueName,
+      componentOverrides,
+      templateFieldProps,
+      availableOptions,
+      fixedValue,
+      // Depend on the specific `rest` values used, not the whole `rest` object
+      // (which is a fresh `{...rest}` every render and would defeat the memo).
+      rest?.options,
+      rest?.size,
+      handleValueChange,
+      handleOperatorChange,
+      handleAddOperator,
+      handleRemoveOperator,
+      getCustomMenuTemplateItems,
+      getTypeForOption,
+    ]
+  );
+
+  // Compact (read-first) rendering.
+  // Theme-derived colours so the flat-row layout adapts to light/dark/custom themes.
+  const cText = theme?.text?.color || '#f1f0ee';
+  // Text emphasis tiers via reqore's readable-colour helper (key = full readable
+  // text, muted = its dimmed variant, faint = the dimmed variant softened
+  // further) instead of hand-rolled hex-alpha suffixes on the raw text colour.
+  const cKey = getReadableColor(theme);
+  const cMuted = getReadableColor(theme, undefined, undefined, true);
+  const cFaint = `${cMuted}99`;
+  const cDivider = `${cText}14`;
+  const cHover = `${cText}0d`;
+  const cDanger = theme?.intents?.danger || '#e35a5a';
+  const cWarning = theme?.intents?.warning || '#ffdf34';
+  const cInfo = theme?.intents?.info || '#3b8eea';
+  const cSuccess = theme?.intents?.success || '#36b37e';
+  const cBg = (theme as { main?: string } | undefined)?.main || '#181818';
+  const cRowBg = changeDarkness(getMainBackgroundColor(theme), 0.01);
+  const cGroupLine = `${cText}1f`;
+
+  // The closure surface the extracted CompactRow reads through context. Refs and
+  // setters are stable; the state/memo/handler fields change identity as they do
+  // today, so a row re-renders exactly when its inputs do.
+  const compactRowContextValue = useMemo<ICompactRowContext>(
+    () => ({
+      templates: templates.value,
+      readOnly,
+      commitMode,
+      expandMode,
+      options,
+      operators,
+      focusedEditing,
+      showFieldTypes,
+      showAllDescriptions,
+      expandedOptions,
+      highlightedOptions,
+      flashedOptions,
+      infoPanelOverrides,
+      setHighlightedOptions,
+      setInfoPanelOverrides,
+      setFocusedEditing,
+      readRowHeights,
+      originalValue,
+      availableOptions,
+      requiredGroupsInfo,
+      handleValueChange,
+      handleAddOptionalFieldChange,
+      toggleExpandedOption,
+      flashOption,
+      hasOptionChanged,
+      handleOptionLabelClick,
+      removeSelectedOption,
+      getTypeForOption,
+      isOptionValid,
+      confirmAction,
+      renderOption,
+      theme,
+      cText,
+      cMuted,
+      cFaint,
+      cKey,
+      cDivider,
+      cHover,
+      cDanger,
+      cWarning,
+      cInfo,
+      cBg,
+    }),
+    [
+      templates.value,
+      readOnly,
+      commitMode,
+      expandMode,
+      options,
+      operators,
+      focusedEditing,
+      showFieldTypes,
+      showAllDescriptions,
+      expandedOptions,
+      highlightedOptions,
+      flashedOptions,
+      infoPanelOverrides,
+      setHighlightedOptions,
+      setInfoPanelOverrides,
+      setFocusedEditing,
+      readRowHeights,
+      originalValue,
+      availableOptions,
+      requiredGroupsInfo,
+      handleValueChange,
+      handleAddOptionalFieldChange,
+      toggleExpandedOption,
+      flashOption,
+      hasOptionChanged,
+      handleOptionLabelClick,
+      removeSelectedOption,
+      getTypeForOption,
+      isOptionValid,
+      confirmAction,
+      renderOption,
+      theme,
+      cText,
+      cMuted,
+      cFaint,
+      cKey,
+      cDivider,
+      cHover,
+      cDanger,
+      cWarning,
+      cInfo,
+      cBg,
+    ]
+  );
+
+  const compactToolbarContextValue = useMemo<ICompactToolbarContext>(
+    () => ({
+      readOnly,
+      invalidCount: size(validityData.invalidFields),
+      completion: readFirstCompletion,
+      showInvalidOnly: showInvalidOptionsOnly,
+      onToggleInvalidOnly: handleToggleInvalidOnly,
+      hasMultipleOptions: size(availableOptions) > 1,
+      compactQuery,
+      setCompactQuery,
+      requiredOnly,
+      setRequiredOnly,
+      compactSort,
+      setCompactSort,
+      showFieldTypes,
+      showAllDescriptions,
+      onToggleFieldTypes: handleShowFieldTypesClick,
+      onToggleAllDescriptions: handleToggleAllDescriptions,
+      filteredCount: size(filteredOptions),
+      optionalFields,
+      canRevert: !!(originalValue.current && !isEqual(localValue.fields, originalValue.current)),
+      onAddOptionalField: (value) => handleAddOptionalFieldChange('options', value),
+      onAddAll: handleAddAllOptional,
+      onResetDefaults: handleResetToDefaultFields,
+      onRevertAll: handleRevertChangesClick,
+    }),
+    [
+      readOnly,
+      validityData,
+      readFirstCompletion,
+      showInvalidOptionsOnly,
+      handleToggleInvalidOnly,
+      availableOptions,
+      compactQuery,
+      setCompactQuery,
+      requiredOnly,
+      setRequiredOnly,
+      compactSort,
+      setCompactSort,
+      showFieldTypes,
+      showAllDescriptions,
+      handleShowFieldTypesClick,
+      handleToggleAllDescriptions,
+      filteredOptions,
+      optionalFields,
+      originalValue,
+      localValue,
+      handleAddOptionalFieldChange,
+      handleAddAllOptional,
+      handleResetToDefaultFields,
+      handleRevertChangesClick,
+    ]
+  );
+
+  const compactHeaderActions = useMemo(() => [{ as: CompactToolbar, responsive: false }], []);
+  const renderCompact = () => {
+    const headerBg = `${changeDarkness(getMainBackgroundColor(theme), 0.02)}${percentToHexAlpha(88)}`;
+    // Toolbar filters narrow the listed rows; the meter reflects the full set.
+    const query = compactQuery.trim().toLowerCase();
+    const matchesQuery = (optionName: string): boolean =>
+      !query || (options?.[optionName]?.display_name || optionName).toLowerCase().includes(query);
+    const matchesFilters = (optionName: string): boolean => {
+      const schema = options?.[optionName];
+      if (requiredOnly && !(schema?.required || schema?.required_groups)) {
+        return false;
+      }
+      return matchesQuery(optionName);
+    };
+
+    // Group the options by their raw `group` key, remembering the order groups
+    // first appear in the schema. Each row carries a `hidden` flag.
+    const groupOrder: string[] = [];
+    const grouped: Record<string, Array<{ name: string; hidden: boolean }>> = {};
+    const pushRow = (optionName: string, hidden: boolean) => {
+      const group = getOptionGroup(options?.[optionName]);
+      if (!grouped[group]) {
+        grouped[group] = [];
+        groupOrder.push(group);
+      }
+      grouped[group].push({ name: optionName, hidden });
+    };
+    // Listed (added / preselected / required) options that pass the filters.
+    forEach(shownOptions, (_option, optionName) => {
+      if (matchesFilters(optionName)) {
+        pushRow(optionName, false);
+      }
+    });
+    // When searching, also surface matching hidden optional fields (not yet
+    // added) so the search spans the whole schema, not just the visible rows.
+    if (query) {
+      forEach(filteredOptions, (_schema, optionName) => {
+        if (matchesQuery(optionName)) {
+          pushRow(optionName, true);
+        }
+      });
+    }
+
+    // User sort (Fields menu → "Sort by"), applied WITHIN each group so the
+    // group sections and the required-group rails are preserved. Schema order is
+    // the default and the stable tiebreaker (Array.sort is stable, and each
+    // group's array is already in schema order). Clustering (renderGroupRows)
+    // still pulls required-group members together at the first member's — now
+    // sorted — slot.
+    if (compactSort !== 'schema') {
+      const labelOf = (name: string) => (options?.[name]?.display_name || name).toLowerCase();
+      const isUnset = (name: string) =>
+        isOptionValueEmpty((shownOptions as TQorusForm)[name]?.value);
+      const isFieldInvalid = (name: string) =>
+        !isOptionValid(
+          name,
+          (options?.[name]?.ui_type || options?.[name]?.type) as TQorusType,
+          (shownOptions as TQorusForm)[name]?.value
+        );
+      const comparator = (a: { name: string }, b: { name: string }): number => {
+        switch (compactSort) {
+          case 'alpha':
+            return labelOf(a.name).localeCompare(labelOf(b.name));
+          case 'alpha-desc':
+            return labelOf(b.name).localeCompare(labelOf(a.name));
+          // unset/invalid first — falsy(0) sorts after truthy(1), so b - a.
+          case 'unset':
+            return Number(isUnset(b.name)) - Number(isUnset(a.name));
+          case 'invalid':
+            return Number(isFieldInvalid(b.name)) - Number(isFieldInvalid(a.name));
+          default:
+            return 0;
+        }
+      };
+      forEach(grouped, (entries) => entries.sort(comparator));
+    }
+
+    // Order groups by the consumer-supplied `sort` (when given), else first-seen.
+    const groupKeys = groupOrder.slice().sort((a, b) => {
+      const sa = groups?.[a]?.sort;
+      const sb = groups?.[b]?.sort;
+      if (sa != null && sb != null && sa !== sb) return sa - sb;
+      if (sa != null && sb == null) return -1;
+      if (sb != null && sa == null) return 1;
+      return groupOrder.indexOf(a) - groupOrder.indexOf(b);
+    });
+
+    // Build the rows for one group: contiguous required-group members are pulled
+    // together at the first member's slot and rendered as a connected rail (flat
+    // rows — no wrapper — so the value surface applies normally; the rail + nodes
+    // are drawn per member). Narrow stacks fall back to flat rows.
+    const renderGroupRows = (names: Array<{ name: string; hidden: boolean }>) => {
+      const renderRow = (
+        entry: { name: string; hidden?: boolean },
+        clustered: boolean,
+        clusterFirst?: boolean,
+        clusterLast?: boolean
+      ) => (
+        <CompactRow
+          key={entry.name}
+          optionName={entry.name}
+          optionField={
+            entry.hidden ?
+              ({
+                type: (options?.[entry.name]?.ui_type || options?.[entry.name]?.type) as TQorusType,
+                value: undefined,
+              } as IQorusFormField)
+            : ((shownOptions as TQorusForm)[entry.name] as IQorusFormField)
           }
-          readOnly={readOnly}
-          size={rest.size}
-          menuItems={
-            (options?.[optionName] as any)?.ui_type === 'any' ?
-              getCustomMenuTemplateItems(optionName)
-            : undefined
-          }
-          {...templateFieldProps}
+          hidden={entry.hidden}
+          clustered={clustered}
+          clusterFirst={clusterFirst}
+          clusterLast={clusterLast}
         />
-        <OptionFieldMessages
-          schema={options || {}}
-          allOptions={availableOptions}
-          name={optionName}
-          option={{ type, ...other }}
-          getType={getTypeForOption}
-        />
-        {operators && size(operators) && size(other.op) ?
-          <>
-            <ReqoreVerticalSpacer height={5} />
-            <ReqoreMessage size='small'>
-              <ReqoreTagGroup>
-                <ReqoreTag size='small' labelKey='WHERE' label={optionName} />
-                <ReqoreTag
-                  size='small'
-                  labelKey='IS'
-                  label={fixOperatorValue(other.op).join(' ')}
-                />
-                <ReqoreTag
-                  size='small'
-                  intent='info'
-                  label={
-                    other.value ?
-                      type === 'richtext' ?
-                        richtextToString(other.value)
-                      : JSON.stringify(other.value)
-                    : ''
-                  }
-                />
-              </ReqoreTagGroup>
-            </ReqoreMessage>
-          </>
-        : null}
-      </>
+      );
+      if (compactNarrow) return names.map((entry) => renderRow(entry, false));
+      const emitted = new Set<string>();
+      const groupOf = (name: string) =>
+        (options?.[name]?.required_groups as string[] | undefined)?.[0];
+      return names.map((entry) => {
+        const grp = groupOf(entry.name);
+        if (!grp) return renderRow(entry, false);
+        if (emitted.has(grp)) return null;
+        const memberEntries = names.filter((e) => !e.hidden && groupOf(e.name) === grp);
+        if (memberEntries.length < 2) return renderRow(entry, false);
+        emitted.add(grp);
+        return memberEntries.map((e, idx) =>
+          renderRow(e, true, idx === 0, idx === memberEntries.length - 1)
+        );
+      });
+    };
+
+    return (
+      <OptionsContext.Provider value={{ schema: options, value: availableOptions }}>
+        <CompactRowContext.Provider value={compactRowContextValue}>
+          <ReqoreErrorBoundary>
+            {showHelpForOption && (
+              <OptionsHelpDialog
+                onClose={() => setShowHelpForOption(undefined)}
+                option={options[showHelpForOption]}
+              />
+            )}
+            <CompactToolbarContext.Provider value={compactToolbarContextValue}>
+              <StyledCompactWrap
+                ref={setCompactWrap}
+                className='options-readfirst-scroll'
+                $flush={compactFlush}
+              >
+                <StyledCompactPanel
+                  $headerBg={headerBg}
+                  flat
+                  stickyHeader
+                  padded={false}
+                  actions={compactHeaderActions}
+                  contentStyle={{
+                    display: 'flex',
+                    flexFlow: 'column',
+                    gap: '10px',
+                    padding: '0 0 12px',
+                  }}
+                >
+                  {size(groupKeys) === 0 ?
+                    <ReqoreMessage flat opaque={false} size='small'>
+                      No fields match the current filters.
+                    </ReqoreMessage>
+                  : null}
+
+                  {groupKeys.map((groupName) => {
+                    const names = grouped[groupName];
+                    const groupConfig = groups?.[groupName];
+                    const invalidCount = names.filter(
+                      (entry) =>
+                        !entry.hidden &&
+                        !isOptionValid(
+                          entry.name,
+                          (options?.[entry.name]?.ui_type as TQorusType) ||
+                            (options?.[entry.name]?.type as TQorusType),
+                          (shownOptions as TQorusForm)[entry.name]?.value
+                        )
+                    ).length;
+
+                    return (
+                      <ReqorePanel
+                        key={groupName}
+                        flat
+                        minimal
+                        collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
+                        collapsible
+                        label={
+                          <StyledGroupHeader>
+                            <ReqoreP effect={{ weight: 'bold' }} size='big'>
+                              {getOptionGroupLabel(groupName, groups)}
+                            </ReqoreP>
+                            <StyledGroupHeaderLine $color={cGroupLine} />
+                            <ReqoreButton
+                              readOnly
+                              size='tiny'
+                              minimal
+                              flat
+                              compact
+                              effect={{uppercase: true, spaced: 1}}
+                              {...(groupName === 'optional' ? { label: `${names.length} optional` }
+                              : invalidCount ?
+                                {
+                                  label: `${invalidCount} to resolve`,
+                                  intent: 'warning' as const,
+                                  icon: 'ErrorWarningLine' as const,
+                                }
+                              : {
+                                  label: 'All set',
+                                  intent: 'success' as const,
+                                  icon: 'CheckLine' as const,
+                                })}
+                            />
+                          </StyledGroupHeader>
+                        }
+                        icon={groupConfig?.icon}
+                        className='options-readfirst-group'
+                        padded={false}
+                        contentStyle={{ padding: '4px 4px 6px' }}
+                      >
+                        {groupConfig?.subtitle ?
+                          <ReqoreP
+                            size='small'
+                            effect={{ opacity: 0.6 }}
+                            // Indent to the same content line as the rows (StyledGroupBody's
+                            // `margin-left` clamp) so the subtitle sits tucked under the group
+                            // name instead of at the panel edge — and clears the group's
+                            // vertical rule (left:16px) rather than crossing it.
+                            style={{
+                              marginTop: 2,
+                              marginBottom: 8,
+                              marginLeft: GROUP_INDENT,
+                              paddingRight: 10,
+                            }}
+                          >
+                            {groupConfig.subtitle}
+                          </ReqoreP>
+                        : null}
+                        <StyledGroupBody
+                          $divider={cDivider}
+                          $hover={cHover}
+                          $focus={cWarning}
+                          $success={cSuccess}
+                          $rowBg={cRowBg}
+                          $lineColor={cGroupLine}
+                          className={compactNarrow ? 'readfirst-narrow' : undefined}
+                        >
+                          {renderGroupRows(names)}
+                        </StyledGroupBody>
+                      </ReqorePanel>
+                    );
+                  })}
+                </StyledCompactPanel>
+
+                {/* Batched commit: the Save/Discard bar docks bottom-right, floating
+                over the rows while anything is staged — the product's draft
+                convention (edits are a draft until explicitly applied). Save is
+                gated on overall validity; Discard is the existing revert-all. */}
+                {commitMode === 'batched' && !readOnly && dirtyOptionNames.length ?
+                  <StyledCommitDock $bg={cBg} $border={cDivider}>
+                    <ReqoreControlGroup
+                      className='options-readfirst-commitbar'
+                      verticalAlign='center'
+                      wrap
+                    >
+                      <ReqoreTag
+                        size='tiny'
+                        minimal
+                        flat
+                        compact
+                        effect={{ uppercase: true, spaced: 1 }}
+                        intent='warning'
+                        icon='EditLine'
+                        label={`${dirtyOptionNames.length} unsaved change${dirtyOptionNames.length === 1 ? '' : 's'}`}
+                      />
+                      <ReqoreButton
+                        size='small'
+                        intent='success'
+                        icon='CheckLine'
+                        fixed
+                        className='options-readfirst-save'
+                        disabled={!validityData.isValid}
+                        tooltip={
+                          validityData.isValid ?
+                            'Apply the staged changes'
+                          : 'Resolve the invalid fields before saving'
+                        }
+                        onClick={handleCommitClick}
+                      >
+                        Save
+                      </ReqoreButton>
+                      <ReqoreButton
+                        size='small'
+                        minimal
+                        flat
+                        fixed
+                        icon='HistoryLine'
+                        className='options-readfirst-discard'
+                        onClick={handleRevertChangesClick}
+                      >
+                        Discard
+                      </ReqoreButton>
+                    </ReqoreControlGroup>
+                  </StyledCommitDock>
+                : null}
+              </StyledCompactWrap>
+            </CompactToolbarContext.Provider>
+          </ReqoreErrorBoundary>
+        </CompactRowContext.Provider>
+      </OptionsContext.Provider>
     );
   };
 
-  if (rest.skeleton || templates.loading || typesLoading) {
+  if (
+    rest.skeleton ||
+    templates.loading ||
+    typesLoading ||
+    optionsLoading ||
+    // Remote-fetch gates, mirroring IDE Options (systemOptions.tsx:1097-1102).
+    loading ||
+    (operatorsUrl && !operators) ||
+    ((url || customUrl) && !options)
+  ) {
     return (
-      <ReqoreControlGroup vertical fill fluid style={{ flexGrow: 1 }} gapSize='big'>
+      <ReqoreControlGroup
+        className='options-loading-skeleton'
+        vertical
+        fill
+        fluid
+        style={{ flexGrow: 1 }}
+        gapSize='big'
+      >
         <ReqoreControlGroup fixed fill={false}>
           <ReqoreSkeleton />
           <ReqoreSkeleton />
@@ -995,12 +2123,26 @@ export const FormEngine = ({
     );
   }
 
+  // A loader that rejected (and produced no usable schema) surfaces its error
+  // instead of the generic "No options available" empty state.
+  if (optionsError && (!options || !size(options))) {
+    return (
+      <ReqoreMessage intent='danger' opaque={false}>
+        {optionsError}
+      </ReqoreMessage>
+    );
+  }
+
   if (!options || !size(options)) {
     return (
       <ReqoreMessage intent='warning' opaque={false}>
         No options available
       </ReqoreMessage>
     );
+  }
+
+  if (compact) {
+    return renderCompact();
   }
 
   return (
@@ -1139,9 +2281,26 @@ export const FormEngine = ({
               ),
               badge: buildBadges(options[optionName], optionName),
               className: 'system-option',
+              // Ported from IDE Options (commit 8e6b7781): full-width layout
+              // for stretchable option types.
+              stretch:
+                STRECHABLE_TYPES.has(options[optionName].type as TQorusType) ||
+                (options[optionName] as { stretch?: boolean }).stretch,
               size: 'small',
               floatingActions: true,
               actions: [
+                // SEAM (reqraft): per-option injected hover actions — where
+                // the IDE renders its `allowAi` AiAssistanceAction (with the
+                // option's schema as context). The consumer (the IDE) injects
+                // it; same factory pattern as the ExpressionBuilder's
+                // `extraActions`.
+                ...(typeof optionActions === 'function' ?
+                  optionActions({
+                    name: optionName,
+                    schema: options[optionName],
+                    value: availableOptions?.[optionName] as TOption,
+                  })
+                : (optionActions ?? [])),
                 {
                   size: 'tiny',
                   icon: 'FullscreenLine',
