@@ -10,7 +10,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // ── Mock @qoretechnologies/reqore ────────────────────────────────────────────
-jest.mock('@qoretechnologies/reqore', () => ({
+vi.mock('@qoretechnologies/reqore', () => ({
   ReqoreButton: ({ children, onClick, disabled, className, icon, ...rest }: any) => (
     <button onClick={onClick} disabled={disabled} className={className} data-icon={icon} {...rest}>
       {children}
@@ -49,7 +49,7 @@ jest.mock('@qoretechnologies/reqore', () => ({
   ),
   ReqoreTagGroup: ({ children }: any) => <div className='reqore-tag-group'>{children}</div>,
   ReqoreVerticalSpacer: () => <div />,
-  useReqoreProperty: () => jest.fn(),
+  useReqoreProperty: () => vi.fn(),
 }));
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -69,7 +69,7 @@ const stringRenderItem: IArrayAutoFieldProps['renderItem'] = ({ value, onChange 
 const renderField = (props: Partial<IArrayAutoFieldProps> = {}) => {
   const defaultProps: IArrayAutoFieldProps = {
     name: 'test',
-    onChange: jest.fn(),
+    onChange: vi.fn(),
     renderItem: stringRenderItem,
     type: 'string',
     value: [],
@@ -126,7 +126,7 @@ describe('ArrayAutoField compact mode', () => {
   });
 
   it('adds a new item when confirm is clicked', async () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     renderField({ type: 'string', value: ['existing'], onChange });
 
     const input = screen.getByTestId('array-input');
@@ -144,7 +144,7 @@ describe('ArrayAutoField compact mode', () => {
   });
 
   it('adds a new item on Enter key', async () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     renderField({ type: 'string', value: [], onChange });
 
     const input = screen.getByTestId('array-input');
@@ -173,7 +173,7 @@ describe('ArrayAutoField compact mode', () => {
   });
 
   it('updates item when editing and confirm is clicked', async () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     renderField({ type: 'string', value: ['original', 'keep'], onChange });
 
     // Click edit on first tag
@@ -202,7 +202,7 @@ describe('ArrayAutoField compact mode', () => {
   });
 
   it('removes item when remove action is clicked', async () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     renderField({ type: 'string', value: ['a', 'b', 'c'], onChange });
 
     // Remove second tag
@@ -285,7 +285,7 @@ describe('ArrayAutoField compact mode', () => {
   });
 
   it('adjusts editing index when removing item before edited item', async () => {
-    const onChange = jest.fn();
+    const onChange = vi.fn();
     renderField({ type: 'string', value: ['a', 'b', 'c'], onChange });
 
     // Start editing the third item (index 2)

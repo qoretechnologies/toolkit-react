@@ -4,17 +4,17 @@ import { ReqraftWebSocketsManager } from '../src/utils/websocket';
 
 // Mock nanoid (ESM-only module) — same pattern as websocket.test.ts.
 let nanoidCounter = 0;
-jest.mock('nanoid', () => ({
+vi.mock('nanoid', () => ({
   nanoid: () => `test-id-${++nanoidCounter}`,
 }));
 
 // Mock the fetch utility so ReqraftWebSocket has an instance host + token.
-jest.mock('../src/utils/fetch', () => ({
+vi.mock('../src/utils/fetch', () => ({
   fetchConfig: {
     instance: 'http://localhost:8092/',
     instanceToken: 'test-token',
   },
-  query: jest.fn().mockResolvedValue({ ok: true }),
+  query: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 // Replace global WebSocket with mock-socket's implementation.
@@ -196,7 +196,7 @@ describe('ReqraftLspClient', () => {
 
   it('dispatches publishDiagnostics notifications to onDiagnostics callback', async () => {
     const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/6' });
-    const cb = jest.fn();
+    const cb = vi.fn();
     client.onDiagnostics(cb);
     await client.connect();
 
@@ -223,7 +223,7 @@ describe('ReqraftLspClient', () => {
 
   it('dispatches arbitrary notifications via onNotification', async () => {
     const client = new ReqraftLspClient({ languageId: 'qonsole', uri: 'qonsole://chat/1' });
-    const cb = jest.fn();
+    const cb = vi.fn();
     client.onNotification('qonsole/sessionStateChanged', cb);
     await client.connect();
 
@@ -236,7 +236,7 @@ describe('ReqraftLspClient', () => {
 
   it('offNotification removes a previously registered handler', async () => {
     const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/7' });
-    const cb = jest.fn();
+    const cb = vi.fn();
     client.onNotification('dpql/event', cb);
     client.offNotification('dpql/event');
     await client.connect();

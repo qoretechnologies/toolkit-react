@@ -1,5 +1,5 @@
-import { StoryObj } from '@storybook/react';
-import { expect, fireEvent, fn } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { expect, fireEvent, fn } from 'storybook/test';
 import { Server } from 'mock-socket';
 import { sleep, testsClickButton, testsWaitForText } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';

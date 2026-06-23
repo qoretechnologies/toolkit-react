@@ -18,9 +18,16 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "jsx": "react-jsx",
-    "types": ["node", "react", "react-dom", "jest"],
+    "types": ["node", "react", "react-dom"],
     "outDir": "dist"
   },
-  "exclude": ["node_modules", "./mock/*", "__tests__/*", "./src/**/*.stories.tsx"],
+  "exclude": [
+    "node_modules",
+    "./mock/*",
+    "__tests__/*",
+    "./src/**/*.stories.tsx",
+    "./src/types.ts",
+    "./src/stories/**/*"
+  ],
   "include": ["./src/**/*.ts", "./src/**/*.tsx"]
 }

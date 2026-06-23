@@ -3,6 +3,10 @@ dist
 output.json
 tests.json
 coverage
+
+# Storybook build output + upgrade-tool logs
+storybook-static
+debug-storybook.log
 # OS / IDE
 .DS_Store
 
@@ -25,3 +29,4 @@ coverage
 
 # Per-agent local-only config (Claude Preview launch, etc.)
 .claude/launch.json
+qlip/

@@ -1,5 +1,5 @@
-import { StoryObj } from '@storybook/react';
-import { expect, fn, userEvent, waitFor, within } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { sleep } from '../../../__tests__/utils';
 import { useState } from 'react';
 import { StoryMeta } from '../../types';

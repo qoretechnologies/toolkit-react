@@ -1,7 +1,7 @@
 import { ReqoreControlGroup, ReqoreP, ReqorePanel } from '@qoretechnologies/reqore';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
-import { StoryObj } from '@storybook/react';
-import { expect, fn, waitFor, within } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { expect, fn, waitFor, within } from 'storybook/test';
 import { Server } from 'mock-socket';
 import { useEffect, useState } from 'react';
 import { useMount } from 'react-use';

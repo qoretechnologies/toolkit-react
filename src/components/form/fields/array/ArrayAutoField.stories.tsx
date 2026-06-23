@@ -1,6 +1,6 @@
 import { ReqoreControlGroup } from '@qoretechnologies/reqore';
-import { StoryObj } from '@storybook/react';
-import { expect, fireEvent, fn, waitFor, within } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { expect, fireEvent, fn, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 import { StoryMeta } from '../../../../types';
 import { NumberFormField } from '../number/Number';

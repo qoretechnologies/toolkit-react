@@ -1,5 +1,5 @@
-import { Meta, StoryObj } from '@storybook/react';
-import { expect } from '@storybook/test';
+import { Meta, StoryObj } from '@storybook/react-vite';
+import { expect } from 'storybook/test';
 import { _testsWaitForText } from '../../../../stories/Tests/utils';
 import { StructuredDataView } from './StructuredDataView';
 

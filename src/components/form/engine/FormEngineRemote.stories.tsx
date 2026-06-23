@@ -8,8 +8,8 @@
 // (the dpqlMockLsp pattern, REST flavour). Each story uses DISTINCT urls:
 // `query()` caches GETs for 5 minutes, so reusing a url across stories would
 // serve another story's cached schema.
-import { StoryObj } from '@storybook/react';
-import { expect, fn, userEvent, waitFor, within } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 import { StoryMeta } from '../../../types';
 import { FormEngine } from './FormEngine';

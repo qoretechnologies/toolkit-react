@@ -1,5 +1,5 @@
-import { StoryObj } from '@storybook/react';
-import { expect, fireEvent, fn, waitFor } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { expect, fireEvent, fn, waitFor } from 'storybook/test';
 import { storiesStorageMock, storiesStorageMockEmpty } from '../../../__tests__/ mock';
 import { testsWaitForText } from '../../../__tests__/utils';
 import menu from '../../../mock/menu';

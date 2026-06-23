@@ -3,8 +3,8 @@ import {
 } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
-import { Meta, StoryObj } from '@storybook/react';
-import { expect, fireEvent, fn, userEvent, waitFor, within } from '@storybook/test';
+import { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { ChangeEvent, useState } from 'react';
 import { validateField } from '../../../helpers/validations';
 import {
