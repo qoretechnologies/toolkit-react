@@ -649,6 +649,7 @@ function AutoField<T = any>({
                 allowed_values={rest.element_allowed_values}
                 allowed_values_creatable={rest.element_allowed_values_creatable}
                 type={effectiveElementType}
+                componentOverrides={componentOverrides}
                 onChange={(name, value) => {
                   if (!size(value)) {
                     return handleChange(name, undefined);
