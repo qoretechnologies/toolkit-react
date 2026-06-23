@@ -1106,12 +1106,20 @@ export const CompactBasic: Story = {
       '.readfirst-row[data-field="optionWithShortDescription"] .options-readfirst-lock-deps'
     ) as HTMLElement;
     await expect(depLock).toBeTruthy();
-    await fireEvent.click(depLock);
+    // userEvent (real pointer sequence) keeps the dropdown popover open —
+    // fireEvent's synthetic click opened it then immediately closed it via the
+    // outside-click handler in the Vitest browser. Wait for the menu ITEM, not
+    // just the "Unlocked by:" divider, before clicking it.
+    await userEvent.click(depLock);
     await _testsWaitForText('Unlocked by:');
-    const depEntry = Array.from(
-      document.querySelectorAll('.reqore-popover-content .reqore-menu-item')
-    ).find((element) => element.textContent?.includes('basicOption')) as HTMLElement;
-    await fireEvent.click(depEntry);
+    let depEntry: HTMLElement | undefined;
+    await waitFor(() => {
+      depEntry = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
+        element.textContent?.includes('basicOption')
+      ) as HTMLElement;
+      expect(depEntry).toBeTruthy();
+    });
+    await userEvent.click(depEntry as HTMLElement);
     await waitFor(
       () =>
         expect(
@@ -3091,18 +3099,20 @@ export const CompactRequiredGroups: Story = {
     const groupSelector = document.querySelector(
       '.readfirst-row[data-field="byUrl"] .options-readfirst-required-group'
     ) as HTMLElement;
-    await fireEvent.click(groupSelector);
+    // userEvent keeps the dropdown popover open (fireEvent's synthetic click
+    // closes it via the outside-click handler in the Vitest browser).
+    await userEvent.click(groupSelector);
     const memberEntry = await waitFor(
       () => {
-        const item = Array.from(
-          document.querySelectorAll('.reqore-popover-content .reqore-menu-item')
-        ).find((element) => element.textContent?.includes('By host')) as HTMLElement;
+        const item = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
+          element.textContent?.includes('By host')
+        ) as HTMLElement;
         expect(item).toBeTruthy();
         return item;
       },
       { timeout: 10000 }
     );
-    await fireEvent.click(memberEntry);
+    await userEvent.click(memberEntry);
     await waitFor(
       () =>
         expect(
@@ -3206,15 +3216,20 @@ export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
       '.readfirst-row[data-field="RequiredOption6"] .options-readfirst-lock-deps'
     ) as HTMLElement;
     await expect(depLock).toBeTruthy();
-    await fireEvent.click(depLock);
+    // userEvent keeps the dropdown popover open (see note above).
+    await userEvent.click(depLock);
     await _testsWaitForText('Unlocked by:');
     await _testsWaitForText('any of:');
 
     // Locate the second blocker from the popover (scroll + flash).
-    const depEntry = Array.from(
-      document.querySelectorAll('.reqore-popover-content .reqore-menu-item')
-    ).find((element) => element.textContent?.includes('Required Option 5')) as HTMLElement;
-    await fireEvent.click(depEntry);
+    let depEntry: HTMLElement | undefined;
+    await waitFor(() => {
+      depEntry = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
+        element.textContent?.includes('Required Option 5')
+      ) as HTMLElement;
+      expect(depEntry).toBeTruthy();
+    });
+    await userEvent.click(depEntry as HTMLElement);
     await waitFor(
       () =>
         expect(
@@ -3312,7 +3327,8 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
       '.readfirst-row[data-field="RequiredOption6"] .options-readfirst-lock-deps'
     ) as HTMLElement;
     await expect(depLock).toBeTruthy();
-    await fireEvent.click(depLock);
+    // userEvent keeps the dropdown popover open (see note above).
+    await userEvent.click(depLock);
     await _testsWaitForText('Unlocked by:');
     // A single flat dependency — no "any of:" grouping.
     await _testsWaitForTextToNotExist('any of:');
