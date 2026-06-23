@@ -16,7 +16,17 @@ import { defineConfig, loadEnv } from 'vite';
 // does `mergeConfig(viteConfig, …)`, which throws "Cannot merge config in form
 // of callback" if this file exports the `defineConfig(() => …)` function form.
 const fileEnv = loadEnv(process.env.NODE_ENV || 'development', process.cwd(), '');
-const env = (key: string) => process.env[key] ?? fileEnv[key] ?? '';
+// Resolve a value from the shell, then .env files. Accepts fallback keys so a
+// globally-exported `QORUS_TOKEN` (the CI secret name, and what's commonly set
+// in the shell) is picked up even though the app reads `REACT_APP_QORUS_TOKEN`.
+// Locally nothing ever bridged the two; CI bridges them in the workflow yaml.
+const env = (...keys: string[]) => {
+  for (const key of keys) {
+    if (process.env[key]) return process.env[key] as string;
+    if (fileEnv[key]) return fileEnv[key];
+  }
+  return '';
+};
 
 export default defineConfig({
   plugins: [react()],
@@ -31,7 +41,14 @@ export default defineConfig({
   define: {
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'storybook'),
     'process.env.CI': JSON.stringify(env('CI')),
-    'process.env.REACT_APP_QORUS_TOKEN': JSON.stringify(env('REACT_APP_QORUS_TOKEN')),
-    'process.env.REACT_APP_QORUS_INSTANCE': JSON.stringify(env('REACT_APP_QORUS_INSTANCE')),
+    // Fall back to the unprefixed QORUS_TOKEN / QORUS_INSTANCE — the globally
+    // exported vars (qorus-ide reads the same QORUS_TOKEN). So a global
+    // QORUS_TOKEN now reaches Storybook without setting REACT_APP_QORUS_TOKEN.
+    'process.env.REACT_APP_QORUS_TOKEN': JSON.stringify(
+      env('REACT_APP_QORUS_TOKEN', 'QORUS_TOKEN')
+    ),
+    'process.env.REACT_APP_QORUS_INSTANCE': JSON.stringify(
+      env('REACT_APP_QORUS_INSTANCE', 'QORUS_INSTANCE')
+    ),
   },
 });

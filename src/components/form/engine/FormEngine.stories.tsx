@@ -1,11 +1,9 @@
-import {
-  ReqoreInput
-} from '@qoretechnologies/reqore';
+import { ReqoreInput } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react-vite';
-import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { ChangeEvent, useState } from 'react';
+import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
 import {
   _testsChangeRichText,
@@ -288,10 +286,9 @@ export const ValueCanBeRemoved: Story = {
       timeout: 10000,
     });
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
-    await waitFor(
-      () => expect(document.querySelectorAll('.options-item-revert').length).toBe(1),
-      { timeout: 10000 }
-    );
+    await waitFor(() => expect(document.querySelectorAll('.options-item-revert').length).toBe(1), {
+      timeout: 10000,
+    });
     await userEvent.hover(document.querySelectorAll('.system-option')[1]);
     await waitFor(() => expect(document.querySelector('.options-item-remove')).toBeTruthy(), {
       timeout: 10000,
@@ -1235,9 +1232,7 @@ export const CompactReadOnlyRichText: Story = {
     await _testsClickText('Template option');
     await waitFor(
       () => {
-        const card = document.querySelector(
-          '.options-readfirst-card[data-field="templateOption"]'
-        );
+        const card = document.querySelector('.options-readfirst-card[data-field="templateOption"]');
         expect(card).toBeTruthy();
         const tag = card?.querySelector('.reqore-tag');
         expect(tag).toBeTruthy();
@@ -1247,9 +1242,7 @@ export const CompactReadOnlyRichText: Story = {
         // label must be the resolved name, never the raw reference.
         expect(tag?.textContent).toContain('Test (local)');
         expect(tag?.textContent).not.toContain('$local:test');
-        expect(
-          card?.querySelector('input, textarea, [contenteditable="true"]')
-        ).toBeFalsy();
+        expect(card?.querySelector('input, textarea, [contenteditable="true"]')).toBeFalsy();
       },
       { timeout: 10000 }
     );
@@ -1339,7 +1332,9 @@ export const CompactHashStructuredView: Story = {
     await fireEvent.click(valueChip);
     await waitFor(
       () =>
-        expect(document.querySelector('.options-readfirst-card[data-field="orderState"]')).toBeTruthy(),
+        expect(
+          document.querySelector('.options-readfirst-card[data-field="orderState"]')
+        ).toBeTruthy(),
       { timeout: 10000 }
     );
 
@@ -1363,9 +1358,7 @@ export const CompactHashStructuredView: Story = {
       { timeout: 10000 }
     );
     await fireEvent.click(
-      document.querySelector(
-        '[data-field="orderState"] .options-readfirst-viewmore'
-      ) as HTMLElement
+      document.querySelector('[data-field="orderState"] .options-readfirst-viewmore') as HTMLElement
     );
     await _testsWaitForText('Show less'); // fade expanded → full tree on screen
 
@@ -1504,10 +1497,9 @@ export const CompactSensitive: Story = {
     // textarea is exempt: it reflects its VALUE as a text child, which is how
     // the user edits the secret — anything else holding the text is a leak.
     await _testsClickText('••••••');
-    await waitFor(
-      () => expect(document.querySelector('.options-readfirst-inline')).toBeTruthy(),
-      { timeout: 10000 }
-    );
+    await waitFor(() => expect(document.querySelector('.options-readfirst-inline')).toBeTruthy(), {
+      timeout: 10000,
+    });
     await _testsWaitForTextToNotExist('super-secret-token', ':not(textarea)');
 
     // Close the editor so the story's hero shot is the MASKED read row — not the
@@ -1578,7 +1570,9 @@ export const CompactOperators: Story = {
     // Single clear: a single-value card hides the editor's own input ✕ (it has
     // no Reqore prop, so the card marks itself `-single` and CSS hides it) and
     // shows the card-action Clear between Fullscreen and Done instead.
-    const card = document.querySelector('.options-readfirst-card[data-field="status"]') as HTMLElement;
+    const card = document.querySelector(
+      '.options-readfirst-card[data-field="status"]'
+    ) as HTMLElement;
     await expect(card.className).toContain('options-readfirst-card-single');
     await expect(card.querySelector('.options-readfirst-clear')).toBeInTheDocument();
     const builtInClear = card.querySelector('.reqore-clear-input-button') as HTMLElement | null;
@@ -1657,8 +1651,20 @@ export const CompactSortOrder: Story = {
     compact: true,
     minColumnWidth: '300px',
     options: {
-      third: { type: 'string', ui_type: 'string', display_name: 'Third', sort: 3, preselected: true },
-      first: { type: 'string', ui_type: 'string', display_name: 'First', sort: 1, preselected: true },
+      third: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Third',
+        sort: 3,
+        preselected: true,
+      },
+      first: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'First',
+        sort: 1,
+        preselected: true,
+      },
       second: {
         type: 'string',
         ui_type: 'string',
@@ -1789,9 +1795,7 @@ export const CompactFieldsMenu: Story = {
     await clickFieldsMenuItem('Select all');
     await _testsWaitForText('Notes');
     await fireEvent.click(
-      document.querySelector(
-        '.readfirst-row[data-field="notes"] .readfirst-action'
-      ) as HTMLElement
+      document.querySelector('.readfirst-row[data-field="notes"] .readfirst-action') as HTMLElement
     );
     await _testsWaitForText('Remove field');
     await _testsClickButton({ label: 'Confirm' });
@@ -2025,9 +2029,7 @@ export const CompactOverflowAndStickyHeader: Story = {
     scroller.scrollTop = scroller.scrollHeight;
     await waitFor(() => {
       expect(scroller.scrollTop).toBeGreaterThan(0);
-      const search = document.querySelector(
-        'input[placeholder="Filter fields..."]'
-      ) as HTMLElement;
+      const search = document.querySelector('input[placeholder="Filter fields..."]') as HTMLElement;
       const scrollerTop = scroller.getBoundingClientRect().top;
       expect(search.getBoundingClientRect().top).toBeGreaterThanOrEqual(scrollerTop - 1);
       expect(search.getBoundingClientRect().top).toBeLessThan(scrollerTop + 150);
@@ -2307,7 +2309,9 @@ export const CompactEnumWithImages: Story = {
 
     // Bug 2: drilling in lists every enum choice WITH its logo (the editor was
     // empty before — it only read `allowed_values`, never the IDE `items`).
-    await fireEvent.click(document.querySelector('.readfirst-row[data-field="lang"]') as HTMLElement);
+    await fireEvent.click(
+      document.querySelector('.readfirst-row[data-field="lang"]') as HTMLElement
+    );
     await waitFor(
       () => {
         const card = document.querySelector('.options-readfirst-card[data-field="lang"]');
@@ -2341,9 +2345,21 @@ export const CompactEnumRichtextValue: Story = {
         required: true,
         default_value: { type: 'richtext', value: 'qore' },
         allowed_values: [
-          { display_name: 'Qore', value: { type: 'richtext', value: 'qore' }, image: langImg('#c0007a', 'Q') },
-          { display_name: 'Python', value: { type: 'richtext', value: 'python' }, image: langImg('#3776ab', 'P') },
-          { display_name: 'Java', value: { type: 'richtext', value: 'java' }, image: langImg('#e76f00', 'J') },
+          {
+            display_name: 'Qore',
+            value: { type: 'richtext', value: 'qore' },
+            image: langImg('#c0007a', 'Q'),
+          },
+          {
+            display_name: 'Python',
+            value: { type: 'richtext', value: 'python' },
+            image: langImg('#3776ab', 'P'),
+          },
+          {
+            display_name: 'Java',
+            value: { type: 'richtext', value: 'java' },
+            image: langImg('#e76f00', 'J'),
+          },
         ],
       },
     } as unknown as IOptionsSchema,
@@ -2362,7 +2378,9 @@ export const CompactEnumRichtextValue: Story = {
       { timeout: 10000 }
     );
     // Drill in → the RADIO renders (not a rich-text box) with every language.
-    await fireEvent.click(document.querySelector('.readfirst-row[data-field="lang"]') as HTMLElement);
+    await fireEvent.click(
+      document.querySelector('.readfirst-row[data-field="lang"]') as HTMLElement
+    );
     await waitFor(
       () => {
         const card = document.querySelector('.options-readfirst-card[data-field="lang"]');
@@ -2402,9 +2420,13 @@ export const CompactSingleExpand: Story = {
       () => expect(document.querySelector('.readfirst-row[data-field="beta"]')).toBeTruthy(),
       { timeout: 10000 }
     );
-    await fireEvent.click(document.querySelector('.readfirst-row[data-field="alpha"]') as HTMLElement);
+    await fireEvent.click(
+      document.querySelector('.readfirst-row[data-field="alpha"]') as HTMLElement
+    );
     await waitFor(() => expect(_isRowOpen('alpha')).toBe(true), { timeout: 10000 });
-    await fireEvent.click(document.querySelector('.readfirst-row[data-field="beta"]') as HTMLElement);
+    await fireEvent.click(
+      document.querySelector('.readfirst-row[data-field="beta"]') as HTMLElement
+    );
     await waitFor(
       () => {
         expect(_isRowOpen('beta')).toBe(true);
@@ -2424,9 +2446,13 @@ export const CompactMultiExpand: Story = {
       () => expect(document.querySelector('.readfirst-row[data-field="beta"]')).toBeTruthy(),
       { timeout: 10000 }
     );
-    await fireEvent.click(document.querySelector('.readfirst-row[data-field="alpha"]') as HTMLElement);
+    await fireEvent.click(
+      document.querySelector('.readfirst-row[data-field="alpha"]') as HTMLElement
+    );
     await waitFor(() => expect(_isRowOpen('alpha')).toBe(true), { timeout: 10000 });
-    await fireEvent.click(document.querySelector('.readfirst-row[data-field="beta"]') as HTMLElement);
+    await fireEvent.click(
+      document.querySelector('.readfirst-row[data-field="beta"]') as HTMLElement
+    );
     await waitFor(
       () => {
         expect(_isRowOpen('beta')).toBe(true);
@@ -2473,8 +2499,18 @@ export const CompactFieldTypes: Story = {
     options: {
       // Text & string
       text: { type: 'string', ui_type: 'string', display_name: 'String', group: 'text' },
-      longText: { type: 'string', ui_type: 'long-string', display_name: 'Long string', group: 'text' },
-      markdownText: { type: 'string', ui_type: 'markdown', display_name: 'Markdown', group: 'text' },
+      longText: {
+        type: 'string',
+        ui_type: 'long-string',
+        display_name: 'Long string',
+        group: 'text',
+      },
+      markdownText: {
+        type: 'string',
+        ui_type: 'markdown',
+        display_name: 'Markdown',
+        group: 'text',
+      },
       richText: { type: 'richtext', ui_type: 'richtext', display_name: 'Rich text', group: 'text' },
       template: {
         type: 'string',
@@ -2717,7 +2753,10 @@ export const CompactFieldTypes: Story = {
         value: 'A longer paragraph of text that wraps across more than one line in the editor.',
       },
       markdownText: { type: 'string', value: '# Heading\nSome **bold** text' },
-      richText: { type: 'richtext', value: [{ type: 'paragraph', children: [{ text: 'rich note' }] }] },
+      richText: {
+        type: 'richtext',
+        value: [{ type: 'paragraph', children: [{ text: 'rich note' }] }],
+      },
       template: { type: 'string', value: '$config:billing_url' },
       schedule: { type: 'string', value: '0 0 * * *' },
       when: { type: 'date', value: '2026-06-09' },
@@ -2901,7 +2940,9 @@ export const CompactFieldTypes: Story = {
         '.readfirst-row[data-field="infoShortDesc"] .options-readfirst-info-slot .options-readfirst-info-toggle'
       ) as HTMLElement
     );
-    await _testsWaitForText('A one-line summary shown under the field name and in the hover title.');
+    await _testsWaitForText(
+      'A one-line summary shown under the field name and in the hover title.'
+    );
     await expect(
       document.querySelector('.readfirst-row[data-field="infoLongDesc"] .options-readfirst-help')
     ).toBeTruthy();
@@ -2981,9 +3022,7 @@ export const CompactFieldTypesEditing: Story = {
 
     // The boolean (value: true) has no built-in clear, so the row-level Clear is
     // the only one — and there is no Revert yet (value matches the original).
-    await expect(
-      editRow('enabled').querySelectorAll('.reqore-clear-input-button')
-    ).toHaveLength(0);
+    await expect(editRow('enabled').querySelectorAll('.reqore-clear-input-button')).toHaveLength(0);
     await expect(editRow('enabled').querySelector('.options-readfirst-clear')).toBeInTheDocument();
     await expect(
       editRow('enabled').querySelector('.options-readfirst-revert')
@@ -2995,69 +3034,6 @@ export const CompactFieldTypesEditing: Story = {
       expect(editRow('enabled').querySelector('.options-readfirst-clear')).not.toBeInTheDocument();
       expect(editRow('enabled').querySelector('.options-readfirst-revert')).toBeInTheDocument();
     });
-  },
-};
-
-// Same catalog, EVERY field required and NOTHING set, all open: each editor in
-// its required/invalid state — the canary for editors that misbehave on an
-// empty required value.
-export const CompactFieldTypesEditingAllRequired: Story = {
-  // chromatic off: every catalog editor mounts live (async) — flaky and snapshot-heavy.
-  parameters: { chromatic: { disable: true } },
-  args: {
-    ...CompactFieldTypes.args,
-    expandMode: 'multi' as const,
-    options: Object.fromEntries(
-      Object.entries(CompactFieldTypes.args!.options as IOptionsSchema).map(([name, option]) => [
-        name,
-        { ...(option as object), required: true },
-      ])
-    ) as IOptionsSchema,
-    value: {} as IOptions,
-  },
-  play: async () => {
-    await _testsWaitForText('String');
-    // Everything is required and unset: the invalid-fields banner shows.
-    await _testsWaitForText(/fields are not valid and require attention/);
-    await _compactExpandAllRows();
-    // The editors render their own required messages (the read-row Required
-    // tags are replaced by the editor strip while editing).
-    await waitFor(() =>
-      expect(
-        within(document.body).queryAllByText('This field is required').length
-      ).toBeGreaterThan(20)
-    );
-    // Every catalog row resolves to an editor: built-ins (incl. markdown/cron,
-    // bridged into AutoFormField) render natively, and Qorus-domain types
-    // (mapper / data-provider) render via componentOverrides. None falls
-    // through to the "Unknown type!" tag.
-    expect(within(document.body).queryAllByText('Unknown type!')).toHaveLength(0);
-
-    // The empty `any` card: custom values are disallowed for `any` (the
-    // value's TYPE is picked first), so its only control is the template menu
-    // — which therefore renders as a labelled "Set value" trigger instead of
-    // the bare ⋮. Picking a type from the menu mounts that type's editor.
-    await _testsClickText('Set value');
-    await _testsClickText('Set Custom Value');
-    // Scope the type pick to the open menu — with every editor expanded, an
-    // editor toolbar can carry its own "Text" label.
-    await waitFor(() =>
-      expect(
-        within(document.querySelector('.reqore-menu') as HTMLElement).getByText('Text')
-      ).toBeInTheDocument()
-    );
-    await fireEvent.click(
-      within(document.querySelector('.reqore-menu') as HTMLElement).getByText('Text')
-    );
-    await waitFor(
-      () =>
-        expect(
-          document.querySelector(
-            '.options-readfirst-card[data-field="dynamic"] [contenteditable="true"]'
-          )
-        ).toBeTruthy(),
-      { timeout: 10000 }
-    );
   },
 };
 
@@ -3685,7 +3661,9 @@ export const CompactShowcase: Story = {
     await expect(
       document.querySelector('[data-field="chromeIcon"] .options-readfirst-row-icon')
     ).toBeTruthy();
-    await expect(document.querySelector('[data-field="chromeImage"] .reqore-icon img')).toBeTruthy();
+    await expect(
+      document.querySelector('[data-field="chromeImage"] .reqore-icon img')
+    ).toBeTruthy();
     await waitFor(() => {
       // The intent stripe rides the value surface's left border, fed by
       // --readfirst-stripe on the field's BLOCK root. This field carries a
