@@ -4,8 +4,8 @@
 // live server; the IDE's `_testsClickButton` / `_testsSelectItemFromCollection`
 // helpers are inlined here with `@storybook/test` primitives. The count-based
 // assertions (`.expression`, `.expression-and`, `.expression-or`) are preserved.
-import { StoryObj } from '@storybook/react';
-import { expect, fireEvent, fn, userEvent, waitFor, within } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 import { sleep } from '../../../../../__tests__/utils';
 import { StoryMeta } from '../../../../types';

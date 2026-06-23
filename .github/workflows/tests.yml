@@ -17,6 +17,9 @@ jobs:
     env:
       QORUS_TOKEN: ${{ secrets.QORUS_TOKEN }}
       REACT_APP_QORUS_TOKEN: ${{ secrets.QORUS_TOKEN }}
+      # Upload token for qlip visual snapshots (Storybook interaction tests).
+      # When unset, qlip still captures snapshots but skips the upload.
+      QLIP_UPLOAD_TOKEN: ${{ secrets.QLIP_UPLOAD_TOKEN }}
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Get current time for the commit
@@ -61,19 +64,22 @@ jobs:
         id: install_modules
         run: |
           yarn install
-          yarn install-playwright
-          yarn playwright install
-          yarn build-storybook --quiet
+
+      - name: Run lint, unit tests and type checks
+        id: precheck
+        run: yarn precheck
 
       - name: Run build test
         run: |
           yarn build
 
-      - name: Serve Storybook and run tests
-        run: |
-          npx concurrently -k -s first -n "SB,TEST" -c "magenta,blue" \
-            "npx http-server storybook-static --port 6008 --silent" \
-            "npx wait-on tcp:6008 && yarn test-storybook"
+      - name: Install Playwright Chromium
+        id: install_playwright
+        run: yarn playwright install --with-deps chromium
+
+      - name: Run Storybook interaction tests
+        id: story_tests
+        run: yarn test:stories
 
       - name: Bump version with timestamp and canary tag
         id: bump
@@ -82,33 +88,6 @@ jobs:
           NEW_VERSION=$(npm version prerelease --preid=canary.$TIMESTAMP --no-git-tag-version)
           echo "New version: $NEW_VERSION"
           echo "::set-output name=version::$NEW_VERSION"
-
-      - name: Publish canary version to NPM
-        id: npm_publish
-        uses: JS-DevTools/npm-publish@v1
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
-          tag: canary
-          access: public
-
-      - name: Create comment with canary version
-        uses: mshick/add-pr-comment@v2
-        with:
-          message: |
-            Canary version for this PR published: ${{ steps.bump.outputs.version }}
-            ```sh
-            yarn add @qoretechnologies/reqraft@${{ steps.bump.outputs.version }}
-            ```
-
-      - name: Publish to Chromatic
-        id: chromatic_publish
-        uses: chromaui/action@latest
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-          exitZeroOnChanges: true
-          allowConsoleErrors: true
-          debug: true
 
       # Notify Discord if Success
       - name: Discord notification success

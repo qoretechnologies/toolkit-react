@@ -1,6 +1,6 @@
 import { ReqoreButton, ReqoreControlGroup, ReqoreP } from '@qoretechnologies/reqore';
-import { StoryObj } from '@storybook/react';
-import { fireEvent, within } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { fireEvent, within } from 'storybook/test';
 import { storiesStorageMock } from '../../../__tests__/ mock';
 import { testsWaitForText } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';

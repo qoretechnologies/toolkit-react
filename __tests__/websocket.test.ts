@@ -6,17 +6,17 @@ import {
 
 // Mock nanoid (ESM-only module)
 let nanoidCounter = 0;
-jest.mock('nanoid', () => ({
+vi.mock('nanoid', () => ({
   nanoid: () => `test-id-${++nanoidCounter}`,
 }));
 
 // Mock the fetch utility
-jest.mock('../src/utils/fetch', () => ({
+vi.mock('../src/utils/fetch', () => ({
   fetchConfig: {
     instance: 'http://localhost:8092/',
     instanceToken: 'test-token',
   },
-  query: jest.fn().mockResolvedValue({ ok: true }),
+  query: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
 // Replace global WebSocket with mock-socket's implementation
@@ -39,8 +39,8 @@ describe('ReqraftWebSocket', () => {
 
   describe('pooled option (default behavior)', () => {
     it('should share the same WebSocket when two instances connect to the same URL', () => {
-      const onOpen1 = jest.fn();
-      const onOpen2 = jest.fn();
+      const onOpen1 = vi.fn();
+      const onOpen2 = vi.fn();
 
       const ws1 = new ReqraftWebSocket({
         url: 'lsp',
@@ -171,37 +171,38 @@ describe('ReqraftWebSocket', () => {
       expect(ReqraftWebSocketsManager.connections[connectionKeys[1]].using).toBe(1);
     });
 
-    it('removing an isolated connection should not affect other connections', (done) => {
-      const ws1 = new ReqraftWebSocket({
-        url: 'lsp',
-        pooled: false,
-        useHeartbeat: false,
-        reconnect: false,
-      });
+    it('removing an isolated connection should not affect other connections', () =>
+      new Promise<void>((resolve) => {
+        const ws1 = new ReqraftWebSocket({
+          url: 'lsp',
+          pooled: false,
+          useHeartbeat: false,
+          reconnect: false,
+        });
 
-      const ws2 = new ReqraftWebSocket({
-        url: 'lsp',
-        pooled: false,
-        useHeartbeat: false,
-        reconnect: false,
-      });
+        const ws2 = new ReqraftWebSocket({
+          url: 'lsp',
+          pooled: false,
+          useHeartbeat: false,
+          reconnect: false,
+        });
 
-      const connectionKeysBefore = Object.keys(ReqraftWebSocketsManager.connections);
-      expect(connectionKeysBefore.length).toBe(2);
+        const connectionKeysBefore = Object.keys(ReqraftWebSocketsManager.connections);
+        expect(connectionKeysBefore.length).toBe(2);
 
-      // The close event fires asynchronously, so we check after a tick
-      ws1.remove();
+        // The close event fires asynchronously, so we check after a tick
+        ws1.remove();
 
-      setTimeout(() => {
-        // Only one connection should remain after the close event fires
-        const connectionKeysAfter = Object.keys(ReqraftWebSocketsManager.connections);
-        expect(connectionKeysAfter.length).toBe(1);
+        setTimeout(() => {
+          // Only one connection should remain after the close event fires
+          const connectionKeysAfter = Object.keys(ReqraftWebSocketsManager.connections);
+          expect(connectionKeysAfter.length).toBe(1);
 
-        // ws2's socket should still be accessible
-        expect(ws2.socket).toBeDefined();
-        done();
-      }, 50);
-    });
+          // ws2's socket should still be accessible
+          expect(ws2.socket).toBeDefined();
+          resolve();
+        }, 50);
+      }));
 
     it('should still use the correct URL for the actual WebSocket connection', () => {
       const ws = new ReqraftWebSocket({

@@ -9,8 +9,8 @@
 // - the IDE's leaf story components (`LongStringField`, `Number`, `string`)
 //   are local 2-arg wrappers over reqraft's leaf fields, `auto` is the ported
 //   `AutoFormField`.
-import { Meta, StoryObj } from '@storybook/react';
-import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from '@storybook/test';
+import { Meta, StoryObj } from '@storybook/react-vite';
+import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 import { buildTemplates } from '../../../../helpers/templates';
 import { mockExpressions } from '../../expressions/mockExpressions';

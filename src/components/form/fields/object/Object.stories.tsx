@@ -1,5 +1,5 @@
-import { StoryObj } from '@storybook/react';
-import { expect, fireEvent, fn } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { expect, fireEvent, fn } from 'storybook/test';
 import { useMemo, useState } from 'react';
 
 import jsyaml from 'js-yaml';
@@ -155,7 +155,7 @@ export const ValueCanBeRemoved: Story = {
   },
 };
 
-export const json: Story = {
+export const Json: Story = {
   args: {
     type: 'object',
     dataType: 'json',
@@ -202,7 +202,7 @@ export const json: Story = {
   },
 };
 
-export const yaml: Story = {
+export const Yaml: Story = {
   args: {
     type: 'object',
     dataType: 'yaml',

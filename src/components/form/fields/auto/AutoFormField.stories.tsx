@@ -8,8 +8,8 @@
 //    The saved-values stories (`StringWithSuggestedValues`,
 //    `StringWithSuggestedAndSavedValues`) and the bare `Connection` story
 //    (InterfaceSelector) are not ported — IDE-only seams.
-import { StoryObj } from '@storybook/react';
-import { expect, fn, userEvent, waitFor, within } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import jsyaml from 'js-yaml';
 import { useState } from 'react';
 

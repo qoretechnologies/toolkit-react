@@ -1,5 +1,5 @@
 import { ReqoreSpinner, ReqoreTree } from '@qoretechnologies/reqore';
-import { StoryObj } from '@storybook/react';
+import { StoryObj } from '@storybook/react-vite';
 import { testsWaitForText } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';
 import { useFetch } from './useFetch';
@@ -30,7 +30,7 @@ const meta = {
 export default meta;
 export type Story = StoryObj<typeof meta>;
 
-export const get: Story = {
+export const Get: Story = {
   args: {
     method: 'GET',
   },
@@ -61,7 +61,7 @@ export const get: Story = {
   },
 };
 
-export const put: Story = {
+export const Put: Story = {
   args: {
     method: 'PUT',
   },
@@ -83,7 +83,7 @@ export const put: Story = {
   },
 };
 
-export const post: Story = {
+export const Post: Story = {
   args: {
     method: 'POST',
   },
@@ -105,7 +105,7 @@ export const post: Story = {
   },
 };
 
-export const del: Story = {
+export const Del: Story = {
   args: {
     method: 'DELETE',
   },

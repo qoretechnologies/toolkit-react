@@ -1,5 +1,5 @@
 import { ReqoreP, ReqoreSpinner, ReqoreTree } from '@qoretechnologies/reqore';
-import { StoryObj } from '@storybook/react';
+import { StoryObj } from '@storybook/react-vite';
 import { testsWaitForText } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';
 import { currentUserStore } from './currentUser';
@@ -25,14 +25,14 @@ const meta = {
 export default meta;
 export type Story = StoryObj<typeof meta>;
 
-export const currentUserCanBeLoaded: Story = {
+export const CurrentUserCanBeLoaded: Story = {
   play: async () => {
     await testsWaitForText('"David Nichols"');
   },
 };
 
-export const currentUserHasPermissions: Story = {
-  ...currentUserCanBeLoaded,
+export const CurrentUserHasPermissions: Story = {
+  ...CurrentUserCanBeLoaded,
   render: () => {
     const { hasAnyPermission } = currentUserStore();
 

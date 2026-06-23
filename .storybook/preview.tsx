@@ -1,9 +1,11 @@
 import withMockdate from '@netsells/storybook-mockdate';
 import { ReqoreContent, ReqoreLayoutContent, ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { initializeReqraft } from '../src';
+import { fetchConfig } from '../src/utils/fetch';
 
 export const parameters = {
-  actions: { argTypesRegex: '^on[A-Z].*' },
+  // No `actions.argTypesRegex` (removed in SB10): stories that assert on
+  // handlers define explicit `fn()` spies from `storybook/test` instead.
   layout: 'fullscreen',
   options: {
     panelPosition: 'right',
@@ -51,6 +53,12 @@ export const decorators = [
       instance: process.env.REACT_APP_QORUS_INSTANCE || 'https://hq.qoretechnologies.com:8092/',
       instanceToken: process.env.REACT_APP_QORUS_TOKEN,
     });
+    // A live story hitting Qorus without a valid token gets a 401, which
+    // Reqraft answers by navigating window.location to `/?next=…`. Inside the
+    // preview iframe that loads the Storybook MANAGER into the canvas, whose own
+    // canvas reloads /iframe.html → 401 → redirect → Storybook-in-Storybook
+    // recursion. Clear the redirect so a 401 stays a failed request here.
+    fetchConfig.unauthorizedRedirect = undefined;
 
     return (
       <ReqoreUIProvider

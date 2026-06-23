@@ -1,5 +1,5 @@
-import { StoryObj } from '@storybook/react';
-import { expect, fn, within } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { expect, fn, within } from 'storybook/test';
 import { useState } from 'react';
 
 import { markdown } from '../../../../../mock/fields';

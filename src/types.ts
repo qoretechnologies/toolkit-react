@@ -1,5 +1,5 @@
 import { IReqoreUIProviderProps } from '@qoretechnologies/reqore/dist/containers/UIProvider';
-import { Meta } from '@storybook/react';
+import { Meta } from '@storybook/react-vite';
 import { IReqraftProviderProps } from './providers/ReqraftProvider';
 
 export type StoryMeta<

@@ -1,4 +1,4 @@
-import { expect, fireEvent, screen, waitFor } from '@storybook/test';
+import { expect, fireEvent, screen, waitFor } from 'storybook/test';
 
 export const sleep = (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms));

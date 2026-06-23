@@ -7,8 +7,8 @@
 // shape end-to-end before promoting the spike into a `QonsoleSmartInput`
 // component proper.
 
-import { StoryObj } from '@storybook/react';
-import { fn, userEvent, waitFor, within, expect } from '@storybook/test';
+import { StoryObj } from '@storybook/react-vite';
+import { fn, userEvent, waitFor, within, expect } from 'storybook/test';
 import { sleep } from '../../../__tests__/utils';
 import { useState } from 'react';
 import { StoryMeta } from '../../types';
