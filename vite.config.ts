@@ -39,6 +39,10 @@ export default defineConfig({
   // The Storybook Vite builder picks up this define, and the Vitest browser
   // project merges this config — so both paths get the token.
   define: {
+    // Map Node's `global` to the browser's globalThis. Some deps reference it —
+    // e.g. storybook-addon-mock's faker does `global.XMLHttpRequest`, which would
+    // throw "global is not defined" in the Vitest/Storybook browser otherwise.
+    global: 'globalThis',
     'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'storybook'),
     'process.env.CI': JSON.stringify(env('CI')),
     // Fall back to the unprefixed QORUS_TOKEN / QORUS_INSTANCE — the globally
