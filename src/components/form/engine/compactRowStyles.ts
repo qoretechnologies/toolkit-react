@@ -234,19 +234,6 @@ export const StyledCardHeading = styled.div`
   min-width: 0;
 `;
 
-// Wraps a removable field with a Delete button as a real SIBLING to its right.
-// The button only shows on mobile (the in-row hover delete is hidden there);
-// on desktop it's hidden and the field takes the full width.
-export const StyledFieldRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  > :first-child {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-`;
-
 /* The card (expanded) label matches the read-row label exactly — same size /
    weight / case — so a field's name doesn't switch styles when you open it. */
 export const StyledCardLabel = styled.div<{ $color: string }>`
@@ -411,8 +398,7 @@ export const StyledGroupBody = styled.div<{
   /* A dim hairline in the gap below each field so its start/end reads clearly.
      Absolutely positioned (not a border) so it stays straight + full-width and
      the row's rounded hover highlight is unaffected; sits in the inter-row gap. */
-  .readfirst-row::after,
-  .options-readfirst-fieldrow::after {
+  .readfirst-row::after {
     content: '';
     position: absolute;
     /* Inset to the row's horizontal padding so the line spans the content, not
@@ -428,14 +414,7 @@ export const StyledGroupBody = styled.div<{
     pointer-events: none;
     z-index: 0;
   }
-  /* When a removable field is wrapped (delete button beside it, on touch), the
-     line spans the WHOLE field including the button — drawn on the wrapper, so
-     suppress the inner row's own line to avoid a short double. */
-  .options-readfirst-fieldrow .readfirst-row::after {
-    display: none;
-  }
-  .readfirst-row:last-child::after,
-  .options-readfirst-fieldrow:last-child::after {
+  .readfirst-row:last-child::after {
     display: none;
   }
   .readfirst-row:hover {
@@ -477,27 +456,6 @@ export const StyledGroupBody = styled.div<{
       background: transparent;
     }
   }
-  .readfirst-action {
-    opacity: 0;
-    transition: opacity 0.12s ease;
-  }
-  .readfirst-row:hover .readfirst-action,
-  .readfirst-row:focus-visible .readfirst-action {
-    opacity: 0.85;
-  }
-  /* The sibling mobile-delete (next to the field) shows ONLY when stacked — touch
-     has no hover, so the in-row hover delete is hidden there instead. */
-  .options-readfirst-mobile-delete {
-    display: none;
-    flex: 0 0 auto;
-  }
-  &.readfirst-narrow .options-readfirst-mobile-delete {
-    display: inline-flex;
-  }
-  &.readfirst-narrow .readfirst-action {
-    display: none;
-  }
-
   /* A scalar row being edited in place: the real editor replaces the value
      cell. The row stops being a click target (the editor owns the clicks) and
      keeps a constant active background. Vertical padding is tightened so the
@@ -643,21 +601,4 @@ export const StyledGroupBody = styled.div<{
     padding-bottom: 0;
   }
 
-  /* A hash block = its parent row + the revealed sub-rows. Highlight the whole
-     block as one unit on hover (rather than only the parent row), and neutralise
-     the parent row's own hover so the two don't stack into a darker band. The
-     parent row's hover actions still surface whenever the block is hovered. */
-  .options-readfirst-hash-row {
-    border-radius: 6px;
-    transition: background 0.12s ease;
-  }
-  .options-readfirst-hash-row:hover {
-    background: ${({ $hover }) => $hover};
-  }
-  .options-readfirst-hash-row:hover .readfirst-row {
-    background: transparent;
-  }
-  .options-readfirst-hash-row:hover .readfirst-action {
-    opacity: 0.85;
-  }
 `;

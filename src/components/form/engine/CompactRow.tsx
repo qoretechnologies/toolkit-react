@@ -38,7 +38,6 @@ import {
   StyledColorSwatch,
   StyledColumn,
   StyledEditCard,
-  StyledFieldRow,
   StyledLabelBlock,
   StyledLabelDesc,
   StyledRowActions,
@@ -426,37 +425,6 @@ export const CompactRow = memo(
       return () => window.clearTimeout(id);
     }, [isExpanded]);
 
-    // Wraps a removable field so a Delete button sits as a real SIBLING to its
-    // right (mobile-only via CSS; desktop keeps the in-row hover delete). The
-    // wrapper is applied to EVERY return path (read AND edit) so the root element
-    // stays stable across view↔edit — otherwise expanding a removable field would
-    // remount it. The delete button only renders in read mode.
-    const withMobileDelete = (node: React.ReactNode): React.ReactNode =>
-      !removable || hidden ? node : (
-        <StyledFieldRow className='options-readfirst-fieldrow'>
-          {node}
-          <span className='options-readfirst-mobile-delete'>
-            {!isExpanded ?
-              <ReqoreButton
-                size='small'
-                flat
-                minimal
-                intent='danger'
-                icon='DeleteBinLine'
-                tooltip='Remove field'
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  confirmAction({
-                    title: 'Remove field',
-                    onConfirm: () => removeSelectedOption(optionName),
-                  });
-                }}
-              />
-            : null}
-          </span>
-        </StyledFieldRow>
-      );
-
     const revertButton =
       changed ?
         <ReqoreButton
@@ -630,6 +598,42 @@ export const CompactRow = memo(
         }
       : {};
 
+    // Secondary edit actions tuck into a "More" (⋮) menu so the card header stays
+    // calm: Fullscreen always, plus Remove field for a removable option. Rendered
+    // just before the Done ✓ in both expanded layouts.
+    const moreMenu = (
+      <ReqoreDropdown
+        className='options-readfirst-more'
+        icon='More2Fill'
+        flat
+        minimal
+        fixed
+        size='small'
+        tooltip='More actions'
+        items={[
+          {
+            label: 'Edit fullscreen',
+            icon: 'FullscreenLine',
+            onClick: () => setFocusedEditing(optionName),
+          } as IReqoreDropdownItem,
+          ...(removable && !hidden ?
+            [
+              {
+                label: 'Remove field',
+                icon: 'DeleteBinLine',
+                intent: 'danger',
+                onClick: () =>
+                  confirmAction({
+                    title: 'Remove field',
+                    onConfirm: () => removeSelectedOption(optionName),
+                  }),
+              } as IReqoreDropdownItem,
+            ]
+          : []),
+        ]}
+      />
+    );
+
     if (isExpanded) {
       if (inlineEditable) {
         const collapse = () => toggleExpandedOption(optionName);
@@ -645,24 +649,38 @@ export const CompactRow = memo(
             }
             {...clusterHoverProps}
           >
-            <StyledRowLabel
-              role='button'
-              tabIndex={0}
-              aria-label={`Collapse ${label}`}
-              title={schema?.short_desc || undefined}
-              $color={cKey}
-              $pointer
-              onClick={collapse}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  collapse();
-                }
-              }}
-            >
-              {label}
-              {required ? <ReqoreIcon icon='Asterisk' color='danger' size='10px' /> : null}
-            </StyledRowLabel>
+            <StyledLabelBlock>
+              <StyledRowLabel
+                role='button'
+                tabIndex={0}
+                aria-label={`Collapse ${label}`}
+                title={schema?.short_desc || undefined}
+                $color={cKey}
+                $pointer
+                onClick={collapse}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    collapse();
+                  }
+                }}
+              >
+                {label}
+                {required ? <ReqoreIcon icon='Asterisk' color='danger' size='10px' /> : null}
+              </StyledRowLabel>
+              {/* Keep the short_desc visible while editing inline when the global
+                  descriptions toggle is on — read rows show it, so opening a field
+                  shouldn't make it vanish. */}
+              {showLabelDesc ?
+                <StyledLabelDesc
+                  className='options-readfirst-label-desc'
+                  size='small'
+                  effect={{ opacity: 0.55 }}
+                >
+                  {labelShortDesc}
+                </StyledLabelDesc>
+              : null}
+            </StyledLabelBlock>
             <div
               ref={editorRef}
               style={{ minWidth: 0 }}
@@ -683,19 +701,7 @@ export const CompactRow = memo(
                   message strip is visible. */}
               {revertButton}
               {clearValueButton}
-              <ReqoreButton
-                className='options-readfirst-fullscreen'
-                size='small'
-                flat
-                minimal
-                fixed
-                icon='FullscreenLine'
-                tooltip='Edit fullscreen'
-                onClick={(e: React.MouseEvent) => {
-                  e.stopPropagation();
-                  setFocusedEditing(optionName);
-                }}
-              />
+              {moreMenu}
               <ReqoreButton
                 className='options-readfirst-done'
                 size='small'
@@ -719,7 +725,7 @@ export const CompactRow = memo(
         // strip already shows the field's messages, so a panel would duplicate
         // them. The wrapper carries the cluster rail class so the connection
         // persists while a member is being edited.
-        return withMobileDelete(
+        return (
           <StyledColumn
             key={optionName}
             data-field={optionName}
@@ -745,7 +751,7 @@ export const CompactRow = memo(
         schema?.intent ?
           (theme?.intents as Record<string, string> | undefined)?.[schema.intent as string]
         : undefined;
-      return withMobileDelete(
+      return (
         <StyledEditCard
           key={optionName}
           data-field={optionName}
@@ -828,18 +834,8 @@ export const CompactRow = memo(
                   </ReqoreButton>
                 );
               })}
-              <ReqoreButton
-                size='small'
-                icon='FullscreenLine'
-                minimal
-                flat
-                fixed
-                className='options-readfirst-fullscreen'
-                tooltip='Edit fullscreen'
-                onClick={() => setFocusedEditing(optionName)}
-              />
-              {/* Clear-value sits between focus-edit and Done — the card analog of
-                  the inline row's Clear. Empties the value (keeps the field). */}
+              {/* Clear-value sits before the More menu — the card analog of the
+                  inline row's Clear. Empties the value (keeps the field). */}
               {hasValue && !readOnly ?
                 <ReqoreButton
                   size='small'
@@ -852,6 +848,7 @@ export const CompactRow = memo(
                   onClick={() => handleValueChange(optionName, undefined)}
                 />
               : null}
+              {moreMenu}
               <ReqoreButton
                 size='small'
                 icon={readOnly ? 'CloseLine' : 'CheckLine'}
@@ -1181,43 +1178,8 @@ export const CompactRow = memo(
           {!hidden && !fieldDisabled && !clustered && !coveredByLabel ? requiredGroupChip : null}
           {!hidden ? dependsOnChip : null}
           {draftChip}
-          {changed ?
-            <ReqoreButton
-              className='options-readfirst-revert'
-              size='tiny'
-              flat
-              minimal
-              compact
-              icon='HistoryLine'
-              tooltip='Revert changes'
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                handleValueChange(
-                  optionName,
-                  originalValue.current?.[optionName]?.value,
-                  originalValue.current?.[optionName]?.type
-                );
-              }}
-            />
-          : null}
-          {removable && !hidden ?
-            <ReqoreButton
-              className='readfirst-action'
-              size='small'
-              flat
-              minimal
-              intent='danger'
-              icon='DeleteBinLine'
-              tooltip='Remove field'
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                confirmAction({
-                  title: 'Remove field',
-                  onConfirm: () => removeSelectedOption(optionName),
-                });
-              }}
-            />
-          : null}
+          {/* Remove-field lives in the expanded editor's "More" (⋮) menu now — no
+              standalone delete button on the read row. */}
           {/* Lock/add slot BEFORE the info slot so the ⓘ keeps the same far-right
               x on every row — a disabled field's lock sits to the ⓘ's left rather
               than pushing it inward. ADD for a hidden field; a plain LOCK for a
@@ -1242,8 +1204,29 @@ export const CompactRow = memo(
               {infoToggle}
             </StyledActionSlot>
           : null}
+          {/* The revert affordance lives in the status-dot column (a changed field
+              swaps its dot for the revert icon) so it sits at the same fixed x as
+              the dot — out of the value's way instead of floating over it. */}
           <StyledActionSlot className='options-readfirst-statusdot-slot' $width={12}>
-            {dotColor ?
+            {changed && !readOnly && !hidden ?
+              <ReqoreButton
+                className='options-readfirst-revert'
+                size='tiny'
+                flat
+                minimal
+                compact
+                icon='HistoryLine'
+                tooltip='Revert changes'
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  handleValueChange(
+                    optionName,
+                    originalValue.current?.[optionName]?.value,
+                    originalValue.current?.[optionName]?.type
+                  );
+                }}
+              />
+            : dotColor ?
               <StyledStatusDot $color={dotColor} $ring={dotStatus !== 'set'} aria-hidden />
             : null}
           </StyledActionSlot>
@@ -1251,7 +1234,7 @@ export const CompactRow = memo(
       </div>
     );
 
-    return withMobileDelete(row);
+    return row;
   }
 );
 

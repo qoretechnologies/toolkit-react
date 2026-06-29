@@ -1608,7 +1608,19 @@ export const CompactFocusedEditing: Story = {
     await waitFor(() => expect(document.querySelector('.options-readfirst-card')).toBeTruthy(), {
       timeout: 10000,
     });
-    await _testsClickButton({ selector: '.options-readfirst-fullscreen' });
+    // Fullscreen now lives in the card's "More" (⋮) menu, before the Done ✓.
+    await _testsClickButton({ selector: '.options-readfirst-more' });
+    let fsItem: Element | undefined;
+    await waitFor(
+      () => {
+        fsItem = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
+          element.textContent?.includes('Edit fullscreen')
+        );
+        expect(fsItem).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+    await fireEvent.click(fsItem as Element);
     await waitFor(() => expect(document.querySelector('.reqore-modal')).toBeTruthy(), {
       timeout: 10000,
     });
@@ -1798,14 +1810,31 @@ export const CompactFieldsMenu: Story = {
     await clickFieldsMenuItem('Default fields');
     await _testsWaitForTextToNotExist('Notes');
 
-    // The per-row delete affordance: re-add Notes, then remove it via its row's
-    // delete button → the confirm modal → Confirm.
+    // The delete affordance now lives in the expanded editor's "More" (⋮) menu:
+    // re-add Notes, open it, then Remove field via More → the confirm modal →
+    // Confirm.
     await clickFieldsMenuItem('Select all');
     await _testsWaitForText('Notes');
-    await fireEvent.click(
-      document.querySelector('.readfirst-row[data-field="notes"] .readfirst-action') as HTMLElement
+    await _testsClickText('Notes');
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('[data-field="notes"] .options-readfirst-more')
+        ).toBeTruthy(),
+      { timeout: 10000 }
     );
-    await _testsWaitForText('Remove field');
+    await _testsClickButton({ selector: '[data-field="notes"] .options-readfirst-more' });
+    let removeItem: Element | undefined;
+    await waitFor(
+      () => {
+        removeItem = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
+          element.textContent?.includes('Remove field')
+        );
+        expect(removeItem).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+    await fireEvent.click(removeItem as Element);
     await _testsClickButton({ label: 'Confirm' });
     await _testsWaitForTextToNotExist('Notes');
   },
@@ -1847,6 +1876,31 @@ export const CompactDescriptionsToggle: Story = {
     // One toggle reveals the short_desc on every field that has one.
     await _testsWaitForText('The server hostname or IP address');
     await _testsWaitForText('TCP port to connect on');
+
+    // Regression: opening a field for INLINE editing must keep its description
+    // visible while the global toggle is on — it used to vanish because the
+    // inline editor's label dropped the short_desc.
+    await _testsClickText('Host');
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.readfirst-row-editing[data-field="host"] .options-readfirst-label-desc'
+          )
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+    await _testsWaitForText('The server hostname or IP address');
+    // Collapse back to the read row (Done) before toggling descriptions off.
+    await _testsClickButton({ selector: '[data-field="host"] .options-readfirst-done' });
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('.readfirst-row-editing[data-field="host"]')
+        ).toBeFalsy(),
+      { timeout: 10000 }
+    );
+
     // Toggling off hides them again.
     await _testsClickButton({ selector: '.options-readfirst-descriptions' });
     await _testsWaitForTextToNotExist('The server hostname or IP address');

@@ -1507,20 +1507,37 @@ export const FormEngine = ({
       const operatorParts = fixOperatorValue(other.op);
       return (
         <>
-          {(suppressSchemaMessages ? [] : (options?.[optionName] as any)?.messages || []).map(
-            ({ intent, title, content }: any, index: number) => (
+          {(() => {
+            const schemaMsgs = (
+              suppressSchemaMessages ? [] : (options?.[optionName] as any)?.messages || []
+            ) as { intent?: string; title?: string; content?: string }[];
+            if (!schemaMsgs.length) return null;
+            const items = schemaMsgs.map(({ intent, title, content }, index) => (
               <ReqoreMessage
-                intent={intent}
+                intent={intent as never}
                 title={title}
                 key={title || index}
                 opaque={false}
                 size='small'
-                margin='bottom'
+                // Compact: flat (no border) to match the read-row info panels;
+                // classic forms keep the bordered, bottom-margined message.
+                flat={compact || undefined}
+                margin={compact ? undefined : 'bottom'}
               >
                 {content}
               </ReqoreMessage>
-            )
-          )}
+            ));
+            // Compact: stack them in a 4px-gap panel so a field's messages look
+            // identical whether the row is collapsed (read panel) or expanded.
+            return compact ?
+                <div
+                  className='options-readfirst-info-panel'
+                  style={{ display: 'flex', flexFlow: 'column', gap: 4, marginBottom: 8 }}
+                >
+                  {items}
+                </div>
+              : <>{items}</>;
+          })()}
           {operators && size(operators) ?
             <>
               <ReqoreControlGroup fill wrap className='operators'>
