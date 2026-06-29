@@ -2004,10 +2004,14 @@ export const FormEngine = ({
     });
     const bucketCount = (b: TBucketKey) =>
       bucketGroups[b].reduce((n, g) => n + buckets[b][g].length, 0);
-    // Don't print a redundant sub-label for the catch-all groups ('general' /
-    // 'optional' — schemas with no named group); named groups still show one.
+    // 'general' / 'optional' are the SYNTHETIC fallback group keys getOptionGroup
+    // assigns to fields with no explicit `group` — printing a "General"/"Optional"
+    // sub-label for those is just noise, so suppress it. BUT a consumer may also
+    // use 'general' as a REAL group (defining it in the `groups` prop and tagging
+    // fields with `group: 'general'`); in that case it's a named group like any
+    // other and DOES get its sub-label.
     const showGroupSubLabel = (groupName: string) =>
-      groupName !== 'general' && groupName !== 'optional';
+      (groupName !== 'general' && groupName !== 'optional') || !!groups?.[groupName];
     const STATUS_BOXES: Array<{
       key: TBucketKey;
       label: string;

@@ -1022,6 +1022,12 @@ export const Compact: Story = {
   play: async () => {
     // Groups render with their display metadata; rows show formatted values.
     await _testsWaitForText('Identity and core settings');
+    // Regression: `general` is a REAL consumer-defined group here (it's in
+    // CompactGroups, and `description`/`tags` set `group: 'general'`), so its
+    // sub-label MUST render. It must NOT be suppressed as the synthetic "no
+    // group" catch-all — doing so visually merged its rows (e.g. Tags) into the
+    // group above them.
+    await _testsWaitForText('General');
     await _testsWaitForText('order-fulfilment');
     await _testsWaitForText('orders, batch');
     await _testsWaitForText('Yes');
