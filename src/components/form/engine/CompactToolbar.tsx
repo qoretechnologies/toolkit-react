@@ -3,11 +3,8 @@ import {
   ReqoreControlGroup,
   ReqoreDropdown,
   ReqoreInput,
-  ReqoreMessage,
-  ReqoreProgress,
-  ReqoreSpan,
-  ReqoreTag,
 } from '@qoretechnologies/reqore';
+import { useReqoreTheme } from '@qoretechnologies/reqore/dist/hooks/useTheme';
 import { IReqoreControlGroupProps } from '@qoretechnologies/reqore/dist/components/ControlGroup';
 import {
   IReqoreDropdownItem,
@@ -28,19 +25,72 @@ const SORT_MODES: { value: TCompactSort; label: string; tooltip: string }[] = [
   { value: 'invalid', label: 'Invalid first', tooltip: 'Fields needing attention first' },
 ];
 
-// Custom flex, not ReqoreControlGroup: the meter needs the middle bar to absorb
-// all width changes while the fixed-width labels never shrink/truncate — and a
-// 12px gap that isn't on ReqoreControlGroup's gapSize scale (5 or 18). The
-// `flex: 1; min-width: 0` makes only the bar yield as the row narrows.
+// "Focus" header: a summary line ({pct}% complete · {set}/{total} set ·
+// {attention} need attention →) above a SEGMENTED meter — a green run (set) then
+// an amber run (needs attention) then the empty remainder.
 const StyledCompletion = styled.div`
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-flow: column;
+  gap: 8px;
   padding: 0 2px;
-  & > .reqore-progress {
-    flex: 1;
-    min-width: 0;
+`;
+const StyledCompletionLine = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+`;
+const StyledMeter = styled.div<{ $set: number; $attention: number; $track: string; $set_c: string; $att_c: string }>`
+  position: relative;
+  height: 4px;
+  border-radius: 3px;
+  width: 100%;
+  overflow: hidden;
+  background: ${({ $track }) => $track};
+  /* No per-segment radius — the container's overflow:hidden + radius rounds only
+     the OUTER corners, so the green/amber runs meet flush (no notch). */
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
   }
+  /* green run: 0 → set% */
+  &::before {
+    left: 0;
+    width: ${({ $set }) => $set}%;
+    background: ${({ $set_c }) => $set_c};
+  }
+  /* amber run: set% → set%+attention% */
+  &::after {
+    left: ${({ $set }) => $set}%;
+    width: ${({ $attention }) => $attention}%;
+    background: ${({ $att_c }) => $att_c};
+  }
+`;
+// One shared text size for the whole summary line, so "Draft", "1/6 set" and
+// "N need attention" all read at the same scale (no chips, no size jumps).
+const StyledSummary = styled.span<{ $color?: string }>`
+  font-size: 13px;
+  white-space: nowrap;
+  color: ${({ $color }) => $color || 'inherit'};
+`;
+const StyledAttentionLink = styled.span<{ $color: string }>`
+  color: ${({ $color }) => $color};
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  &:hover {
+    text-decoration: underline;
+  }
+`;
+// The percentage, pushed to the far right of the summary line.
+const StyledPct = styled.span`
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 17px;
+  white-space: nowrap;
 `;
 
 /**
@@ -55,8 +105,8 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
   const {
     readOnly,
     invalidCount,
+    attentionCount,
     completion,
-    showInvalidOnly,
     onToggleInvalidOnly,
     hasMultipleOptions,
     compactQuery,
@@ -78,51 +128,53 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     onRevertAll,
   } = useContext(CompactToolbarContext);
 
+  const theme = useReqoreTheme();
+  const intents = (theme.intents || {}) as Record<string, string>;
+  const cSuccess = intents.success || '#4a7110';
+  const cWarning = intents.warning || '#d17c29';
+  const cText = (theme.text?.color as string) || '#e8e8e8';
+  const cTrack = `${cText}1f`;
+  const setPct = completion.total ? (completion.set / completion.total) * 100 : 0;
+  const attentionPct = completion.total ? (attentionCount / completion.total) * 100 : 0;
+
   return (
     <ReqoreControlGroup {...reqoreProps} vertical fluid fixed={false} gapSize='big'>
       {completion.total ?
         <StyledCompletion className='options-readfirst-completion'>
-          {!readOnly ?
-            invalidCount ?
-              <ReqoreTag
+          <StyledCompletionLine>
+            {!readOnly ?
+              <StyledSummary
                 className='options-readfirst-status'
-                label='Draft'
-                intent='warning'
-                icon='EditLine'
-                minimal
-                flat
-                size='tiny'
-                compact
-                fixed
-                effect={{ uppercase: true, spaced: 1 }}
-              />
-            : <ReqoreTag
-                className='options-readfirst-status'
-                label='Ready'
-                intent='success'
-                icon='CheckLine'
-                minimal
-                flat
-                size='tiny'
-                compact
-                fixed
-                effect={{ uppercase: true, spaced: 1 }}
-              />
-
-          : null}
-          <ReqoreSpan size='small' effect={{ opacity: 0.7, noWrap: true }}>
-            {completion.set} / {completion.total} fields set
-          </ReqoreSpan>
-          <ReqoreProgress
+                $color={invalidCount ? cWarning : cSuccess}
+                style={{ fontWeight: 600 }}
+              >
+                {invalidCount ? 'Draft' : 'Ready'}
+              </StyledSummary>
+            : null}
+            <StyledSummary style={{ opacity: 0.5 }}>
+              {!readOnly ? '· ' : ''}
+              {completion.set}/{completion.total} set
+              {!readOnly && attentionCount ? ' ·' : ''}
+            </StyledSummary>
+            {!readOnly && attentionCount ?
+              <StyledAttentionLink
+                $color={cWarning}
+                className='options-readfirst-attention-link'
+                onClick={onToggleInvalidOnly}
+              >
+                {attentionCount} need attention →
+              </StyledAttentionLink>
+            : null}
+            <StyledPct>{completion.pct}%</StyledPct>
+          </StyledCompletionLine>
+          <StyledMeter
             className='options-readfirst-completion-bar'
-            value={completion.pct}
-            intent={completion.set === completion.total ? 'success' : 'info'}
-            size='normal'
-            flat
+            $set={setPct}
+            $attention={attentionPct}
+            $track={cTrack}
+            $set_c={cSuccess}
+            $att_c={cWarning}
           />
-          <ReqoreSpan size='small' effect={{ opacity: 0.7, noWrap: true }}>
-            {completion.pct}%
-          </ReqoreSpan>
         </StyledCompletion>
       : null}
 
@@ -147,10 +199,10 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
           {!readOnly ?
             <ReqoreDropdown
               fixed
-              minimal
+              flat
               filterable
               icon='Filter3Line'
-              label='Fields'
+              tooltip='Fields'
               className='options-readfirst-fields'
               intent={requiredOnly ? 'info' : undefined}
               badge={requiredOnly ? 'Required only' : undefined}
@@ -238,7 +290,8 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
           : null}
           <ReqoreButton
             fixed
-            minimal
+            flat
+            minimal={showAllDescriptions === true}
             icon={showAllDescriptions ? 'InformationFill' : 'InformationLine'}
             className='options-readfirst-descriptions'
             active={showAllDescriptions}
@@ -248,19 +301,6 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
           />
         </ReqoreControlGroup>
       : null}
-      {invalidCount && !readOnly ?
-        <ReqoreMessage
-          intent={showInvalidOnly ? 'info' : 'danger'}
-          opaque={false}
-          size='small'
-          className='options-readfirst-invalid-banner'
-          onClick={onToggleInvalidOnly}
-        >
-          {showInvalidOnly ?
-            'Showing invalid fields only. Click here again to show all fields.'
-          : `${invalidCount < 2 ? 'A field is not valid and requires' : `${invalidCount} fields are not valid and require`} attention. Click here to only show invalid fields.`}
-        </ReqoreMessage>
-          : null}
         </ReqoreControlGroup>
       : null}
     </ReqoreControlGroup>

@@ -18,11 +18,10 @@ export const COMPACT_ROW_GAP = 14; // grid column gap
 export const COMPACT_VALUE_LEFT = COMPACT_ROW_PAD_X + COMPACT_LABEL_COL + COMPACT_ROW_GAP;
 // The surface starts a touch left of the value text, for inner left padding.
 export const COMPACT_PANEL_LEFT = COMPACT_VALUE_LEFT - 10;
-// Fluid indent applied to every field block under a group header. Shared so the
-// group spine and the required-group rail land on the SAME vertical line (the
-// rail sits at the block's left gutter, `-9px`, and the spine at `indent - 9px`
-// in the group body's coordinate space — both resolve `3%` against the body).
-export const GROUP_INDENT = 'clamp(8px, 3%, 32px)';
+// Left offset for the group sub-labels / cluster header, kept equal to the row's
+// own horizontal padding so the labels line up flush with the field labels below
+// them (no extra gutter — the spine/rail that used a fluid indent are gone).
+export const GROUP_INDENT = `${COMPACT_ROW_PAD_X}px`;
 
 // Measured label column (GLOBAL). The label column sizes to the WIDEST field
 // label across the whole form, clamped to [MIN, MAX]. FormEngine measures the
@@ -35,7 +34,6 @@ export const LABEL_COL_MIN = 120;
 export const LABEL_COL_MAX = COMPACT_LABEL_COL; // 220
 export const LABEL_COL_VAR = '--readfirst-label-col';
 export const LABEL_COL = `var(${LABEL_COL_VAR}, ${COMPACT_LABEL_COL}px)`;
-export const VALUE_LEFT_CSS = `calc(${LABEL_COL} + ${COMPACT_ROW_PAD_X + COMPACT_ROW_GAP}px)`;
 export const PANEL_LEFT_CSS = `calc(${LABEL_COL} + ${COMPACT_ROW_PAD_X + COMPACT_ROW_GAP - 10}px)`;
 
 // Glass sticky header: override `.reqore-panel-title` (the surface ReqorePanel
@@ -87,6 +85,62 @@ export const StyledGroupHeaderLine = styled.span<{ $color: string }>`
   height: 2px;
   min-width: 16px;
   background: linear-gradient(to right, ${({ $color }) => $color}, transparent);
+`;
+
+// A status box (Needs attention / Set / Optional). Matches the "Focus" prototype:
+// a barely-there accent border + a ~5%-opacity tint, NOT the loud intent border a
+// stock ReqorePanel draws. `$accent` is the box's theme colour (warning/success/
+// muted).
+export const StyledStatusBox = styled(ReqorePanel)<{ $accent: string; $bg?: string }>`
+  &&& {
+    border: 1px solid ${({ $accent }) => `${$accent}33`};
+    /* $bg lets the muted "Optional" box opt into a darker, recessed surface
+       instead of the faint accent tint the coloured boxes use. */
+    background: ${({ $accent, $bg }) => $bg || `${$accent}1f`};
+    border-radius: 10px;
+  }
+`;
+
+// "One of the below is required" cluster box — wraps the members of an unmet
+// one-of required group (in the Needs-attention box) so the constraint reads as
+// one unit. The connection rail + status nodes still render inside (they convey
+// which member satisfies the group); this box adds the explicit heading.
+export const StyledRequiredClusterBox = styled.div<{ $border: string; $tint: string }>`
+  border: 1px solid ${({ $border }) => $border};
+  border-radius: 8px;
+  background: ${({ $tint }) => $tint};
+  padding: 2px 6px 6px;
+  margin: 4px 0;
+  /* The members render directly here (not via the gapped group body), so give
+     them the same modest gap the rest of the rows have. Pin the divider-centring
+     var to that gap (it doesn't widen in narrow like the group body's does). */
+  display: flex;
+  flex-flow: column;
+  --readfirst-row-gap: 4px;
+  gap: 4px;
+`;
+export const StyledRequiredClusterHeader = styled.div<{ $color: string }>`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0 4px ${GROUP_INDENT};
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: ${({ $color }) => $color};
+`;
+
+// Thin schema-group sub-label inside a status box (CONNECTION / AUTHENTICATION /
+// …). Quiet by design — the box header is the loud heading; this just keeps each
+// field's group context as you scan. Indented to the rows' content line.
+export const StyledStatusBoxGroupLabel = styled.div`
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.5;
+  padding: 8px 0 2px ${GROUP_INDENT};
 `;
 
 // Required-group "connection" rail: contiguous members are linked by a continuous
@@ -180,10 +234,24 @@ export const StyledCardHeading = styled.div`
   min-width: 0;
 `;
 
+// Wraps a removable field with a Delete button as a real SIBLING to its right.
+// The button only shows on mobile (the in-row hover delete is hidden there);
+// on desktop it's hidden and the field takes the full width.
+export const StyledFieldRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+`;
+
+/* The card (expanded) label matches the read-row label exactly — same size /
+   weight / case — so a field's name doesn't switch styles when you open it. */
 export const StyledCardLabel = styled.div<{ $color: string }>`
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+  font-size: 13px;
+  font-weight: 600;
   color: ${({ $color }) => $color};
   display: flex;
   align-items: center;
@@ -194,18 +262,71 @@ export const StyledCardLabel = styled.div<{ $color: string }>`
    so the ellipsis engages instead of overflowing. */
 export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
   min-width: 0;
-  color: ${({ $color }) => $color};
-  font-style: ${({ $empty }) => ($empty ? 'italic' : 'normal')};
   font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Value + inline reason(s) share the line, wrapping the reason below only when
+     it doesn't fit (the Focus prototype's layout). */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 10px;
+  row-gap: 2px;
+  /* The muted/translucent colour applies to the VALUE TEXT only — not the whole
+     cell — so the message panels and the structured preview below render at full
+     opacity instead of inheriting the dimmed value colour. */
+  .options-readfirst-valuetext {
+    min-width: 0;
+    max-width: 100%;
+    color: ${({ $color }) => $color};
+    font-style: ${({ $empty }) => ($empty ? 'italic' : 'normal')};
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .options-readfirst-reason {
+    font-style: italic;
+    font-size: 12px;
+    line-height: 1.3;
+  }
+  /* Schema message panels: full width of the value column, on their own line
+     directly beneath the value. */
+  .options-readfirst-info-panel {
+    flex-basis: 100%;
+    width: 100%;
+    display: flex;
+    flex-flow: column;
+    gap: 4px;
+    margin-top: 4px;
+  }
 `;
 
 export const StyledRowActions = styled.div`
   display: flex;
   align-items: center;
+  /* The row top-aligns its cells, so the actions sit at the row's content top.
+     Hover action buttons (revert/delete) are ~24px and would otherwise pull the
+     centred dot down with them — pin the dot to the LABEL's first line instead so
+     it stays at a single, consistent height on every row no matter what hangs
+     below the value. */
+  align-self: start;
   gap: 6px;
+  .options-readfirst-statusdot-slot {
+    align-self: flex-start;
+    align-items: center;
+    height: 12px;
+  }
+`;
+
+// A single status mark pinned at the row's trailing edge: one dot, colour =
+// severity (danger/warning/success). This is the "Focus" read-first signal that
+// replaces the recessed value surface's intent stripe — attention dots carry a
+// faint ring, a plain "set" dot does not. `unset` rows render no dot.
+export const StyledStatusDot = styled.span<{ $color: string; $ring?: boolean }>`
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: ${({ $color }) => $color};
+  box-shadow: ${({ $color, $ring }) => ($ring ? `0 0 0 3px ${$color}22` : 'none')};
 `;
 
 export const StyledActionSlot = styled.span<{ $width: number }>`
@@ -220,18 +341,13 @@ export const StyledColumn = styled.div`
   flex-flow: column;
 `;
 
-// Sub-panels (messages, and the hash preview) sit BELOW the value row, indented
-// to the value column (StyledGroupBody) so they land on the recessed value
-// surface instead of the bare label gutter.
-export const StyledInfoPanel = styled.div`
-  display: flex;
-  flex-flow: column;
-  gap: 4px;
-  padding: 0 10px 8px 24px;
-`;
-
+// The structured hash/list preview, rendered inside the value cell directly
+// under the value summary. Full-width of the value column (it's a flex child of
+// the wrapping value cell) so it lines up with the value, not the label gutter.
 export const StyledRowInset = styled.div`
-  padding: 0 10px 6px 24px;
+  flex-basis: 100%;
+  width: 100%;
+  margin-top: 4px;
 `;
 
 // A small inline colour swatch shown before an rgbcolor value's hex string.
@@ -255,32 +371,21 @@ export const StyledGroupBody = styled.div<{
   display: flex;
   flex-flow: column;
   position: relative;
-  gap: 8px;
+  /* Exposed as a var so the inter-field divider can centre itself in the gap
+     (the gap differs wide vs narrow). */
+  --readfirst-row-gap: 4px;
+  gap: var(--readfirst-row-gap);
 
   /* Indent each field block under the group header by a FLUID step. The %
      resolves against this container's width (not the screen), so it tracks the
-     form even inside a narrow drawer; the clamp keeps it from vanishing on a
-     slim form or ballooning into a big gutter on a wide one. */
+     (Field blocks no longer get a left gutter — the spine/rail that needed it are
+     gone, so rows sit flush against the box, like the Focus prototype.) */
   > * {
-    margin-left: ${GROUP_INDENT};
+    margin-left: 0;
   }
 
-  /* The group spine: a faint vertical line down the block gutter. Drawn here (not
-     on the panel) so it lives in the SAME coordinate space as the required-group
-     rail and lands on the exact same x — GROUP_INDENT minus 9px matches the rail's
-     left: -9px on each (indented) block. The rail is a descendant ::after, so it
-     paints over this spine and wins where a required cluster overlaps it. */
-  &::before {
-    content: '';
-    position: absolute;
-    left: calc(${GROUP_INDENT} - 9px);
-    top: 0;
-    bottom: 8px;
-    width: 2px;
-    background: linear-gradient(to bottom, ${({ $lineColor }) => $lineColor}, transparent);
-    pointer-events: none;
-    z-index: 0;
-  }
+  /* No group spine: the "Focus" look keeps the rows flat against the box. (The
+     required-group rail is a separate descendant ::after and still renders.) */
 
   .readfirst-row {
     display: grid;
@@ -291,18 +396,47 @@ export const StyledGroupBody = styled.div<{
        grid wider than its container and produce a horizontal scrollbar. The 0
        minimum lets it shrink and the value cell's ellipsis take over instead. */
     grid-template-columns: ${LABEL_COL} minmax(0, 1fr) auto;
-    align-items: center;
+    /* TOP-align cells: the label, value and status dot all start on the first
+       line, so the dot sits at a consistent place no matter how tall the value
+       (chips, wrapped text, message panels) makes the row. Rows size to content
+       (no min-height) so the inter-field gap stays uniform. */
+    align-items: start;
     gap: 14px;
-    min-height: 38px;
-    /* 3px vertical: the hover-revealed action buttons (revert/delete) are
-       ~32px tall and occupy layout even at opacity 0 — with 8px padding they
-       inflated removable rows to ~48px while plain rows sat at the 38px
-       min-height. 32 + 6 = 38 keeps every one-line row the same height; the
-       min-height keeps the click target for rows with shorter content. */
-    padding: 3px 10px;
+    min-height: 26px;
+    padding: 4px 10px;
     border-radius: 6px;
     cursor: pointer;
     transition: background 0.12s ease;
+  }
+  /* A dim hairline in the gap below each field so its start/end reads clearly.
+     Absolutely positioned (not a border) so it stays straight + full-width and
+     the row's rounded hover highlight is unaffected; sits in the inter-row gap. */
+  .readfirst-row::after,
+  .options-readfirst-fieldrow::after {
+    content: '';
+    position: absolute;
+    /* Inset to the row's horizontal padding so the line spans the content, not
+       the full box edge-to-edge. */
+    left: ${COMPACT_ROW_PAD_X}px;
+    right: ${COMPACT_ROW_PAD_X}px;
+    /* Centred in the inter-field gap (which differs wide vs narrow) so the space
+       above and below each line is equal. */
+    bottom: calc(var(--readfirst-row-gap, 4px) / -2);
+    height: 1px;
+    background: ${({ $divider }) => $divider};
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
+  }
+  /* When a removable field is wrapped (delete button beside it, on touch), the
+     line spans the WHOLE field including the button — drawn on the wrapper, so
+     suppress the inner row's own line to avoid a short double. */
+  .options-readfirst-fieldrow .readfirst-row::after {
+    display: none;
+  }
+  .readfirst-row:last-child::after,
+  .options-readfirst-fieldrow:last-child::after {
+    display: none;
   }
   .readfirst-row:hover {
     background: ${({ $hover }) => $hover};
@@ -319,8 +453,10 @@ export const StyledGroupBody = styled.div<{
   /* A disabled field (schema disabled flag or unmet dependencies) is not a
      click target — no hover invite, not-allowed cursor; a lock replaces the
      pencil. */
+  /* A disabled field reads dimmed (its name + value at 0.6) — clearly inactive. */
   .readfirst-row-disabled {
     cursor: not-allowed;
+    opacity: 0.6;
   }
   .readfirst-row-disabled:hover {
     background: transparent;
@@ -348,6 +484,18 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row:hover .readfirst-action,
   .readfirst-row:focus-visible .readfirst-action {
     opacity: 0.85;
+  }
+  /* The sibling mobile-delete (next to the field) shows ONLY when stacked — touch
+     has no hover, so the in-row hover delete is hidden there instead. */
+  .options-readfirst-mobile-delete {
+    display: none;
+    flex: 0 0 auto;
+  }
+  &.readfirst-narrow .options-readfirst-mobile-delete {
+    display: inline-flex;
+  }
+  &.readfirst-narrow .readfirst-action {
+    display: none;
   }
 
   /* A scalar row being edited in place: the real editor replaces the value
@@ -396,9 +544,15 @@ export const StyledGroupBody = styled.div<{
      rather than a viewport media query, so a slim desktop drawer stacks too.
      The 3 row children are placed explicitly:
      label (1,1) · actions (1,2) · value (2, span both). */
+  /* Generous breathing room BETWEEN fields when stacked — far easier to scan and
+     less overwhelming on a phone. */
+  &.readfirst-narrow {
+    --readfirst-row-gap: 18px;
+  }
   &.readfirst-narrow .readfirst-row {
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 4px 14px;
+    gap: 2px 14px;
+    position: relative;
   }
   &.readfirst-narrow .readfirst-row > :nth-child(1) {
     grid-column: 1;
@@ -412,8 +566,26 @@ export const StyledGroupBody = styled.div<{
     grid-column: 1 / -1;
     grid-row: 2;
   }
+  /* Read (non-editing) rows: float the trailing actions (status dot + the
+     hover-revealed delete/revert) out of the grid flow so a delete button can't
+     inflate the first row and push the value down. They're pinned to a band the
+     height of the LABEL line and vertically centred in it — so the dot always
+     sits at the same place (centred on the field name), never the bare corner. */
+  &.readfirst-narrow .readfirst-row:not(.readfirst-row-editing) > :nth-child(3) {
+    position: absolute;
+    top: 2px;
+    right: 10px;
+    height: 22px;
+  }
+  &.readfirst-narrow .readfirst-row:not(.readfirst-row-editing) > :nth-child(1) {
+    padding-right: 46px;
+  }
 
-  /* The surface backs every field BLOCK (direct children of the body). */
+  /* Focus calm rows: NO recessed value surface and NO intent stripe. Row status
+     is carried by the trailing status dot; message/preview panels keep their own
+     intent backgrounds. The (now invisible) pseudo is retained only to preserve
+     the block's positioning/stacking context that the required-group rail and its
+     cluster nodes resolve against — removing it would unmoor them. */
   > *:not(.options-readfirst-card) {
     position: relative;
   }
@@ -422,9 +594,7 @@ export const StyledGroupBody = styled.div<{
     position: absolute;
     inset: 0;
     left: ${PANEL_LEFT_CSS};
-    background: ${({ $rowBg }) => $rowBg};
-    border-radius: 6px;
-    border-left: 3px solid var(--readfirst-stripe, transparent);
+    background: transparent;
     pointer-events: none;
     z-index: 0;
   }
@@ -435,45 +605,9 @@ export const StyledGroupBody = styled.div<{
     z-index: 1;
   }
 
-  /* Required-group connection rail. Drawn on the member's BLOCK ROOT (so it spans
-     the whole member, including a message panel below the row), the rail is one
-     continuous line: each segment BRIDGES the 8px gap into the next member
-     (bottom: -8px) and the end members trim to their node centre, so it reads as a
-     single unbroken rail node-to-node. It sits in the existing left gutter (node
-     centre ~10px left of the row), so labels keep their place. The node (drawn by
-     the row) is opaque and overlaps the rail, masking it — no line through the
-     ring. The node centre sits ~19px below the block top (13px node top + 6px). */
-  .readfirst-cluster-rail::after {
-    content: '';
-    position: absolute;
-    left: -9px;
-    top: 0;
-    bottom: -8px;
-    width: 2px;
-    /* muted info — the connection is a quiet structural hint, not a loud accent */
-    background: ${({ $focus }) => `${$focus}99`};
-    box-shadow: 0 0 4px ${({ $focus }) => `${$focus}99`};
-    pointer-events: none;
-    z-index: 0;
-  }
-  .readfirst-cluster-rail.readfirst-cluster-first::after {
-    top: 19px;
-  }
-  .readfirst-cluster-rail.readfirst-cluster-last::after {
-    bottom: calc(100% - 19px);
-  }
-  /* Group fulfilled (any member set): the whole rail reads success, not just the
-     satisfying node. */
-  .readfirst-cluster-rail.readfirst-cluster-satisfied::after {
-    background: ${({ $success }) => `${$success}99`};
-    box-shadow: 0 0 4px ${({ $success }) => `${$success}99`};
-  }
-  /* Sub-panels (messages, hash preview) indent to the value column so they sit on
-     the surface, not in the bare label gutter. */
-  .options-readfirst-info-panel,
-  .options-readfirst-inset {
-    padding-left: ${VALUE_LEFT_CSS};
-  }
+  /* (The required-group connection rail was removed — the "One of the below is
+     required" box now carries the grouping.) */
+
   /* A field's short_desc renders under its NAME (revealed by the ⓘ toggle),
      growing the label block to multiple lines. Top-anchor those open rows so the
      value lines up with the name rather than the middle of the taller label;
@@ -481,17 +615,13 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row-info-open {
     align-items: start;
   }
-  /* Narrow stacks label-over-value, so the value-column offset is meaningless —
-     the surface spans the full block and the sub-panels drop to the 12px rail. */
+  /* Narrow stacks label-over-value: the value aligns flush UNDER the label (no
+     indent), like the Focus prototype. */
   &.readfirst-narrow .readfirst-row > :nth-child(2) {
-    padding-left: 12px;
+    padding-left: 0;
   }
   &.readfirst-narrow > *:not(.options-readfirst-card)::before {
     left: 0;
-  }
-  &.readfirst-narrow .options-readfirst-info-panel,
-  &.readfirst-narrow .options-readfirst-inset {
-    padding-left: 12px;
   }
   /* Touch layouts have no hover: a slot reserved for the hover-revealed edit
      pencil is permanent dead space that insets every chip from the edge —
@@ -500,11 +630,13 @@ export const StyledGroupBody = styled.div<{
     /* !important: the slot carries an inline display for the desktop layout. */
     display: none !important;
   }
-  /* Phone air: stacked blocks get slightly taller inner padding. The in-place
-     editor keeps zero padding so its pinned height still matches. */
+  /* Stacked rows: keep them tight (match the Focus prototype). The min-height is
+     dropped so a 2-line label+value row sizes to its content instead of being
+     padded out to 38px. The in-place editor keeps zero padding (below). */
   &.readfirst-narrow .readfirst-row {
-    padding-top: 6px;
-    padding-bottom: 6px;
+    padding-top: 2px;
+    padding-bottom: 2px;
+    min-height: 0;
   }
   &.readfirst-narrow .readfirst-row-editing {
     padding-top: 0;

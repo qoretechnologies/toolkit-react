@@ -71,6 +71,9 @@ export interface IAutoFieldProps
   uniqueName?: string;
 
   arg_schema?: string | IOptionsSchema;
+  /** Render the arg_schema sub-form in compact (read-first) mode, matching the
+   *  parent engine. */
+  compact?: boolean;
   path?: string;
   column?: boolean;
   level?: number;
@@ -137,6 +140,7 @@ function AutoField<T = any>({
   noSoft,
   path,
   arg_schema,
+  compact,
   column,
   level = 0,
   canBeNull,
@@ -540,6 +544,7 @@ function AutoField<T = any>({
               <FormEngine
                 wrapperPadding='top'
                 flat
+                compact={compact}
                 name={name}
                 uniqueName={uniqueName}
                 options={finalArgSchema}

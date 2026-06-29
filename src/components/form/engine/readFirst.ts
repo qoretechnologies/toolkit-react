@@ -435,6 +435,41 @@ export interface IReadFirstCompletion {
   pct: number;
 }
 
+/** Read-first row status, shared by the status DOT (CompactRow) and the
+ * status BOX bucketing (FormEngine) so the two can never disagree:
+ *   invalid  — a value fails validation, or a danger message is present (red)
+ *   todo     — empty & required (or has a warning message), needs a value (amber)
+ *   set      — has a valid value (green)
+ *   optional — empty & not required, or covered by a one-of sibling (calm) */
+export type TReadFirstStatus = 'invalid' | 'todo' | 'set' | 'optional';
+
+export const getReadFirstStatus = (s: {
+  empty: boolean;
+  required: boolean;
+  /** Empty member of a one-of required group already satisfied by a sibling. */
+  covered: boolean;
+  /** Non-empty value fails validation, or a danger message is attached. */
+  invalid: boolean;
+  /** A warning message is attached (surfaces an empty field for attention). */
+  warned: boolean;
+}): TReadFirstStatus => {
+  if (s.invalid) return 'invalid';
+  if (!s.empty) return 'set';
+  // A one-of member covered by a satisfied sibling reads as "set" (green) — the
+  // requirement is met; the row just shows a "Covered by …" note.
+  if (s.covered) return 'set';
+  if (s.required || s.warned) return 'todo';
+  return 'optional';
+};
+
+/** Coarse bucket for the three status boxes (Needs attention / Set / Optional). */
+export const getReadFirstBucket = (
+  status: TReadFirstStatus
+): 'attention' | 'set' | 'optional' =>
+  status === 'set' ? 'set'
+  : status === 'optional' ? 'optional'
+  : 'attention';
+
 /** Count how many of the shown options have a value set, for the progress meter. */
 export const getReadFirstCompletion = (
   shownOptions: Record<string, IQorusFormField | undefined> = {}
