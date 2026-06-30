@@ -120,7 +120,6 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     showAllDescriptions,
     onToggleAllDescriptions,
     filteredCount,
-    optionalFields,
     canRevert,
     onAddOptionalField,
     onAddAll,
@@ -268,22 +267,10 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                     disabled: !canRevert,
                     onClick: onRevertAll,
                   },
-                  ...(filteredCount ?
-                    [
-                      {
-                        label: 'Add optional fields',
-                        readOnly: true,
-                        disabled: true,
-                        icon: 'AddLine',
-                      },
-                    ]
-                  : []),
-                  ...optionalFields.map((field) => ({
-                    label: field.display_name || field.value,
-                    value: field.value,
-                    description: field.short_desc,
-                    disabled: field.disabled,
-                  })),
+                  // The individual not-yet-added fields are no longer listed here —
+                  // they render as addable rows in the Optional box instead. The
+                  // menu keeps only the bulk actions above (Select all / Default
+                  // fields / filters).
                 ] as TReqoreDropdownItems
               }
             />

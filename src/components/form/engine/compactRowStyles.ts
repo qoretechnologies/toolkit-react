@@ -44,12 +44,17 @@ export const PANEL_LEFT_CSS = `calc(${LABEL_COL} + ${COMPACT_ROW_PAD_X + COMPACT
 // content blurs softly through.
 export const StyledCompactPanel = styled(ReqorePanel)<{
   $headerBg: string;
+  $nested?: boolean;
 }>`
   > .reqore-panel-title {
     background: ${({ $headerBg }) => $headerBg};
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    transform: translateZ(0);
+    /* The blur + translateZ exist only to make the STICKY top-level toolbar ghost
+       content beneath it; a nested sub-form's header isn't sticky, so skip them
+       (and the stacking context translateZ creates). */
+    ${({ $nested }) =>
+      $nested ?
+        ''
+      : 'backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transform: translateZ(0);'}
     padding-top: ${GAP_FROM_SIZE[HEADER_GAP]}px;
     padding-bottom: ${GAP_FROM_SIZE[HEADER_GAP]}px;
   }
@@ -289,18 +294,11 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
 export const StyledRowActions = styled.div`
   display: flex;
   align-items: center;
-  /* The row top-aligns its cells, so the actions sit at the row's content top.
-     Hover action buttons (revert/delete) are ~24px and would otherwise pull the
-     centred dot down with them — pin the dot to the LABEL's first line instead so
-     it stays at a single, consistent height on every row no matter what hangs
-     below the value. */
-  align-self: start;
+  /* No align-self override: the actions (incl. the status dot) follow the row's
+     own vertical alignment — CENTRED on the common single-line row, TOP-aligned
+     (first line) on the tall rows that opt into align-items:start (descriptions /
+     message panels / hash previews). */
   gap: 6px;
-  .options-readfirst-statusdot-slot {
-    align-self: flex-start;
-    align-items: center;
-    height: 12px;
-  }
 `;
 
 // A single status mark pinned at the row's trailing edge: one dot, colour =
@@ -383,14 +381,18 @@ export const StyledGroupBody = styled.div<{
        grid wider than its container and produce a horizontal scrollbar. The 0
        minimum lets it shrink and the value cell's ellipsis take over instead. */
     grid-template-columns: ${LABEL_COL} minmax(0, 1fr) auto;
-    /* TOP-align cells: the label, value and status dot all start on the first
-       line, so the dot sits at a consistent place no matter how tall the value
-       (chips, wrapped text, message panels) makes the row. Rows size to content
-       (no min-height) so the inter-field gap stays uniform. */
-    align-items: start;
+    /* CENTRE the cells vertically: on the common single-line read row the label,
+       value and status dot all sit on one centred line. Tall rows (a shown
+       description, message panels or a hash preview) opt back into top-alignment
+       (.readfirst-row-info-open / .readfirst-row-tall below) so the label + dot
+       stay on the value's FIRST line instead of floating to the middle. */
+    align-items: center;
     gap: 14px;
-    min-height: 26px;
-    padding: 4px 10px;
+    /* Generous, SYMMETRIC vertical padding so a single-line row isn't cramped
+       (content sits with even breathing room top + bottom); a min-height floor
+       keeps the rare shorter row a comfortable tap target. */
+    min-height: 40px;
+    padding: 9px 10px;
     border-radius: 6px;
     cursor: pointer;
     transition: background 0.12s ease;
@@ -469,10 +471,11 @@ export const StyledGroupBody = styled.div<{
        the ✓/↺ cluster get small offsets to sit optically centred on it. */
     align-items: start;
     background: ${({ $hover }) => $hover};
-    /* Zero vertical padding: the pinned min-height (captured from the read
-       row at activation) owns the height; the editor centres within it. */
+    /* No top padding (the per-cell nudges below anchor the editor to the first
+       line), but a real BOTTOM padding so the editor never sits flush against
+       the row's bottom edge — a tall input used to look clipped/unfinished. */
     padding-top: 0;
-    padding-bottom: 0;
+    padding-bottom: 9px;
     /* Tighter column gap: the editor's trailing template ⋮ and our ✓ should
        read as one control cluster, not two separated groups. */
     column-gap: 6px;
@@ -566,11 +569,12 @@ export const StyledGroupBody = styled.div<{
   /* (The required-group connection rail was removed — the "One of the below is
      required" box now carries the grouping.) */
 
-  /* A field's short_desc renders under its NAME (revealed by the ⓘ toggle),
-     growing the label block to multiple lines. Top-anchor those open rows so the
-     value lines up with the name rather than the middle of the taller label;
-     closed (single-line) rows keep the centred read-row rhythm. */
-  .readfirst-row-info-open {
+  /* Tall rows top-anchor (overriding the row's centred default) so the label and
+     dot stay on the value's FIRST line rather than floating to the vertical
+     middle: .readfirst-row-info-open = a shown short_desc grows the LABEL;
+     .readfirst-row-tall = message panels / a hash preview grow the VALUE cell. */
+  .readfirst-row-info-open,
+  .readfirst-row-tall {
     align-items: start;
   }
   /* Narrow stacks label-over-value: the value aligns flush UNDER the label (no

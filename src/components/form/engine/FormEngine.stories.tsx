@@ -998,6 +998,32 @@ const clickFieldsMenuItem = async (text: string) => {
   await fireEvent.click(item as Element);
 };
 
+// The Optional status box now holds every not-yet-added field AND any added-but-
+// empty optional field, so it starts COLLAPSED (and ReqorePanel unmounts collapsed
+// content). Tests that assert on / interact with optional fields call this to open
+// it. The whole panel title bar toggles the collapse.
+const _expandOptionalBox = async () => {
+  const findBox = () =>
+    Array.from(document.querySelectorAll('.options-readfirst-group')).find((panel) =>
+      panel.querySelector('.reqore-panel-title')?.textContent?.includes('Optional')
+    );
+  let box: Element | undefined;
+  await waitFor(
+    () => {
+      box = findBox();
+      expect(box).toBeTruthy();
+    },
+    { timeout: 10000 }
+  );
+  // No `.reqore-panel-content` ⇒ the box is collapsed (content unmounted) — open it.
+  if (box && !box.querySelector('.reqore-panel-content')) {
+    await fireEvent.click(box.querySelector('.reqore-panel-title') as HTMLElement);
+    await waitFor(() => expect(box!.querySelector('.reqore-panel-content')).toBeTruthy(), {
+      timeout: 10000,
+    });
+  }
+};
+
 // CompactSchema plus one optional (non-preselected) field, to exercise the
 // "Fields" menu add / select-all / reset actions.
 const CompactFieldsMenuSchema: Record<string, TCompactField> = {
@@ -1063,6 +1089,9 @@ export const CompactEmpty: Story = {
     groups: CompactGroups,
   },
   play: async () => {
+    // The four empty OPTIONAL fields live in the (collapsed) Optional box — open
+    // it so all six empty fields are on screen.
+    await _expandOptionalBox();
     // Both required fields read as unset; the four optional ones as "Not set".
     // All six empty fields read as a calm dash (the red asterisk marks required).
     await _testsWaitForTextsCount('—', undefined, 6);
@@ -1083,6 +1112,9 @@ export const CompactBasic: Story = {
     // Unresolved required/invalid fields → the header shows the Draft badge
     // (the IDE restyled-hero convention).
     await _testsWaitForText('Draft');
+    // Several asserted/clicked fields (Disabled option, …) are empty optionals in
+    // the collapsed Optional box — open it so they're on screen.
+    await _expandOptionalBox();
     // Values resolve in read-first rows: a template shows its display name (from
     // the supplied templates list), colour as hex, hash as a field-count summary.
     await _testsWaitForText('Test (local)');
@@ -1702,6 +1734,9 @@ export const CompactSortOrder: Story = {
     value: {} as IOptions,
   },
   play: async () => {
+    // All three fields are empty + optional, so they sit in the (collapsed)
+    // Optional box — open it to read their order.
+    await _expandOptionalBox();
     await _testsWaitForText('First');
     const order = Array.from(document.querySelectorAll('.readfirst-row[data-field]')).map(
       (element) => element.getAttribute('data-field')
@@ -1757,6 +1792,61 @@ export const CompactReadFirstEditing: Story = {
   },
 };
 
+// Following a field across panels: filling an empty optional field moves it from
+// the Optional box to Set, and the engine scrolls to + flashes its new row so it's
+// easy to keep track of. The flash is the observable signal that the panel-change
+// locate fired (the scroll itself, scrollIntoView, isn't assertable in the runner).
+export const CompactPanelChangeScroll: Story = {
+  parameters: { chromatic: { disable: true } },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      req: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Req',
+        required: true,
+        preselected: true,
+      },
+      opt: { type: 'string', ui_type: 'string', display_name: 'Opt', preselected: true },
+    } as IOptionsSchema,
+    value: {} as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('Req');
+    // 'opt' is an empty optional → the (collapsed) Optional box. Open it, fill the
+    // field, collapse — it jumps to Set.
+    await _expandOptionalBox();
+    await _testsClickText('Opt');
+    await _testsChangeStringField({
+      selector: '.options-readfirst-inline .reqore-textarea',
+      value: 'hello',
+    });
+    await sleep(300);
+    await _testsClickButton({ selector: '.options-readfirst-done' });
+    // It now lives in the Set box…
+    await waitFor(
+      () =>
+        expect(
+          document
+            .querySelector('.readfirst-row[data-field="opt"]')
+            ?.closest('.options-readfirst-group')
+            ?.querySelector('.reqore-panel-title')?.textContent
+        ).toContain('Set'),
+      { timeout: 5000 }
+    );
+    // …and flashed, signalling the engine located/scrolled to its new panel.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('.readfirst-row[data-field="opt"]')?.className
+        ).toContain('readfirst-row-flash'),
+      { timeout: 4000 }
+    );
+  },
+};
+
 export const CompactRequiredOnlyAndSearch: Story = {
   parameters: { chromatic: { disable: true } },
   args: {
@@ -1805,16 +1895,28 @@ export const CompactFieldsMenu: Story = {
   },
   play: async () => {
     await _testsWaitForText('Tags');
-    // 'Notes' is optional and unset, so it is not listed as a row yet.
+    // 'Notes' is optional + unset → it lives (collapsed) in the Optional box, so
+    // it isn't in the DOM yet.
     await _testsWaitForTextToNotExist('Notes');
 
-    // "Select all" adds every optional field — Notes now appears as a row.
+    // "Select all" adds every optional field. Reveal the (collapsed) Optional box
+    // — Notes is now an ADDED row (the normal variant, not the hidden/addable one).
     await clickFieldsMenuItem('Select all');
+    await _expandOptionalBox();
     await _testsWaitForText('Notes');
+    await waitFor(() =>
+      expect(
+        document.querySelector('.readfirst-row[data-field="notes"]:not(.readfirst-row-hidden)')
+      ).toBeTruthy()
+    );
 
-    // "Default fields" drops the user-added optional fields — Notes is removed.
+    // "Default fields" drops the user-added optional fields — Notes reverts to a
+    // HIDDEN (addable) row in the still-open Optional box (it's always browsable
+    // now, just not added).
     await clickFieldsMenuItem('Default fields');
-    await _testsWaitForTextToNotExist('Notes');
+    await waitFor(() =>
+      expect(document.querySelector('.readfirst-row-hidden[data-field="notes"]')).toBeTruthy()
+    );
 
     // The delete affordance now lives in the expanded editor's "More" (⋮) menu:
     // re-add Notes, open it, then Remove field via More → the confirm modal →
@@ -1822,14 +1924,14 @@ export const CompactFieldsMenu: Story = {
     await clickFieldsMenuItem('Select all');
     await _testsWaitForText('Notes');
     await _testsClickText('Notes');
+    // Only Notes is expanded, so the single More (⋮) menu in the DOM is its own.
+    // (ReqoreDropdown's trigger isn't a DOM descendant of the row, so don't scope
+    // the selector to [data-field].)
     await waitFor(
-      () =>
-        expect(
-          document.querySelector('[data-field="notes"] .options-readfirst-more')
-        ).toBeTruthy(),
+      () => expect(document.querySelector('.options-readfirst-more')).toBeTruthy(),
       { timeout: 10000 }
     );
-    await _testsClickButton({ selector: '[data-field="notes"] .options-readfirst-more' });
+    await _testsClickButton({ selector: '.options-readfirst-more' });
     let removeItem: Element | undefined;
     await waitFor(
       () => {
@@ -1842,7 +1944,12 @@ export const CompactFieldsMenu: Story = {
     );
     await fireEvent.click(removeItem as Element);
     await _testsClickButton({ label: 'Confirm' });
-    await _testsWaitForTextToNotExist('Notes');
+    // Removing the field reverts it to a HIDDEN (addable) row in the still-open
+    // Optional box (it's always browsable now, just no longer added) — and its
+    // editor closes.
+    await waitFor(() =>
+      expect(document.querySelector('.readfirst-row-hidden[data-field="notes"]')).toBeTruthy()
+    );
   },
 };
 
