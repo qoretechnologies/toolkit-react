@@ -131,6 +131,37 @@ export interface IFormValidityData {
   invalidFields: IFormFieldValidityData[];
 }
 
+/**
+ * Resolve a field's `inherit_props` map against the current available
+ * options, producing a `{ propName: siblingValue }` hash suitable for
+ * spreading onto the field's renderer.
+ *
+ * For each entry `<prop-name-on-renderer> -> <sibling-field-name>`, the
+ * sibling's current value (`availableOptions[siblingName]?.value`) is
+ * forwarded under the receiving prop name. Missing siblings emit
+ * `undefined`, which the renderer's prop type can treat as "no hint".
+ *
+ * Designed to be JSON-pure: no closures, no transformations. Renderers
+ * decide how to use the forwarded value (e.g. the consumer-injected
+ * `code-editor` renderer maps a `language: "qore"` prop to its
+ * highlighter mode).
+ *
+ * Mirrored in qorus-ide `src/components/Field/systemOptions.tsx`; keep
+ * the two in sync (see qorus-ide's `.claude/CLAUDE.md`).
+ */
+const resolveInheritProps = (
+  inheritProps: Record<string, string> | undefined,
+  availableOptions: TQorusForm | undefined
+): Record<string, unknown> => {
+  if (!inheritProps || !availableOptions) return {};
+  const out: Record<string, unknown> = {};
+  for (const propName in inheritProps) {
+    const siblingName = inheritProps[propName];
+    out[propName] = (availableOptions[siblingName] as IQorusFormField | undefined)?.value;
+  }
+  return out;
+};
+
 const NegativeColorEffect: any = {
   gradient: {
     colors: { 0: 'danger', 100: 'danger:darken:2' },
@@ -1633,6 +1664,17 @@ export const FormEngine = ({
           <TemplateField
             fluid
             {...(options?.[optionName] as any)}
+            // qorus#347-followup: resolve the field's `inherit_props` against
+            // the CURRENT sibling values, threading each entry as a top-level
+            // prop. Each `<prop-name>: <sibling-field-name>` mapping copies
+            // the sibling's value (read from `availableOptions[name].value`)
+            // onto the rendered field's renderer — e.g. a code-editor with
+            // `inherit_props: { language: 'lang' }` picks up the live `lang`
+            // value as a `language` prop without a schema refetch. Spread
+            // AFTER `{...options?.[optionName]}` so the runtime value wins
+            // over any schema-defined default of the same key. Mirrored in
+            // qorus-ide's `systemOptions.tsx`; see the CLAUDE.md rule there.
+            {...resolveInheritProps(options?.[optionName]?.inherit_props, availableOptions)}
             // Propagate compact so an arg_schema field renders a COMPACT sub-form
             // (consistent with the parent) rather than the classic FormEngine.
             compact={compact}
