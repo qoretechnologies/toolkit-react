@@ -145,6 +145,11 @@ yarn build:test         # Type-check without emit
 - `pre-push` hook enforces: `build:test:prod`, `lint`, `test`
 - Branch naming: always start with the issue number, e.g. `feature/49_pooled-connections`
 
+### Versioning
+
+- The package is in **beta** (pre-1.0): bump the **patch** for a PR — e.g. `0.10.4` → `0.10.5`. Do NOT bump minor/major for ordinary feature/fix PRs while in beta.
+- Bump in `package.json` only (no git tag): `npm version patch --no-git-tag-version`, and include it in the PR's commit.
+
 ### Testing Patterns
 
 - Tests live in `__tests__/` (mirror `src/` structure)

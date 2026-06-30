@@ -545,6 +545,9 @@ function AutoField<T = any>({
                 wrapperPadding='top'
                 flat
                 compact={compact}
+                // Embedded sub-form: no scroll context of its own, so its toolbar
+                // isn't sticky and its header stays transparent (no dark backdrop).
+                compactNested
                 name={name}
                 uniqueName={uniqueName}
                 options={finalArgSchema}

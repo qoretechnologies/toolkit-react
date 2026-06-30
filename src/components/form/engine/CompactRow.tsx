@@ -158,10 +158,6 @@ export const CompactRow = memo(
     const availableOptions = useContextSelector(CompactRowContext, (v) => v.availableOptions);
     const requiredGroupsInfo = useContextSelector(CompactRowContext, (v) => v.requiredGroupsInfo);
     const handleValueChange = useContextSelector(CompactRowContext, (v) => v.handleValueChange);
-    const handleAddOptionalFieldChange = useContextSelector(
-      CompactRowContext,
-      (v) => v.handleAddOptionalFieldChange
-    );
     const toggleExpandedOption = useContextSelector(
       CompactRowContext,
       (v) => v.toggleExpandedOption
@@ -993,9 +989,10 @@ export const CompactRow = memo(
       if (target?.classList?.contains('readfirst-row')) {
         readRowHeights.current[optionName] = Math.round(target.getBoundingClientRect().height);
       }
-      if (hidden) {
-        handleAddOptionalFieldChange('options', optionName);
-      }
+      // Optional fields aren't "added" — every one is editable in place. Opening a
+      // not-yet-set field just expands its editor (with an empty value); it joins
+      // the form's output the moment a value is set (and moves to Set / Needs
+      // attention), and drops back to Optional when cleared. No explicit add step.
       toggleExpandedOption(optionName);
     };
 
@@ -1049,8 +1046,8 @@ export const CompactRow = memo(
         data-field={optionName}
         role='button'
         tabIndex={0}
-        aria-label={`${label}${hidden ? ' (add field)' : ''}`}
-        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        aria-label={label}
+        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || hashEntries.length ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
         style={stripeStyle}
         onClick={activate}
@@ -1180,23 +1177,19 @@ export const CompactRow = memo(
           {draftChip}
           {/* Remove-field lives in the expanded editor's "More" (⋮) menu now — no
               standalone delete button on the read row. */}
-          {/* Lock/add slot BEFORE the info slot so the ⓘ keeps the same far-right
-              x on every row — a disabled field's lock sits to the ⓘ's left rather
-              than pushing it inward. ADD for a hidden field; a plain LOCK for a
-              field disabled for a non-dependency reason. Dependency-locked fields
-              show the "Depends on" chip in the chips area instead; the whole row is
-              click-to-edit, so there's no hover edit pencil. */}
-          {hidden || (fieldDisabled && !dependencyEntries.length) ?
+          {/* Lock slot BEFORE the info slot so the ⓘ keeps the same far-right x on
+              every row — a disabled field's lock sits to the ⓘ's left rather than
+              pushing it inward. (Not-yet-set optional fields show NO marker now —
+              they're just editable in place, like every other row. Dependency-
+              locked fields show the "Depends on" chip in the chips area instead.) */}
+          {fieldDisabled && !dependencyEntries.length ?
             <StyledActionSlot className='options-readfirst-trailing-slot' $width={18}>
-              {hidden ?
-                <ReqoreIcon icon='AddLine' intent='info' size='14px' />
-              : <span
-                  title={fieldDisabledReason}
-                  style={{ display: 'inline-flex', opacity: 0.45 }}
-                >
-                  <ReqoreIcon className='options-readfirst-locked' icon='LockLine' size='14px' />
-                </span>
-              }
+              <span
+                title={fieldDisabledReason}
+                style={{ display: 'inline-flex', opacity: 0.45 }}
+              >
+                <ReqoreIcon className='options-readfirst-locked' icon='LockLine' size='14px' />
+              </span>
             </StyledActionSlot>
           : null}
           {infoToggle ?

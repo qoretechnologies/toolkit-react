@@ -475,6 +475,14 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * form should line up with the section description above it. Default `false`.
    */
   compactFlush?: boolean;
+  /**
+   * Compact mode only: this form is an EMBEDDED sub-form (e.g. an arg_schema
+   * field's nested form) rather than the top-level scroller. It doesn't own a
+   * scroll context, so the toolbar isn't sticky and its header drops the dark
+   * blurred backdrop (and the stacking context that goes with it) — it sits
+   * transparently inside the parent's edit card. Default `false`.
+   */
+  compactNested?: boolean;
   /** Compact mode only: per-group display metadata (label / icon / subtitle /
    * order) — the server only sends the bare group key. */
   groups?: Record<string, IFormEngineGroup>;
@@ -531,6 +539,7 @@ export const FormEngine = ({
   showTypeToggle = true,
   compact,
   compactFlush = false,
+  compactNested = false,
   commitMode = 'immediate',
   expandMode = 'single',
   onCommit,
@@ -624,9 +633,15 @@ export const FormEngine = ({
   const flashTimeout = useRef<ReturnType<typeof setTimeout>>();
   const flashOptions = useCallback((optionNames: string[], scrollToFirst = false) => {
     if (scrollToFirst && optionNames[0]) {
-      document
-        .querySelector(`.readfirst-row[data-field="${optionNames[0]}"]`)
-        ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      // Defer to the next frame: when this fires for a field that just changed
+      // panels, its row has only just re-mounted in the new box — scrolling in the
+      // same tick targets the stale (pre-move) layout, so the page doesn't budge.
+      // A rAF lets the new position settle first.
+      requestAnimationFrame(() => {
+        document
+          .querySelector(`.readfirst-row[data-field="${optionNames[0]}"]`)
+          ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      });
     }
     setFlashedOptions(optionNames);
     clearTimeout(flashTimeout.current);
@@ -637,6 +652,28 @@ export const FormEngine = ({
     [flashOptions]
   );
   useEffect(() => () => clearTimeout(flashTimeout.current), []);
+
+  // Follow a field across panels: when its status bucket changes — e.g. you fill
+  // an optional field and it jumps to Set / Needs attention — scroll to its new
+  // row and flash it so it's easy to keep track of. `settledBucket` holds each
+  // field's current panel (frozen while the field is being edited, it re-buckets
+  // on collapse), so diffing it after every render catches the move the instant it
+  // lands in the new panel. Runs every render; the diff is cheap and only fires a
+  // scroll on an ACTUAL move of a non-expanded field.
+  const prevSettledBucket = useRef<Record<string, 'attention' | 'set' | 'optional'>>({});
+  useEffect(() => {
+    if (!compact) return;
+    const cur = settledBucket.current;
+    const prev = prevSettledBucket.current;
+    const moved = Object.keys(cur).find(
+      (name) => prev[name] && prev[name] !== cur[name] && !expandedOptions.includes(name)
+    );
+    prevSettledBucket.current = { ...cur };
+    if (moved) {
+      flashOptions([moved], true);
+    }
+  });
+
   const compactNarrow = !!compactWrapWidth && compactWrapWidth < 480;
   // Info panels auto-open on Tier-1 content; the per-row user override sticks.
   const [infoPanelOverrides, setInfoPanelOverrides] = useState<Record<string, boolean>>({});
@@ -1038,6 +1075,10 @@ export const FormEngine = ({
         meta: undefined,
       };
     });
+    // Collapse it too: a removed field drops back to the (collapsed) Optional box
+    // as a quiet addable row — if it was being edited, that editor must close
+    // rather than linger as an open editor for a field that's no longer added.
+    setExpandedOptions((prev) => prev.filter((name) => name !== optionName));
   }, []);
 
   const handleAddOptionalFieldChange = useCallback(
@@ -1908,15 +1949,18 @@ export const FormEngine = ({
         pushRow(optionName, false);
       }
     });
-    // When searching, also surface matching hidden optional fields (not yet
-    // added) so the search spans the whole schema, not just the visible rows.
-    if (query) {
-      forEach(filteredOptions, (_schema, optionName) => {
-        if (matchesQuery(optionName)) {
-          pushRow(optionName, true);
-        }
-      });
-    }
+    // Surface EVERY not-yet-added optional field as an addable (hidden) row, so
+    // the whole schema is browsable inline — they all land in the Optional box
+    // (hidden ⇒ 'optional' bucket) instead of being buried in the Fields menu.
+    // Narrowed by the same filters as the listed rows (search query + required-
+    // only). availableOptions (listed) and filteredOptions (these) are disjoint —
+    // the former is built from fixedValue keys, the latter excludes them — so a
+    // field is never both a listed and a hidden row.
+    forEach(filteredOptions, (_schema, optionName) => {
+      if (matchesFilters(optionName)) {
+        pushRow(optionName, true);
+      }
+    });
 
     // User sort (Fields menu → "Sort by"), applied WITHIN each group so the
     // group sections and the required-group rails are preserved. Schema order is
@@ -2102,19 +2146,35 @@ export const FormEngine = ({
               <StyledCompactWrap
                 ref={setCompactWrap}
                 className='options-readfirst-scroll'
-                $flush={compactFlush}
+                // A nested sub-form sits flush inside the parent's card — no outer
+                // gutter (the card already provides the breathing room).
+                $flush={compactFlush || compactNested}
               >
                 <StyledCompactPanel
-                  $headerBg={headerBg}
+                  // The top-level form scrolls, so its toolbar STICKS and carries a
+                  // dark blurred backdrop so content ghosts cleanly beneath it. A
+                  // nested (arg_schema) sub-form owns no scroll context — drop the
+                  // sticky, the backdrop, and the stacking context so its header is
+                  // transparent inside the parent's card.
+                  $headerBg={compactNested ? 'transparent' : headerBg}
+                  $nested={compactNested}
                   flat
-                  stickyHeader
+                  // No panel background: the form sits transparently on whatever
+                  // hosts it (page, drawer, or — for an arg_schema field — the
+                  // parent's edit card) instead of stacking its own dark surface.
+                  // The status boxes keep their own tints; the sticky toolbar keeps
+                  // its blurred header via the $headerBg override.
+                  transparent
+                  stickyHeader={!compactNested}
                   padded={false}
                   actions={compactHeaderActions}
                   contentStyle={{
                     display: 'flex',
                     flexFlow: 'column',
                     gap: '10px',
-                    padding: '0 0 12px',
+                    // Nested sub-form: no surrounding panel padding (it's flush in
+                    // the parent card); top-level keeps a small bottom gutter.
+                    padding: compactNested ? '0' : '0 0 12px',
                   }}
                 >
                   {size(groupKeys) === 0 ?
@@ -2147,6 +2207,14 @@ export const FormEngine = ({
                         minimal
                         collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
                         collapsible
+                        // The Optional box now holds every not-yet-added field, so
+                        // it starts COLLAPSED to keep the form focused on what's in
+                        // use. But a SEARCH must surface matching addable fields —
+                        // and ReqorePanel unmounts collapsed content — so force it
+                        // open whenever a query is active. (isCollapsed is the
+                        // panel's controllable state; manual toggling still works
+                        // when no query is set.)
+                        isCollapsed={box.key === 'optional' && !query}
                         label={
                           <StyledGroupHeader>
                             <ReqoreP effect={{ weight: 'bold' }} size='normal'>
