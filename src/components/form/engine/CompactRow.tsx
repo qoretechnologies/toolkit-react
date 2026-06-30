@@ -35,17 +35,16 @@ import {
   StyledActionSlot,
   StyledCardHeading,
   StyledCardLabel,
-  StyledClusterNode,
   StyledColorSwatch,
   StyledColumn,
   StyledEditCard,
-  StyledInfoPanel,
   StyledLabelBlock,
   StyledLabelDesc,
   StyledRowActions,
   StyledRowInset,
   StyledRowLabel,
   StyledRowValue,
+  StyledStatusDot,
 } from './compactRowStyles';
 import { getOptionFieldMessages } from './OptionFieldMessages';
 import {
@@ -55,6 +54,7 @@ import {
   getAllowedValueImage,
   getFileSize,
   getHashEntries,
+  getReadFirstStatus,
   getValueType,
   isOptionValueEmpty,
   optionHasImages,
@@ -148,17 +148,9 @@ export const CompactRow = memo(
     const isFlashed = useContextSelector(CompactRowContext, (v) =>
       v.flashedOptions.includes(optionName)
     );
-    const infoPanelOverride = useContextSelector(
-      CompactRowContext,
-      (v) => v.infoPanelOverrides[optionName]
-    );
     const setHighlightedOptions = useContextSelector(
       CompactRowContext,
       (v) => v.setHighlightedOptions
-    );
-    const setInfoPanelOverrides = useContextSelector(
-      CompactRowContext,
-      (v) => v.setInfoPanelOverrides
     );
     const setFocusedEditing = useContextSelector(CompactRowContext, (v) => v.setFocusedEditing);
     const readRowHeights = useContextSelector(CompactRowContext, (v) => v.readRowHeights);
@@ -190,14 +182,12 @@ export const CompactRow = memo(
     const theme = useContextSelector(CompactRowContext, (v) => v.theme);
     const cMuted = useContextSelector(CompactRowContext, (v) => v.cMuted);
     const templates = useContextSelector(CompactRowContext, (v) => v.templates);
-    const cFaint = useContextSelector(CompactRowContext, (v) => v.cFaint);
     const cKey = useContextSelector(CompactRowContext, (v) => v.cKey);
     const cDivider = useContextSelector(CompactRowContext, (v) => v.cDivider);
     const cHover = useContextSelector(CompactRowContext, (v) => v.cHover);
     const cDanger = useContextSelector(CompactRowContext, (v) => v.cDanger);
     const cWarning = useContextSelector(CompactRowContext, (v) => v.cWarning);
     const cInfo = useContextSelector(CompactRowContext, (v) => v.cInfo);
-    const cBg = useContextSelector(CompactRowContext, (v) => v.cBg);
 
     // Value-cell content: colour adds a swatch, file an icon + size; hash keeps
     // its "N fields" summary (sub-fields reveal beneath the row).
@@ -420,6 +410,21 @@ export const CompactRow = memo(
       // A choice with per-option logos (e.g. language) reads better collapsed.
       !optionHasImages(schema) &&
       !COMPACT_COMPLEX_TYPES.has(editType);
+
+    // Auto-focus the editor's first input when a field is opened, so you can type
+    // straight away (matches the prototype's tap-to-edit feel).
+    const editorRef = React.useRef<HTMLDivElement>(null);
+    React.useEffect(() => {
+      if (!isExpanded) return undefined;
+      const id = window.setTimeout(() => {
+        const el = editorRef.current?.querySelector<HTMLElement>(
+          'input:not([type="hidden"]):not([disabled]), textarea, [contenteditable="true"]'
+        );
+        el?.focus();
+      }, 60);
+      return () => window.clearTimeout(id);
+    }, [isExpanded]);
+
     const revertButton =
       changed ?
         <ReqoreButton
@@ -516,10 +521,13 @@ export const CompactRow = memo(
           .filter((m) => m.label !== 'This field is required')
           .map((m) => ({ intent: m.intent as string, content: String(m.label) }))
       : [];
-    const isCriticalMsg = (m: TInfoMsg) => m.intent === 'danger' || m.intent === 'warning';
-    const tier1 = [...schemaMessages, ...fieldMessages].filter(isCriticalMsg);
-    const tier2: TInfoMsg[] = [
-      ...[...schemaMessages, ...fieldMessages].filter((m) => !isCriticalMsg(m)),
+    // TWO display channels, matching the Focus prototype:
+    //  • dedicated schema `messages` → prominent coloured PANELS below the row;
+    //  • everything else (validation reasons, the unmet-dependency hint, the
+    //    default-value note) → a compact INLINE reason strip — not a panel.
+    const panelMessages = schemaMessages;
+    const inlineMessages: TInfoMsg[] = [
+      ...fieldMessages,
       ...(infoActive && schema?.default_value_desc ?
         [
           {
@@ -529,26 +537,20 @@ export const CompactRow = memo(
         ]
       : []),
     ];
+    const allMsgs = [...panelMessages, ...inlineMessages];
     const worstIntent =
-      tier1.some((m) => m.intent === 'danger') ? 'danger'
-      : tier1.length ? 'warning'
+      allMsgs.some((m) => m.intent === 'danger') ? 'danger'
+      : allMsgs.some((m) => m.intent === 'warning') ? 'warning'
       : undefined;
     const intentColor =
       worstIntent === 'danger' ? cDanger
       : worstIntent === 'warning' ? cWarning
       : undefined;
     const showStripe = infoActive && !!intentColor;
-    // The short_desc renders UNDER the field name (revealed by the ⓘ toggle); the
-    // value-side panel carries only the messages (tier1/tier2).
     const labelShortDesc = schema?.short_desc;
-    const panelHasContent = tier1.length > 0 || tier2.length > 0;
-    const hasInfoPanelContent = infoActive && (panelHasContent || !!labelShortDesc);
-    // Open-state precedence: a per-row ⓘ override is most specific; else the
-    // global toggle when ENGAGED (show all / hide all — overriding the message
-    // auto-open); else the default, where only critical (tier1) messages open.
-    const defaultOpen =
-      showAllDescriptions === undefined ? tier1.length > 0 : showAllDescriptions;
-    const infoPanelOpen = hasInfoPanelContent && (infoPanelOverride ?? defaultOpen);
+    // The per-row ⓘ is gone: short_desc shows under the name only when the global
+    // "descriptions" toggle is engaged (and inside the editor when expanded).
+    const showLabelDesc = !!labelShortDesc && showAllDescriptions === true;
 
     const renderInfoStrip = (m: TInfoMsg, index: number) => (
       <ReqoreMessage
@@ -562,33 +564,14 @@ export const CompactRow = memo(
         {m.content}
       </ReqoreMessage>
     );
+    const reasonColor = (intent?: string) =>
+      intent === 'danger' ? cDanger
+      : intent === 'warning' ? cWarning
+      : intent === 'success' ?
+        (theme?.intents as Record<string, string> | undefined)?.success || cInfo
+      : `${cMuted}cc`;
 
-    const infoToggle =
-      hasInfoPanelContent ?
-        <ReqoreButton
-          className='options-readfirst-info-toggle'
-          size='tiny'
-          minimal
-          flat
-          compact
-          fixed
-          active={infoPanelOpen}
-          intent={worstIntent as never}
-          icon={infoPanelOpen ? 'InformationFill' : 'InformationLine'}
-          tooltip={infoPanelOpen ? 'Hide field information' : 'Show field information'}
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation();
-            setInfoPanelOverrides((prev) => ({ ...prev, [optionName]: !infoPanelOpen }));
-          }}
-        />
-      : null;
-
-    const infoBlock =
-      infoPanelOpen && panelHasContent ?
-        <StyledInfoPanel className='options-readfirst-info-panel'>
-          {[...tier1, ...tier2].map(renderInfoStrip)}
-        </StyledInfoPanel>
-      : null;
+    const infoToggle = null;
 
     // Cluster (required-group connection) — shared by the read row, its block
     // wrapper AND the inline editor, so the rail/node/highlight persist across
@@ -604,20 +587,9 @@ export const CompactRow = memo(
       clustered ?
         `readfirst-cluster-rail${clusterFirst ? ' readfirst-cluster-first' : ''}${clusterLast ? ' readfirst-cluster-last' : ''}${clusterSatisfied ? ' readfirst-cluster-satisfied' : ''}`
       : '';
-    const memberSet = clustered && !hidden && hasValue;
-    const clusterNode =
-      clustered ?
-        <StyledClusterNode
-          className='options-readfirst-node'
-          $filled={!!memberSet}
-          $color={
-            clusterSatisfied ?
-              (theme?.intents as Record<string, string> | undefined)?.success || cInfo
-            : `${cWarning}99`
-          }
-          $bg={cBg}
-        />
-      : null;
+    // The connection rail + status nodes are gone — the "One of the below is
+    // required" box (and the Covers / Covered-by chips) carry the grouping now.
+    const clusterNode = null;
     const clusterHoverProps =
       clustered && clusterMembers.length ?
         {
@@ -625,6 +597,42 @@ export const CompactRow = memo(
           onMouseLeave: () => setHighlightedOptions([]),
         }
       : {};
+
+    // Secondary edit actions tuck into a "More" (⋮) menu so the card header stays
+    // calm: Fullscreen always, plus Remove field for a removable option. Rendered
+    // just before the Done ✓ in both expanded layouts.
+    const moreMenu = (
+      <ReqoreDropdown
+        className='options-readfirst-more'
+        icon='More2Fill'
+        flat
+        minimal
+        fixed
+        size='small'
+        tooltip='More actions'
+        items={[
+          {
+            label: 'Edit fullscreen',
+            icon: 'FullscreenLine',
+            onClick: () => setFocusedEditing(optionName),
+          } as IReqoreDropdownItem,
+          ...(removable && !hidden ?
+            [
+              {
+                label: 'Remove field',
+                icon: 'DeleteBinLine',
+                intent: 'danger',
+                onClick: () =>
+                  confirmAction({
+                    title: 'Remove field',
+                    onConfirm: () => removeSelectedOption(optionName),
+                  }),
+              } as IReqoreDropdownItem,
+            ]
+          : []),
+        ]}
+      />
+    );
 
     if (isExpanded) {
       if (inlineEditable) {
@@ -641,25 +649,40 @@ export const CompactRow = memo(
             }
             {...clusterHoverProps}
           >
-            <StyledRowLabel
-              role='button'
-              tabIndex={0}
-              aria-label={`Collapse ${label}`}
-              title={schema?.short_desc || undefined}
-              $color={cKey}
-              $pointer
-              onClick={collapse}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  collapse();
-                }
-              }}
-            >
-              {label}
-              {required ? <ReqoreIcon icon='Asterisk' color='danger' size='10px' /> : null}
-            </StyledRowLabel>
+            <StyledLabelBlock>
+              <StyledRowLabel
+                role='button'
+                tabIndex={0}
+                aria-label={`Collapse ${label}`}
+                title={schema?.short_desc || undefined}
+                $color={cKey}
+                $pointer
+                onClick={collapse}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    collapse();
+                  }
+                }}
+              >
+                {label}
+                {required ? <ReqoreIcon icon='Asterisk' color='danger' size='10px' /> : null}
+              </StyledRowLabel>
+              {/* Keep the short_desc visible while editing inline when the global
+                  descriptions toggle is on — read rows show it, so opening a field
+                  shouldn't make it vanish. */}
+              {showLabelDesc ?
+                <StyledLabelDesc
+                  className='options-readfirst-label-desc'
+                  size='small'
+                  effect={{ opacity: 0.55 }}
+                >
+                  {labelShortDesc}
+                </StyledLabelDesc>
+              : null}
+            </StyledLabelBlock>
             <div
+              ref={editorRef}
               style={{ minWidth: 0 }}
               onKeyDown={(event) => {
                 if (event.key === 'Escape') {
@@ -678,12 +701,12 @@ export const CompactRow = memo(
                   message strip is visible. */}
               {revertButton}
               {clearValueButton}
+              {moreMenu}
               <ReqoreButton
                 className='options-readfirst-done'
                 size='small'
-                flat
-                minimal
                 intent='success'
+                fixed
                 icon='CheckLine'
                 tooltip='Done'
                 onClick={collapse}
@@ -749,7 +772,7 @@ export const CompactRow = memo(
             }}
           >
             <StyledCardHeading>
-              <StyledCardLabel $color={cMuted}>
+              <StyledCardLabel $color={cKey}>
                 {(schema as { icon?: string } | undefined)?.icon || (schema as { image?: string } | undefined)?.image ?
                   <ReqoreIcon
                     icon={(schema as { icon?: string } | undefined)?.icon as never}
@@ -811,18 +834,8 @@ export const CompactRow = memo(
                   </ReqoreButton>
                 );
               })}
-              <ReqoreButton
-                size='small'
-                icon='FullscreenLine'
-                minimal
-                flat
-                fixed
-                className='options-readfirst-fullscreen'
-                tooltip='Edit fullscreen'
-                onClick={() => setFocusedEditing(optionName)}
-              />
-              {/* Clear-value sits between focus-edit and Done — the card analog of
-                  the inline row's Clear. Empties the value (keeps the field). */}
+              {/* Clear-value sits before the More menu — the card analog of the
+                  inline row's Clear. Empties the value (keeps the field). */}
               {hasValue && !readOnly ?
                 <ReqoreButton
                   size='small'
@@ -835,16 +848,16 @@ export const CompactRow = memo(
                   onClick={() => handleValueChange(optionName, undefined)}
                 />
               : null}
+              {moreMenu}
               <ReqoreButton
                 size='small'
-                icon='CheckLine'
+                icon={readOnly ? 'CloseLine' : 'CheckLine'}
                 intent='success'
                 fixed
                 className='options-readfirst-done'
+                tooltip={readOnly ? 'Close' : 'Done'}
                 onClick={() => toggleExpandedOption(optionName)}
-              >
-                {readOnly ? 'Close' : 'Done'}
-              </ReqoreButton>
+              />
             </ReqoreControlGroup>
           </div>
           {/* Same fullscreen focused-editing affordance as the classic cards —
@@ -869,6 +882,15 @@ export const CompactRow = memo(
 
     const formatted = formatOptionValue(optionField, schema);
     const empty = formatted === '';
+    // Inline reasons shown on the value line: validation / dependency / one-of /
+    // default-value hints, plus a read-only covered-by note (editable covered rows
+    // carry that in their chip instead).
+    const valueReasons: TInfoMsg[] = [
+      ...inlineMessages,
+      ...(empty && coveredByLabel ?
+        [{ content: `Covered by “${coveredByLabel}”`, intent: 'success' }]
+      : []),
+    ];
     // A hash row reveals its sub-fields as read-only sub-rows under a "view
     // more" disclosure; the row itself still expands the real editor on click.
     const valueType = getValueType(optionField, schema);
@@ -936,8 +958,7 @@ export const CompactRow = memo(
             flat
             compact
             icon='LockLine'
-            label='Depends on'
-            effect={{uppercase: true, spaced: 1}}
+            tooltip='Disabled — depends on other fields. Click to locate them.'
             items={[
               { divider: true, label: 'Unlocked by:', dividerAlign: 'left' } as IReqoreDropdownItem,
               ...dependencyEntries.flatMap((entry): IReqoreDropdownItem[] => [
@@ -1002,8 +1023,26 @@ export const CompactRow = memo(
       rowStripeColor ?
         ({ ['--readfirst-stripe']: rowStripeColor } as React.CSSProperties)
       : undefined;
-    const blockWrapped = hashEntries.length > 0 || !!infoBlock;
 
+    // "Focus" trailing status dot, derived from the SHARED status helper (the
+    // same one FormEngine uses to bucket rows into the Needs-attention/Set/Optional
+    // boxes — so the dot and the box can never disagree). Hidden (not-yet-added)
+    // and dependency-locked rows show no dot (the add/lock affordance speaks for
+    // them). worstIntent already folds in schema + validation messages.
+    const cSuccess = (theme?.intents as Record<string, string> | undefined)?.success;
+    const rowStatus = getReadFirstStatus({
+      empty,
+      required,
+      covered: !!coveredByLabel || groupResolved,
+      invalid: worstIntent === 'danger',
+      warned: worstIntent === 'warning',
+    });
+    const dotStatus = hidden || fieldDisabled ? undefined : rowStatus;
+    const dotColor =
+      dotStatus === 'invalid' ? cDanger
+      : dotStatus === 'todo' ? cWarning
+      : dotStatus === 'set' ? cSuccess || cInfo
+      : undefined;
     const row = (
       <div
         key={optionName}
@@ -1011,9 +1050,9 @@ export const CompactRow = memo(
         role='button'
         tabIndex={0}
         aria-label={`${label}${hidden ? ' (add field)' : ''}`}
-        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${labelShortDesc && infoPanelOpen ? ' readfirst-row-info-open' : ''}${!blockWrapped && clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
-        style={blockWrapped ? undefined : stripeStyle}
+        style={stripeStyle}
         onClick={activate}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
@@ -1027,31 +1066,37 @@ export const CompactRow = memo(
         <StyledLabelBlock>
           <StyledRowLabel title={schema?.short_desc || undefined} $color={cKey}>
             {rowChromeIcon}
-            {label}
-            {required ? <ReqoreIcon icon='Asterisk' color='danger' size='10px' /> : null}
+            {/* label + asterisk + help flow as ONE inline run, so the asterisk
+                stays right after the last word even when the name wraps. */}
+            <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
+              {label}
+              {required ?
+                <ReqoreIcon icon='Asterisk' color='danger' size='10px' margin='left' marginSize='tiny' />
+              : null}
+              {schema?.desc ?
+                <ReqoreIcon
+                  icon='QuestionLine'
+                  size='12px'
+                  effect={{ opacity: 0.55 }}
+                  margin='left'
+                  marginSize='tiny'
+                  role='button'
+                  tabIndex={-1}
+                  aria-label='Help'
+                  className='options-readfirst-help'
+                  style={{ cursor: 'help' }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleOptionLabelClick(optionName);
+                  }}
+                />
+              : null}
+            </span>
             {typeLabel ?
               <ReqoreTag size='tiny' minimal label={typeLabel} labelEffect={{ opacity: 0.55 }} />
             : null}
-            {schema?.desc ?
-              <ReqoreIcon
-                icon='QuestionLine'
-                size='12px'
-                effect={{ opacity: 0.55 }}
-                margin='left'
-                marginSize={5}
-                role='button'
-                tabIndex={-1}
-                aria-label='Help'
-                className='options-readfirst-help'
-                style={{ cursor: 'help' }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  handleOptionLabelClick(optionName);
-                }}
-              />
-            : null}
           </StyledRowLabel>
-          {labelShortDesc && infoPanelOpen ?
+          {showLabelDesc ?
             <StyledLabelDesc
               className='options-readfirst-label-desc'
               size='small'
@@ -1063,22 +1108,59 @@ export const CompactRow = memo(
         </StyledLabelBlock>
         <StyledRowValue
           title={!empty && !hidden && typeof formatted === 'string' ? formatted : undefined}
-          $color={empty || hidden ? cFaint : `${cMuted}cc`}
+          // A SET value reads at full key brightness so it stands out as the
+          // actual data — crucial when stacked under a (muted) description on
+          // mobile, where a dim value blends into the prose. The bold name still
+          // outranks it; the empty dash stays faint.
+          $color={empty || hidden ? `${cMuted}66` : cKey}
           $empty={empty || hidden}
         >
-          {hidden ?
-            'Not in form — add'
-          : empty ?
-            coveredByLabel ?
-              // Editable rows carry the "covered by" explanation in the group
-              // chip; read-only rows have no chip, so keep it inline here.
-              readOnly ?
-                `Not set — covered by “${coveredByLabel}”`
-              : 'Not set'
-            : required ?
-              'Required — not set'
-            : 'Not set'
-          : renderReadFirstValue(optionField, schema, formatted)}
+          <span className='options-readfirst-valuetext'>
+            {hidden || empty ? '—' : renderReadFirstValue(optionField, schema, formatted)}
+          </span>
+          {valueReasons.map((m, i) => (
+            <span
+              key={`${m.content}-${i}`}
+              className='options-readfirst-reason'
+              style={{ color: reasonColor(m.intent) }}
+            >
+              {m.content}
+            </span>
+          ))}
+          {/* Dedicated schema message PANELS render right here, directly under the
+              value (full width of the value column) — never pushed down by the
+              label's short_desc. */}
+          {panelMessages.length ?
+            <div className='options-readfirst-info-panel'>{panelMessages.map(renderInfoStrip)}</div>
+          : null}
+          {/* The structured hash/list preview also lives in the value cell, so it
+              starts directly under the value summary ("N fields"), not below the
+              label's short_desc. */}
+          {hashEntries.length ?
+            // The inset lives inside the row now, so a click on a value chip would
+            // bubble to the row's onClick and fire activate() a SECOND time (the
+            // chip's onItemClick already calls it) — toggling the editor shut again.
+            // Stop the bubble here; the chip's own handler still opens the editor.
+            <StyledRowInset
+              className='options-readfirst-inset'
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ReqoreCollapsibleContent
+                maxCollapsedHeight={96}
+                buttonProps={{ className: 'options-readfirst-viewmore' }}
+              >
+                <div className='options-readfirst-structured'>
+                  <StructuredDataView
+                    value={optionField?.value}
+                    collapsibleRoot={false}
+                    showTypes={showFieldTypes}
+                    defaultExpandDepth={2}
+                    onItemClick={() => activate()}
+                  />
+                </div>
+              </ReqoreCollapsibleContent>
+            </StyledRowInset>
+          : null}
         </StyledRowValue>
         <StyledRowActions>
           {/* Column discipline (table treatment): variable-width chips lead and
@@ -1093,46 +1175,11 @@ export const CompactRow = memo(
               the "One of"/"Covers" chip — keep only "Covered by <X>", the one fact
               the rail can't show. Non-clustered members (split-across-panels or
               narrow mode, where there's no rail) keep the full chip as a fallback. */}
-          {!hidden && !fieldDisabled && (!clustered || !!coveredByLabel) ? requiredGroupChip : null}
+          {!hidden && !fieldDisabled && !clustered && !coveredByLabel ? requiredGroupChip : null}
           {!hidden ? dependsOnChip : null}
           {draftChip}
-          {changed ?
-            <ReqoreButton
-              className='options-readfirst-revert'
-              size='tiny'
-              flat
-              minimal
-              compact
-              icon='HistoryLine'
-              tooltip='Revert changes'
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                handleValueChange(
-                  optionName,
-                  originalValue.current?.[optionName]?.value,
-                  originalValue.current?.[optionName]?.type
-                );
-              }}
-            />
-          : null}
-          {removable && !hidden ?
-            <ReqoreButton
-              className='readfirst-action'
-              size='small'
-              flat
-              minimal
-              intent='danger'
-              icon='DeleteBinLine'
-              tooltip='Remove field'
-              onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                confirmAction({
-                  title: 'Remove field',
-                  onConfirm: () => removeSelectedOption(optionName),
-                });
-              }}
-            />
-          : null}
+          {/* Remove-field lives in the expanded editor's "More" (⋮) menu now — no
+              standalone delete button on the read row. */}
           {/* Lock/add slot BEFORE the info slot so the ⓘ keeps the same far-right
               x on every row — a disabled field's lock sits to the ⓘ's left rather
               than pushing it inward. ADD for a hidden field; a plain LOCK for a
@@ -1157,60 +1204,35 @@ export const CompactRow = memo(
               {infoToggle}
             </StyledActionSlot>
           : null}
+          {/* The revert affordance lives in the status-dot column (a changed field
+              swaps its dot for the revert icon) so it sits at the same fixed x as
+              the dot — out of the value's way instead of floating over it. */}
+          <StyledActionSlot className='options-readfirst-statusdot-slot' $width={12}>
+            {changed && !readOnly && !hidden ?
+              <ReqoreButton
+                className='options-readfirst-revert'
+                size='tiny'
+                flat
+                minimal
+                compact
+                icon='HistoryLine'
+                tooltip='Revert changes'
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  handleValueChange(
+                    optionName,
+                    originalValue.current?.[optionName]?.value,
+                    originalValue.current?.[optionName]?.type
+                  );
+                }}
+              />
+            : dotColor ?
+              <StyledStatusDot $color={dotColor} $ring={dotStatus !== 'set'} aria-hidden />
+            : null}
+          </StyledActionSlot>
         </StyledRowActions>
       </div>
     );
-
-    if (hashEntries.length) {
-      return (
-        <StyledColumn
-          key={optionName}
-          data-field={optionName}
-          className={`options-readfirst-hash-row${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
-          style={stripeStyle}
-        >
-          {row}
-          <StyledRowInset className='options-readfirst-inset'>
-            <ReqoreCollapsibleContent
-              maxCollapsedHeight={96}
-              buttonProps={{ className: 'options-readfirst-viewmore' }}
-            >
-              {/* The IDE workflow-orders renderer (ReqoreDataView): a nested,
-                  type-coloured tree. Section summaries own their
-                  expand/collapse clicks, but clicking a VALUE chip opens the
-                  hash's editor. The Fields-menu "Show field types" toggle also
-                  drives the per-scalar type chips here. Depth 2 = root + first
-                  level open; deeper nests start collapsed so the preview stays
-                  short before the fade's "Show more". */}
-              <div className='options-readfirst-structured'>
-                <StructuredDataView
-                  value={optionField?.value}
-                  collapsibleRoot={false}
-                  showTypes={showFieldTypes}
-                  defaultExpandDepth={2}
-                  onItemClick={() => activate()}
-                />
-              </div>
-            </ReqoreCollapsibleContent>
-          </StyledRowInset>
-          {infoBlock}
-        </StyledColumn>
-      );
-    }
-
-    if (infoBlock) {
-      return (
-        <StyledColumn
-          key={optionName}
-          data-field={optionName}
-          className={`options-readfirst-info-row${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
-          style={stripeStyle}
-        >
-          {row}
-          {infoBlock}
-        </StyledColumn>
-      );
-    }
 
     return row;
   }

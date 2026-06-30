@@ -963,7 +963,7 @@ const CompactSchema: Record<string, TCompactField> = {
 };
 
 // `description` is intentionally left empty so the required-but-unset state is
-// visible (a "Required — not set" row and an invalid-field message).
+// visible (a "— Required" row and an invalid-field message).
 const CompactValue: IOptions = {
   name: { type: 'string', value: 'order-fulfilment' },
   lang: { type: 'string', value: 'python' },
@@ -1022,10 +1022,16 @@ export const Compact: Story = {
   play: async () => {
     // Groups render with their display metadata; rows show formatted values.
     await _testsWaitForText('Identity and core settings');
+    // Regression: `general` is a REAL consumer-defined group here (it's in
+    // CompactGroups, and `description`/`tags` set `group: 'general'`), so its
+    // sub-label MUST render. It must NOT be suppressed as the synthetic "no
+    // group" catch-all — doing so visually merged its rows (e.g. Tags) into the
+    // group above them.
+    await _testsWaitForText('General');
     await _testsWaitForText('order-fulfilment');
     await _testsWaitForText('orders, batch');
     await _testsWaitForText('Yes');
-    await _testsWaitForText('Required — not set');
+    await _testsWaitForText('—');
   },
 };
 
@@ -1039,11 +1045,12 @@ export const CompactReadOnly: Story = {
     await _testsWaitForText('order-fulfilment');
     // Read-only hides the Draft/Ready badge (the meter itself stays)…
     await _testsWaitForTextToNotExist('Draft');
-    // …and rows open in view mode: Close instead of Done, then collapse back.
+    // …and rows open in view mode: the card's done (✓/close) button collapses
+    // back. The button is icon-only now, so assert it by class, not text.
     await _testsClickText('order-fulfilment');
-    await _testsWaitForText('Close');
+    await waitFor(() => expect(document.querySelector('.options-readfirst-done')).toBeTruthy());
     await _testsClickButton({ selector: '.options-readfirst-done' });
-    await _testsWaitForTextToNotExist('Close');
+    await waitFor(() => expect(document.querySelector('.options-readfirst-done')).toBeNull());
   },
 };
 
@@ -1057,8 +1064,8 @@ export const CompactEmpty: Story = {
   },
   play: async () => {
     // Both required fields read as unset; the four optional ones as "Not set".
-    await _testsWaitForTextsCount('Required — not set', undefined, 2);
-    await _testsWaitForTextsCount('Not set', undefined, 4);
+    // All six empty fields read as a calm dash (the red asterisk marks required).
+    await _testsWaitForTextsCount('—', undefined, 6);
   },
 };
 
@@ -1539,11 +1546,10 @@ export const CompactValidIdentifierRule: Story = {
   play: async () => {
     await _testsWaitForText('Variable name');
     await _testsWaitForText('1-bad-identifier');
-    // The rules-driven validation marks the form as needing attention.
+    // The rules-driven validation marks the form as needing attention — the
+    // dedicated "Needs attention" box (and the header link) signal it.
     await _testsWaitForText('Draft');
-    await _testsWaitForText(
-      'A field is not valid and requires attention. Click here to only show invalid fields.'
-    );
+    await _testsWaitForText('Needs attention');
   },
 };
 
@@ -1608,7 +1614,19 @@ export const CompactFocusedEditing: Story = {
     await waitFor(() => expect(document.querySelector('.options-readfirst-card')).toBeTruthy(), {
       timeout: 10000,
     });
-    await _testsClickButton({ selector: '.options-readfirst-fullscreen' });
+    // Fullscreen now lives in the card's "More" (⋮) menu, before the Done ✓.
+    await _testsClickButton({ selector: '.options-readfirst-more' });
+    let fsItem: Element | undefined;
+    await waitFor(
+      () => {
+        fsItem = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
+          element.textContent?.includes('Edit fullscreen')
+        );
+        expect(fsItem).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+    await fireEvent.click(fsItem as Element);
     await waitFor(() => expect(document.querySelector('.reqore-modal')).toBeTruthy(), {
       timeout: 10000,
     });
@@ -1709,7 +1727,7 @@ export const CompactReadFirstEditing: Story = {
     await _testsWaitForText('Yes');
     await _testsWaitForText('Python');
     // The required-but-empty field shows its placeholder instead of an editor.
-    await _testsWaitForText('Required — not set');
+    await _testsWaitForText('—');
     // No field editor (textarea) is mounted while everything is collapsed.
     await expect(document.querySelectorAll('.reqore-textarea')).toHaveLength(0);
 
@@ -1798,14 +1816,31 @@ export const CompactFieldsMenu: Story = {
     await clickFieldsMenuItem('Default fields');
     await _testsWaitForTextToNotExist('Notes');
 
-    // The per-row delete affordance: re-add Notes, then remove it via its row's
-    // delete button → the confirm modal → Confirm.
+    // The delete affordance now lives in the expanded editor's "More" (⋮) menu:
+    // re-add Notes, open it, then Remove field via More → the confirm modal →
+    // Confirm.
     await clickFieldsMenuItem('Select all');
     await _testsWaitForText('Notes');
-    await fireEvent.click(
-      document.querySelector('.readfirst-row[data-field="notes"] .readfirst-action') as HTMLElement
+    await _testsClickText('Notes');
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('[data-field="notes"] .options-readfirst-more')
+        ).toBeTruthy(),
+      { timeout: 10000 }
     );
-    await _testsWaitForText('Remove field');
+    await _testsClickButton({ selector: '[data-field="notes"] .options-readfirst-more' });
+    let removeItem: Element | undefined;
+    await waitFor(
+      () => {
+        removeItem = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
+          element.textContent?.includes('Remove field')
+        );
+        expect(removeItem).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+    await fireEvent.click(removeItem as Element);
     await _testsClickButton({ label: 'Confirm' });
     await _testsWaitForTextToNotExist('Notes');
   },
@@ -1847,6 +1882,31 @@ export const CompactDescriptionsToggle: Story = {
     // One toggle reveals the short_desc on every field that has one.
     await _testsWaitForText('The server hostname or IP address');
     await _testsWaitForText('TCP port to connect on');
+
+    // Regression: opening a field for INLINE editing must keep its description
+    // visible while the global toggle is on — it used to vanish because the
+    // inline editor's label dropped the short_desc.
+    await _testsClickText('Host');
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.readfirst-row-editing[data-field="host"] .options-readfirst-label-desc'
+          )
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+    await _testsWaitForText('The server hostname or IP address');
+    // Collapse back to the read row (Done) before toggling descriptions off.
+    await _testsClickButton({ selector: '[data-field="host"] .options-readfirst-done' });
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('.readfirst-row-editing[data-field="host"]')
+        ).toBeFalsy(),
+      { timeout: 10000 }
+    );
+
     // Toggling off hides them again.
     await _testsClickButton({ selector: '.options-readfirst-descriptions' });
     await _testsWaitForTextToNotExist('The server hostname or IP address');
@@ -1874,7 +1934,9 @@ export const CompactSearchHidden: Story = {
       value: 'notes',
     });
     await _testsWaitForText('Notes');
-    await _testsWaitForText('Not in form — add');
+    await waitFor(() =>
+      expect(document.querySelector('.readfirst-row-hidden[data-field="notes"]')).toBeTruthy()
+    );
 
     // Rows are keyboard-operable (role=button + Enter): focusing the hidden row
     // and pressing Enter adds the field and opens its inline editor.
@@ -2928,29 +2990,17 @@ export const CompactFieldTypes: Story = {
     // fresh nodes per click.
     await _testsWaitForText('This value fails validation upstream.');
     await _testsWaitForText('Deprecated — migrate before 2026-09.');
-    const catalogPanel = (field: string) =>
-      document.querySelector(
-        `.options-readfirst-info-row[data-field="${field}"] .options-readfirst-info-panel`
-      );
-    await expect(catalogPanel('infoMsgQuiet')).toBeNull();
-    await fireEvent.click(
-      document.querySelector(
-        '.readfirst-row[data-field="infoMsgQuiet"] .options-readfirst-info-slot .options-readfirst-info-toggle'
-      ) as HTMLElement
-    );
+    // Dedicated schema messages render as panels, visible WITHOUT interaction
+    // (the per-row ⓘ is gone — descriptions are revealed by the global toggle or
+    // by expanding the field).
     await _testsWaitForText('Requests are signed automatically.');
     await _testsWaitForText('Connection verified.');
-    // A short_desc-only field has no value-side panel; the ⓘ reveals the short_desc
-    // under the name. desc renders the ? help affordance.
-    await expect(catalogPanel('infoShortDesc')).toBeNull();
-    await fireEvent.click(
-      document.querySelector(
-        '.readfirst-row[data-field="infoShortDesc"] .options-readfirst-info-slot .options-readfirst-info-toggle'
-      ) as HTMLElement
-    );
+    // The global descriptions toggle reveals each field's short_desc under its name.
+    await fireEvent.click(document.querySelector('.options-readfirst-descriptions') as HTMLElement);
     await _testsWaitForText(
       'A one-line summary shown under the field name and in the hover title.'
     );
+    // A field with a long desc still exposes the ? help affordance.
     await expect(
       document.querySelector('.readfirst-row[data-field="infoLongDesc"] .options-readfirst-help')
     ).toBeTruthy();
@@ -2988,7 +3038,10 @@ const _compactExpandAllRows = async () => {
       document.querySelectorAll<HTMLElement>(
         '.readfirst-row:not(.readfirst-row-editing):not(.readfirst-row-disabled):not(.readfirst-row-hidden)'
       )
-    );
+      // An arg_schema field opens a NESTED compact sub-form (recursive compact);
+      // its rows live inside the parent's edit card — don't count those as
+      // top-level read rows to expand.
+    ).filter((r) => !r.closest('.options-readfirst-card'));
   // Generous guard: the catalog has ~70 fields.
   for (let guard = 0; guard < 120; guard++) {
     const remaining = readRows();
@@ -3090,7 +3143,7 @@ export const CompactRequiredGroups: Story = {
     // contiguous members (byHost/byFile in Connection) cluster into a rail, which
     // carries the grouping in place of a chip; only the lone member (byUrl in
     // General) keeps a "One of" chip — so exactly one chip, not three.
-    await _testsWaitForTextsCount('Required — not set', undefined, 3);
+    await _testsWaitForTextsCount('—', undefined, 3);
     await _testsWaitForText('Draft');
     await _testsWaitForTextsCount('One of', undefined, 1);
 
@@ -3147,13 +3200,14 @@ export const CompactRequiredGroups: Story = {
     await _testsWaitForText('https://example.com');
 
     // One fulfilled member satisfies the group → the badge flips to Ready and the
-    // chips PERSIST but flip to their muted resolution: the filled member shows
-    // "Covers", the empty siblings "Covered by 'By URL'", and no "One of" remains.
+    // Once satisfied: the filled member keeps a "Covers" chip; the empty siblings
+    // show their "Covered by 'By URL'" note INLINE (not a chip), and no "One of"
+    // remains. So exactly one required-group chip stays (the coverer's).
     await _testsWaitForText('Ready');
     await _testsWaitForTextsCount('Covered by “By URL”', undefined, 2);
     await _testsWaitForText('Covers');
     await _testsWaitForTextToNotExist('One of');
-    await expect(document.querySelectorAll('.options-readfirst-required-group')).toHaveLength(3);
+    await expect(document.querySelectorAll('.options-readfirst-required-group')).toHaveLength(1);
   },
 };
 
@@ -3682,57 +3736,41 @@ export const CompactShowcase: Story = {
     ).toBeTruthy();
     await waitFor(() => {
       // The intent stripe rides the value surface's left border, fed by
-      // --readfirst-stripe on the field's BLOCK root. This field carries a
-      // message, so the block root is the info-row wrapper (not the inner row).
+      // --readfirst-stripe on the field's BLOCK root. Schema messages now render
+      // inside the value cell, so the block root is the row itself.
       const intentRow = document.querySelector(
-        '.options-readfirst-info-row[data-field="chromeIntent"]'
+        '.readfirst-row[data-field="chromeIntent"]'
       ) as HTMLElement;
       expect(intentRow?.style?.getPropertyValue('--readfirst-stripe')).toBeTruthy();
     });
     await _testsWaitForText('••••••');
     await _testsWaitForText('This field also carries a warning message.');
-    // The required-group pair (authToken/authCertFile, contiguous) clusters into a
-    // connection rail — a status node per member, not a per-row "One of" chip —
-    // alongside the info affordances.
+    // The unmet auth one-of group (authToken/authCertFile) renders the
+    // "One of the below is required" cluster box.
     await waitFor(() =>
-      expect(document.querySelectorAll('.options-readfirst-node').length).toBeGreaterThan(0)
+      expect(document.querySelector('.options-readfirst-required-cluster')).toBeTruthy()
     );
 
-    // Toggling a panel adds/removes the info-row wrapper, REBUILDING the row's
-    // DOM — re-query the toggle for every click and assert panel state on the
-    // wrapper element.
-    const infoToggle = (field: string) =>
-      document.querySelector(
-        `.readfirst-row[data-field="${field}"] .options-readfirst-info-slot .options-readfirst-info-toggle`
-      ) as HTMLElement;
+    // Schema message panels render inside the value cell of the row itself,
+    // directly beneath the value.
     const infoPanel = (field: string) =>
       document.querySelector(
-        `.options-readfirst-info-row[data-field="${field}"] .options-readfirst-info-panel`
+        `.readfirst-row[data-field="${field}"] .options-readfirst-info-panel`
       );
 
-    // Tier-2-only fields (info messages, default-value notes) stay one line:
-    // panel closed, ⓘ toggle in the fixed slot. Toggling open reveals the
-    // default-value note; toggling again hides it.
-    await expect(infoPanel('metaDefault')).toBeNull();
-    await expect(infoToggle('metaDefault')).toBeTruthy();
-    await fireEvent.click(infoToggle('metaDefault'));
+    // Default-value notes and validation/dependency hints now render as a compact
+    // INLINE reason (no ⓘ, no panel) — visible without any interaction.
     await _testsWaitForText('Default: thirty — Falls back to 30 seconds when unset.');
-    await fireEvent.click(infoToggle('metaDefault'));
-    await waitFor(() => expect(infoPanel('metaDefault')).toBeNull());
-
-    // Auto-open panels can be dismissed the same way (override sticks).
+    // Dedicated schema messages stay prominent PANELS, also always visible.
     await expect(infoPanel('apiEndpoint')).toBeTruthy();
-    await fireEvent.click(infoToggle('apiEndpoint'));
-    await waitFor(() => expect(infoPanel('apiEndpoint')).toBeNull());
-    await fireEvent.click(infoToggle('apiEndpoint'));
     await _testsWaitForText('v1 endpoints are deprecated — migrate to /v2 before 2026-09.');
 
-    // short_desc renders UNDER the field name, gated by the same ⓘ: a message-free
-    // field keeps it hidden until toggled, then reveals it under the name.
+    // short_desc renders UNDER the field name when the global descriptions toggle
+    // is engaged (the per-row ⓘ is gone).
     const labelDesc = (field: string) =>
       document.querySelector(`.readfirst-row[data-field="${field}"] .options-readfirst-label-desc`);
     await expect(labelDesc('chromeIcon')).toBeNull();
-    await fireEvent.click(infoToggle('chromeIcon'));
+    await fireEvent.click(document.querySelector('.options-readfirst-descriptions') as HTMLElement);
     await waitFor(() => expect(labelDesc('chromeIcon')).toBeTruthy());
   },
 };
@@ -3817,38 +3855,14 @@ export const CompactRequiredGroupRails: Story = {
   },
   play: async () => {
     await _testsWaitForText('API key');
-    // Members are clustered with a status node each; the two groups give 6 nodes.
+    // The unmet `target` group (email/slack/webhook/sms, none set) renders the
+    // "One of the below is required" cluster box.
     await waitFor(() =>
-      expect(document.querySelectorAll('.options-readfirst-node').length).toBe(6)
+      expect(document.querySelector('.options-readfirst-required-cluster')).toBeTruthy()
     );
-    // The set member's node is filled (satisfies its group); pending ones are
-    // hollow (transparent centre → painted the form bg).
-    await waitFor(() => {
-      const apiNode = document.querySelector(
-        '.readfirst-row[data-field="apiKey"] .options-readfirst-node'
-      ) as HTMLElement;
-      const oauthNode = document.querySelector(
-        '.readfirst-row[data-field="oauthToken"] .options-readfirst-node'
-      ) as HTMLElement;
-      // email is in the `target` group, which has NO member set — still unmet.
-      const emailNode = document.querySelector(
-        '.readfirst-row[data-field="email"] .options-readfirst-node'
-      ) as HTMLElement;
-      // Fill marks the member carrying the value: apiKey filled (bg = its border
-      // colour), oauthToken hollow (bg = the form background).
-      expect(getComputedStyle(apiNode).backgroundColor).not.toBe(
-        getComputedStyle(oauthNode).backgroundColor
-      );
-      // Colour follows the GROUP, not the member. The credential group is satisfied
-      // by apiKey, so its empty alternative (oauthToken) reads the SAME colour as
-      // the filled node — not warning. The still-unmet target group's node (email)
-      // keeps the warning colour, so it differs.
-      const apiBorder = getComputedStyle(apiNode).borderTopColor;
-      const oauthBorder = getComputedStyle(oauthNode).borderTopColor;
-      const emailBorder = getComputedStyle(emailNode).borderTopColor;
-      expect(oauthBorder).toBe(apiBorder);
-      expect(oauthBorder).not.toBe(emailBorder);
-    });
+    // The met `credential` group needs no box: apiKey satisfies it, so its empty
+    // alternative oauthToken reads as covered by its sibling.
+    await _testsWaitForText('Covered by “API key”');
   },
 };
 
@@ -3867,9 +3881,12 @@ export const CompactFieldSortWithinGroups: Story = {
         )
       ).map((row) => row.getAttribute('data-field'));
 
-    // Default = the schema's declared order.
+    // Rows are bucketed into status boxes (Needs attention → Set → Optional);
+    // within a box, schema order holds. The `target` group is unmet (attention),
+    // the `credential` group is met by apiKey (set), so the attention members
+    // come first, then the set members.
     await waitFor(() =>
-      expect(order()).toEqual(['apiKey', 'oauthToken', 'email', 'slack', 'webhook', 'sms'])
+      expect(order()).toEqual(['email', 'slack', 'webhook', 'sms', 'apiKey', 'oauthToken'])
     );
 
     // Open the Fields menu, drill into the (collapsed) "Sort by" submenu, then
@@ -3887,13 +3904,13 @@ export const CompactFieldSortWithinGroups: Story = {
     await waitFor(() => expect(menuItem('Name A→Z')).toBeTruthy());
     await fireEvent.click(menuItem('Name A→Z') as HTMLElement);
 
-    // Sorted by display name inside each group; the two groups stay separate
-    // (Connection: apiKey/oauthToken | Notification: email/slack/sms/webhook).
+    // Sorted by display name inside each group; the status boxes stay separate
+    // (attention: email/slack/sms/webhook | set: apiKey/oauthToken).
     await waitFor(() =>
-      expect(order()).toEqual(['apiKey', 'oauthToken', 'email', 'slack', 'sms', 'webhook'])
+      expect(order()).toEqual(['email', 'slack', 'sms', 'webhook', 'apiKey', 'oauthToken'])
     );
-    // The required-group clusters survive the re-sort: all 6 nodes + both rails.
-    await expect(document.querySelectorAll('.options-readfirst-node')).toHaveLength(6);
+    // The required-group clusters survive the re-sort (both groups keep their
+    // first-member marker, used to anchor the cluster box).
     await expect(document.querySelectorAll('.readfirst-cluster-first')).toHaveLength(2);
   },
 };

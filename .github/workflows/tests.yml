@@ -79,7 +79,30 @@ jobs:
 
       - name: Run Storybook interaction tests
         id: story_tests
-        run: yarn test:stories
+        run: |
+          set -o pipefail
+          yarn test:stories 2>&1 | tee qlip-output.log
+
+      # qlip prints one line after uploading visual snapshots, e.g.:
+      #   [qlip] uploaded build 20260629-123456 (12 fragments, …) → https://qlip.qoretechnologies.com
+      # The buildId is server-assigned, so we scrape it here and expose the
+      # dashboard link for the Discord message. Runs even on test failure (qlip
+      # captures-on-error, so the build still exists).
+      - name: Resolve qlip build link
+        id: qlip
+        if: always()
+        run: |
+          # Strip any ANSI colour codes so the scraped URL/id stay clean.
+          LINE=$(grep -aE '\[qlip\] uploaded build ' qlip-output.log | tail -1 | sed -E 's/\x1b\[[0-9;]*m//g' || true)
+          BUILD_ID=$(printf '%s' "$LINE" | sed -nE 's/.*uploaded build ([^ ]+) .*/\1/p')
+          SERVER=$(printf '%s' "$LINE" | sed -nE 's/.* → (https?:[^ ]+).*/\1/p')
+          SERVER=${SERVER:-https://qlip.qoretechnologies.com}
+          echo "Resolved qlip build='${BUILD_ID:-<none>}' server='${SERVER}'"
+          if [ -n "$BUILD_ID" ]; then
+            echo "build_id=$BUILD_ID" >> "$GITHUB_OUTPUT"
+            # Dashboard builds are global (no project): /builds/<buildId>.
+            echo "url=$SERVER/builds/$BUILD_ID" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Bump version with timestamp and canary tag
         id: bump
@@ -93,7 +116,7 @@ jobs:
       - name: Discord notification success
         env:
           DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK}}
-          DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true},{ "name": "Version", "value": "v${{ steps.save_release_version.outputs.version }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) 🌐 [View Site]( https://deploy-preview-${{ github.event.pull_request.number}}--magical-starburst-a8bdfc.netlify.app) 📙 [Storybook](${{ steps.chromatic_publish.outputs.storybookUrl }}) 🎨 [Chromatic Tests](${{ steps.chromatic_publish.outputs.buildUrl }})"}],"color":65280,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
+          DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true},{ "name": "Version", "value": "v${{ steps.save_release_version.outputs.version }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) 🔍 [Qlip visual tests](${{ steps.qlip.outputs.url }})"}],"color":65280,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
           DISCORD_AVATAR: "https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true"
         uses: Ilshidur/action-discord@0.3.2
         with:
@@ -104,7 +127,7 @@ jobs:
       - name: Discord notification failure
         env:
           DISCORD_WEBHOOK: ${{secrets.DISCORD_WEBHOOK}}
-          DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true },{ "name": "Version", "value": "v${{ steps.save_release_version.outputs.version }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}})"}],"color":16711680,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
+          DISCORD_EMBEDS: '[{ "author": {  "icon_url": "https://avatars.githubusercontent.com/${{ github.actor }}", "name": "${{ github.actor }}", "url": "https://github.com/${{github.actor}}" },"url": "https://github.com/${{github.repository}}/commit/${{github.sha}}","fields": [{ "name": "Commit Message", "value": "${{ steps.get_head_commit_message.outputs.HEAD_COMMIT_MESSAGE }}"},{ "name": "Repository", "value": "[${{github.event.repository.name}}](${{github.event.repository.clone_url}})", "inline": true },{ "name": "Branch", "value": "[${{github.ref_name}}](https://github.com/${{github.repository}}/pull/${{github.ref_name}})", "inline": true },{ "name": "Event", "value": "${{github.event_name}}", "inline": true },{ "name": "Author", "value": "[${{github.actor}}](https://github.com/${{github.actor}})", "inline": true },{ "name": "Job", "value": "${{github.job}}", "inline": true },{ "name": "Version", "value": "v${{ steps.save_release_version.outputs.version }}", "inline": true},{ "name": "", "value": "🤖 [Github Action](https://github.com/${{ github.repository}}/actions/runs/${{ github.run_id}}) 🔍 [Qlip visual tests](${{ steps.qlip.outputs.url }})"}],"color":16711680,"footer":{"text": "Published at ${{steps.current_time.outputs.readableTime}}"}}]'
           DISCORD_AVATAR: "https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true"
         uses: Ilshidur/action-discord@0.3.2
         with:

@@ -3,9 +3,9 @@ import {
   ReqoreCollection,
   ReqoreControlGroup,
   ReqoreErrorBoundary,
+  ReqoreIcon,
   ReqoreMessage,
   ReqoreP,
-  ReqorePanel,
   ReqoreSkeleton,
   ReqoreTag,
   ReqoreTagGroup,
@@ -86,15 +86,21 @@ import {
   StyledCompactPanel,
   StyledGroupBody,
   StyledGroupHeader,
-  StyledGroupHeaderLine,
+  StyledRequiredClusterBox,
+  StyledRequiredClusterHeader,
+  StyledStatusBox,
+  StyledStatusBoxGroupLabel,
 } from './compactRowStyles';
 import { OptionFieldMessages } from './OptionFieldMessages';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
   getOptionGroup,
   getOptionGroupLabel,
+  getReadFirstBucket,
   getReadFirstCompletion,
+  getReadFirstStatus,
   isOptionValueEmpty,
+  TReadFirstStatus,
 } from './readFirst';
 
 // Re-export types for consumers
@@ -560,6 +566,10 @@ export const FormEngine = ({
   const [showInvalidOptionsOnly, setShowInvalidOptionsOnly] = useState<boolean>(false);
   // Which options are expanded into their editor (several can be open at once).
   const [expandedOptions, setExpandedOptions] = useState<string[]>([]);
+  // Remembers each row's last settled status box, so an actively-edited field
+  // stays put when its status flips (e.g. becomes valid) instead of jumping to
+  // another box mid-edit and stealing focus. Keyed by option name.
+  const settledBucket = useRef<Record<string, 'attention' | 'set' | 'optional'>>({});
   // Measured form width (not viewport — the form lives in drawers/panels of
   // arbitrary width) drives the stacked narrow layout.
   const [compactWrapRef, { width: compactWrapWidth }] = useMeasure<HTMLDivElement>();
@@ -1269,6 +1279,73 @@ export const FormEngine = ({
     );
   }, [showInvalidOptionsOnly, JSON.stringify(availableOptions)]);
 
+  // Read-first STATUS / BOX for one option — lifted to component scope so the
+  // status boxes (renderCompact) and the header's "needs attention" count share
+  // exactly one definition. One-of group members travel together (bucket by the
+  // group's satisfaction); everything else by its own status.
+  const schemaMsgIntent = useCallback(
+    (name: string): 'danger' | 'warning' | undefined => {
+      const msgs = ((options?.[name] as { messages?: Array<{ intent?: string }> } | undefined)
+        ?.messages || []) as Array<{ intent?: string }>;
+      if (msgs.some((m) => m.intent === 'danger')) return 'danger';
+      if (msgs.some((m) => m.intent === 'warning')) return 'warning';
+      return undefined;
+    },
+    [JSON.stringify(options)]
+  );
+  const getOptionStatus = useCallback(
+    (name: string, hidden = false): TReadFirstStatus => {
+      if (hidden) return 'optional';
+      const schema = options?.[name];
+      const type = (schema?.ui_type || schema?.type) as TQorusType;
+      const value = (availableOptions as TQorusForm)?.[name]?.value;
+      const empty = isOptionValueEmpty(value);
+      const reqGroups = (schema?.required_groups as string[] | undefined) || [];
+      const required = !!(schema?.required || reqGroups.length);
+      const covered =
+        empty &&
+        reqGroups.some((g) => {
+          const by = requiredGroupsInfo.satisfiedBy[g];
+          return !!by && by !== name;
+        });
+      const msgIntent = schemaMsgIntent(name);
+      const invalid = (!empty && !isOptionValid(name, type, value)) || msgIntent === 'danger';
+      return getReadFirstStatus({
+        empty,
+        required,
+        covered,
+        invalid,
+        warned: msgIntent === 'warning',
+      });
+    },
+    [
+      JSON.stringify(options),
+      JSON.stringify(availableOptions),
+      isOptionValid,
+      requiredGroupsInfo,
+      schemaMsgIntent,
+    ]
+  );
+  const getOptionBucket = useCallback(
+    (name: string, hidden = false): 'attention' | 'set' | 'optional' => {
+      if (!hidden) {
+        const reqGroups = (options?.[name]?.required_groups as string[] | undefined) || [];
+        if (reqGroups.length) {
+          return reqGroups.some((g) => !requiredGroupsInfo.satisfiedBy[g]) ? 'attention' : 'set';
+        }
+      }
+      return getReadFirstBucket(getOptionStatus(name, hidden));
+    },
+    [JSON.stringify(options), requiredGroupsInfo, getOptionStatus]
+  );
+  // How many fields are in the "Needs attention" box — drives the header link.
+  const readFirstAttentionCount = useMemo(
+    () =>
+      Object.keys(availableOptions || {}).filter((name) => getOptionBucket(name) === 'attention')
+        .length,
+    [JSON.stringify(availableOptions), getOptionBucket]
+  );
+
   const getIntent = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (optName: string, type: TQorusType, optValue: any, _op: any): TReqoreIntent => {
@@ -1430,20 +1507,37 @@ export const FormEngine = ({
       const operatorParts = fixOperatorValue(other.op);
       return (
         <>
-          {(suppressSchemaMessages ? [] : (options?.[optionName] as any)?.messages || []).map(
-            ({ intent, title, content }: any, index: number) => (
+          {(() => {
+            const schemaMsgs = (
+              suppressSchemaMessages ? [] : (options?.[optionName] as any)?.messages || []
+            ) as { intent?: string; title?: string; content?: string }[];
+            if (!schemaMsgs.length) return null;
+            const items = schemaMsgs.map(({ intent, title, content }, index) => (
               <ReqoreMessage
-                intent={intent}
+                intent={intent as never}
                 title={title}
                 key={title || index}
                 opaque={false}
                 size='small'
-                margin='bottom'
+                // Compact: flat (no border) to match the read-row info panels;
+                // classic forms keep the bordered, bottom-margined message.
+                flat={compact || undefined}
+                margin={compact ? undefined : 'bottom'}
               >
                 {content}
               </ReqoreMessage>
-            )
-          )}
+            ));
+            // Compact: stack them in a 4px-gap panel so a field's messages look
+            // identical whether the row is collapsed (read panel) or expanded.
+            return compact ?
+                <div
+                  className='options-readfirst-info-panel'
+                  style={{ display: 'flex', flexFlow: 'column', gap: 4, marginBottom: 8 }}
+                >
+                  {items}
+                </div>
+              : <>{items}</>;
+          })()}
           {operators && size(operators) ?
             <>
               <ReqoreControlGroup fill wrap className='operators'>
@@ -1498,6 +1592,9 @@ export const FormEngine = ({
           <TemplateField
             fluid
             {...(options?.[optionName] as any)}
+            // Propagate compact so an arg_schema field renders a COMPACT sub-form
+            // (consistent with the parent) rather than the classic FormEngine.
+            compact={compact}
             // SEAM: forwarded through TemplateField's rest-spread to AutoFormField,
             // which renders consumer-injected editors by field type/ui_type.
             componentOverrides={componentOverrides}
@@ -1726,6 +1823,7 @@ export const FormEngine = ({
     () => ({
       readOnly,
       invalidCount: size(validityData.invalidFields),
+      attentionCount: readFirstAttentionCount,
       completion: readFirstCompletion,
       showInvalidOnly: showInvalidOptionsOnly,
       onToggleInvalidOnly: handleToggleInvalidOnly,
@@ -1751,6 +1849,7 @@ export const FormEngine = ({
     [
       readOnly,
       validityData,
+      readFirstAttentionCount,
       readFirstCompletion,
       showInvalidOptionsOnly,
       handleToggleInvalidOnly,
@@ -1863,6 +1962,67 @@ export const FormEngine = ({
       return groupOrder.indexOf(a) - groupOrder.indexOf(b);
     });
 
+    // Read-first STATUS per row → one of three boxes (Needs attention / Set /
+    // Optional), via the component-scope getOptionBucket (shared with the header
+    // count and the row dot, so box ↔ dot ↔ header always agree). Buckets keep
+    // schema-group order (thin sub-labels) and the required-group clustering: an
+    // unmet one-of group's members all land in attention and still rail up.
+    type TRowEntry = { name: string; hidden: boolean };
+    type TBucketKey = 'attention' | 'set' | 'optional';
+    const buckets: Record<TBucketKey, Record<string, TRowEntry[]>> = {
+      attention: {},
+      set: {},
+      optional: {},
+    };
+    const bucketGroups: Record<TBucketKey, string[]> = { attention: [], set: [], optional: [] };
+    // Freeze the box of any field currently being edited (or whose one-of group
+    // has an edited member) to its last settled box — so finishing an edit that
+    // flips its status doesn't remount it in another box and steal focus.
+    const stableBucketOf = (entry: TRowEntry): TBucketKey => {
+      const fresh = getOptionBucket(entry.name, entry.hidden);
+      const groupBeingEdited =
+        !entry.hidden &&
+        ((options?.[entry.name]?.required_groups as string[] | undefined) || []).some((g) =>
+          (requiredGroupsInfo.members[g] || []).some((m) => expandedOptions.includes(m))
+        );
+      if (!entry.hidden && (expandedOptions.includes(entry.name) || groupBeingEdited)) {
+        const memo = settledBucket.current[entry.name];
+        if (memo) return memo;
+      }
+      settledBucket.current[entry.name] = fresh;
+      return fresh;
+    };
+    groupKeys.forEach((groupName) => {
+      grouped[groupName].forEach((entry) => {
+        const b = stableBucketOf(entry);
+        if (!buckets[b][groupName]) {
+          buckets[b][groupName] = [];
+          bucketGroups[b].push(groupName);
+        }
+        buckets[b][groupName].push(entry);
+      });
+    });
+    const bucketCount = (b: TBucketKey) =>
+      bucketGroups[b].reduce((n, g) => n + buckets[b][g].length, 0);
+    // 'general' / 'optional' are the SYNTHETIC fallback group keys getOptionGroup
+    // assigns to fields with no explicit `group` — printing a "General"/"Optional"
+    // sub-label for those is just noise, so suppress it. BUT a consumer may also
+    // use 'general' as a REAL group (defining it in the `groups` prop and tagging
+    // fields with `group: 'general'`); in that case it's a named group like any
+    // other and DOES get its sub-label.
+    const showGroupSubLabel = (groupName: string) =>
+      (groupName !== 'general' && groupName !== 'optional') || !!groups?.[groupName];
+    const STATUS_BOXES: Array<{
+      key: TBucketKey;
+      label: string;
+      intent?: 'warning' | 'success';
+      icon: IReqoreIconName;
+    }> = [
+      { key: 'attention', label: 'Needs attention', intent: 'warning', icon: 'ErrorWarningLine' },
+      { key: 'set', label: 'Set', intent: 'success', icon: 'CheckLine' },
+      { key: 'optional', label: 'Optional', icon: 'CheckboxBlankCircleLine' },
+    ];
+
     // Build the rows for one group: contiguous required-group members are pulled
     // together at the first member's slot and rendered as a connected rail (flat
     // rows — no wrapper — so the value surface applies normally; the rail + nodes
@@ -1891,7 +2051,9 @@ export const FormEngine = ({
           clusterLast={clusterLast}
         />
       );
-      if (compactNarrow) return names.map((entry) => renderRow(entry, false));
+      // (Clustering runs in narrow mode too now — the "One of the below is
+      // required" box wraps the members regardless of width; it no longer relies
+      // on a contiguous rail.)
       const emitted = new Set<string>();
       const groupOf = (name: string) =>
         (options?.[name]?.required_groups as string[] | undefined)?.[0];
@@ -1902,8 +2064,26 @@ export const FormEngine = ({
         const memberEntries = names.filter((e) => !e.hidden && groupOf(e.name) === grp);
         if (memberEntries.length < 2) return renderRow(entry, false);
         emitted.add(grp);
-        return memberEntries.map((e, idx) =>
+        const railed = memberEntries.map((e, idx) =>
           renderRow(e, true, idx === 0, idx === memberEntries.length - 1)
+        );
+        // An UNMET one-of group gets the explicit "One of the below is required"
+        // box (the Focus cluster). A met group needs no banner — the rail + the
+        // "Covers"/"Covered by" chips already say which member satisfies it.
+        if (requiredGroupsInfo.satisfiedBy[grp]) return railed;
+        return (
+          <StyledRequiredClusterBox
+            key={grp}
+            className='options-readfirst-required-cluster'
+            $border={`${cWarning}33`}
+            $tint={`${cWarning}0d`}
+          >
+            <StyledRequiredClusterHeader $color={cWarning}>
+              <ReqoreIcon icon='LinkM' size='11px' style={{ color: cWarning }} />
+              One of the below is required
+            </StyledRequiredClusterHeader>
+            {railed}
+          </StyledRequiredClusterBox>
         );
       });
     };
@@ -1943,78 +2123,53 @@ export const FormEngine = ({
                     </ReqoreMessage>
                   : null}
 
-                  {groupKeys.map((groupName) => {
-                    const names = grouped[groupName];
-                    const groupConfig = groups?.[groupName];
-                    const invalidCount = names.filter(
-                      (entry) =>
-                        !entry.hidden &&
-                        !isOptionValid(
-                          entry.name,
-                          (options?.[entry.name]?.ui_type as TQorusType) ||
-                            (options?.[entry.name]?.type as TQorusType),
-                          (shownOptions as TQorusForm)[entry.name]?.value
-                        )
-                    ).length;
-
+                  {STATUS_BOXES.map((box) => {
+                    const groupsInBox = bucketGroups[box.key];
+                    const count = bucketCount(box.key);
+                    if (!count) return null;
+                    const accent =
+                      box.key === 'attention' ? cWarning
+                      : box.key === 'set' ? cSuccess
+                      : cMuted;
+                    // The muted "Optional" box reads as a quieter, recessed
+                    // surface — a touch darker than the page rather than the
+                    // faint grey tint the accent would give.
+                    const boxBg =
+                      box.key === 'optional' ?
+                        changeDarkness(getMainBackgroundColor(theme), 0.06)
+                      : undefined;
                     return (
-                      <ReqorePanel
-                        key={groupName}
+                      <StyledStatusBox
+                        $accent={accent}
+                        $bg={boxBg}
+                        key={box.key}
                         flat
                         minimal
                         collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
                         collapsible
                         label={
                           <StyledGroupHeader>
-                            <ReqoreP effect={{ weight: 'bold' }} size='big'>
-                              {getOptionGroupLabel(groupName, groups)}
+                            <ReqoreP effect={{ weight: 'bold' }} size='normal'>
+                              {box.label}
                             </ReqoreP>
-                            <StyledGroupHeaderLine $color={cGroupLine} />
-                            <ReqoreButton
-                              readOnly
-                              size='tiny'
+                            <ReqoreTag
+                              size='small'
                               minimal
-                              flat
                               compact
-                              effect={{uppercase: true, spaced: 1}}
-                              {...(groupName === 'optional' ? { label: `${names.length} optional` }
-                              : invalidCount ?
-                                {
-                                  label: `${invalidCount} to resolve`,
-                                  intent: 'warning' as const,
-                                  icon: 'ErrorWarningLine' as const,
-                                }
-                              : {
-                                  label: 'All set',
-                                  intent: 'success' as const,
-                                  icon: 'CheckLine' as const,
-                                })}
+                              intent={box.intent}
+                              label={String(count)}
                             />
                           </StyledGroupHeader>
                         }
-                        icon={groupConfig?.icon}
+                        icon={box.icon}
                         className='options-readfirst-group'
                         padded={false}
                         contentStyle={{ padding: '4px 4px 6px' }}
                       >
-                        {groupConfig?.subtitle ?
-                          <ReqoreP
-                            size='small'
-                            effect={{ opacity: 0.6 }}
-                            // Indent to the same content line as the rows (StyledGroupBody's
-                            // `margin-left` clamp) so the subtitle sits tucked under the group
-                            // name instead of at the panel edge — and clears the group's
-                            // vertical rule (left:16px) rather than crossing it.
-                            style={{
-                              marginTop: 2,
-                              marginBottom: 8,
-                              marginLeft: GROUP_INDENT,
-                              paddingRight: 10,
-                            }}
-                          >
-                            {groupConfig.subtitle}
-                          </ReqoreP>
-                        : null}
+                        {/* ONE group body per box: every field block (and the
+                            thin schema sub-labels) is a direct flex child, so the
+                            inter-field gap is identical everywhere — including
+                            across schema-group boundaries. */}
                         <StyledGroupBody
                           $divider={cDivider}
                           $hover={cHover}
@@ -2024,9 +2179,35 @@ export const FormEngine = ({
                           $lineColor={cGroupLine}
                           className={compactNarrow ? 'readfirst-narrow' : undefined}
                         >
-                          {renderGroupRows(names)}
+                          {groupsInBox.map((groupName) => {
+                            const groupConfig = groups?.[groupName];
+                            return (
+                              <React.Fragment key={groupName}>
+                                {showGroupSubLabel(groupName) ?
+                                  <StyledStatusBoxGroupLabel>
+                                    {getOptionGroupLabel(groupName, groups)}
+                                  </StyledStatusBoxGroupLabel>
+                                : null}
+                                {showGroupSubLabel(groupName) && groupConfig?.subtitle ?
+                                  <ReqoreP
+                                    size='small'
+                                    effect={{ opacity: 0.6 }}
+                                    style={{
+                                      marginTop: 2,
+                                      marginBottom: 8,
+                                      marginLeft: GROUP_INDENT,
+                                      paddingRight: 10,
+                                    }}
+                                  >
+                                    {groupConfig.subtitle}
+                                  </ReqoreP>
+                                : null}
+                                {renderGroupRows(buckets[box.key][groupName])}
+                              </React.Fragment>
+                            );
+                          })}
                         </StyledGroupBody>
-                      </ReqorePanel>
+                      </StyledStatusBox>
                     );
                   })}
                 </StyledCompactPanel>
