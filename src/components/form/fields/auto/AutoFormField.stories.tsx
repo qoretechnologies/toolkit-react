@@ -190,9 +190,16 @@ export const ViaFormEngine: Story = {
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText('My Auto Field')).toBeInTheDocument();
+    // Generous timeout: findByText defaults to 1s, which flakes under CI load
+    // while the engine boots the auto field's type picker (the rest of the suite
+    // waits ~10s).
+    await expect(
+      await canvas.findByText('My Auto Field', undefined, { timeout: 10000 })
+    ).toBeInTheDocument();
     // The auto field renders its type picker inside the engine-driven form.
-    await expect(await canvas.findByText('Please select data type')).toBeInTheDocument();
+    await expect(
+      await canvas.findByText('Please select data type', undefined, { timeout: 10000 })
+    ).toBeInTheDocument();
   },
 };
 
