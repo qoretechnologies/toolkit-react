@@ -1441,10 +1441,10 @@
     use-context-selector "^1.4.1"
     zustand "^5.0.3"
 
-"@qoretechnologies/ts-toolkit@^0.5.78":
-  version "0.5.78"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/ts-toolkit/-/ts-toolkit-0.5.78.tgz#18b7385bccc2cb3dac78de5206512668b1026bb2"
-  integrity sha512-mD/5ONx4vcuXR3zeYc66jKgSLmX7HHnCSqbbmHiC4CQJUBz6IMZEMaLYp7EvP8W0jr/muN5pH2G9TOXCzqKyaQ==
+"@qoretechnologies/ts-toolkit@^0.5.80":
+  version "0.5.80"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/ts-toolkit/-/ts-toolkit-0.5.80.tgz#925fe878448dfd13ed32d958d893acdbb2b84ace"
+  integrity sha512-L/DyQyDnz9WydCgzsVwwFruCu2hbq23LmRkO2T6d0fDVkfmRL8xYEiBMbJ/Qdiow/MOnFPEyTY7p5Yd6aFESsA==
   dependencies:
     "@qoretechnologies/reqraft" "^0.7.0"
     async "^3.2.4"

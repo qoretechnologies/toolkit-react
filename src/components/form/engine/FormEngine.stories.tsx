@@ -565,6 +565,108 @@ export const OptionsWithOnChangeTriggerEvents: Story = {
   },
 };
 
+// A stand-in for a host-injected `code-editor` renderer. Reqraft does not
+// ship a CodeEditor (Monaco is a heavy dep the toolkit shouldn't pull in);
+// the IDE / consumers inject one via `componentOverrides`. This stand-in
+// renders a textarea AND a visible "syntax: <language>" tag so the
+// `inherit_props` story (below) can prove the inherited `language` prop
+// flows through to the renderer at render time.
+const CodeEditorStandin = ({
+  value,
+  onChange,
+  language,
+  size,
+}: {
+  value?: unknown;
+  onChange?: (value: string) => void;
+  language?: unknown;
+  size?: TSizes;
+}) => (
+  <div data-testid='code-editor-mock'>
+    <div data-testid='code-editor-language' style={{ fontFamily: 'monospace', marginBottom: 4 }}>
+      syntax: {String(language ?? 'plain')}
+    </div>
+    <ReqoreInput
+      fluid
+      size={size}
+      icon='CodeLine'
+      placeholder='Source code (stand-in code-editor)'
+      value={typeof value === 'string' ? value : ''}
+      onChange={(event: ChangeEvent<HTMLInputElement>) => onChange?.(event.target.value)}
+    />
+  </div>
+);
+
+// qorus#347-followup: an option can declare `inherit_props` — a JSON map of
+// `<prop-name-on-renderer>` → `<sibling-field-name>` — and FormEngine
+// resolves each entry at render time, forwarding the sibling's current
+// value as a runtime prop on this field's renderer. Unlike `on_change:
+// ['refetch']` (which requires a server round-trip to reshape the
+// schema), `inherit_props` is purely a render-time prop forwarding —
+// fast, JSON-safe, and the receiving renderer decides how to use the
+// value (e.g. CodeEditor maps `language: "qore"` to its highlighter
+// mode). This story demonstrates the canonical case: a `source` field
+// (rendered by a host-injected code-editor) inherits `language` from
+// a sibling `lang` picker, so flipping the picker live-changes the
+// editor's syntax highlighting with no refetch.
+export const OptionInheritsRenderPropFromSibling: Story = {
+  args: {
+    componentOverrides: { 'code-editor': CodeEditorStandin },
+    value: {
+      lang: { type: 'string', value: 'qore' },
+      source: { type: 'string', value: 'sub run() { print("hello"); }' },
+    },
+    options: {
+      lang: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Language',
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
+          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+        ],
+      },
+      source: {
+        type: 'string',
+        ui_type: 'code-editor',
+        display_name: 'Source Code',
+        // The feature under test: the `language` prop of the code-editor
+        // renderer is sourced from sibling `lang`'s current value at
+        // render time. No `on_change` refetch — instant prop forwarding.
+        inherit_props: { language: 'lang' },
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Initial state: lang = "qore" → editor renderer receives language="qore"
+    await waitFor(
+      () =>
+        expect(canvas.getByTestId('code-editor-language')).toHaveTextContent('syntax: qore'),
+      { timeout: 5000 }
+    );
+
+    // Change lang → python via the select; the code-editor's `language`
+    // prop should re-resolve and the visible "syntax:" tag should update
+    // without any extra clicks or refetches.
+    const langField = (
+      canvasElement.querySelectorAll('.system-option') as NodeListOf<HTMLElement>
+    )[0];
+    const langSelectTrigger = within(langField).getByText('Qore');
+    await userEvent.click(langSelectTrigger);
+    const pythonItem = await within(document.body).findByText('Python');
+    await userEvent.click(pythonItem);
+
+    await waitFor(
+      () =>
+        expect(canvas.getByTestId('code-editor-language')).toHaveTextContent('syntax: python'),
+      { timeout: 5000 }
+    );
+  },
+};
+
 export const DependantsResetWhenParentChanges: Story = {
   args: {
     minColumnWidth: '300px',
