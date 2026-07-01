@@ -133,13 +133,21 @@ export interface IFormValidityData {
 
 /**
  * Resolve a field's `inherit_props` map against the current available
- * options, producing a `{ propName: siblingValue }` hash suitable for
- * spreading onto the field's renderer.
+ * options (plus any values inherited from an outer FormEngine scope),
+ * producing a `{ propName: siblingValue }` hash suitable for spreading
+ * onto the field's renderer.
  *
  * For each entry `<prop-name-on-renderer> -> <sibling-field-name>`, the
- * sibling's current value (`availableOptions[siblingName]?.value`) is
- * forwarded under the receiving prop name. Missing siblings emit
- * `undefined`, which the renderer's prop type can treat as "no hint".
+ * sibling's current value is forwarded under the receiving prop name.
+ * Lookup order:
+ *   1. `availableOptions[siblingName]?.value` — the field's local scope.
+ *   2. `inheritedFromParent[siblingName]` — the bag threaded in by an
+ *      outer FormEngine (see the `inheritedFromParent` prop). Used when
+ *      a composite field's `arg_schema` sub-form needs to reach a value
+ *      on an ancestor scope — e.g. a service-method row's `body` picking
+ *      up `language` from the parent service form.
+ * Missing siblings emit `undefined`, which the renderer's prop type can
+ * treat as "no hint".
  *
  * Designed to be JSON-pure: no closures, no transformations. Renderers
  * decide how to use the forwarded value (e.g. the consumer-injected
@@ -151,13 +159,15 @@ export interface IFormValidityData {
  */
 const resolveInheritProps = (
   inheritProps: Record<string, string> | undefined,
-  availableOptions: TQorusForm | undefined
+  availableOptions: TQorusForm | undefined,
+  inheritedFromParent?: Record<string, unknown>
 ): Record<string, unknown> => {
-  if (!inheritProps || !availableOptions) return {};
+  if (!inheritProps) return {};
   const out: Record<string, unknown> = {};
   for (const propName in inheritProps) {
     const siblingName = inheritProps[propName];
-    out[propName] = (availableOptions[siblingName] as IQorusFormField | undefined)?.value;
+    const localValue = (availableOptions?.[siblingName] as IQorusFormField | undefined)?.value;
+    out[propName] = localValue !== undefined ? localValue : inheritedFromParent?.[siblingName];
   }
   return out;
 };
@@ -543,6 +553,17 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * `TemplateField` to the `AutoFormField` override seam.
    */
   componentOverrides?: Record<string, React.FC<any>>;
+
+  /**
+   * Bag of values forwarded from an outer FormEngine scope, used as a
+   * fallback when a field's `inherit_props` names a sibling that isn't in
+   * this form's own `availableOptions`. Populated automatically when
+   * FormEngine renders a nested `arg_schema` sub-form (through
+   * AutoFormField's hash / list mount sites) so that each level accumulates
+   * its ancestors' inherited props. Consumers rarely set this by hand — it's
+   * plumbing for the inherit_props scope-forwarding contract.
+   */
+  inheritedFromParent?: Record<string, unknown>;
 }
 
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
@@ -580,6 +601,7 @@ export const FormEngine = ({
   onValidityChange,
   optionActions,
   componentOverrides,
+  inheritedFromParent,
   ...rest
 }: IFormEngineProps) => {
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
@@ -1665,16 +1687,42 @@ export const FormEngine = ({
             fluid
             {...(options?.[optionName] as any)}
             // qorus#347-followup: resolve the field's `inherit_props` against
-            // the CURRENT sibling values, threading each entry as a top-level
-            // prop. Each `<prop-name>: <sibling-field-name>` mapping copies
-            // the sibling's value (read from `availableOptions[name].value`)
-            // onto the rendered field's renderer — e.g. a code-editor with
-            // `inherit_props: { language: 'lang' }` picks up the live `lang`
-            // value as a `language` prop without a schema refetch. Spread
-            // AFTER `{...options?.[optionName]}` so the runtime value wins
-            // over any schema-defined default of the same key. Mirrored in
-            // qorus-ide's `systemOptions.tsx`; see the CLAUDE.md rule there.
-            {...resolveInheritProps(options?.[optionName]?.inherit_props, availableOptions)}
+            // the CURRENT sibling values (with a fallback to
+            // `inheritedFromParent` — the bag threaded in from an outer
+            // FormEngine when this scope is an `arg_schema` sub-form),
+            // threading each entry as a top-level prop. Each
+            // `<prop-name>: <sibling-field-name>` mapping copies the
+            // sibling's value onto the rendered field's renderer — e.g. a
+            // `code-editor` with `inherit_props: { language: 'language' }`
+            // picks up the live `language` value as a `language` prop without
+            // a schema refetch. Spread AFTER `{...options?.[optionName]}` so
+            // the runtime value wins over any schema-defined default of the
+            // same key. Mirrored in qorus-ide's `systemOptions.tsx`; see the
+            // CLAUDE.md rule there.
+            {...resolveInheritProps(
+              options?.[optionName]?.inherit_props,
+              availableOptions,
+              inheritedFromParent
+            )}
+            // qorus#347-followup (scope forwarding): merge accumulated
+            // inheritance (`inheritedFromParent`) with THIS field's freshly
+            // resolved inherit_props, and pass down as a single bag so any
+            // nested `arg_schema` sub-form (mounted by AutoFormField for
+            // `hash` / `free-hash` / list-of-hash fields) sees every value
+            // the ancestor chain forwarded. This is the plumbing that lets a
+            // service-method row's `body` sub-field pick up the parent
+            // service form's `language` — the parent field declares
+            // `inherit_props: { language: 'language' }`, the list renderer
+            // forwards it into each row, and the row's body resolves against
+            // the accumulated bag.
+            inheritedFromParent={{
+              ...inheritedFromParent,
+              ...resolveInheritProps(
+                options?.[optionName]?.inherit_props,
+                availableOptions,
+                inheritedFromParent
+              ),
+            }}
             // Propagate compact so an arg_schema field renders a COMPACT sub-form
             // (consistent with the parent) rather than the classic FormEngine.
             compact={compact}

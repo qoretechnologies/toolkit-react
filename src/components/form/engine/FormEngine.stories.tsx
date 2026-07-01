@@ -667,6 +667,91 @@ export const OptionInheritsRenderPropFromSibling: Story = {
   },
 };
 
+// qorus#347-followup, scope forwarding: this story exercises the nested
+// case of the OptionInheritsRenderPropFromSibling contract. The parent
+// form declares `methods: { ui_type: 'list', element_type: 'hash',
+// arg_schema: {...}, inherit_props: { language: 'language' } }`. FormEngine
+// resolves the parent's inherit_props against the top-level `language`
+// field, threads the resolved bag through the ArrayAuto row wrapper into
+// each row's arg_schema sub-form as `inheritedFromParent`. The row's
+// `body` sub-field ALSO declares `inherit_props: { language: 'language' }`;
+// its `availableOptions` has no `language` (rows only carry name /
+// description / body), so the resolver falls back to
+// `inheritedFromParent.language` and threads it as the CodeEditor's
+// `language` prop. Flipping the top-level lang picker live-updates every
+// row's editor without any custom per-field wiring.
+export const NestedOptionInheritsRenderPropFromAncestor: Story = {
+  args: {
+    componentOverrides: { 'code-editor': CodeEditorStandin },
+    value: {
+      language: { type: 'string', value: 'qore' },
+      methods: {
+        type: 'list',
+        value: [
+          { type: 'hash', value: { name: 'init', body: 'sub init() { }' } },
+          { type: 'hash', value: { name: 'run', body: 'sub run() { print("hi"); }' } },
+        ],
+      },
+    },
+    options: {
+      language: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Language',
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
+          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+        ],
+      },
+      methods: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'hash',
+        display_name: 'Methods',
+        // Parent-level declaration: forward top-level `language` down into
+        // each row's arg_schema sub-form so per-method `body` sub-fields
+        // can pick it up as `language` prop without knowing about the
+        // ancestor scope.
+        inherit_props: { language: 'language' },
+        arg_schema: {
+          name: {
+            type: 'string',
+            ui_type: 'string',
+            display_name: 'Method Name',
+          },
+          body: {
+            type: 'string',
+            ui_type: 'code-editor',
+            display_name: 'Method Body',
+            // Row-level declaration: the resolver walks
+            //   1. local availableOptions (row only has name + body — no
+            //      language here),
+            //   2. `inheritedFromParent` (populated by the parent-level
+            //      `methods.inherit_props` above — has language).
+            inherit_props: { language: 'language' },
+          },
+        },
+      },
+    } as unknown as IOptionsSchema,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Two rows -> two code-editor stand-ins -> each shows "syntax: qore"
+    // at initial render, sourced from the top-level `language` field via
+    // parent -> row scope forwarding.
+    await waitFor(
+      () => {
+        const tags = canvas.getAllByTestId('code-editor-language');
+        expect(tags).toHaveLength(2);
+        tags.forEach((tag) => expect(tag).toHaveTextContent('syntax: qore'));
+      },
+      { timeout: 5000 }
+    );
+  },
+};
+
 export const DependantsResetWhenParentChanges: Story = {
   args: {
     minColumnWidth: '300px',
