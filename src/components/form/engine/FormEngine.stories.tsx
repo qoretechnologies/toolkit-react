@@ -871,6 +871,11 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
       () => expect(canvas.getAllByText('Methods').length).toBeGreaterThan(0),
       { timeout: 5000 }
     );
+    // The list-of-hashes value summarises by the items' names — never a raw
+    // "[object Object]" (regression: it used to stringify each hash envelope).
+    await expect(await canvas.findByText('init, run', undefined, { timeout: 5000 }))
+      .toBeInTheDocument();
+    await expect(canvasElement.textContent ?? '').not.toContain('[object Object]');
   },
 };
 
