@@ -35,6 +35,7 @@ import {
   StyledActionSlot,
   StyledCardHeading,
   StyledCardLabel,
+  StyledCodePreview,
   StyledColorSwatch,
   StyledColumn,
   StyledEditCard,
@@ -252,6 +253,26 @@ export const CompactRow = memo(
             minimal
             intent={truthy ? 'success' : 'danger'}
             label={formatted}
+          />
+        );
+      }
+
+      // Code-editor read summary: replace the truncated string with a chip
+      // showing line count + character count. The actual code renders below
+      // the row as a monospace `<pre>` inside a `ReqoreCollapsibleContent` —
+      // see `showCodePreview` below. Keeps the row height fixed while making
+      // multi-line source readable without opening the full editor.
+      if (valueType === 'code-editor' && typeof field?.value === 'string') {
+        const lines = field.value.split('\n').length;
+        const chars = field.value.length;
+        return (
+          <ReqoreTag
+            size='small'
+            minimal
+            intent='info'
+            icon='CodeLine'
+            label={`${lines} ${lines === 1 ? 'line' : 'lines'}`}
+            labelKey={`${chars} ${chars === 1 ? 'char' : 'chars'}`}
           />
         );
       }
@@ -913,6 +934,16 @@ export const CompactRow = memo(
         return inner !== null && typeof inner === 'object';
       });
     const showStructuredPreview = hashEntries.length > 0 || isHashList;
+    // Multi-line code preview: a `code-editor` field with a non-empty string
+    // value gets a `<pre>`-based code block under the row, capped by a
+    // `ReqoreCollapsibleContent` so the collapsed height stays row-sized and
+    // "Show more" reveals the rest.  Sits in the same inset the hash/list
+    // preview uses — mutually exclusive with `showStructuredPreview`.
+    const showCodePreview =
+      !hidden &&
+      valueType === 'code-editor' &&
+      typeof optionField?.value === 'string' &&
+      optionField.value.length > 0;
     const typeLabel =
       showFieldTypes ?
         `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
@@ -1064,7 +1095,7 @@ export const CompactRow = memo(
         role='button'
         tabIndex={0}
         aria-label={label}
-        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
         style={stripeStyle}
         onClick={activate}
@@ -1172,6 +1203,31 @@ export const CompactRow = memo(
                     onItemClick={() => activate()}
                   />
                 </div>
+              </ReqoreCollapsibleContent>
+            </StyledRowInset>
+          : null}
+          {/* Code-editor preview: same inset placement as hash/list — a monospace
+              `<pre>` block wrapped in `ReqoreCollapsibleContent` so the collapsed
+              row stays row-height while multi-line source reveals via "Show more".
+              Stopping propagation here (like the structured inset) — a click on
+              the collapse button must not also open the field editor. */}
+          {showCodePreview ?
+            <StyledRowInset
+              className='options-readfirst-inset options-readfirst-code-inset'
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ReqoreCollapsibleContent
+                maxCollapsedHeight={96}
+                buttonProps={{ className: 'options-readfirst-viewmore' }}
+              >
+                <StyledCodePreview
+                  className='options-readfirst-code'
+                  $bg={cHover}
+                  $border={`${cDivider}88`}
+                  $fg={cKey}
+                >
+                  {optionField.value as string}
+                </StyledCodePreview>
               </ReqoreCollapsibleContent>
             </StyledRowInset>
           : null}
