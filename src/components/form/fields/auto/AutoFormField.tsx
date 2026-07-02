@@ -154,6 +154,12 @@ function AutoField<T = any>({
   showSavedValues,
   uniqueName,
   componentOverrides,
+  // qorus#347-followup (scope forwarding): destructure so it does NOT
+  // land in `...rest` — otherwise the primitive field renderers spread
+  // rest onto DOM nodes and React warns about the unknown attribute.
+  // Only the nested arg_schema mount sites re-forward this into their
+  // sub-forms explicitly.
+  inheritedFromParent,
   ...rest
 }: IAutoFieldProps & T) {
   const [currentType, setType] = useState<IQorusType>(defaultInternalType || null);
@@ -564,6 +570,20 @@ function AutoField<T = any>({
                 stringTemplates={rest.templates}
                 size={rest.size}
                 disabled={rest.disabled}
+                // Forward consumer-injected editors into the nested sub-form
+                // so its own fields can render host-injected types (e.g. a
+                // `code-editor` override for a `body` sub-field inside a
+                // list-of-hash row). Was missing pre-qorus#347-followup —
+                // catches an existing gap surfaced by the nested inherit_props
+                // story.
+                componentOverrides={componentOverrides}
+                // qorus#347-followup (scope forwarding): thread the accumulated
+                // inheritance bag into the nested sub-form so its own fields'
+                // `inherit_props` can reach ancestor-scope values (e.g. a
+                // service-method row's `body` picking up `language` from the
+                // parent service form). The parent FormEngine populates this
+                // via TemplateField -> AutoFormField's `rest`.
+                inheritedFromParent={inheritedFromParent}
               />
             );
           }
@@ -658,6 +678,12 @@ function AutoField<T = any>({
                 allowed_values_creatable={rest.element_allowed_values_creatable}
                 type={effectiveElementType}
                 componentOverrides={componentOverrides}
+                // qorus#347-followup (scope forwarding): thread the accumulated
+                // inheritance bag through the list wrapper so each row's
+                // arg_schema sub-form sees it. ArrayAuto forwards this via
+                // TemplateField's `rest` into each row's AutoFormField, which
+                // hands it to the row's nested FormEngine (case 'hash' above).
+                inheritedFromParent={inheritedFromParent}
                 onChange={(name, value) => {
                   if (!size(value)) {
                     return handleChange(name, undefined);

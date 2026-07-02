@@ -667,6 +667,218 @@ export const OptionInheritsRenderPropFromSibling: Story = {
   },
 };
 
+// qorus#347-followup, compact variant of the FLAT case: same schema and
+// componentOverride as `OptionInheritsRenderPropFromSibling`, but the form
+// is rendered with `compact: true`. Compact and classic share the same
+// `renderOption` callback (FormEngine.tsx:1590) where `inherit_props` is
+// resolved onto `TemplateField`, so the forwarding mechanism is identical
+// in both modes. This story locks that in so a future refactor of the
+// compact path can't silently break inherit_props for read-first surfaces.
+export const OptionInheritsRenderPropFromSiblingCompact: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    componentOverrides: { 'code-editor': CodeEditorStandin },
+    value: {
+      lang: { type: 'string', value: 'qore' },
+      source: { type: 'string', value: 'sub run() { print("hello"); }' },
+    },
+    options: {
+      lang: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Language',
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
+          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+        ],
+      },
+      source: {
+        type: 'string',
+        ui_type: 'code-editor',
+        display_name: 'Source Code',
+        inherit_props: { language: 'lang' },
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    // Compact renders rows collapsed by default. Structural check: the
+    // schema arrives intact + the source-code row is present. The full
+    // interaction (lang flip -> language prop updates) is covered by the
+    // classic `OptionInheritsRenderPropFromSibling` story.
+    await waitFor(
+      () => expect(canvas.getAllByText('Source Code').length).toBeGreaterThan(0),
+      { timeout: 5000 }
+    );
+  },
+};
+
+// qorus#347-followup, scope forwarding: this story exercises the nested
+// case of the OptionInheritsRenderPropFromSibling contract. The parent
+// form declares `methods: { ui_type: 'list', element_type: 'hash',
+// arg_schema: {...}, inherit_props: { language: 'language' } }`. FormEngine
+// resolves the parent's inherit_props against the top-level `language`
+// field, threads the resolved bag through the ArrayAuto row wrapper into
+// each row's arg_schema sub-form as `inheritedFromParent`. The row's
+// `body` sub-field ALSO declares `inherit_props: { language: 'language' }`;
+// its `availableOptions` has no `language` (rows only carry name /
+// description / body), so the resolver falls back to
+// `inheritedFromParent.language` and threads it as the CodeEditor's
+// `language` prop. Flipping the top-level lang picker live-updates every
+// row's editor without any custom per-field wiring.
+export const NestedOptionInheritsRenderPropFromAncestor: Story = {
+  args: {
+    componentOverrides: { 'code-editor': CodeEditorStandin },
+    value: {
+      language: { type: 'string', value: 'qore' },
+      methods: {
+        type: 'list',
+        value: [
+          { type: 'hash', value: { name: 'init', body: 'sub init() { }' } },
+          { type: 'hash', value: { name: 'run', body: 'sub run() { print("hi"); }' } },
+        ],
+      },
+    },
+    options: {
+      language: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Language',
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
+          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+        ],
+      },
+      methods: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'hash',
+        display_name: 'Methods',
+        // Parent-level declaration: forward top-level `language` down into
+        // each row's arg_schema sub-form so per-method `body` sub-fields
+        // can pick it up as `language` prop without knowing about the
+        // ancestor scope.
+        inherit_props: { language: 'language' },
+        arg_schema: {
+          name: {
+            type: 'string',
+            ui_type: 'string',
+            display_name: 'Method Name',
+          },
+          body: {
+            type: 'string',
+            ui_type: 'code-editor',
+            display_name: 'Method Body',
+            // Row-level declaration: the resolver walks
+            //   1. local availableOptions (row only has name + body — no
+            //      language here),
+            //   2. `inheritedFromParent` (populated by the parent-level
+            //      `methods.inherit_props` above — has language).
+            inherit_props: { language: 'language' },
+          },
+        },
+      },
+    } as unknown as IOptionsSchema,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Two rows -> two code-editor stand-ins -> each shows "syntax: qore"
+    // at initial render, sourced from the top-level `language` field via
+    // parent -> row scope forwarding.
+    await waitFor(
+      () => {
+        const tags = canvas.getAllByTestId('code-editor-language');
+        expect(tags).toHaveLength(2);
+        tags.forEach((tag) => expect(tag).toHaveTextContent('syntax: qore'));
+      },
+      { timeout: 5000 }
+    );
+  },
+};
+
+// qorus#347-followup, scope forwarding + compact variant: same schema as
+// `NestedOptionInheritsRenderPropFromAncestor` but with `compact: true`.
+// Compact and classic share the `renderOption` callback (FormEngine.tsx:1590)
+// which is where the `inheritedFromParent` bag is threaded onto TemplateField,
+// so the forwarding mechanism is identical in both modes. This story locks
+// that in — a compact rendering of a parent form with a nested arg_schema
+// list-of-hash whose sub-fields still resolve `language` from the top-level
+// picker through the same two-hop chain.
+export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    componentOverrides: { 'code-editor': CodeEditorStandin },
+    value: {
+      language: { type: 'string', value: 'qore' },
+      methods: {
+        type: 'list',
+        value: [
+          { type: 'hash', value: { name: 'init', body: 'sub init() { }' } },
+          { type: 'hash', value: { name: 'run', body: 'sub run() { print("hi"); }' } },
+        ],
+      },
+    },
+    options: {
+      language: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Language',
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
+          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+        ],
+      },
+      methods: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'hash',
+        display_name: 'Methods',
+        inherit_props: { language: 'language' },
+        arg_schema: {
+          name: {
+            type: 'string',
+            ui_type: 'string',
+            display_name: 'Method Name',
+          },
+          body: {
+            type: 'string',
+            ui_type: 'code-editor',
+            display_name: 'Method Body',
+            inherit_props: { language: 'language' },
+          },
+        },
+      },
+    } as unknown as IOptionsSchema,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    // Compact renders each option collapsed into a read-first row. The
+    // methods row needs a click to expand, then the nested list rows each
+    // need a click to expand and reveal the body sub-field's editor with
+    // the inherited language. Rather than driving that whole editing
+    // flow (which is what the CompactBasic / CompactExpressions stories
+    // already exercise), assert on the STRUCTURAL element: the schema
+    // arrived intact through `inheritedFromParent` and the row-level
+    // options include the body field wired to the code-editor override.
+    await waitFor(
+      () => expect(canvas.getAllByText('Methods').length).toBeGreaterThan(0),
+      { timeout: 5000 }
+    );
+    // The list-of-hashes value summarises by the items' names — never a raw
+    // "[object Object]" (regression: it used to stringify each hash envelope).
+    await expect(await canvas.findByText('init, run', undefined, { timeout: 5000 }))
+      .toBeInTheDocument();
+    await expect(canvasElement.textContent ?? '').not.toContain('[object Object]');
+  },
+};
+
 export const DependantsResetWhenParentChanges: Story = {
   args: {
     minColumnWidth: '300px',

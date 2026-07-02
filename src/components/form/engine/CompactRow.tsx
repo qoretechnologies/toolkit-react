@@ -896,6 +896,23 @@ export const CompactRow = memo(
       (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition' ?
         getHashEntries(optionField, schema)
       : [];
+    // A LIST OF HASHES/objects gets the same expandable structured preview a hash
+    // does — the flat "N items" summary can't convey object contents (and must
+    // never print "[object Object]"). StructuredDataView unwraps each item's
+    // {type,value} envelope. Plain scalar lists keep just their joined summary.
+    const isHashList =
+      !hidden &&
+      (valueType === 'list' || valueType === 'free-list' || valueType === 'array') &&
+      Array.isArray(optionField?.value) &&
+      optionField.value.length > 0 &&
+      optionField.value.some((item) => {
+        const inner =
+          item && typeof item === 'object' && 'value' in (item as Record<string, unknown>) ?
+            (item as Record<string, unknown>).value
+          : item;
+        return inner !== null && typeof inner === 'object';
+      });
+    const showStructuredPreview = hashEntries.length > 0 || isHashList;
     const typeLabel =
       showFieldTypes ?
         `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
@@ -1047,7 +1064,7 @@ export const CompactRow = memo(
         role='button'
         tabIndex={0}
         aria-label={label}
-        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || hashEntries.length ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
         style={stripeStyle}
         onClick={activate}
@@ -1133,7 +1150,7 @@ export const CompactRow = memo(
           {/* The structured hash/list preview also lives in the value cell, so it
               starts directly under the value summary ("N fields"), not below the
               label's short_desc. */}
-          {hashEntries.length ?
+          {showStructuredPreview ?
             // The inset lives inside the row now, so a click on a value chip would
             // bubble to the row's onClick and fire activate() a SECOND time (the
             // chip's onItemClick already calls it) — toggling the editor shut again.

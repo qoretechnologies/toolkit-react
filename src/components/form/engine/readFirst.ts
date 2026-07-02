@@ -17,12 +17,33 @@ const pluralize = (count: number, noun: string): string =>
 // full server allow-list, incl. keys like `sensitive`/`required`).
 const isTypedEnvelope = (raw: unknown): raw is IQorusFormField => isUiEncodedValue(raw);
 
-/** Summarise a list value: join item names, or fall back to an "N items" count. */
+/** Reduce ONE list item to a short, human label — never an object. Unwraps a
+ * typed `{type, value}` envelope, prefers a `name`/`display_name`, and returns
+ * undefined for a bare object (no name) so the caller falls back to a count
+ * instead of printing "[object Object]". */
+const summarizeListItem = (item: unknown): string | number | undefined => {
+  if (item === null || item === undefined) return undefined;
+  if (typeof item !== 'object') return item as string | number;
+  const obj = item as Record<string, unknown>;
+  // A named object (or allowed-value) → its label.
+  if (typeof obj.name === 'string' || typeof obj.name === 'number') return obj.name;
+  if (typeof obj.display_name === 'string') return obj.display_name;
+  // A typed envelope ({type, value}) or a {value} wrapper → look inside once.
+  if ('value' in obj) {
+    const inner = obj.value;
+    if (inner === null || inner === undefined) return undefined;
+    if (typeof inner !== 'object') return inner as string | number;
+    const innerName = (inner as Record<string, unknown>).name;
+    return typeof innerName === 'string' || typeof innerName === 'number' ? innerName : undefined;
+  }
+  return undefined;
+};
+
+/** Summarise a list value: join item labels, or fall back to an "N items" count
+ * (e.g. a list of anonymous hashes). Never prints raw objects. */
 const formatList = (items: unknown[]): string => {
   const parts = items
-    .map((item) =>
-      item && typeof item === 'object' ? ((item as any).name ?? (item as any).value ?? '') : item
-    )
+    .map(summarizeListItem)
     .filter((part) => part !== '' && part !== undefined && part !== null);
 
   return parts.length ? parts.join(', ') : pluralize(items.length, 'item');

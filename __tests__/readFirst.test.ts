@@ -121,6 +121,24 @@ describe('formatOptionValue', () => {
     expect(formatOptionValue({ type: 'list', value: [{}] })).toBe('1 item');
   });
 
+  it('unwraps typed {type,value} envelopes in a list of hashes (never "[object Object]")', () => {
+    const methods = [
+      { type: 'hash', value: { name: 'init', body: 'sub init() { }' } },
+      { type: 'hash', value: { name: 'run', body: 'sub run() {}' } },
+    ];
+    const summary = formatOptionValue({ type: 'list', value: methods });
+    expect(summary).toBe('init, run');
+    expect(summary).not.toContain('[object Object]');
+  });
+
+  it('counts a list of anonymous hash envelopes rather than printing objects', () => {
+    const rows = [
+      { type: 'hash', value: { a: 1 } },
+      { type: 'hash', value: { b: 2 } },
+    ];
+    expect(formatOptionValue({ type: 'list', value: rows })).toBe('2 items');
+  });
+
   it('marks expression values', () => {
     expect(
       formatOptionValue({ type: 'string', value: 'anything', is_expression: true })
