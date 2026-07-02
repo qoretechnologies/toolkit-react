@@ -1,6 +1,6 @@
 import { StoryObj } from '@storybook/react-vite';
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { sleep } from '../../../__tests__/utils';
 import { StoryMeta } from '../../types';
 import {
@@ -83,14 +83,16 @@ function mockTokenizeQonsole(text: string): number[] {
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
     const line = lines[lineIdx];
     // Strings first so they swallow any `--`/digits inside their quotes.
-    const TOKEN_RE =
-      /("(?:\\.|[^"\\])*")|(\d+(?:\.\d+)?)|(--[A-Za-z][\w-]*)|(\/[A-Za-z][\w-]*)/g;
+    const TOKEN_RE = /("(?:\\.|[^"\\])*")|(\d+(?:\.\d+)?)|(--[A-Za-z][\w-]*)|(\/[A-Za-z][\w-]*)/g;
     let match: RegExpExecArray | null;
     while ((match = TOKEN_RE.exec(line)) !== null) {
       let type = -1;
-      if (match[1]) type = 11; // string
-      else if (match[2]) type = 12; // number
-      else if (match[3]) type = 9; // modifier — `--flag`
+      if (match[1])
+        type = 11; // string
+      else if (match[2])
+        type = 12; // number
+      else if (match[3])
+        type = 9; // modifier — `--flag`
       else if (match[4]) type = 8; // keyword — `/verb`
       if (type >= 0) {
         tokens.push({
@@ -102,7 +104,7 @@ function mockTokenizeQonsole(text: string): number[] {
       }
     }
   }
-  tokens.sort((a, b) => (a.line - b.line) || (a.char - b.char));
+  tokens.sort((a, b) => a.line - b.line || a.char - b.char);
   // Delta-encode per LSP spec.
   const data: number[] = [];
   let prevLine = 0;
@@ -127,11 +129,7 @@ function setupBasicQonsoleMockServer(): IMockLspServer {
       experimental: {
         qonsole: {
           version: '1.0',
-          methods: [
-            'qonsole/assist',
-            'qonsole/validate',
-            'qonsole/setContext',
-          ],
+          methods: ['qonsole/assist', 'qonsole/validate', 'qonsole/setContext'],
         },
       },
     },
@@ -213,8 +211,7 @@ function setupBasicQonsoleMockServer(): IMockLspServer {
                   short_desc: 'Guided setup for a new connection',
                   verb: 'create',
                   resource: 'connections',
-                  start_path:
-                    '/api/latest/qonsole/wizards/create-connection/start',
+                  start_path: '/api/latest/qonsole/wizards/create-connection/start',
                 },
                 command: {
                   title: 'Start Create connection wizard',
@@ -227,8 +224,7 @@ function setupBasicQonsoleMockServer(): IMockLspServer {
                       short_desc: 'Guided setup for a new connection',
                       verb: 'create',
                       resource: 'connections',
-                      start_path:
-                        '/api/latest/qonsole/wizards/create-connection/start',
+                      start_path: '/api/latest/qonsole/wizards/create-connection/start',
                     },
                   ],
                 },
@@ -237,10 +233,34 @@ function setupBasicQonsoleMockServer(): IMockLspServer {
             ];
           } else if (ctx.type === 'resource') {
             items = [
-              withTextEdit({ label: 'services', insertText: 'services', kind: 7, detail: 'Service interfaces', commitCharacters: [' '] }),
-              withTextEdit({ label: 'workflows', insertText: 'workflows', kind: 7, detail: 'Workflow interfaces', commitCharacters: [' '] }),
-              withTextEdit({ label: 'jobs', insertText: 'jobs', kind: 7, detail: 'Job interfaces', commitCharacters: [' '] }),
-              withTextEdit({ label: 'users', insertText: 'users', kind: 7, detail: 'IDP users', commitCharacters: [' '] }),
+              withTextEdit({
+                label: 'services',
+                insertText: 'services',
+                kind: 7,
+                detail: 'Service interfaces',
+                commitCharacters: [' '],
+              }),
+              withTextEdit({
+                label: 'workflows',
+                insertText: 'workflows',
+                kind: 7,
+                detail: 'Workflow interfaces',
+                commitCharacters: [' '],
+              }),
+              withTextEdit({
+                label: 'jobs',
+                insertText: 'jobs',
+                kind: 7,
+                detail: 'Job interfaces',
+                commitCharacters: [' '],
+              }),
+              withTextEdit({
+                label: 'users',
+                insertText: 'users',
+                kind: 7,
+                detail: 'IDP users',
+                commitCharacters: [' '],
+              }),
             ];
           } else if (ctx.type === 'flag') {
             items = [
@@ -275,9 +295,24 @@ function setupBasicQonsoleMockServer(): IMockLspServer {
             ];
           } else if (ctx.type === 'flag-value') {
             items = [
-              withTextEdit({ label: 'qorus', insertText: 'qorus', kind: 12, detail: 'Qorus core app' }),
-              withTextEdit({ label: 'qorus-ide', insertText: 'qorus-ide', kind: 12, detail: 'Qorus IDE' }),
-              withTextEdit({ label: 'qorus-creator', insertText: 'qorus-creator', kind: 12, detail: 'Qorus Creator' }),
+              withTextEdit({
+                label: 'qorus',
+                insertText: 'qorus',
+                kind: 12,
+                detail: 'Qorus core app',
+              }),
+              withTextEdit({
+                label: 'qorus-ide',
+                insertText: 'qorus-ide',
+                kind: 12,
+                detail: 'Qorus IDE',
+              }),
+              withTextEdit({
+                label: 'qorus-creator',
+                insertText: 'qorus-creator',
+                kind: 12,
+                detail: 'Qorus Creator',
+              }),
             ];
           }
         }
@@ -520,8 +555,7 @@ export const WithDiagnostics: Story = {
                   start: { line: 0, character: 6 },
                   end: { line: 0, character: 14 },
                 },
-                message:
-                  'Unknown resource "services" — did you mean "service"?',
+                message: 'Unknown resource "services" — did you mean "service"?',
                 severity: 1,
               },
               {
@@ -676,9 +710,9 @@ export const WithWizardItems: Story = {
       () => {
         const dropdown = document.querySelector('.reqore-menu');
         expect(dropdown).not.toBeNull();
-        const item = Array.from(
-          document.querySelectorAll('.reqore-menu-item')
-        ).find((el) => el.textContent?.includes('Create connection'));
+        const item = Array.from(document.querySelectorAll('.reqore-menu-item')).find((el) =>
+          el.textContent?.includes('Create connection')
+        );
         expect(item).toBeDefined();
       },
       { timeout: 30000 }
@@ -701,7 +735,6 @@ export const WithWizardItems: Story = {
  */
 export const SelectingWizardItemFiresCallback: Story = {
   args: {
-    initialValue: '/',
     onWizardStart: fn(),
   },
   parameters: {
@@ -727,23 +760,22 @@ export const SelectingWizardItemFiresCallback: Story = {
     await userEvent.type(editable, '/');
     await waitFor(
       () => {
-        const item = Array.from(
-          document.querySelectorAll('.reqore-menu-item')
-        ).find((el) => el.textContent?.includes('Create connection'));
+        const item = Array.from(document.querySelectorAll('.reqore-menu-item')).find((el) =>
+          el.textContent?.includes('Create connection')
+        );
         expect(item).toBeDefined();
       },
       { timeout: 30000 }
     );
-    const wizardItem = Array.from(
-      document.querySelectorAll('.reqore-menu-item')
-    ).find((el) => el.textContent?.includes('Create connection'));
+    const wizardItem = Array.from(document.querySelectorAll('.reqore-menu-item')).find((el) =>
+      el.textContent?.includes('Create connection')
+    );
     await userEvent.click(wizardItem as HTMLElement);
     // The callback fired with the wizard descriptor...
     await waitFor(() => expect(args.onWizardStart).toHaveBeenCalled(), {
       timeout: 30000,
     });
-    const callArg = (args.onWizardStart as ReturnType<typeof fn>).mock
-      .calls[0][0];
+    const callArg = (args.onWizardStart as ReturnType<typeof fn>).mock.calls[0][0];
     expect(callArg).toMatchObject({ action: 'start-wizard' });
     // ...and NO text was inserted (wizard launch ≠ completion insert).
     expect(editable.textContent).toBe('/');
