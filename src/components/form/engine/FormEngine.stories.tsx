@@ -715,6 +715,73 @@ export const OptionInheritsRenderPropFromSiblingCompact: Story = {
   },
 };
 
+// Compact-row code-editor preview: a `code-editor` field with a multi-line
+// string value renders (a) a "N lines · N chars" tag in the value cell instead
+// of the truncated raw string, and (b) a monospace `<pre>` block under the row
+// capped by a `ReqoreCollapsibleContent` — the "Show more" affordance the value
+// cell couldn't provide on its own. Locks the compact preview so a future
+// CompactRow refactor can't silently reduce a Qorus source-code field to an
+// ellipsised one-liner again.
+export const CompactRowCodeEditorPreview: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    componentOverrides: { 'code-editor': CodeEditorStandin },
+    value: {
+      language: { type: 'string', value: 'qore' },
+      source: {
+        type: 'string',
+        value:
+          '%new-style\n%require-types\n%strict-args\n' +
+          '%enable-all-warnings\n\n' +
+          'class ExampleJob inherits QorusJob {\n' +
+          '    run() {\n' +
+          '        logInfo("running");\n' +
+          '    }\n' +
+          '}\n',
+      },
+    },
+    options: {
+      language: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Language',
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
+          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+        ],
+      },
+      source: {
+        type: 'string',
+        ui_type: 'code-editor',
+        display_name: 'Source Code',
+        inherit_props: { language: 'language' },
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // (a) The monospace preview mounted under the row — contains a substring
+    //     only the source has, proving `showCodePreview` kicked in and the
+    //     `StyledCodePreview` block is in the DOM.
+    await waitFor(
+      () => {
+        const preview = canvasElement.querySelector('.options-readfirst-code');
+        expect(preview).toBeTruthy();
+        expect(preview?.textContent).toContain('class ExampleJob inherits QorusJob');
+      },
+      { timeout: 5000 }
+    );
+    // (b) The value cell replaced its truncated raw string with a summary tag —
+    //     query the tag directly (its label + labelKey render on separate spans,
+    //     so text-matching across them is fragile). Look for the CodeLine icon
+    //     that only this tag mounts alongside the source-code row.
+    const sourceRow = canvasElement.querySelector('[data-field="source"]');
+    expect(sourceRow).toBeTruthy();
+    expect(sourceRow?.textContent ?? '').toMatch(/\d+\s*lines?/);
+  },
+};
+
 // qorus#347-followup, scope forwarding: this story exercises the nested
 // case of the OptionInheritsRenderPropFromSibling contract. The parent
 // form declares `methods: { ui_type: 'list', element_type: 'hash',

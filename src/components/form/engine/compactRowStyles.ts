@@ -335,6 +335,27 @@ export const StyledRowInset = styled.div`
   margin-top: 4px;
 `;
 
+// A collapsed code-block preview shown under the value summary for a
+// `code-editor` field.  Multi-line, monospace, subtle background — matches
+// the aesthetic of the classic code-view surface but small enough to sit
+// inside a read-row.  Height is capped by the wrapping `ReqoreCollapsibleContent`
+// so the "Show more" affordance stays useful.
+export const StyledCodePreview = styled.pre<{ $bg: string; $border: string; $fg: string }>`
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: ${({ $bg }) => $bg};
+  border: 1px solid ${({ $border }) => $border};
+  color: ${({ $fg }) => $fg};
+  font-family:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow: auto;
+  max-width: 100%;
+`;
+
 // A small inline colour swatch shown before an rgbcolor value's hex string.
 export const StyledColorSwatch = styled.span<{ $color: string; $border: string }>`
   width: 12px;
