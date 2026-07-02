@@ -55,3 +55,5 @@ export type {
 export * from './components/smartEditor';
 export * from './components/dpqlEditor';
 export * from './components/qonsoleSmartInput';
+export * from './components/supportTicket';
+export * from './components/ticketThread';
