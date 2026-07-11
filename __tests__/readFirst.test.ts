@@ -573,6 +573,27 @@ describe('getFirstRequiredEmptyOptionName', () => {
     expect(target).toBeUndefined();
   });
 
+  it('targets a multi-group field when ANY of its groups is unsatisfied (one satisfied, one not)', () => {
+    // `key` belongs to two one-of groups: `auth` is satisfied by a sibling, but
+    // `signing` is not — the field still needs attention for `signing`, matching
+    // the engine's per-row bucketing (attention if any group is unmet).
+    const target = getFirstRequiredEmptyOptionName(
+      ['key'],
+      metaFrom({ key: { requiredGroups: ['auth', 'signing'], value: '' } }),
+      { auth: 'password', signing: undefined }
+    );
+    expect(target).toBe('key');
+  });
+
+  it('skips a multi-group field only when ALL of its groups are satisfied', () => {
+    const target = getFirstRequiredEmptyOptionName(
+      ['key'],
+      metaFrom({ key: { requiredGroups: ['auth', 'signing'], value: '' } }),
+      { auth: 'password', signing: 'cert' }
+    );
+    expect(target).toBeUndefined();
+  });
+
   it('prefers an earlier standalone-required field over a later group field', () => {
     const target = getFirstRequiredEmptyOptionName(
       ['name', 'token', 'username'],

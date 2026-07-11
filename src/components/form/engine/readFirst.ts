@@ -548,7 +548,11 @@ export const getFirstRequiredEmptyOptionName = (
 
     const groups = meta.requiredGroups;
 
-    if (groups?.length && !groups.some((group) => requiredGroupSatisfiedBy[group])) {
+    // Attention if ANY of the field's one-of groups is still unsatisfied — the
+    // same rule the engine's `getOptionBucket` uses. (A field can belong to
+    // several groups; it still needs a value while any one of them is unmet,
+    // even if a sibling has already satisfied another.)
+    if (groups?.length && groups.some((group) => !requiredGroupSatisfiedBy[group])) {
       return name;
     }
   }
