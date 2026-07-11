@@ -502,3 +502,56 @@ export const getReadFirstCompletion = (
 
   return { total, set, pct };
 };
+
+/** What the "first field to fill" selector needs to know about one field.
+ * Kept deliberately minimal so the selector is decoupled from the engine's
+ * value/schema shapes and can be unit-tested in isolation. */
+export interface IFirstRequiredFieldMeta {
+  /** The field is `required` on its own. */
+  required?: boolean;
+  /** The `required_groups` (one-of groups) the field belongs to. */
+  requiredGroups?: string[];
+  /** The field's current value (checked with {@link isOptionValueEmpty}). */
+  value: unknown;
+  /** Whether the field can actually receive focus — the caller folds in
+   *  disabled / readonly / read-only-form / unmet-dependency gating here. */
+  focusable: boolean;
+}
+
+/**
+ * Pick the first field a user must fill: the first EMPTY, focusable field — in
+ * the supplied (already ordered) name list — that is either `required` or a
+ * member of a still-unsatisfied one-of `required_groups` group.
+ *
+ * Pure and side-effect free: the emptiness and one-of semantics reuse the same
+ * primitives ({@link isOptionValueEmpty}, the `requiredGroupSatisfiedBy` map the
+ * engine already computes) as the rest of read-first mode, so a form-level
+ * "focus the first missing field" affordance can never drift from the
+ * per-row "needs attention" status. Returns `undefined` when nothing needs
+ * attention.
+ */
+export const getFirstRequiredEmptyOptionName = (
+  orderedNames: string[],
+  getFieldMeta: (name: string) => IFirstRequiredFieldMeta | undefined,
+  requiredGroupSatisfiedBy: Record<string, string | undefined> = {}
+): string | undefined => {
+  for (const name of orderedNames) {
+    const meta = getFieldMeta(name);
+
+    if (!meta || !meta.focusable || !isOptionValueEmpty(meta.value)) {
+      continue;
+    }
+
+    if (meta.required) {
+      return name;
+    }
+
+    const groups = meta.requiredGroups;
+
+    if (groups?.length && !groups.some((group) => requiredGroupSatisfiedBy[group])) {
+      return name;
+    }
+  }
+
+  return undefined;
+};

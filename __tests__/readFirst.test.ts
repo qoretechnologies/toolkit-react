@@ -13,11 +13,13 @@ import {
   formatFileValue,
   formatOptionValue,
   getAllowedValueImage,
+  getFirstRequiredEmptyOptionName,
   getHashEntries,
   getOptionGroup,
   getOptionGroupLabel,
   getReadFirstCompletion,
   isOptionValueEmpty,
+  type IFirstRequiredFieldMeta,
 } from '../src/components/form/engine/readFirst';
 
 describe('isOptionValueEmpty', () => {
@@ -476,5 +478,119 @@ describe('getReadFirstCompletion', () => {
       c: { type: 'string', value: '' },
     });
     expect(result.pct).toBe(67); // 2/3 → 66.6 → 67
+  });
+});
+
+describe('getFirstRequiredEmptyOptionName', () => {
+  // Build a getFieldMeta callback from a plain map, defaulting focusable to true.
+  const metaFrom =
+    (fields: Record<string, Partial<IFirstRequiredFieldMeta>>) =>
+    (name: string): IFirstRequiredFieldMeta | undefined => {
+      const field = fields[name];
+      if (!field) return undefined;
+      return { value: field.value, focusable: field.focusable ?? true, ...field };
+    };
+
+  it('returns the first empty required field in the supplied order', () => {
+    const target = getFirstRequiredEmptyOptionName(
+      ['first', 'second'],
+      metaFrom({
+        first: { required: true, value: 'filled' },
+        second: { required: true, value: '' },
+      })
+    );
+    expect(target).toBe('second');
+  });
+
+  it('respects the given order, not the map insertion order', () => {
+    // Even though `b` is listed first in the meta map, `a` comes first in order.
+    const target = getFirstRequiredEmptyOptionName(
+      ['a', 'b'],
+      metaFrom({
+        b: { required: true, value: '' },
+        a: { required: true, value: '' },
+      })
+    );
+    expect(target).toBe('a');
+  });
+
+  it('skips filled required fields and non-required empty fields', () => {
+    const target = getFirstRequiredEmptyOptionName(
+      ['filledReq', 'optional', 'emptyReq'],
+      metaFrom({
+        filledReq: { required: true, value: 'x' },
+        optional: { value: '' },
+        emptyReq: { required: true, value: '' },
+      })
+    );
+    expect(target).toBe('emptyReq');
+  });
+
+  it('returns undefined when nothing needs attention', () => {
+    const target = getFirstRequiredEmptyOptionName(
+      ['a', 'b'],
+      metaFrom({
+        a: { required: true, value: 'x' },
+        b: { value: '' },
+      })
+    );
+    expect(target).toBeUndefined();
+  });
+
+  it('skips non-focusable (disabled/readonly/dependency-locked) required fields', () => {
+    const target = getFirstRequiredEmptyOptionName(
+      ['locked', 'open'],
+      metaFrom({
+        locked: { required: true, value: '', focusable: false },
+        open: { required: true, value: '' },
+      })
+    );
+    expect(target).toBe('open');
+  });
+
+  it('targets an empty member of an unsatisfied one-of required group', () => {
+    // Neither member set → the group is unsatisfied → the first member is the target.
+    const target = getFirstRequiredEmptyOptionName(
+      ['token', 'username'],
+      metaFrom({
+        token: { requiredGroups: ['auth'], value: '' },
+        username: { requiredGroups: ['auth'], value: '' },
+      }),
+      { auth: undefined }
+    );
+    expect(target).toBe('token');
+  });
+
+  it('skips a one-of group already satisfied by a sibling', () => {
+    const target = getFirstRequiredEmptyOptionName(
+      ['token', 'username'],
+      metaFrom({
+        token: { requiredGroups: ['auth'], value: '' },
+        username: { requiredGroups: ['auth'], value: 'tester' },
+      }),
+      { auth: 'username' } // group satisfied by the sibling
+    );
+    expect(target).toBeUndefined();
+  });
+
+  it('prefers an earlier standalone-required field over a later group field', () => {
+    const target = getFirstRequiredEmptyOptionName(
+      ['name', 'token', 'username'],
+      metaFrom({
+        name: { required: true, value: '' },
+        token: { requiredGroups: ['auth'], value: '' },
+        username: { requiredGroups: ['auth'], value: '' },
+      }),
+      { auth: undefined }
+    );
+    expect(target).toBe('name');
+  });
+
+  it('ignores fields missing from the meta lookup', () => {
+    const target = getFirstRequiredEmptyOptionName(
+      ['ghost', 'real'],
+      metaFrom({ real: { required: true, value: '' } })
+    );
+    expect(target).toBe('real');
   });
 });

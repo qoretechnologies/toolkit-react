@@ -94,6 +94,7 @@ import {
 import { OptionFieldMessages } from './OptionFieldMessages';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
+  getFirstRequiredEmptyOptionName,
   getOptionGroup,
   getOptionGroupLabel,
   getReadFirstBucket,
@@ -564,6 +565,19 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * plumbing for the inherit_props scope-forwarding contract.
    */
   inheritedFromParent?: Record<string, unknown>;
+
+  /**
+   * Opt-in: on mount, drop the user straight into the first field they must
+   * fill — the first empty, focusable field (in schema/sort order) that is
+   * `required` or a member of a still-unsatisfied one-of `required_groups`
+   * group. Disabled, readonly, read-only-form, and dependency-locked fields are
+   * skipped. In compact (read-first) mode the target row is expanded through
+   * the engine's own `expandedOptions` state, so its editor gains focus with no
+   * DOM scraping or synthetic clicks. One-shot per form identity (`name` + the
+   * schema's field set), and it never steals focus from a control the user has
+   * already moved into. No-op in classic (non-compact) mode. Default: off.
+   */
+  autoFocusFirstRequired?: boolean;
 }
 
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
@@ -602,6 +616,7 @@ export const FormEngine = ({
   optionActions,
   componentOverrides,
   inheritedFromParent,
+  autoFocusFirstRequired,
   ...rest
 }: IFormEngineProps) => {
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
@@ -1516,6 +1531,86 @@ export const FormEngine = ({
     },
     [expandMode]
   );
+
+  // --- First-required-field autofocus (opt-in) ------------------------------
+  // With `autoFocusFirstRequired`, drop the user straight into the first field
+  // they must fill. We reuse the engine's own ordering (`availableOptions`),
+  // required/one-of semantics (`requiredGroupsInfo`), and dependency gating
+  // (`dependencyLockedNames`) rather than re-deriving them, then expand the
+  // target row through `expandedOptions` — the row's editor-focus effect does
+  // the rest. No DOM scraping, no synthetic clicks, no polling.
+  //
+  // One-shot per form identity: the key folds in `name` and the schema's field
+  // set, so an async-loaded or swapped schema re-arms it, but value edits don't.
+  const autoFocusDoneKeyRef = useRef<string | undefined>(undefined);
+  const autoFocusKey = useMemo(
+    () => `${name}::${Object.keys(options || {}).sort().join(',')}`,
+    [name, options]
+  );
+  useEffect(() => {
+    if (!autoFocusFirstRequired || !compact || !options) {
+      return;
+    }
+    if (autoFocusDoneKeyRef.current === autoFocusKey) {
+      return;
+    }
+
+    const orderedNames = Object.keys(availableOptions);
+    if (!orderedNames.length) {
+      return;
+    }
+
+    // Never yank focus away from a control the user is already in (outside the
+    // form). Focus resting on the body / nothing / inside the form is fair game.
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body && !compactWrapNode?.contains(active)) {
+      return;
+    }
+
+    const target = getFirstRequiredEmptyOptionName(
+      orderedNames,
+      (fieldName) => {
+        const schema = options[fieldName];
+        if (!schema) {
+          return undefined;
+        }
+        return {
+          required: !!schema.required,
+          requiredGroups: schema.required_groups as string[] | undefined,
+          value: (availableOptions as TQorusForm)?.[fieldName]?.value,
+          focusable:
+            !readOnly &&
+            !schema.disabled &&
+            !(schema as { readonly?: boolean }).readonly &&
+            !dependencyLockedNames.includes(fieldName),
+        };
+      },
+      requiredGroupsInfo.satisfiedBy
+    );
+
+    // Settle for this form identity even when nothing needs attention, so value
+    // edits don't re-scan; a new schema/name re-arms via `autoFocusKey`.
+    autoFocusDoneKeyRef.current = autoFocusKey;
+
+    if (target) {
+      setExpandedOptions((prev) =>
+        prev.includes(target) ? prev
+        : expandMode === 'multi' ? [...prev, target]
+        : [target]
+      );
+    }
+  }, [
+    autoFocusFirstRequired,
+    compact,
+    autoFocusKey,
+    options,
+    availableOptions,
+    readOnly,
+    dependencyLockedNames,
+    requiredGroupsInfo,
+    compactWrapNode,
+    expandMode,
+  ]);
 
   // Read-first completion summary (how many shown options have a value set),
   // surfaced as a progress meter at the top of the compact form.

@@ -4402,3 +4402,48 @@ export const CompactFieldSortWithinGroups: Story = {
     await expect(document.querySelectorAll('.readfirst-cluster-first')).toHaveLength(2);
   },
 };
+
+// `autoFocusFirstRequired` drops the user straight into the first field they
+// must fill. Here `name` is required-but-filled and `description` is
+// required-but-empty, so the engine expands the `description` row on mount and
+// its editor takes focus — no click, no DOM scraping.
+export const CompactAutoFocusFirstRequired: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+    autoFocusFirstRequired: true,
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+
+    // The first empty required field (`description`) auto-expands into its
+    // inline editor without any interaction.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '[data-field="description"] input, [data-field="description"] textarea'
+          )
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+
+    // …and that editor receives focus (CompactRow focuses the expanded row's
+    // control). `name` is required but already filled, so it is skipped.
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        const field = document.querySelector('[data-field="description"]');
+        expect(!!active && !!field && field.contains(active)).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+
+    // The already-satisfied required field is NOT expanded/focused.
+    const nameField = document.querySelector('[data-field="name"]');
+    expect(nameField?.contains(document.activeElement)).toBeFalsy();
+  },
+};
