@@ -143,6 +143,7 @@ export const CompactRow = memo(
     const isExpanded = useContextSelector(CompactRowContext, (v) =>
       v.expandedOptions.includes(optionName)
     );
+    const autoFocusNameRef = useContextSelector(CompactRowContext, (v) => v.autoFocusNameRef);
     const isHighlighted = useContextSelector(CompactRowContext, (v) =>
       v.highlightedOptions.includes(optionName)
     );
@@ -437,10 +438,13 @@ export const CompactRow = memo(
         const el = editorRef.current?.querySelector<HTMLElement>(
           'input:not([type="hidden"]):not([disabled]), textarea, [contenteditable="true"]'
         );
-        el?.focus();
+        // A user-driven expand scrolls the just-opened editor into view; the
+        // programmatic `autoFocusFirstRequired` expand must NOT — otherwise an
+        // off-screen / below-the-fold form scrolls itself into view on mount.
+        el?.focus(autoFocusNameRef?.current === optionName ? { preventScroll: true } : undefined);
       }, 60);
       return () => window.clearTimeout(id);
-    }, [isExpanded]);
+    }, [isExpanded, optionName, autoFocusNameRef]);
 
     const revertButton =
       changed ?

@@ -1543,6 +1543,11 @@ export const FormEngine = ({
   // One-shot per form identity: the key folds in `name` and the schema's field
   // set, so an async-loaded or swapped schema re-arms it, but value edits don't.
   const autoFocusDoneKeyRef = useRef<string | undefined>(undefined);
+  // The field expanded programmatically for autofocus. A ref (not state) so
+  // CompactRow's 60ms focus timer reads the current value regardless of render
+  // batching; CompactRow focuses this one with `preventScroll` so an off-screen
+  // (or below-the-fold) form is never scrolled into view on mount.
+  const autoFocusNameRef = useRef<string | undefined>(undefined);
   const autoFocusKey = useMemo(
     () => `${name}::${Object.keys(options || {}).sort().join(',')}`,
     [name, options]
@@ -1560,10 +1565,13 @@ export const FormEngine = ({
       return;
     }
 
-    // Never yank focus away from a control the user is already in (outside the
-    // form). Focus resting on the body / nothing / inside the form is fair game.
+    // Never yank focus away from a control the user is already in — including a
+    // field *inside* this form. This is what makes re-arm safe: when the option
+    // set changes (async-loaded / swapped schema) while the user is editing a
+    // field, we must not steal their caret. On first mount focus rests on the
+    // body, so the intended "drop into the first field" still fires.
     const active = document.activeElement as HTMLElement | null;
-    if (active && active !== document.body && !compactWrapNode?.contains(active)) {
+    if (active && active !== document.body) {
       return;
     }
 
@@ -1593,6 +1601,8 @@ export const FormEngine = ({
     autoFocusDoneKeyRef.current = autoFocusKey;
 
     if (target) {
+      // Set the ref before the state update so CompactRow's focus timer sees it.
+      autoFocusNameRef.current = target;
       setExpandedOptions((prev) =>
         prev.includes(target) ? prev
         : expandMode === 'multi' ? [...prev, target]
@@ -1608,7 +1618,6 @@ export const FormEngine = ({
     readOnly,
     dependencyLockedNames,
     requiredGroupsInfo,
-    compactWrapNode,
     expandMode,
   ]);
 
@@ -1966,6 +1975,7 @@ export const FormEngine = ({
       showFieldTypes,
       showAllDescriptions,
       expandedOptions,
+      autoFocusNameRef,
       highlightedOptions,
       flashedOptions,
       infoPanelOverrides,
@@ -2010,6 +2020,7 @@ export const FormEngine = ({
       showFieldTypes,
       showAllDescriptions,
       expandedOptions,
+      autoFocusNameRef,
       highlightedOptions,
       flashedOptions,
       infoPanelOverrides,

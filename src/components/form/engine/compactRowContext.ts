@@ -34,6 +34,12 @@ export interface ICompactRowContext {
   // display name in the read-first chip.
   templates?: IReqoreFormTemplates;
   expandedOptions: string[];
+  // Name of the field the engine expanded programmatically for
+  // `autoFocusFirstRequired`. CompactRow focuses this one with `preventScroll`
+  // so an off-screen / below-the-fold form is never scrolled into view on
+  // mount. A ref (not state) so it's current when the 60ms focus timer fires,
+  // regardless of render batching.
+  autoFocusNameRef?: MutableRefObject<string | undefined>;
   highlightedOptions: string[];
   flashedOptions: string[];
   infoPanelOverrides: Record<string, boolean>;

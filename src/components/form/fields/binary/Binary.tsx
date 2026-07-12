@@ -54,6 +54,11 @@ export const ReqraftBinaryFormField = memo(
           setLocalValue(base64);
           onChange?.(base64);
         };
+        reader.onerror = () => {
+          // Surface the failure rather than silently swallowing it (a corrupt
+          // file, a permissions error, etc.). The value is left untouched.
+          console.error('ReqraftBinaryFormField: failed to read file', file.name, reader.error);
+        };
         reader.readAsDataURL(file);
       },
       [onChange]
