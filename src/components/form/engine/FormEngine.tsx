@@ -573,9 +573,12 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * group. Disabled, readonly, read-only-form, and dependency-locked fields are
    * skipped. In compact (read-first) mode the target row is expanded through
    * the engine's own `expandedOptions` state, so its editor gains focus with no
-   * DOM scraping or synthetic clicks. One-shot per form identity (`name` + the
-   * schema's field set), and it never steals focus from a control the user has
-   * already moved into. No-op in classic (non-compact) mode. Default: off.
+   * DOM scraping or synthetic clicks. Strictly one-shot: it fires the first
+   * time the form has focusable content (so an async-loaded schema is covered)
+   * and then never again — a later value edit, server-driven field update, or
+   * in-place schema reload will not re-focus; only a remount re-arms it. It also
+   * never steals focus from a control the user has already moved into. No-op in
+   * classic (non-compact) mode. Default: off.
    */
   autoFocusFirstRequired?: boolean;
 }
@@ -1540,23 +1543,23 @@ export const FormEngine = ({
   // target row through `expandedOptions` — the row's editor-focus effect does
   // the rest. No DOM scraping, no synthetic clicks, no polling.
   //
-  // One-shot per form identity: the key folds in `name` and the schema's field
-  // set, so an async-loaded or swapped schema re-arms it, but value edits don't.
-  const autoFocusDoneKeyRef = useRef<string | undefined>(undefined);
+  // Strictly one-shot: it fires the first time the form has focusable content
+  // (so an async-loaded schema is still covered — the empty first pass doesn't
+  // count), then never again for the life of this instance. A server-driven
+  // field update or an in-place schema reload will NOT re-grab focus; only a
+  // genuine remount (a fresh instance) auto-focuses again, which is the intended
+  // on-mount behaviour.
+  const hasAutoFocusedRef = useRef(false);
   // The field expanded programmatically for autofocus. A ref (not state) so
   // CompactRow's 60ms focus timer reads the current value regardless of render
   // batching; CompactRow focuses this one with `preventScroll` so an off-screen
   // (or below-the-fold) form is never scrolled into view on mount.
   const autoFocusNameRef = useRef<string | undefined>(undefined);
-  const autoFocusKey = useMemo(
-    () => `${name}::${Object.keys(options || {}).sort().join(',')}`,
-    [name, options]
-  );
   useEffect(() => {
     if (!autoFocusFirstRequired || !compact || !options) {
       return;
     }
-    if (autoFocusDoneKeyRef.current === autoFocusKey) {
+    if (hasAutoFocusedRef.current) {
       return;
     }
 
@@ -1565,11 +1568,12 @@ export const FormEngine = ({
       return;
     }
 
-    // Never yank focus away from a control the user is already in — including a
-    // field *inside* this form. This is what makes re-arm safe: when the option
-    // set changes (async-loaded / swapped schema) while the user is editing a
-    // field, we must not steal their caret. On first mount focus rests on the
-    // body, so the intended "drop into the first field" still fires.
+    // Never grab focus from a control the user is already in — including a field
+    // *inside* this form. If a slow/async schema lets the user start typing
+    // before this first-required scan runs, we must not steal their caret. On a
+    // clean mount focus rests on the body, so the intended "drop into the first
+    // field" still fires. Bailing here leaves `hasAutoFocusedRef` false, so it
+    // retries once focus is free.
     const active = document.activeElement as HTMLElement | null;
     if (active && active !== document.body) {
       return;
@@ -1596,9 +1600,10 @@ export const FormEngine = ({
       requiredGroupsInfo.satisfiedBy
     );
 
-    // Settle for this form identity even when nothing needs attention, so value
-    // edits don't re-scan; a new schema/name re-arms via `autoFocusKey`.
-    autoFocusDoneKeyRef.current = autoFocusKey;
+    // Mark done even when nothing needs attention, so later value edits or an
+    // in-place schema reload never re-scan or re-focus. Only a remount arms it
+    // again.
+    hasAutoFocusedRef.current = true;
 
     if (target) {
       // Set the ref before the state update so CompactRow's focus timer sees it.
@@ -1612,7 +1617,6 @@ export const FormEngine = ({
   }, [
     autoFocusFirstRequired,
     compact,
-    autoFocusKey,
     options,
     availableOptions,
     readOnly,
