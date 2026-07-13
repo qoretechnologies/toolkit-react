@@ -503,56 +503,41 @@ export const getReadFirstCompletion = (
   return { total, set, pct };
 };
 
-/** What the "first field to fill" selector needs to know about one field.
- * Kept deliberately minimal so the selector is decoupled from the engine's
- * value/schema shapes and can be unit-tested in isolation. */
-export interface IFirstRequiredFieldMeta {
-  /** The field is `required` on its own. */
-  required?: boolean;
-  /** The `required_groups` (one-of groups) the field belongs to. */
-  requiredGroups?: string[];
-  /** The field's current value (checked with {@link isOptionValueEmpty}). */
-  value: unknown;
+/** What the "first field to fix" selector needs to know about one field.
+ * Kept deliberately minimal — both verdicts are supplied by the caller — so the
+ * selector is decoupled from the engine's value/schema shapes and unit-testable
+ * in isolation. */
+export interface IFirstAttentionFieldMeta {
   /** Whether the field can actually receive focus — the caller folds in
    *  disabled / readonly / read-only-form / unmet-dependency gating here. */
   focusable: boolean;
+  /** Whether the form considers this field to "need attention". The caller
+   *  supplies this from the SAME `getOptionBucket` the read-first status boxes
+   *  use, so it covers every attention case — empty-required, an unsatisfied
+   *  one-of group, AND a filled-but-invalid value — and the autofocus target can
+   *  never drift from the visible needs-attention set. */
+  needsAttention: boolean;
 }
 
 /**
- * Pick the first field a user must fill: the first EMPTY, focusable field — in
- * the supplied (already ordered) name list — that is either `required` or a
- * member of a still-unsatisfied one-of `required_groups` group.
+ * Pick the first field the user must fix: the first focusable field — in the
+ * supplied (already ordered) name list — that the form buckets as "needs
+ * attention".
  *
- * Pure and side-effect free: the emptiness and one-of semantics reuse the same
- * primitives ({@link isOptionValueEmpty}, the `requiredGroupSatisfiedBy` map the
- * engine already computes) as the rest of read-first mode, so a form-level
- * "focus the first missing field" affordance can never drift from the
- * per-row "needs attention" status. Returns `undefined` when nothing needs
- * attention.
+ * Pure and side-effect free. It deliberately does NOT re-derive emptiness /
+ * required / validity itself; the caller passes `needsAttention` straight from
+ * the engine's own `getOptionBucket`, so there is a single source of truth and
+ * the "focus the first field to fix" affordance can never disagree with the
+ * per-row status the user sees (including filled-but-invalid rows). Returns
+ * `undefined` when nothing needs attention.
  */
-export const getFirstRequiredEmptyOptionName = (
+export const getFirstAttentionOptionName = (
   orderedNames: string[],
-  getFieldMeta: (name: string) => IFirstRequiredFieldMeta | undefined,
-  requiredGroupSatisfiedBy: Record<string, string | undefined> = {}
+  getFieldMeta: (name: string) => IFirstAttentionFieldMeta | undefined
 ): string | undefined => {
   for (const name of orderedNames) {
     const meta = getFieldMeta(name);
-
-    if (!meta || !meta.focusable || !isOptionValueEmpty(meta.value)) {
-      continue;
-    }
-
-    if (meta.required) {
-      return name;
-    }
-
-    const groups = meta.requiredGroups;
-
-    // Attention if ANY of the field's one-of groups is still unsatisfied — the
-    // same rule the engine's `getOptionBucket` uses. (A field can belong to
-    // several groups; it still needs a value while any one of them is unmet,
-    // even if a sibling has already satisfied another.)
-    if (groups?.length && groups.some((group) => !requiredGroupSatisfiedBy[group])) {
+    if (meta?.focusable && meta.needsAttention) {
       return name;
     }
   }

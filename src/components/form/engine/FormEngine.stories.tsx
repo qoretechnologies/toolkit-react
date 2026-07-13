@@ -4447,3 +4447,71 @@ export const CompactAutoFocusFirstRequired: Story = {
     expect(nameField?.contains(document.activeElement)).toBeFalsy();
   },
 };
+
+// A required field can be FILLED yet INVALID — here `endpoint` holds a value the
+// server flagged with a `danger` message. It still "needs attention", so
+// autofocus must land on IT and not skip ahead to the empty `description` (which
+// the old empty-only selector would have chosen). This is the regression guard
+// for the "filled-but-invalid" drift.
+const CompactInvalidFilledSchema: Record<string, TCompactField> = {
+  endpoint: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Endpoint',
+    required: true,
+    group: 'info',
+    // Server-attached validation message; a `danger` intent flags the (filled)
+    // field as invalid via the engine's own status model.
+    messages: [{ intent: 'danger', content: 'Not a reachable endpoint' }],
+  } as TCompactField,
+  description: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Description',
+    required: true,
+    group: 'general',
+  },
+};
+
+const CompactInvalidFilledValue: IOptions = {
+  endpoint: { type: 'string', value: 'bad-endpoint' }, // filled, but flagged invalid
+  // description left empty
+};
+
+export const CompactAutoFocusTargetsInvalidFilledField: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactInvalidFilledSchema,
+    value: CompactInvalidFilledValue,
+    groups: CompactGroups,
+    autoFocusFirstRequired: true,
+  },
+  play: async () => {
+    await _testsWaitForText('Endpoint');
+
+    // `endpoint` has a value but is flagged invalid, so it needs attention and
+    // must be the target — even though `description` is the empty required field
+    // the old empty-only logic would have picked.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('[data-field="endpoint"] input, [data-field="endpoint"] textarea')
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        const field = document.querySelector('[data-field="endpoint"]');
+        expect(!!active && !!field && field.contains(active)).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+
+    // The empty `description` is NOT the one expanded/focused.
+    const descField = document.querySelector('[data-field="description"]');
+    expect(descField?.contains(document.activeElement)).toBeFalsy();
+  },
+};

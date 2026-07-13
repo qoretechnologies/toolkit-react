@@ -94,7 +94,7 @@ import {
 import { OptionFieldMessages } from './OptionFieldMessages';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
-  getFirstRequiredEmptyOptionName,
+  getFirstAttentionOptionName,
   getOptionGroup,
   getOptionGroupLabel,
   getReadFirstBucket,
@@ -1535,13 +1535,15 @@ export const FormEngine = ({
     [expandMode]
   );
 
-  // --- First-required-field autofocus (opt-in) ------------------------------
+  // --- First-attention-field autofocus (opt-in) -----------------------------
   // With `autoFocusFirstRequired`, drop the user straight into the first field
-  // they must fill. We reuse the engine's own ordering (`availableOptions`),
-  // required/one-of semantics (`requiredGroupsInfo`), and dependency gating
-  // (`dependencyLockedNames`) rather than re-deriving them, then expand the
-  // target row through `expandedOptions` — the row's editor-focus effect does
-  // the rest. No DOM scraping, no synthetic clicks, no polling.
+  // they must fix. We reuse the engine's own ordering (`availableOptions`), the
+  // very same `getOptionBucket` the status boxes use to decide "needs attention"
+  // (so we cover empty-required, unsatisfied one-of, AND filled-but-invalid rows
+  // without ever drifting from what the user sees), and dependency gating
+  // (`dependencyLockedNames`), then expand the target row through
+  // `expandedOptions` — the row's editor-focus effect does the rest. No DOM
+  // scraping, no synthetic clicks, no polling.
   //
   // Strictly one-shot: it fires the first time the form has focusable content
   // (so an async-loaded schema is still covered — the empty first pass doesn't
@@ -1579,26 +1581,22 @@ export const FormEngine = ({
       return;
     }
 
-    const target = getFirstRequiredEmptyOptionName(
-      orderedNames,
-      (fieldName) => {
-        const schema = options[fieldName];
-        if (!schema) {
-          return undefined;
-        }
-        return {
-          required: !!schema.required,
-          requiredGroups: schema.required_groups as string[] | undefined,
-          value: (availableOptions as TQorusForm)?.[fieldName]?.value,
-          focusable:
-            !readOnly &&
-            !schema.disabled &&
-            !(schema as { readonly?: boolean }).readonly &&
-            !dependencyLockedNames.includes(fieldName),
-        };
-      },
-      requiredGroupsInfo.satisfiedBy
-    );
+    const target = getFirstAttentionOptionName(orderedNames, (fieldName) => {
+      const schema = options[fieldName];
+      if (!schema) {
+        return undefined;
+      }
+      return {
+        focusable:
+          !readOnly &&
+          !schema.disabled &&
+          !(schema as { readonly?: boolean }).readonly &&
+          !dependencyLockedNames.includes(fieldName),
+        // Single source of truth: the same bucket the read-first status boxes
+        // show, so a filled-but-invalid required row is a target too.
+        needsAttention: getOptionBucket(fieldName) === 'attention',
+      };
+    });
 
     // Mark done even when nothing needs attention, so later value edits or an
     // in-place schema reload never re-scan or re-focus. Only a remount arms it
@@ -1621,7 +1619,7 @@ export const FormEngine = ({
     availableOptions,
     readOnly,
     dependencyLockedNames,
-    requiredGroupsInfo,
+    getOptionBucket,
     expandMode,
   ]);
 

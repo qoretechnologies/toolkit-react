@@ -13,13 +13,15 @@ import {
   formatFileValue,
   formatOptionValue,
   getAllowedValueImage,
-  getFirstRequiredEmptyOptionName,
+  getFirstAttentionOptionName,
   getHashEntries,
   getOptionGroup,
   getOptionGroupLabel,
+  getReadFirstBucket,
   getReadFirstCompletion,
+  getReadFirstStatus,
   isOptionValueEmpty,
-  type IFirstRequiredFieldMeta,
+  type IFirstAttentionFieldMeta,
 } from '../src/components/form/engine/readFirst';
 
 describe('isOptionValueEmpty', () => {
@@ -481,137 +483,123 @@ describe('getReadFirstCompletion', () => {
   });
 });
 
-describe('getFirstRequiredEmptyOptionName', () => {
+describe('getFirstAttentionOptionName', () => {
   // Build a getFieldMeta callback from a plain map, defaulting focusable to true.
   const metaFrom =
-    (fields: Record<string, Partial<IFirstRequiredFieldMeta>>) =>
-    (name: string): IFirstRequiredFieldMeta | undefined => {
+    (fields: Record<string, Partial<IFirstAttentionFieldMeta>>) =>
+    (name: string): IFirstAttentionFieldMeta | undefined => {
       const field = fields[name];
       if (!field) return undefined;
-      return { value: field.value, focusable: field.focusable ?? true, ...field };
+      return { needsAttention: !!field.needsAttention, focusable: field.focusable ?? true };
     };
 
-  it('returns the first empty required field in the supplied order', () => {
-    const target = getFirstRequiredEmptyOptionName(
+  it('returns the first attention field in the supplied order', () => {
+    const target = getFirstAttentionOptionName(
       ['first', 'second'],
-      metaFrom({
-        first: { required: true, value: 'filled' },
-        second: { required: true, value: '' },
-      })
+      metaFrom({ first: { needsAttention: false }, second: { needsAttention: true } })
     );
     expect(target).toBe('second');
   });
 
   it('respects the given order, not the map insertion order', () => {
     // Even though `b` is listed first in the meta map, `a` comes first in order.
-    const target = getFirstRequiredEmptyOptionName(
+    const target = getFirstAttentionOptionName(
       ['a', 'b'],
-      metaFrom({
-        b: { required: true, value: '' },
-        a: { required: true, value: '' },
-      })
+      metaFrom({ b: { needsAttention: true }, a: { needsAttention: true } })
     );
     expect(target).toBe('a');
   });
 
-  it('skips filled required fields and non-required empty fields', () => {
-    const target = getFirstRequiredEmptyOptionName(
-      ['filledReq', 'optional', 'emptyReq'],
-      metaFrom({
-        filledReq: { required: true, value: 'x' },
-        optional: { value: '' },
-        emptyReq: { required: true, value: '' },
-      })
+  it('skips fields that do not need attention', () => {
+    const target = getFirstAttentionOptionName(
+      ['ok', 'fix'],
+      metaFrom({ ok: { needsAttention: false }, fix: { needsAttention: true } })
     );
-    expect(target).toBe('emptyReq');
+    expect(target).toBe('fix');
   });
 
-  it('returns undefined when nothing needs attention', () => {
-    const target = getFirstRequiredEmptyOptionName(
-      ['a', 'b'],
-      metaFrom({
-        a: { required: true, value: 'x' },
-        b: { value: '' },
-      })
-    );
-    expect(target).toBeUndefined();
-  });
-
-  it('skips non-focusable (disabled/readonly/dependency-locked) required fields', () => {
-    const target = getFirstRequiredEmptyOptionName(
+  it('skips non-focusable (disabled/readonly/dependency-locked) fields even when they need attention', () => {
+    const target = getFirstAttentionOptionName(
       ['locked', 'open'],
       metaFrom({
-        locked: { required: true, value: '', focusable: false },
-        open: { required: true, value: '' },
+        locked: { needsAttention: true, focusable: false },
+        open: { needsAttention: true },
       })
     );
     expect(target).toBe('open');
   });
 
-  it('targets an empty member of an unsatisfied one-of required group', () => {
-    // Neither member set → the group is unsatisfied → the first member is the target.
-    const target = getFirstRequiredEmptyOptionName(
-      ['token', 'username'],
-      metaFrom({
-        token: { requiredGroups: ['auth'], value: '' },
-        username: { requiredGroups: ['auth'], value: '' },
-      }),
-      { auth: undefined }
-    );
-    expect(target).toBe('token');
-  });
-
-  it('skips a one-of group already satisfied by a sibling', () => {
-    const target = getFirstRequiredEmptyOptionName(
-      ['token', 'username'],
-      metaFrom({
-        token: { requiredGroups: ['auth'], value: '' },
-        username: { requiredGroups: ['auth'], value: 'tester' },
-      }),
-      { auth: 'username' } // group satisfied by the sibling
+  it('returns undefined when nothing needs attention', () => {
+    const target = getFirstAttentionOptionName(
+      ['a', 'b'],
+      metaFrom({ a: { needsAttention: false }, b: { needsAttention: false } })
     );
     expect(target).toBeUndefined();
-  });
-
-  it('targets a multi-group field when ANY of its groups is unsatisfied (one satisfied, one not)', () => {
-    // `key` belongs to two one-of groups: `auth` is satisfied by a sibling, but
-    // `signing` is not — the field still needs attention for `signing`, matching
-    // the engine's per-row bucketing (attention if any group is unmet).
-    const target = getFirstRequiredEmptyOptionName(
-      ['key'],
-      metaFrom({ key: { requiredGroups: ['auth', 'signing'], value: '' } }),
-      { auth: 'password', signing: undefined }
-    );
-    expect(target).toBe('key');
-  });
-
-  it('skips a multi-group field only when ALL of its groups are satisfied', () => {
-    const target = getFirstRequiredEmptyOptionName(
-      ['key'],
-      metaFrom({ key: { requiredGroups: ['auth', 'signing'], value: '' } }),
-      { auth: 'password', signing: 'cert' }
-    );
-    expect(target).toBeUndefined();
-  });
-
-  it('prefers an earlier standalone-required field over a later group field', () => {
-    const target = getFirstRequiredEmptyOptionName(
-      ['name', 'token', 'username'],
-      metaFrom({
-        name: { required: true, value: '' },
-        token: { requiredGroups: ['auth'], value: '' },
-        username: { requiredGroups: ['auth'], value: '' },
-      }),
-      { auth: undefined }
-    );
-    expect(target).toBe('name');
   });
 
   it('ignores fields missing from the meta lookup', () => {
-    const target = getFirstRequiredEmptyOptionName(
+    const target = getFirstAttentionOptionName(
       ['ghost', 'real'],
-      metaFrom({ real: { required: true, value: '' } })
+      metaFrom({ real: { needsAttention: true } })
     );
     expect(target).toBe('real');
+  });
+});
+
+describe('getReadFirstStatus', () => {
+  // Per-field status that feeds the read-first buckets. Anything other than
+  // 'set' / 'optional' surfaces the row for attention (see getReadFirstBucket).
+  const status = (s: Partial<Parameters<typeof getReadFirstStatus>[0]>) =>
+    getReadFirstStatus({
+      empty: false,
+      required: false,
+      covered: false,
+      invalid: false,
+      warned: false,
+      ...s,
+    });
+
+  it("marks an empty required field 'todo'", () => {
+    expect(status({ empty: true, required: true })).toBe('todo');
+  });
+
+  it("marks a filled, valid field 'set'", () => {
+    expect(status({ empty: false })).toBe('set');
+  });
+
+  it("marks a FILLED but INVALID field 'invalid', not 'set'", () => {
+    // The case behind the autofocus fix: a required field can carry a value and
+    // still need fixing, so it must not read as a completed ('set') row.
+    expect(status({ empty: false, required: true, invalid: true })).toBe('invalid');
+  });
+
+  it("treats an empty one-of member covered by a satisfied sibling as 'set'", () => {
+    expect(status({ empty: true, required: true, covered: true })).toBe('set');
+  });
+
+  it("marks an empty warned field 'todo'", () => {
+    expect(status({ empty: true, warned: true })).toBe('todo');
+  });
+
+  it("marks an empty, non-required, non-warned field 'optional'", () => {
+    expect(status({ empty: true })).toBe('optional');
+  });
+});
+
+describe('getReadFirstBucket', () => {
+  it("buckets 'invalid' as 'attention' (a filled-but-invalid row still needs fixing)", () => {
+    expect(getReadFirstBucket('invalid')).toBe('attention');
+  });
+
+  it("buckets 'todo' as 'attention'", () => {
+    expect(getReadFirstBucket('todo')).toBe('attention');
+  });
+
+  it("buckets 'set' as 'set'", () => {
+    expect(getReadFirstBucket('set')).toBe('set');
+  });
+
+  it("buckets 'optional' as 'optional'", () => {
+    expect(getReadFirstBucket('optional')).toBe('optional');
   });
 });
