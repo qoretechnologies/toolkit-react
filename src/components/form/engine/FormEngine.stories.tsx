@@ -4402,3 +4402,172 @@ export const CompactFieldSortWithinGroups: Story = {
     await expect(document.querySelectorAll('.readfirst-cluster-first')).toHaveLength(2);
   },
 };
+
+// `autoFocusFirstRequired` drops the user straight into the first field they
+// must fill. Here `name` is required-but-filled and `description` is
+// required-but-empty, so the engine expands the `description` row on mount and
+// its editor takes focus — no click, no DOM scraping.
+export const CompactAutoFocusFirstRequired: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+    autoFocusFirstRequired: true,
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+
+    // The first empty required field (`description`) auto-expands into its
+    // inline editor without any interaction.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '[data-field="description"] input, [data-field="description"] textarea'
+          )
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+
+    // …and that editor receives focus (CompactRow focuses the expanded row's
+    // control). `name` is required but already filled, so it is skipped.
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        const field = document.querySelector('[data-field="description"]');
+        expect(!!active && !!field && field.contains(active)).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+
+    // The already-satisfied required field is NOT expanded/focused.
+    const nameField = document.querySelector('[data-field="name"]');
+    expect(nameField?.contains(document.activeElement)).toBeFalsy();
+  },
+};
+
+// A required field can be FILLED yet INVALID — here `endpoint` has a value that
+// fails its own `validation_regex` (it must be an http(s) URL). It still "needs
+// attention", so autofocus must land on IT and not skip ahead to the empty
+// `description` (which the old empty-only selector would have chosen). This is
+// the regression guard for the "filled-but-invalid" drift.
+const CompactInvalidFilledSchema: Record<string, TCompactField> = {
+  endpoint: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Endpoint URL',
+    required: true,
+    group: 'info',
+    // Real format constraint: the value must be an http(s) URL. `validation_regex`
+    // is read by the engine's own validation (helpers/validations.ts); it's not on
+    // the base schema type, so cast.
+    validation_regex: '^https?://',
+  } as TCompactField,
+  description: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Description',
+    required: true,
+    group: 'general',
+  },
+};
+
+const CompactInvalidFilledValue: IOptions = {
+  endpoint: { type: 'string', value: 'bad-endpoint' }, // filled, but not an http(s) URL → fails validation_regex
+  // description left empty
+};
+
+export const CompactAutoFocusTargetsInvalidFilledField: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactInvalidFilledSchema,
+    value: CompactInvalidFilledValue,
+    groups: CompactGroups,
+    autoFocusFirstRequired: true,
+  },
+  play: async () => {
+    await _testsWaitForText('Endpoint URL');
+
+    // Sanity: the value genuinely fails the field's own validation (it isn't an
+    // http(s) URL), using the very same validator the engine runs — so this is a
+    // real filled-but-INVALID field, not a synthetically-flagged one.
+    expect(validateField('string', 'bad-endpoint', { validation_regex: '^https?://' })).toBe(false);
+
+    // `endpoint` has a value but is invalid, so it needs attention and must be
+    // the target — even though `description` is the empty required field the old
+    // empty-only logic would have picked.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('[data-field="endpoint"] input, [data-field="endpoint"] textarea')
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        const field = document.querySelector('[data-field="endpoint"]');
+        expect(!!active && !!field && field.contains(active)).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+
+    // The empty `description` is NOT the one expanded/focused.
+    const descField = document.querySelector('[data-field="description"]');
+    expect(descField?.contains(document.activeElement)).toBeFalsy();
+  },
+};
+
+// DEMO / manual-test story: the first "needs attention" field is a BOOLEAN,
+// whose compact editor is a `<div tabindex=0>` (ReqoreCheckbox) — NOT an
+// input/textarea/contenteditable that CompactRow's focus selector matches. Both
+// `enabled` and `name` are required and unset, so both need attention; `enabled`
+// is first. Open this in Storybook to see the UX: autofocus TARGETS the boolean
+// (its row expands) and does NOT skip ahead to the focusable `name` field — but
+// no element inside actually receives keyboard focus, so the caret is left
+// nowhere. (This is the non-text-editor focus gap; kept as a playground rather
+// than a hard assertion until we decide how CompactRow should focus such rows.)
+const CompactNonFocusableFirstSchema: Record<string, TCompactField> = {
+  enabled: {
+    type: 'bool',
+    ui_type: 'bool',
+    display_name: 'Enabled',
+    short_desc: 'A boolean — the first field that needs attention',
+    required: true,
+    preselected: true,
+    group: 'info',
+  },
+  name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Name',
+    short_desc: 'A focusable text field — comes second',
+    required: true,
+    preselected: true,
+    group: 'general',
+  },
+};
+
+const CompactNonFocusableFirstValue: IOptions = {}; // both unset → both need attention
+
+export const CompactAutoFocusNonFocusableFirstField: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactNonFocusableFirstSchema,
+    value: CompactNonFocusableFirstValue,
+    groups: CompactGroups,
+    autoFocusFirstRequired: true,
+  },
+  play: async () => {
+    // Smoke: both required-but-unset fields render (both land in "needs
+    // attention"), with the boolean first. Focus behaviour is intentionally left
+    // for manual observation — see the note above.
+    await _testsWaitForText('Enabled');
+    await _testsWaitForText('Name');
+  },
+};

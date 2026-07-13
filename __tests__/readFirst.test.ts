@@ -13,11 +13,15 @@ import {
   formatFileValue,
   formatOptionValue,
   getAllowedValueImage,
+  getFirstAttentionOptionName,
   getHashEntries,
   getOptionGroup,
   getOptionGroupLabel,
+  getReadFirstBucket,
   getReadFirstCompletion,
+  getReadFirstStatus,
   isOptionValueEmpty,
+  type IFirstAttentionFieldMeta,
 } from '../src/components/form/engine/readFirst';
 
 describe('isOptionValueEmpty', () => {
@@ -476,5 +480,126 @@ describe('getReadFirstCompletion', () => {
       c: { type: 'string', value: '' },
     });
     expect(result.pct).toBe(67); // 2/3 → 66.6 → 67
+  });
+});
+
+describe('getFirstAttentionOptionName', () => {
+  // Build a getFieldMeta callback from a plain map, defaulting focusable to true.
+  const metaFrom =
+    (fields: Record<string, Partial<IFirstAttentionFieldMeta>>) =>
+    (name: string): IFirstAttentionFieldMeta | undefined => {
+      const field = fields[name];
+      if (!field) return undefined;
+      return { needsAttention: !!field.needsAttention, focusable: field.focusable ?? true };
+    };
+
+  it('returns the first attention field in the supplied order', () => {
+    const target = getFirstAttentionOptionName(
+      ['first', 'second'],
+      metaFrom({ first: { needsAttention: false }, second: { needsAttention: true } })
+    );
+    expect(target).toBe('second');
+  });
+
+  it('respects the given order, not the map insertion order', () => {
+    // Even though `b` is listed first in the meta map, `a` comes first in order.
+    const target = getFirstAttentionOptionName(
+      ['a', 'b'],
+      metaFrom({ b: { needsAttention: true }, a: { needsAttention: true } })
+    );
+    expect(target).toBe('a');
+  });
+
+  it('skips fields that do not need attention', () => {
+    const target = getFirstAttentionOptionName(
+      ['ok', 'fix'],
+      metaFrom({ ok: { needsAttention: false }, fix: { needsAttention: true } })
+    );
+    expect(target).toBe('fix');
+  });
+
+  it('skips non-focusable (disabled/readonly/dependency-locked) fields even when they need attention', () => {
+    const target = getFirstAttentionOptionName(
+      ['locked', 'open'],
+      metaFrom({
+        locked: { needsAttention: true, focusable: false },
+        open: { needsAttention: true },
+      })
+    );
+    expect(target).toBe('open');
+  });
+
+  it('returns undefined when nothing needs attention', () => {
+    const target = getFirstAttentionOptionName(
+      ['a', 'b'],
+      metaFrom({ a: { needsAttention: false }, b: { needsAttention: false } })
+    );
+    expect(target).toBeUndefined();
+  });
+
+  it('ignores fields missing from the meta lookup', () => {
+    const target = getFirstAttentionOptionName(
+      ['ghost', 'real'],
+      metaFrom({ real: { needsAttention: true } })
+    );
+    expect(target).toBe('real');
+  });
+});
+
+describe('getReadFirstStatus', () => {
+  // Per-field status that feeds the read-first buckets. Anything other than
+  // 'set' / 'optional' surfaces the row for attention (see getReadFirstBucket).
+  const status = (s: Partial<Parameters<typeof getReadFirstStatus>[0]>) =>
+    getReadFirstStatus({
+      empty: false,
+      required: false,
+      covered: false,
+      invalid: false,
+      warned: false,
+      ...s,
+    });
+
+  it("marks an empty required field 'todo'", () => {
+    expect(status({ empty: true, required: true })).toBe('todo');
+  });
+
+  it("marks a filled, valid field 'set'", () => {
+    expect(status({ empty: false })).toBe('set');
+  });
+
+  it("marks a FILLED but INVALID field 'invalid', not 'set'", () => {
+    // The case behind the autofocus fix: a required field can carry a value and
+    // still need fixing, so it must not read as a completed ('set') row.
+    expect(status({ empty: false, required: true, invalid: true })).toBe('invalid');
+  });
+
+  it("treats an empty one-of member covered by a satisfied sibling as 'set'", () => {
+    expect(status({ empty: true, required: true, covered: true })).toBe('set');
+  });
+
+  it("marks an empty warned field 'todo'", () => {
+    expect(status({ empty: true, warned: true })).toBe('todo');
+  });
+
+  it("marks an empty, non-required, non-warned field 'optional'", () => {
+    expect(status({ empty: true })).toBe('optional');
+  });
+});
+
+describe('getReadFirstBucket', () => {
+  it("buckets 'invalid' as 'attention' (a filled-but-invalid row still needs fixing)", () => {
+    expect(getReadFirstBucket('invalid')).toBe('attention');
+  });
+
+  it("buckets 'todo' as 'attention'", () => {
+    expect(getReadFirstBucket('todo')).toBe('attention');
+  });
+
+  it("buckets 'set' as 'set'", () => {
+    expect(getReadFirstBucket('set')).toBe('set');
+  });
+
+  it("buckets 'optional' as 'optional'", () => {
+    expect(getReadFirstBucket('optional')).toBe('optional');
   });
 });

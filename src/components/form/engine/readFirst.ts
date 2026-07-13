@@ -502,3 +502,45 @@ export const getReadFirstCompletion = (
 
   return { total, set, pct };
 };
+
+/** What the "first field to fix" selector needs to know about one field.
+ * Kept deliberately minimal — both verdicts are supplied by the caller — so the
+ * selector is decoupled from the engine's value/schema shapes and unit-testable
+ * in isolation. */
+export interface IFirstAttentionFieldMeta {
+  /** Whether the field can actually receive focus — the caller folds in
+   *  disabled / readonly / read-only-form / unmet-dependency gating here. */
+  focusable: boolean;
+  /** Whether the form considers this field to "need attention". The caller
+   *  supplies this from the SAME `getOptionBucket` the read-first status boxes
+   *  use, so it covers every attention case — empty-required, an unsatisfied
+   *  one-of group, AND a filled-but-invalid value — and the autofocus target can
+   *  never drift from the visible needs-attention set. */
+  needsAttention: boolean;
+}
+
+/**
+ * Pick the first field the user must fix: the first focusable field — in the
+ * supplied (already ordered) name list — that the form buckets as "needs
+ * attention".
+ *
+ * Pure and side-effect free. It deliberately does NOT re-derive emptiness /
+ * required / validity itself; the caller passes `needsAttention` straight from
+ * the engine's own `getOptionBucket`, so there is a single source of truth and
+ * the "focus the first field to fix" affordance can never disagree with the
+ * per-row status the user sees (including filled-but-invalid rows). Returns
+ * `undefined` when nothing needs attention.
+ */
+export const getFirstAttentionOptionName = (
+  orderedNames: string[],
+  getFieldMeta: (name: string) => IFirstAttentionFieldMeta | undefined
+): string | undefined => {
+  for (const name of orderedNames) {
+    const meta = getFieldMeta(name);
+    if (meta?.focusable && meta.needsAttention) {
+      return name;
+    }
+  }
+
+  return undefined;
+};

@@ -39,7 +39,14 @@ jobs:
 
       - name: Print head git commit message
         id: get_head_commit_message
-        run: echo "::set-output name=HEAD_COMMIT_MESSAGE::$(git show -s --format=%s)"
+        run: |
+          # Capture the commit subject and JSON-escape it (backslashes first, then
+          # double quotes) so a message containing quotes cannot break the
+          # DISCORD_EMBEDS JSON payload that interpolates this value downstream.
+          msg=$(git show -s --format=%s)
+          msg=${msg//\\/\\\\}
+          msg=${msg//\"/\\\"}
+          echo "HEAD_COMMIT_MESSAGE=$msg" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v3
         with:
