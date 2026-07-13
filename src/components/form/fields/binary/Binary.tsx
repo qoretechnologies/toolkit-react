@@ -1,8 +1,8 @@
-import { ReqoreButton, ReqoreControlGroup, ReqorePanel, ReqoreTextarea } from '@qoretechnologies/reqore';
+import { ReqoreControlGroup, ReqoreTextarea } from '@qoretechnologies/reqore';
 import { IReqoreTextareaProps } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { ChangeEvent, memo, useCallback, useEffect, useState } from 'react';
-import { useDropzone } from 'react-dropzone';
 import { useDebounce } from 'react-use';
+import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
 
 export interface IReqraftBinaryFormFieldProps extends Omit<IReqoreTextareaProps, 'onChange' | 'value'> {
   value?: string;
@@ -11,7 +11,8 @@ export interface IReqraftBinaryFormFieldProps extends Omit<IReqoreTextareaProps,
 
 /**
  * Strip a `data:<mime-type>;base64,` prefix so the emitted value carries raw base64, matching the
- * canonical binary wire form the Qorus server expects.
+ * canonical binary wire form the Qorus server expects. `ReqraftFileFormField` reads uploads with
+ * `readAsDataURL`, so its `content` always carries that prefix.
  */
 const stripDataUrlPrefix = (dataUrl: string): string => {
   const commaIndex = dataUrl.indexOf(',');
@@ -19,8 +20,10 @@ const stripDataUrlPrefix = (dataUrl: string): string => {
 };
 
 /**
- * A field for binary values encoded as base64. The value can be typed or pasted directly, or populated by
- * uploading a file, which is read and base64-encoded client-side.
+ * A field for binary values encoded as base64. The value can be typed or pasted directly into the
+ * textarea, or populated by uploading a file — the upload reuses {@link ReqraftFileFormField} (the
+ * shared Reqraft file picker / drop zone) rather than a bespoke dropzone; its data-URL content is
+ * decoded to raw base64 for the field value.
  */
 export const ReqraftBinaryFormField = memo(
   ({ value, onChange, ...rest }: IReqraftBinaryFormFieldProps) => {
@@ -42,38 +45,18 @@ export const ReqraftBinaryFormField = memo(
       [localValue, onChange]
     );
 
-    const handleDrop = useCallback(
-      (files: File[]) => {
-        const file = files[0];
-        if (!file) {
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = stripDataUrlPrefix(reader.result as string);
-          setLocalValue(base64);
-          onChange?.(base64);
-        };
-        reader.onerror = () => {
-          // Surface the failure rather than silently swallowing it (a corrupt
-          // file, a permissions error, etc.). The value is left untouched.
-          console.error('ReqraftBinaryFormField: failed to read file', file.name, reader.error);
-        };
-        reader.readAsDataURL(file);
-      },
-      [onChange]
-    );
-
-    const { getRootProps, getInputProps } = useDropzone({
-      maxFiles: 1,
-      multiple: false,
-      disabled: rest.disabled,
-      onDrop: handleDrop,
-    });
-
     const handleChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>): void => {
       setLocalValue(event.target.value);
     }, []);
+
+    const handleFileChange = useCallback(
+      (file?: IFileFormFieldValue) => {
+        const base64 = stripDataUrlPrefix(file?.content ?? '');
+        setLocalValue(base64);
+        onChange?.(base64);
+      },
+      [onChange]
+    );
 
     return (
       <ReqoreControlGroup vertical fluid>
@@ -89,13 +72,7 @@ export const ReqraftBinaryFormField = memo(
           placeholder='Base64-encoded binary value'
           {...rest}
         />
-        <ReqorePanel flat rounded padded={false} {...getRootProps()}>
-          {/* hidden file input required by react-dropzone (same pattern as the File field) */}
-          <input {...getInputProps()} />
-          <ReqoreButton icon='Upload2Line' minimal fluid disabled={rest.disabled}>
-            Upload a file to encode as base64
-          </ReqoreButton>
-        </ReqorePanel>
+        <ReqraftFileFormField disabled={rest.disabled} onChange={handleFileChange} />
       </ReqoreControlGroup>
     );
   }

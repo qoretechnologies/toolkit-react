@@ -63,7 +63,7 @@ export const TypingUpdatesValue: Story = {
 export const UploadEncodesFileAsBase64: Story = {
   async play({ canvasElement, args }) {
     const file = new File(['hello'], 'test.bin', { type: 'application/octet-stream' });
-    // the hidden react-dropzone input is a type=file input inside the upload panel
+    // the hidden file input rendered by the reused ReqraftFileFormField drop zone
     const input = canvasElement.querySelector('input[type="file"]') as HTMLInputElement;
 
     await expect(input).toBeInTheDocument();
