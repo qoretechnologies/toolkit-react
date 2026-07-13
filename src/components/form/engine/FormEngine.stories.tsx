@@ -4448,21 +4448,22 @@ export const CompactAutoFocusFirstRequired: Story = {
   },
 };
 
-// A required field can be FILLED yet INVALID — here `endpoint` holds a value the
-// server flagged with a `danger` message. It still "needs attention", so
-// autofocus must land on IT and not skip ahead to the empty `description` (which
-// the old empty-only selector would have chosen). This is the regression guard
-// for the "filled-but-invalid" drift.
+// A required field can be FILLED yet INVALID — here `endpoint` has a value that
+// fails its own `validation_regex` (it must be an http(s) URL). It still "needs
+// attention", so autofocus must land on IT and not skip ahead to the empty
+// `description` (which the old empty-only selector would have chosen). This is
+// the regression guard for the "filled-but-invalid" drift.
 const CompactInvalidFilledSchema: Record<string, TCompactField> = {
   endpoint: {
     type: 'string',
     ui_type: 'string',
-    display_name: 'Endpoint',
+    display_name: 'Endpoint URL',
     required: true,
     group: 'info',
-    // Server-attached validation message; a `danger` intent flags the (filled)
-    // field as invalid via the engine's own status model.
-    messages: [{ intent: 'danger', content: 'Not a reachable endpoint' }],
+    // Real format constraint: the value must be an http(s) URL. `validation_regex`
+    // is read by the engine's own validation (helpers/validations.ts); it's not on
+    // the base schema type, so cast.
+    validation_regex: '^https?://',
   } as TCompactField,
   description: {
     type: 'string',
@@ -4474,7 +4475,7 @@ const CompactInvalidFilledSchema: Record<string, TCompactField> = {
 };
 
 const CompactInvalidFilledValue: IOptions = {
-  endpoint: { type: 'string', value: 'bad-endpoint' }, // filled, but flagged invalid
+  endpoint: { type: 'string', value: 'bad-endpoint' }, // filled, but not an http(s) URL → fails validation_regex
   // description left empty
 };
 
@@ -4488,11 +4489,16 @@ export const CompactAutoFocusTargetsInvalidFilledField: Story = {
     autoFocusFirstRequired: true,
   },
   play: async () => {
-    await _testsWaitForText('Endpoint');
+    await _testsWaitForText('Endpoint URL');
 
-    // `endpoint` has a value but is flagged invalid, so it needs attention and
-    // must be the target — even though `description` is the empty required field
-    // the old empty-only logic would have picked.
+    // Sanity: the value genuinely fails the field's own validation (it isn't an
+    // http(s) URL), using the very same validator the engine runs — so this is a
+    // real filled-but-INVALID field, not a synthetically-flagged one.
+    expect(validateField('string', 'bad-endpoint', { validation_regex: '^https?://' })).toBe(false);
+
+    // `endpoint` has a value but is invalid, so it needs attention and must be
+    // the target — even though `description` is the empty required field the old
+    // empty-only logic would have picked.
     await waitFor(
       () =>
         expect(
