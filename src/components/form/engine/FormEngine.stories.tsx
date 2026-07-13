@@ -4521,3 +4521,53 @@ export const CompactAutoFocusTargetsInvalidFilledField: Story = {
     expect(descField?.contains(document.activeElement)).toBeFalsy();
   },
 };
+
+// DEMO / manual-test story: the first "needs attention" field is a BOOLEAN,
+// whose compact editor is a `<div tabindex=0>` (ReqoreCheckbox) — NOT an
+// input/textarea/contenteditable that CompactRow's focus selector matches. Both
+// `enabled` and `name` are required and unset, so both need attention; `enabled`
+// is first. Open this in Storybook to see the UX: autofocus TARGETS the boolean
+// (its row expands) and does NOT skip ahead to the focusable `name` field — but
+// no element inside actually receives keyboard focus, so the caret is left
+// nowhere. (This is the non-text-editor focus gap; kept as a playground rather
+// than a hard assertion until we decide how CompactRow should focus such rows.)
+const CompactNonFocusableFirstSchema: Record<string, TCompactField> = {
+  enabled: {
+    type: 'bool',
+    ui_type: 'bool',
+    display_name: 'Enabled',
+    short_desc: 'A boolean — the first field that needs attention',
+    required: true,
+    preselected: true,
+    group: 'info',
+  },
+  name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Name',
+    short_desc: 'A focusable text field — comes second',
+    required: true,
+    preselected: true,
+    group: 'general',
+  },
+};
+
+const CompactNonFocusableFirstValue: IOptions = {}; // both unset → both need attention
+
+export const CompactAutoFocusNonFocusableFirstField: Story = {
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactNonFocusableFirstSchema,
+    value: CompactNonFocusableFirstValue,
+    groups: CompactGroups,
+    autoFocusFirstRequired: true,
+  },
+  play: async () => {
+    // Smoke: both required-but-unset fields render (both land in "needs
+    // attention"), with the boolean first. Focus behaviour is intentionally left
+    // for manual observation — see the note above.
+    await _testsWaitForText('Enabled');
+    await _testsWaitForText('Name');
+  },
+};
