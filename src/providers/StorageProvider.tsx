@@ -53,7 +53,7 @@ export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorag
       includeAppPrefix: boolean = true
     ) {
       const _path = includeAppPrefix ? `${appName}.${path}` : path;
-      const updatedStorage = set(cloneDeep(currentUser?.storage), _path, value);
+      const updatedStorage = set(cloneDeep(currentUser?.storage ?? {}), _path, value);
 
       updateCurrentUserStorage(updatedStorage);
 
@@ -66,7 +66,7 @@ export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorag
     function (path: string, includeAppPrefix: boolean = true) {
       const _path = includeAppPrefix ? `${appName}.${path}` : path;
 
-      const updatedStorage = set(cloneDeep(currentUser?.storage), _path, null);
+      const updatedStorage = set(cloneDeep(currentUser?.storage ?? {}), _path, null);
 
       updateCurrentUserStorage(updatedStorage);
 
