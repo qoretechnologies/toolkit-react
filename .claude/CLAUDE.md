@@ -167,10 +167,13 @@ yarn build:test         # Type-check without emit
 - `pre-push` hook enforces: `build:test:prod`, `lint`, `test`
 - Branch naming: always start with the issue number, e.g. `feature/49_pooled-connections`
 
-### Versioning
+### Versioning — every PR to `develop` MUST bump the version
 
-- The package is in **beta** (pre-1.0): bump the **patch** for a PR — e.g. `0.10.4` → `0.10.5`. Do NOT bump minor/major for ordinary feature/fix PRs while in beta.
-- Bump in `package.json` only (no git tag): `npm version patch --no-git-tag-version`, and include it in the PR's commit.
+`.github/workflows/beta_release.yml` runs on **every push to `develop`** and publishes to NPM using whatever `version` is in `package.json` at push time. A merge without a bump therefore tries to re-publish an already-published version and **fails** (NPM refuses to re-publish). This applies to **every** PR — features, fixes, chores, and docs-only changes alike. There is no exception.
+
+- Bump the **patch** for an ordinary PR while in beta (pre-1.0) — e.g. `0.10.9` → `0.10.10`. Do NOT bump minor/major for ordinary feature/fix PRs.
+- Bump in `package.json` only (no git tag): `npm version patch --no-git-tag-version`, and include the bump in the PR's commit.
+- If another PR bumps to the same version before yours merges, rebase and bump again — the version at merge time must be strictly greater than the last published one.
 
 ### Testing Patterns
 
