@@ -1,4 +1,36 @@
-# ReQraft AI Coding Agent Instructions
+@~/Projects/instruction-files/CLAUDE.md
+@~/Projects/instruction-files/stacks/frontend/FRONTEND.md
+
+# ReQraft (toolkit-react) — Claude entry point
+
+## Shared Qore rules (READ FIRST)
+
+The two `@`-imports above load the shared rules from the **instruction-files**
+repo: the org-wide baseline (`CLAUDE.md`) and the frontend ruleset
+(`stacks/frontend/FRONTEND.md`) — git safety, commit conventions, CI
+monitoring, `/audit`, the Reqore-first rule, the Storybook + Qlip visual-change
+flow, story descriptions, and more. Those files point on to
+`stacks/frontend/BRAND_DESIGN.md` for brand / UI-design decisions (read it
+before building any visual surface). **Everything below this section is
+specific to ReQraft (toolkit-react).**
+
+**If the imports above did not load** — you don't see the shared rules because
+this repo is cloned somewhere other than `~/Projects/instruction-files` — find
+the shared repo before doing any frontend work:
+
+1. Check for a gitignored **`.instruction-files-path`** file at this repo's
+   root. If it exists, read the path `P` from it, then read `P/CLAUDE.md` and
+   `P/stacks/frontend/FRONTEND.md` (+ `P/stacks/frontend/BRAND_DESIGN.md` for
+   UI work) and follow them.
+2. Otherwise locate the `instruction-files` repo on disk (try
+   `~/Projects/instruction-files`, then your other project roots). If found at
+   `P`, write `P` into `.instruction-files-path` (create it — it's gitignored)
+   so future sessions skip the search, then read the files above.
+3. If it isn't cloned anywhere, **STOP and ask the user to clone it**:
+   `git clone git@github.com:qoretechnologies/instruction-files.git ~/Projects/instruction-files`
+   Do not proceed with frontend work until the shared rules are loaded.
+
+# ReQraft (toolkit-react) — project-specific rules
 
 ## Project Overview
 
@@ -17,16 +49,6 @@ ReQraft (`@qoretechnologies/reqraft`) is a **React hooks and components toolkit*
 - **Storybook port:** `6008` (not 6007 — that's reqore)
 
 ## Architecture Essentials
-
-### General Development Practices
-
-- Focus on user experience and performance first; complexity and tech debt are secondary
-- Follow existing code patterns; refer to similar hooks/components for guidance
-- Check if a helper or utility already exists before writing a new one
-- Use TypeScript with strict typing; prefix interfaces with `I` and types with `T`
-- Always use named exports for React components and hooks
-- Use functional components with React hooks; wrap in `memo()` unless there's a reason not to
-- Wrap callbacks in `useCallback()` and computed values in `useMemo()` unless there's a reason not to
 
 ### Provider Stack (`src/providers/`)
 
@@ -167,8 +189,6 @@ yarn build:test         # Type-check without emit
 
 ### Naming
 
-- Interfaces: `I` prefix (e.g., `IReqraftUseFetch`)
-- Types: `T` prefix (e.g., `TReqraftMenu`)
 - Enums: PascalCase (e.g., `ReqraftWebSocketStatus`)
 - Hooks: `useReqraft*` prefix
 - Providers: `Reqraft*Provider`
@@ -249,7 +269,5 @@ yarn build:test         # Type-check without emit
 
 ## Other
 
-- You may need to source zsh to get some commands (like `gh`) working: `source ~/.zshrc`
-- Branch naming convention: `feature/<issue-number>_<short-description>` (e.g., `feature/49_pooled-connections`)
 - This library is a **peer-dependency consumer** of ReQore — do not copy ReQore internals here; import from `@qoretechnologies/reqore` instead
 - `yarn update-reqore` updates ReQore to the latest beta
