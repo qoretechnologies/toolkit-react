@@ -30,3 +30,6 @@ debug-storybook.log
 # Per-agent local-only config (Claude Preview launch, etc.)
 .claude/launch.json
 qlip/
+
+# Local cache of the instruction-files repo path (per-dev, not committed)
+.instruction-files-path
