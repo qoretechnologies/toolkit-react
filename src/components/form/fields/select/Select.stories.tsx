@@ -35,6 +35,14 @@ export const Items: Story = {
       { display_name: 'Item 2', value: 'item2' },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with two simple items and no value. Clicking the trigger opens the popover with the item list.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await fireEvent.click(canvas.getByRole('button'));
@@ -45,6 +53,14 @@ export const Items: Story = {
 };
 
 export const ItemsWithDescription: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with twenty items, each carrying a description, icon or image. Opening the picker mounts a modal collection with all twenty entries.',
+      },
+    },
+  },
   args: {
     items: [
       { display_name: 'Item 1', desc: 'This is item 1', value: 'item1', icon: 'MoneyEuroCircleFill', groups: ['Miscellaneous'] },
@@ -81,6 +97,14 @@ export const ItemsWithDescription: Story = {
 };
 
 export const ItemsWithDescriptionAndMessages: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with two items that carry inline messages of different intents. The picker modal shows the messages beneath each item.',
+      },
+    },
+  },
   args: {
     items: [
       {
@@ -121,6 +145,14 @@ export const DisabledItemsWithIntent: Story = {
       { display_name: 'Disabled Item with Intent', intent: 'danger', disabled: true, value: 'item5' },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with a mix of enabled, disabled and intent-tagged items — the disabled entries are non-interactive while success/danger items carry their intent styling.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await fireEvent.click(canvas.getByRole('button'));
@@ -137,6 +169,14 @@ export const DisabledItemsWithIntentAndDescriptions: Story = {
       { display_name: 'Item with intent', intent: 'success', short_desc: 'This is item 4', value: 'item4' },
       { display_name: 'Disabled Item with Intent', intent: 'danger', disabled: true, short_desc: 'This is item 5', value: 'item5' },
     ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with five items mixing intents, descriptions and disabled states — the picker modal shows all five so their combined presentation can be reviewed.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -157,6 +197,14 @@ export const WithValue: Story = {
       { display_name: 'Item 2', value: 'item2' },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with two items and item2 pre-selected — the trigger shows the selected label and clicking it opens the popover.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole('button')).toBeInTheDocument();
@@ -173,6 +221,14 @@ export const WithValueAndErrors: Story = {
       { display_name: 'Item 2', desc: 'This is item 1', value: 'item2', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with a danger-intent item in the list, but the selected value points at the healthy item — the trigger stays clean while the picker highlights the danger item.',
+      },
+    },
+  },
 };
 
 export const WithValueAndErrorsSelected: Story = {
@@ -182,6 +238,14 @@ export const WithValueAndErrorsSelected: Story = {
       { display_name: 'Item 1', desc: 'This is item 1', intent: 'danger', value: 'item1' },
       { display_name: 'Item 2', desc: 'This is item 1', value: 'item2' },
     ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with the danger-intent item pre-selected — the trigger carries the danger styling so the operator can see the selected item has an error.',
+      },
+    },
   },
 };
 
@@ -193,12 +257,28 @@ export const WithValueAndWarningsSelected: Story = {
       { display_name: 'Item 2', desc: 'This is item 1', value: 'item2' },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with a pre-selected item whose metadata declares needs_auth — the trigger surfaces the warning so the operator knows the item needs configuration.',
+      },
+    },
+  },
 };
 
 export const AutoSelect: Story = {
   args: {
     autoSelect: true,
     items: [{ display_name: 'Item 1', value: 'item1' }],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with autoSelect and a single item — the field auto-selects the only option and the trigger shows its label on mount.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -211,6 +291,14 @@ export const AutoSelectWithShortDescriptions: Story = {
     autoSelect: true,
     items: [{ display_name: 'Item 1', short_desc: 'Short item 1 description', value: 'item1' }],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with autoSelect and a single item that carries a short description — the field auto-selects and the trigger shows both the label and the short description.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await waitFor(() => expect(canvas.getByText('Item 1')).toBeInTheDocument(), { timeout: 500 });
@@ -221,6 +309,14 @@ export const AutoSelectWithDescriptions: Story = {
   args: {
     autoSelect: true,
     items: [{ display_name: 'Item 1', desc: 'This is item 1', value: 'item1' }],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with autoSelect and a single item that carries a full description — the field auto-selects and the trigger shows the label with the description.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -239,6 +335,14 @@ export const ItemValuesAreObjectsAndCanBeSelected: Story = {
         value: { id: { type: 'string', value: 'item2' } },
       },
     ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with items whose values are hashes rather than primitives. The unlabelled first item shows its JSON as the trigger label; picking the second item swaps the selection to its display_name.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);

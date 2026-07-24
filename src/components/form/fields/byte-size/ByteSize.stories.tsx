@@ -30,6 +30,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ByteSize field with no value. Typing a number into the amount input fires onChange with the composed byte-size expression.',
+      },
+    },
+  },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText('Byte size amount');
@@ -43,6 +51,14 @@ export const WithValue: Story = {
   args: {
     value: '512MiB',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ByteSize field pre-populated with "512MiB" — the amount and unit are split across the number input and the MiB unit selector.',
+      },
+    },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByDisplayValue('512')).toBeInTheDocument();
@@ -54,6 +70,14 @@ export const ReadOnly: Story = {
   args: {
     value: '512MiB',
     readOnly: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ByteSize field with "512MiB" in read-only mode — the amount input is marked readonly and rejects further edits.',
+      },
+    },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

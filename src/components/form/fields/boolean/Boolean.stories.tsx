@@ -34,6 +34,14 @@ export const Checked: Story = {
   args: {
     checked: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Boolean field in the checked state. Clicking the toggle flips it to unchecked and fires onChange with false.',
+      },
+    },
+  },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
 
@@ -49,6 +57,14 @@ export const Unchecked: Story = {
   args: {
     checked: false,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Boolean field in the unchecked state. Clicking the toggle flips it to checked and fires onChange with true.',
+      },
+    },
+  },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
 
@@ -63,5 +79,13 @@ export const Disabled: Story = {
   args: {
     checked: true,
     disabled: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Boolean field checked and disabled — the toggle is visible but non-interactive.',
+      },
+    },
   },
 };

@@ -113,6 +113,14 @@ export const Default: Story = {
   args: {
     returnType: ['string', 'int'],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ExpressionBuilder with no value and a string-or-int return type — a single empty expression card is shown so the operator can pick an operation.',
+      },
+    },
+  },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
   },
@@ -121,6 +129,14 @@ export const Default: Story = {
 export const DefaultBoolean: Story = {
   args: {
     returnType: ['boolean'],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation.',
+      },
+    },
   },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
@@ -139,6 +155,14 @@ export const WithSimpleValue: Story = {
           { type: 'string', value: 'es' },
           { type: 'bool', value: true },
         ],
+      },
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ExpressionBuilder holding a single "contains" expression with three arguments — the card shows the operation and each operand slot.',
       },
     },
   },
@@ -234,6 +258,14 @@ export const WithComplexValue: Story = {
       },
     },
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ExpressionBuilder holding a nested &&/|| expression with six leaf expressions — the builder shows the full expression tree with the AND/OR group cards and their operand cards.',
+      },
+    },
+  },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(6), { timeout: 10000 });
   },
@@ -241,6 +273,15 @@ export const WithComplexValue: Story = {
 
 export const ShowsExplanation: Story = {
   ...WithComplexValue,
+  parameters: {
+    ...WithComplexValue.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the nested expression tree and clicks Explain — the plain-language explanation of the whole expression is shown alongside the builder.',
+      },
+    },
+  },
   play: async (args) => {
     await WithComplexValue.play!(args);
     await clickButtonByLabel('Explain');
@@ -260,6 +301,15 @@ export const Readonly: Story = {
     ...WithComplexValue.args,
     readOnly: true,
   },
+  parameters: {
+    ...WithComplexValue.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the nested expression tree with readOnly enabled — the tree is visible but the AND/OR add-group controls are hidden so the operator cannot mutate it.',
+      },
+    },
+  },
   play: async (args) => {
     await WithComplexValue.play!(args);
     expect(document.querySelector('.expression-and')).toBeNull();
@@ -268,6 +318,15 @@ export const Readonly: Story = {
 
 export const FocusedEditing: Story = {
   ...WithComplexValue,
+  parameters: {
+    ...WithComplexValue.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the nested expression tree, hovers a card and clicks its fullscreen action — the focused-editing modal opens over that subtree.',
+      },
+    },
+  },
   play: async (args) => {
     await WithComplexValue.play!(args);
     await userEvent.hover(document.querySelectorAll('.expression')[0]);
@@ -287,6 +346,14 @@ export const FocusedEditing: Story = {
 export const WithArgWithAllowedValues: Story = {
   args: {
     returnType: ['bool'],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an empty ExpressionBuilder and selects "Matches Regular Expression" — the third operand ("Regex Options") carries element_allowed_values and renders the "Select one or more" picker.',
+      },
+    },
   },
   play: async (args) => {
     await Default.play!(args);
@@ -311,6 +378,14 @@ export const WithIntType: Story = {
       },
     },
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ExpressionBuilder with an int-typed >= expression comparing $local:input to 20 — the operands render as Number fields inside the expression card.',
+      },
+    },
+  },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
   },
@@ -326,6 +401,15 @@ export const WithIntType: Story = {
  */
 export const ArgsChangeWhenOperatorChanges: Story = {
   ...WithSimpleValue,
+  parameters: {
+    ...WithSimpleValue.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the seeded "String Contains" expression, then switches the operation to "Matches Regular Expression" — the string operands carry over and the new "Regex Options" allowed-values operand appears.',
+      },
+    },
+  },
   play: async () => {
     // Both string operands of the seeded `contains` render as textareas.
     await waitFor(
@@ -344,6 +428,14 @@ export const NewGroupsCanBeCreated: Story = {
     ...WithSimpleValue.args,
     returnType: ['bool'],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the seeded "String Contains" expression, then clicks the AND and OR add-group actions — the tree grows from 1 to 3 expression cards as new grouping levels are added.',
+      },
+    },
+  },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
 
@@ -357,6 +449,15 @@ export const NewGroupsCanBeCreated: Story = {
 
 export const GroupsCanBeDeleted: Story = {
   ...WithComplexValue,
+  parameters: {
+    ...WithComplexValue.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the nested expression tree (6 cards) and removes one group — the tree shrinks to 5 cards after the delete.',
+      },
+    },
+  },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(6), { timeout: 10000 });
 
@@ -377,6 +478,14 @@ export const GroupsCanBeDeleted: Story = {
  * inline `AiAssistanceAction({ context: selectedExpression })` captured.
  */
 export const WithInjectedExtraActions: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the nested expression tree with an extraActions factory that injects an AI-assist button per card. Hovering an expression reveals the injected action alongside the built-in ones.',
+      },
+    },
+  },
   args: {
     ...WithComplexValue.args,
     extraActions: ({ selectedExpression }) => [
@@ -428,6 +537,14 @@ export const ExpressionWithIntReturnType: Story = {
       is_expression: true,
     },
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ExpressionBuilder with a "+" (Addition) varargs expression holding four int operands — the three "rest" args each expose a remove-argument button.',
+      },
+    },
+  },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     // Three "rest" args → three remove-argument buttons.
@@ -438,6 +555,15 @@ export const ExpressionWithIntReturnType: Story = {
 /** Remove one variable argument — the remove-arg count drops from 3 to 2. */
 export const VariableArgumentsCanBeRemoved: Story = {
   ...ExpressionWithIntReturnType,
+  parameters: {
+    ...ExpressionWithIntReturnType.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the "+" varargs expression and clicks one remove-argument button — one operand disappears and the remove-arg count drops from 3 to 2.',
+      },
+    },
+  },
   play: async (args) => {
     await ExpressionWithIntReturnType.play!(args);
 
@@ -450,6 +576,15 @@ export const VariableArgumentsCanBeRemoved: Story = {
 /** Remove one then add one back — the count returns to 3. */
 export const VariableArgumentsCanBeAdded: Story = {
   ...ExpressionWithIntReturnType,
+  parameters: {
+    ...ExpressionWithIntReturnType.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the "+" varargs expression, removes one operand and then adds one back — the remove-arg count moves 3 → 2 → 3.',
+      },
+    },
+  },
   play: async (args) => {
     await ExpressionWithIntReturnType.play!(args);
 
@@ -487,6 +622,14 @@ export const ExpressionCanBeWrapped: Story = {
     returnType: ['string', 'int'],
     value: seededConvert,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a seeded "Convert to Boolean" expression, hovers the card and picks "Join List Elements" from the Wrap picker — the outer op mounts and the original expression becomes its first operand.',
+      },
+    },
+  },
   play: async () => {
     // Seeded base op + its operand render.
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
@@ -506,6 +649,15 @@ export const ExpressionCanBeWrapped: Story = {
 /** Wrap, then unwrap — back to a single expression card. */
 export const ExpressionCanBeUnwrapped: Story = {
   ...ExpressionCanBeWrapped,
+  parameters: {
+    ...ExpressionCanBeWrapped.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the wrapped expression from ExpressionCanBeWrapped, then hovers and unwraps the outer op — the inner "Convert to Boolean" survives and the outer wrapper is removed.',
+      },
+    },
+  },
   play: async (args) => {
     await ExpressionCanBeWrapped.play!(args);
 
@@ -579,6 +731,14 @@ const SeededMismatchBase: Story = {
  * exact, so the builder flags it and the confirmation modal mounts.
  */
 export const FunctionArgsArePassedToNewFunctionAndNeedConfirmation: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a valued "Format Date" expression and switches the operation to "Matches Regular Expression" — the carried date arg is accepted-but-not-exact for the new richtext operand and the mismatched-arguments confirmation modal mounts.',
+      },
+    },
+  },
   args: {
     returnType: 'string',
     value: {
@@ -616,6 +776,15 @@ export const FunctionArgsArePassedToNewFunctionAndNeedConfirmation: Story = {
 /** "Confirm selection" keeps the (still-selected) mismatched arg, transformed. */
 export const AcceptIncompatibleFunctionArgsSelection: Story = {
   ...SeededMismatchBase,
+  parameters: {
+    ...SeededMismatchBase.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the seeded mismatch-flagged expression, then clicks "Confirm selection" on the mismatched-arguments modal — the (still-selected) argument is kept and transformed to the new expected type.',
+      },
+    },
+  },
   play: async (args) => {
     await SeededMismatchBase.play!(args);
 
@@ -636,6 +805,15 @@ export const AcceptIncompatibleFunctionArgsSelection: Story = {
 /** "Accept all" — every mismatched arg is transformed and kept. */
 export const AcceptAllIncompatibleFunctionArgs: Story = {
   ...SeededMismatchBase,
+  parameters: {
+    ...SeededMismatchBase.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the seeded mismatch-flagged expression, then clicks "Accept all" on the mismatched-arguments modal — every flagged argument is transformed and kept.',
+      },
+    },
+  },
   play: async (args) => {
     await SeededMismatchBase.play!(args);
 
@@ -655,6 +833,15 @@ export const AcceptAllIncompatibleFunctionArgs: Story = {
 /** "Discard all" — every mismatched arg is cleared. */
 export const DiscardAllIncompatibleFunctionArgs: Story = {
   ...SeededMismatchBase,
+  parameters: {
+    ...SeededMismatchBase.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the seeded mismatch-flagged expression, then clicks "Discard all" on the mismatched-arguments modal — every flagged argument is cleared.',
+      },
+    },
+  },
   play: async (args) => {
     await SeededMismatchBase.play!(args);
 

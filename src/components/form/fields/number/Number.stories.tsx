@@ -38,6 +38,14 @@ export const Integer: Story = {
     value: 42,
     type: 'int',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Number field in integer mode with 42 pre-populated. Typing a new integer updates the value and fires onChange after the debounce.',
+      },
+    },
+  },
   async play({ args, canvasElement }) {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText('Number');
@@ -58,6 +66,14 @@ export const Float: Story = {
     value: 3.14,
     type: 'float',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Number field in float mode with 3.14 pre-populated — the input uses a 0.1 step and accepts decimals.',
+      },
+    },
+  },
   async play({ args, canvasElement }) {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText('Number');
@@ -76,6 +92,13 @@ export const Empty: Story = {
   args: {
     type: 'int',
   },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Renders the Number field in integer mode with no value — the input mounts empty.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText('Number');
@@ -90,6 +113,14 @@ export const Disabled: Story = {
     value: 99,
     type: 'int',
     disabled: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Number field with a value but disabled — the input shows the value and rejects further edits.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);

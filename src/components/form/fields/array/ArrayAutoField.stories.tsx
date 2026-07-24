@@ -83,6 +83,14 @@ export const CompactEmpty: Story = {
     type: 'string',
     value: [],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ArrayAutoField in compact string mode with no items — only the entry input and a disabled confirm button are visible.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
@@ -101,6 +109,14 @@ export const CompactWithValues: Story = {
   args: {
     type: 'string',
     value: ['hello', 'world'],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ArrayAutoField in compact string mode with two existing items — the values are shown as tags above the entry input.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -121,6 +137,14 @@ export const CompactAddItem: Story = {
   args: {
     type: 'string',
     value: ['existing'],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ArrayAutoField in compact string mode with one existing item. Typing into the input and clicking confirm appends the new item and fires onChange with the full list.',
+      },
+    },
   },
   async play({ args }) {
     await waitFor(
@@ -156,6 +180,14 @@ export const CompactEditItem: Story = {
   args: {
     type: 'string',
     value: ['alpha', 'beta'],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ArrayAutoField in compact string mode with two items. Clicking a tag\'s edit action loads its value into the input; editing and confirming replaces the tag in place.',
+      },
+    },
   },
   async play({ args }) {
     await waitFor(
@@ -199,6 +231,14 @@ export const CompactRemoveItem: Story = {
     type: 'string',
     value: ['one', 'two', 'three'],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ArrayAutoField in compact string mode with three items. Clicking the middle tag\'s remove action drops it from the list and fires onChange with the remaining two.',
+      },
+    },
+  },
   async play({ args }) {
     await waitFor(
       () => expect(document.querySelectorAll('.array-auto-compact-tag').length).toBe(3),
@@ -230,6 +270,14 @@ export const CompactWithNumbers: Story = {
     value: [10, 20, 30],
     renderItem: numberRenderItem,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ArrayAutoField in compact int mode with three numeric items — the tags show 10, 20 and 30 and the entry input uses the Number field.',
+      },
+    },
+  },
   async play() {
     await waitFor(
       () => expect(document.querySelectorAll('.array-auto-compact-tag').length).toBe(3),
@@ -243,6 +291,14 @@ export const CompactDisabled: Story = {
     type: 'string',
     value: ['locked'],
     disabled: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ArrayAutoField in compact string mode with one item but disabled — the tag is visible without edit/remove actions and no entry input is shown.',
+      },
+    },
   },
   async play() {
     await waitFor(
@@ -266,6 +322,14 @@ export const ComplexHashItems: Story = {
     type: 'hash',
     value: [{ key: 'value' }],
     display_name: 'Hash Items',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ArrayAutoField in hash mode with one hash item — the field switches to the panel-based layout rather than compact tags.',
+      },
+    },
   },
   async play() {
     // Should render panel-based UI, not compact tags
