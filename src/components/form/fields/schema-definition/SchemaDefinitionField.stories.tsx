@@ -40,6 +40,14 @@ type Story = StoryObj<typeof meta>;
 /** Empty definition — the catalogue drives the full tab set. */
 export const Empty: Story = {
   args: {},
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SchemaDefinition editor with no existing value — the Schema, Tables, Sequences and Migrations tabs mount straight from the catalogue.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     // Tabs come straight from the catalogue's `definition` sections.
@@ -59,12 +67,28 @@ export const Starter: Story = {
   args: {
     value: starterDefinition,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SchemaDefinition editor seeded with the "example_schema" starter template — the Schema tab shows the single scaffolded table.',
+      },
+    },
+  },
 };
 
 /** A realistic populated schema — two tables, sequence, reference data, migrations. */
 export const Populated: Story = {
   args: {
     value: mockPopulatedDefinition,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SchemaDefinition editor with the populated fixture. Opening the Tables tab shows the customers and addresses tables.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -81,6 +105,14 @@ export const ReadOnly: Story = {
     value: mockPopulatedDefinition,
     readOnly: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SchemaDefinition editor with readOnly enabled — every input becomes a typeset display row and no inputs, textareas or selects are rendered.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText('Schema')).toBeInTheDocument();
@@ -94,6 +126,14 @@ export const CatalogError: Story = {
   args: {
     catalogError: 'Schema options are unavailable on this server.',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SchemaDefinition editor when the catalogue fetch fails — a "Could not load schema options" callout replaces the form.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText('Could not load schema options')).toBeInTheDocument();
@@ -106,6 +146,14 @@ export const CatalogError: Story = {
  * wired. `catalogOverride` rides in via `fieldProps`.
  */
 export const ViaFormField: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SchemaDefinition editor through the FormField dispatcher (type="schema-definition"). The catalogue is injected via fieldProps and the Schema and Tables tabs mount as usual.',
+      },
+    },
+  },
   render: () => {
     const [value, setValue] = useState<IDataSchemaDefinition | undefined>(mockPopulatedDefinition);
     return (
@@ -132,6 +180,14 @@ export const ViaFormField: Story = {
  * → FormField → SchemaDefinitionEditor).
  */
 export const ViaFormEngineUiType: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a FormEngine schema whose "definition" option declares ui_type: schema-definition — FormEngine flows through TemplateField and FormField and mounts the schema editor with the injected catalogue.',
+      },
+    },
+  },
   render: () => {
     const [value, setValue] = useState<any>({
       definition: { type: 'hash', value: mockPopulatedDefinition },
@@ -177,6 +233,14 @@ export const Sandboxed: Story = {
     wrapperName: 'example_customer_addresses',
     value: mockPopulatedDefinition,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SchemaDefinition editor for an untrusted (sandboxed) caller using the sandboxed catalogue — the Advanced tab and every trusted-only section are hidden.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText('Migrations')).toBeInTheDocument();
@@ -194,6 +258,14 @@ export const WithValidationBanner: Story = {
     catalogOverride: mockSchemaCatalog,
     wrapperName: 'renamed_schema',
     value: mockPopulatedDefinition,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SchemaDefinition editor when the wrapper interface name and the DataSchema name differ — the "name does not match" banner is shown, and clicking "Sync name" resolves the mismatch.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);

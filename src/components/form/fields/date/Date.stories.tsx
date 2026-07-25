@@ -30,6 +30,13 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story: 'Renders the Date field with no value — the input mounts empty.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const input = canvasElement.querySelector('input');
     await expect(input).toBeInTheDocument();
@@ -39,6 +46,14 @@ export const Empty: Story = {
 export const WithValue: Story = {
   args: {
     value: '2025-01-15',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Date field pre-populated with 2025-01-15 — the input shows the initial value without firing onChange.',
+      },
+    },
   },
   async play({ canvasElement, args }) {
     const input = canvasElement.querySelector('input');
@@ -51,5 +66,12 @@ export const Disabled: Story = {
   args: {
     value: '2025-06-01',
     disabled: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Renders the Date field with a value but disabled — the input is non-interactive.',
+      },
+    },
   },
 };

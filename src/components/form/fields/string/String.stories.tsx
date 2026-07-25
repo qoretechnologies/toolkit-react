@@ -38,6 +38,14 @@ export const Default: Story = {
   args: {
     value: 'Qore',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the String field pre-populated with "Qore". Clicking clear empties the input and fires onClearClick; typing new text updates the value and fires onChange.',
+      },
+    },
+  },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText('Name');
@@ -59,6 +67,14 @@ export const Sensitive: Story = {
   args: {
     sensitive: true,
     value: 'password',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the String field in sensitive mode — the input renders as type="password" so the value is masked.',
+      },
+    },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

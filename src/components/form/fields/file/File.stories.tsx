@@ -30,6 +30,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Empty: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the File field with no value — the "Click or drop files here to upload" drop zone is visible.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Click or drop files here to upload')).toBeInTheDocument();
@@ -44,6 +52,14 @@ export const WithValue: Story = {
       size: 28736,
     },
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the File field pre-populated with a PDF value — the file name is displayed in place of the drop zone.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('report.pdf')).toBeInTheDocument();
@@ -56,6 +72,14 @@ export const WithImageValue: Story = {
       name: 'photo.png',
       content: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
       size: 1024,
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the File field pre-populated with a PNG image value — the file name and an inline preview thumbnail are shown.',
+      },
     },
   },
   async play({ canvasElement }) {
@@ -75,6 +99,14 @@ export const WithAcceptedExtensions: Story = {
       },
     },
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the File field with an accept option limiting uploads to PNG, JPEG and PDF — the allowed extensions are listed below the drop zone.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Click or drop files here to upload')).toBeInTheDocument();
@@ -85,6 +117,14 @@ export const WithAcceptedExtensions: Story = {
 export const Multiple: Story = {
   args: {
     multiple: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the File field with multiple-selection enabled — the underlying input carries the multiple attribute and the drop zone stays visible after files are added.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -103,6 +143,14 @@ export const WithBuildTab: Story = {
     argSchema: {
       filename: { type: 'string', ui_type: 'string', display_name: 'Filename', required: true },
       content: { type: 'string', ui_type: 'string', display_name: 'Content', required: true },
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the File field with an argSchema — a "Build a File" tab appears alongside the "Upload a File" drop zone so the user can synthesize a file from schema fields.',
+      },
     },
   },
   async play({ canvasElement }) {

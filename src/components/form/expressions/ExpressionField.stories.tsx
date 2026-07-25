@@ -50,6 +50,14 @@ export const Default: Story = {
   args: {
     value: SAMPLE,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField holding a "$local:name == John" expression — the Visual builder shows the Logical Equals operator with its two operands and the Visual/Text mode toggle.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
@@ -72,6 +80,14 @@ export const Empty: Story = {
   args: {
     value: { is_expression: true, value: { args: [] } },
     defaultMode: 'text',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text mode with an empty expression AST — the "Parsed" preview shows the "(empty)" placeholder for an empty expression.',
+      },
+    },
   },
   async beforeEach() {
     const stop = startDpqlMockLsp();
@@ -102,6 +118,14 @@ export const Empty: Story = {
  * builder, and the Visual/Text toggle is present.
  */
 export const ViaFormEngine: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a FormEngine schema with a bool option that carries supports_expressions and a stored expression value — the engine routes through TemplateField and mounts the ExpressionField shell with the Visual builder and the Visual/Text toggle.',
+      },
+    },
+  },
   render: () => {
     const [value, setValue] = useState<any>({
       condition: { type: 'bool', value: SAMPLE.value, is_expression: true },
@@ -150,6 +174,14 @@ export const ViaFormEngine: Story = {
  * renders the same AST.
  */
 export const ViaFormEngineTextMode: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the FormEngine expression field, then switches to Text mode — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call and the "Parsed" preview mirrors it.',
+      },
+    },
+  },
   render: ViaFormEngine.render,
   async beforeEach() {
     const stop = startDpqlMockLsp();
@@ -200,6 +232,14 @@ export const ViaFormEngineTextMode: Story = {
  * the seeded direction is covered by `ViaFormEngineTextMode` above.)
  */
 export const ViaFormEngineTextTyping: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the FormEngine expression field with an empty AST in Text mode. Typing DPQL text triggers the mock LSP\'s dpql/parse and the parsed expression lands in the form value with is_expression set.',
+      },
+    },
+  },
   render: (args) => {
     const [value, setValue] = useState<any>({
       condition: { type: 'bool', value: { args: [] }, is_expression: true },
@@ -277,6 +317,14 @@ export const TextMode: Story = {
     value: { is_expression: true, value: { args: [] } },
     defaultMode: 'text',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text (DPQL) mode over a mock-socket LSP. Typing DPQL text triggers dpql/parse and the "Parsed" preview reflects the resulting AST.',
+      },
+    },
+  },
   async beforeEach() {
     const stop = startDpqlMockLsp();
     return () => stop();
@@ -309,6 +357,14 @@ export const TextMode: Story = {
  * Driven live for the toggle interaction.
  */
 export const ToggleInFormEngine: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Expression" flips the field to expression mode and the ExpressionField shell with the Visual builder mounts in place of the checkbox.',
+      },
+    },
+  },
   render: () => {
     const [value, setValue] = useState<any>({});
     return (
@@ -380,7 +436,15 @@ export const Live: Story = {
   // (network/auth), still snapshotted by Chromatic. Mirrors the DpqlEditor
   // live stories.
   tags: ['!test'],
-  parameters: { live: true },
+  parameters: {
+    live: true,
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField against a live Qorus instance — the picker fetches the real ~121-function catalogue rather than the mock, and the seeded "contains" expression exercises the schema-driven operators and operands.',
+      },
+    },
+  },
   args: {
     type: 'bool',
     value: {
@@ -423,7 +487,15 @@ export const Live: Story = {
  */
 export const LiveExplain: Story = {
   tags: ['!test'],
-  parameters: { live: true },
+  parameters: {
+    live: true,
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text mode against a live Qorus instance — the "Parsed" preview uses the server-rendered form via dpql/renderExpression rather than the client-side approximation.',
+      },
+    },
+  },
   args: {
     value: {
       is_expression: true,

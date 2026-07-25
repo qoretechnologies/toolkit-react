@@ -511,7 +511,15 @@ const meta = {
 export default meta;
 export type Story = StoryObj<typeof meta>;
 
-export const Empty: Story = {};
+export const Empty: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story: 'Renders the DpqlEditor with no value — the editor mounts empty and ready for input.',
+      },
+    },
+  },
+};
 
 /**
  * No chips / templates — just a valid DPQL literal expression so we can
@@ -524,17 +532,41 @@ export const WithPlainText: Story = {
   args: {
     value: '1 == 1 && "hello" != "world"',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with a plain DPQL literal expression — no field references or templates, so the editor mounts as plain text with no tag chips.',
+      },
+    },
+  },
 };
 
 export const WithFieldReference: Story = {
   args: {
     value: '@name == "Alice"',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with an @name field reference — the editor mounts with a tag chip for the field and the literal string operand.',
+      },
+    },
+  },
 };
 
 export const WithTemplateVariable: Story = {
   args: {
     value: 'contains("$local:input", "es")',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with a contains() call whose first argument is a $local:input template — the template renders as a tag chip inside the call.',
+      },
+    },
   },
 };
 
@@ -543,6 +575,14 @@ export const WithMixedContent: Story = {
     // DPQL uses `&&` for logical AND (not SQL's `AND`). See
     // qore-2/design/dpql-syntax.md §"Logical Operators".
     value: '@name == $data:{1.name} && @age > $config:min_age',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with mixed content — two @field references, two $data / $config templates and the DPQL "&&" logical operator between them, each rendered as its own chip or token.',
+      },
+    },
   },
 };
 
@@ -1014,6 +1054,14 @@ export const ReadOnly: Story = {
     value: '@name == "Alice"',
     readOnly: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with a valued expression but readOnly enabled — the field chip and literal render but the editor cannot be edited.',
+      },
+    },
+  },
 };
 
 /**
@@ -1131,6 +1179,14 @@ export const CanTypeText: Story = {
     value: '',
     onChange: fn(),
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the empty DpqlEditor and types "hello" into it — the editor accepts the plain text and fires onChange.',
+      },
+    },
+  },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
 
@@ -1152,6 +1208,14 @@ export const LspCompletionRoundtrip: Story = {
   args: {
     value: '',
     onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the empty DpqlEditor and types the "@" trigger — the LSP receives a textDocument/completion request against a dpql:// document URI and the dropdown mounts with the canned @name / @status / @age items.',
+      },
+    },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -1199,7 +1263,15 @@ export const LspCompletionRoundtrip: Story = {
  * single physical connection and a single `initialize` handshake.
  */
 export const TwoEditorsOneConnection: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    chromatic: { disable: true },
+    docs: {
+      description: {
+        story:
+          'Renders two DpqlEditor instances side by side — both share a single WebSocket via LspSharedConnection and each opens its own document URI, so the server sees one initialize but two didOpen notifications.',
+      },
+    },
+  },
   render: () => (
     <>
       <DpqlEditorWithState value='name' />

@@ -40,6 +40,14 @@ export const SoftInteger: Story = {
     type: 'softint',
     value: 5,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormField for a softint value — the dispatcher resolves the soft type to int and mounts the numeric input.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     // NumberFormField renders an input (a `softint` resolves to `int`).
     await expect(canvasElement.querySelector('input')).toBeInTheDocument();
@@ -52,6 +60,14 @@ export const Binary: Story = {
     type: 'binary',
     value: 'deadbeef',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormField for a binary value — the dispatcher mounts a textarea holding the encoded content.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     await expect(canvasElement.querySelector('textarea')).toBeInTheDocument();
   },
@@ -62,6 +78,14 @@ export const ByteSize: Story = {
   args: {
     type: 'byte-size',
     value: '512MiB',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormField for a byte-size value — the dispatcher mounts the amount input and the MiB unit selector, split from "512MiB".',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -75,6 +99,14 @@ export const Url: Story = {
   args: {
     type: 'url',
     value: 'https://example.com',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormField for a url value — the dispatcher mounts the https protocol selector and the example.com address input, split from "https://example.com".',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -93,6 +125,14 @@ export const MultiSelect: Story = {
       { value: { value: 'blue', type: 'string' }, display_name: 'Blue' },
     ],
     value: ['red', 'blue'],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormField for a multi-select value — the two picked values (Red and Blue) render as chips using their display_name labels.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);

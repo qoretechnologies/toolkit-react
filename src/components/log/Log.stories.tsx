@@ -93,6 +93,14 @@ export default meta;
 export type Story = StoryObj<typeof meta>;
 
 export const Basic: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog wired to a mock WebSocket that emits a stream of test log lines — the messages accumulate in the log panel as they arrive.',
+      },
+    },
+  },
   play: async () => {
     await testsWaitForText('This is a message with a link: https://www.qoretechnologies.com');
   },
@@ -102,6 +110,14 @@ export const Filterable: Story = {
   ...Basic,
   args: {
     filterable: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with the filter input enabled. Typing "error" narrows the visible list to the single ERROR message.',
+      },
+    },
   },
   play: async (args) => {
     await Basic.play(args);
@@ -115,6 +131,14 @@ export const WithTimestamps: Story = {
   args: {
     showTimestamps: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with per-message timestamps enabled — each streamed line is prefixed with its arrival time.',
+      },
+    },
+  },
 };
 
 export const WithDefaultMessages: Story = {
@@ -126,12 +150,28 @@ export const WithDefaultMessages: Story = {
       { message: 'This is another default message', timestamp: '08:00:00.000' },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog seeded with two default messages — those lines appear before any messages arrive from the socket.',
+      },
+    },
+  },
 };
 
 export const WithCopyableMessages: Story = {
   ...Basic,
   args: {
     allowMessageCopy: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with allowMessageCopy — each message row exposes a copy action next to its content.',
+      },
+    },
   },
   play: async (args) => {
     await Basic.play(args);
@@ -144,6 +184,14 @@ export const WithDeletableMessages: Story = {
     allowMessageCopy: true,
     allowMessageDeletion: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with copy and delete actions on every message. Clicking a message\'s delete action removes just that row from the log.',
+      },
+    },
+  },
   play: async (args) => {
     await Basic.play(args);
     await testsClickButton({ selector: '.reqraft-log-delete-message', nth: 4 });
@@ -155,6 +203,14 @@ export const Pause: Story = {
   args: {
     allowMessageDeletion: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog while messages stream in. Clicking the pause/resume action halts appending new messages until it is clicked again.',
+      },
+    },
+  },
   play: async () => {
     await testsWaitForText('This is another message');
     await testsClickButton({ selector: '.reqraft-log-pause-resume' });
@@ -165,6 +221,14 @@ export const Clear: Story = {
   ...Basic,
   args: {
     allowMessageDeletion: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with messages streamed in. Clicking the clear action empties the log and the "No messages" empty state is shown.',
+      },
+    },
   },
   play: async (args) => {
     await Basic.play(args);
@@ -192,6 +256,14 @@ export const FormattedMessages: Story = {
       return { message, ...rest };
     },
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with a messageFormatter that assigns intents by content — WARNING lines colour warning, ERROR lines danger and ALL-CAPS lines info.',
+      },
+    },
+  },
   play: async (args) => {
     await Basic.play(args);
   },
@@ -202,6 +274,14 @@ export const CanSendMessages: Story = {
   args: {
     canSendMessages: true,
     showTimestamps: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with canSendMessages — an input at the bottom lets the operator send a message back through the socket alongside the incoming stream.',
+      },
+    },
   },
   play: async (args) => {
     await Basic.play(args);
@@ -214,6 +294,14 @@ export const WithAutoScroll: Story = {
     autoScroll: true,
     style: { height: '200px' },
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with autoScroll in a fixed 200px viewport — the log stays pinned to the newest message as new lines arrive.',
+      },
+    },
+  },
   play: async (args) => {
     await Basic.play(args);
   },
@@ -224,6 +312,14 @@ export const WithAutoScrollAndManualScroll: Story = {
   args: {
     autoScroll: true,
     style: { height: '200px' },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ReqraftLog with autoScroll while the operator scrolls the panel manually — auto-scroll pauses so the operator can inspect older messages without being yanked back to the tail.',
+      },
+    },
   },
   play: async (args) => {
     await WithAutoScroll.play(args);

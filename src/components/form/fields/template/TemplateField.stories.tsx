@@ -209,6 +209,14 @@ export const StringComponent: StoryObj<typeof meta> = {
     value: 'Some string',
     type: 'string',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField wrapping a LongString component with a plain string value — the field shows the literal string in a textarea, no template selected.',
+      },
+    },
+  },
 };
 
 export const BooleanComponent: StoryObj<typeof meta> = {
@@ -217,6 +225,14 @@ export const BooleanComponent: StoryObj<typeof meta> = {
     type: 'boolean',
     allowTemplates: true,
     componentFromType: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for a boolean value with templates allowed — the boolean toggle is shown with the template toggle available on the side.',
+      },
+    },
   },
 };
 
@@ -227,6 +243,14 @@ export const NumberComponent: StoryObj<typeof meta> = {
     allowTemplates: true,
     componentFromType: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for an int value of 25 with templates allowed — the numeric input is shown alongside the template toggle.',
+      },
+    },
+  },
 };
 
 export const AutoComponent: StoryObj<typeof meta> = {
@@ -234,6 +258,14 @@ export const AutoComponent: StoryObj<typeof meta> = {
     defaultType: 'auto',
     allowTemplates: true,
     component: auto,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField wrapping the AutoFormField dispatcher — the operator can pick a type from the auto picker or switch to a template value.',
+      },
+    },
   },
 };
 
@@ -249,6 +281,14 @@ export const AllowedValuesWithTemplate: StoryObj<typeof meta> = {
     ],
     component: auto,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField restricted to a single allowed value ("Test") but with templates also allowed — the operator can pick the allowed value or switch to a template.',
+      },
+    },
+  },
 };
 
 export const TemplateValue: StoryObj<typeof meta> = {
@@ -256,6 +296,14 @@ export const TemplateValue: StoryObj<typeof meta> = {
     component: Number,
     type: 'int',
     value: '$local:id',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for an int wrapped over the Number component with a template value ($local:id) — the template selector replaces the number input.',
+      },
+    },
   },
 };
 
@@ -271,6 +319,14 @@ export const ElementTypeInListShowsCorrectTemplates: StoryObj<typeof meta> = {
       { type: 'number', value: 3 },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField in list mode with three number items. Adding a new item and opening the templates popover shows the templates that resolve to the number element type.',
+      },
+    },
+  },
   play: async () => {
     await _testsClickButton({ label: 'Add new item for "Test"' });
     await _testsOpenTemplates();
@@ -280,6 +336,14 @@ export const ElementTypeInListShowsCorrectTemplates: StoryObj<typeof meta> = {
 
 export const ShowsTemplatesList: StoryObj<typeof meta> = {
   ...TemplateValue,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField with the $local:id template value, then opens the templates popover — the operator sees the available templates that resolve to an int.',
+      },
+    },
+  },
   play: async () => {
     await _testsOpenTemplates();
   },
@@ -287,6 +351,14 @@ export const ShowsTemplatesList: StoryObj<typeof meta> = {
 
 export const ShowsTemplatesListForString: StoryObj<typeof meta> = {
   ...StringComponent,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField over a LongString component with a plain string value, then opens the templates popover — the templates list is shown for a string target type.',
+      },
+    },
+  },
   play: async () => {
     await _testsOpenTemplates();
   },
@@ -294,6 +366,14 @@ export const ShowsTemplatesListForString: StoryObj<typeof meta> = {
 
 export const ShowsTemplatesListForBoolean: StoryObj<typeof meta> = {
   ...BooleanComponent,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for a boolean value, switches to template mode and opens the templates popover — the templates list is shown for a boolean target type.',
+      },
+    },
+  },
   play: async () => {
     await _testsSetTemplate();
     await _testsOpenTemplates();
@@ -302,6 +382,14 @@ export const ShowsTemplatesListForBoolean: StoryObj<typeof meta> = {
 
 export const ShowsTemplatesListForNumber: StoryObj<typeof meta> = {
   ...NumberComponent,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for an int value, then opens the templates popover — the templates list is shown for an int target type.',
+      },
+    },
+  },
   play: async () => {
     await _testsOpenTemplates();
   },
@@ -313,6 +401,14 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
     type: 'boolean',
     allowTemplates: true,
     componentFromType: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField holding a $config:boolean template value. Clicking the template-remove action clears the template and the underlying boolean checkbox is shown instead.',
+      },
+    },
   },
   play: async () => {
     await expect(document.querySelector('.template-selector')).toBeInTheDocument();
@@ -332,6 +428,14 @@ export const TemplateWithFunctions: StoryObj<typeof meta> = {
     fixed: true,
     fluid: false,
     expressions: storyExpressions as any,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField with allowFunctions enabled — the template menu now exposes a "Use Expression" entry alongside the plain templates.',
+      },
+    },
   },
   play: async () => {
     await _testsOpenTemplateMenu();
@@ -357,6 +461,14 @@ export const TemplateWithFunctionValue: StoryObj<typeof meta> = {
     fixed: true,
     fluid: false,
     expressions: storyExpressions as any,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField holding a substr function value with three arguments — the expression builder shows the function name and each argument slot.',
+      },
+    },
   },
 };
 
@@ -389,6 +501,14 @@ export const TemplateWithNestedFunctionValue: StoryObj<typeof meta> = {
     fluid: false,
     expressions: storyExpressions as any,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField holding a substr function whose second argument is itself a PLUS-INT expression — the expression builder shows the nested function inline within the outer call.',
+      },
+    },
+  },
 };
 
 export const TemplateCanBeSelected: StoryObj<typeof meta> = {
@@ -396,6 +516,14 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
     type: 'string',
     defaultType: 'string',
     defaultInternalType: 'string',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches to the $local:id template value.',
+      },
+    },
   },
   play: async ({ canvasElement, ...rest }) => {
     const canvas = within(canvasElement);
@@ -410,6 +538,14 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
 };
 
 export const ValueIsResetWhenChangingToCustom: StoryObj<typeof meta> = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField over a number type holding a $config:something template value. Clicking template-remove resets the value to undefined and fires onChange with the cleared value.',
+      },
+    },
+  },
   render: (args) => {
     const [value, setValue] = useState(args.value);
 
@@ -449,6 +585,14 @@ export const TemplatesWithMultipleLevels: StoryObj<typeof meta> = {
     type: 'string',
     templates: buildTemplates(multiLevelTemplates as any),
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for a string with a hierarchical template catalogue. Drilling into "Testing Hash" narrows the list to templates that resolve to a string (Testing Int Item is filtered out).',
+      },
+    },
+  },
   play: async () => {
     await _testsOpenTemplates();
     await _testsClickButton({ label: 'Testing Hash' });
@@ -458,6 +602,14 @@ export const TemplatesWithMultipleLevels: StoryObj<typeof meta> = {
 };
 
 export const TemplatesWithMultipleLevelsAndHashField: StoryObj<typeof meta> = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for a hash type with a hierarchical template catalogue — switching to template mode and opening the popover exposes the nested template groups.',
+      },
+    },
+  },
   render: (args) => {
     const [value, setValue] = useState(args.value);
 
@@ -486,6 +638,14 @@ export const TemplatesWithMultipleLevelsAndHashField: StoryObj<typeof meta> = {
 
 export const TemplateWithItemsCanBeSelected: StoryObj<typeof meta> = {
   ...TemplatesWithMultipleLevelsAndHashField,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for a hash type with a hierarchical catalogue. Selecting an item from a nested group updates the template value to the picked entry (Testing Hash).',
+      },
+    },
+  },
   play: async (args) => {
     await TemplatesWithMultipleLevelsAndHashField.play(args);
     await _testsClickButton({ selector: '.reqore-menu-item-left-action' });

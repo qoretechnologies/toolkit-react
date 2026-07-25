@@ -39,6 +39,14 @@ export const WithValue: Story = {
   args: {
     value: 'Hello world',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the LongString field pre-populated with "Hello world". Clicking clear empties the textarea and fires onChange; typing new content updates the value after the debounce.',
+      },
+    },
+  },
   async play({ canvasElement, args, step }) {
     const canvas = within(canvasElement);
     const textarea = canvas.getByLabelText('LongString');
@@ -66,6 +74,14 @@ export const WithValue: Story = {
 };
 
 export const Empty: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the LongString field with no value. Typing into the empty textarea updates the value and fires onChange after the debounce.',
+      },
+    },
+  },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
     const textarea = canvas.getByLabelText('LongString');
@@ -85,6 +101,14 @@ export const Disabled: Story = {
   args: {
     value: 'Cannot edit this',
     disabled: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the LongString field with a value but disabled — the textarea shows the value and rejects further edits.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);

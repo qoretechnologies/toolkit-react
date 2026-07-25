@@ -152,6 +152,14 @@ type Story = StoryObj<typeof meta>;
 // stories
 
 export const Basic: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine over the shared basic-schema fixture — every option and value the classic layout exercises (booleans, strings with values, templates, invalid types) is present.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: getOptions(),
@@ -188,6 +196,14 @@ export const Basic: Story = {
 
 export const Small: Story = {
   ...Basic,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Basic FormEngine at size=small — the same fixture but with the compact size preset applied to every control.',
+      },
+    },
+  },
   args: {
     ...Basic.args,
     size: 'small',
@@ -196,6 +212,14 @@ export const Small: Story = {
 
 export const InvalidShownOnly: Story = {
   ...Basic,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Basic FormEngine, then clicks the invalid-fields message chip in the header — only the invalid options stay visible.',
+      },
+    },
+  },
   play: async (args) => {
     await Basic.play!(args);
     await fireEvent.click(document.querySelector('.reqore-message')!);
@@ -211,6 +235,14 @@ export const InvalidShownOnly: Story = {
 };
 
 export const Optional: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with only the optional half of the basic schema — the More Options Available collapsible box is shown but not opened.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: getOptions(true),
@@ -218,6 +250,14 @@ export const Optional: Story = {
 };
 
 export const OptionalOpened: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with only the optional half of the basic schema, then clicks the More Options Available banner — the optional fields drop down into the form.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: getOptions(true),
@@ -236,6 +276,14 @@ export const OptionalOpened: Story = {
 
 export const FocusedEditing: Story = {
   ...Basic,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Basic FormEngine, hovers an option and clicks its fullscreen action — the Focused Editing modal opens over that single field.',
+      },
+    },
+  },
   play: async (args) => {
     await Basic.play!(args);
     await userEvent.hover(document.querySelectorAll('.system-option')[0]);
@@ -246,6 +294,14 @@ export const FocusedEditing: Story = {
 
 export const DescriptionIsShown: Story = {
   ...Basic,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Basic FormEngine and clicks the Option with description label — the help panel opens with the option\'s long-form description.',
+      },
+    },
+  },
   play: async ({ canvasElement, ...rest }) => {
     const canvas = within(canvasElement);
     await Basic.play!({ canvasElement, ...rest });
@@ -256,6 +312,14 @@ export const DescriptionIsShown: Story = {
 };
 
 export const ValueCanBeRemoved: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine holding a text option and a file option, both with values. Hovering each row and clicking its remove action clears the value and marks the row as revertable.',
+      },
+    },
+  },
   args: {
     options: {
       textOption: {
@@ -300,6 +364,14 @@ export const ValueCanBeRemoved: Story = {
 
 export const ChangeCanBeReverted: Story = {
   ...ValueCanBeRemoved,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ValueCanBeRemoved fixture after both values are removed, then clicks the per-row revert action — the file value comes back.',
+      },
+    },
+  },
   play: async (args) => {
     await ValueCanBeRemoved.play!(args);
     await _testsClickButton({ selector: '.options-item-revert', nth: 1 });
@@ -309,6 +381,14 @@ export const ChangeCanBeReverted: Story = {
 
 export const AllChangesCanBeReverted: Story = {
   ...ValueCanBeRemoved,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the ValueCanBeRemoved fixture after both values are removed, then clicks the form-level revert action — the entire form goes back to its original values.',
+      },
+    },
+  },
   play: async (args) => {
     await ValueCanBeRemoved.play!(args);
     await _testsClickButton({ selector: '.fields-revert' });
@@ -318,6 +398,14 @@ export const AllChangesCanBeReverted: Story = {
 
 export const WithTypesShown: Story = {
   ...Basic,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Basic FormEngine and clicks the show-types header action — every option label picks up its Qore type badge (e.g. <rgbcolor>).',
+      },
+    },
+  },
   play: async (args) => {
     await Basic.play!(args);
     await _testsClickButton({ selector: '.fields-show-types' });
@@ -326,6 +414,14 @@ export const WithTypesShown: Story = {
 };
 
 export const WithRequiredGroups: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with five options that all belong to one required_groups group — every row mounts and the group\'s one-of-required indicator is shown.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: TestOptionsWithRequiredGroups,
@@ -338,6 +434,14 @@ export const WithRequiredGroups: Story = {
 };
 
 export const WithRequiredGroupsFulfilled: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the required-group schema with one of the group\'s options already filled — the group\'s one-of-required indicator marks the group as satisfied.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: TestOptionsWithRequiredGroups,
@@ -353,6 +457,14 @@ export const WithRequiredGroupsFulfilled: Story = {
 };
 
 export const OptionDependsOnOptionOrAnotherOption: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with a required option that depends on Required Option 2 OR Required Option 5 — the field is disabled until either dependency is filled, then the disabled note clears.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: {
@@ -383,6 +495,14 @@ export const OptionDependsOnOptionOrAnotherOption: Story = {
 };
 
 export const OptionDependsOnOptionInRequiredGroup: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with a required option that depends on Required Option 2 alone — filling Required Option 2 clears the disabled note.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: {
@@ -413,6 +533,14 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
 };
 
 export const OptionalWithValues: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with only the optional half of the basic schema plus pre-existing values — the optional fields are already populated and the More Options Available banner is hidden.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: getOptions(true),
@@ -425,6 +553,14 @@ export const OptionalWithValues: Story = {
 };
 
 export const OptionWithAnyType: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders four options typed as any with templates enabled — empty ones show a Select Template dropdown, the pre-typed number field renders as a Number input and the operator can switch types via the More menu.',
+      },
+    },
+  },
   args: {
     options: {
       optionWithAnyType: {
@@ -491,6 +627,14 @@ export const OptionWithAnyType: Story = {
 };
 
 export const NonExistentOptionsFiltered: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with a value that carries three fields but a schema that declares only two — the extra option is filtered out and onChange fires without it.',
+      },
+    },
+  },
   args: {
     value: {
       option1: { type: 'long-string', value: 'option1' },
@@ -526,6 +670,14 @@ export const NonExistentOptionsFiltered: Story = {
 };
 
 export const OptionsWithOnChangeTriggerEvents: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with an option that declares on_change: [\'refetch\']. Editing the field fires onChange with meta.events set to [\'refetch\'] so the host can re-fetch dependent options.',
+      },
+    },
+  },
   args: {
     value: {
       optionWithRefetchAndReset: { type: 'long-string', value: 'option1' },
@@ -610,6 +762,14 @@ const CodeEditorStandin = ({
 // a sibling `lang` picker, so flipping the picker live-changes the
 // editor's syntax highlighting with no refetch.
 export const OptionInheritsRenderPropFromSibling: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with a code-editor field that declares inherit_props: { language: \'lang\' } — the sibling language picker feeds the editor\'s language prop at render time, and flipping the picker live-updates the syntax without any refetch.',
+      },
+    },
+  },
   args: {
     componentOverrides: { 'code-editor': CodeEditorStandin },
     value: {
@@ -675,6 +835,14 @@ export const OptionInheritsRenderPropFromSibling: Story = {
 // in both modes. This story locks that in so a future refactor of the
 // compact path can't silently break inherit_props for read-first surfaces.
 export const OptionInheritsRenderPropFromSiblingCompact: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the OptionInheritsRenderPropFromSibling schema with compact=true — the same inherit_props forwarding runs through the compact renderer.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -723,6 +891,14 @@ export const OptionInheritsRenderPropFromSiblingCompact: Story = {
 // CompactRow refactor can't silently reduce a Qorus source-code field to an
 // ellipsised one-liner again.
 export const CompactRowCodeEditorPreview: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact-mode code-editor row over a multi-line Qore source value — the value cell replaces the truncated string with a lines/chars summary tag and a collapsible monospace preview mounts under the row.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '360px',
@@ -796,6 +972,14 @@ export const CompactRowCodeEditorPreview: Story = {
 // `language` prop. Flipping the top-level lang picker live-updates every
 // row's editor without any custom per-field wiring.
 export const NestedOptionInheritsRenderPropFromAncestor: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with a list-of-hash methods option whose row sub-schema declares inherit_props: { language: \'language\' } — the parent-level forwarding threads the top-level language down to every row\'s code-editor body sub-field.',
+      },
+    },
+  },
   args: {
     componentOverrides: { 'code-editor': CodeEditorStandin },
     value: {
@@ -876,6 +1060,14 @@ export const NestedOptionInheritsRenderPropFromAncestor: Story = {
 // list-of-hash whose sub-fields still resolve `language` from the top-level
 // picker through the same two-hop chain.
 export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the NestedOptionInheritsRenderPropFromAncestor schema with compact=true — the compact renderer summarises the list-of-hash rows as \'init, run\' rather than [object Object].',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -947,6 +1139,14 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
 };
 
 export const DependantsResetWhenParentChanges: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with two dependent options plus two has-dependents parents. Changing the parent\'s value clears every dependent\'s value while leaving the unrelated sibling untouched.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: {
@@ -1023,6 +1223,14 @@ export const DependantsResetWhenParentChanges: Story = {
 };
 
 export const ValueIsFixedWhenDefaultValueDoesNotMatchAndReadOnlyIsTrue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with a read-only option whose stored value differs from its default_value — the value is auto-corrected to the default at mount and the wrong value never renders.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: {
@@ -1066,6 +1274,14 @@ export const ValueIsFixedWhenDefaultValueDoesNotMatchAndReadOnlyIsTrue: Story = 
 };
 
 export const DoesNotCauseInfiniteRerenders: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with a refetch-triggering parent and a list-of-hash dependent — the schema mounts cleanly and adding a new list item does not cause the form to re-render infinitely.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: {
@@ -1126,6 +1342,14 @@ export const DoesNotCauseInfiniteRerenders: Story = {
 };
 
 export const AllowedValuesOptionWithTemplateValueShowsWarning: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with an allowed_values option that holds a template value ($local:test) instead of one of the allowed values — the option shows a warning that the template value is outside the allowed set.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     options: {
@@ -1168,6 +1392,12 @@ export const AllowedValuesOptionWithTemplateValueShowsWarning: Story = {
 export const OnValidityChange: Story = {
   // chromatic off: async validity-callback timing.
   parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine wired to an onValidityChange callback — the callback fires with per-field validity data as the overall form validity changes.',
+      },
+    },
     chromatic: { disable: true },
   },
   args: {
@@ -1419,6 +1649,14 @@ const CompactFieldsMenuSchema: Record<string, TCompactField> = {
 };
 
 export const Compact: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine in compact mode over the CompactSchema fixture with groups — options collapse to read-first rows grouped under labelled group headers, with formatted value summaries per row.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1443,7 +1681,15 @@ export const Compact: Story = {
 };
 
 export const CompactReadOnly: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Compact fixture with readOnly enabled — the Draft/Ready progress badge is hidden and rows open in view (non-editable) mode.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     ...Compact.args,
     readOnly: true,
@@ -1462,6 +1708,14 @@ export const CompactReadOnly: Story = {
 };
 
 export const CompactEmpty: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Compact fixture with no value — all six empty fields render a dash placeholder and the four optional fields sit in the collapsed Optional box.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1482,7 +1736,15 @@ export const CompactEmpty: Story = {
 // Compact mode on the EXACT shared fixture behind `Basic` — every option and
 // state the classic layout exercises.
 export const CompactBasic: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colours as hex, hashes as field-count summaries), disabled and dependency-locked rows stay non-interactive, and the dependency lock\'s popover navigates to blockers.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1631,7 +1893,15 @@ export const CompactBasic: Story = {
 // ($-token + resolved name). Regression cover for the review note "this should
 // show as a readonly richtext or a readonly template picker".
 export const CompactReadOnlyRichText: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the CompactBasic fixture with readOnly enabled — opening the Rich Text row shows a non-editable Slate surface, and the Template row renders as a read-only template-picker chip showing the resolved template name (never the raw $local reference).',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     ...CompactBasic.args,
     readOnly: true,
@@ -1704,6 +1974,14 @@ const ORDER_STATE_SAMPLE = {
 // Hash rows render the IDE workflow-orders `StructuredDataView` under the
 // fade/"Show more" wrapper; doubles as the raw-vs-envelope data contrast.
 export const CompactHashStructuredView: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders CompactBasic with an extra orderState hash option holding a raw payload — the hash row uses the StructuredDataView tree renderer with type-aware value cells; clicking a value chip opens the hash editor.',
+      },
+    },
+  },
   args: {
     ...CompactBasic.args,
     options: {
@@ -1802,7 +2080,15 @@ export const CompactHashStructuredView: Story = {
 // grows a Save/Discard bar, Save emits `onCommit` (gated on validity), and
 // every staged edit still emits `onChange` flagged `meta.draft`.
 export const CompactBatchedCommit: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a valid form in commitMode=\'batched\'. Staging an edit adds the Draft chip and \'unsaved changes\' bar without committing; Save fires onCommit and clears the chips; Discard reverts the staged edit.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     commitMode: 'batched',
@@ -1868,6 +2154,14 @@ export const CompactBatchedCommit: Story = {
 
 // While any field is invalid, the bar shows but Save refuses to commit.
 export const CompactBatchedCommitInvalid: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an invalid form in commitMode=\'batched\' — staging an edit shows the unsaved-changes bar but Save is disabled and onCommit never fires.',
+      },
+    },
+  },
   args: {
     compact: true,
     commitMode: 'batched',
@@ -1903,6 +2197,14 @@ export const CompactBatchedCommitInvalid: Story = {
 // `sensitive`: the read row masks the value (and its hover title) — the secret
 // never renders as page text, in read or edit state.
 export const CompactSensitive: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with a sensitive: true API-token field — the read row masks the value (and its hover title) and the edit input renders as type=password.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1942,6 +2244,14 @@ export const CompactSensitive: Story = {
 // `rules: ['valid_identifier']` flows from the schema into validation: a bad
 // identifier marks the form invalid (banner + Draft badge).
 export const CompactValidIdentifierRule: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with an option that carries a valid-identifier validation rule — invalid input surfaces the identifier-format error inline.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -1969,6 +2279,14 @@ export const CompactValidIdentifierRule: Story = {
 // Operators (filter/mapper-style forms): the `operators` prop renders the
 // operator selector + the WHERE/IS summary in the card editor.
 export const CompactOperators: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with per-option operator support — each row shows the operator select alongside the value and the WHERE/IS summary tags.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2012,7 +2330,15 @@ export const CompactOperators: Story = {
 // focusedEditing in compact: the card's fullscreen affordance opens the same
 // focused-editing modal the classic layout has, with the field's descriptions.
 export const CompactFocusedEditing: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact form, opens a row and switches to focused-editing mode — the row expands into a modal-style editing surface.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2050,7 +2376,15 @@ export const CompactFocusedEditing: Story = {
 // multi-select editor in the card.
 export const CompactMultiSelectEditing: Story = {
   // chromatic off: ends with an open multi-select editor card (live editor state).
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with a multi-select option — editing the row exposes the chip picker and multiple values can be added and removed.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2085,7 +2419,15 @@ export const CompactMultiSelectEditing: Story = {
 
 // Field-level `sort` orders compact rows (schema declared out of order).
 export const CompactSortOrder: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose options carry sort ordinals — the rows render in sort order rather than schema-declaration order.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2127,7 +2469,15 @@ export const CompactSortOrder: Story = {
 };
 
 export const CompactReadFirstEditing: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact form and opens a row for editing — the row transitions from the read-first summary to the inline or card editor.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2178,7 +2528,15 @@ export const CompactReadFirstEditing: Story = {
 // easy to keep track of. The flash is the observable signal that the panel-change
 // locate fired (the scroll itself, scrollIntoView, isn't assertable in the runner).
 export const CompactPanelChangeScroll: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form inside a scrollable panel — opening a row keeps the panel\'s scroll position pinned rather than jumping to the top.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2229,7 +2587,15 @@ export const CompactPanelChangeScroll: Story = {
 };
 
 export const CompactRequiredOnlyAndSearch: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with the required-only filter and the search input enabled — filtering by requirement and typing a query narrows the visible rows.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2266,7 +2632,15 @@ export const CompactRequiredOnlyAndSearch: Story = {
 };
 
 export const CompactFieldsMenu: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form and opens the Fields menu — the menu exposes show-types, show-descriptions and required-only toggles.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2337,7 +2711,15 @@ export const CompactFieldsMenu: Story = {
 // Toolbar ⓘ: a global toggle that reveals every field's short_desc at once,
 // without opening each row's info panel by hand.
 export const CompactDescriptionsToggle: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form and toggles show-descriptions from the Fields menu — every row picks up its short_desc / desc text under the label.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2402,7 +2784,15 @@ export const CompactDescriptionsToggle: Story = {
 };
 
 export const CompactSearchHidden: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with searchHidden set — the search input and header search action are hidden from the toolbar.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2501,7 +2891,15 @@ const OAuth2ScopesSchema = {
 } as any;
 
 export const CompactListYamlField: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with a list-of-YAML option — the row summary shows the item count and opening the row exposes the YAML editor.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2544,7 +2942,15 @@ export const CompactListYamlField: Story = {
 // value column became `minmax(0, 1fr)` + `min-width: 0`; plus the sticky
 // completion + search + Fields toolbar.
 export const CompactOverflowAndStickyHeader: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form tall enough to scroll — the group headers stick to the top of the panel as the form scrolls under them.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   // A fixed-height scroll host so the sticky behaviour is observable (and
   // testable) regardless of viewport size.
   decorators: [
@@ -2598,7 +3004,15 @@ export const CompactOverflowAndStickyHeader: Story = {
 // on_change/refetch + has_dependents flow through the same handleValueChange
 // as classic — the read-first editor must fire and reset the same way.
 export const CompactOnChangeAndDependents: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with dependency chains — editing a parent option resets its dependents and the dependent rows re-render in their fresh state.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2655,7 +3069,15 @@ export const CompactOnChangeAndDependents: Story = {
 };
 
 export const CompactRevertAndShowTypes: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form and exercises the per-row revert action alongside the show-types Fields menu toggle.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -2736,7 +3158,15 @@ const FieldTypeCatalogGroups: Record<string, IFormEngineGroup> = {
  */
 export const CompactExpressions: Story = {
   // chromatic off: ends with the live ExpressionField editor (Text mode) open.
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with an expression-supporting option — the row opens the ExpressionField shell with the Visual builder and the Visual/Text mode toggle.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     name: 'exprForm',
     compact: true,
@@ -2833,7 +3263,15 @@ const langImg = (color: string, letter: string): string =>
  */
 export const CompactEnumWithImages: Story = {
   // chromatic off: ends with the radio editor open in the card.
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with an enum option whose allowed values carry images — the read row shows the image alongside the label and the picker mounts the images in the collection.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     name: 'langForm',
     compact: true,
@@ -2891,7 +3329,15 @@ export const CompactEnumWithImages: Story = {
  * instead of the language radio.
  */
 export const CompactEnumRichtextValue: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with an enum option whose value is a richtext template — the read row shows the resolved template chip rather than the raw reference.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     name: 'langForm',
     compact: true,
@@ -2971,7 +3417,15 @@ const _isRowOpen = (field: string): boolean =>
  * first — the accordion model that keeps the read-first list scannable.
  */
 export const CompactSingleExpand: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with expandMode=\'single\' — opening one row automatically collapses whichever row was open before.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: { name: 'expandSingle', compact: true, ...expandModeFixture },
   play: async () => {
     await waitFor(
@@ -2997,7 +3451,15 @@ export const CompactSingleExpand: Story = {
 
 /** `expandMode: 'multi'`: several rows can stay open at once (form-fill flow). */
 export const CompactMultiExpand: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with expandMode=\'multi\' — every opened row stays open until it is explicitly done, so several editors can be on screen at once.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: { name: 'expandMulti', compact: true, expandMode: 'multi', ...expandModeFixture },
   play: async () => {
     await waitFor(
@@ -3046,6 +3508,14 @@ const HostProvidedEditor = ({
 );
 
 export const CompactFieldTypes: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form that exercises the full catalogue of ui_type renderers — every type (string, richtext, hash, list, file, colour, byte-size, cron, connection, enum, etc.) is present with a representative value.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3550,7 +4020,15 @@ const _compactExpandAllRows = async () => {
 
 export const CompactFieldTypesEditing: Story = {
   // chromatic off: every catalog editor mounts live (async) — flaky and snapshot-heavy.
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders CompactFieldTypes and opens every row — the edit surface for each ui_type mounts and the row-level Clear / built-in clear affordances are wired per input.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   // multi: this story expands every row at once (single-open would collapse them).
   args: { ...CompactFieldTypes.args, expandMode: 'multi' as const },
   play: async () => {
@@ -3591,6 +4069,14 @@ export const CompactFieldTypesEditing: Story = {
 // to a muted-green "Covers" / "Covered by <X>" once satisfied. Members live in
 // DIFFERENT panels to prove cross-panel linkage.
 export const CompactRequiredGroups: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose options belong to required_groups — the group\'s one-of-required indicator appears in the row rail and clears once any member is filled.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3732,7 +4218,15 @@ const _compactTypeIntoCardRichText = async (field: string, value: string) => {
 // (`[[a, b]]`) locks the row; the lock popover renders the "any of:" group;
 // fulfilling EITHER blocker unlocks (and flashes) the dependent row.
 export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with an option that depends on A OR B — the row is locked with a dependency popover listing both alternatives; fulfilling either unlocks the row.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3841,7 +4335,15 @@ export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
 // The dependency targets a required-group MEMBER: fulfilling it unlocks the
 // dependent row AND satisfies the group — both linkage systems on one form.
 export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with an option that depends on a required-group member — the row locks until the required-group option is filled.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3922,7 +4424,15 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
 
 // An `any`-typed option shows its value and expands to the type-aware editor.
 export const CompactAnyType: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with any-typed options — the read rows summarise the current value and the editor lets the operator pick the concrete type through the More menu.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3943,7 +4453,15 @@ export const CompactAnyType: Story = {
 // A schema-level `readonly` field whose value differs from its default is fixed
 // back to the default (engine `fixOptions`); the read row shows the default.
 export const CompactReadonlyDefaultFix: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with a read-only option whose value differs from default_value — the value auto-corrects to the default at mount without the wrong value ever rendering.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3967,7 +4485,15 @@ export const CompactReadonlyDefaultFix: Story = {
 
 // Values for options that aren't in the schema are filtered out, not rendered.
 export const CompactNonExistentFiltered: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with a value carrying an extra field that isn\'t in the schema — the extra field is filtered out and no row is rendered for it.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -3987,7 +4513,15 @@ export const CompactNonExistentFiltered: Story = {
 
 // A field with a long `desc` shows a help affordance that opens the help dialog.
 export const CompactHelpDialog: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form and clicks a row\'s Help action — the help dialog opens with the option\'s long-form description.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -4013,7 +4547,15 @@ export const CompactHelpDialog: Story = {
 
 // Read-first rendering is render-stable — it doesn't emit a storm of onChanges.
 export const CompactDoesNotCauseInfiniteRerenders: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with a refetch-triggering parent and a list-of-hash dependent — mounting and interacting with the form does not trigger runaway re-renders.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -4042,7 +4584,15 @@ const loadCompactSchemaAsync = (): Promise<IQorusFormSchema> =>
 // the story earns its keep through the play test (the resolve path), not a
 // snapshot — the loading state has its own story below.
 export const CompactOptionsLoader: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose options are fetched via a url — the loader skeleton is shown until the schema resolves, then the compact rows mount.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -4060,6 +4610,14 @@ export const CompactOptionsLoader: Story = {
 
 // A rejected load surfaces the engine's error state instead of the form.
 export const CompactOptionsLoaderError: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose options fetch fails — the loader resolves into an error message rather than crashing.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -4080,6 +4638,14 @@ export const CompactOptionsLoaderError: Story = {
 // and the snapshot Chromatic captures. The resolve path (load → form →
 // `onOptionsLoaded`) is exercised by `CompactOptionsLoader` above.
 export const OptionsLoader: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the classic FormEngine whose options are fetched via a url — the loader is shown until the schema resolves.',
+      },
+    },
+  },
   args: {
     minColumnWidth: '300px',
     value: CompactValue,
@@ -4198,6 +4764,14 @@ const infoDisplayArgs = {
 // The flagship "real form" story: the Basic fixture + stress fields with full
 // descriptions — how compact mode looks and feels in actual use.
 export const CompactShowcase: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the flagship compact-mode showcase — the Basic fixture plus every stress field type across a real-form layout, used as the compact-mode reference screenshot.',
+      },
+    },
+  },
   args: infoDisplayArgs,
   play: async () => {
     await _testsWaitForText('API endpoint');
@@ -4265,6 +4839,14 @@ export const CompactShowcase: Story = {
 
 // The same stress form in a 360 px container — stacked rows, panels full-width.
 export const CompactShowcaseMobile: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact showcase at a ~390px mobile viewport — the compact rows collapse into a single-column stack.',
+      },
+    },
+  },
   args: infoDisplayArgs,
   decorators: [
     (StoryComponent: React.ComponentType) => (
@@ -4284,6 +4866,14 @@ export const CompactShowcaseMobile: Story = {
 // credential pair (one provided → green node + Provided badge) and a 4-member
 // notification group (none set → violet, pending).
 export const CompactRequiredGroupRails: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with several required_groups — each group\'s rail sits alongside its rows so the operator can see which one-of-required set the row belongs to.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '320px',
@@ -4358,7 +4948,15 @@ export const CompactRequiredGroupRails: Story = {
 // keeps required-group clusters contiguous (rails intact) — never interleaving
 // across groups. Regression cover for the compact sort.
 export const CompactFieldSortWithinGroups: Story = {
-  parameters: { chromatic: { disable: true } },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with grouped options that carry sort ordinals — rows within each group render in sort order, not schema-declaration order.',
+      },
+    },
+    chromatic: { disable: true },
+  },
   args: CompactRequiredGroupRails.args,
   play: async () => {
     await _testsWaitForText('API key');
@@ -4408,6 +5006,14 @@ export const CompactFieldSortWithinGroups: Story = {
 // required-but-empty, so the engine expands the `description` row on mount and
 // its editor takes focus — no click, no DOM scraping.
 export const CompactAutoFocusFirstRequired: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with autoFocus enabled — the first unfilled required row opens for editing automatically on mount.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -4480,6 +5086,14 @@ const CompactInvalidFilledValue: IOptions = {
 };
 
 export const CompactAutoFocusTargetsInvalidFilledField: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with autoFocus enabled and a required field holding an invalid value — the autofocus targets the invalid filled field rather than the next empty required.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',
@@ -4555,6 +5169,14 @@ const CompactNonFocusableFirstSchema: Record<string, TCompactField> = {
 const CompactNonFocusableFirstValue: IOptions = {}; // both unset → both need attention
 
 export const CompactAutoFocusNonFocusableFirstField: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with autoFocus enabled where the first needs-attention field is a boolean (not focusable) — the autofocus skips it and opens the next focusable field instead.',
+      },
+    },
+  },
   args: {
     compact: true,
     minColumnWidth: '300px',

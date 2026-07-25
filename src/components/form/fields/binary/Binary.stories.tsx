@@ -38,6 +38,14 @@ export const WithValue: Story = {
   args: {
     value: 'cGFzc3dvcmQ=',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Binary field pre-populated with a base64 payload — the textarea shows the encoded string.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     const textarea = canvas.getByLabelText('Binary');
@@ -48,6 +56,14 @@ export const WithValue: Story = {
 };
 
 export const TypingUpdatesValue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the empty Binary field. Typing a base64 string into the textarea updates the value and fires onChange after the debounce.',
+      },
+    },
+  },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
     const textarea = canvas.getByLabelText('Binary');
@@ -61,6 +77,14 @@ export const TypingUpdatesValue: Story = {
 };
 
 export const UploadEncodesFileAsBase64: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Binary field with its file drop zone. Uploading a file encodes it as base64 (data-URL prefix stripped) and fires onChange with the encoded string.',
+      },
+    },
+  },
   async play({ canvasElement, args }) {
     const file = new File(['hello'], 'test.bin', { type: 'application/octet-stream' });
     // the hidden file input rendered by the reused ReqraftFileFormField drop zone
@@ -80,6 +104,14 @@ export const Disabled: Story = {
   args: {
     value: 'cGFzc3dvcmQ=',
     disabled: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Binary field with a base64 value but disabled — the textarea is non-interactive.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
