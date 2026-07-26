@@ -39,6 +39,14 @@ export const Default: Story = {
       'aria-label': label,
     })),
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Cron field with a "1 1 1 1 1" schedule split across the Minute / Hour / Day / Month / Weekday inputs. Typing into a segment fires onChange with the recomposed expression; the clear button resets the value.',
+      },
+    },
+  },
 
   async play({ args, canvasElement }) {
     const canvas = within(canvasElement);

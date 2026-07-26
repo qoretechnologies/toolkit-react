@@ -106,8 +106,25 @@ const meta = {
 export default meta;
 export type Story = StoryObj<typeof meta>;
 
-export const Default: Story = {};
+export const Default: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the useReqraftWebSocket demo with no lifecycle options — the socket stays CLOSED until the operator clicks Connect.',
+      },
+    },
+  },
+};
 export const OpenManually: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the useReqraftWebSocket demo and clicks the Connect action — the socket opens and the onOpen callback fires.',
+      },
+    },
+  },
   play: async ({ args }) => {
     await testsClickButton({ label: 'Connect' });
     await testsWaitForText('Websocket Status: OPEN');
@@ -118,6 +135,14 @@ export const OpenOnMount: Story = {
   args: {
     openOnMount: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the useReqraftWebSocket demo with openOnMount enabled — the socket opens immediately after mount without any user action.',
+      },
+    },
+  },
   play: async ({ args }) => {
     await testsWaitForText('Websocket Status: OPEN');
     await expect(args.onOpen).toHaveBeenCalled();
@@ -126,6 +151,15 @@ export const OpenOnMount: Story = {
 
 export const CloseManually: Story = {
   ...OpenOnMount,
+  parameters: {
+    ...OpenOnMount.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the useReqraftWebSocket demo opened on mount. When Disconnect is clicked, the socket transitions to CLOSED and the onClose callback fires.',
+      },
+    },
+  },
   play: async ({ args, ...rest }) => {
     await OpenOnMount.play({ args, ...rest });
     await testsClickButton({ label: 'Disconnect' });
@@ -140,6 +174,14 @@ export const Reconnects: Story = {
     reconnect: true,
     maxReconnectTries: 5,
     openOnMount: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the useReqraftWebSocket demo with reconnect enabled. When the server is killed, the socket transitions to CONNECTING and then back to OPEN once the server returns.',
+      },
+    },
   },
   play: async ({ args, ...rest }) => {
     await OpenOnMount.play({ args, ...rest });
@@ -159,6 +201,12 @@ export const ReconnectFails: Story = {
     reconnectInterval: 500,
   },
   parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the useReqraftWebSocket demo with a low maxReconnectTries. When the server never returns, the socket exhausts its reconnect attempts and fires onReconnectFailed.',
+      },
+    },
     jest: {
       timeout: 60000,
     },
@@ -177,6 +225,14 @@ export const SendMessage: Story = {
     ...OpenOnMount.args,
     includeSentMessagesInState: true,
     useState: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the useReqraftWebSocket demo with useState enabled. When Send is clicked, the message is dispatched and the echoed reply appears in the accumulated message list.',
+      },
+    },
   },
   play: async ({ args, ...rest }) => {
     await OpenOnMount.play({ args, ...rest });
@@ -197,6 +253,14 @@ export const WithLogs: Story = {
     useState: true,
     reconnectInterval: 1500,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the useReqraftWebSocket demo with includeLogMessagesInState. Connect / disconnect / reconnect lifecycle events are captured as log entries alongside regular messages.',
+      },
+    },
+  },
   play: async ({ args, ...rest }) => {
     await Reconnects.play({ args, ...rest });
 
@@ -206,6 +270,15 @@ export const WithLogs: Story = {
 
 export const ClearsMessages: Story = {
   ...SendMessage,
+  parameters: {
+    ...SendMessage.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders the useReqraftWebSocket demo after sending a message. When Clear is clicked, the accumulated message list is emptied.',
+      },
+    },
+  },
   play: async ({ args, ...rest }) => {
     await SendMessage.play({ args, ...rest });
     await testsClickButton({ label: 'Clear' });
@@ -353,6 +426,14 @@ export const MultipleConnections: Story = {
     includeLogMessagesInState: true,
     useState: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders three panels that each call useReqraftWebSocket against the same URL — proves the connections share one pooled underlying WebSocket while keeping independent message state.',
+      },
+    },
+  },
   // @ts-expect-error customprops
   render: (args: IUseReqraftWebSocketOptions) => {
     const [conectionStatus, setConnectionStatus] = useState<string>('CLOSED');
@@ -405,6 +486,15 @@ export const MultipleConnectionsOpenOnMount: Story = {
     ...MultipleConnections.args,
     openOnMount: true,
   },
+  parameters: {
+    ...MultipleConnections.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders three pooled useReqraftWebSocket panels with openOnMount — all three transition to OPEN over the shared underlying socket without any user action.',
+      },
+    },
+  },
   play: async ({ args }) => {
     await testsWaitForText('First Connection Status: OPEN');
     await testsWaitForText('Second Connection Status: OPEN');
@@ -419,6 +509,15 @@ export const MultipleConnectionsClosedAtOnce: Story = {
   args: {
     ...MultipleConnections.args,
     openOnMount: true,
+  },
+  parameters: {
+    ...MultipleConnections.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders three pooled useReqraftWebSocket panels. When Close All closes the shared socket, every consumer transitions to CLOSED at once and each panel logs its close handler.',
+      },
+    },
   },
   play: async (args) => {
     await MultipleConnectionsOpenOnMount.play(args);
@@ -435,6 +534,15 @@ export const ConnectionIsClosedWhenAllUsersAreClosed: Story = {
   args: {
     ...MultipleConnections.args,
     openOnMount: true,
+  },
+  parameters: {
+    ...MultipleConnections.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders three pooled useReqraftWebSocket panels. Closing them one by one keeps the shared socket OPEN until the last consumer unmounts, then it closes.',
+      },
+    },
   },
   play: async (args) => {
     await MultipleConnectionsOpenOnMount.play(args);
@@ -453,6 +561,15 @@ export const MultipleConnectionsHaveCustomHandlers: Story = {
   args: {
     ...MultipleConnections.args,
     openOnMount: true,
+  },
+  parameters: {
+    ...MultipleConnections.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders three pooled useReqraftWebSocket panels. Each panel attaches its own message handler, and sending a message triggers the handlers of only the connections still open.',
+      },
+    },
   },
   play: async (args) => {
     const canvas = within(args.canvasElement);
@@ -480,6 +597,15 @@ export const MultipleConnectionsHaveCustomHandlers: Story = {
 
 export const MultipleConnectionsCanBeDisconnectedAndReconnected: Story = {
   ...MultipleConnectionsHaveCustomHandlers,
+  parameters: {
+    ...MultipleConnectionsHaveCustomHandlers.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders three pooled useReqraftWebSocket panels after custom handlers have fired. Disconnecting one and reconnecting another proves individual consumers can toggle without disturbing peers.',
+      },
+    },
+  },
   play: async (args) => {
     await MultipleConnectionsHaveCustomHandlers.play(args);
 

@@ -30,6 +30,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Url field with no value. Typing into the address input recomposes the URL and fires onChange after the debounce; because no protocol is selected, the composed value keeps a bare "://" prefix.',
+      },
+    },
+  },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText('URL address');
@@ -49,6 +57,14 @@ export const WithValue: Story = {
   args: {
     value: 'https://example.com',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Url field pre-populated with "https://example.com" — the URL is split across the https protocol selector and the example.com address input.',
+      },
+    },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByDisplayValue('example.com')).toBeInTheDocument();
@@ -59,6 +75,14 @@ export const WithValue: Story = {
 export const KeepsSeparatorInsideAddress: Story = {
   args: {
     value: 'https://proxy/forward?to=http://inner',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Url field with a URL whose query-string embeds a second "://". The protocol split only consumes the leading separator; the inner "://" survives inside the address input.',
+      },
+    },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

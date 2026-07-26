@@ -123,6 +123,14 @@ export const SchemaFromUrl: Story = {
     name: 'remoteBasic',
     url: 'sb-remote/basic',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with a url — the options schema is fetched from options/{url}, three fields mount with the preselected localhost default seeded and onOptionsLoaded fires with the fetched schema.',
+      },
+    },
+  },
   async beforeEach() {
     return mockFetchRoutes({ 'options/sb-remote/basic': { body: BASIC_SCHEMA } });
   },
@@ -153,6 +161,14 @@ export const OperatorsFromUrl: Story = {
       hostname: { type: 'string', value: 'qore', op: ['like'] },
     } as any,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with both url and operatorsUrl — the operator select resolves the "like" op against the fetched operator schema and the WHERE/IS summary tags appear alongside the option.',
+      },
+    },
+  },
   async beforeEach() {
     return mockFetchRoutes({
       'options/sb-remote/search': { body: SEARCH_SCHEMA },
@@ -181,6 +197,14 @@ export const FetchFailure: Story = {
     name: 'remoteFail',
     url: 'sb-remote/fail',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine when the schema fetch returns 500 — the skeleton resolves into the "No options available" empty state instead of crashing.',
+      },
+    },
+  },
   async beforeEach() {
     return mockFetchRoutes({
       'options/sb-remote/fail': { status: 500, body: { err: 'boom' } },
@@ -201,6 +225,14 @@ export const UrlChangeResetsValue: Story = {
   args: {
     name: 'remoteSwitch',
     url: 'sb-remote/first',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine wired to url="first". Clicking the switch button re-points the engine to a different schema — the previous value (localhost) is dropped and the new Token field mounts.',
+      },
+    },
   },
   render(args) {
     const [url, setUrl] = useState(args.url);
@@ -256,6 +288,14 @@ export const InjectedOptionActions: Story = {
       },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with an optionActions factory that injects a per-option AI-assist button. Hovering an option reveals the injected action next to it.',
+      },
+    },
+  },
   async play() {
     await waitFor(() => expect(optionCount()).toBe(3), { timeout: 10000 });
 
@@ -277,6 +317,14 @@ export const TemplatesFromContext: Story = {
     name: 'ctxTemplates',
     options: BASIC_SCHEMA as any,
     interfaceContext: 'sb-ctx',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders FormEngine with an interfaceContext — useTemplates hits system/getContextData so template values are available in the schema fields.',
+      },
+    },
   },
   async beforeEach() {
     return mockFetchRoutes({

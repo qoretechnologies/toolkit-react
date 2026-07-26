@@ -26,6 +26,14 @@ export default meta;
 export type Story = StoryObj<typeof meta>;
 
 export const CurrentUserCanBeLoaded: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a demo that reads currentUserStore — the store loads /users?action=current and the returned user object is displayed as a tree.',
+      },
+    },
+  },
   play: async () => {
     await testsWaitForText('"David Nichols"');
   },
@@ -33,6 +41,15 @@ export const CurrentUserCanBeLoaded: Story = {
 
 export const CurrentUserHasPermissions: Story = {
   ...CurrentUserCanBeLoaded,
+  parameters: {
+    ...CurrentUserCanBeLoaded.parameters,
+    docs: {
+      description: {
+        story:
+          'Renders a demo that calls currentUserStore().hasAnyPermission — the affirmative message renders because the loaded user carries at least one of the requested permissions.',
+      },
+    },
+  },
   render: () => {
     const { hasAnyPermission } = currentUserStore();
 

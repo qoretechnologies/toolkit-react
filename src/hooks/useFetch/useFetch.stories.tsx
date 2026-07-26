@@ -35,6 +35,12 @@ export const Get: Story = {
     method: 'GET',
   },
   parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a useFetch demo that issues a GET against /public/info on mount and displays the returned Qorus system info as a tree.',
+      },
+    },
     mockData: [
       {
         // An array of mock objects which will add in every story
@@ -66,6 +72,12 @@ export const Put: Story = {
     method: 'PUT',
   },
   parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a useFetch demo that issues a PUT against /public/info on mount and displays the returned success status.',
+      },
+    },
     mockData: [
       {
         // An array of mock objects which will add in every story
@@ -88,6 +100,12 @@ export const Post: Story = {
     method: 'POST',
   },
   parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a useFetch demo that issues a POST against /public/info on mount and displays the returned success status.',
+      },
+    },
     mockData: [
       {
         // An array of mock objects which will add in every story
@@ -110,6 +128,12 @@ export const Del: Story = {
     method: 'DELETE',
   },
   parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a useFetch demo that issues a DELETE against /public/info on mount and displays the returned success status.',
+      },
+    },
     mockData: [
       {
         // An array of mock objects which will add in every story
@@ -132,6 +156,12 @@ export const Error409: Story = {
     method: 'POST',
   },
   parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a useFetch demo that issues a POST returning a 409 error — the hook exposes errorData and the Qorus stack trace is rendered in place of the response.',
+      },
+    },
     mockData: [
       {
         // An array of mock objects which will add in every story

@@ -42,6 +42,14 @@ export const Default: Story = {
       { label: 'Python', value: 'Python', 'aria-label': 'Python' },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the RadioGroup field with three language options and "Qore" pre-selected. Clicking a different option fires onChange with the new value.',
+      },
+    },
+  },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
     const java = canvas.getByLabelText('Java');
@@ -59,6 +67,14 @@ export const WithImages: Story = {
       { label: 'Python', value: 'Python', image: python },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the RadioGroup field with three language options — each option displays its language logo alongside the label.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     await expect(canvasElement.querySelector(`img[src="${qore}"]`)).toBeInTheDocument();
     await expect(canvasElement.querySelector(`img[src="${java}"]`)).toBeInTheDocument();
@@ -68,4 +84,12 @@ export const WithImages: Story = {
 
 export const Disabled: Story = {
   args: { ...Default.args, disabled: true },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the RadioGroup field with three language options but disabled — the group is visible and non-interactive.',
+      },
+    },
+  },
 };

@@ -57,6 +57,14 @@ const waitForText = async (text: string | RegExp) => {
 /** Auto type, no value — the picker is shown and the field area prompts for a type. */
 export const Empty: Story = {
   args: {},
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField with no value or defaultType — the type picker is shown and the field area prompts the operator to pick a data type.',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     // The IDE auto resolves its type in a mount effect — assert asynchronously.
@@ -70,6 +78,14 @@ export const Empty: Story = {
 export const InferredInteger: Story = {
   args: {
     value: 42,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField with a pre-existing numeric value of 42 — the type is inferred as int and the numeric input is shown without prompting for a type.',
+      },
+    },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -86,6 +102,14 @@ export const InferredText: Story = {
   args: {
     value: 'hello world',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField with a pre-existing string value — the type is inferred as string and the text field is shown holding "hello world".',
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(await canvas.findByDisplayValue('hello world')).toBeInTheDocument();
@@ -96,6 +120,14 @@ export const InferredText: Story = {
 export const ConcreteString: Story = {
   args: {
     defaultType: 'string',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField with a concrete defaultType of string — the text field is shown directly, no type picker. Typing "abc" fires onChange with the value and inferred type.',
+      },
+    },
   },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
@@ -120,6 +152,14 @@ export const Nullable: Story = {
     defaultType: 'string',
     value: 'some text',
     canBeNull: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField with canBeNull enabled. Clicking "Set as null" clears the value to null, hides the field editor and flips the toggle to "Unset null".',
+      },
+    },
   },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
@@ -147,6 +187,14 @@ export const AllowedTypesSubset: Story = {
       { name: 'string', display_name: 'Text' },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField with allowedTypes restricted to Integer and Text — the picker badge shows 2 available types instead of the full 14.',
+      },
+    },
+  },
   async play() {
     // The picker badge reflects the restricted list — 2 instead of 14.
     await waitForText('Please select data type');
@@ -159,6 +207,14 @@ export const NoSoftTypes: Story = {
   args: {
     noSoft: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField with noSoft enabled — the soft* type variants are hidden and the picker badge reads 9 instead of 14.',
+      },
+    },
+  },
   async play() {
     await waitForText('Please select data type');
     await waitForText('9');
@@ -170,6 +226,14 @@ export const NoSoftTypes: Story = {
  * `auto` renders the picker for free, via FormEngine → TemplateField → auto.
  */
 export const ViaFormEngine: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a FormEngine schema whose single option is typed as auto — the engine flows through TemplateField and renders the AutoFormField picker without any extra wiring.',
+      },
+    },
+  },
   render: () => {
     const [val, setVal] = useState<any>({});
     return (
@@ -222,6 +286,14 @@ export const StringWithAllowedValues: Story = {
       },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField for a string with two allowed values — the operator picks from the constrained list rather than typing freely.',
+      },
+    },
+  },
 };
 
 export const RichText: Story = {
@@ -230,6 +302,14 @@ export const RichText: Story = {
     value: 'something',
     allowTemplates: true,
     templates: buildTemplates(templates as any),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField in richtext mode with templates enabled. Typing appends to the existing value inside the contenteditable editor.',
+      },
+    },
   },
   play: async ({ canvasElement }) => {
     await waitFor(() => canvasElement.querySelector('div[contenteditable]'), {
@@ -264,6 +344,14 @@ export const ConnectionWithAllowedValues: Story = {
       },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField for a connection with two allowed values — clicking "Please select" opens the item picker modal titled "Select from items".',
+      },
+    },
+  },
   play: async () => {
     // connection is a no-compact type → the allowed values render as the
     // select with the item collection (the IDE asserts the same modal title).
@@ -277,6 +365,14 @@ export const Hash: Story = {
   args: {
     value: jsyaml.dump({ key: 'value' }),
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField with a YAML-serialized hash value — the type is inferred as hash and the object editor is shown holding the parsed data.',
+      },
+    },
+  },
 };
 
 export const File: Story = {
@@ -288,12 +384,28 @@ export const File: Story = {
       size: 1234,
     },
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField in file mode holding a text-file value — the file field shows the file name in place of the drop zone.',
+      },
+    },
+  },
 };
 
 export const AutoDoesNotChangeTypeBackToAuto: Story = {
   args: {
     defaultType: 'auto',
     value: 'test',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField in auto mode with a string value — the inferred type ("string") is shown and the picker still exposes all 14 types so the operator can switch away from auto without the field snapping back.',
+      },
+    },
   },
   play: async () => {
     await waitForText('string');
@@ -317,6 +429,14 @@ export const ListWithAllowedValues: Story = {
       },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField in list mode restricted to two allowed list values — the operator picks one of the pre-defined lists rather than composing their own.',
+      },
+    },
+  },
 };
 
 export const ListWithCreatableAllowedValues: Story = {
@@ -337,11 +457,27 @@ export const ListWithCreatableAllowedValues: Story = {
       },
     ],
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField in list mode with two allowed values but with allowed_values_creatable enabled — the operator can pick a canned list or compose a custom one.',
+      },
+    },
+  },
 };
 
 export const ListWithElementType: Story = {
   args: {
     defaultType: 'list',
     element_type: 'int',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField in list mode with an int element type — new items are added as integers rather than requiring the operator to pick a per-item type.',
+      },
+    },
   },
 };

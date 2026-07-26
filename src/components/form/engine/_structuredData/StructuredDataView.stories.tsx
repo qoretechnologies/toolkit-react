@@ -57,6 +57,14 @@ export const WorkflowOrderData: Story = {
     // Expand deep enough that the parsed-YAML sub-tree is visible.
     defaultExpandDepth: 3,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders StructuredDataView over a workflow-order payload — UI-encoded envelopes unwrap to scalars, embedded YAML strings parse into sub-trees and Qorus timestamps format to YYYY-MM-DD HH:mm:ss.SSS in the viewer\'s zone.',
+      },
+    },
+  },
   play: async () => {
     await _testsWaitForText('ORD-1002');
     await _testsWaitForText('order-process');

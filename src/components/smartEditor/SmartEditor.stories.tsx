@@ -72,6 +72,14 @@ export const BasicMock: Story = {
     initialValue: '',
     triggerCharacters: new Set([' ', '.']),
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SmartEditor against a mocked LSP server. Typing the "." trigger character sends a completion request and the dropdown mounts with the apple and banana suggestions.',
+      },
+    },
+  },
   async beforeEach() {
     const lsp = createMockLspServer(MOCK_LSP_URL, {
       capabilities: {},
@@ -295,6 +303,14 @@ export const WithDiagnostics: Story = {
     languageId: 'demo',
     initialValue: 'list services in pricing',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SmartEditor against a mocked LSP server that pushes diagnostics on didOpen — the text is decorated with wavy underlines and the stacked message panel below the editor lists both diagnostics.',
+      },
+    },
+  },
   async beforeEach() {
     const lsp = createMockLspServer(MOCK_LSP_URL, {
       capabilities: {},
@@ -342,6 +358,14 @@ export const ReadOnly: Story = {
     initialValue: 'frozen content',
     readOnly: true,
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SmartEditor in read-only mode over an initial value — the Slate editor mounts as contenteditable=false so the content shows but cannot be edited.',
+      },
+    },
+  },
   async beforeEach() {
     const lsp = createMockLspServer(MOCK_LSP_URL, { capabilities: {} });
     return () => lsp.close();
@@ -366,6 +390,14 @@ export const LoadingOverlay: Story = {
   args: {
     languageId: 'demo',
     initialValue: 'visible under the overlay',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SmartEditor against a mock LSP that never finishes initialize — the "Connecting to language server" overlay stays over the editor for the whole session.',
+      },
+    },
   },
   async beforeEach() {
     const lsp = createMockLspServer(MOCK_LSP_URL, {

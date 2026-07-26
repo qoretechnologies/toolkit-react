@@ -94,6 +94,7 @@ import {
 import { OptionFieldMessages } from './OptionFieldMessages';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
+  getFirstAttentionOptionName,
   getOptionGroup,
   getOptionGroupLabel,
   getReadFirstBucket,
@@ -564,6 +565,22 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * plumbing for the inherit_props scope-forwarding contract.
    */
   inheritedFromParent?: Record<string, unknown>;
+
+  /**
+   * Opt-in: on mount, drop the user straight into the first field they must
+   * fill — the first empty, focusable field (in schema/sort order) that is
+   * `required` or a member of a still-unsatisfied one-of `required_groups`
+   * group. Disabled, readonly, read-only-form, and dependency-locked fields are
+   * skipped. In compact (read-first) mode the target row is expanded through
+   * the engine's own `expandedOptions` state, so its editor gains focus with no
+   * DOM scraping or synthetic clicks. Strictly one-shot: it fires the first
+   * time the form has focusable content (so an async-loaded schema is covered)
+   * and then never again — a later value edit, server-driven field update, or
+   * in-place schema reload will not re-focus; only a remount re-arms it. It also
+   * never steals focus from a control the user has already moved into. No-op in
+   * classic (non-compact) mode. Default: off.
+   */
+  autoFocusFirstRequired?: boolean;
 }
 
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
@@ -602,6 +619,7 @@ export const FormEngine = ({
   optionActions,
   componentOverrides,
   inheritedFromParent,
+  autoFocusFirstRequired,
   ...rest
 }: IFormEngineProps) => {
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
@@ -1517,6 +1535,94 @@ export const FormEngine = ({
     [expandMode]
   );
 
+  // --- First-attention-field autofocus (opt-in) -----------------------------
+  // With `autoFocusFirstRequired`, drop the user straight into the first field
+  // they must fix. We reuse the engine's own ordering (`availableOptions`), the
+  // very same `getOptionBucket` the status boxes use to decide "needs attention"
+  // (so we cover empty-required, unsatisfied one-of, AND filled-but-invalid rows
+  // without ever drifting from what the user sees), and dependency gating
+  // (`dependencyLockedNames`), then expand the target row through
+  // `expandedOptions` — the row's editor-focus effect does the rest. No DOM
+  // scraping, no synthetic clicks, no polling.
+  //
+  // Strictly one-shot: it fires the first time the form has focusable content
+  // (so an async-loaded schema is still covered — the empty first pass doesn't
+  // count), then never again for the life of this instance. A server-driven
+  // field update or an in-place schema reload will NOT re-grab focus; only a
+  // genuine remount (a fresh instance) auto-focuses again, which is the intended
+  // on-mount behaviour.
+  const hasAutoFocusedRef = useRef(false);
+  // The field expanded programmatically for autofocus. A ref (not state) so
+  // CompactRow's 60ms focus timer reads the current value regardless of render
+  // batching; CompactRow focuses this one with `preventScroll` so an off-screen
+  // (or below-the-fold) form is never scrolled into view on mount.
+  const autoFocusNameRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!autoFocusFirstRequired || !compact || !options) {
+      return;
+    }
+    if (hasAutoFocusedRef.current) {
+      return;
+    }
+
+    const orderedNames = Object.keys(availableOptions);
+    if (!orderedNames.length) {
+      return;
+    }
+
+    // Never grab focus from a control the user is already in — including a field
+    // *inside* this form. If a slow/async schema lets the user start typing
+    // before this first-required scan runs, we must not steal their caret. On a
+    // clean mount focus rests on the body, so the intended "drop into the first
+    // field" still fires. Bailing here leaves `hasAutoFocusedRef` false, so it
+    // retries once focus is free.
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body) {
+      return;
+    }
+
+    const target = getFirstAttentionOptionName(orderedNames, (fieldName) => {
+      const schema = options[fieldName];
+      if (!schema) {
+        return undefined;
+      }
+      return {
+        focusable:
+          !readOnly &&
+          !schema.disabled &&
+          !(schema as { readonly?: boolean }).readonly &&
+          !dependencyLockedNames.includes(fieldName),
+        // Single source of truth: the same bucket the read-first status boxes
+        // show, so a filled-but-invalid required row is a target too.
+        needsAttention: getOptionBucket(fieldName) === 'attention',
+      };
+    });
+
+    // Mark done even when nothing needs attention, so later value edits or an
+    // in-place schema reload never re-scan or re-focus. Only a remount arms it
+    // again.
+    hasAutoFocusedRef.current = true;
+
+    if (target) {
+      // Set the ref before the state update so CompactRow's focus timer sees it.
+      autoFocusNameRef.current = target;
+      setExpandedOptions((prev) =>
+        prev.includes(target) ? prev
+        : expandMode === 'multi' ? [...prev, target]
+        : [target]
+      );
+    }
+  }, [
+    autoFocusFirstRequired,
+    compact,
+    options,
+    availableOptions,
+    readOnly,
+    dependencyLockedNames,
+    getOptionBucket,
+    expandMode,
+  ]);
+
   // Read-first completion summary (how many shown options have a value set),
   // surfaced as a progress meter at the top of the compact form.
   const readFirstCompletion = useMemo(
@@ -1871,6 +1977,7 @@ export const FormEngine = ({
       showFieldTypes,
       showAllDescriptions,
       expandedOptions,
+      autoFocusNameRef,
       highlightedOptions,
       flashedOptions,
       infoPanelOverrides,
@@ -1915,6 +2022,7 @@ export const FormEngine = ({
       showFieldTypes,
       showAllDescriptions,
       expandedOptions,
+      autoFocusNameRef,
       highlightedOptions,
       flashedOptions,
       infoPanelOverrides,

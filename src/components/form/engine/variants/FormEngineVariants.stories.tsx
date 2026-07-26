@@ -59,6 +59,14 @@ type Story = StoryObj<typeof meta>;
 
 export const V1CalmTable: Story = {
   name: '1 · Calm Table',
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "Calm Table" compact-form variant over the shared basic schema — one of four visual candidates for the read-first FormEngine view.',
+      },
+    },
+  },
   render: () => (
     <Frame>
       <VariantCalmTable options={options} values={values} />
@@ -68,6 +76,14 @@ export const V1CalmTable: Story = {
 
 export const V2Cards: Story = {
   name: '2 · Cards',
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "Cards" compact-form variant over the shared basic schema — each field group is a card so the presentation reads as chunked panels.',
+      },
+    },
+  },
   render: () => (
     <Frame>
       <VariantCards options={options} values={values} />
@@ -77,6 +93,14 @@ export const V2Cards: Story = {
 
 export const V3Focus: Story = {
   name: '3 · Focus',
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "Focus" compact-form variant over the richer focus-demo schema (named groups, required-group choices) so the variant is compared under full engine parity.',
+      },
+    },
+  },
   render: () => (
     <Frame>
       <VariantFocus options={focusOptions} values={focusValues} config={focusConfig} />
@@ -86,6 +110,14 @@ export const V3Focus: Story = {
 
 export const V4Minimal: Story = {
   name: '4 · Minimal',
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "Minimal" compact-form variant over the shared basic schema — the sparest of the four candidates, only labels and values.',
+      },
+    },
+  },
   render: () => (
     <Frame>
       <VariantMinimal options={options} values={values} />
@@ -96,6 +128,14 @@ export const V4Minimal: Story = {
 /** All four stacked, labelled — for a quick scroll-through comparison. */
 export const CompareAll: Story = {
   name: '★ Compare all',
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders all four compact-form variants stacked in a single scroll — the Calm Table, Cards, Focus and Minimal layouts sit under labelled panels so they can be compared side by side.',
+      },
+    },
+  },
   render: () => {
     const items: [string, React.ReactNode][] = [
       ['1 · Calm Table', <VariantCalmTable key='v1' options={options} values={values} />],

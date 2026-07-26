@@ -1385,9 +1385,9 @@
   integrity sha512-HGjwZKsIdx00GTg+drTsWWXtY6EX9u8E3HuFxW+KYH1vG2jsTfZwlpCJ2m7tB5AW72Nbt/A8aNjJ14Hph03LiQ==
 
 "@qoretechnologies/reqore@^0.70.11":
-  version "0.70.11"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.70.11.tgz#33b1258921059b124b9e2d3eb11ee06e776db18d"
-  integrity sha512-LBgPskzyyA7Ax4eE/oZh829zbOLIGZxiAC+hToOsaBq1VW3pPD4+XDR9nB5dPDjCwV3RpnMbWUsK9tOm5AkqmQ==
+  version "0.70.18"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.70.18.tgz#8c04c4d84d95640a607f2cfcae9196aead035e91"
+  integrity sha512-yYYpy4LjOweN4D1KXwiVyCSJxWR3dCl0QTL6VdfXH9rjvnUfI7F2wX/cHeRsIXZSiQZajx/KGcNVEOevvJBNGg==
   dependencies:
     "@internationalized/date" "^3.5.3"
     "@popperjs/core" "^2.11.6"

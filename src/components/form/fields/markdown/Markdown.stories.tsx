@@ -35,6 +35,14 @@ export const Default: Story = {
   args: {
     'aria-label': 'MarkdownEditor',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Markdown field pre-populated with the sample markdown fixture — the editor and the live preview render side by side.',
+      },
+    },
+  },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
     const editor = canvas.getByLabelText('MarkdownEditor');

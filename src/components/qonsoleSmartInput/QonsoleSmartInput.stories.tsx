@@ -398,6 +398,14 @@ export const BasicMock: Story = {
   args: {
     initialValue: '/list services ',
   },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the QonsoleSmartInput against a mocked Qonsole LSP. Typing "-" after "/list services " opens the flag dropdown with --desc, --limit and --search; pressing Enter accepts the first item without producing a stray double dash.',
+      },
+    },
+  },
   async beforeEach() {
     const server = setupBasicQonsoleMockServer();
     return () => server.close();
@@ -509,6 +517,12 @@ export const LiveQonsoleWithContext: Story = {
   },
   parameters: {
     chromatic: { disable: true },
+    docs: {
+      description: {
+        story:
+          'Renders the QonsoleSmartInput against the real Qonsole LSP with a pre-bound "/use services" context — predictive text is scoped to the services resource via the qonsole/setContext call.',
+      },
+    },
   },
 };
 
