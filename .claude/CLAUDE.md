@@ -44,7 +44,7 @@ ReQraft (`@qoretechnologies/reqraft`) is a **React hooks and components toolkit*
 - **Styling:** styled-components (inherited from ReQore); no CSS modules
 - **State Management:** zustand (stores) + React Context (`use-context-selector`)
 - **Data Fetching:** `@tanstack/react-query` v4 (via `query()` util + `useFetch` hook)
-- **Testing:** Jest + React Testing Library (tests in `__tests__/`)
+- **Testing:** Vitest — a `unit` project (jsdom, tests in `__tests__/`) + a `storybook` project (every story run in a real Chromium browser via Playwright); React Testing Library for component assertions
 - **Documentation:** Storybook (stories co-located in `src/` with `.stories.tsx` suffix)
 - **Storybook port:** `6008` (not 6007 — that's reqore)
 
@@ -155,7 +155,9 @@ A generic `<Field>` component dispatches to the appropriate field by type.
 ```bash
 yarn install
 yarn storybook          # Dev mode on http://localhost:6008
-yarn test:watch         # Jest watch mode
+yarn test               # Vitest unit tests (jsdom)
+yarn test:watch         # Vitest unit watch mode
+yarn test:stories       # Story / interaction tests in a real browser (+ Qlip capture)
 yarn lint               # ESLint check
 yarn build              # TypeScript compilation (tsconfig.prod.json)
 yarn build:test         # Type-check without emit
@@ -177,16 +179,17 @@ yarn build:test         # Type-check without emit
 
 ### Testing Patterns
 
-- Tests live in `__tests__/` (mirror `src/` structure)
-- Wrap tests with `ReqraftProvider` (or at minimum `QueryClientProvider`)
+- Two Vitest projects (see `vitest.config.ts`): **unit** (jsdom; tests in `__tests__/`, mirroring `src/`) and **storybook** (every `*.stories.tsx` run in a real Chromium browser via Playwright). There is no Jest.
+- Wrap unit tests with `ReqraftProvider` (or at minimum `QueryClientProvider`)
 - Use `mock-socket` for WebSocket testing
-- Run: `./node_modules/.bin/jest --passWithNoTests`
+- Run: `yarn test` (unit) · `yarn test:stories [file-substring]` (stories) · `yarn precheck` (lint + unit + `build:test:prod`)
 
-### Storybook Stories
+### Storybook Stories & visual testing
 
 - Stories are co-located alongside source: `src/hooks/useFetch/useFetch.stories.tsx`
 - Storybook port: **6008**
-- Visual testing via Chromatic (`yarn chromatic`)
+- Story + interaction tests run on **Vitest browser mode** (Playwright/Chromium): `yarn test:stories [file-substring]`. Run `yarn install-playwright` once first.
+- **Visual regression via Qlip** (not Chromatic): the story run captures snapshots through the `qlip` Vitest plugin. Upload is gated on `QLIP_UPLOAD_TOKEN` (`vitest.config.ts`), so **local runs capture but never upload** — PNGs land in `qlip/screenshots/<ts>/stories/auto/<StoryId>.png` (gitignored); read the PNG to verify a visual change. CI (`.github/workflows/tests.yml`) sets the token and uploads a build for dashboard review. The full visual-change flow + the `qlip` MCP review skill live in the imported `stacks/frontend/FRONTEND.md`.
 
 ## Code Patterns & Conventions
 
@@ -268,7 +271,7 @@ yarn build:test         # Type-check without emit
 | `src/components/log/` | Log display component |
 | `src/components/menu/` | Navigation menu component |
 | `src/types/` | Shared TypeScript types |
-| `__tests__/` | Jest tests |
+| `__tests__/` | Vitest unit tests (jsdom) |
 
 ## Other
 
