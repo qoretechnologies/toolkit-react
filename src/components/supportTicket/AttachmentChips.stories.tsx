@@ -52,6 +52,14 @@ const Harness = () => {
  * images); the log stays a plain chip. Proves the preview opens and paints the image.
  */
 export const WithImages: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders staged chips for two screenshots and a log, where clicking a screenshot chip opens the shared lightbox while the log stays a plain chip.',
+      },
+    },
+  },
   render: () => <Harness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -73,6 +81,14 @@ export const WithImages: Story = {
  * chip keeps its `screenshot-<timestamp>.png` name.
  */
 export const Rename: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the staged chips and renames an auto-named screenshot inline — the pencil opens an input, Enter commits, and the chip shows the new name.',
+      },
+    },
+  },
   render: () => <Harness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

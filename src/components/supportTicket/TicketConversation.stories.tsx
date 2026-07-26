@@ -64,6 +64,14 @@ const refs = (
  * above the staff composer with the split send.
  */
 export const StaffConversation: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the staff view — the thread with viewerRole='staff' (internal notes visible, amber) stacked above the staff composer with its split send.",
+      },
+    },
+  },
   render: () =>
     themed(
       <>
@@ -87,6 +95,14 @@ export const StaffConversation: Story = {
  * staff shown as "Qorus Support", no internal notes) above their reply composer.
  */
 export const CustomerConversation: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the customer view — the same thread with viewerRole='customer' (staff shown as 'Qorus Support', no internal notes) stacked above the customer's reply composer.",
+      },
+    },
+  },
   render: () =>
     themed(
       <>

@@ -20,6 +20,14 @@ type Story = StoryObj<typeof meta>;
  * a Slate contenteditable (not a `<textarea>`), an attach button, and Send.
  */
 export const Rich: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the default rich editor — a Slate contenteditable (not a textarea) with an attach button and Send, seeded with a multi-line draft.',
+      },
+    },
+  },
   args: {
     placeholder: 'Write a message…',
     defaultText: 'A rich, multi-line draft.\nSecond paragraph survives as a newline.',
@@ -37,6 +45,14 @@ export const Rich: Story = {
  * `onSend` with the plain body and the staged files.
  */
 export const Plain: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the plain textarea variant, where typing enables Send and clicking it calls onSend with the plain body and the staged files.',
+      },
+    },
+  },
   args: { editor: 'plain' },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
@@ -59,6 +75,14 @@ export const Plain: Story = {
  * dropdown. The primary is the first action; its `id` is echoed back to `onSend`.
  */
 export const SplitSend: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the composer with multiple sendActions, splitting Send into a primary Publish button plus a caret dropdown — sending echoes the chosen action's id back to onSend.",
+      },
+    },
+  },
   args: {
     editor: 'plain',
     sendActions: [
@@ -95,6 +119,14 @@ export const SplitSend: Story = {
 const slotTag = (name: string) => <ReqoreTag label={name} size='small' intent='info' />;
 
 export const WithSlots: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders every composer injection slot — attachMenuItems, toolbarStart, footerActions, rightActions, aboveInput, and belowInput — each filled with a self-naming tag, so the story reads as a legible map of where each slot lands.',
+      },
+    },
+  },
   args: {
     editor: 'plain',
     attachMenuItems: () => [
@@ -130,6 +162,14 @@ export const WithSlots: Story = {
  * :6006 story `qonsole-ui-components--business-impact`.
  */
 export const QonsoleReplica: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the composer configured to replicate qorus-ide's QonsoleInput — a dark custom1 theme, gradient bar, icon-only send, and the slash-commands and design-session compass controls in its slots.",
+      },
+    },
+  },
   decorators: [
     (Story) => (
       <ReqoreUIProvider theme={{ main: '#121212', intents: { custom1: '#762f7e' } }}>
@@ -182,6 +222,14 @@ export const QonsoleReplica: Story = {
 
 /** `disabled` replaces the whole composer with a muted notice. */
 export const Disabled: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the disabled state, where the whole composer is replaced by a muted notice showing the disabledReason.',
+      },
+    },
+  },
   args: { disabled: true, disabledReason: 'This channel is read-only.' },
   async play({ canvasElement }) {
     await expect(within(canvasElement).getByText('This channel is read-only.')).toBeInTheDocument();

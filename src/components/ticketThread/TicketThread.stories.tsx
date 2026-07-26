@@ -165,6 +165,14 @@ type Story = StoryObj<typeof meta>;
  * attachment chip calls `onDownloadAttachment` with its id + filename.
  */
 export const CustomerView: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the thread from the customer's viewpoint: the customer's own messages sit on the right under 'You', staff appear under the masked 'Qorus Support' label, internal notes are filtered out, and clicking an attachment chip calls onDownloadAttachment with its id and filename.",
+      },
+    },
+  },
   args: {
     viewerRole: 'customer',
     // the server never sends internal notes to the customer
@@ -195,6 +203,14 @@ export const CustomerView: Story = {
  * icon. The staff view omits `onInterfaceClick`, leaving the chips static.
  */
 export const WithInterfaceReferences: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a customer thread whose messages carry interface-reference chips — several per message, including two workflows — where clicking a chip calls onInterfaceClick with that interface.',
+      },
+    },
+  },
   args: {
     viewerRole: 'customer',
     messages: REFERENCED_THREAD,
@@ -230,6 +246,14 @@ export const WithInterfaceReferences: Story = {
  * note" label so they can never be mistaken for a customer-visible reply.
  */
 export const StaffView: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the thread from the staff viewpoint: staff messages sit on the right, the customer on the left, and staff-only internal notes render amber and bordered under an 'Internal note' label.",
+      },
+    },
+  },
   args: {
     viewerRole: 'staff',
     messages: THREAD,
@@ -246,6 +270,14 @@ export const StaffView: Story = {
 };
 
 export const Loading: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the loading state as a conversation-shaped skeleton — aria-busy and labelled 'Loading conversation', carrying no message content — rather than a spinner.",
+      },
+    },
+  },
   args: { loading: true },
   async play({ canvasElement }) {
     // the loading state is a conversation-shaped skeleton, not a spinner
@@ -258,6 +290,14 @@ export const Loading: Story = {
 };
 
 export const Empty: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the empty state with no messages, showing the 'No messages yet' placeholder instead of a thread.",
+      },
+    },
+  },
   args: { messages: [] },
   async play({ canvasElement }) {
     await expect(within(canvasElement).getByText('No messages yet')).toBeInTheDocument();
@@ -294,6 +334,14 @@ const EVERY_KIND: IInterfaceReference[] = [
 /** Every referenceable interface kind as a chip on a single message — one of each,
  *  plus an unknown kind that must fall back to the generic glyph. */
 export const EveryReferenceKind: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a single message carrying a chip for every referenceable interface kind, one of each, plus an unknown kind that falls back to the generic glyph.',
+      },
+    },
+  },
   args: {
     viewerRole: 'customer',
     messages: [
@@ -318,6 +366,14 @@ export const EveryReferenceKind: Story = {
 /** The markdown a body supports: emphasis, inline code, a fenced block, both list
  *  kinds, and a link — so a formatting regression shows up here, not in the wild. */
 export const RichFormatting: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a message whose markdown body exercises emphasis, inline code, a fenced code block, both list kinds, and a link, so a formatting regression surfaces here.',
+      },
+    },
+  },
   args: {
     viewerRole: 'customer',
     messages: [
@@ -364,6 +420,14 @@ export const RichFormatting: Story = {
 /** A spread of attachment types and sizes on one message — each chip shows its
  *  own formatted size and a content-type tooltip. */
 export const AttachmentTypes: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders one message with a spread of attachment types and sizes, where the image previews inline as a thumbnail while the rest stay download chips showing their formatted sizes.',
+      },
+    },
+  },
   args: {
     viewerRole: 'customer',
     // the image among these previews inline; the rest stay download chips
@@ -404,6 +468,14 @@ export const AttachmentTypes: Story = {
 /** The system-message range — created, assigned, priority, status, reopened,
  *  resolved — each a centred muted line rather than a card. */
 export const SystemEvents: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the full range of system messages — opened, assigned, priority, status, reopened, resolved — each as a centred muted line rather than a card.',
+      },
+    },
+  },
   args: {
     viewerRole: 'customer',
     messages: [
@@ -426,6 +498,14 @@ export const SystemEvents: Story = {
 /** A burst of consecutive same-author replies collapses under a single timestamp
  *  (one `ReqoreBubbleGroup`) rather than stamping every card. */
 export const GroupedBurst: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a burst of consecutive same-author staff replies collapsed under a single timestamp, rather than stamping every card.',
+      },
+    },
+  },
   args: {
     viewerRole: 'staff',
     messages: [
@@ -441,6 +521,14 @@ export const GroupedBurst: Story = {
 /** An internal note sits amber under "Internal note" for staff, next to a normal
  *  reply — the two must never be confusable. Customer never receives it. */
 export const InternalNote: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a staff thread where an internal note sits amber under 'Internal note' beside a normal reply, so the two can never be confused.",
+      },
+    },
+  },
   args: {
     viewerRole: 'staff',
     messages: [
@@ -464,6 +552,14 @@ export const InternalNote: Story = {
 
 /** A single message — the footer count reads "1 message", not "1 messages". */
 export const SingleMessage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a thread with a single message, so the footer count reads '1 message' rather than '1 messages'.",
+      },
+    },
+  },
   args: {
     viewerRole: 'customer',
     messages: [
@@ -478,6 +574,14 @@ export const SingleMessage: Story = {
 /** A long conversation that overflows the drawer body — confirms it scrolls and
  *  the latest message sits at the bottom against the composer. */
 export const LongThread: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a 16-message conversation that overflows the drawer body, confirming it scrolls and auto-scrolls to the newest message resting at the bottom against the composer.',
+      },
+    },
+  },
   args: {
     viewerRole: 'customer',
     messages: Array.from({ length: 16 }, (_, i) => ({
@@ -522,6 +626,14 @@ export const LongThread: Story = {
  * images included — falls back to the chip, which is what `CustomerView` shows.
  */
 export const ImagePreview: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a message whose image attachments preview inline as thumbnails — clicking one opens the enlarge view — while a non-image on the same message stays a download chip.',
+      },
+    },
+  },
   args: {
     viewerRole: 'customer',
     fetchAttachmentUrl: async (id: string) =>
@@ -566,6 +678,14 @@ export const ImagePreview: Story = {
  * the two attachment rows (images, then files), then the reference chips.
  */
 export const Everything: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders one message carrying the whole stack at once — a formatted body, image thumbnails, file chips, and interface references — so the order and spacing of all four blocks is reviewable together.',
+      },
+    },
+  },
   args: {
     viewerRole: 'customer',
     fetchAttachmentUrl: async (id: string) =>

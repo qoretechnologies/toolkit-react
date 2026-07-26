@@ -64,6 +64,14 @@ type Story = StoryObj<typeof meta>;
 /** A busy ticket: 5 grouped interface references, 3 screenshots, 4 files, and the
  *  search / type-filter / sort strip a ticket this full earns. */
 export const Populated: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a busy ticket with five grouped interface references, three screenshots, and four files — full enough to surface the search box, type-filter, and sort strip.',
+      },
+    },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Linked interfaces')).toBeInTheDocument();
@@ -93,6 +101,14 @@ export const Populated: Story = {
 /** The control strip in action: search narrows to matches, a no-match query offers
  *  "Clear filters", and the type filter collapses the view to one family. */
 export const Filtering: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the control strip in action — searching narrows to matching files and references, a no-match query offers 'Clear filters', and the type filter collapses the view to a single family.",
+      },
+    },
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const box = canvas.getByPlaceholderText('Search files and references…');
@@ -129,6 +145,14 @@ export const Filtering: Story = {
 
 /** Clicking a loaded screenshot opens the paging lightbox (portalled to body). */
 export const LightboxOpens: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the references view and, when a loaded screenshot is clicked, opens the paging lightbox portalled to the body.',
+      },
+    },
+  },
   play: async ({ canvasElement }) => {
     const thumb = await waitFor(() => {
       const el = canvasElement.querySelector<HTMLButtonElement>(
@@ -149,6 +173,14 @@ export const LightboxOpens: Story = {
 /** The same ticket from the customer's side: their own uploads read "you", and a
  *  staff reply's attachment reads "Qorus Support" — never the raw staff identity. */
 export const CustomerView: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the same ticket from the customer's side, where their own uploads read 'added by you' and a staff reply's attachment reads 'Qorus Support' rather than the raw staff identity.",
+      },
+    },
+  },
   args: { viewerRole: 'customer' },
   play: async ({ canvasElement }) => {
     await waitFor(() => expect(canvasElement.textContent).toContain('added by you'));
@@ -158,11 +190,27 @@ export const CustomerView: Story = {
 
 /** Without a fetcher, screenshots degrade to download tiles rather than thumbnails. */
 export const NoPreview: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the references view with no fetchAttachmentUrl, so screenshots degrade to download tiles rather than thumbnails.',
+      },
+    },
+  },
   args: { fetchAttachmentUrl: undefined },
 };
 
 /** Nothing attached or linked. */
 export const Empty: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the empty state with nothing attached or linked, showing 'No references or files yet'.",
+      },
+    },
+  },
   args: { references: [], attachments: [], messages: [] },
   play: async ({ canvasElement }) => {
     await expect(canvasElement.textContent).toContain('No references or files yet');
@@ -173,11 +221,19 @@ export const Empty: Story = {
  * With `onShowInChat` wired, a row that came from a reply gains a "three dots" menu
  * offering to reveal it in the conversation.
  *
- * The menu is deliberately absent on rows filed against the ticket itself — those
- * have no message to jump to, and an empty menu is worse than none. That asymmetry
- * is the thing worth seeing here.
+ * A row filed against the ticket itself carries the same menu, but its reveal is
+ * disabled and labelled "Filed on the ticket" — there's no message to jump to. That
+ * distinction between a reply-borne row and a ticket-level one is the thing to see here.
  */
 export const ShowInChat: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders references with onShowInChat wired — a reply-borne row's menu offers an active 'Show in chat' that calls onShowInChat, while a ticket-level row carries the same menu with its reveal disabled ('Filed on the ticket').",
+      },
+    },
+  },
   args: {
     messages: [
       {

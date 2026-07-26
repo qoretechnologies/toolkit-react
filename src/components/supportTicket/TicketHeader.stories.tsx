@@ -35,6 +35,14 @@ const person = (name: string) => (
  * caller's — this is the shorter of the two lists a real surface passes.
  */
 export const Customer: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the customer's header rail — subject, reference, and a short list of read-only property rows, with the status shown from the customer's viewpoint as 'Awaiting your reply'.",
+      },
+    },
+  },
   args: {
     properties: [
       {
@@ -64,6 +72,14 @@ export const Customer: Story = {
  * reads as a table — that invariant is what the alignment test below pins.
  */
 export const Staff: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the staff header rail — the same frame with pressable values (a status dropdown, assignee and customer people, a references button) alongside plain text.',
+      },
+    },
+  },
   args: {
     properties: [
       {
@@ -108,6 +124,14 @@ export const Staff: Story = {
  * 2. Every row is the same height, whether it holds a 32px control or a line of text.
  */
 export const RowsAlign: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the staff rail again to measure its two layout invariants — every value's content starts on the same vertical edge, and every row is the same height, whether the row holds a control or bare text.",
+      },
+    },
+  },
   args: Staff.args,
   async play({ canvasElement }) {
     const rows = Array.from(
@@ -136,6 +160,14 @@ export const RowsAlign: Story = {
 
 /** `when: false` drops a row, so one list can serve both viewer roles. */
 export const HiddenRow: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a property list where one row is flagged when: false, showing that the flagged Assignee row drops out so a single list can serve both viewer roles.',
+      },
+    },
+  },
   args: {
     properties: [
       { label: 'Status', value: <TicketHeaderText>Open</TicketHeaderText> },

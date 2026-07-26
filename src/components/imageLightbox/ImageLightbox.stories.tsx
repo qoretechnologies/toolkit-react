@@ -32,6 +32,14 @@ const IMAGES: IImageLightboxImage[] = [
 
 /** Open on a set of three, so the paging chrome (`1 / 3`, prev/next) shows. */
 export const Paging: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the lightbox open on a set of three images, so the paging chrome ('1 / 3', prev/next) shows, and arrow keys page through the set.",
+      },
+    },
+  },
   render: function Render() {
     const [index, setIndex] = useState<number | null>(0);
     if (index === null) {
@@ -72,6 +80,14 @@ export const Paging: Story = {
  * now depends on `id` alone. Removing that fix makes this story time out.
  */
 export const ResolvesDespiteParentReRenders: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the lightbox while the parent re-renders on a timer with a deliberately slow fetch — a regression guard proving the image still resolves instead of the spinner hanging forever.',
+      },
+    },
+  },
   render: function Render() {
     const [index, setIndex] = useState<number | null>(0);
     const [, setTick] = useState(0);
@@ -109,6 +125,13 @@ export const ResolvesDespiteParentReRenders: Story = {
 
 /** A single image: no paging chrome. */
 export const Single: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story: 'Renders the lightbox on a single image, so no paging chrome appears.',
+      },
+    },
+  },
   render: function Render() {
     const [index, setIndex] = useState<number | null>(0);
     if (index === null) {

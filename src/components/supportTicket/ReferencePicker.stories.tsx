@@ -126,6 +126,14 @@ const missingOption = (canvas: ReturnType<typeof within>, name: string) =>
 /** Picking an interface adds it as a reference — and it stops being offered, so the
  *  same thing can't be referenced twice. */
 export const Default: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the two-pane reference browser and, on picking an interface, adds it as a reference and drops it from the pane so the same thing can't be referenced twice.",
+      },
+    },
+  },
   decorators: [darkTheme],
   render: () => <Hosted />,
   async play({ canvasElement }) {
@@ -140,6 +148,14 @@ export const Default: Story = {
 
 /** Selecting a kind on the left swaps the right pane to that kind's interfaces. */
 export const SwitchesKind: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the picker and shows that selecting a kind on the left swaps the right pane to that kind's interfaces.",
+      },
+    },
+  },
   decorators: [darkTheme],
   render: () => <Hosted />,
   async play({ canvasElement }) {
@@ -153,6 +169,14 @@ export const SwitchesKind: Story = {
 
 /** One search scopes both panes: the kind list and the selected kind's interfaces. */
 export const SearchScopesBothPanes: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the picker and shows its single search box scoping both panes at once — filtering the selected kind's interfaces and the kind list together.",
+      },
+    },
+  },
   decorators: [darkTheme],
   render: () => <Hosted />,
   async play({ canvasElement }) {
@@ -180,6 +204,14 @@ export const SearchScopesBothPanes: Story = {
 
 /** The right pane says it's still fetching rather than claiming the kind is empty. */
 export const Loading: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the loading state, where the right pane reports it is still fetching ('Loading workflows…') rather than claiming the kind is empty.",
+      },
+    },
+  },
   decorators: [darkTheme],
   render: () => (
     <ReferencePicker
@@ -204,6 +236,14 @@ export const Loading: Story = {
  * alarming claim than "we couldn't ask". The specific failure is the tooltip.
  */
 export const LoadFailed: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the fetch-failure state, where the pane shows the error and a retry action instead of an empty list that would read as 'this instance has no connections'.",
+      },
+    },
+  },
   decorators: [darkTheme],
   render: () => (
     <ReferencePicker
@@ -228,6 +268,14 @@ export const LoadFailed: Story = {
 /** In place: above the composer, toggled by the composer's own action, with the picked
  *  references shown as chips over the input. */
 export const AboveTheComposer: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the picker in place above the composer, toggled by the composer's own action, with picked references surfacing as chips over the input that persist when the picker is closed.",
+      },
+    },
+  },
   decorators: [darkTheme],
   render: () => <Hosted withComposer />,
   async play({ canvasElement }) {

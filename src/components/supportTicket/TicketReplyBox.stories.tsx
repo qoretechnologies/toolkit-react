@@ -23,6 +23,14 @@ type Story = StoryObj<typeof meta>;
  * calls `onSend` with the body and `internal: false`.
  */
 export const Default: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the customer composer's plain-editor variant — an attach button and Send, no internal-note toggle; typing a reply enables Send, which calls onSend with the body and internal: false.",
+      },
+    },
+  },
   args: { editor: 'plain' },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
@@ -47,6 +55,14 @@ export const Default: Story = {
  * which sends with `internal: true`.
  */
 export const StaffWithInternalNote: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the staff composer with a split send button — the primary action posts a public reply, while the caret opens 'Add internal note', which sends with internal: true.",
+      },
+    },
+  },
   args: { allowInternalNote: true, editor: 'plain' },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
@@ -74,6 +90,14 @@ export const StaffWithInternalNote: Story = {
 
 /** A closed ticket replaces the editor with a muted notice. */
 export const Closed: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a closed ticket, where the disabled composer replaces the editor with a muted 'ticket is closed' notice.",
+      },
+    },
+  },
   args: { disabled: true },
   async play({ canvasElement }) {
     await expect(within(canvasElement).getByText(/ticket is closed/i)).toBeInTheDocument();
@@ -90,6 +114,14 @@ export const Closed: Story = {
  * helpdesk uses.
  */
 export const RichHelpdeskReply: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the shipping helpdesk composer with the rich Qonsole-style editor — staff split-send, an attach dropdown, a reference-interfaces toggle, and an interface reference chip above the input.',
+      },
+    },
+  },
   // Rendered under the Qorus theme (as in qorus-ide / admin-portal) so the
   // `custom1` accent shows as the Qorus purple — a bare reqore theme greys it out.
   decorators: [
@@ -150,6 +182,14 @@ export const RichHelpdeskReply: Story = {
  * ai-guardrail. (`qog` has no built-in icon → the generic fallback.)
  */
 export const AllReferenceTypes: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a reply carrying every referenceable interface kind at once, so the per-kind icons and accent chip styling can be reviewed together (qog falls back to the generic glyph).',
+      },
+    },
+  },
   decorators: [
     (Story) => (
       <ReqoreUIProvider theme={{ main: '#121212', intents: { custom1: '#762f7e' } }}>
@@ -208,6 +248,14 @@ const APP_LOGOS: Record<string, string> = {
  * A qog with no trigger app falls back to the qog glyph.
  */
 export const QogTriggerAppLogo: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders qogs referenced by their trigger apps, each showing that app's logo — resolved live via resolveInterfaceImage or from a stored logo — while a qog with no trigger app falls back to the qog glyph.",
+      },
+    },
+  },
   decorators: [
     (Story) => (
       <ReqoreUIProvider theme={{ main: '#121212', intents: { custom1: '#762f7e' } }}>
@@ -267,6 +315,14 @@ const screenshotFile = () => {
  * Capture-area) and interface references on top.
  */
 export const WithScreenshotAndReferences: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a composed reply carrying both a staged screenshot thumbnail in the attachment strip and interface references above the input.',
+      },
+    },
+  },
   decorators: [
     (Story) => (
       <ReqoreUIProvider theme={{ main: '#121212', intents: { custom1: '#762f7e' } }}>

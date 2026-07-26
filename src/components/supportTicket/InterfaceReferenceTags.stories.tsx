@@ -28,6 +28,14 @@ type Story = StoryObj<typeof meta>;
 
 /** The ticket-header use: a "References" label followed by one chip per reference. */
 export const Default: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the ticket-header use — a 'References' label followed by one chip per reference.",
+      },
+    },
+  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('References')).toBeInTheDocument();
@@ -44,6 +52,14 @@ export const Default: Story = {
  * its own instance, wires this).
  */
 export const Clickable: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders interactive chips by passing onInterfaceClick — clicking a chip calls it with that reference, as the customer view (which can open the interface on its own instance) wires.',
+      },
+    },
+  },
   args: { onInterfaceClick: fn() },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
@@ -61,6 +77,14 @@ export const Clickable: Story = {
 
 /** The in-thread use: no label — the chips sit under a message. */
 export const NoLabel: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the in-thread use with label undefined — no label, just the chips as they sit under a message.',
+      },
+    },
+  },
   args: { label: undefined },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -76,6 +100,14 @@ export const NoLabel: Story = {
  * is the component.
  */
 export const Empty: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the empty case — with no references the component renders nothing (no header, no chips), shown inside a dashed story-only caption frame.',
+      },
+    },
+  },
   args: { references: [] },
   decorators: [
     (Story) => (
