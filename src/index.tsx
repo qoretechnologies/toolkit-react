@@ -10,6 +10,8 @@ export {
   validateOptionWithRequiredGroups,
 } from './helpers/validations';
 export type { IValidationResult } from './helpers/validations';
+export { thinScrollbar } from './helpers/scrollbar';
+export * from './components/imageLightbox';
 export { ReqraftMenu } from './components/menu/Menu';
 export type {
   IReqraftMenuItem,
@@ -52,6 +54,7 @@ export type {
   ILspTextEdit,
   TLspDocumentText,
 } from './utils/lspClient.types';
+export * from './components/composer';
 export * from './components/smartEditor';
 export * from './components/dpqlEditor';
 export * from './components/qonsoleSmartInput';

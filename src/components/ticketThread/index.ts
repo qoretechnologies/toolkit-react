@@ -1,4 +1,4 @@
-export { TicketThread } from './TicketThread';
+export { TicketThread, ticketMessageDomId } from './TicketThread';
 export type {
   ITicketThreadAttachment,
   ITicketThreadMessage,

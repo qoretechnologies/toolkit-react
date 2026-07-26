@@ -24,6 +24,14 @@ export interface ITicketMetaTagsProps {
   size?: TSizes;
   /** Hide the category tag (e.g. in a dense list row). */
   hideCategory?: boolean;
+  /** Reqore's subtle tag style — the intent colour as text on a faint wash,
+   *  instead of a solid intent fill. Defaults to `true`; pass `false` for the
+   *  old solid chips. */
+  minimal?: boolean;
+  /** Whether the tags are borderless (Reqore's `flat`). Defaults to `false` here,
+   *  so tags carry a border — a shade lighter than the fill — which keeps the
+   *  `minimal` tags legible. Pass `true` for no border. */
+  flat?: boolean;
 }
 
 /**
@@ -37,6 +45,8 @@ export const TicketMetaTags = ({
   viewerRole,
   size = 'small',
   hideCategory,
+  minimal = true,
+  flat = false,
 }: ITicketMetaTagsProps) => {
   const status = TICKET_STATUS_META[ticket.status];
   const priority = TICKET_PRIORITY_META[ticket.priority];
@@ -49,10 +59,27 @@ export const TicketMetaTags = ({
         intent={status.intent}
         label={ticketStatusLabel(ticket.status, viewerRole)}
         size={size}
+        minimal={minimal}
+        flat={flat}
         effect={{ weight: 'bold' }}
       />
-      <ReqoreTag icon={priority.icon} intent={priority.intent} label={priority.label} size={size} />
-      {!hideCategory && <ReqoreTag icon={category.icon} label={category.label} size={size} />}
+      <ReqoreTag
+        icon={priority.icon}
+        intent={priority.intent}
+        label={priority.label}
+        size={size}
+        minimal={minimal}
+        flat={flat}
+      />
+      {!hideCategory && (
+        <ReqoreTag
+          icon={category.icon}
+          label={category.label}
+          size={size}
+          minimal={minimal}
+          flat={flat}
+        />
+      )}
     </ReqoreControlGroup>
   );
 };

@@ -1,6 +1,7 @@
 import { ReqoreControlGroup, ReqoreP, ReqoreTag } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
+import { ComponentProps } from 'react';
 import { defaultInterfaceIcon, IInterfaceReference } from './meta';
 
 export interface IInterfaceReferenceTagsProps {
@@ -15,6 +16,14 @@ export interface IInterfaceReferenceTagsProps {
    *  e.g. the staff view, which can't reach the customer's instance. */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
   size?: TSizes;
+  /** Chip styling — pass `intent`/`customTheme` (e.g. `{ main: 'custom1' }`) to tint
+   *  the reference chips to a surface's accent (the Qonsole/helpdesk composer does). */
+  intent?: ComponentProps<typeof ReqoreTag>['intent'];
+  customTheme?: ComponentProps<typeof ReqoreTag>['customTheme'];
+  /** Resolve a per-reference image — e.g. a qog's trigger-app logo, the way the
+   *  qogs list does. When this (or the reference's own `logo`) returns a value, the
+   *  chip shows the image in place of the kind icon. */
+  resolveInterfaceImage?: (reference: IInterfaceReference) => string | undefined;
 }
 
 /**
@@ -30,6 +39,9 @@ export const InterfaceReferenceTags = ({
   resolveInterfaceIcon,
   onInterfaceClick,
   size = 'small',
+  intent,
+  customTheme,
+  resolveInterfaceImage,
 }: IInterfaceReferenceTagsProps) => {
   if (!references?.length) {
     return null;
@@ -42,21 +54,32 @@ export const InterfaceReferenceTags = ({
           {label}
         </ReqoreP>
       ) : null}
-      {references.map((reference) => (
-        <ReqoreTag
-          key={reference.reference_id ?? `${reference.interface_kind}:${reference.interface_name}`}
-          icon={resolveIcon(reference.interface_kind)}
-          labelKey={reference.interface_kind}
-          label={reference.interface_name}
-          size={size}
-          tooltip={
-            onInterfaceClick
-              ? `Open ${reference.interface_kind} ${reference.interface_name}`
-              : `${reference.interface_kind}: ${reference.interface_name}`
-          }
-          onClick={onInterfaceClick ? () => onInterfaceClick(reference) : undefined}
-        />
-      ))}
+      {references.map((reference) => {
+        // an app-triggered qog shows the trigger app's logo (stored, or resolved by
+        // a viewer with the app catalogue); everything else shows its kind glyph.
+        const image = reference.logo ?? resolveInterfaceImage?.(reference);
+        return (
+          <ReqoreTag
+            key={
+              reference.reference_id ??
+              `${reference.interface_kind}:${reference.interface_name}`
+            }
+            icon={image ? undefined : resolveIcon(reference.interface_kind)}
+            leftIconProps={image ? { image } : undefined}
+            labelKey={reference.interface_kind}
+            label={reference.interface_name}
+            size={size}
+            intent={intent}
+            customTheme={customTheme}
+            tooltip={
+              onInterfaceClick
+                ? `Open ${reference.interface_kind} ${reference.interface_name}`
+                : `${reference.interface_kind}: ${reference.interface_name}`
+            }
+            onClick={onInterfaceClick ? () => onInterfaceClick(reference) : undefined}
+          />
+        );
+      })}
     </ReqoreControlGroup>
   );
 };

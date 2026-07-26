@@ -104,12 +104,20 @@ export interface IAttachmentUpload {
  *  `{kind, name}` snapshot (the interface itself lives on the instance, not the
  *  SaaS plane). Attaches to a ticket (at creation) or a message (in a reply). */
 export interface IInterfaceReference {
-  /** interface type: workflow / service / job / fsm / connection / ... */
+  /** interface type: workflow / service / job / fsm / qog / connection / ... */
   interface_kind: string;
   /** interface name (may include a version) */
   interface_name: string;
   /** server-assigned reference UUID (present on read, absent when submitting) */
   reference_id?: string;
+  /** For an app-triggered interface (a qog): the triggering app's name. A viewer
+   *  with the app catalogue (the customer's IDE) resolves it to the app's logo the
+   *  same way the qogs list does — see `resolveInterfaceImage` on the tags. */
+  trigger_app?: string;
+  /** A pre-resolved logo/image (data-URI or URL) for the chip, e.g. the trigger
+   *  app's logo. Travels with the reference so a viewer without the app catalogue
+   *  (staff triage, the Qonsole card) still shows it. */
+  logo?: string;
 }
 
 // Built-in per-kind icons for referenced interfaces, kept in step with the
@@ -121,6 +129,8 @@ const DEFAULT_INTERFACE_ICONS: Record<string, IReqoreIconName> = {
   service: 'ServerLine',
   job: 'CalendarLine',
   fsm: 'DashboardLine',
+  // qog fallback glyph (used only when there's no trigger-app logo to show)
+  qog: 'FlowChart',
   connection: 'Plug2Line',
   mapper: 'MindMap',
   class: 'CodeSLine',
