@@ -220,7 +220,15 @@ const useImageUrls = (
   const key = ids.join(',');
 
   useEffect(() => {
-    if (!fetchAttachmentUrl || !ids.length) {
+    if (!ids.length) {
+      return undefined;
+    }
+    // No fetcher wired means there is no preview to wait for — resolve every id
+    // straight to the "no preview" state (null) so tiles fall through to the
+    // filename / download fallback instead of a forever-pending "…" (undefined
+    // is reserved for a wired fetcher's genuinely in-flight requests).
+    if (!fetchAttachmentUrl) {
+      setUrls(Object.fromEntries(ids.map((id) => [id, null])));
       return undefined;
     }
     let active = true;

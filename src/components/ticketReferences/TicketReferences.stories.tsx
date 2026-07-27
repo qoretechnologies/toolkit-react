@@ -199,6 +199,20 @@ export const NoPreview: Story = {
     },
   },
   args: { fetchAttachmentUrl: undefined },
+  play: async ({ canvasElement }) => {
+    // No fetcher ⇒ the tile body falls through to the filename fallback. The caption
+    // always shows the filename, so the discriminating checks are: no thumbnail image,
+    // and no forever-pending "…" in the tile body (the qlip-caught regression).
+    const tile = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('button[title="error-screenshot.png"]');
+      if (!el) {
+        throw new Error('screenshot tile not rendered');
+      }
+      return el;
+    });
+    await expect(tile.querySelector('img')).toBeNull();
+    await expect(tile.textContent).not.toContain('…');
+  },
 };
 
 /** Nothing attached or linked. */
