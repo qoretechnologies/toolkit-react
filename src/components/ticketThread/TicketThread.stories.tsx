@@ -202,6 +202,61 @@ export const CustomerView: Story = {
  * instance) the chips are clickable; `resolveInterfaceIcon` supplies a per-kind
  * icon. The staff view omits `onInterfaceClick`, leaving the chips static.
  */
+/**
+ * TICKET-level references (picked when filing) echo as chips on the OPENING message —
+ * without the echo, readers scanned the thread, saw no chips, and concluded the ticket
+ * referenced nothing. Deduped: `order-sync:1.2` is both a ticket reference and a
+ * message-level ref on the opening message, and must render exactly once; the reply's
+ * own refs are untouched.
+ */
+export const TicketReferencesEchoOnOpeningMessage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the thread with ticketReferences wired — the ticket-level refs (a qog and a workflow) appear as chips on the opening message only, deduped against that message\'s own refs, while the reply keeps just its own.',
+      },
+    },
+  },
+  args: {
+    viewerRole: 'customer',
+    messages: [
+      {
+        message_id: 'e1',
+        author_type: 'customer',
+        author_id: 'acme',
+        body: 'The qog fails right after start; the workflow it feeds never runs.',
+        created: ago(45),
+        // overlaps with one ticket-level ref — must not double-render
+        referenced_interfaces: [
+          { interface_kind: 'workflow', interface_name: 'order-sync:1.2', reference_id: 'ref-m1' },
+        ],
+      },
+      {
+        message_id: 'e2',
+        author_type: 'staff',
+        author_id: 'support-1',
+        body: 'Looking into it now.',
+        created: ago(20),
+      },
+    ],
+    ticketReferences: [
+      { interface_kind: 'qog', interface_name: 'log-writer', reference_id: 'ref-t1' },
+      { interface_kind: 'workflow', interface_name: 'order-sync:1.2', reference_id: 'ref-t2' },
+    ],
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    // the ticket-level qog reference shows in the CONVERSATION now
+    await expect(await canvas.findByText('log-writer')).toBeInTheDocument();
+    // the overlapping workflow renders exactly once (ticket ref deduped against message ref)
+    await expect(canvas.getAllByText('order-sync:1.2')).toHaveLength(1);
+    // the staff reply carries no chips — the echo is scoped to the opening message
+    const chips = canvasElement.querySelectorAll('.reqore-tag');
+    await expect(chips.length).toBe(2);
+  },
+};
+
 export const WithInterfaceReferences: Story = {
   parameters: {
     docs: {

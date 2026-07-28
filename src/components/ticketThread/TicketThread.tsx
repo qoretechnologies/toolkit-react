@@ -91,6 +91,11 @@ export interface ITicketThreadProps {
   /** open a referenced interface; reference chips are static when omitted (e.g. the staff
    *  view, which can't reach the customer's instance, leaves this out). */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
+  /** The TICKET's own references (picked when filing). Echoed as chips on the opening
+   *  message so the conversation carries them too — when they lived only in the header
+   *  rail + References tab, readers looked for them in the thread and concluded the
+   *  ticket had none. Deduped against the opening message's own message-level refs. */
+  ticketReferences?: IInterfaceReference[];
 }
 
 interface IAuthorMeta {
@@ -546,6 +551,7 @@ export const TicketThread = ({
   fetchAttachmentUrl,
   resolveInterfaceIcon,
   onInterfaceClick,
+  ticketReferences,
 }: ITicketThreadProps) => {
   // Open scrolled to the newest message, and follow new arrivals down — a thread is read
   // from the bottom, like any chat. Keyed on the message COUNT so it fires on open and when
@@ -575,6 +581,34 @@ export const TicketThread = ({
   // Segment the flat message list into system rows + author-grouped bubble runs once per
   // message change — not on every re-render (scroll, hover and resize all re-render this).
   const segments = useMemo(() => toSegments(messages), [messages]);
+
+  // The opening (description) message — the ticket's own references echo on it, deduped
+  // against any refs that message carries itself, so the intent still has ONE authoritative
+  // home (the References tab) but the conversation no longer reads as reference-free.
+  const openingMessageId = useMemo(
+    () => messages.find((m) => m.author_type !== 'system')?.message_id,
+    [messages]
+  );
+  const openingRefs = useMemo(() => {
+    if (!ticketReferences?.length) {
+      return undefined;
+    }
+    const opening = messages.find((m) => m.message_id === openingMessageId);
+    const seen = new Set<string>();
+    return [...ticketReferences, ...(opening?.referenced_interfaces ?? [])].filter((ref) => {
+      const key = `${ref.interface_kind}:${ref.interface_name}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }, [ticketReferences, messages, openingMessageId]);
+
+  const refsFor = (message: ITicketThreadMessage): IInterfaceReference[] | undefined =>
+    message.message_id === openingMessageId && openingRefs
+      ? openingRefs
+      : message.referenced_interfaces;
 
   if (loading) {
     return <ConversationSkeleton />;
@@ -626,12 +660,12 @@ export const TicketThread = ({
                     onDownloadAttachment={onDownloadAttachment}
                   />
                 ) : null}
-                {message.referenced_interfaces?.length ? (
+                {refsFor(message)?.length ? (
                   <div style={{ marginTop: 8 }}>
                     <InterfaceReferenceTags
                       size='tiny'
                       customTheme={ACCENT}
-                      references={message.referenced_interfaces}
+                      references={refsFor(message)}
                       resolveInterfaceIcon={resolveInterfaceIcon}
                       onInterfaceClick={onInterfaceClick}
                     />
