@@ -76,6 +76,47 @@ export const WithImages: Story = {
 };
 
 /**
+ * Renaming from INSIDE the preview: open a chip's lightbox, use its pencil, and the new
+ * name lands on the chip too — the lightbox funnels into the same host `onRename` as the
+ * chip pencil, so both affordances stay one mechanism.
+ */
+export const RenameFromPreview: Story = {
+  render: () => <Harness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByText('canvas-after.png'));
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
+
+    const pencil = await waitFor(() => {
+      const el = document.body.querySelector<HTMLButtonElement>('.imagelightbox-rename');
+      if (!el) {
+        throw new Error('lightbox rename action not rendered');
+      }
+      return el;
+    });
+    await userEvent.click(pencil);
+    const input = await waitFor(() => {
+      const el = document.body.querySelector<HTMLInputElement>('.reqore-modal input');
+      if (!el) {
+        throw new Error('lightbox rename input not shown');
+      }
+      return el;
+    });
+    await userEvent.clear(input);
+    await userEvent.type(input, 'after-fix.png');
+    await userEvent.keyboard('{Enter}');
+
+    // commit ends the edit; a second Esc now closes the modal itself
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).toBeNull());
+
+    // the rename reached the host: the CHIP carries the new name
+    await waitFor(() => expect(canvas.getByText('after-fix.png')).toBeInTheDocument());
+    await expect(canvas.queryByText('canvas-after.png')).not.toBeInTheDocument();
+  },
+};
+
+/**
  * Renaming an auto-named screenshot: the pencil turns the chip into an inline input; Enter
  * commits and the chip shows the new name. Discriminating — remove the rename wiring and the
  * chip keeps its `screenshot-<timestamp>.png` name.

@@ -135,6 +135,11 @@ export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttach
           fetchAttachmentUrl={async (id) =>
             imageEntries.find((entry) => String(entry.index) === id)?.url ?? ''
           }
+          // the lightbox ids ARE the stringified file indices, so renaming from the
+          // preview funnels into the same host callback as the chip pencil
+          onRename={
+            onRename && !disabled ? (id, name) => onRename(Number(id), name) : undefined
+          }
         />
       ) : null}
     </>

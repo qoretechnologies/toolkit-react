@@ -123,6 +123,88 @@ export const ResolvesDespiteParentReRenders: Story = {
   },
 };
 
+/**
+ * Renaming from inside the preview. The pencil (only offered when `onRename` is wired)
+ * swaps in an input row; Enter commits through the host, which owns the actual rename —
+ * here the harness updates its image list, so the modal header shows the new name.
+ * Esc cancels the edit WITHOUT closing the modal. Discriminating: remove the
+ * `onRename` plumbing and the pencil never renders / the title never changes.
+ */
+export const Renamable: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the lightbox with onRename wired — the header pencil opens an inline input; Enter commits the new name through the host and Esc cancels without closing the modal.',
+      },
+    },
+  },
+  render: function Render() {
+    const [index, setIndex] = useState<number | null>(0);
+    const [images, setImages] = useState<IImageLightboxImage[]>([IMAGES[0]]);
+    if (index === null) {
+      return <div>closed</div>;
+    }
+    return (
+      <ImageLightbox
+        images={images}
+        index={index}
+        onIndex={setIndex}
+        onClose={() => setIndex(null)}
+        fetchAttachmentUrl={async (id) => shot(id, 265)}
+        onRename={(id, name) =>
+          setImages((current) =>
+            current.map((img) => (img.attachment_id === id ? { ...img, filename: name } : img))
+          )
+        }
+      />
+    );
+  },
+  async play() {
+    const dialog = within(document.body);
+    await expect(await dialog.findByText('canvas-error.png')).toBeInTheDocument();
+
+    const pencil = await waitFor(() => {
+      const el = document.body.querySelector<HTMLButtonElement>('.imagelightbox-rename');
+      if (!el) {
+        throw new Error('rename action not rendered');
+      }
+      return el;
+    });
+    await userEvent.click(pencil);
+
+    // Esc cancels the edit but keeps the modal open
+    const input = await waitFor(() => {
+      const el = document.body.querySelector<HTMLInputElement>('.reqore-modal input');
+      if (!el) {
+        throw new Error('rename input not shown');
+      }
+      return el;
+    });
+    await expect(input).toHaveValue('canvas-error.png'); // pre-filled with the current name
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(document.body.querySelector('.reqore-modal input')).toBeNull()
+    );
+    await expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+
+    // now rename for real: pencil → clear → type → Enter → header carries the new name
+    await userEvent.click(document.body.querySelector<HTMLButtonElement>('.imagelightbox-rename')!);
+    const input2 = await waitFor(() => {
+      const el = document.body.querySelector<HTMLInputElement>('.reqore-modal input');
+      if (!el) {
+        throw new Error('rename input not shown (second open)');
+      }
+      return el;
+    });
+    await userEvent.clear(input2);
+    await userEvent.type(input2, 'mapper-crash.png');
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(dialog.getByText('mapper-crash.png')).toBeInTheDocument());
+    await expect(dialog.queryByText('canvas-error.png')).not.toBeInTheDocument();
+  },
+};
+
 /** A single image: no paging chrome. */
 export const Single: Story = {
   parameters: {

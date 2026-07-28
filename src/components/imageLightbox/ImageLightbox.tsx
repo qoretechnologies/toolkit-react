@@ -1,4 +1,10 @@
-import { ReqoreModal, ReqoreSpan, ReqoreSpinner, useLatestZIndex } from '@qoretechnologies/reqore';
+import {
+  ReqoreInput,
+  ReqoreModal,
+  ReqoreSpan,
+  ReqoreSpinner,
+  useLatestZIndex,
+} from '@qoretechnologies/reqore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 
@@ -14,6 +20,12 @@ import styled from 'styled-components';
  * When reqore gains a real viewer this collapses onto it. It fetches the shown image's
  * bytes itself (caching per id), so a consumer only has to hand it `fetchAttachmentUrl`.
  */
+
+// Compact rename row above the stage while editing — the modal's `label` slot is
+// string-only, so the input can't live in the header itself.
+const RenameRow = styled.div`
+  margin-bottom: 8px;
+`;
 
 const Stage = styled.div<{ $zoom: boolean }>`
   display: flex;
@@ -50,6 +62,10 @@ export interface IImageLightboxProps {
   /** resolve an image's bytes as an object URL (the consumer's authed endpoint) */
   fetchAttachmentUrl: (attachmentId: string) => Promise<string>;
   onDownload?: (attachmentId: string, filename: string) => void;
+  /** Rename the shown image. Presence of the callback IS the permission — a staged
+   *  (composer) set passes it, server-side attachment sets simply don't, so the
+   *  thread / References viewers stay rename-free without any extra flag. */
+  onRename?: (attachmentId: string, newName: string) => void;
 }
 
 export const ImageLightbox = ({
@@ -59,8 +75,12 @@ export const ImageLightbox = ({
   onClose,
   fetchAttachmentUrl,
   onDownload,
+  onRename,
 }: IImageLightboxProps) => {
   const [zoom, setZoom] = useState<boolean>(false);
+  // inline rename state: editing toggles the input row; draftName is the working value
+  const [editing, setEditing] = useState<boolean>(false);
+  const [draftName, setDraftName] = useState<string>('');
   // url per attachment: undefined = not fetched, null = fetch failed, string = ready
   const [urls, setUrls] = useState<Record<string, string | null>>({});
   const requested = useRef<Set<string>>(new Set());
@@ -109,13 +129,16 @@ export const ImageLightbox = ({
   const step = useCallback(
     (delta: number) => {
       setZoom(false);
+      // paging abandons an in-flight rename — the draft belonged to the image left behind
+      setEditing(false);
       onIndex((index + delta + images.length) % images.length);
     },
     [index, images.length, onIndex]
   );
 
   useEffect(() => {
-    if (!multiple) {
+    if (!multiple || editing) {
+      // while renaming, arrow keys belong to the text input, not the pager
       return undefined;
     }
     const handler = (event: KeyboardEvent) => {
@@ -127,7 +150,21 @@ export const ImageLightbox = ({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [step, multiple]);
+  }, [step, multiple, editing]);
+
+  const startRename = useCallback(() => {
+    setDraftName(images[index]?.filename ?? '');
+    setEditing(true);
+  }, [images, index]);
+
+  const commitRename = useCallback(() => {
+    const current = images[index];
+    const name = draftName.trim();
+    if (onRename && current && name && name !== current.filename) {
+      onRename(current.attachment_id, name);
+    }
+    setEditing(false);
+  }, [draftName, images, index, onRename]);
 
   if (!image) {
     return null;
@@ -146,6 +183,13 @@ export const ImageLightbox = ({
         { icon: 'ArrowLeftSLine', tooltip: 'Previous', onClick: () => step(-1), show: multiple },
         { icon: 'ArrowRightSLine', tooltip: 'Next', onClick: () => step(1), show: multiple },
         {
+          icon: 'Edit2Line',
+          tooltip: 'Rename',
+          className: 'imagelightbox-rename',
+          onClick: startRename,
+          show: !!onRename && !editing,
+        },
+        {
           icon: 'DownloadLine',
           tooltip: 'Download',
           onClick: () => onDownload?.(image.attachment_id, image.filename),
@@ -153,6 +197,29 @@ export const ImageLightbox = ({
         },
       ]}
     >
+      {editing ? (
+        <RenameRow>
+          <ReqoreInput
+            value={draftName}
+            onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+              setDraftName(event.target.value)
+            }
+            onBlur={commitRename}
+            onKeyDown={(event: React.KeyboardEvent) => {
+              if (event.key === 'Enter') {
+                commitRename();
+              } else if (event.key === 'Escape') {
+                // cancel the edit only — don't let the modal's own Esc-to-close see it
+                event.stopPropagation();
+                setEditing(false);
+              }
+            }}
+            size='small'
+            fluid
+            autoFocus
+          />
+        </RenameRow>
+      ) : null}
       <Stage $zoom={zoom}>
         {url ? (
           <img src={url} alt={image.filename} onClick={() => setZoom((z) => !z)} />
