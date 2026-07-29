@@ -53,26 +53,34 @@ export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorag
       includeAppPrefix: boolean = true
     ) {
       const _path = includeAppPrefix ? `${appName}.${path}` : path;
-      const updatedStorage = set(cloneDeep(currentUser?.storage), _path, value);
+      // Base the write on the LATEST storage read straight from the store, not
+      // the blob captured in this callback's closure. A caller holding a stale
+      // updater — e.g. an imperative store subscription created on mount, before
+      // other keys had loaded — would otherwise persist an out-of-date blob and
+      // wipe every key written to storage since its closure was captured.
+      const latestStorage = currentUserStore.getState().currentUser?.storage;
+      const updatedStorage = set(cloneDeep(latestStorage), _path, value);
 
       updateCurrentUserStorage(updatedStorage);
 
       load({ body: { storage: updatedStorage } });
     },
-    [appName, currentUser?.storage, load, updateCurrentUserStorage]
+    [appName, load, updateCurrentUserStorage]
   );
 
   const removeStorageValue = useCallback(
     function (path: string, includeAppPrefix: boolean = true) {
       const _path = includeAppPrefix ? `${appName}.${path}` : path;
 
-      const updatedStorage = set(cloneDeep(currentUser?.storage), _path, null);
+      // Same as `updateStorage`: mutate the latest blob, never a stale closure copy.
+      const latestStorage = currentUserStore.getState().currentUser?.storage;
+      const updatedStorage = set(cloneDeep(latestStorage), _path, null);
 
       updateCurrentUserStorage(updatedStorage);
 
       load({ body: { storage_path: _path } });
     },
-    [appName, currentUser?.storage, load, updateCurrentUserStorage]
+    [appName, load, updateCurrentUserStorage]
   );
 
   const contextValue = useMemo(
