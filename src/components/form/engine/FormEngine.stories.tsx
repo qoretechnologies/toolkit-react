@@ -1680,6 +1680,33 @@ export const Compact: Story = {
   },
 };
 
+export const CompactWithPanelProps: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the Compact fixture with `compactPanelProps` — the read-first form's outer ReqorePanel is dressed from the outside with a label, icon, intent and an extra header action. The engine's own toolbar survives: `actions` append after it and `contentStyle` merges over the engine's flex-column layout instead of replacing either.",
+      },
+    },
+  },
+  args: {
+    ...Compact.args,
+    compactPanelProps: {
+      label: 'Connection settings',
+      icon: 'Settings3Line',
+      intent: 'info',
+      actions: [{ label: 'Docs', icon: 'BookLine', responsive: false }],
+    },
+  },
+  play: async () => {
+    // The outside-supplied panel chrome renders…
+    await _testsWaitForText('Connection settings');
+    await _testsWaitForText('Docs');
+    // …and the engine's own toolbar + rows are untouched by it.
+    await _testsWaitForText('order-fulfilment');
+  },
+};
+
 export const CompactReadOnly: Story = {
   parameters: {
     docs: {

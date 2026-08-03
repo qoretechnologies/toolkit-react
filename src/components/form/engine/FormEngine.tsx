@@ -21,13 +21,13 @@ import {
 } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
-import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import {
   changeDarkness,
   getMainBackgroundColor,
   getReadableColor,
   percentToHexAlpha,
 } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import {
   IQorusFormField,
   IQorusFormFieldMessage,
@@ -48,11 +48,10 @@ import reduce from 'lodash/reduce';
 import size from 'lodash/size';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
-import { createContext } from 'use-context-selector';
 import styled from 'styled-components';
+import { createContext } from 'use-context-selector';
 import { getDefaultValue, insertAtIndex, richtextToString } from '../../../helpers/common';
 import { getRequiredOptionMessage } from '../../../helpers/options';
-import { query } from '../../../utils/fetch';
 import {
   IValidationResult,
   hasAllDependenciesFullfilled,
@@ -61,6 +60,7 @@ import {
 } from '../../../helpers/validations';
 import { useQorusTypes } from '../../../hooks/useQorusTypes';
 import { useTemplates } from '../../../hooks/useTemplates';
+import { query } from '../../../utils/fetch';
 import { Description } from '../../Description';
 import { FocusedEditing } from '../../FocusedEditing';
 import { SelectFormField } from '../fields/select/Select';
@@ -72,12 +72,6 @@ import {
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
 import { CompactRowContext, ICompactRowContext } from './compactRowContext';
-import { CompactToolbar } from './CompactToolbar';
-import {
-  CompactToolbarContext,
-  ICompactToolbarContext,
-  TCompactSort,
-} from './compactToolbarContext';
 import {
   GROUP_INDENT,
   LABEL_COL_MAX,
@@ -91,9 +85,16 @@ import {
   StyledStatusBox,
   StyledStatusBoxGroupLabel,
 } from './compactRowStyles';
+import { CompactToolbar } from './CompactToolbar';
+import {
+  CompactToolbarContext,
+  ICompactToolbarContext,
+  TCompactSort,
+} from './compactToolbarContext';
 import { OptionFieldMessages } from './OptionFieldMessages';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
+  TReadFirstStatus,
   getFirstAttentionOptionName,
   getOptionGroup,
   getOptionGroupLabel,
@@ -101,7 +102,6 @@ import {
   getReadFirstCompletion,
   getReadFirstStatus,
   isOptionValueEmpty,
-  TReadFirstStatus,
 } from './readFirst';
 
 // Re-export types for consumers
@@ -201,13 +201,6 @@ const StyledCompactWrap = styled.div<{ $flush?: boolean }>`
      engage instead of overflowing the container horizontally. */
   min-width: 0;
   max-width: 100%;
-  /* A bit of horizontal breathing room for the whole form (header + content
-     alike). Horizontal only — top padding would break the sticky toolbar's
-     flush pin (see the scroll-context note below). Dropped to flush via the
-     compactFlush prop, for embeds that own their own gutters (e.g. the
-     SchemaDefinition tab body). */
-  padding: ${({ $flush }) => ($flush ? '0' : '0 12px')};
-
   /* Own our scroll context instead of borrowing the host's. The sticky toolbar
      pins to whatever scrolls; if that scroller carries top padding (e.g. a
      ReqorePanel/ReqoreContent body), sticky \`top: 0\` resolves against its
@@ -525,6 +518,18 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * transparently inside the parent's edit card. Default `false`.
    */
   compactNested?: boolean;
+  /**
+   * Compact mode only: props forwarded to the read-first form's outer
+   * `ReqorePanel` — the panel that carries the sticky toolbar header and holds
+   * the status boxes. Spread AFTER the engine's own defaults, so anything set
+   * here wins (`flat`, `raised`, `minimal`, `stickyHeader`, `label`, `icon`,
+   * `intent`, `padded`, `size`, …). Two props merge instead of replacing, so a
+   * consumer can add to the panel without dismantling the form:
+   * - `actions` — appended after the engine's toolbar action.
+   * - `contentStyle` — merged over the engine's flex-column layout.
+   * No-op in classic (non-compact) mode.
+   */
+  compactPanelProps?: IReqorePanelProps;
   /** Compact mode only: per-group display metadata (label / icon / subtitle /
    * order) — the server only sends the bare group key. */
   groups?: Record<string, IFormEngineGroup>;
@@ -609,6 +614,7 @@ export const FormEngine = ({
   compact,
   compactFlush = false,
   compactNested = false,
+  compactPanelProps,
   commitMode = 'immediate',
   expandMode = 'single',
   onCommit,
@@ -1709,8 +1715,13 @@ export const FormEngine = ({
         <>
           {(() => {
             const schemaMsgs = (
-              suppressSchemaMessages ? [] : (options?.[optionName] as any)?.messages || []
-            ) as { intent?: string; title?: string; content?: string }[];
+              suppressSchemaMessages ?
+                []
+              : (options?.[optionName] as any)?.messages || []) as {
+              intent?: string;
+              title?: string;
+              content?: string;
+            }[];
             if (!schemaMsgs.length) return null;
             const items = schemaMsgs.map(({ intent, title, content }, index) => (
               <ReqoreMessage
@@ -2114,7 +2125,13 @@ export const FormEngine = ({
     ]
   );
 
-  const compactHeaderActions = useMemo(() => [{ as: CompactToolbar, responsive: false }], []);
+  // The engine's own toolbar action, plus whatever the consumer added through
+  // `compactPanelProps.actions` — appended, so an outside action can never
+  // knock the form's toolbar out of the header.
+  const compactHeaderActions = useMemo(
+    () => [{ as: CompactToolbar, responsive: false }, ...(compactPanelProps?.actions || [])],
+    [compactPanelProps?.actions]
+  );
   const renderCompact = () => {
     const headerBg = `${changeDarkness(getMainBackgroundColor(theme), 0.02)}${percentToHexAlpha(88)}`;
     // Toolbar filters narrow the listed rows; the meter reflects the full set.
@@ -2357,22 +2374,24 @@ export const FormEngine = ({
                   $headerBg={compactNested ? 'transparent' : headerBg}
                   $nested={compactNested}
                   flat
+                  raised
+                  minimal
                   // No panel background: the form sits transparently on whatever
                   // hosts it (page, drawer, or — for an arg_schema field — the
                   // parent's edit card) instead of stacking its own dark surface.
                   // The status boxes keep their own tints; the sticky toolbar keeps
                   // its blurred header via the $headerBg override.
-                  transparent
                   stickyHeader={!compactNested}
-                  padded={false}
+                  // Consumer overrides land last so they win over every default
+                  // above; `actions` and `contentStyle` below merge rather than
+                  // replace (see `compactPanelProps`).
+                  {...compactPanelProps}
                   actions={compactHeaderActions}
                   contentStyle={{
                     display: 'flex',
                     flexFlow: 'column',
                     gap: '10px',
-                    // Nested sub-form: no surrounding panel padding (it's flush in
-                    // the parent card); top-level keeps a small bottom gutter.
-                    padding: compactNested ? '0' : '0 0 12px',
+                    ...compactPanelProps?.contentStyle,
                   }}
                 >
                   {size(groupKeys) === 0 ?
