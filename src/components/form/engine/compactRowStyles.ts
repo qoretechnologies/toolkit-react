@@ -47,14 +47,13 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   $nested?: boolean;
 }>`
   > .reqore-panel-title {
-    background: ${({ $headerBg }) => $headerBg};
     /* The blur + translateZ exist only to make the STICKY top-level toolbar ghost
        content beneath it; a nested sub-form's header isn't sticky, so skip them
        (and the stacking context translateZ creates). */
     ${({ $nested }) =>
-      $nested ?
-        ''
-      : 'backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transform: translateZ(0);'}
+      $nested ? '' : (
+        'backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transform: translateZ(0);'
+      )}
     padding-top: ${GAP_FROM_SIZE[HEADER_GAP]}px;
     padding-bottom: ${GAP_FROM_SIZE[HEADER_GAP]}px;
   }
@@ -625,5 +624,4 @@ export const StyledGroupBody = styled.div<{
     padding-top: 0;
     padding-bottom: 0;
   }
-
 `;
