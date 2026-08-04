@@ -1680,6 +1680,87 @@ export const Compact: Story = {
   },
 };
 
+// `name` gains a long-form `desc` so the `?` help affordance has something to
+// open — the rest of the compact fixture is unchanged.
+const CompactHelpSchema: Record<string, TCompactField> = {
+  ...CompactSchema,
+  name: {
+    ...CompactSchema.name,
+    desc: 'The unique identifier for this interface. It is used in URLs, logs and cross-references, so it cannot be changed once the interface is deployed.',
+  },
+};
+
+export const CompactFocusedEditingInline: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact form, opens the Name row for inline editing and picks "Edit fullscreen" from its More menu — the Focused Editing modal opens over that single scalar field with its long description above the editor.',
+      },
+    },
+    chromatic: { disable: true },
+  },
+  args: {
+    ...Compact.args,
+    options: CompactHelpSchema,
+  },
+  play: async () => {
+    // Name is a scalar, so it edits INLINE in the row (no expanded card) — the
+    // branch whose More menu used to set the focused state with nothing mounted
+    // to render the modal. (CompactFocusedEditing covers the card branch.)
+    await _testsClickText('order-fulfilment');
+    await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-inline .reqore-textarea');
+    await _testsClickButton({ selector: '.options-readfirst-more' });
+    let fsItem: Element | undefined;
+    await waitFor(
+      () => {
+        fsItem = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
+          element.textContent?.includes('Edit fullscreen')
+        );
+        expect(fsItem).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+    await fireEvent.click(fsItem as Element);
+    // The modal mounts, carrying the field's long description with it.
+    await waitFor(() => expect(document.querySelector('.reqore-modal')).toBeTruthy(), {
+      timeout: 10000,
+    });
+    await _testsWaitForText(/unique identifier for this interface/i);
+  },
+};
+
+export const CompactEditingShowsDescription: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the compact form with the descriptions toggle off — a collapsed row hides its short description, and opening the row for editing reveals it under the field name along with the `?` help affordance.",
+      },
+    },
+  },
+  args: {
+    ...Compact.args,
+    options: CompactHelpSchema,
+  },
+  play: async () => {
+    // Collapsed: the global descriptions toggle is off, so no short_desc on the
+    // read row (the label carries it as a title attribute only).
+    await _testsWaitForText('order-fulfilment');
+    await _testsWaitForTextToNotExist('Unique identifier for this interface');
+    // Open it: the short description appears without the user clicking anything…
+    await _testsClickText('order-fulfilment');
+    await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-inline .reqore-textarea');
+    await _testsWaitForText('Unique identifier for this interface');
+    // …and the `?` (long-form help) stays reachable while editing.
+    await waitFor(() =>
+      expect(
+        document.querySelector('.options-readfirst-inline .options-readfirst-help')
+      ).toBeTruthy()
+    );
+  },
+};
+
 export const CompactWithPanelProps: Story = {
   parameters: {
     docs: {
