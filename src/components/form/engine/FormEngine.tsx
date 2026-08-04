@@ -586,6 +586,27 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * classic (non-compact) mode. Default: off.
    */
   autoFocusFirstRequired?: boolean;
+
+  /**
+   * Names of read-first rows to open on mount, in addition to whatever the
+   * user opens afterwards.
+   *
+   * Which rows are expanded is otherwise private to the engine, which is
+   * fine while expansion is only ever a click. It stops being fine when the
+   * expanded row is part of an address: a consumer whose field renders its
+   * own routable surface (a table whose rows open panes with their own URLs)
+   * can restore the pane from the URL, but not the row that has to be open
+   * for the pane to exist at all — so a pasted or reloaded link lands on a
+   * collapsed form.
+   *
+   * Applied once, on the first render where the schema has rows, so an
+   * async-loaded schema is covered. It never re-expands a row the user has
+   * since collapsed, and it does not participate in `expandMode: 'single'`
+   * accordion collapsing — the caller is naming a starting point, not
+   * driving the state. Only a remount re-arms it. No-op in classic
+   * (non-compact) mode.
+   */
+  initialExpandedOptions?: string[];
 }
 
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
@@ -626,6 +647,7 @@ export const FormEngine = ({
   componentOverrides,
   inheritedFromParent,
   autoFocusFirstRequired,
+  initialExpandedOptions,
   ...rest
 }: IFormEngineProps) => {
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
@@ -1540,6 +1562,32 @@ export const FormEngine = ({
     },
     [expandMode]
   );
+
+  // --- Caller-named starting rows (opt-in) ----------------------------------
+  // `initialExpandedOptions` lets a consumer name the rows that must already
+  // be open when the form first paints — the case where the expanded row is
+  // part of an address rather than a click (see the prop's docs).
+  //
+  // One-shot for the same reason autofocus is: it fires on the first render
+  // that actually has rows (so an async-loaded schema is covered) and then
+  // never again, so a row the user collapses afterwards stays collapsed and a
+  // later schema reload does not reopen it.
+  const hasAppliedInitialExpansionRef = useRef(false);
+  useEffect(() => {
+    if (!initialExpandedOptions?.length || !compact || hasAppliedInitialExpansionRef.current) {
+      return;
+    }
+    const names = Object.keys(availableOptions);
+    if (!names.length) {
+      return;
+    }
+    hasAppliedInitialExpansionRef.current = true;
+    const toExpand = initialExpandedOptions.filter((name) => names.includes(name));
+    if (!toExpand.length) {
+      return;
+    }
+    setExpandedOptions((prev) => [...prev, ...toExpand.filter((name) => !prev.includes(name))]);
+  }, [initialExpandedOptions, compact, availableOptions]);
 
   // --- First-attention-field autofocus (opt-in) -----------------------------
   // With `autoFocusFirstRequired`, drop the user straight into the first field
