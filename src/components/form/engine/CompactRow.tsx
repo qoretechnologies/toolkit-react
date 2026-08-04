@@ -573,6 +573,30 @@ export const CompactRow = memo(
     // "descriptions" toggle is engaged (and inside the editor when expanded).
     const showLabelDesc = !!labelShortDesc && showAllDescriptions === true;
 
+    // The `?` that opens the long-form help dialog. Shared by the read row AND
+    // the inline editor: opening a field used to drop it, leaving an editing row
+    // with no route to the field's description at all. Stops propagation because
+    // both labels are click targets themselves (the row expands / collapses).
+    const helpIcon =
+      schema?.desc ?
+        <ReqoreIcon
+          icon='QuestionLine'
+          size='12px'
+          effect={{ opacity: 0.55 }}
+          margin='left'
+          marginSize='tiny'
+          role='button'
+          tabIndex={-1}
+          aria-label='Help'
+          className='options-readfirst-help'
+          style={{ cursor: 'help' }}
+          onClick={(event) => {
+            event.stopPropagation();
+            handleOptionLabelClick(optionName);
+          }}
+        />
+      : null;
+
     const renderInfoStrip = (m: TInfoMsg, index: number) => (
       <ReqoreMessage
         key={`${m.content}-${index}`}
@@ -688,11 +712,13 @@ export const CompactRow = memo(
               >
                 {label}
                 {required ? <ReqoreIcon icon='Asterisk' color='danger' size='10px' /> : null}
+                {helpIcon}
               </StyledRowLabel>
-              {/* Keep the short_desc visible while editing inline when the global
-                  descriptions toggle is on — read rows show it, so opening a field
-                  shouldn't make it vanish. */}
-              {showLabelDesc ?
+              {/* An OPEN field always shows its short_desc — that's where the hint
+                  is needed and there's no per-row button to reveal it (the edit
+                  card does the same). The global descriptions toggle governs READ
+                  rows only, so collapsing the field is what hides it again. */}
+              {labelShortDesc ?
                 <StyledLabelDesc
                   className='options-readfirst-label-desc'
                   size='small'
@@ -753,6 +779,27 @@ export const CompactRow = memo(
             className={clusterBlockClass || undefined}
           >
             {editingRow}
+            {/* Focused editing for an INLINE row. The edit card wraps its editor
+                in <FocusedEditing>, which renders the field in place AND in the
+                modal; an inline row already renders its editor in the row grid,
+                so it mounts the modal alone. Without this the More menu's "Edit
+                fullscreen" set the state and nothing appeared — the modal simply
+                had no mount point on this branch. */}
+            {focusedEditing === optionName ?
+              <FocusedEditing
+                isFullscreen
+                modalOnly
+                onClose={() => setFocusedEditing(undefined)}
+                description={(schema?.display_name as string) || optionName}
+              >
+                <Description
+                  longDescription={schema?.desc}
+                  shortDescription={schema?.short_desc}
+                  longDescriptionShownByDefault
+                />
+                {renderOption(optionName, optionField)}
+              </FocusedEditing>
+            : null}
           </StyledColumn>
         );
       }
@@ -1122,24 +1169,7 @@ export const CompactRow = memo(
               {required ?
                 <ReqoreIcon icon='Asterisk' color='danger' size='10px' margin='left' marginSize='tiny' />
               : null}
-              {schema?.desc ?
-                <ReqoreIcon
-                  icon='QuestionLine'
-                  size='12px'
-                  effect={{ opacity: 0.55 }}
-                  margin='left'
-                  marginSize='tiny'
-                  role='button'
-                  tabIndex={-1}
-                  aria-label='Help'
-                  className='options-readfirst-help'
-                  style={{ cursor: 'help' }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleOptionLabelClick(optionName);
-                  }}
-                />
-              : null}
+              {helpIcon}
             </span>
             {typeLabel ?
               <ReqoreTag size='tiny' minimal label={typeLabel} labelEffect={{ opacity: 0.55 }} />
