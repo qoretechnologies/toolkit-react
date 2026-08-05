@@ -5162,6 +5162,79 @@ export const CompactAutoFocusFirstRequired: Story = {
   },
 };
 
+// `initialExpandedOptions` opens rows the CALLER names, for the case where the
+// expanded row is part of an address rather than a click: a field that renders
+// its own routable surface can restore the pane from the URL, but not the row
+// that has to be open for the pane to exist. Here `description` starts expanded
+// with no interaction, while a row the caller did not name stays collapsed.
+export const CompactInitialExpandedOptions: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with initialExpandedOptions — the caller-named row is already open on mount, and rows it did not name stay collapsed.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+    initialExpandedOptions: ['description'],
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+
+    // The caller-named row is open on mount, with no click.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '[data-field="description"] input, [data-field="description"] textarea'
+          )
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+
+    // A row the caller did not name is NOT expanded.
+    expect(
+      document.querySelector('[data-field="name"] input, [data-field="name"] textarea')
+    ).toBeFalsy();
+  },
+};
+
+// An unknown name must not throw or expand anything — a stale link naming a
+// field this schema no longer has just lands on the collapsed form.
+export const CompactInitialExpandedOptionsUnknownName: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose initialExpandedOptions names a field that does not exist — the form renders normally with every row collapsed.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+    initialExpandedOptions: ['no-such-field'],
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+    await sleep(300);
+    expect(
+      document.querySelector(
+        '[data-field="description"] input, [data-field="description"] textarea'
+      )
+    ).toBeFalsy();
+  },
+};
+
 // A required field can be FILLED yet INVALID — here `endpoint` has a value that
 // fails its own `validation_regex` (it must be an http(s) URL). It still "needs
 // attention", so autofocus must land on IT and not skip ahead to the empty
