@@ -81,6 +81,14 @@ export const WithImages: Story = {
  * chip pencil, so both affordances stay one mechanism.
  */
 export const RenameFromPreview: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the staged chips and renames a screenshot from inside its lightbox — the preview’s pencil commits the new name, and the chip outside carries it too.',
+      },
+    },
+  },
   render: () => <Harness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
