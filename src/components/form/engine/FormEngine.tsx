@@ -1856,14 +1856,23 @@ export const FormEngine = ({
       suppressSchemaMessages?: boolean
     ) => {
       const operatorParts = fixOperatorValue(other.op);
-      // The RENDERER type for this row. The schema's `ui_type` wins because it
-      // names the editor, and a renderer-only one never reaches the field's
-      // stored `type` any more; the remaining fallbacks keep the row rendering
-      // when a server-driven schema has not arrived yet (type would be
-      // undefined) rather than crashing on it.
+      // The RENDERER type for this row — which editor mounts. Distinct from the
+      // storage type on the value envelope: a `richtext` field stores a string
+      // but must render the richtext editor, so `ui_type` wins here.
+      //
+      // The exception is an any-like `ui_type`. Those schemas say
+      // `ui_type: 'any'` precisely so the user can pick a concrete type, and
+      // that pick lives on the field's stored `type` — letting 'any' win would
+      // pin the row to the untyped editor forever.
+      //
+      // The trailing fallbacks keep the row rendering when a server-driven
+      // schema has not arrived yet (`type` undefined) instead of crashing.
+      const schemaUiType = options?.[optionName]?.ui_type as TQorusType;
+      const uiTypeIsAnyLike = schemaUiType === 'any' || schemaUiType === 'auto';
       const resolvedType =
-        (options?.[optionName]?.ui_type as TQorusType) ||
+        (schemaUiType && !uiTypeIsAnyLike ? schemaUiType : undefined) ||
         type ||
+        schemaUiType ||
         (options?.[optionName]?.type as TQorusType) ||
         'any';
       return (
@@ -2011,7 +2020,10 @@ export const FormEngine = ({
             }
             templates={templates.value}
             {...getTypeAndCanBeNull(
-              (type as TQorusType) || (options?.[optionName]?.type as TQorusType),
+              // The RENDERER type picks the editor — the storage type lives on
+              // the value envelope. Passing storage here rendered a `richtext`
+              // field as a plain string input.
+              resolvedType,
               options?.[optionName]?.allowed_values,
               other.op
             )}
