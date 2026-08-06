@@ -341,7 +341,7 @@ export const InjectedCompactOptionActions: Story = {
     docs: {
       description: {
         story:
-          'Renders compact FormEngine rows with two injected per-option actions: one always visible, one declared `show: "hover"` that stays transparent until its row is hovered or focused.',
+          'Renders compact FormEngine rows with two injected per-option actions: one always visible, one declared `show: "hover"` that stays transparent until its row is hovered or focused. Hover-gating applies only where the pointer can hover — on touch both collapse into the row\'s overflow menu instead, so neither is ever hover-only.',
       },
     },
   },
@@ -514,6 +514,111 @@ export const InjectedCompactOptionActionsMany: Story = {
       },
       { timeout: 10000 }
     );
+  },
+};
+
+// A compact row renders the SAME logical state three ways — the read row, the
+// inline editor, and the edit card (complex types get the card). An injected
+// action has to survive all three, and per the affordance-parity rule each
+// branch needs its own story: the branch without one is where a dead action
+// hides, because the branch under test is the branch that works.
+const BRANCH_SCHEMA = {
+  host: {
+    type: 'string',
+    display_name: 'Host',
+    short_desc: 'Edits inline inside the row',
+    preselected: true,
+    default_value: 'localhost',
+  },
+  notes: {
+    type: 'string',
+    ui_type: 'long-string',
+    display_name: 'Notes',
+    short_desc: 'A complex type — edits in the card branch',
+    preselected: true,
+    // Needs a value: an empty optional field sits in the collapsed "Optional"
+    // group, where `initialExpandedOptions` has nothing to open.
+    default_value: 'Notes that are long enough to want the card editor.',
+  },
+};
+
+const branchAction = ({ name }: { name: string }) => [
+  {
+    icon: 'MagicLine' as const,
+    className: 'option-branch-action',
+    tooltip: `AI assistance for ${name}`,
+    size: 'tiny' as const,
+    fixed: true,
+  },
+];
+
+/**
+ * Branch 1 of 3: the INLINE editor. A simple type opens inside the row itself,
+ * and the injected action has to be reachable there, not just on the read row.
+ */
+export const InjectedOptionActionsInlineEditing: Story = {
+  args: {
+    name: 'compactOptionActionsInline',
+    compact: true,
+    options: BRANCH_SCHEMA as any,
+    initialExpandedOptions: ['host'],
+    optionActions: branchAction,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact form with the simple `host` field already open, so it edits inline inside the row — the injected per-option action is asserted inside that inline branch.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(
+      () => expect(document.querySelector('.readfirst-row-editing')).toBeTruthy(),
+      { timeout: 10000 }
+    );
+
+    // Scoped to the branch on purpose: a global query would pass on the read
+    // row's copy and prove nothing about the inline editor.
+    await waitFor(() => {
+      expect(
+        document.querySelector('.readfirst-row-editing .option-branch-action')
+      ).toBeTruthy();
+    });
+  },
+};
+
+/**
+ * Branch 2 of 3: the EDIT CARD. A complex type (`long-string`) is too tall to
+ * edit in-row, so it opens as a card — a different subtree, and historically
+ * where an action wired only in the other branch went missing.
+ */
+export const InjectedOptionActionsEditCard: Story = {
+  args: {
+    name: 'compactOptionActionsCard',
+    compact: true,
+    options: BRANCH_SCHEMA as any,
+    initialExpandedOptions: ['notes'],
+    optionActions: branchAction,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact form with the complex `notes` field already open, so it edits in the card branch rather than in-row — the injected per-option action is asserted inside that card.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(() => expect(document.querySelector('.options-readfirst-card')).toBeTruthy(), {
+      timeout: 10000,
+    });
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('.options-readfirst-card .option-branch-action')
+      ).toBeTruthy();
+    });
   },
 };
 
