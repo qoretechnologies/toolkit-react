@@ -267,6 +267,43 @@ export const fixOperatorValue = (operator: TOperatorValue): (string | null | und
   return isArray(operator) ? operator : [operator];
 };
 
+const RENDERER_ONLY_UI_TYPES = new Set([
+  'active-windows',
+  'alert-threshold',
+  'code-editor',
+  'cron',
+  'dpql',
+  'processor-mappings',
+  'schema-definition',
+  'test-cases',
+  'test-value-contract',
+  'tool-catalog',
+]);
+
+const isRendererOnlyUiType = (type?: TQorusType | TQorusType[]): boolean =>
+  typeof type === 'string' && RENDERER_ONLY_UI_TYPES.has(type);
+
+const getOptionSchemaStorageType = (option?: TQorusFormFieldSchema): TQorusType =>
+  ((isRendererOnlyUiType(option?.ui_type)
+    ? option?.type || option?.ui_type
+    : option?.ui_type || option?.type) || 'any') as TQorusType;
+
+const getOptionFieldStorageType = (
+  optionName: string,
+  fieldType: TQorusType | TQorusType[] | undefined,
+  schema?: IQorusFormSchema,
+  operators?: IOperatorsSchema,
+  operatorData?: TOperatorValue
+): TQorusType => {
+  const schemaOption = schema?.[optionName];
+  const storedType =
+    fieldType && !(fieldType === schemaOption?.ui_type && isRendererOnlyUiType(fieldType))
+      ? fieldType
+      : getOptionSchemaStorageType(schemaOption);
+
+  return getType(storedType as TQorusType, operators, operatorData);
+};
+
 export const hasRequiredOptions = (options: IQorusFormSchema = {}) => {
   return !!findKey(options, (option) => option.required);
 };
@@ -292,7 +329,7 @@ export const fixOptions = (
     ) {
       let obj: IQorusFormField;
       const type = getType(
-        (option.ui_type || option.type) as TQorusType,
+        getOptionSchemaStorageType(option),
         operators,
         (fixedValue[name] as IQorusFormField)?.op
       );
@@ -328,13 +365,16 @@ export const fixOptions = (
       let newOption = option as IQorusFormField;
 
       if (!isPlainObject(newOption) || !(newOption as IQorusFormField)?.type) {
+        const isUntypedEnvelope = isPlainObject(newOption) && 'value' in newOption;
+        const untypedFieldValue =
+          isUntypedEnvelope ? (newOption as IQorusFormField).value : newOption;
         const fixedOption: IQorusFormField = {
           type: getType(
-            (options?.[optionName]?.ui_type || options?.[optionName]?.type) as TQorusType,
+            getOptionSchemaStorageType(options?.[optionName]),
             operators,
             (newOption as IQorusFormField)?.op
           ),
-          value: newOption,
+          value: untypedFieldValue,
         };
 
         if ((newOption as IQorusFormField)?.is_expression) {
@@ -342,6 +382,18 @@ export const fixOptions = (
         }
 
         newOption = fixedOption;
+      } else if (
+        newOption.type === options?.[optionName]?.ui_type &&
+        isRendererOnlyUiType(newOption.type)
+      ) {
+        newOption = {
+          ...newOption,
+          type: getType(
+            getOptionSchemaStorageType(options?.[optionName]),
+            operators,
+            newOption.op
+          ),
+        };
       }
 
       if (
@@ -976,14 +1028,16 @@ export const FormEngine = ({
   const handleValueChange = useCallback(
     (optionName: string, val?: any, _type?: string, isFunction?: boolean) => {
       setLocalValue(({ fields = {} }) => {
-        const schemaType = (options?.[optionName]?.ui_type ||
-          options?.[optionName]?.type) as TQorusType;
+        const schemaType = getOptionSchemaStorageType(options?.[optionName]);
         const isAnyLike = schemaType === 'any' || schemaType === 'auto';
         // For any/auto schema types, preserve the user's chosen type stored in the field
         const resolvedSchemaType =
-          isAnyLike && (fields[optionName] as IQorusFormField)?.type ?
-            ((fields[optionName] as IQorusFormField).type as TQorusType)
-          : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
+          isAnyLike && (fields[optionName] as IQorusFormField)?.type
+            ? ((fields[optionName] as IQorusFormField).type as TQorusType)
+            : (fields[optionName] as IQorusFormField)?.type === options?.[optionName]?.ui_type &&
+                isRendererOnlyUiType((fields[optionName] as IQorusFormField)?.type)
+              ? schemaType
+              : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
         const type =
           _type ||
           getTypeAndCanBeNull(resolvedSchemaType, options?.[optionName]?.allowed_values).type;
@@ -1186,8 +1240,7 @@ export const FormEngine = ({
         optionName as string,
         getDefaultValue(options?.[optionName as string]),
         getTypeAndCanBeNull(
-          (options?.[optionName as string]?.ui_type ||
-            options?.[optionName as string]?.type) as TQorusType,
+          getOptionSchemaStorageType(options?.[optionName as string]),
           options?.[optionName as string]?.allowed_values
         ).type
       );
@@ -1215,8 +1268,15 @@ export const FormEngine = ({
           return newValue;
         }
 
-        const schemaType = getType(
+        const rendererType = getType(
           (options[optionName].ui_type || options[optionName].type) as TQorusType,
+          operators,
+          (option as IQorusFormField)?.op
+        );
+        const storageType = getOptionFieldStorageType(
+          optionName,
+          (option as IQorusFormField)?.type,
+          options,
           operators,
           (option as IQorusFormField)?.op
         );
@@ -1225,23 +1285,15 @@ export const FormEngine = ({
           return {
             ...newValue,
             [optionName]: {
-              type: schemaType,
+              type: storageType || rendererType,
               value: option,
             },
           };
         }
 
-        // any/auto: preserve the user-picked type; otherwise normalize to the
-        // schema type (ui_type wins) so rendering and validation agree.
-        const isAnyLike = schemaType === 'any' || schemaType === 'auto';
-        const effectiveType =
-          isAnyLike && (option as IQorusFormField)?.type ?
-            (option as IQorusFormField).type
-          : schemaType;
-
         return {
           ...newValue,
-          [optionName]: { ...(option as IQorusFormField), type: effectiveType },
+          [optionName]: { ...(option as IQorusFormField), type: storageType || rendererType },
         };
       }, {});
   }, [
@@ -1341,10 +1393,13 @@ export const FormEngine = ({
     const fields: IFormFieldValidityData[] = reduce(
       availableOptions,
       (result, option, optionName) => {
-        const type =
-          (option as IQorusFormField).type ||
-          (options?.[optionName]?.ui_type as TQorusType) ||
-          (options?.[optionName]?.type as TQorusType);
+        const type = getOptionFieldStorageType(
+          optionName,
+          (option as IQorusFormField).type,
+          options,
+          operators,
+          (option as IQorusFormField).op
+        );
         const optionValue = (option as IQorusFormField).value;
 
         const isRequired = options?.[optionName]?.required;
@@ -1388,6 +1443,7 @@ export const FormEngine = ({
   }, [
     JSON.stringify(availableOptions),
     JSON.stringify(options),
+    JSON.stringify(operators),
     JSON.stringify(localValue.fields),
   ]);
 
@@ -1406,8 +1462,13 @@ export const FormEngine = ({
           showInvalidOptionsOnly &&
           isOptionValid(
             optionName,
-            (options?.[optionName]?.ui_type as TQorusType) ||
-              (options?.[optionName]?.type as TQorusType),
+            getOptionFieldStorageType(
+              optionName,
+              (option as IQorusFormField).type,
+              options,
+              operators,
+              (option as IQorusFormField).op
+            ),
             (option as IQorusFormField).value
           )
         ) {
@@ -1417,7 +1478,7 @@ export const FormEngine = ({
       },
       {}
     );
-  }, [showInvalidOptionsOnly, JSON.stringify(availableOptions)]);
+  }, [showInvalidOptionsOnly, JSON.stringify(availableOptions), JSON.stringify(options), JSON.stringify(operators)]);
 
   // Read-first STATUS / BOX for one option — lifted to component scope so the
   // status boxes (renderCompact) and the header's "needs attention" count share
@@ -1437,7 +1498,13 @@ export const FormEngine = ({
     (name: string, hidden = false): TReadFirstStatus => {
       if (hidden) return 'optional';
       const schema = options?.[name];
-      const type = (schema?.ui_type || schema?.type) as TQorusType;
+      const type = getOptionFieldStorageType(
+        name,
+        (availableOptions as TQorusForm)?.[name]?.type,
+        options,
+        operators,
+        (availableOptions as TQorusForm)?.[name]?.op
+      );
       const value = (availableOptions as TQorusForm)?.[name]?.value;
       const empty = isOptionValueEmpty(value);
       const reqGroups = (schema?.required_groups as string[] | undefined) || [];
@@ -1461,6 +1528,7 @@ export const FormEngine = ({
     [
       JSON.stringify(options),
       JSON.stringify(availableOptions),
+      JSON.stringify(operators),
       isOptionValid,
       requiredGroupsInfo,
       schemaMsgIntent,
@@ -1908,7 +1976,7 @@ export const FormEngine = ({
               options?.[optionName]?.allowed_values,
               other.op
             )}
-            ui_type={type}
+            ui_type={(options?.[optionName]?.ui_type as TQorusType) || type}
             name={optionName}
             uniqueName={`${uniqueName ? `${uniqueName}.` : `${name ? `${name}.` : ''}`}${optionName}`}
             onChange={
@@ -2057,6 +2125,7 @@ export const FormEngine = ({
       getTypeForOption,
       isOptionValid,
       confirmAction,
+      optionActions,
       renderOption,
       theme,
       cText,
@@ -2102,6 +2171,7 @@ export const FormEngine = ({
       getTypeForOption,
       isOptionValid,
       confirmAction,
+      optionActions,
       renderOption,
       theme,
       cText,
@@ -2238,7 +2308,13 @@ export const FormEngine = ({
       const isFieldInvalid = (name: string) =>
         !isOptionValid(
           name,
-          (options?.[name]?.ui_type || options?.[name]?.type) as TQorusType,
+          getOptionFieldStorageType(
+            name,
+            (shownOptions as TQorusForm)[name]?.type,
+            options,
+            operators,
+            (shownOptions as TQorusForm)[name]?.op
+          ),
           (shownOptions as TQorusForm)[name]?.value
         );
       const comparator = (a: { name: string }, b: { name: string }): number => {
@@ -2347,7 +2423,7 @@ export const FormEngine = ({
           optionField={
             entry.hidden ?
               ({
-                type: (options?.[entry.name]?.ui_type || options?.[entry.name]?.type) as TQorusType,
+                type: getOptionSchemaStorageType(options?.[entry.name]),
                 value: undefined,
               } as IQorusFormField)
             : ((shownOptions as TQorusForm)[entry.name] as IQorusFormField)

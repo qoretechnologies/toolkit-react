@@ -308,6 +308,47 @@ export const InjectedOptionActions: Story = {
 };
 
 /**
+ * The same injected actions seam must also work in compact/read-first mode. The
+ * IDE uses this path for option-based forms and relies on the action slot for
+ * small per-field Qonsole controls.
+ */
+export const InjectedCompactOptionActions: Story = {
+  args: {
+    name: 'compactOptionActionsSeam',
+    compact: true,
+    options: BASIC_SCHEMA as any,
+    optionActions: ({ name }) => [
+      {
+        icon: 'MagicLine',
+        className: 'option-compact-ai-assist',
+        tooltip: `AI assistance for ${name}`,
+        show: true,
+        size: 'tiny',
+        fixed: true,
+      },
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders compact FormEngine rows with injected per-option actions so consumers can attach field-local actions without leaving read-first mode.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(() => expect(document.querySelectorAll('.readfirst-row').length).toBeGreaterThan(0), {
+      timeout: 10000,
+    });
+    await waitFor(() => {
+      expect(document.querySelectorAll('.option-compact-ai-assist').length).toBe(
+        document.querySelectorAll('.readfirst-row').length
+      );
+    });
+  },
+};
+
+/**
  * Opt-in template fetching: `interfaceContext` makes `useTemplates` fetch
  * `system/getContextData` (the IDE's behavior); without it, no request is
  * made (the original reqraft stub behavior).

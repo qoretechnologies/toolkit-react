@@ -10,6 +10,7 @@ import {
   ReqoreTagGroup,
 } from '@qoretechnologies/reqore';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
+import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import {
   IQorusFormField,
   TQorusForm,
@@ -176,6 +177,7 @@ export const CompactRow = memo(
     );
     const getTypeForOption = useContextSelector(CompactRowContext, (v) => v.getTypeForOption);
     const confirmAction = useContextSelector(CompactRowContext, (v) => v.confirmAction);
+    const optionActions = useContextSelector(CompactRowContext, (v) => v.optionActions);
     const renderOption = useContextSelector(CompactRowContext, (v) => v.renderOption);
     const theme = useContextSelector(CompactRowContext, (v) => v.theme);
     const cMuted = useContextSelector(CompactRowContext, (v) => v.cMuted);
@@ -338,6 +340,46 @@ export const CompactRow = memo(
 
     const schema = options?.[optionName];
     const label = schema?.display_name || optionName;
+    const injectedOptionActions = React.useMemo<IReqorePanelAction[]>(() => {
+      if (!schema) {
+        return [];
+      }
+
+      const actions =
+        typeof optionActions === 'function'
+          ? optionActions({
+              name: optionName,
+              schema,
+              value: availableOptions?.[optionName],
+            })
+          : (optionActions ?? []);
+
+      return actions.filter((action) => !!action && action.show !== false);
+    }, [availableOptions, optionActions, optionName, schema]);
+    const renderInjectedOptionAction = (
+      action: IReqorePanelAction,
+      index: number,
+      size: 'tiny' | 'small' = 'small'
+    ) => {
+      const { label: actionLabel, onClick, show: _show, size: actionSize, ...actionProps } = action;
+
+      return (
+        <ReqoreButton
+          key={`${optionName}-injected-action-${index}`}
+          size={actionSize || size}
+          minimal
+          flat
+          fixed
+          {...actionProps}
+          onClick={(event: React.MouseEvent<HTMLElement>) => {
+            event.stopPropagation();
+            onClick?.();
+          }}
+        >
+          {actionLabel}
+        </ReqoreButton>
+      );
+    };
     const required = !!(schema?.required || schema?.required_groups);
     const removable =
       !readOnly && !schema?.preselected && !schema?.required && !schema?.required_groups;
@@ -748,6 +790,9 @@ export const CompactRow = memo(
                   message strip is visible. */}
               {revertButton}
               {clearValueButton}
+              {injectedOptionActions.map((action, index) =>
+                renderInjectedOptionAction(action, index)
+              )}
               {moreMenu}
               <ReqoreButton
                 className='options-readfirst-done'
@@ -902,6 +947,9 @@ export const CompactRow = memo(
                   </ReqoreButton>
                 );
               })}
+              {injectedOptionActions.map((action, index) =>
+                renderInjectedOptionAction(action, index)
+              )}
               {/* Clear-value sits before the More menu — the card analog of the
                   inline row's Clear. Empties the value (keeps the field). */}
               {hasValue && !readOnly ?
@@ -1304,6 +1352,9 @@ export const CompactRow = memo(
               {infoToggle}
             </StyledActionSlot>
           : null}
+          {injectedOptionActions.map((action, index) =>
+            renderInjectedOptionAction(action, index, 'tiny')
+          )}
           {/* The revert affordance lives in the status-dot column (a changed field
               swaps its dot for the revert icon) so it sits at the same fixed x as
               the dot — out of the value's way instead of floating over it. */}
