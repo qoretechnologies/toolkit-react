@@ -322,7 +322,15 @@ export const InjectedCompactOptionActions: Story = {
         icon: 'MagicLine',
         className: 'option-compact-ai-assist',
         tooltip: `AI assistance for ${name}`,
-        show: true,
+        // The shape the IDE passes on the classic path — hover-gated here too.
+        show: 'hover',
+        size: 'tiny',
+        fixed: true,
+      },
+      {
+        icon: 'InformationLine',
+        className: 'option-compact-always',
+        tooltip: `Details for ${name}`,
         size: 'tiny',
         fixed: true,
       },
@@ -332,19 +340,30 @@ export const InjectedCompactOptionActions: Story = {
     docs: {
       description: {
         story:
-          'Renders compact FormEngine rows with injected per-option actions so consumers can attach field-local actions without leaving read-first mode.',
+          'Renders compact FormEngine rows with two injected per-option actions: one always visible, one declared `show: "hover"` that stays transparent until its row is hovered or focused.',
       },
     },
   },
   async play() {
-    await waitFor(() => expect(document.querySelectorAll('.readfirst-row').length).toBeGreaterThan(0), {
-      timeout: 10000,
-    });
+    await waitFor(
+      () => expect(document.querySelectorAll('.readfirst-row').length).toBeGreaterThan(0),
+      { timeout: 10000 }
+    );
+
+    const rowCount = document.querySelectorAll('.readfirst-row').length;
+
     await waitFor(() => {
-      expect(document.querySelectorAll('.option-compact-ai-assist').length).toBe(
-        document.querySelectorAll('.readfirst-row').length
-      );
+      expect(document.querySelectorAll('.option-compact-always').length).toBe(rowCount);
+      expect(document.querySelectorAll('.option-compact-ai-assist').length).toBe(rowCount);
     });
+
+    // The hover-only action carries the CSS gate; the always-on one does not.
+    expect(
+      document.querySelectorAll('.option-compact-ai-assist.options-injected-action-hover').length
+    ).toBe(rowCount);
+    expect(
+      document.querySelectorAll('.option-compact-always.options-injected-action-hover').length
+    ).toBe(0);
   },
 };
 

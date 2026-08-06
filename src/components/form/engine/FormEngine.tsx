@@ -15,10 +15,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreCollectionProps } from '@qoretechnologies/reqore/dist/components/Collection';
 import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/components/Collection/item';
-import {
-  IReqorePanelAction,
-  IReqorePanelProps,
-} from '@qoretechnologies/reqore/dist/components/Panel';
+import { IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import {
@@ -41,6 +38,8 @@ import {
   TQorusFormOperatorValue,
   TQorusType,
 } from '@qoretechnologies/ts-toolkit';
+import { resolveOptionActions, TOptionActions } from './optionActions';
+import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
 import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last } from 'lodash';
 import isArray from 'lodash/isArray';
 import map from 'lodash/map';
@@ -267,24 +266,18 @@ export const fixOperatorValue = (operator: TOperatorValue): (string | null | und
   return isArray(operator) ? operator : [operator];
 };
 
-const RENDERER_ONLY_UI_TYPES = new Set([
-  'active-windows',
-  'alert-threshold',
-  'code-editor',
-  'cron',
-  'dpql',
-  'processor-mappings',
-  'schema-definition',
-  'test-cases',
-  'test-value-contract',
-  'tool-catalog',
-]);
+/**
+ * The renderer-only predicate. Defaults to reqraft's built-ins; a FormEngine
+ * instance passes its own (built-ins + the `rendererOnlyUiTypes` prop) so a
+ * consumer's injected editors are recognised too. See `./rendererTypes`.
+ */
+type TRendererOnlyCheck = (type?: TQorusType | TQorusType[]) => boolean;
 
-const isRendererOnlyUiType = (type?: TQorusType | TQorusType[]): boolean =>
-  typeof type === 'string' && RENDERER_ONLY_UI_TYPES.has(type);
-
-const getOptionSchemaStorageType = (option?: TQorusFormFieldSchema): TQorusType =>
-  ((isRendererOnlyUiType(option?.ui_type)
+const getOptionSchemaStorageType = (
+  option?: TQorusFormFieldSchema,
+  isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
+): TQorusType =>
+  ((isRendererOnly(option?.ui_type)
     ? option?.type || option?.ui_type
     : option?.ui_type || option?.type) || 'any') as TQorusType;
 
@@ -293,13 +286,14 @@ const getOptionFieldStorageType = (
   fieldType: TQorusType | TQorusType[] | undefined,
   schema?: IQorusFormSchema,
   operators?: IOperatorsSchema,
-  operatorData?: TOperatorValue
+  operatorData?: TOperatorValue,
+  isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
 ): TQorusType => {
   const schemaOption = schema?.[optionName];
   const storedType =
-    fieldType && !(fieldType === schemaOption?.ui_type && isRendererOnlyUiType(fieldType))
+    fieldType && !(fieldType === schemaOption?.ui_type && isRendererOnly(fieldType))
       ? fieldType
-      : getOptionSchemaStorageType(schemaOption);
+      : getOptionSchemaStorageType(schemaOption, isRendererOnly);
 
   return getType(storedType as TQorusType, operators, operatorData);
 };
@@ -316,7 +310,8 @@ export const OptionsContext = createContext<{
 export const fixOptions = (
   value: TQorusForm | TQorusFlatForm = {},
   options: IQorusFormSchema,
-  operators?: IOperatorsSchema
+  operators?: IOperatorsSchema,
+  isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
 ): TQorusForm => {
   const fixedValue = cloneDeep(value);
 
@@ -329,7 +324,7 @@ export const fixOptions = (
     ) {
       let obj: IQorusFormField;
       const type = getType(
-        getOptionSchemaStorageType(option),
+        getOptionSchemaStorageType(option, isRendererOnly),
         operators,
         (fixedValue[name] as IQorusFormField)?.op
       );
@@ -370,7 +365,7 @@ export const fixOptions = (
           isUntypedEnvelope ? (newOption as IQorusFormField).value : newOption;
         const fixedOption: IQorusFormField = {
           type: getType(
-            getOptionSchemaStorageType(options?.[optionName]),
+            getOptionSchemaStorageType(options?.[optionName], isRendererOnly),
             operators,
             (newOption as IQorusFormField)?.op
           ),
@@ -384,12 +379,12 @@ export const fixOptions = (
         newOption = fixedOption;
       } else if (
         newOption.type === options?.[optionName]?.ui_type &&
-        isRendererOnlyUiType(newOption.type)
+        isRendererOnly(newOption.type)
       ) {
         newOption = {
           ...newOption,
           type: getType(
-            getOptionSchemaStorageType(options?.[optionName]),
+            getOptionSchemaStorageType(options?.[optionName], isRendererOnly),
             operators,
             newOption.op
           ),
@@ -598,19 +593,22 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * option's name/schema/value (the context the IDE's `AiAssistanceAction`
    * captures); the consumer injects the button, reqraft stays AI-free.
    */
-  optionActions?:
-    | IReqorePanelAction[]
-    | ((context: {
-        name: string;
-        schema: IQorusFormSchema[string];
-        value?: TOption;
-      }) => IReqorePanelAction[]);
+  optionActions?: TOptionActions;
   /**
    * SEAM (reqraft): consumer-injected field editors for types reqraft doesn't
    * ship (IDE domain fields). Keyed by field `type`/`ui_type`; forwarded through
    * `TemplateField` to the `AutoFormField` override seam.
    */
   componentOverrides?: Record<string, React.FC<any>>;
+  /**
+   * The `ui_type` names among `componentOverrides` that select a bespoke editor
+   * but store their value as the schema's plainer `type` (a `cron` editor stores
+   * a string). Declaring them here keeps the field's stored `type` correct —
+   * without it the renderer name is written into the value and validation and
+   * round-tripping both break. Merged with reqraft's own built-in list, so a
+   * consumer's new editor no longer needs a reqraft release to be handled.
+   */
+  rendererOnlyUiTypes?: string[];
 
   /**
    * Bag of values forwarded from an outer FormEngine scope, used as a
@@ -697,11 +695,17 @@ export const FormEngine = ({
   onValidityChange,
   optionActions,
   componentOverrides,
+  rendererOnlyUiTypes,
   inheritedFromParent,
   autoFocusFirstRequired,
   initialExpandedOptions,
   ...rest
 }: IFormEngineProps) => {
+  // Built-ins + whatever the consumer declared for its own injected editors.
+  const isRendererOnly = useMemo(
+    () => createRendererOnlyUiTypeCheck(rendererOnlyUiTypes),
+    [JSON.stringify(rendererOnlyUiTypes)]
+  );
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
   // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
   const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
@@ -837,7 +841,7 @@ export const FormEngine = ({
     fields: TQorusForm | TQorusFlatForm;
     meta?: IOptionsOnChangeMeta;
   }>(() => ({
-    fields: fixOptions(value, options || {}),
+    fields: fixOptions(value, options || {}, undefined, isRendererOnly),
     meta: undefined,
   }));
   const originalValue = useRef<any>();
@@ -930,7 +934,7 @@ export const FormEngine = ({
           setOptions({});
           return;
         }
-        setLocalValue({ fields: fixOptions(value, data.data), meta: undefined });
+        setLocalValue({ fields: fixOptions(value, data.data, undefined, isRendererOnly), meta: undefined });
         if (!operatorsUrl) {
           setLoading(false);
         }
@@ -975,7 +979,7 @@ export const FormEngine = ({
         }
         setOptions(data.data);
         onOptionsLoaded?.(data.data);
-        setLocalValue({ fields: fixOptions({}, data.data), meta: undefined });
+        setLocalValue({ fields: fixOptions({}, data.data, undefined, isRendererOnly), meta: undefined });
       })();
     }
   }, [url, customUrl]);
@@ -999,7 +1003,7 @@ export const FormEngine = ({
   }, [operatorsUrl]);
 
   useUpdateEffect(() => {
-    const fixedValue = fixOptions(value, options || {});
+    const fixedValue = fixOptions(value, options || {}, undefined, isRendererOnly);
 
     // When the value we're receiving is the one we just emitted AND fixOptions has nothing to
     // meaningfully add or change, skip the update. This breaks the controlled-component loop for
@@ -1023,19 +1027,19 @@ export const FormEngine = ({
     }
 
     setLocalValue?.({ fields: fixedValue, meta: undefined });
-  }, [JSON.stringify(options), JSON.stringify(value)]);
+  }, [JSON.stringify(options), JSON.stringify(value), isRendererOnly]);
 
   const handleValueChange = useCallback(
     (optionName: string, val?: any, _type?: string, isFunction?: boolean) => {
       setLocalValue(({ fields = {} }) => {
-        const schemaType = getOptionSchemaStorageType(options?.[optionName]);
+        const schemaType = getOptionSchemaStorageType(options?.[optionName], isRendererOnly);
         const isAnyLike = schemaType === 'any' || schemaType === 'auto';
         // For any/auto schema types, preserve the user's chosen type stored in the field
         const resolvedSchemaType =
           isAnyLike && (fields[optionName] as IQorusFormField)?.type
             ? ((fields[optionName] as IQorusFormField).type as TQorusType)
             : (fields[optionName] as IQorusFormField)?.type === options?.[optionName]?.ui_type &&
-                isRendererOnlyUiType((fields[optionName] as IQorusFormField)?.type)
+                isRendererOnly((fields[optionName] as IQorusFormField)?.type)
               ? schemaType
               : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
         const type =
@@ -1120,6 +1124,7 @@ export const FormEngine = ({
     [
       onSingleOptionsChange,
       onDependableOptionChange,
+      isRendererOnly,
       JSON.stringify(options),
       JSON.stringify(operators),
     ]
@@ -1240,7 +1245,7 @@ export const FormEngine = ({
         optionName as string,
         getDefaultValue(options?.[optionName as string]),
         getTypeAndCanBeNull(
-          getOptionSchemaStorageType(options?.[optionName as string]),
+          getOptionSchemaStorageType(options?.[optionName as string], isRendererOnly),
           options?.[optionName as string]?.allowed_values
         ).type
       );
@@ -1278,7 +1283,8 @@ export const FormEngine = ({
           (option as IQorusFormField)?.type,
           options,
           operators,
-          (option as IQorusFormField)?.op
+          (option as IQorusFormField)?.op,
+          isRendererOnly
         );
 
         if (!isPlainObject(option)) {
@@ -1297,6 +1303,7 @@ export const FormEngine = ({
         };
       }, {});
   }, [
+    isRendererOnly,
     JSON.stringify(fixedValue),
     JSON.stringify(options),
     unavailableOptionsCount.current,
@@ -1398,7 +1405,8 @@ export const FormEngine = ({
           (option as IQorusFormField).type,
           options,
           operators,
-          (option as IQorusFormField).op
+          (option as IQorusFormField).op,
+          isRendererOnly
         );
         const optionValue = (option as IQorusFormField).value;
 
@@ -1441,6 +1449,7 @@ export const FormEngine = ({
       invalidFields,
     };
   }, [
+    isRendererOnly,
     JSON.stringify(availableOptions),
     JSON.stringify(options),
     JSON.stringify(operators),
@@ -1467,7 +1476,8 @@ export const FormEngine = ({
               (option as IQorusFormField).type,
               options,
               operators,
-              (option as IQorusFormField).op
+              (option as IQorusFormField).op,
+              isRendererOnly
             ),
             (option as IQorusFormField).value
           )
@@ -1478,7 +1488,13 @@ export const FormEngine = ({
       },
       {}
     );
-  }, [showInvalidOptionsOnly, JSON.stringify(availableOptions), JSON.stringify(options), JSON.stringify(operators)]);
+  }, [
+    showInvalidOptionsOnly,
+    isRendererOnly,
+    JSON.stringify(availableOptions),
+    JSON.stringify(options),
+    JSON.stringify(operators),
+  ]);
 
   // Read-first STATUS / BOX for one option — lifted to component scope so the
   // status boxes (renderCompact) and the header's "needs attention" count share
@@ -1503,7 +1519,8 @@ export const FormEngine = ({
         (availableOptions as TQorusForm)?.[name]?.type,
         options,
         operators,
-        (availableOptions as TQorusForm)?.[name]?.op
+        (availableOptions as TQorusForm)?.[name]?.op,
+        isRendererOnly
       );
       const value = (availableOptions as TQorusForm)?.[name]?.value;
       const empty = isOptionValueEmpty(value);
@@ -1526,6 +1543,7 @@ export const FormEngine = ({
       });
     },
     [
+      isRendererOnly,
       JSON.stringify(options),
       JSON.stringify(availableOptions),
       JSON.stringify(operators),
@@ -1794,10 +1812,10 @@ export const FormEngine = ({
           next[optionName] = value as IQorusFormField;
         }
       });
-      return { fields: fixOptions(next, options || {}, operators), meta: undefined };
+      return { fields: fixOptions(next, options || {}, operators, isRendererOnly), meta: undefined };
     });
     setRequiredOnly(false);
-  }, [JSON.stringify(options), JSON.stringify(operators)]);
+  }, [JSON.stringify(options), JSON.stringify(operators), isRendererOnly]);
 
   const getCustomMenuTemplateItems = useCallback<(optionName: string) => TCustomTemplateItems>(
     (optionName) => {
@@ -2313,7 +2331,8 @@ export const FormEngine = ({
             (shownOptions as TQorusForm)[name]?.type,
             options,
             operators,
-            (shownOptions as TQorusForm)[name]?.op
+            (shownOptions as TQorusForm)[name]?.op,
+            isRendererOnly
           ),
           (shownOptions as TQorusForm)[name]?.value
         );
@@ -2423,7 +2442,7 @@ export const FormEngine = ({
           optionField={
             entry.hidden ?
               ({
-                type: getOptionSchemaStorageType(options?.[entry.name]),
+                type: getOptionSchemaStorageType(options?.[entry.name], isRendererOnly),
                 value: undefined,
               } as IQorusFormField)
             : ((shownOptions as TQorusForm)[entry.name] as IQorusFormField)
@@ -2884,13 +2903,11 @@ export const FormEngine = ({
                 // option's schema as context). The consumer (the IDE) injects
                 // it; same factory pattern as the ExpressionBuilder's
                 // `extraActions`.
-                ...(typeof optionActions === 'function' ?
-                  optionActions({
-                    name: optionName,
-                    schema: options[optionName],
-                    value: availableOptions?.[optionName] as TOption,
-                  })
-                : (optionActions ?? [])),
+                ...resolveOptionActions(optionActions, {
+                  name: optionName,
+                  schema: options[optionName],
+                  value: availableOptions?.[optionName] as TOption,
+                }),
                 {
                   size: 'tiny',
                   icon: 'FullscreenLine',

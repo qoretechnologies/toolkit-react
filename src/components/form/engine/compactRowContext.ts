@@ -1,5 +1,4 @@
 import { IReqoreTheme } from '@qoretechnologies/reqore/dist/constants/theme';
-import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { useReqoreProperty } from '@qoretechnologies/reqore';
 import {
@@ -9,7 +8,8 @@ import {
 } from '@qoretechnologies/ts-toolkit';
 import { MutableRefObject } from 'react';
 import { createContext } from 'use-context-selector';
-import { IOperatorsSchema, TOption } from './FormEngine';
+import { IOperatorsSchema } from './FormEngine';
+import { TOptionActions } from './optionActions';
 
 /**
  * The complete closure surface of the (former) `renderCompactRow` function,
@@ -75,13 +75,7 @@ export interface ICompactRowContext {
 
   // Function passed through as a value (stays defined in FormEngine because the
   // classic non-compact path uses it too).
-  optionActions?:
-    | IReqorePanelAction[]
-    | ((context: {
-        name: string;
-        schema: IQorusFormSchema[string];
-        value?: TOption;
-      }) => IReqorePanelAction[]);
+  optionActions?: TOptionActions;
   renderOption: (
     optionName: string,
     field: IQorusFormField,

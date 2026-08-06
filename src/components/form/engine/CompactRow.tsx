@@ -11,6 +11,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
+import { resolveOptionActions } from './optionActions';
 import {
   IQorusFormField,
   TQorusForm,
@@ -340,28 +341,35 @@ export const CompactRow = memo(
 
     const schema = options?.[optionName];
     const label = schema?.display_name || optionName;
-    const injectedOptionActions = React.useMemo<IReqorePanelAction[]>(() => {
-      if (!schema) {
-        return [];
-      }
-
-      const actions =
-        typeof optionActions === 'function'
-          ? optionActions({
-              name: optionName,
-              schema,
-              value: availableOptions?.[optionName],
-            })
-          : (optionActions ?? []);
-
-      return actions.filter((action) => !!action && action.show !== false);
-    }, [availableOptions, optionActions, optionName, schema]);
+    const injectedOptionActions = React.useMemo<IReqorePanelAction[]>(
+      () =>
+        schema ?
+          resolveOptionActions(optionActions, {
+            name: optionName,
+            schema,
+            value: availableOptions?.[optionName],
+          }).filter((action) => action.show !== false)
+        : [],
+      [availableOptions?.[optionName], optionActions, optionName, schema]
+    );
     const renderInjectedOptionAction = (
       action: IReqorePanelAction,
       index: number,
       size: 'tiny' | 'small' = 'small'
     ) => {
-      const { label: actionLabel, onClick, show: _show, size: actionSize, ...actionProps } = action;
+      // `show` drives visibility here instead of reaching the DOM. The classic
+      // path hands these to ReqorePanel, which honours `show: 'hover'` itself;
+      // the compact slots render plain buttons, so 'hover' becomes a CSS gate on
+      // the containing row/card (see compactRowStyles) — same config, same
+      // behaviour in both modes.
+      const {
+        label: actionLabel,
+        onClick,
+        show,
+        size: actionSize,
+        className,
+        ...actionProps
+      } = action;
 
       return (
         <ReqoreButton
@@ -371,6 +379,9 @@ export const CompactRow = memo(
           flat
           fixed
           {...actionProps}
+          className={`${className ? `${className} ` : ''}options-injected-action${
+            show === 'hover' ? ' options-injected-action-hover' : ''
+          }`}
           onClick={(event: React.MouseEvent<HTMLElement>) => {
             event.stopPropagation();
             onClick?.();

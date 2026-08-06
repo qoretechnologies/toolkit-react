@@ -73,6 +73,23 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
     flex: 1 1 auto;
     min-width: 0;
   }
+
+  /* An injected option action declared \`show: 'hover'\` — the shape ReqorePanel
+     honours on the classic path — is revealed only while its row or card is
+     hovered or holds focus. The compact slots render plain buttons, so the gate
+     has to be CSS here. Kept focus-visible too, so the action stays reachable by
+     keyboard. Opacity rather than display keeps the slot's width stable, so rows
+     don't reflow on hover. */
+  .options-injected-action-hover {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .readfirst-row:hover .options-injected-action-hover,
+  .readfirst-row:focus-within .options-injected-action-hover,
+  .options-readfirst-card:hover .options-injected-action-hover,
+  .options-readfirst-card:focus-within .options-injected-action-hover {
+    opacity: 1;
+  }
 `;
 
 // Compact group header laid out as the panel's `label`: the group name, a
