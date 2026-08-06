@@ -109,6 +109,12 @@ const COMPACT_SINGLE_VALUE_TYPES = new Set([
   'method-name',
 ]);
 
+// How many consumer-injected actions may sit inline in a row before the rest
+// overflow into the row's menu. A row's action slot shares space with the
+// value; an unbounded button strip would squeeze the value out, and the
+// consumer controls how many actions it injects.
+const MAX_INLINE_OPTION_ACTIONS = 2;
+
 
 // One read-first row: label | value | action collapsed; the real editor (the
 // classic renderOption) expanded. `hidden` = search-surfaced optional —
@@ -179,6 +185,10 @@ export const CompactRow = memo(
     const getTypeForOption = useContextSelector(CompactRowContext, (v) => v.getTypeForOption);
     const confirmAction = useContextSelector(CompactRowContext, (v) => v.confirmAction);
     const optionActions = useContextSelector(CompactRowContext, (v) => v.optionActions);
+    const collapseOptionActions = useContextSelector(
+      CompactRowContext,
+      (v) => v.collapseOptionActions
+    );
     const renderOption = useContextSelector(CompactRowContext, (v) => v.renderOption);
     const theme = useContextSelector(CompactRowContext, (v) => v.theme);
     const cMuted = useContextSelector(CompactRowContext, (v) => v.cMuted);
@@ -351,6 +361,40 @@ export const CompactRow = memo(
           }).filter((action) => action.show !== false)
         : [],
       [availableOptions?.[optionName], optionActions, optionName, schema]
+    );
+    // Which injected actions stay as inline buttons, and which move into the
+    // overflow menu. Everything collapses on touch / narrow viewports — a
+    // hover-gated button is unreachable without a hover — and anything past the
+    // inline cap overflows regardless, so a consumer injecting ten actions can
+    // never push the row's value out of view.
+    const [inlineOptionActions, menuOptionActions] = React.useMemo<
+      [IReqorePanelAction[], IReqorePanelAction[]]
+    >(
+      () =>
+        collapseOptionActions ?
+          [[], injectedOptionActions]
+        : [
+            injectedOptionActions.slice(0, MAX_INLINE_OPTION_ACTIONS),
+            injectedOptionActions.slice(MAX_INLINE_OPTION_ACTIONS),
+          ],
+      [collapseOptionActions, injectedOptionActions]
+    );
+    const injectedOptionActionMenuItems = React.useMemo<IReqoreDropdownItem[]>(
+      () =>
+        menuOptionActions.map(
+          (action, index) =>
+            ({
+              // A panel action labels itself with `label`, but an icon-only one
+              // (the IDE's AI-assist button) carries its name in the tooltip —
+              // a menu row has no hover affordance to fall back on.
+              label: action.label ?? action.tooltip ?? `Action ${index + 1}`,
+              icon: action.icon,
+              intent: action.intent,
+              disabled: action.disabled,
+              onClick: () => action.onClick?.(),
+            }) as IReqoreDropdownItem
+        ),
+      [menuOptionActions]
     );
     const renderInjectedOptionAction = (
       action: IReqorePanelAction,
@@ -728,6 +772,10 @@ export const CompactRow = memo(
               } as IReqoreDropdownItem,
             ]
           : []),
+          // Consumer-injected actions that did not fit inline (or collapsed
+          // wholesale on touch) land here — this row already has a menu, so they
+          // reuse it rather than adding a second one beside it.
+          ...injectedOptionActionMenuItems,
         ]}
       />
     );
@@ -801,7 +849,7 @@ export const CompactRow = memo(
                   message strip is visible. */}
               {revertButton}
               {clearValueButton}
-              {injectedOptionActions.map((action, index) =>
+              {inlineOptionActions.map((action, index) =>
                 renderInjectedOptionAction(action, index)
               )}
               {moreMenu}
@@ -958,7 +1006,7 @@ export const CompactRow = memo(
                   </ReqoreButton>
                 );
               })}
-              {injectedOptionActions.map((action, index) =>
+              {inlineOptionActions.map((action, index) =>
                 renderInjectedOptionAction(action, index)
               )}
               {/* Clear-value sits before the More menu — the card analog of the
@@ -1363,9 +1411,31 @@ export const CompactRow = memo(
               {infoToggle}
             </StyledActionSlot>
           : null}
-          {injectedOptionActions.map((action, index) =>
+          {inlineOptionActions.map((action, index) =>
             renderInjectedOptionAction(action, index, 'tiny')
           )}
+          {injectedOptionActionMenuItems.length ?
+            <StyledActionSlot
+              className='options-readfirst-actions-slot'
+              $width={26}
+              // The read row opens the editor when clicked. Without this the tap
+              // that opens this menu also expands the row, which unmounts the
+              // menu — on touch that made the collapsed actions unreachable,
+              // the exact problem the collapse exists to solve.
+              onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()}
+            >
+              <ReqoreDropdown
+                className='options-injected-actions-menu'
+                icon='MoreFill'
+                flat
+                minimal
+                fixed
+                size='tiny'
+                tooltip='Field actions'
+                items={injectedOptionActionMenuItems}
+              />
+            </StyledActionSlot>
+          : null}
           {/* The revert affordance lives in the status-dot column (a changed field
               swaps its dot for the revert icon) so it sits at the same fixed x as
               the dot — out of the value's way instead of floating over it. */}

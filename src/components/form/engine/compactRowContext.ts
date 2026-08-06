@@ -76,6 +76,12 @@ export interface ICompactRowContext {
   // Function passed through as a value (stays defined in FormEngine because the
   // classic non-compact path uses it too).
   optionActions?: TOptionActions;
+  /**
+   * Injected actions render inside the row's overflow menu instead of as inline
+   * buttons. True on touch (where a hover-gated button is unreachable) and on
+   * narrow viewports. Resolved once by FormEngine so rows share one subscription.
+   */
+  collapseOptionActions?: boolean;
   renderOption: (
     optionName: string,
     field: IQorusFormField,

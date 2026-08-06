@@ -40,6 +40,7 @@ import {
 } from '@qoretechnologies/ts-toolkit';
 import { resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
+import { useCanHover, useIsNarrowViewport } from '../../../hooks/useMediaQuery';
 import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last } from 'lodash';
 import isArray from 'lodash/isArray';
 import map from 'lodash/map';
@@ -606,6 +607,20 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   optionActions?: TOptionActions;
   /**
+   * Whether per-option injected actions collapse into the row's overflow menu
+   * instead of rendering as inline buttons.
+   *
+   * `'auto'` (default) collapses when the device cannot hover or the viewport is
+   * narrow — on a phone a hover-gated action would otherwise be unreachable, and
+   * a row has no width for a button strip. `'always'` / `'never'` force it, which
+   * consumers can use for a known-mobile surface and stories use to capture the
+   * collapsed state deterministically.
+   *
+   * Actions beyond `MAX_INLINE_OPTION_ACTIONS` always overflow into the menu, so
+   * a consumer injecting many actions can never blow out the row.
+   */
+  optionActionsCollapse?: 'auto' | 'always' | 'never';
+  /**
    * SEAM (reqraft): consumer-injected field editors for types reqraft doesn't
    * ship (IDE domain fields). Keyed by field `type`/`ui_type`; forwarded through
    * `TemplateField` to the `AutoFormField` override seam.
@@ -705,6 +720,7 @@ export const FormEngine = ({
   optionsLoader,
   onValidityChange,
   optionActions,
+  optionActionsCollapse = 'auto',
   componentOverrides,
   rendererOnlyUiTypes,
   inheritedFromParent,
@@ -717,6 +733,14 @@ export const FormEngine = ({
     () => createRendererOnlyUiTypeCheck(rendererOnlyUiTypes),
     [JSON.stringify(rendererOnlyUiTypes)]
   );
+  // Resolved once here rather than per row — every CompactRow reads the answer
+  // off the context instead of opening its own matchMedia subscription.
+  const canHover = useCanHover();
+  const isNarrowViewport = useIsNarrowViewport();
+  const collapseOptionActions =
+    optionActionsCollapse === 'always' ? true
+    : optionActionsCollapse === 'never' ? false
+    : !canHover || isNarrowViewport;
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
   // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
   const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
@@ -2177,6 +2201,7 @@ export const FormEngine = ({
       isOptionValid,
       confirmAction,
       optionActions,
+      collapseOptionActions,
       renderOption,
       theme,
       cText,
@@ -2223,6 +2248,7 @@ export const FormEngine = ({
       isOptionValid,
       confirmAction,
       optionActions,
+      collapseOptionActions,
       renderOption,
       theme,
       cText,

@@ -11,6 +11,7 @@
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
+import { _testsClickButton, sleep } from '../../../stories/Tests/utils';
 import { StoryMeta } from '../../../types';
 import { FormEngine } from './FormEngine';
 
@@ -358,12 +359,161 @@ export const InjectedCompactOptionActions: Story = {
     });
 
     // The hover-only action carries the CSS gate; the always-on one does not.
-    expect(
-      document.querySelectorAll('.option-compact-ai-assist.options-injected-action-hover').length
-    ).toBe(rowCount);
+    const hoverAction = document.querySelector(
+      '.option-compact-ai-assist.options-injected-action-hover'
+    ) as HTMLElement;
+    expect(hoverAction).toBeTruthy();
     expect(
       document.querySelectorAll('.option-compact-always.options-injected-action-hover').length
     ).toBe(0);
+
+    // Actually exercise the reveal condition rather than just asserting the
+    // class is present: gated the action is transparent and not hit-testable.
+    expect(getComputedStyle(hoverAction).opacity).toBe('0');
+    expect(getComputedStyle(hoverAction).pointerEvents).toBe('none');
+
+    // Focus is the reveal path a test can drive: the gate keys on
+    // `:hover, :focus-within`, and a synthetic mouse event does NOT put a real
+    // browser into `:hover`. Focusing the action is also the keyboard route a
+    // user takes, so this covers the accessibility path at the same time.
+    hoverAction.focus();
+    await waitFor(() => {
+      expect(getComputedStyle(hoverAction).opacity).toBe('1');
+      expect(getComputedStyle(hoverAction).pointerEvents).toBe('auto');
+    });
+
+    // Left revealed so the captured frame shows the action rather than an
+    // empty slot — the whole point of the story.
+    await sleep(200);
+  },
+};
+
+/**
+ * The no-hover case. A touch device never fires `:hover`, so a hover-gated
+ * action would be permanently unreachable; instead every injected action moves
+ * into the row's own overflow menu. `optionActionsCollapse='always'` forces the
+ * branch that `(hover: none)`/`(pointer: coarse)` picks on a real phone, which a
+ * desktop browser cannot emulate.
+ */
+export const InjectedCompactOptionActionsMobile: Story = {
+  args: {
+    name: 'compactOptionActionsMobile',
+    compact: true,
+    options: BASIC_SCHEMA as any,
+    optionActionsCollapse: 'always',
+    optionActions: ({ name }) => [
+      {
+        icon: 'MagicLine',
+        className: 'option-compact-ai-assist',
+        tooltip: `AI assistance for ${name}`,
+        show: 'hover',
+        size: 'tiny',
+        fixed: true,
+      },
+      {
+        icon: 'InformationLine',
+        className: 'option-compact-always',
+        tooltip: `Details for ${name}`,
+        size: 'tiny',
+        fixed: true,
+      },
+    ],
+  },
+  parameters: {
+    qlip: { viewport: { width: 420, height: 900 } },
+    docs: {
+      description: {
+        story:
+          'Renders the compact rows at phone width with injected actions collapsed into each row\'s overflow menu — the no-hover path, where a hover-gated button would otherwise be unreachable. The menu is opened so the actions are visible.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(
+      () => expect(document.querySelectorAll('.readfirst-row').length).toBeGreaterThan(0),
+      { timeout: 10000 }
+    );
+
+    // Collapsed: no inline injected buttons at all, one overflow menu per row.
+    const rowCount = document.querySelectorAll('.readfirst-row').length;
+    await waitFor(() => {
+      expect(document.querySelectorAll('.options-injected-actions-menu').length).toBe(rowCount);
+    });
+    expect(document.querySelectorAll('.option-compact-ai-assist').length).toBe(0);
+    expect(document.querySelectorAll('.option-compact-always').length).toBe(0);
+
+    // Both actions are reachable from the menu — the reason the collapse exists.
+    await _testsClickButton({ selector: '.options-injected-actions-menu', nth: 0 });
+    await waitFor(
+      () => {
+        const labels = Array.from(document.querySelectorAll('.reqore-menu-item')).map(
+          (item) => item.textContent ?? ''
+        );
+        expect(labels.some((label) => label.includes('AI assistance for'))).toBe(true);
+        expect(labels.some((label) => label.includes('Details for'))).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+  },
+};
+
+/**
+ * Many injected actions. Beyond the inline cap the extras overflow into the
+ * row's menu instead of squeezing the value out of the row, so a consumer can
+ * inject any number without breaking the layout.
+ */
+export const InjectedCompactOptionActionsMany: Story = {
+  args: {
+    name: 'compactOptionActionsMany',
+    compact: true,
+    options: BASIC_SCHEMA as any,
+    optionActions: ({ name }) =>
+      ['MagicLine', 'InformationLine', 'FileCopyLine', 'DeleteBinLine', 'ShareLine'].map(
+        (icon, index) => ({
+          icon: icon as any,
+          className: `option-compact-many-${index}`,
+          tooltip: `${icon} for ${name}`,
+          size: 'tiny',
+          fixed: true,
+        })
+      ),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact rows with five injected actions per option — the first two stay inline and the remaining three collapse into the row\'s overflow menu, which is opened here to show them.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(
+      () => expect(document.querySelectorAll('.readfirst-row').length).toBeGreaterThan(0),
+      { timeout: 10000 }
+    );
+
+    const rowCount = document.querySelectorAll('.readfirst-row').length;
+
+    // Only the first two render inline; the rest are in the menu.
+    await waitFor(() => {
+      expect(document.querySelectorAll('.option-compact-many-0').length).toBe(rowCount);
+      expect(document.querySelectorAll('.option-compact-many-1').length).toBe(rowCount);
+    });
+    expect(document.querySelectorAll('.option-compact-many-2').length).toBe(0);
+    expect(document.querySelectorAll('.option-compact-many-4').length).toBe(0);
+    expect(document.querySelectorAll('.options-injected-actions-menu').length).toBe(rowCount);
+
+    await _testsClickButton({ selector: '.options-injected-actions-menu', nth: 0 });
+    await waitFor(
+      () => {
+        const labels = Array.from(document.querySelectorAll('.reqore-menu-item')).map(
+          (item) => item.textContent ?? ''
+        );
+        expect(labels.some((label) => label.includes('DeleteBinLine for'))).toBe(true);
+        expect(labels.some((label) => label.includes('ShareLine for'))).toBe(true);
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
