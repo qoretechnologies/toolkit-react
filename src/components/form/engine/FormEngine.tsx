@@ -244,12 +244,16 @@ const StyledCommitDock = styled.div<{ $bg: string; $border: string }>`
 `;
 
 export const getType = (
-  type: TQorusType | TQorusType[],
+  type?: TQorusType | TQorusType[],
   operators?: IOperatorsSchema,
   operator?: TOperatorValue
 ): TQorusType => {
   const finalType = getTypeFromOperator(operators, fixOperatorValue(operator)) || type;
-  return (isArray(finalType) ? finalType[0] : finalType) as TQorusType;
+  const resolvedType = isArray(finalType) ? finalType[0] : finalType;
+
+  // A value can be received before its server-driven option schema. Keep the
+  // renderer type-safe during that transition without guessing a concrete type.
+  return (resolvedType || 'any') as TQorusType;
 };
 
 const getTypeFromOperator = (
@@ -309,11 +313,18 @@ export const OptionsContext = createContext<{
 
 export const fixOptions = (
   value: TQorusForm | TQorusFlatForm = {},
-  options: IQorusFormSchema,
+  options?: IQorusFormSchema,
   operators?: IOperatorsSchema,
   isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
 ): TQorusForm => {
   const fixedValue = cloneDeep(value);
+
+  // Server-driven schemas can arrive after the persisted value. Preserve that
+  // value verbatim until its schema is available instead of manufacturing
+  // partially typed form fields that can crash the following render.
+  if (!size(options)) {
+    return fixedValue as TQorusForm;
+  }
 
   forEach(options, (option, name) => {
     if (
@@ -363,7 +374,11 @@ export const fixOptions = (
         const isUntypedEnvelope = isPlainObject(newOption) && 'value' in newOption;
         const untypedFieldValue =
           isUntypedEnvelope ? (newOption as IQorusFormField).value : newOption;
+        // Spread the original envelope first so every key it carried survives —
+        // rebuilding from just {type, value} silently dropped `op`, `is_expression`
+        // and anything else a field needs to render, which emptied the card.
         const fixedOption: IQorusFormField = {
+          ...(isPlainObject(newOption) ? (newOption as IQorusFormField) : {}),
           type: getType(
             getOptionSchemaStorageType(options?.[optionName], isRendererOnly),
             operators,
@@ -371,10 +386,6 @@ export const fixOptions = (
           ),
           value: untypedFieldValue,
         };
-
-        if ((newOption as IQorusFormField)?.is_expression) {
-          fixedOption.is_expression = true;
-        }
 
         newOption = fixedOption;
       } else if (
@@ -458,7 +469,7 @@ export const flattenOptions = (options: TQorusForm): TQorusFlatForm => {
 };
 
 export const getTypeAndCanBeNull = (
-  type: TQorusType | TQorusType[],
+  type?: TQorusType | TQorusType[],
   allowed_values?: any[],
   operatorData?: TOperatorValue,
   operators?: IOperatorsSchema
@@ -1845,6 +1856,16 @@ export const FormEngine = ({
       suppressSchemaMessages?: boolean
     ) => {
       const operatorParts = fixOperatorValue(other.op);
+      // The RENDERER type for this row. The schema's `ui_type` wins because it
+      // names the editor, and a renderer-only one never reaches the field's
+      // stored `type` any more; the remaining fallbacks keep the row rendering
+      // when a server-driven schema has not arrived yet (type would be
+      // undefined) rather than crashing on it.
+      const resolvedType =
+        (options?.[optionName]?.ui_type as TQorusType) ||
+        type ||
+        (options?.[optionName]?.type as TQorusType) ||
+        'any';
       return (
         <>
           {(() => {
@@ -1986,15 +2007,15 @@ export const FormEngine = ({
             // (DPQL text mode); opt out per-form via `templateFieldProps`.
             allowTextExpressions
             allowCustomValues={
-              options?.[optionName]?.supports_custom_values !== false && type !== 'any'
+              options?.[optionName]?.supports_custom_values !== false && resolvedType !== 'any'
             }
             templates={templates.value}
             {...getTypeAndCanBeNull(
-              type as TQorusType,
+              (type as TQorusType) || (options?.[optionName]?.type as TQorusType),
               options?.[optionName]?.allowed_values,
               other.op
             )}
-            ui_type={(options?.[optionName]?.ui_type as TQorusType) || type}
+            ui_type={resolvedType}
             name={optionName}
             uniqueName={`${uniqueName ? `${uniqueName}.` : `${name ? `${name}.` : ''}`}${optionName}`}
             onChange={
@@ -2035,7 +2056,7 @@ export const FormEngine = ({
             schema={options || {}}
             allOptions={availableOptions}
             name={optionName}
-            option={{ type, ...other }}
+            option={{ type: resolvedType, ...other }}
             getType={getTypeForOption}
           />
           {operators && size(operators) && size(other.op) ?
@@ -2050,7 +2071,7 @@ export const FormEngine = ({
                     intent='info'
                     label={
                       other.value ?
-                        type === 'richtext' ?
+                        resolvedType === 'richtext' ?
                           richtextToString(other.value)
                         : JSON.stringify(other.value)
                       : ''
