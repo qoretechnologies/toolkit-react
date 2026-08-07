@@ -11,6 +11,7 @@
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
+import { _testsClickButton, sleep } from '../../../stories/Tests/utils';
 import { StoryMeta } from '../../../types';
 import { FormEngine } from './FormEngine';
 
@@ -304,6 +305,334 @@ export const InjectedOptionActions: Story = {
       () => expect(document.querySelector('.option-ai-assist')).toBeInTheDocument(),
       { timeout: 10000 }
     );
+  },
+};
+
+/**
+ * The same injected actions seam must also work in compact/read-first mode. The
+ * IDE uses this path for option-based forms and relies on the action slot for
+ * small per-field Qonsole controls.
+ */
+export const InjectedCompactOptionActions: Story = {
+  args: {
+    name: 'compactOptionActionsSeam',
+    compact: true,
+    options: BASIC_SCHEMA as any,
+    optionActions: ({ name }) => [
+      {
+        icon: 'MagicLine',
+        className: 'option-compact-ai-assist',
+        tooltip: `AI assistance for ${name}`,
+        // The shape the IDE passes on the classic path — hover-gated here too.
+        show: 'hover',
+        size: 'tiny',
+        fixed: true,
+      },
+      {
+        icon: 'InformationLine',
+        className: 'option-compact-always',
+        tooltip: `Details for ${name}`,
+        size: 'tiny',
+        fixed: true,
+      },
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders compact FormEngine rows with two injected per-option actions: one always visible, one declared `show: "hover"` that stays transparent until its row is hovered or focused. Hover-gating applies only where the pointer can hover — on touch both collapse into the row\'s overflow menu instead, so neither is ever hover-only.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(
+      () => expect(document.querySelectorAll('.readfirst-row').length).toBeGreaterThan(0),
+      { timeout: 10000 }
+    );
+
+    const rowCount = document.querySelectorAll('.readfirst-row').length;
+
+    await waitFor(() => {
+      expect(document.querySelectorAll('.option-compact-always').length).toBe(rowCount);
+      expect(document.querySelectorAll('.option-compact-ai-assist').length).toBe(rowCount);
+    });
+
+    // The hover-only action carries the CSS gate; the always-on one does not.
+    const hoverAction = document.querySelector(
+      '.option-compact-ai-assist.options-injected-action-hover'
+    ) as HTMLElement;
+    expect(hoverAction).toBeTruthy();
+    expect(
+      document.querySelectorAll('.option-compact-always.options-injected-action-hover').length
+    ).toBe(0);
+
+    // Actually exercise the reveal condition rather than just asserting the
+    // class is present: gated the action is transparent and not hit-testable.
+    expect(getComputedStyle(hoverAction).opacity).toBe('0');
+    expect(getComputedStyle(hoverAction).pointerEvents).toBe('none');
+
+    // Focus is the reveal path a test can drive: the gate keys on
+    // `:hover, :focus-within`, and a synthetic mouse event does NOT put a real
+    // browser into `:hover`. Focusing the action is also the keyboard route a
+    // user takes, so this covers the accessibility path at the same time.
+    hoverAction.focus();
+    await waitFor(() => {
+      expect(getComputedStyle(hoverAction).opacity).toBe('1');
+      expect(getComputedStyle(hoverAction).pointerEvents).toBe('auto');
+    });
+
+    // Left revealed so the captured frame shows the action rather than an
+    // empty slot — the whole point of the story.
+    await sleep(200);
+  },
+};
+
+/**
+ * The no-hover case. A touch device never fires `:hover`, so a hover-gated
+ * action would be permanently unreachable; instead every injected action moves
+ * into the row's own overflow menu. `optionActionsCollapse='always'` forces the
+ * branch that `(hover: none)`/`(pointer: coarse)` picks on a real phone, which a
+ * desktop browser cannot emulate.
+ */
+export const InjectedCompactOptionActionsMobile: Story = {
+  args: {
+    name: 'compactOptionActionsMobile',
+    compact: true,
+    options: BASIC_SCHEMA as any,
+    optionActionsCollapse: 'always',
+    optionActions: ({ name }) => [
+      {
+        icon: 'MagicLine',
+        className: 'option-compact-ai-assist',
+        tooltip: `AI assistance for ${name}`,
+        show: 'hover',
+        size: 'tiny',
+        fixed: true,
+      },
+      {
+        icon: 'InformationLine',
+        className: 'option-compact-always',
+        tooltip: `Details for ${name}`,
+        size: 'tiny',
+        fixed: true,
+      },
+    ],
+  },
+  parameters: {
+    qlip: { viewport: { width: 420, height: 900 } },
+    docs: {
+      description: {
+        story:
+          'Renders the compact rows at phone width with injected actions collapsed into each row\'s overflow menu — the no-hover path, where a hover-gated button would otherwise be unreachable. The menu is opened so the actions are visible.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(
+      () => expect(document.querySelectorAll('.readfirst-row').length).toBeGreaterThan(0),
+      { timeout: 10000 }
+    );
+
+    // Collapsed: no inline injected buttons at all, one overflow menu per row.
+    const rowCount = document.querySelectorAll('.readfirst-row').length;
+    await waitFor(() => {
+      expect(document.querySelectorAll('.options-injected-actions-menu').length).toBe(rowCount);
+    });
+    expect(document.querySelectorAll('.option-compact-ai-assist').length).toBe(0);
+    expect(document.querySelectorAll('.option-compact-always').length).toBe(0);
+
+    // Both actions are reachable from the menu — the reason the collapse exists.
+    await _testsClickButton({ selector: '.options-injected-actions-menu', nth: 0 });
+    await waitFor(
+      () => {
+        const labels = Array.from(document.querySelectorAll('.reqore-menu-item')).map(
+          (item) => item.textContent ?? ''
+        );
+        expect(labels.some((label) => label.includes('AI assistance for'))).toBe(true);
+        expect(labels.some((label) => label.includes('Details for'))).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+  },
+};
+
+/**
+ * Many injected actions. Beyond the inline cap the extras overflow into the
+ * row's menu instead of squeezing the value out of the row, so a consumer can
+ * inject any number without breaking the layout.
+ */
+export const InjectedCompactOptionActionsMany: Story = {
+  args: {
+    name: 'compactOptionActionsMany',
+    compact: true,
+    options: BASIC_SCHEMA as any,
+    optionActions: ({ name }) =>
+      ['MagicLine', 'InformationLine', 'FileCopyLine', 'DeleteBinLine', 'ShareLine'].map(
+        (icon, index) => ({
+          icon: icon as any,
+          className: `option-compact-many-${index}`,
+          tooltip: `${icon} for ${name}`,
+          size: 'tiny',
+          fixed: true,
+        })
+      ),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact rows with five injected actions per option — the first two stay inline and the remaining three collapse into the row\'s overflow menu, which is opened here to show them.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(
+      () => expect(document.querySelectorAll('.readfirst-row').length).toBeGreaterThan(0),
+      { timeout: 10000 }
+    );
+
+    const rowCount = document.querySelectorAll('.readfirst-row').length;
+
+    // Only the first two render inline; the rest are in the menu.
+    await waitFor(() => {
+      expect(document.querySelectorAll('.option-compact-many-0').length).toBe(rowCount);
+      expect(document.querySelectorAll('.option-compact-many-1').length).toBe(rowCount);
+    });
+    expect(document.querySelectorAll('.option-compact-many-2').length).toBe(0);
+    expect(document.querySelectorAll('.option-compact-many-4').length).toBe(0);
+    expect(document.querySelectorAll('.options-injected-actions-menu').length).toBe(rowCount);
+
+    await _testsClickButton({ selector: '.options-injected-actions-menu', nth: 0 });
+    await waitFor(
+      () => {
+        const labels = Array.from(document.querySelectorAll('.reqore-menu-item')).map(
+          (item) => item.textContent ?? ''
+        );
+        expect(labels.some((label) => label.includes('DeleteBinLine for'))).toBe(true);
+        expect(labels.some((label) => label.includes('ShareLine for'))).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+  },
+};
+
+// A compact row renders the SAME logical state three ways — the read row, the
+// inline editor, and the edit card (complex types get the card). An injected
+// action has to survive all three, and per the affordance-parity rule each
+// branch needs its own story: the branch without one is where a dead action
+// hides, because the branch under test is the branch that works.
+const BRANCH_SCHEMA = {
+  host: {
+    type: 'string',
+    display_name: 'Host',
+    short_desc: 'Edits inline inside the row',
+    preselected: true,
+    default_value: 'localhost',
+  },
+  notes: {
+    type: 'string',
+    ui_type: 'long-string',
+    display_name: 'Notes',
+    short_desc: 'A complex type — edits in the card branch',
+    preselected: true,
+    // Needs a value: an empty optional field sits in the collapsed "Optional"
+    // group, where `initialExpandedOptions` has nothing to open.
+    default_value: 'Notes that are long enough to want the card editor.',
+  },
+};
+
+const branchAction = ({ name }: { name: string }) => [
+  {
+    icon: 'MagicLine' as const,
+    className: 'option-branch-action',
+    tooltip: `AI assistance for ${name}`,
+    size: 'tiny' as const,
+    fixed: true,
+  },
+];
+
+/**
+ * Branch 1 of 3: the INLINE editor. A simple type opens inside the row itself,
+ * and the injected action has to be reachable there, not just on the read row.
+ */
+export const InjectedOptionActionsInlineEditing: Story = {
+  args: {
+    name: 'compactOptionActionsInline',
+    compact: true,
+    options: BRANCH_SCHEMA as any,
+    initialExpandedOptions: ['host'],
+    optionActions: branchAction,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact form with the simple `host` field already open, so it edits inline inside the row — the injected per-option action is asserted inside that inline branch.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(
+      () => expect(document.querySelector('.readfirst-row-editing')).toBeTruthy(),
+      { timeout: 10000 }
+    );
+
+    // Scoped to the branch on purpose: a global query would pass on the read
+    // row's copy and prove nothing about the inline editor.
+    const injected = await waitFor(() => {
+      const el = document.querySelector(
+        '.readfirst-row-editing .option-branch-action'
+      ) as HTMLElement;
+      expect(el).toBeTruthy();
+      return el;
+    });
+
+    // The injected action must match the size of the row's own actions. The
+    // fixture deliberately asks for `size: 'tiny'` — the row overrides it,
+    // because a consumer-sized button rendered visibly smaller than the revert
+    // and More buttons beside it (qlip build #57 rejection).
+    const neighbour = document.querySelector(
+      '.readfirst-row-editing .options-readfirst-more'
+    ) as HTMLElement;
+    expect(neighbour).toBeTruthy();
+    expect(injected.getBoundingClientRect().height).toBe(
+      neighbour.getBoundingClientRect().height
+    );
+  },
+};
+
+/**
+ * Branch 2 of 3: the EDIT CARD. A complex type (`long-string`) is too tall to
+ * edit in-row, so it opens as a card — a different subtree, and historically
+ * where an action wired only in the other branch went missing.
+ */
+export const InjectedOptionActionsEditCard: Story = {
+  args: {
+    name: 'compactOptionActionsCard',
+    compact: true,
+    options: BRANCH_SCHEMA as any,
+    initialExpandedOptions: ['notes'],
+    optionActions: branchAction,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact form with the complex `notes` field already open, so it edits in the card branch rather than in-row — the injected per-option action is asserted inside that card.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(() => expect(document.querySelector('.options-readfirst-card')).toBeTruthy(), {
+      timeout: 10000,
+    });
+
+    await waitFor(() => {
+      expect(
+        document.querySelector('.options-readfirst-card .option-branch-action')
+      ).toBeTruthy();
+    });
   },
 };
 

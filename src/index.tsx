@@ -21,6 +21,13 @@ export type {
 export { useFetch } from './hooks/useFetch/useFetch';
 export type { IReqraftUseFetch } from './hooks/useFetch/useFetch';
 export { useReqraftStorage } from './hooks/useStorage/useStorage';
+export {
+  useCanHover,
+  useIsNarrowViewport,
+  useMediaQuery,
+  HOVER_CAPABLE_QUERY,
+  NARROW_VIEWPORT_QUERY,
+} from './hooks/useMediaQuery';
 export type { TReqraftUseStorage } from './hooks/useStorage/useStorage';
 export * from './hooks/useWebSocket/useWebSocket';
 export {

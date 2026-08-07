@@ -22,6 +22,8 @@ export * from './fields/select/SelectCollection';
 export * from './fields/string/String';
 export * from './fields/template/TemplateField';
 export * from './engine/FormEngine';
+export * from './engine/optionActions';
+export * from './engine/rendererTypes';
 export * from './expressions/types';
 export * from './expressions/useExpressions';
 // Named (not wildcard) so the `_resetRenderExpressionTransportForTests`
