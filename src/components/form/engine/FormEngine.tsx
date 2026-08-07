@@ -101,6 +101,7 @@ import {
   getReadFirstCompletion,
   getReadFirstStatus,
   isOptionValueEmpty,
+  shouldAutoCollapseCompactAllowedValueOption,
 } from './readFirst';
 
 // Re-export types for consumers
@@ -1157,6 +1158,14 @@ export const FormEngine = ({
 
         onSingleOptionsChange?.(optionName, updatedValue[optionName]);
 
+        if (
+          compact &&
+          !readOnly &&
+          shouldAutoCollapseCompactAllowedValueOption(options?.[optionName], val)
+        ) {
+          setExpandedOptions((prev) => prev.filter((name) => name !== optionName));
+        }
+
         return {
           fields: updatedValue,
           meta,
@@ -1167,6 +1176,8 @@ export const FormEngine = ({
       onSingleOptionsChange,
       onDependableOptionChange,
       isRendererOnly,
+      compact,
+      readOnly,
       JSON.stringify(options),
       JSON.stringify(operators),
     ]
