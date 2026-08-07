@@ -40,7 +40,6 @@ import {
 } from '@qoretechnologies/ts-toolkit';
 import { resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
-import { useCanHover, useIsNarrowViewport } from '../../../hooks/useMediaQuery';
 import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last } from 'lodash';
 import isArray from 'lodash/isArray';
 import map from 'lodash/map';
@@ -733,14 +732,22 @@ export const FormEngine = ({
     () => createRendererOnlyUiTypeCheck(rendererOnlyUiTypes),
     [JSON.stringify(rendererOnlyUiTypes)]
   );
-  // Resolved once here rather than per row — every CompactRow reads the answer
-  // off the context instead of opening its own matchMedia subscription.
-  const canHover = useCanHover();
-  const isNarrowViewport = useIsNarrowViewport();
+  // Pointer CAPABILITY and viewport WIDTH are different questions and both
+  // matter here: a hover-gated action is unreachable without a hover, and a
+  // phone-width row has no space for a button strip either way. Both now come
+  // from Reqore's context (one subscription for the whole app) rather than a
+  // reqraft-local matchMedia hook.
+  //
+  // `isHoverCapable` defaults to `true` in Reqore, but fall back explicitly so
+  // an older Reqore — where the property does not exist — degrades to "this
+  // pointer hovers" (the pre-existing behaviour) instead of collapsing every
+  // action into a menu for everyone.
+  const isHoverCapable = useReqoreProperty('isHoverCapable') ?? true;
+  const isMobile = useReqoreProperty('isMobile');
   const collapseOptionActions =
     optionActionsCollapse === 'always' ? true
     : optionActionsCollapse === 'never' ? false
-    : !canHover || isNarrowViewport;
+    : !isHoverCapable || !!isMobile;
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
   // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
   const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
