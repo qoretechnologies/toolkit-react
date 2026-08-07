@@ -48,6 +48,18 @@ export interface ISelectFieldCollectionProps {
   filters?: string[];
 }
 
+export const getSelectItemDescription = (
+  item: Pick<ISelectFieldCollectionItem, 'desc' | 'short_desc'>
+): string | undefined => {
+  const desc = typeof item.desc === 'string' && item.desc.trim() ? item.desc.trim() : undefined;
+  const shortDesc =
+    typeof item.short_desc === 'string' && item.short_desc.trim()
+      ? item.short_desc.trim()
+      : undefined;
+
+  return desc ?? shortDesc;
+};
+
 export const SelectFieldCollection = ({
   onClose,
   items,
@@ -100,8 +112,10 @@ export const SelectFieldCollection = ({
         transparent={false}
         size='tiny'
         showLayoutSwitch={false}
-        items={filteredItems.map(
-          (item): IReqoreCollectionItemProps => ({
+        items={filteredItems.map((item): IReqoreCollectionItemProps => {
+          const description = getSelectItemDescription(item);
+
+          return {
             label: item.display_name || item.value?.toString(),
             size: 'tiny',
             groups: item.groups,
@@ -109,8 +123,7 @@ export const SelectFieldCollection = ({
             responsiveTitle: false,
             content: (
               <ReqoreControlGroup vertical fluid>
-                {item.short_desc && <ReqoreP size='small'>{item.short_desc}</ReqoreP>}
-                {item.desc && <ReqoreP size='small'>{item.desc}</ReqoreP>}
+                {description && <ReqoreP size='small'>{description}</ReqoreP>}
                 {item.actions?.map(({ as: Component = ReqoreButton, props, ...rest }, index) => (
                   <Component
                     key={index}
@@ -163,8 +176,8 @@ export const SelectFieldCollection = ({
                   }
                 }
               : undefined,
-          })
-        )}
+          };
+        })}
         actions={filters?.map((filter) => ({
           label: capitalize(filter.replace('_', ' ')),
           badge: items.filter((item) => item[filter]).length,

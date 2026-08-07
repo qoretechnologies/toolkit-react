@@ -20,6 +20,7 @@ import {
   getReadFirstBucket,
   getReadFirstCompletion,
   getReadFirstStatus,
+  isFixedCompactAllowedValueOption,
   isOptionValueEmpty,
   shouldAutoCollapseCompactAllowedValueOption,
   type IFirstAttentionFieldMeta,
@@ -46,6 +47,19 @@ describe('shouldAutoCollapseCompactAllowedValueOption', () => {
     type: 'string',
     allowed_values: [{ value: 'api', display_name: 'API' }],
   } as never;
+
+  it('identifies fixed allowed-value fields that do not need a Done confirmation', () => {
+    expect(isFixedCompactAllowedValueOption(fixedChoiceSchema)).toBe(true);
+    expect(
+      isFixedCompactAllowedValueOption({
+        ...fixedChoiceSchema,
+        allowed_values_creatable: true,
+      } as never)
+    ).toBe(false);
+    expect(
+      isFixedCompactAllowedValueOption({ ...fixedChoiceSchema, arg_schema: {} } as never)
+    ).toBe(false);
+  });
 
   it('auto-collapses fixed allowed-value selections', () => {
     expect(shouldAutoCollapseCompactAllowedValueOption(fixedChoiceSchema, 'api')).toBe(true);

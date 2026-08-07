@@ -87,11 +87,10 @@ export const isOptionValueEmpty = (value: unknown): boolean =>
   value === '' ||
   (Array.isArray(value) && value.length === 0);
 
-export const shouldAutoCollapseCompactAllowedValueOption = (
-  schema: TQorusFormFieldSchema | undefined,
-  value: unknown
+export const isFixedCompactAllowedValueOption = (
+  schema: TQorusFormFieldSchema | undefined
 ): boolean => {
-  if (!schema || isOptionValueEmpty(value)) {
+  if (!schema) {
     return false;
   }
 
@@ -107,6 +106,11 @@ export const shouldAutoCollapseCompactAllowedValueOption = (
     !schema.arg_schema
   );
 };
+
+export const shouldAutoCollapseCompactAllowedValueOption = (
+  schema: TQorusFormFieldSchema | undefined,
+  value: unknown
+): boolean => !isOptionValueEmpty(value) && isFixedCompactAllowedValueOption(schema);
 
 /** Prefer the matching allowed_values entry's display_name (fallback `name`)
  * over the raw stored value. */

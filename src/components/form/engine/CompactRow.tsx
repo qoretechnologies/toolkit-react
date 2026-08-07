@@ -59,6 +59,7 @@ import {
   getHashEntries,
   getReadFirstStatus,
   getValueType,
+  isFixedCompactAllowedValueOption,
   isOptionValueEmpty,
   optionHasImages,
 } from './readFirst';
@@ -619,6 +620,19 @@ export const CompactRow = memo(
           effect={{ uppercase: true, spaced: 1 }}
         />
       : null;
+    const fixedAllowedValueOption = isFixedCompactAllowedValueOption(schema);
+    const closeExpandedFieldButton =
+      fixedAllowedValueOption && !readOnly ?
+        null
+      : <ReqoreButton
+          className='options-readfirst-done'
+          size='small'
+          intent={readOnly ? undefined : 'success'}
+          fixed
+          icon={readOnly ? 'CloseLine' : 'CheckLine'}
+          tooltip={readOnly ? 'Close' : 'Done'}
+          onClick={() => toggleExpandedOption(optionName)}
+        />;
 
     // Info tiers: Tier 1 (danger/warning + dependency hints) must be visible
     // without interaction; Tier 2 (info/success, default notes) sits behind ⓘ.
@@ -860,15 +874,7 @@ export const CompactRow = memo(
                 renderInjectedOptionAction(action, index)
               )}
               {moreMenu}
-              <ReqoreButton
-                className='options-readfirst-done'
-                size='small'
-                intent='success'
-                fixed
-                icon='CheckLine'
-                tooltip='Done'
-                onClick={collapse}
-              />
+              {closeExpandedFieldButton}
             </StyledRowActions>
             {/* Cluster node is rendered LAST (it's absolutely positioned, so DOM
                 order doesn't move it) — keeping it out of the leading cells lets
@@ -1031,15 +1037,7 @@ export const CompactRow = memo(
                 />
               : null}
               {moreMenu}
-              <ReqoreButton
-                size='small'
-                icon={readOnly ? 'CloseLine' : 'CheckLine'}
-                intent='success'
-                fixed
-                className='options-readfirst-done'
-                tooltip={readOnly ? 'Close' : 'Done'}
-                onClick={() => toggleExpandedOption(optionName)}
-              />
+              {closeExpandedFieldButton}
             </ReqoreControlGroup>
           </div>
           {/* Same fullscreen focused-editing affordance as the classic cards —
