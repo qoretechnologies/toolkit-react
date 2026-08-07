@@ -1384,10 +1384,10 @@
   resolved "https://registry.yarnpkg.com/@qoretechnologies/qlip/-/qlip-0.1.3-beta.20260724071501.tgz#19117eb1737581f3acddc0bc5bda2c7c7dcf1738"
   integrity sha512-SGRDzB1ayO27FvlrJIsUR57ATHntnBDyuW7HaFJ0eTzwLfS9GQwBOich8qA+55gIg6wtrYVKlhq1At89pdQVKA==
 
-"@qoretechnologies/reqore@^0.71.6":
-  version "0.71.6"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.71.6.tgz#bf4e8a8e3c8887e6299bc40285270d045a12cf02"
-  integrity sha512-BPSfROlDjsHDAFBhx2TsLPFC3YMAxVcqsl50xt6pRwhC+WuNPgcVSk3SEPn0ZXvWcfCV7fdhmDUkdXGhnyZzQw==
+"@qoretechnologies/reqore@^0.71.14":
+  version "0.71.14"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.71.14.tgz#4e5413c82895ccff147d92b33b21d0a74cba2f9d"
+  integrity sha512-9ArHI9RYxBEzAT3HeDB5jYqyD89DqdjbjWqRsIU7sTx/3I1uA84gKIfw6pT76rUe5Fo763yysINdzIUiA89yYg==
   dependencies:
     "@internationalized/date" "^3.5.3"
     "@popperjs/core" "^2.11.6"
@@ -1403,6 +1403,7 @@
     react-aria-components "^1.2.0"
     react-hotkeys-hook "^5.3.2"
     react-icons "5.4.0"
+    react-overflow-list "^0.5.0"
     react-popper "^2.3.0"
     react-scrollbar "^0.5.6"
     react-use "^17.6.0"
@@ -3262,6 +3263,11 @@
   version "2.2.7"
   resolved "https://registry.npmjs.org/@types/js-cookie/-/js-cookie-2.2.7.tgz"
   integrity sha512-aLkWa0C0vO5b4Sr798E26QgOkss68Un0bLjs7u9qxzPT5CG+8DuNTffWES58YzJs3hrVAOs1wonycqEBqNJubA==
+
+"@types/js-cookie@^3.0.0":
+  version "3.0.6"
+  resolved "https://registry.yarnpkg.com/@types/js-cookie/-/js-cookie-3.0.6.tgz#a04ca19e877687bd449f5ad37d33b104b71fdf95"
+  integrity sha512-wkw9yd1kEXOPnvEeEV1Go1MmxtBJL0RR79aOTAApecWFVu7w0NNXNqhcWgvw2YgZDYadliXkl14pa3WXw5jlCQ==
 
 "@types/js-yaml@^4.0.9":
   version "4.0.9"
@@ -6105,6 +6111,11 @@ js-cookie@^2.2.1:
   resolved "https://registry.npmjs.org/js-cookie/-/js-cookie-2.2.1.tgz"
   integrity sha512-HvdH2LzI/EAZcUwA8+0nKNtWHqS+ZmijLA30RwZA0bo7ToCckjK5MkGhjED9KoRcXO6BaGI3I9UIzSA1FKFPOQ==
 
+js-cookie@^3.0.0:
+  version "3.0.8"
+  resolved "https://registry.yarnpkg.com/js-cookie/-/js-cookie-3.0.8.tgz#444e6f4b27a5d844594fef61c9d6bca5f0787688"
+  integrity sha512-yeJd4aNAdYZQjaon2bpD/Gb0B/omw7HQOsynXXcOiWVCacbBcPlgn8S/d1X6blFSaHao7ozqtW7NZW19xpCtIw==
+
 js-sha3@0.8.0:
   version "0.8.0"
   resolved "https://registry.npmjs.org/js-sha3/-/js-sha3-0.8.0.tgz"
@@ -7922,6 +7933,13 @@ react-motion@^0.5.2:
     prop-types "^15.5.8"
     raf "^3.1.0"
 
+react-overflow-list@^0.5.0:
+  version "0.5.0"
+  resolved "https://registry.yarnpkg.com/react-overflow-list/-/react-overflow-list-0.5.0.tgz#49ef8c34b619f2aead70b48dbf5d57b18d6a13aa"
+  integrity sha512-+UegukgQ10E4ll3txz4DJyrnCgZ3eDVuv5dvR8ziyG5FfgCDZcUKeKhIgbU90oyqQa21aH4oLOoGKt0TiYJRmg==
+  dependencies:
+    react-use "^17.3.1"
+
 react-popper@^2.3.0:
   version "2.3.0"
   resolved "https://registry.npmjs.org/react-popper/-/react-popper-2.3.0.tgz"
@@ -8012,6 +8030,26 @@ react-use-pagination-hook@^1.1.2:
     react "^18.2.0"
     react-dom "^18.2.0"
     web-vitals "^2.1.4"
+
+react-use@^17.3.1:
+  version "17.6.1"
+  resolved "https://registry.yarnpkg.com/react-use/-/react-use-17.6.1.tgz#c9692540f2230b763e42076fbf350e7e33ec2e21"
+  integrity sha512-uibb3pgzV4LFsYPHyXYGu7dD2+pyk/ZJlPH+AizBR3zolqPWyCleKcWWbUQaKSKfydwgnQ3ymGm1Ab3/saGHCA==
+  dependencies:
+    "@types/js-cookie" "^3.0.0"
+    "@xobotyi/scrollbar-width" "^1.9.5"
+    copy-to-clipboard "^3.3.1"
+    fast-deep-equal "^3.1.3"
+    fast-shallow-equal "^1.0.0"
+    js-cookie "^3.0.0"
+    nano-css "^5.6.2"
+    react-universal-interface "^0.6.2"
+    resize-observer-polyfill "^1.5.1"
+    screenfull "^5.1.0"
+    set-harmonic-interval "^1.0.1"
+    throttle-debounce "^3.0.1"
+    ts-easing "^0.2.0"
+    tslib "^2.1.0"
 
 react-use@^17.6.0:
   version "17.6.0"
