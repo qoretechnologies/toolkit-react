@@ -406,11 +406,18 @@ export const CompactRow = memo(
       // the compact slots render plain buttons, so 'hover' becomes a CSS gate on
       // the containing row/card (see compactRowStyles) — same config, same
       // behaviour in both modes.
+      // `size` is destructured out and deliberately NOT honoured: the row owns
+      // its action strip's rhythm, and a consumer-supplied size made the
+      // injected button visibly smaller than the revert / more / confirm
+      // buttons beside it. The contextual `size` argument is the row's own
+      // (small when editing or in a card, tiny on a read row), so injected
+      // actions always match their neighbours.
       const {
         label: actionLabel,
         onClick,
         show,
-        size: actionSize,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        size: _ignoredSize,
         className,
         ...actionProps
       } = action;
@@ -418,7 +425,7 @@ export const CompactRow = memo(
       return (
         <ReqoreButton
           key={`${optionName}-injected-action-${index}`}
-          size={actionSize || size}
+          size={size}
           minimal
           flat
           fixed

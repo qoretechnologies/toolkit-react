@@ -580,11 +580,25 @@ export const InjectedOptionActionsInlineEditing: Story = {
 
     // Scoped to the branch on purpose: a global query would pass on the read
     // row's copy and prove nothing about the inline editor.
-    await waitFor(() => {
-      expect(
-        document.querySelector('.readfirst-row-editing .option-branch-action')
-      ).toBeTruthy();
+    const injected = await waitFor(() => {
+      const el = document.querySelector(
+        '.readfirst-row-editing .option-branch-action'
+      ) as HTMLElement;
+      expect(el).toBeTruthy();
+      return el;
     });
+
+    // The injected action must match the size of the row's own actions. The
+    // fixture deliberately asks for `size: 'tiny'` — the row overrides it,
+    // because a consumer-sized button rendered visibly smaller than the revert
+    // and More buttons beside it (qlip build #57 rejection).
+    const neighbour = document.querySelector(
+      '.readfirst-row-editing .options-readfirst-more'
+    ) as HTMLElement;
+    expect(neighbour).toBeTruthy();
+    expect(injected.getBoundingClientRect().height).toBe(
+      neighbour.getBoundingClientRect().height
+    );
   },
 };
 
