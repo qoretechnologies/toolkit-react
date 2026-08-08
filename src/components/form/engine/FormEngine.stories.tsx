@@ -622,7 +622,7 @@ export const OptionWithAnyType: Story = {
     // and switch it to a specific custom type (Boolean).
     await _testsOpenTemplateMenu(4);
     await _testsClickButton({ label: 'Set Custom Value' });
-    await _testsClickButton({ label: 'True or False' });
+    await _testsClickButton({ label: 'Boolean' });
   },
 };
 
@@ -3361,6 +3361,43 @@ const langImg = (color: string, letter: string): string =>
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="${color}"/><text x="16" y="23" font-size="20" fill="white" text-anchor="middle" font-family="sans-serif">${letter}</text></svg>`
   )}`;
 
+const assertFixedChoiceCanCloseWithoutClearing = async (field: string, expectedLabel: string) => {
+  const cardSelector = `.options-readfirst-card[data-field="${field}"]`;
+  const rowSelector = `.readfirst-row[data-field="${field}"]`;
+
+  let card: HTMLElement | null = null;
+  await waitFor(
+    () => {
+      card = document.querySelector(cardSelector);
+      expect(card).toBeTruthy();
+    },
+    { timeout: 10000 }
+  );
+
+  await expect(
+    card!.querySelector('.options-readfirst-clear[aria-label="Clear value"]')
+  ).toBeInTheDocument();
+  await expect(
+    card!.querySelector('.options-readfirst-done[aria-label="Close field"]')
+  ).toBeInTheDocument();
+
+  await fireEvent.click(
+    card!.querySelector('.options-readfirst-done[aria-label="Close field"]') as HTMLElement
+  );
+  await waitFor(() => expect(document.querySelector(cardSelector)).toBeNull(), {
+    timeout: 10000,
+  });
+
+  const row = document.querySelector(rowSelector) as HTMLElement;
+  expect(row?.textContent).toContain(expectedLabel);
+
+  // Re-open so the story's visual snapshot still covers the expanded fixed-choice card.
+  await fireEvent.click(row);
+  await waitFor(() => expect(document.querySelector(cardSelector)).toBeTruthy(), {
+    timeout: 10000,
+  });
+};
+
 /**
  * Enum field with per-value images (the IDE `language` field shape: `type:
  * 'enum'` + `items: [{ value, title, image }]`). Read-first shows the selected
@@ -3426,6 +3463,7 @@ export const CompactEnumWithImages: Story = {
       },
       { timeout: 10000 }
     );
+    await assertFixedChoiceCanCloseWithoutClearing('lang', 'Qore');
   },
 };
 
@@ -3502,6 +3540,7 @@ export const CompactEnumRichtextValue: Story = {
       },
       { timeout: 10000 }
     );
+    await assertFixedChoiceCanCloseWithoutClearing('lang', 'Qore');
   },
 };
 

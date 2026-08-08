@@ -2,6 +2,7 @@ import { ReqoreMultiSelect } from '@qoretechnologies/reqore';
 import { TReqoreMultiSelectItem } from '@qoretechnologies/reqore/dist/components/MultiSelect';
 import { IQorusAllowedValue } from '@qoretechnologies/ts-toolkit';
 import { memo, useMemo } from 'react';
+import { getSelectItemShortDescription } from '../select/SelectCollection';
 
 export interface IMultiSelectFormFieldProps {
   /** Currently selected values (plain scalars) */
@@ -33,16 +34,19 @@ export const MultiSelectFormField = memo(
 
     const reqoreItems = useMemo<TReqoreMultiSelectItem[]>(() => {
       const base = items.map(
-        (item): TReqoreMultiSelectItem => ({
-          value: item.value?.value as string,
-          label: item.display_name ?? String(item.value?.value ?? ''),
-          description: item.short_desc || item.desc,
-          tooltip: item.desc || item.short_desc,
-          wrap: true,
-          // IDE parity: when `*` is selected, every other item is disabled.
-          disabled:
-            !!item.disabled || (selectedValues.includes('*') && item.value?.value !== '*'),
-        })
+        (item): TReqoreMultiSelectItem => {
+          const description = getSelectItemShortDescription(item);
+
+          return {
+            value: item.value?.value as string,
+            label: item.display_name ?? String(item.value?.value ?? ''),
+            description,
+            wrap: true,
+            // IDE parity: when `*` is selected, every other item is disabled.
+            disabled:
+              !!item.disabled || (selectedValues.includes('*') && item.value?.value !== '*'),
+          };
+        }
       );
 
       // IDE parity: selected values that aren't in the allowed list still

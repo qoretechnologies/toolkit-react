@@ -80,6 +80,26 @@ describe('fixOptions', () => {
     expect(fixed.schedule).toEqual({ type: 'string', value: '0 0 * * *' });
   });
 
+  it('stores fixed allowed-value selectors under the storage type even with a rich renderer hint', () => {
+    const fixed = fixOptions(
+      { server: { value: 'Qore Technologies' } } as never,
+      {
+        server: {
+          type: 'string',
+          ui_type: 'richtext',
+          allowed_values: [
+            {
+              display_name: 'Qore Technologies',
+              value: { type: 'string', value: 'Qore Technologies' },
+            },
+          ],
+        },
+      } as never
+    );
+
+    expect(fixed.server).toEqual({ type: 'string', value: 'Qore Technologies' });
+  });
+
   it('lets a storage-compatible ui_type win over the schema type', () => {
     const fixed = fixOptions(
       { note: { value: 'hello' } } as never,

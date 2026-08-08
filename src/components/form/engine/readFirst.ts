@@ -112,6 +112,23 @@ export const shouldAutoCollapseCompactAllowedValueOption = (
   value: unknown
 ): boolean => !isOptionValueEmpty(value) && isFixedCompactAllowedValueOption(schema);
 
+/** Boolean fields have three meaningful states: unset, Yes, and No. Once the
+ * user chooses either boolean value in compact mode, the choice is complete
+ * and the inline editor can close without a separate confirmation. */
+export const isCompactBooleanOption = (
+  schema: TQorusFormFieldSchema | undefined
+): boolean => {
+  const type = (schema?.ui_type || schema?.type)?.toLowerCase();
+  return type === 'bool' || type === 'boolean';
+};
+
+export const shouldAutoCollapseCompactOption = (
+  schema: TQorusFormFieldSchema | undefined,
+  value: unknown
+): boolean =>
+  !isOptionValueEmpty(value) &&
+  (isCompactBooleanOption(schema) || isFixedCompactAllowedValueOption(schema));
+
 /** Prefer the matching allowed_values entry's display_name (fallback `name`)
  * over the raw stored value. */
 const findAllowedOption = (value: unknown, schema?: TQorusFormFieldSchema): any | undefined => {

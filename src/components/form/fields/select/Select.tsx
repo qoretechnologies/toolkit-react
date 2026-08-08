@@ -11,7 +11,11 @@ import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { isEqual, size } from 'lodash';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { ISelectFieldCollectionItem, SelectFieldCollection } from './SelectCollection';
+import {
+  getSelectItemShortDescription,
+  ISelectFieldCollectionItem,
+  SelectFieldCollection,
+} from './SelectCollection';
 
 export type ISelectFormFieldItem = ISelectFieldCollectionItem;
 
@@ -68,7 +72,7 @@ export const SelectFormField = memo(
     showPlaceholder = true,
     showRightIcon = true,
     hideItemCount,
-    forceDropdown,
+    forceDropdown = true,
     fluid,
     flat,
     intent,
@@ -89,6 +93,7 @@ export const SelectFormField = memo(
           return;
         }
         onChange?.(item.value);
+        setCollectionOpen(false);
       },
       [onChange, value]
     );
@@ -96,7 +101,7 @@ export const SelectFormField = memo(
     const getItemDescription = useCallback(
       (itemValue: unknown) => {
         const item = items.find((item) => isEqual(item.value, itemValue));
-        return item?.desc || item?.short_desc;
+        return getSelectItemShortDescription(item);
       },
       [items]
     );
@@ -133,7 +138,7 @@ export const SelectFormField = memo(
         const item = items.find(
           (item) => isEqual(item.display_name, itemName) || isEqual(item.value, itemName)
         );
-        return item?.short_desc || (item?.desc ? 'Hover to see description' : defaultDesc);
+        return getSelectItemShortDescription(item, defaultDesc);
       },
       [items, showDescription]
     );
@@ -291,7 +296,6 @@ export const SelectFormField = memo(
             <SelectFieldCollection
               items={filteredItems}
               filters={filters}
-              getItemDescription={(v) => getItemDescription(v) as string}
               value={value}
               onItemSelect={handleSelectClick}
               onClose={() => setCollectionOpen(false)}

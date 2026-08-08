@@ -419,6 +419,7 @@ function AutoField<T = any>({
         app={rest.app}
         action={rest.action}
         showDescription={rest.showDescription}
+        forceDropdown={rest.forceDropdown}
         allowCreation={rest.allowed_values_creatable}
         showSavedValues={showSavedValues}
         readOnly={rest.readonly}

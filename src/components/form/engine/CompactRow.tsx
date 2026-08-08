@@ -96,7 +96,7 @@ const COMPACT_COMPLEX_TYPES = new Set([
 
 // Card editors that hold a SINGLE value through one text-bearing input — their
 // built-in ReqoreInput clear duplicates the card's own "Clear value" action, so
-// we suppress it (the card ✕ is the single source). Structural/multi-input
+// we suppress it (the card trash action is the single source). Structural/multi-input
 // editors (hash, list, schema…) and polymorphic ones (auto/any) are NOT listed:
 // their per-sub-field clears are distinct affordances and must stay, while the
 // card ✕ clears the whole value. (Operators force a card on a scalar value, so
@@ -521,7 +521,11 @@ export const CompactRow = memo(
           />
         </span>
       : null;
-    const editType = ((schema?.ui_type as string) || (schema?.type as string)) ?? '';
+    const fixedAllowedValueOption = isFixedCompactAllowedValueOption(schema);
+    const editType =
+      (fixedAllowedValueOption
+        ? (schema?.type as string) || (schema?.ui_type as string)
+        : (schema?.ui_type as string) || (schema?.type as string)) ?? '';
     // Scalars edit in place inside the row; complex fields (tall or nested
     // editors) still open the expanded card below.
     const inlineEditable =
@@ -595,7 +599,8 @@ export const CompactRow = memo(
           size='small'
           flat
           minimal
-          icon='CloseLine'
+          icon='DeleteBinLine'
+          aria-label='Clear value'
           tooltip='Clear value'
           onClick={(e: React.MouseEvent) => {
             e.stopPropagation();
@@ -620,19 +625,18 @@ export const CompactRow = memo(
           effect={{ uppercase: true, spaced: 1 }}
         />
       : null;
-    const fixedAllowedValueOption = isFixedCompactAllowedValueOption(schema);
-    const closeExpandedFieldButton =
-      fixedAllowedValueOption && !readOnly ?
-        null
-      : <ReqoreButton
-          className='options-readfirst-done'
-          size='small'
-          intent={readOnly ? undefined : 'success'}
-          fixed
-          icon={readOnly ? 'CloseLine' : 'CheckLine'}
-          tooltip={readOnly ? 'Close' : 'Done'}
-          onClick={() => toggleExpandedOption(optionName)}
-        />;
+    const closeExpandedFieldButton = (
+      <ReqoreButton
+        className='options-readfirst-done'
+        size='small'
+        intent={!fixedAllowedValueOption && !readOnly ? 'success' : undefined}
+        fixed
+        icon={fixedAllowedValueOption || readOnly ? 'CloseLine' : 'CheckLine'}
+        aria-label={fixedAllowedValueOption || readOnly ? 'Close field' : 'Done'}
+        tooltip={fixedAllowedValueOption || readOnly ? 'Close field' : 'Done'}
+        onClick={() => toggleExpandedOption(optionName)}
+      />
+    );
 
     // Info tiers: Tier 1 (danger/warning + dependency hints) must be visible
     // without interaction; Tier 2 (info/success, default notes) sits behind ⓘ.
@@ -1027,11 +1031,12 @@ export const CompactRow = memo(
               {hasValue && !readOnly ?
                 <ReqoreButton
                   size='small'
-                  icon='CloseLine'
+                  icon='DeleteBinLine'
                   minimal
                   flat
                   fixed
                   className='options-readfirst-clear'
+                  aria-label='Clear value'
                   tooltip='Clear value'
                   onClick={() => handleValueChange(optionName, undefined)}
                 />

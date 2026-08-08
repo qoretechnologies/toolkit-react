@@ -12,8 +12,8 @@ import { ReqoreCheckbox, ReqoreControlGroup, ReqoreSpan } from '@qoretechnologie
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IQorusAllowedValue, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size as count, isEqual } from 'lodash';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { useDebounce } from 'react-use';
+import { memo, useMemo } from 'react';
+import { getSelectItemShortDescription } from '../select/SelectCollection';
 import { ISelectFormFieldItem, SelectFormField as Select } from '../select/Select';
 
 export interface IFieldAllowedValuesProps extends Pick<
@@ -30,6 +30,7 @@ export interface IFieldAllowedValuesProps extends Pick<
   app?: string;
   action?: string;
   showSavedValues?: boolean;
+  forceDropdown?: boolean;
   [key: string]: any;
 }
 
@@ -57,7 +58,7 @@ export const FieldAllowedValuesCheckGroup = memo(
             margin='right'
             key={item.value?.toString()}
             label={item.display_name || JSON.stringify(item.value)}
-            tooltip={item.short_desc || item.desc}
+            tooltip={getSelectItemShortDescription(item)}
             disabled={rest.disabled}
             readOnly={rest.readOnly}
             intent={item.value === value ? 'info' : undefined}
@@ -97,49 +98,23 @@ export const FieldAllowedValues = memo(
     allowCreation,
     showSavedValues,
     showDescription,
+    forceDropdown,
     size,
     disabled,
     name,
     readOnly,
   }: IFieldAllowedValuesProps) => {
-    const [localValue, setLocalValue] = useState(value);
-    const [localItems, setLocalItems] = useState<IQorusAllowedValue[]>(items);
-
-    useEffect(() => {
-      setLocalItems(items);
-    }, [JSON.stringify(items)]);
-
-    const handleLocalChange = useCallback((_name: string, value: unknown) => {
-      setLocalValue(value);
-    }, []);
-
-    useDebounce(
-      () => {
-        if (localValue !== value) {
-          onChange(name, localValue);
-        }
-      },
-      200,
-      [localValue]
-    );
-
-    useEffect(() => {
-      if (value !== localValue) {
-        setLocalValue(value);
-      }
-    }, [value]);
-
     const fullItems = useMemo(() => {
       const result = [
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        ...localItems.map(({ metadata, value, ...rest }) => ({
+        ...items.map(({ metadata, value, ...rest }) => ({
           value: value?.value,
           ...rest,
         })),
       ] as ISelectFormFieldItem[];
 
       return result;
-    }, [JSON.stringify(localItems), type, value, showSavedValues, disabled, readOnly]);
+    }, [JSON.stringify(items), type, value, showSavedValues, disabled, readOnly]);
 
     const style = useMemo(() => ({ width: '100%' }), []);
 
@@ -153,8 +128,8 @@ export const FieldAllowedValues = memo(
         return (
           <FieldAllowedValuesCheckGroup
             items={fullItems}
-            onChange={handleLocalChange}
-            value={localValue}
+            onChange={onChange}
+            value={value}
             name={name}
           />
         );
@@ -164,10 +139,11 @@ export const FieldAllowedValues = memo(
         <Select
           items={fullItems}
           value={value}
-          onChange={(value) => handleLocalChange(name, value)}
+          onChange={(value) => onChange(name, value)}
           fluid
           fixed={false}
           showDescription={Boolean(showDescription || showDescription === undefined)}
+          forceDropdown={forceDropdown}
           style={style}
           size={size}
           disabled={disabled}
@@ -178,10 +154,11 @@ export const FieldAllowedValues = memo(
     return (
       <Select
         items={fullItems}
-        onChange={(value) => handleLocalChange(name, value)}
+        onChange={(value) => onChange(name, value)}
         fluid
         fixed={false}
         showDescription={false}
+        forceDropdown={forceDropdown}
         style={style}
         minimal
         placeholder={'Saved & Suggested Values'}
