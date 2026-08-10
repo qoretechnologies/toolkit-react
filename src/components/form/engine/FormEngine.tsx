@@ -15,19 +15,16 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreCollectionProps } from '@qoretechnologies/reqore/dist/components/Collection';
 import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/components/Collection/item';
-import {
-  IReqorePanelAction,
-  IReqorePanelProps,
-} from '@qoretechnologies/reqore/dist/components/Panel';
+import { IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
-import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import {
   changeDarkness,
   getMainBackgroundColor,
   getReadableColor,
   percentToHexAlpha,
 } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import {
   IQorusFormField,
   IQorusFormFieldMessage,
@@ -41,6 +38,8 @@ import {
   TQorusFormOperatorValue,
   TQorusType,
 } from '@qoretechnologies/ts-toolkit';
+import { resolveOptionActions, TOptionActions } from './optionActions';
+import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
 import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last } from 'lodash';
 import isArray from 'lodash/isArray';
 import map from 'lodash/map';
@@ -48,11 +47,10 @@ import reduce from 'lodash/reduce';
 import size from 'lodash/size';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
-import { createContext } from 'use-context-selector';
 import styled from 'styled-components';
+import { createContext } from 'use-context-selector';
 import { getDefaultValue, insertAtIndex, richtextToString } from '../../../helpers/common';
 import { getRequiredOptionMessage } from '../../../helpers/options';
-import { query } from '../../../utils/fetch';
 import {
   IValidationResult,
   hasAllDependenciesFullfilled,
@@ -61,6 +59,7 @@ import {
 } from '../../../helpers/validations';
 import { useQorusTypes } from '../../../hooks/useQorusTypes';
 import { useTemplates } from '../../../hooks/useTemplates';
+import { query } from '../../../utils/fetch';
 import { Description } from '../../Description';
 import { FocusedEditing } from '../../FocusedEditing';
 import { SelectFormField } from '../fields/select/Select';
@@ -72,12 +71,6 @@ import {
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
 import { CompactRowContext, ICompactRowContext } from './compactRowContext';
-import { CompactToolbar } from './CompactToolbar';
-import {
-  CompactToolbarContext,
-  ICompactToolbarContext,
-  TCompactSort,
-} from './compactToolbarContext';
 import {
   GROUP_INDENT,
   LABEL_COL_MAX,
@@ -91,9 +84,16 @@ import {
   StyledStatusBox,
   StyledStatusBoxGroupLabel,
 } from './compactRowStyles';
+import { CompactToolbar } from './CompactToolbar';
+import {
+  CompactToolbarContext,
+  ICompactToolbarContext,
+  TCompactSort,
+} from './compactToolbarContext';
 import { OptionFieldMessages } from './OptionFieldMessages';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
+  TReadFirstStatus,
   getFirstAttentionOptionName,
   getOptionGroup,
   getOptionGroupLabel,
@@ -101,7 +101,7 @@ import {
   getReadFirstCompletion,
   getReadFirstStatus,
   isOptionValueEmpty,
-  TReadFirstStatus,
+  shouldAutoCollapseCompactAllowedValueOption,
 } from './readFirst';
 
 // Re-export types for consumers
@@ -201,13 +201,6 @@ const StyledCompactWrap = styled.div<{ $flush?: boolean }>`
      engage instead of overflowing the container horizontally. */
   min-width: 0;
   max-width: 100%;
-  /* A bit of horizontal breathing room for the whole form (header + content
-     alike). Horizontal only — top padding would break the sticky toolbar's
-     flush pin (see the scroll-context note below). Dropped to flush via the
-     compactFlush prop, for embeds that own their own gutters (e.g. the
-     SchemaDefinition tab body). */
-  padding: ${({ $flush }) => ($flush ? '0' : '0 12px')};
-
   /* Own our scroll context instead of borrowing the host's. The sticky toolbar
      pins to whatever scrolls; if that scroller carries top padding (e.g. a
      ReqorePanel/ReqoreContent body), sticky \`top: 0\` resolves against its
@@ -252,12 +245,16 @@ const StyledCommitDock = styled.div<{ $bg: string; $border: string }>`
 `;
 
 export const getType = (
-  type: TQorusType | TQorusType[],
+  type?: TQorusType | TQorusType[],
   operators?: IOperatorsSchema,
   operator?: TOperatorValue
 ): TQorusType => {
   const finalType = getTypeFromOperator(operators, fixOperatorValue(operator)) || type;
-  return (isArray(finalType) ? finalType[0] : finalType) as TQorusType;
+  const resolvedType = isArray(finalType) ? finalType[0] : finalType;
+
+  // A value can be received before its server-driven option schema. Keep the
+  // renderer type-safe during that transition without guessing a concrete type.
+  return (resolvedType || 'any') as TQorusType;
 };
 
 const getTypeFromOperator = (
@@ -274,6 +271,38 @@ export const fixOperatorValue = (operator: TOperatorValue): (string | null | und
   return isArray(operator) ? operator : [operator];
 };
 
+/**
+ * The renderer-only predicate. Defaults to reqraft's built-ins; a FormEngine
+ * instance passes its own (built-ins + the `rendererOnlyUiTypes` prop) so a
+ * consumer's injected editors are recognised too. See `./rendererTypes`.
+ */
+type TRendererOnlyCheck = (type?: TQorusType | TQorusType[]) => boolean;
+
+const getOptionSchemaStorageType = (
+  option?: TQorusFormFieldSchema,
+  isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
+): TQorusType =>
+  ((isRendererOnly(option?.ui_type)
+    ? option?.type || option?.ui_type
+    : option?.ui_type || option?.type) || 'any') as TQorusType;
+
+const getOptionFieldStorageType = (
+  optionName: string,
+  fieldType: TQorusType | TQorusType[] | undefined,
+  schema?: IQorusFormSchema,
+  operators?: IOperatorsSchema,
+  operatorData?: TOperatorValue,
+  isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
+): TQorusType => {
+  const schemaOption = schema?.[optionName];
+  const storedType =
+    fieldType && !(fieldType === schemaOption?.ui_type && isRendererOnly(fieldType))
+      ? fieldType
+      : getOptionSchemaStorageType(schemaOption, isRendererOnly);
+
+  return getType(storedType as TQorusType, operators, operatorData);
+};
+
 export const hasRequiredOptions = (options: IQorusFormSchema = {}) => {
   return !!findKey(options, (option) => option.required);
 };
@@ -285,10 +314,18 @@ export const OptionsContext = createContext<{
 
 export const fixOptions = (
   value: TQorusForm | TQorusFlatForm = {},
-  options: IQorusFormSchema,
-  operators?: IOperatorsSchema
+  options?: IQorusFormSchema,
+  operators?: IOperatorsSchema,
+  isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
 ): TQorusForm => {
   const fixedValue = cloneDeep(value);
+
+  // Server-driven schemas can arrive after the persisted value. Preserve that
+  // value verbatim until its schema is available instead of manufacturing
+  // partially typed form fields that can crash the following render.
+  if (!size(options)) {
+    return fixedValue as TQorusForm;
+  }
 
   forEach(options, (option, name) => {
     if (
@@ -299,7 +336,7 @@ export const fixOptions = (
     ) {
       let obj: IQorusFormField;
       const type = getType(
-        (option.ui_type || option.type) as TQorusType,
+        getOptionSchemaStorageType(option, isRendererOnly),
         operators,
         (fixedValue[name] as IQorusFormField)?.op
       );
@@ -335,20 +372,35 @@ export const fixOptions = (
       let newOption = option as IQorusFormField;
 
       if (!isPlainObject(newOption) || !(newOption as IQorusFormField)?.type) {
+        const isUntypedEnvelope = isPlainObject(newOption) && 'value' in newOption;
+        const untypedFieldValue =
+          isUntypedEnvelope ? (newOption as IQorusFormField).value : newOption;
+        // Spread the original envelope first so every key it carried survives —
+        // rebuilding from just {type, value} silently dropped `op`, `is_expression`
+        // and anything else a field needs to render, which emptied the card.
         const fixedOption: IQorusFormField = {
+          ...(isPlainObject(newOption) ? (newOption as IQorusFormField) : {}),
           type: getType(
-            (options?.[optionName]?.ui_type || options?.[optionName]?.type) as TQorusType,
+            getOptionSchemaStorageType(options?.[optionName], isRendererOnly),
             operators,
             (newOption as IQorusFormField)?.op
           ),
-          value: newOption,
+          value: untypedFieldValue,
         };
 
-        if ((newOption as IQorusFormField)?.is_expression) {
-          fixedOption.is_expression = true;
-        }
-
         newOption = fixedOption;
+      } else if (
+        newOption.type === options?.[optionName]?.ui_type &&
+        isRendererOnly(newOption.type)
+      ) {
+        newOption = {
+          ...newOption,
+          type: getType(
+            getOptionSchemaStorageType(options?.[optionName], isRendererOnly),
+            operators,
+            newOption.op
+          ),
+        };
       }
 
       if (
@@ -418,7 +470,7 @@ export const flattenOptions = (options: TQorusForm): TQorusFlatForm => {
 };
 
 export const getTypeAndCanBeNull = (
-  type: TQorusType | TQorusType[],
+  type?: TQorusType | TQorusType[],
   allowed_values?: any[],
   operatorData?: TOperatorValue,
   operators?: IOperatorsSchema
@@ -525,6 +577,18 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * transparently inside the parent's edit card. Default `false`.
    */
   compactNested?: boolean;
+  /**
+   * Compact mode only: props forwarded to the read-first form's outer
+   * `ReqorePanel` — the panel that carries the sticky toolbar header and holds
+   * the status boxes. Spread AFTER the engine's own defaults, so anything set
+   * here wins (`flat`, `raised`, `minimal`, `stickyHeader`, `label`, `icon`,
+   * `intent`, `padded`, `size`, …). Two props merge instead of replacing, so a
+   * consumer can add to the panel without dismantling the form:
+   * - `actions` — appended after the engine's toolbar action.
+   * - `contentStyle` — merged over the engine's flex-column layout.
+   * No-op in classic (non-compact) mode.
+   */
+  compactPanelProps?: IReqorePanelProps;
   /** Compact mode only: per-group display metadata (label / icon / subtitle /
    * order) — the server only sends the bare group key. */
   groups?: Record<string, IFormEngineGroup>;
@@ -541,19 +605,36 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * option's name/schema/value (the context the IDE's `AiAssistanceAction`
    * captures); the consumer injects the button, reqraft stays AI-free.
    */
-  optionActions?:
-    | IReqorePanelAction[]
-    | ((context: {
-        name: string;
-        schema: IQorusFormSchema[string];
-        value?: TOption;
-      }) => IReqorePanelAction[]);
+  optionActions?: TOptionActions;
+  /**
+   * Whether per-option injected actions collapse into the row's overflow menu
+   * instead of rendering as inline buttons.
+   *
+   * `'auto'` (default) collapses when the device cannot hover or the viewport is
+   * narrow — on a phone a hover-gated action would otherwise be unreachable, and
+   * a row has no width for a button strip. `'always'` / `'never'` force it, which
+   * consumers can use for a known-mobile surface and stories use to capture the
+   * collapsed state deterministically.
+   *
+   * Actions beyond `MAX_INLINE_OPTION_ACTIONS` always overflow into the menu, so
+   * a consumer injecting many actions can never blow out the row.
+   */
+  optionActionsCollapse?: 'auto' | 'always' | 'never';
   /**
    * SEAM (reqraft): consumer-injected field editors for types reqraft doesn't
    * ship (IDE domain fields). Keyed by field `type`/`ui_type`; forwarded through
    * `TemplateField` to the `AutoFormField` override seam.
    */
   componentOverrides?: Record<string, React.FC<any>>;
+  /**
+   * The `ui_type` names among `componentOverrides` that select a bespoke editor
+   * but store their value as the schema's plainer `type` (a `cron` editor stores
+   * a string). Declaring them here keeps the field's stored `type` correct —
+   * without it the renderer name is written into the value and validation and
+   * round-tripping both break. Merged with reqraft's own built-in list, so a
+   * consumer's new editor no longer needs a reqraft release to be handled.
+   */
+  rendererOnlyUiTypes?: string[];
 
   /**
    * Bag of values forwarded from an outer FormEngine scope, used as a
@@ -581,6 +662,27 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * classic (non-compact) mode. Default: off.
    */
   autoFocusFirstRequired?: boolean;
+
+  /**
+   * Names of read-first rows to open on mount, in addition to whatever the
+   * user opens afterwards.
+   *
+   * Which rows are expanded is otherwise private to the engine, which is
+   * fine while expansion is only ever a click. It stops being fine when the
+   * expanded row is part of an address: a consumer whose field renders its
+   * own routable surface (a table whose rows open panes with their own URLs)
+   * can restore the pane from the URL, but not the row that has to be open
+   * for the pane to exist at all — so a pasted or reloaded link lands on a
+   * collapsed form.
+   *
+   * Applied once, on the first render where the schema has rows, so an
+   * async-loaded schema is covered. It never re-expands a row the user has
+   * since collapsed, and it does not participate in `expandMode: 'single'`
+   * accordion collapsing — the caller is naming a starting point, not
+   * driving the state. Only a remount re-arms it. No-op in classic
+   * (non-compact) mode.
+   */
+  initialExpandedOptions?: string[];
 }
 
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
@@ -609,6 +711,7 @@ export const FormEngine = ({
   compact,
   compactFlush = false,
   compactNested = false,
+  compactPanelProps,
   commitMode = 'immediate',
   expandMode = 'single',
   onCommit,
@@ -617,11 +720,35 @@ export const FormEngine = ({
   optionsLoader,
   onValidityChange,
   optionActions,
+  optionActionsCollapse = 'auto',
   componentOverrides,
+  rendererOnlyUiTypes,
   inheritedFromParent,
   autoFocusFirstRequired,
+  initialExpandedOptions,
   ...rest
 }: IFormEngineProps) => {
+  // Built-ins + whatever the consumer declared for its own injected editors.
+  const isRendererOnly = useMemo(
+    () => createRendererOnlyUiTypeCheck(rendererOnlyUiTypes),
+    [JSON.stringify(rendererOnlyUiTypes)]
+  );
+  // Pointer CAPABILITY and viewport WIDTH are different questions and both
+  // matter here: a hover-gated action is unreachable without a hover, and a
+  // phone-width row has no space for a button strip either way. Both now come
+  // from Reqore's context (one subscription for the whole app) rather than a
+  // reqraft-local matchMedia hook.
+  //
+  // `isHoverCapable` defaults to `true` in Reqore, but fall back explicitly so
+  // an older Reqore — where the property does not exist — degrades to "this
+  // pointer hovers" (the pre-existing behaviour) instead of collapsing every
+  // action into a menu for everyone.
+  const isHoverCapable = useReqoreProperty('isHoverCapable') ?? true;
+  const isMobile = useReqoreProperty('isMobile');
+  const collapseOptionActions =
+    optionActionsCollapse === 'always' ? true
+    : optionActionsCollapse === 'never' ? false
+    : !isHoverCapable || !!isMobile;
   const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
   // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
   const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
@@ -757,7 +884,7 @@ export const FormEngine = ({
     fields: TQorusForm | TQorusFlatForm;
     meta?: IOptionsOnChangeMeta;
   }>(() => ({
-    fields: fixOptions(value, options || {}),
+    fields: fixOptions(value, options || {}, undefined, isRendererOnly),
     meta: undefined,
   }));
   const originalValue = useRef<any>();
@@ -850,7 +977,7 @@ export const FormEngine = ({
           setOptions({});
           return;
         }
-        setLocalValue({ fields: fixOptions(value, data.data), meta: undefined });
+        setLocalValue({ fields: fixOptions(value, data.data, undefined, isRendererOnly), meta: undefined });
         if (!operatorsUrl) {
           setLoading(false);
         }
@@ -895,7 +1022,7 @@ export const FormEngine = ({
         }
         setOptions(data.data);
         onOptionsLoaded?.(data.data);
-        setLocalValue({ fields: fixOptions({}, data.data), meta: undefined });
+        setLocalValue({ fields: fixOptions({}, data.data, undefined, isRendererOnly), meta: undefined });
       })();
     }
   }, [url, customUrl]);
@@ -919,7 +1046,7 @@ export const FormEngine = ({
   }, [operatorsUrl]);
 
   useUpdateEffect(() => {
-    const fixedValue = fixOptions(value, options || {});
+    const fixedValue = fixOptions(value, options || {}, undefined, isRendererOnly);
 
     // When the value we're receiving is the one we just emitted AND fixOptions has nothing to
     // meaningfully add or change, skip the update. This breaks the controlled-component loop for
@@ -943,19 +1070,21 @@ export const FormEngine = ({
     }
 
     setLocalValue?.({ fields: fixedValue, meta: undefined });
-  }, [JSON.stringify(options), JSON.stringify(value)]);
+  }, [JSON.stringify(options), JSON.stringify(value), isRendererOnly]);
 
   const handleValueChange = useCallback(
     (optionName: string, val?: any, _type?: string, isFunction?: boolean) => {
       setLocalValue(({ fields = {} }) => {
-        const schemaType = (options?.[optionName]?.ui_type ||
-          options?.[optionName]?.type) as TQorusType;
+        const schemaType = getOptionSchemaStorageType(options?.[optionName], isRendererOnly);
         const isAnyLike = schemaType === 'any' || schemaType === 'auto';
         // For any/auto schema types, preserve the user's chosen type stored in the field
         const resolvedSchemaType =
-          isAnyLike && (fields[optionName] as IQorusFormField)?.type ?
-            ((fields[optionName] as IQorusFormField).type as TQorusType)
-          : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
+          isAnyLike && (fields[optionName] as IQorusFormField)?.type
+            ? ((fields[optionName] as IQorusFormField).type as TQorusType)
+            : (fields[optionName] as IQorusFormField)?.type === options?.[optionName]?.ui_type &&
+                isRendererOnly((fields[optionName] as IQorusFormField)?.type)
+              ? schemaType
+              : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
         const type =
           _type ||
           getTypeAndCanBeNull(resolvedSchemaType, options?.[optionName]?.allowed_values).type;
@@ -1029,6 +1158,14 @@ export const FormEngine = ({
 
         onSingleOptionsChange?.(optionName, updatedValue[optionName]);
 
+        if (
+          compact &&
+          !readOnly &&
+          shouldAutoCollapseCompactAllowedValueOption(options?.[optionName], val)
+        ) {
+          setExpandedOptions((prev) => prev.filter((name) => name !== optionName));
+        }
+
         return {
           fields: updatedValue,
           meta,
@@ -1038,6 +1175,9 @@ export const FormEngine = ({
     [
       onSingleOptionsChange,
       onDependableOptionChange,
+      isRendererOnly,
+      compact,
+      readOnly,
       JSON.stringify(options),
       JSON.stringify(operators),
     ]
@@ -1158,8 +1298,7 @@ export const FormEngine = ({
         optionName as string,
         getDefaultValue(options?.[optionName as string]),
         getTypeAndCanBeNull(
-          (options?.[optionName as string]?.ui_type ||
-            options?.[optionName as string]?.type) as TQorusType,
+          getOptionSchemaStorageType(options?.[optionName as string], isRendererOnly),
           options?.[optionName as string]?.allowed_values
         ).type
       );
@@ -1187,36 +1326,37 @@ export const FormEngine = ({
           return newValue;
         }
 
-        const schemaType = getType(
+        const rendererType = getType(
           (options[optionName].ui_type || options[optionName].type) as TQorusType,
           operators,
           (option as IQorusFormField)?.op
+        );
+        const storageType = getOptionFieldStorageType(
+          optionName,
+          (option as IQorusFormField)?.type,
+          options,
+          operators,
+          (option as IQorusFormField)?.op,
+          isRendererOnly
         );
 
         if (!isPlainObject(option)) {
           return {
             ...newValue,
             [optionName]: {
-              type: schemaType,
+              type: storageType || rendererType,
               value: option,
             },
           };
         }
 
-        // any/auto: preserve the user-picked type; otherwise normalize to the
-        // schema type (ui_type wins) so rendering and validation agree.
-        const isAnyLike = schemaType === 'any' || schemaType === 'auto';
-        const effectiveType =
-          isAnyLike && (option as IQorusFormField)?.type ?
-            (option as IQorusFormField).type
-          : schemaType;
-
         return {
           ...newValue,
-          [optionName]: { ...(option as IQorusFormField), type: effectiveType },
+          [optionName]: { ...(option as IQorusFormField), type: storageType || rendererType },
         };
       }, {});
   }, [
+    isRendererOnly,
     JSON.stringify(fixedValue),
     JSON.stringify(options),
     unavailableOptionsCount.current,
@@ -1313,10 +1453,14 @@ export const FormEngine = ({
     const fields: IFormFieldValidityData[] = reduce(
       availableOptions,
       (result, option, optionName) => {
-        const type =
-          (option as IQorusFormField).type ||
-          (options?.[optionName]?.ui_type as TQorusType) ||
-          (options?.[optionName]?.type as TQorusType);
+        const type = getOptionFieldStorageType(
+          optionName,
+          (option as IQorusFormField).type,
+          options,
+          operators,
+          (option as IQorusFormField).op,
+          isRendererOnly
+        );
         const optionValue = (option as IQorusFormField).value;
 
         const isRequired = options?.[optionName]?.required;
@@ -1358,8 +1502,10 @@ export const FormEngine = ({
       invalidFields,
     };
   }, [
+    isRendererOnly,
     JSON.stringify(availableOptions),
     JSON.stringify(options),
+    JSON.stringify(operators),
     JSON.stringify(localValue.fields),
   ]);
 
@@ -1378,8 +1524,14 @@ export const FormEngine = ({
           showInvalidOptionsOnly &&
           isOptionValid(
             optionName,
-            (options?.[optionName]?.ui_type as TQorusType) ||
-              (options?.[optionName]?.type as TQorusType),
+            getOptionFieldStorageType(
+              optionName,
+              (option as IQorusFormField).type,
+              options,
+              operators,
+              (option as IQorusFormField).op,
+              isRendererOnly
+            ),
             (option as IQorusFormField).value
           )
         ) {
@@ -1389,7 +1541,13 @@ export const FormEngine = ({
       },
       {}
     );
-  }, [showInvalidOptionsOnly, JSON.stringify(availableOptions)]);
+  }, [
+    showInvalidOptionsOnly,
+    isRendererOnly,
+    JSON.stringify(availableOptions),
+    JSON.stringify(options),
+    JSON.stringify(operators),
+  ]);
 
   // Read-first STATUS / BOX for one option — lifted to component scope so the
   // status boxes (renderCompact) and the header's "needs attention" count share
@@ -1409,7 +1567,14 @@ export const FormEngine = ({
     (name: string, hidden = false): TReadFirstStatus => {
       if (hidden) return 'optional';
       const schema = options?.[name];
-      const type = (schema?.ui_type || schema?.type) as TQorusType;
+      const type = getOptionFieldStorageType(
+        name,
+        (availableOptions as TQorusForm)?.[name]?.type,
+        options,
+        operators,
+        (availableOptions as TQorusForm)?.[name]?.op,
+        isRendererOnly
+      );
       const value = (availableOptions as TQorusForm)?.[name]?.value;
       const empty = isOptionValueEmpty(value);
       const reqGroups = (schema?.required_groups as string[] | undefined) || [];
@@ -1431,8 +1596,10 @@ export const FormEngine = ({
       });
     },
     [
+      isRendererOnly,
       JSON.stringify(options),
       JSON.stringify(availableOptions),
+      JSON.stringify(operators),
       isOptionValid,
       requiredGroupsInfo,
       schemaMsgIntent,
@@ -1534,6 +1701,32 @@ export const FormEngine = ({
     },
     [expandMode]
   );
+
+  // --- Caller-named starting rows (opt-in) ----------------------------------
+  // `initialExpandedOptions` lets a consumer name the rows that must already
+  // be open when the form first paints — the case where the expanded row is
+  // part of an address rather than a click (see the prop's docs).
+  //
+  // One-shot for the same reason autofocus is: it fires on the first render
+  // that actually has rows (so an async-loaded schema is covered) and then
+  // never again, so a row the user collapses afterwards stays collapsed and a
+  // later schema reload does not reopen it.
+  const hasAppliedInitialExpansionRef = useRef(false);
+  useEffect(() => {
+    if (!initialExpandedOptions?.length || !compact || hasAppliedInitialExpansionRef.current) {
+      return;
+    }
+    const names = Object.keys(availableOptions);
+    if (!names.length) {
+      return;
+    }
+    hasAppliedInitialExpansionRef.current = true;
+    const toExpand = initialExpandedOptions.filter((name) => names.includes(name));
+    if (!toExpand.length) {
+      return;
+    }
+    setExpandedOptions((prev) => [...prev, ...toExpand.filter((name) => !prev.includes(name))]);
+  }, [initialExpandedOptions, compact, availableOptions]);
 
   // --- First-attention-field autofocus (opt-in) -----------------------------
   // With `autoFocusFirstRequired`, drop the user straight into the first field
@@ -1672,10 +1865,10 @@ export const FormEngine = ({
           next[optionName] = value as IQorusFormField;
         }
       });
-      return { fields: fixOptions(next, options || {}, operators), meta: undefined };
+      return { fields: fixOptions(next, options || {}, operators, isRendererOnly), meta: undefined };
     });
     setRequiredOnly(false);
-  }, [JSON.stringify(options), JSON.stringify(operators)]);
+  }, [JSON.stringify(options), JSON.stringify(operators), isRendererOnly]);
 
   const getCustomMenuTemplateItems = useCallback<(optionName: string) => TCustomTemplateItems>(
     (optionName) => {
@@ -1705,12 +1898,36 @@ export const FormEngine = ({
       suppressSchemaMessages?: boolean
     ) => {
       const operatorParts = fixOperatorValue(other.op);
+      // The RENDERER type for this row — which editor mounts. Distinct from the
+      // storage type on the value envelope: a `richtext` field stores a string
+      // but must render the richtext editor, so `ui_type` wins here.
+      //
+      // The exception is an any-like `ui_type`. Those schemas say
+      // `ui_type: 'any'` precisely so the user can pick a concrete type, and
+      // that pick lives on the field's stored `type` — letting 'any' win would
+      // pin the row to the untyped editor forever.
+      //
+      // The trailing fallbacks keep the row rendering when a server-driven
+      // schema has not arrived yet (`type` undefined) instead of crashing.
+      const schemaUiType = options?.[optionName]?.ui_type as TQorusType;
+      const uiTypeIsAnyLike = schemaUiType === 'any' || schemaUiType === 'auto';
+      const resolvedType =
+        (schemaUiType && !uiTypeIsAnyLike ? schemaUiType : undefined) ||
+        type ||
+        schemaUiType ||
+        (options?.[optionName]?.type as TQorusType) ||
+        'any';
       return (
         <>
           {(() => {
             const schemaMsgs = (
-              suppressSchemaMessages ? [] : (options?.[optionName] as any)?.messages || []
-            ) as { intent?: string; title?: string; content?: string }[];
+              suppressSchemaMessages ?
+                []
+              : (options?.[optionName] as any)?.messages || []) as {
+              intent?: string;
+              title?: string;
+              content?: string;
+            }[];
             if (!schemaMsgs.length) return null;
             const items = schemaMsgs.map(({ intent, title, content }, index) => (
               <ReqoreMessage
@@ -1841,15 +2058,18 @@ export const FormEngine = ({
             // (DPQL text mode); opt out per-form via `templateFieldProps`.
             allowTextExpressions
             allowCustomValues={
-              options?.[optionName]?.supports_custom_values !== false && type !== 'any'
+              options?.[optionName]?.supports_custom_values !== false && resolvedType !== 'any'
             }
             templates={templates.value}
             {...getTypeAndCanBeNull(
-              type as TQorusType,
+              // The RENDERER type picks the editor — the storage type lives on
+              // the value envelope. Passing storage here rendered a `richtext`
+              // field as a plain string input.
+              resolvedType,
               options?.[optionName]?.allowed_values,
               other.op
             )}
-            ui_type={type}
+            ui_type={resolvedType}
             name={optionName}
             uniqueName={`${uniqueName ? `${uniqueName}.` : `${name ? `${name}.` : ''}`}${optionName}`}
             onChange={
@@ -1890,7 +2110,7 @@ export const FormEngine = ({
             schema={options || {}}
             allOptions={availableOptions}
             name={optionName}
-            option={{ type, ...other }}
+            option={{ type: resolvedType, ...other }}
             getType={getTypeForOption}
           />
           {operators && size(operators) && size(other.op) ?
@@ -1905,7 +2125,7 @@ export const FormEngine = ({
                     intent='info'
                     label={
                       other.value ?
-                        type === 'richtext' ?
+                        resolvedType === 'richtext' ?
                           richtextToString(other.value)
                         : JSON.stringify(other.value)
                       : ''
@@ -1998,6 +2218,8 @@ export const FormEngine = ({
       getTypeForOption,
       isOptionValid,
       confirmAction,
+      optionActions,
+      collapseOptionActions,
       renderOption,
       theme,
       cText,
@@ -2043,6 +2265,8 @@ export const FormEngine = ({
       getTypeForOption,
       isOptionValid,
       confirmAction,
+      optionActions,
+      collapseOptionActions,
       renderOption,
       theme,
       cText,
@@ -2114,7 +2338,13 @@ export const FormEngine = ({
     ]
   );
 
-  const compactHeaderActions = useMemo(() => [{ as: CompactToolbar, responsive: false }], []);
+  // The engine's own toolbar action, plus whatever the consumer added through
+  // `compactPanelProps.actions` — appended, so an outside action can never
+  // knock the form's toolbar out of the header.
+  const compactHeaderActions = useMemo(
+    () => [{ as: CompactToolbar, responsive: false }, ...(compactPanelProps?.actions || [])],
+    [compactPanelProps?.actions]
+  );
   const renderCompact = () => {
     const headerBg = `${changeDarkness(getMainBackgroundColor(theme), 0.02)}${percentToHexAlpha(88)}`;
     // Toolbar filters narrow the listed rows; the meter reflects the full set.
@@ -2173,7 +2403,14 @@ export const FormEngine = ({
       const isFieldInvalid = (name: string) =>
         !isOptionValid(
           name,
-          (options?.[name]?.ui_type || options?.[name]?.type) as TQorusType,
+          getOptionFieldStorageType(
+            name,
+            (shownOptions as TQorusForm)[name]?.type,
+            options,
+            operators,
+            (shownOptions as TQorusForm)[name]?.op,
+            isRendererOnly
+          ),
           (shownOptions as TQorusForm)[name]?.value
         );
       const comparator = (a: { name: string }, b: { name: string }): number => {
@@ -2282,7 +2519,7 @@ export const FormEngine = ({
           optionField={
             entry.hidden ?
               ({
-                type: (options?.[entry.name]?.ui_type || options?.[entry.name]?.type) as TQorusType,
+                type: getOptionSchemaStorageType(options?.[entry.name], isRendererOnly),
                 value: undefined,
               } as IQorusFormField)
             : ((shownOptions as TQorusForm)[entry.name] as IQorusFormField)
@@ -2357,22 +2594,24 @@ export const FormEngine = ({
                   $headerBg={compactNested ? 'transparent' : headerBg}
                   $nested={compactNested}
                   flat
+                  raised
+                  minimal
                   // No panel background: the form sits transparently on whatever
                   // hosts it (page, drawer, or — for an arg_schema field — the
                   // parent's edit card) instead of stacking its own dark surface.
                   // The status boxes keep their own tints; the sticky toolbar keeps
                   // its blurred header via the $headerBg override.
-                  transparent
                   stickyHeader={!compactNested}
-                  padded={false}
+                  // Consumer overrides land last so they win over every default
+                  // above; `actions` and `contentStyle` below merge rather than
+                  // replace (see `compactPanelProps`).
+                  {...compactPanelProps}
                   actions={compactHeaderActions}
                   contentStyle={{
                     display: 'flex',
                     flexFlow: 'column',
                     gap: '10px',
-                    // Nested sub-form: no surrounding panel padding (it's flush in
-                    // the parent card); top-level keeps a small bottom gutter.
-                    padding: compactNested ? '0' : '0 0 12px',
+                    ...compactPanelProps?.contentStyle,
                   }}
                 >
                   {size(groupKeys) === 0 ?
@@ -2741,13 +2980,11 @@ export const FormEngine = ({
                 // option's schema as context). The consumer (the IDE) injects
                 // it; same factory pattern as the ExpressionBuilder's
                 // `extraActions`.
-                ...(typeof optionActions === 'function' ?
-                  optionActions({
-                    name: optionName,
-                    schema: options[optionName],
-                    value: availableOptions?.[optionName] as TOption,
-                  })
-                : (optionActions ?? [])),
+                ...resolveOptionActions(optionActions, {
+                  name: optionName,
+                  schema: options[optionName],
+                  value: availableOptions?.[optionName] as TOption,
+                }),
                 {
                   size: 'tiny',
                   icon: 'FullscreenLine',

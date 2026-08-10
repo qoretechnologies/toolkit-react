@@ -1,4 +1,9 @@
-import { IQorusFormField, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
+import {
+  IQorusFormField,
+  TQorusFormFieldSchema,
+  TQorusType,
+} from '@qoretechnologies/ts-toolkit';
+import { isRendererOnlyUiType } from './rendererTypes';
 import { isUiEncodedValue } from './_structuredData/structuredData';
 import { renderExpressionToText } from '../expressions/renderExpressionToText';
 import { IExpressionValue } from '../expressions/types';
@@ -81,6 +86,27 @@ export const isOptionValueEmpty = (value: unknown): boolean =>
   value === null ||
   value === '' ||
   (Array.isArray(value) && value.length === 0);
+
+export const shouldAutoCollapseCompactAllowedValueOption = (
+  schema: TQorusFormFieldSchema | undefined,
+  value: unknown
+): boolean => {
+  if (!schema || isOptionValueEmpty(value)) {
+    return false;
+  }
+
+  const selectableSchema = schema as TQorusFormFieldSchema & { items?: unknown[] };
+  const options = selectableSchema.allowed_values?.length
+    ? selectableSchema.allowed_values
+    : selectableSchema.items;
+
+  return !!(
+    options?.length &&
+    !schema.allowed_values_creatable &&
+    !schema.multiselect &&
+    !schema.arg_schema
+  );
+};
 
 /** Prefer the matching allowed_values entry's display_name (fallback `name`)
  * over the raw stored value. */
@@ -223,15 +249,29 @@ export const getFileSize = (value: unknown): number | undefined => {
   return typeof size === 'number' && Number.isFinite(size) && size >= 0 ? size : undefined;
 };
 
-/** Effective UI type for display: the stored `type` wins (any/auto picks),
- * then schema `ui_type`, then `type`. */
+/**
+ * Effective UI type for DISPLAY — which preview/summary a value renders as.
+ *
+ * A renderer-only `ui_type` wins outright: the field's stored `type` holds the
+ * STORAGE type for those (a `code-editor` stores a string), so consulting the
+ * stored type here would render the bespoke editor's value as a plain string and
+ * silently drop its preview. Every other case keeps the stored type first, so an
+ * `any`/`auto` field still displays as whatever concrete type the user picked.
+ */
 export const getValueType = (
   option?: IQorusFormField,
   schema?: TQorusFormFieldSchema
-): string | undefined =>
-  (option?.type ||
-    (schema as { ui_type?: string; type?: string } | undefined)?.ui_type ||
+): string | undefined => {
+  const uiType = (schema as { ui_type?: string } | undefined)?.ui_type;
+
+  if (isRendererOnlyUiType(uiType as TQorusType)) {
+    return uiType;
+  }
+
+  return (option?.type ||
+    uiType ||
     (schema as { type?: string } | undefined)?.type) as string | undefined;
+};
 
 /** Human-readable byte count (e.g. `1.2 KB`). */
 export const formatBytes = (bytes: number): string => {

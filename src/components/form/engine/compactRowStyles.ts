@@ -47,14 +47,13 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   $nested?: boolean;
 }>`
   > .reqore-panel-title {
-    background: ${({ $headerBg }) => $headerBg};
     /* The blur + translateZ exist only to make the STICKY top-level toolbar ghost
        content beneath it; a nested sub-form's header isn't sticky, so skip them
        (and the stacking context translateZ creates). */
     ${({ $nested }) =>
-      $nested ?
-        ''
-      : 'backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transform: translateZ(0);'}
+      $nested ? '' : (
+        'backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transform: translateZ(0);'
+      )}
     padding-top: ${GAP_FROM_SIZE[HEADER_GAP]}px;
     padding-bottom: ${GAP_FROM_SIZE[HEADER_GAP]}px;
   }
@@ -73,6 +72,36 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   .options-readfirst-group .reqore-panel-title-label-row {
     flex: 1 1 auto;
     min-width: 0;
+  }
+
+  /* An injected option action declared \`show: 'hover'\` — the shape ReqorePanel
+     honours on the classic path — is revealed only while its row or card is
+     hovered or holds focus. The compact slots render plain buttons, so the gate
+     has to be CSS here. Kept focus-visible too, so the action stays reachable by
+     keyboard. Opacity rather than display keeps the slot's width stable, so rows
+     don't reflow on hover. */
+  .options-injected-action-hover {
+    opacity: 0;
+    /* Not hit-testable while invisible — an opacity:0 button still takes taps
+       and clicks, which reads as a mystery control firing out of nowhere. */
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+  .readfirst-row:hover .options-injected-action-hover,
+  .readfirst-row:focus-within .options-injected-action-hover,
+  .options-readfirst-card:hover .options-injected-action-hover,
+  .options-readfirst-card:focus-within .options-injected-action-hover {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  /* Touch and other hover-less pointers never fire :hover, so a hover-gated
+     action would be permanently unreachable there. Show it unconditionally
+     instead — losing the tidiness beats losing the functionality. */
+  @media (hover: none), (pointer: coarse) {
+    .options-injected-action-hover {
+      opacity: 1;
+      pointer-events: auto;
+    }
   }
 `;
 
@@ -625,5 +654,4 @@ export const StyledGroupBody = styled.div<{
     padding-top: 0;
     padding-bottom: 0;
   }
-
 `;

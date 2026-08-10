@@ -1680,6 +1680,114 @@ export const Compact: Story = {
   },
 };
 
+// `name` gains a long-form `desc` so the `?` help affordance has something to
+// open — the rest of the compact fixture is unchanged.
+const CompactHelpSchema: Record<string, TCompactField> = {
+  ...CompactSchema,
+  name: {
+    ...CompactSchema.name,
+    desc: 'The unique identifier for this interface. It is used in URLs, logs and cross-references, so it cannot be changed once the interface is deployed.',
+  },
+};
+
+export const CompactFocusedEditingInline: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the compact form, opens the Name row for inline editing and picks "Edit fullscreen" from its More menu — the Focused Editing modal opens over that single scalar field with its long description above the editor.',
+      },
+    },
+    chromatic: { disable: true },
+  },
+  args: {
+    ...Compact.args,
+    options: CompactHelpSchema,
+  },
+  play: async () => {
+    // Name is a scalar, so it edits INLINE in the row (no expanded card) — the
+    // branch whose More menu used to set the focused state with nothing mounted
+    // to render the modal. (CompactFocusedEditing covers the card branch.)
+    await _testsClickText('order-fulfilment');
+    await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-inline .reqore-textarea');
+    await _testsClickButton({ selector: '.options-readfirst-more' });
+    let fsItem: Element | undefined;
+    await waitFor(
+      () => {
+        fsItem = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
+          element.textContent?.includes('Edit fullscreen')
+        );
+        expect(fsItem).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+    await fireEvent.click(fsItem as Element);
+    // The modal mounts, carrying the field's long description with it.
+    await waitFor(() => expect(document.querySelector('.reqore-modal')).toBeTruthy(), {
+      timeout: 10000,
+    });
+    await _testsWaitForText(/unique identifier for this interface/i);
+  },
+};
+
+export const CompactEditingShowsDescription: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the compact form with the descriptions toggle off — a collapsed row hides its short description, and opening the row for editing reveals it under the field name along with the `?` help affordance.",
+      },
+    },
+  },
+  args: {
+    ...Compact.args,
+    options: CompactHelpSchema,
+  },
+  play: async () => {
+    // Collapsed: the global descriptions toggle is off, so no short_desc on the
+    // read row (the label carries it as a title attribute only).
+    await _testsWaitForText('order-fulfilment');
+    await _testsWaitForTextToNotExist('Unique identifier for this interface');
+    // Open it: the short description appears without the user clicking anything…
+    await _testsClickText('order-fulfilment');
+    await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-inline .reqore-textarea');
+    await _testsWaitForText('Unique identifier for this interface');
+    // …and the `?` (long-form help) stays reachable while editing.
+    await waitFor(() =>
+      expect(
+        document.querySelector('.options-readfirst-inline .options-readfirst-help')
+      ).toBeTruthy()
+    );
+  },
+};
+
+export const CompactWithPanelProps: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the Compact fixture with `compactPanelProps` — the read-first form's outer ReqorePanel is dressed from the outside with a label, icon, intent and an extra header action. The engine's own toolbar survives: `actions` append after it and `contentStyle` merges over the engine's flex-column layout instead of replacing either.",
+      },
+    },
+  },
+  args: {
+    ...Compact.args,
+    compactPanelProps: {
+      label: 'Connection settings',
+      icon: 'Settings3Line',
+      intent: 'info',
+      actions: [{ label: 'Docs', icon: 'BookLine', responsive: false }],
+    },
+  },
+  play: async () => {
+    // The outside-supplied panel chrome renders…
+    await _testsWaitForText('Connection settings');
+    await _testsWaitForText('Docs');
+    // …and the engine's own toolbar + rows are untouched by it.
+    await _testsWaitForText('order-fulfilment');
+  },
+};
+
 export const CompactReadOnly: Story = {
   parameters: {
     docs: {
@@ -5051,6 +5159,79 @@ export const CompactAutoFocusFirstRequired: Story = {
     // The already-satisfied required field is NOT expanded/focused.
     const nameField = document.querySelector('[data-field="name"]');
     expect(nameField?.contains(document.activeElement)).toBeFalsy();
+  },
+};
+
+// `initialExpandedOptions` opens rows the CALLER names, for the case where the
+// expanded row is part of an address rather than a click: a field that renders
+// its own routable surface can restore the pane from the URL, but not the row
+// that has to be open for the pane to exist. Here `description` starts expanded
+// with no interaction, while a row the caller did not name stays collapsed.
+export const CompactInitialExpandedOptions: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with initialExpandedOptions — the caller-named row is already open on mount, and rows it did not name stay collapsed.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+    initialExpandedOptions: ['description'],
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+
+    // The caller-named row is open on mount, with no click.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '[data-field="description"] input, [data-field="description"] textarea'
+          )
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+
+    // A row the caller did not name is NOT expanded.
+    expect(
+      document.querySelector('[data-field="name"] input, [data-field="name"] textarea')
+    ).toBeFalsy();
+  },
+};
+
+// An unknown name must not throw or expand anything — a stale link naming a
+// field this schema no longer has just lands on the collapsed form.
+export const CompactInitialExpandedOptionsUnknownName: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose initialExpandedOptions names a field that does not exist — the form renders normally with every row collapsed.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+    initialExpandedOptions: ['no-such-field'],
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+    await sleep(300);
+    expect(
+      document.querySelector(
+        '[data-field="description"] input, [data-field="description"] textarea'
+      )
+    ).toBeFalsy();
   },
 };
 

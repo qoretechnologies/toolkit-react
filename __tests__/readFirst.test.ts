@@ -21,6 +21,7 @@ import {
   getReadFirstCompletion,
   getReadFirstStatus,
   isOptionValueEmpty,
+  shouldAutoCollapseCompactAllowedValueOption,
   type IFirstAttentionFieldMeta,
 } from '../src/components/form/engine/readFirst';
 
@@ -37,6 +38,39 @@ describe('isOptionValueEmpty', () => {
     expect(isOptionValueEmpty(false)).toBe(false);
     expect(isOptionValueEmpty('x')).toBe(false);
     expect(isOptionValueEmpty(['a'])).toBe(false);
+  });
+});
+
+describe('shouldAutoCollapseCompactAllowedValueOption', () => {
+  const fixedChoiceSchema = {
+    type: 'string',
+    allowed_values: [{ value: 'api', display_name: 'API' }],
+  } as never;
+
+  it('auto-collapses fixed allowed-value selections', () => {
+    expect(shouldAutoCollapseCompactAllowedValueOption(fixedChoiceSchema, 'api')).toBe(true);
+  });
+
+  it('does not auto-collapse empty values', () => {
+    expect(shouldAutoCollapseCompactAllowedValueOption(fixedChoiceSchema, '')).toBe(false);
+  });
+
+  it('does not auto-collapse creatable allowed-value fields', () => {
+    expect(
+      shouldAutoCollapseCompactAllowedValueOption(
+        { ...fixedChoiceSchema, allowed_values_creatable: true } as never,
+        'custom'
+      )
+    ).toBe(false);
+  });
+
+  it('does not auto-collapse multiselect fields', () => {
+    expect(
+      shouldAutoCollapseCompactAllowedValueOption(
+        { ...fixedChoiceSchema, multiselect: true } as never,
+        ['api']
+      )
+    ).toBe(false);
   });
 });
 

@@ -9,6 +9,23 @@ import { TReqraftStorageValue } from '../hooks/useStorage/useStorage';
 import { currentUserStore } from '../stores/currentUser/currentUser';
 import { IReqraftProviderProps } from './ReqraftProvider';
 
+/**
+ * Apply a single path write onto the current storage blob, seeding a fresh object
+ * when the user has no storage yet.
+ *
+ * `?? {}` is load-bearing: a user who has never written storage has
+ * `storage === undefined | null`, and `set(cloneDeep(undefined), …)` returns
+ * `undefined` (lodash won't set on a nullish target). Without the seed the FIRST
+ * write for such a user — e.g. accepting the cookie-consent banner — persists an
+ * empty body and silently drops the value, so the flag stays unset forever and
+ * the banner never closes. Exported for testing.
+ */
+export const applyStorageWrite = (
+  storage: TReqraftStorage | undefined,
+  path: string,
+  value: unknown
+): TReqraftStorage => set(cloneDeep(storage) ?? {}, path, value);
+
 export interface IReqraftStorageProviderProps
   extends Pick<IReqraftProviderProps, 'waitForStorage'> {
   children: ReactNode;
@@ -53,26 +70,35 @@ export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorag
       includeAppPrefix: boolean = true
     ) {
       const _path = includeAppPrefix ? `${appName}.${path}` : path;
-      const updatedStorage = set(cloneDeep(currentUser?.storage), _path, value);
+      // Base the write on the LATEST storage read straight from the store, not
+      // the blob captured in this callback's closure. A caller holding a stale
+      // updater — e.g. an imperative store subscription created on mount, before
+      // other keys had loaded — would otherwise persist an out-of-date blob and
+      // wipe every key written to storage since its closure was captured.
+      const latestStorage = currentUserStore.getState().currentUser?.storage;
+      const updatedStorage = applyStorageWrite(latestStorage, _path, value);
 
       updateCurrentUserStorage(updatedStorage);
 
       load({ body: { storage: updatedStorage } });
     },
-    [appName, currentUser?.storage, load, updateCurrentUserStorage]
+    [appName, load, updateCurrentUserStorage]
   );
 
   const removeStorageValue = useCallback(
     function (path: string, includeAppPrefix: boolean = true) {
       const _path = includeAppPrefix ? `${appName}.${path}` : path;
 
-      const updatedStorage = set(cloneDeep(currentUser?.storage), _path, null);
+      // Same as `updateStorage`: mutate the LATEST blob (never a stale closure
+      // copy), seeding a fresh object when there's no storage yet.
+      const latestStorage = currentUserStore.getState().currentUser?.storage;
+      const updatedStorage = applyStorageWrite(latestStorage, _path, null);
 
       updateCurrentUserStorage(updatedStorage);
 
       load({ body: { storage_path: _path } });
     },
-    [appName, currentUser?.storage, load, updateCurrentUserStorage]
+    [appName, load, updateCurrentUserStorage]
   );
 
   const contextValue = useMemo(

@@ -356,7 +356,12 @@ function AutoField<T = any>({
         {...rest}
         name={name}
         value={value}
-        onChange={(val: any) => handleChange(name, val)}
+        onChange={(val: any, emittedType?: IQorusType, emittedIsFunction?: boolean) => {
+          const returnType = emittedType || currentType;
+          if (onChange && returnType) {
+            onChange(name, val, returnType, emittedIsFunction);
+          }
+        }}
       />
     );
   }

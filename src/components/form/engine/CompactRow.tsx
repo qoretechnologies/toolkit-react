@@ -10,6 +10,8 @@ import {
   ReqoreTagGroup,
 } from '@qoretechnologies/reqore';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
+import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
+import { resolveOptionActions } from './optionActions';
 import {
   IQorusFormField,
   TQorusForm,
@@ -107,6 +109,12 @@ const COMPACT_SINGLE_VALUE_TYPES = new Set([
   'method-name',
 ]);
 
+// How many consumer-injected actions may sit inline in a row before the rest
+// overflow into the row's menu. A row's action slot shares space with the
+// value; an unbounded button strip would squeeze the value out, and the
+// consumer controls how many actions it injects.
+const MAX_INLINE_OPTION_ACTIONS = 2;
+
 
 // One read-first row: label | value | action collapsed; the real editor (the
 // classic renderOption) expanded. `hidden` = search-surfaced optional —
@@ -176,6 +184,11 @@ export const CompactRow = memo(
     );
     const getTypeForOption = useContextSelector(CompactRowContext, (v) => v.getTypeForOption);
     const confirmAction = useContextSelector(CompactRowContext, (v) => v.confirmAction);
+    const optionActions = useContextSelector(CompactRowContext, (v) => v.optionActions);
+    const collapseOptionActions = useContextSelector(
+      CompactRowContext,
+      (v) => v.collapseOptionActions
+    );
     const renderOption = useContextSelector(CompactRowContext, (v) => v.renderOption);
     const theme = useContextSelector(CompactRowContext, (v) => v.theme);
     const cMuted = useContextSelector(CompactRowContext, (v) => v.cMuted);
@@ -338,6 +351,97 @@ export const CompactRow = memo(
 
     const schema = options?.[optionName];
     const label = schema?.display_name || optionName;
+    const injectedOptionActions = React.useMemo<IReqorePanelAction[]>(
+      () =>
+        schema ?
+          resolveOptionActions(optionActions, {
+            name: optionName,
+            schema,
+            value: availableOptions?.[optionName],
+          }).filter((action) => action.show !== false)
+        : [],
+      [availableOptions?.[optionName], optionActions, optionName, schema]
+    );
+    // Which injected actions stay as inline buttons, and which move into the
+    // overflow menu. Everything collapses on touch / narrow viewports — a
+    // hover-gated button is unreachable without a hover — and anything past the
+    // inline cap overflows regardless, so a consumer injecting ten actions can
+    // never push the row's value out of view.
+    const [inlineOptionActions, menuOptionActions] = React.useMemo<
+      [IReqorePanelAction[], IReqorePanelAction[]]
+    >(
+      () =>
+        collapseOptionActions ?
+          [[], injectedOptionActions]
+        : [
+            injectedOptionActions.slice(0, MAX_INLINE_OPTION_ACTIONS),
+            injectedOptionActions.slice(MAX_INLINE_OPTION_ACTIONS),
+          ],
+      [collapseOptionActions, injectedOptionActions]
+    );
+    const injectedOptionActionMenuItems = React.useMemo<IReqoreDropdownItem[]>(
+      () =>
+        menuOptionActions.map(
+          (action, index) =>
+            ({
+              // A panel action labels itself with `label`, but an icon-only one
+              // (the IDE's AI-assist button) carries its name in the tooltip —
+              // a menu row has no hover affordance to fall back on.
+              label: action.label ?? action.tooltip ?? `Action ${index + 1}`,
+              icon: action.icon,
+              intent: action.intent,
+              disabled: action.disabled,
+              onClick: () => action.onClick?.(),
+            }) as IReqoreDropdownItem
+        ),
+      [menuOptionActions]
+    );
+    const renderInjectedOptionAction = (
+      action: IReqorePanelAction,
+      index: number,
+      size: 'tiny' | 'small' = 'small'
+    ) => {
+      // `show` drives visibility here instead of reaching the DOM. The classic
+      // path hands these to ReqorePanel, which honours `show: 'hover'` itself;
+      // the compact slots render plain buttons, so 'hover' becomes a CSS gate on
+      // the containing row/card (see compactRowStyles) — same config, same
+      // behaviour in both modes.
+      // `size` is destructured out and deliberately NOT honoured: the row owns
+      // its action strip's rhythm, and a consumer-supplied size made the
+      // injected button visibly smaller than the revert / more / confirm
+      // buttons beside it. The contextual `size` argument is the row's own
+      // (small when editing or in a card, tiny on a read row), so injected
+      // actions always match their neighbours.
+      const {
+        label: actionLabel,
+        onClick,
+        show,
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        size: _ignoredSize,
+        className,
+        ...actionProps
+      } = action;
+
+      return (
+        <ReqoreButton
+          key={`${optionName}-injected-action-${index}`}
+          size={size}
+          minimal
+          flat
+          fixed
+          {...actionProps}
+          className={`${className ? `${className} ` : ''}options-injected-action${
+            show === 'hover' ? ' options-injected-action-hover' : ''
+          }`}
+          onClick={(event: React.MouseEvent<HTMLElement>) => {
+            event.stopPropagation();
+            onClick?.();
+          }}
+        >
+          {actionLabel}
+        </ReqoreButton>
+      );
+    };
     const required = !!(schema?.required || schema?.required_groups);
     const removable =
       !readOnly && !schema?.preselected && !schema?.required && !schema?.required_groups;
@@ -573,6 +677,30 @@ export const CompactRow = memo(
     // "descriptions" toggle is engaged (and inside the editor when expanded).
     const showLabelDesc = !!labelShortDesc && showAllDescriptions === true;
 
+    // The `?` that opens the long-form help dialog. Shared by the read row AND
+    // the inline editor: opening a field used to drop it, leaving an editing row
+    // with no route to the field's description at all. Stops propagation because
+    // both labels are click targets themselves (the row expands / collapses).
+    const helpIcon =
+      schema?.desc ?
+        <ReqoreIcon
+          icon='QuestionLine'
+          size='12px'
+          effect={{ opacity: 0.55 }}
+          margin='left'
+          marginSize='tiny'
+          role='button'
+          tabIndex={-1}
+          aria-label='Help'
+          className='options-readfirst-help'
+          style={{ cursor: 'help' }}
+          onClick={(event) => {
+            event.stopPropagation();
+            handleOptionLabelClick(optionName);
+          }}
+        />
+      : null;
+
     const renderInfoStrip = (m: TInfoMsg, index: number) => (
       <ReqoreMessage
         key={`${m.content}-${index}`}
@@ -651,6 +779,10 @@ export const CompactRow = memo(
               } as IReqoreDropdownItem,
             ]
           : []),
+          // Consumer-injected actions that did not fit inline (or collapsed
+          // wholesale on touch) land here — this row already has a menu, so they
+          // reuse it rather than adding a second one beside it.
+          ...injectedOptionActionMenuItems,
         ]}
       />
     );
@@ -688,11 +820,13 @@ export const CompactRow = memo(
               >
                 {label}
                 {required ? <ReqoreIcon icon='Asterisk' color='danger' size='10px' /> : null}
+                {helpIcon}
               </StyledRowLabel>
-              {/* Keep the short_desc visible while editing inline when the global
-                  descriptions toggle is on — read rows show it, so opening a field
-                  shouldn't make it vanish. */}
-              {showLabelDesc ?
+              {/* An OPEN field always shows its short_desc — that's where the hint
+                  is needed and there's no per-row button to reveal it (the edit
+                  card does the same). The global descriptions toggle governs READ
+                  rows only, so collapsing the field is what hides it again. */}
+              {labelShortDesc ?
                 <StyledLabelDesc
                   className='options-readfirst-label-desc'
                   size='small'
@@ -722,6 +856,9 @@ export const CompactRow = memo(
                   message strip is visible. */}
               {revertButton}
               {clearValueButton}
+              {inlineOptionActions.map((action, index) =>
+                renderInjectedOptionAction(action, index)
+              )}
               {moreMenu}
               <ReqoreButton
                 className='options-readfirst-done'
@@ -753,6 +890,27 @@ export const CompactRow = memo(
             className={clusterBlockClass || undefined}
           >
             {editingRow}
+            {/* Focused editing for an INLINE row. The edit card wraps its editor
+                in <FocusedEditing>, which renders the field in place AND in the
+                modal; an inline row already renders its editor in the row grid,
+                so it mounts the modal alone. Without this the More menu's "Edit
+                fullscreen" set the state and nothing appeared — the modal simply
+                had no mount point on this branch. */}
+            {focusedEditing === optionName ?
+              <FocusedEditing
+                isFullscreen
+                modalOnly
+                onClose={() => setFocusedEditing(undefined)}
+                description={(schema?.display_name as string) || optionName}
+              >
+                <Description
+                  longDescription={schema?.desc}
+                  shortDescription={schema?.short_desc}
+                  longDescriptionShownByDefault
+                />
+                {renderOption(optionName, optionField)}
+              </FocusedEditing>
+            : null}
           </StyledColumn>
         );
       }
@@ -855,6 +1013,9 @@ export const CompactRow = memo(
                   </ReqoreButton>
                 );
               })}
+              {inlineOptionActions.map((action, index) =>
+                renderInjectedOptionAction(action, index)
+              )}
               {/* Clear-value sits before the More menu — the card analog of the
                   inline row's Clear. Empties the value (keeps the field). */}
               {hasValue && !readOnly ?
@@ -1122,24 +1283,7 @@ export const CompactRow = memo(
               {required ?
                 <ReqoreIcon icon='Asterisk' color='danger' size='10px' margin='left' marginSize='tiny' />
               : null}
-              {schema?.desc ?
-                <ReqoreIcon
-                  icon='QuestionLine'
-                  size='12px'
-                  effect={{ opacity: 0.55 }}
-                  margin='left'
-                  marginSize='tiny'
-                  role='button'
-                  tabIndex={-1}
-                  aria-label='Help'
-                  className='options-readfirst-help'
-                  style={{ cursor: 'help' }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    handleOptionLabelClick(optionName);
-                  }}
-                />
-              : null}
+              {helpIcon}
             </span>
             {typeLabel ?
               <ReqoreTag size='tiny' minimal label={typeLabel} labelEffect={{ opacity: 0.55 }} />
@@ -1272,6 +1416,31 @@ export const CompactRow = memo(
           {infoToggle ?
             <StyledActionSlot className='options-readfirst-info-slot' $width={26}>
               {infoToggle}
+            </StyledActionSlot>
+          : null}
+          {inlineOptionActions.map((action, index) =>
+            renderInjectedOptionAction(action, index, 'tiny')
+          )}
+          {injectedOptionActionMenuItems.length ?
+            <StyledActionSlot
+              className='options-readfirst-actions-slot'
+              $width={26}
+              // The read row opens the editor when clicked. Without this the tap
+              // that opens this menu also expands the row, which unmounts the
+              // menu — on touch that made the collapsed actions unreachable,
+              // the exact problem the collapse exists to solve.
+              onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()}
+            >
+              <ReqoreDropdown
+                className='options-injected-actions-menu'
+                icon='MoreFill'
+                flat
+                minimal
+                fixed
+                size='tiny'
+                tooltip='Field actions'
+                items={injectedOptionActionMenuItems}
+              />
             </StyledActionSlot>
           : null}
           {/* The revert affordance lives in the status-dot column (a changed field
