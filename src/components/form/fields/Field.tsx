@@ -540,7 +540,7 @@ export const FormField = <T extends TFormFieldType>({
           fluid
           hideItemCount
           forceDropdown={
-            (fieldProps as { forceDropdown?: boolean } | undefined)?.forceDropdown ||
+            (fieldProps as { forceDropdown?: boolean } | undefined)?.forceDropdown ??
             (rest as { forceDropdown?: boolean }).forceDropdown
           }
         />
@@ -584,7 +584,7 @@ export const FormField = <T extends TFormFieldType>({
         onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
         fluid
         forceDropdown={
-          (fieldProps as { forceDropdown?: boolean } | undefined)?.forceDropdown ||
+          (fieldProps as { forceDropdown?: boolean } | undefined)?.forceDropdown ??
           (rest as { forceDropdown?: boolean }).forceDropdown
         }
       />

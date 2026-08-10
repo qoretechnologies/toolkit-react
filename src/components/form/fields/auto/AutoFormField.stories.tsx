@@ -330,6 +330,7 @@ export const RichText: Story = {
 export const ConnectionWithAllowedValues: Story = {
   args: {
     defaultType: 'connection',
+    forceDropdown: false,
     allowed_values: [
       {
         display_name: 'test',

@@ -374,6 +374,7 @@ function AutoField<T = any>({
   ) {
     return (
       <SchemaDefinitionEditor
+        {...((rest as any).fieldProps || {})}
         value={
           value === null || value === undefined
             ? undefined

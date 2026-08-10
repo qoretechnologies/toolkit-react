@@ -62,6 +62,7 @@ export const ItemsWithDescription: Story = {
     },
   },
   args: {
+    forceDropdown: false,
     items: [
       { display_name: 'Item 1', desc: 'This is item 1', value: 'item1', icon: 'MoneyEuroCircleFill', groups: ['Miscellaneous'] },
       { display_name: 'Item 2', desc: 'This is item 2', value: 'item2', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
@@ -106,6 +107,7 @@ export const ItemsWithDescriptionAndMessages: Story = {
     },
   },
   args: {
+    forceDropdown: false,
     items: [
       {
         display_name: 'Item 1',
@@ -162,6 +164,7 @@ export const DisabledItemsWithIntent: Story = {
 
 export const DisabledItemsWithIntentAndDescriptions: Story = {
   args: {
+    forceDropdown: false,
     items: [
       { display_name: 'Item 1', desc: 'This is item 1', value: 'item1' },
       { display_name: 'Item 2', short_desc: 'This is item 2', value: 'item2' },
@@ -326,6 +329,7 @@ export const AutoSelectWithDescriptions: Story = {
 
 export const ItemValuesAreObjectsAndCanBeSelected: Story = {
   args: {
+    forceDropdown: false,
     value: { id: { type: 'string', value: 'item1' } },
     items: [
       { value: { id: { type: 'string', value: 'item1' } } },

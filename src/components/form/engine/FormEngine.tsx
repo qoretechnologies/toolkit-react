@@ -1935,7 +1935,7 @@ export const FormEngine = ({
         (optionSchema?.type as TQorusType) ||
         'any';
       const effectiveForceDropdown =
-        forceDropdown ||
+        forceDropdown ??
         (templateFieldProps as { forceDropdown?: boolean } | undefined)?.forceDropdown;
 
       return (

@@ -651,7 +651,10 @@ export const Expression = ({
     return value.value?.args?.some((arg) => arg?.types_mismatch);
   }, [JSON.stringify(value)]);
 
-  if (expressions.loading || types.loading) {
+  // The type hook is seeded with the complete built-in catalogue and refreshes
+  // it in the background.  Do not hide an otherwise usable expression behind
+  // a skeleton while that optional refresh is in flight.
+  if (expressions.loading || (types.loading && !size(types.value))) {
     return <ReqorePanelSkeleton size='small' />;
   }
 
@@ -687,6 +690,11 @@ export const Expression = ({
           fluid={false}
           fixed={true}
           flat
+          // The operation catalogue is long and every entry carries a description,
+          // so it belongs in the searchable collection modal rather than an inline
+          // dropdown. `SelectFormField` defaults `forceDropdown` to `true`, which
+          // would otherwise collapse this picker into the dropdown presentation.
+          forceDropdown={false}
           minimal
           items={defaultItems}
           onChange={handleOperatorChange}
@@ -732,6 +740,9 @@ export const Expression = ({
             transparent: false,
             fixed: true,
             minimal: false,
+            // Same catalogue as the operation selector above — keep the collection
+            // modal rather than the `forceDropdown` default's inline dropdown.
+            forceDropdown: false,
             items: defaultItems,
             hideItemCount: true,
             onChange: handleWrapExpressionClick,
