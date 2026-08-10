@@ -23,6 +23,16 @@ const SAMPLE: IExpression = {
 const meta = {
   component: ExpressionField,
   title: 'Components/Form/Expressions/ExpressionField',
+  parameters: {
+    mockData: [
+      {
+        url: 'https://hq.qoretechnologies.com:8092/api/latest/system?action=expressions&context=ui',
+        method: 'GET',
+        status: 200,
+        response: mockExpressions,
+      },
+    ],
+  },
   args: {
     onChange: fn(),
     expressions: mockExpressions,

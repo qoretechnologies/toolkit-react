@@ -16,7 +16,8 @@ import { ExpressionBuilder } from './index';
 // --- inlined test helpers (equivalents of the IDE `../Tests/utils`) ---------
 
 /** Count regular expression cards (`.expression`). */
-const expressionCount = () => document.querySelectorAll('.expression').length;
+const expressionCount = (scope: ParentNode = document) =>
+  scope.querySelectorAll('.expression').length;
 
 /** Click a ReqoreButton by visible label (anywhere in the document). */
 const clickButtonByLabel = async (label: string) => {
@@ -26,14 +27,14 @@ const clickButtonByLabel = async (label: string) => {
 };
 
 /** Click a button by CSS selector. */
-const clickSelector = async (selector: string, nth = 0) => {
-  const els = document.querySelectorAll(selector);
+const clickSelector = async (selector: string, nth = 0, scope: ParentNode = document) => {
+  const els = scope.querySelectorAll(selector);
   await fireEvent.click(els[nth]);
 };
 
 /** Wait for some text to appear in the document. */
-const waitForText = async (text: string | RegExp) => {
-  const body = within(document.body);
+const waitForText = async (text: string | RegExp, scope: HTMLElement = document.body) => {
+  const body = within(scope);
   await waitFor(() => expect(body.queryAllByText(text)[0]).toBeTruthy(), { timeout: 10000 });
 };
 
@@ -44,15 +45,19 @@ const waitForText = async (text: string | RegExp) => {
  * toolkit `Select` opens a `SelectFieldCollection` modal (not an inline
  * dropdown) — the item is a collection button with the display name as text.
  */
-const selectOperation = async (currentLabel: string, itemLabel: string) => {
-  const body = within(document.body);
+const selectOperation = async (
+  currentLabel: string,
+  itemLabel: string,
+  ownerDocument: Document = document
+) => {
+  const body = within(ownerDocument.body);
   // Open the picker (placeholder when empty, or the current operation name).
   const trigger = await body.findByText(currentLabel, undefined, { timeout: 10000 });
   await fireEvent.click(trigger);
   // Click the item inside the now-open collection modal.
   const item = await waitFor(
     () => {
-      const el = within(document.body).queryAllByText(itemLabel)[0];
+      const el = within(ownerDocument.body).queryAllByText(itemLabel)[0];
       if (!el) throw new Error(`collection item "${itemLabel}" not ready`);
       return el;
     },
@@ -121,8 +126,8 @@ export const Default: Story = {
       },
     },
   },
-  play: async () => {
-    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(expressionCount(canvasElement)).toBe(1), { timeout: 10000 });
   },
 };
 
@@ -630,19 +635,19 @@ export const ExpressionCanBeWrapped: Story = {
       },
     },
   },
-  play: async () => {
+  play: async ({ canvasElement }) => {
     // Seeded base op + its operand render.
-    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
-    await waitForText('Value To Convert');
+    await waitFor(() => expect(expressionCount(canvasElement)).toBe(1), { timeout: 10000 });
+    await waitForText('Value To Convert', canvasElement);
 
     // Hover the card to reveal the floating "Wrap" picker, then wrap it in
     // `Join List Elements` — the wrapped op becomes its first operand and the
     // outer card shows "List To Join". The card count goes 1 → 2.
-    await userEvent.hover(document.querySelectorAll('.expression')[0]);
+    await userEvent.hover(canvasElement.querySelectorAll('.expression')[0]);
     await sleep(500);
-    await selectOperation('Wrap', 'Join List Elements');
-    await waitForText('List To Join');
-    await waitFor(() => expect(expressionCount()).toBe(2), { timeout: 10000 });
+    await selectOperation('Wrap', 'Join List Elements', canvasElement.ownerDocument);
+    await waitForText('List To Join', canvasElement);
+    await waitFor(() => expect(expressionCount(canvasElement)).toBe(2), { timeout: 10000 });
   },
 };
 
@@ -662,11 +667,13 @@ export const ExpressionCanBeUnwrapped: Story = {
     await ExpressionCanBeWrapped.play!(args);
 
     // Unwrap the outer op (keep the child) — the `.expression-unwrap` action.
-    await userEvent.hover(document.querySelectorAll('.expression')[0]);
+    await userEvent.hover(args.canvasElement.querySelectorAll('.expression')[0]);
     await sleep(500);
+    // The card's actions are ReQore *floating* actions, so they are portalled out
+    // of the canvas — this one lookup stays document-scoped on purpose.
     await clickSelector('.expression-unwrap');
 
-    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitFor(() => expect(expressionCount(args.canvasElement)).toBe(1), { timeout: 10000 });
   },
 };
 

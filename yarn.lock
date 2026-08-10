@@ -1384,10 +1384,10 @@
   resolved "https://registry.yarnpkg.com/@qoretechnologies/qlip/-/qlip-0.1.3-beta.20260724071501.tgz#19117eb1737581f3acddc0bc5bda2c7c7dcf1738"
   integrity sha512-SGRDzB1ayO27FvlrJIsUR57ATHntnBDyuW7HaFJ0eTzwLfS9GQwBOich8qA+55gIg6wtrYVKlhq1At89pdQVKA==
 
-"@qoretechnologies/reqore@^0.71.14":
-  version "0.71.14"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.71.14.tgz#4e5413c82895ccff147d92b33b21d0a74cba2f9d"
-  integrity sha512-9ArHI9RYxBEzAT3HeDB5jYqyD89DqdjbjWqRsIU7sTx/3I1uA84gKIfw6pT76rUe5Fo763yysINdzIUiA89yYg==
+"@qoretechnologies/reqore@^0.71.16":
+  version "0.71.16"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.71.16.tgz#72e4e595e6e4309ef11b36ad331d95793cac47df"
+  integrity sha512-6s+Ap5iJmLyEbA3jOIvSv9J3KOfQjOJOORXwrmqbnURvAdj9gmw9zvfEwmdwl5TBy1BrOcypBRddLHL9tR9GXA==
   dependencies:
     "@internationalized/date" "^3.5.3"
     "@popperjs/core" "^2.11.6"

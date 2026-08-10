@@ -25,6 +25,7 @@ import NumberFormField from './number/Number';
 import { ReqraftObjectFormField } from './object/Object';
 import { RichTextFormField } from './rich-text/RichText';
 import { SelectFormField } from './select/Select';
+import { getSelectItemShortDescription } from './select/SelectCollection';
 import { StringFormField } from './string/String';
 import { ArrayAutoField } from './array/ArrayAutoField';
 import { AutoFormField } from './auto/AutoFormField';
@@ -538,6 +539,10 @@ export const FormField = <T extends TFormFieldType>({
           icon='SaveFill'
           fluid
           hideItemCount
+          forceDropdown={
+            (fieldProps as { forceDropdown?: boolean } | undefined)?.forceDropdown ??
+            (rest as { forceDropdown?: boolean }).forceDropdown
+          }
         />
       );
     }
@@ -557,7 +562,7 @@ export const FormField = <T extends TFormFieldType>({
                 margin='right'
                 key={index}
                 label={item.display_name ?? JSON.stringify(itemValue)}
-                tooltip={item.short_desc || item.desc}
+                tooltip={getSelectItemShortDescription(mapAllowedValue(item))}
                 disabled={item.disabled}
                 checked={checked}
                 intent={checked ? 'info' : undefined}
@@ -578,6 +583,10 @@ export const FormField = <T extends TFormFieldType>({
         value={value}
         onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
         fluid
+        forceDropdown={
+          (fieldProps as { forceDropdown?: boolean } | undefined)?.forceDropdown ??
+          (rest as { forceDropdown?: boolean }).forceDropdown
+        }
       />
     );
   };

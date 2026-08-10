@@ -4,7 +4,6 @@ import {
   ReqoreControlGroup,
   ReqoreMessage,
   ReqoreModal,
-  ReqoreP,
 } from '@qoretechnologies/reqore';
 import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/components/Collection/item';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
@@ -12,7 +11,7 @@ import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { capitalize, isEqual, size } from 'lodash';
 import { useMemo, useState } from 'react';
-import ReactMarkdown from 'react-markdown';
+import { Description } from '../../../Description';
 
 const PositiveColorEffect = {
   gradient: {
@@ -25,6 +24,7 @@ const PositiveColorEffect = {
 
 export interface ISelectFieldCollectionItem {
   value?: unknown;
+  name?: unknown;
   display_name?: string;
   desc?: string;
   short_desc?: string;
@@ -42,16 +42,76 @@ export interface ISelectFieldCollectionItem {
 export interface ISelectFieldCollectionProps {
   onClose: () => void;
   items: ISelectFieldCollectionItem[];
-  getItemDescription: (value: unknown) => string;
   value?: unknown;
   onItemSelect: (item: ISelectFieldCollectionItem) => void;
   filters?: string[];
 }
 
+const normalizeSelectItemDescription = (value: unknown): string | undefined => {
+  if (typeof value !== 'string' || !value.trim()) {
+    return undefined;
+  }
+
+  const seen = new Set<string>();
+
+  return value
+    .split('\n')
+    .filter((line) => {
+      const normalized = line.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+
+      if (!normalized) {
+        return true;
+      }
+
+      if (seen.has(normalized)) {
+        return false;
+      }
+
+      seen.add(normalized);
+      return true;
+    })
+    .join('\n')
+    .trim();
+};
+
+export const getSelectItemDescription = (
+  item: Pick<ISelectFieldCollectionItem, 'desc' | 'short_desc'>
+): string | undefined => {
+  const desc = normalizeSelectItemDescription(item.desc);
+  const shortDesc = normalizeSelectItemDescription(item.short_desc);
+  return desc ?? shortDesc;
+};
+
+export const getSelectItemShortDescription = (
+  item: Pick<ISelectFieldCollectionItem, 'desc' | 'short_desc'> | undefined,
+  defaultDesc = ''
+): string | undefined => {
+  if (!item) {
+    return defaultDesc || undefined;
+  }
+
+  const shortDescription = normalizeSelectItemDescription(item.short_desc);
+
+  return shortDescription || defaultDesc || undefined;
+};
+
+export const getSelectItemDescriptionProps = (
+  item: Pick<ISelectFieldCollectionItem, 'desc' | 'short_desc'>
+): { longDescription?: string; shortDescription?: string } => {
+  const longDescription = normalizeSelectItemDescription(item.desc);
+
+  if (longDescription) {
+    return { longDescription };
+  }
+
+  const shortDescription = normalizeSelectItemDescription(item.short_desc);
+
+  return { shortDescription };
+};
+
 export const SelectFieldCollection = ({
   onClose,
   items,
-  getItemDescription,
   value,
   onItemSelect,
   filters,
@@ -100,8 +160,10 @@ export const SelectFieldCollection = ({
         transparent={false}
         size='tiny'
         showLayoutSwitch={false}
-        items={filteredItems.map(
-          (item): IReqoreCollectionItemProps => ({
+        items={filteredItems.map((item): IReqoreCollectionItemProps => {
+          const { longDescription, shortDescription } = getSelectItemDescriptionProps(item);
+
+          return {
             label: item.display_name || item.value?.toString(),
             size: 'tiny',
             groups: item.groups,
@@ -109,8 +171,14 @@ export const SelectFieldCollection = ({
             responsiveTitle: false,
             content: (
               <ReqoreControlGroup vertical fluid>
-                {item.short_desc && <ReqoreP size='small'>{item.short_desc}</ReqoreP>}
-                {item.desc && <ReqoreP size='small'>{item.desc}</ReqoreP>}
+                {longDescription || shortDescription ? (
+                  <Description
+                    longDescription={longDescription || ''}
+                    shortDescription={shortDescription}
+                    size='small'
+                    margin='none'
+                  />
+                ) : null}
                 {item.actions?.map(({ as: Component = ReqoreButton, props, ...rest }, index) => (
                   <Component
                     key={index}
@@ -148,13 +216,6 @@ export const SelectFieldCollection = ({
               size: '20px',
               rounded: true,
             },
-            tooltip: !!item.desc
-              ? {
-                  delay: 800,
-                  content: <ReactMarkdown>{getItemDescription(item.value)}</ReactMarkdown>,
-                  maxWidth: '70vw',
-                }
-              : undefined,
             onClick: !item.disabled
               ? (e) => {
                   if (e.currentTarget.contains(e.target as Node)) {
@@ -163,8 +224,8 @@ export const SelectFieldCollection = ({
                   }
                 }
               : undefined,
-          })
-        )}
+          };
+        })}
         actions={filters?.map((filter) => ({
           label: capitalize(filter.replace('_', ' ')),
           badge: items.filter((item) => item[filter]).length,

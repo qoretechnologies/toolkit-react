@@ -18,7 +18,7 @@ export const BooleanFormField = ({
 
   return (
     <ReqoreCheckbox
-      checked={checked ?? false}
+      checked={checked}
       onClick={toggle}
       asSwitch
       onText='Yes'
