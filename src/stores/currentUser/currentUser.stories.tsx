@@ -6,6 +6,38 @@ import { currentUserStore } from './currentUser';
 
 const meta = {
   title: 'Stores/Current User',
+  parameters: {
+    mockData: [
+      {
+        url: 'https://hq.qoretechnologies.com:8092/api/latest/users?action=current',
+        method: 'GET',
+        status: 200,
+        response: {
+          provider: 'local',
+          username: 'david',
+          name: 'David Nichols',
+          has_default: true,
+          roles: ['admin'],
+          permissions: ['USER-CONTROL'],
+          workflows: [],
+          services: [],
+          jobs: [],
+          mappers: [],
+          vmaps: [],
+          groups: [],
+          fsms: [],
+        },
+      },
+    ],
+  },
+  beforeEach: () => {
+    currentUserStore.setState({
+      currentUser: undefined,
+      loading: false,
+      error: undefined,
+      errorData: undefined,
+    });
+  },
   render: () => {
     const { load, loading, currentUser = {}, errorData } = currentUserStore();
 

@@ -59,6 +59,7 @@ import {
   getHashEntries,
   getReadFirstStatus,
   getValueType,
+  isFixedCompactAllowedValueOption,
   isOptionValueEmpty,
   optionHasImages,
 } from './readFirst';
@@ -95,7 +96,7 @@ const COMPACT_COMPLEX_TYPES = new Set([
 
 // Card editors that hold a SINGLE value through one text-bearing input — their
 // built-in ReqoreInput clear duplicates the card's own "Clear value" action, so
-// we suppress it (the card ✕ is the single source). Structural/multi-input
+// we suppress it (the card trash action is the single source). Structural/multi-input
 // editors (hash, list, schema…) and polymorphic ones (auto/any) are NOT listed:
 // their per-sub-field clears are distinct affordances and must stay, while the
 // card ✕ clears the whole value. (Operators force a card on a scalar value, so
@@ -520,7 +521,11 @@ export const CompactRow = memo(
           />
         </span>
       : null;
-    const editType = ((schema?.ui_type as string) || (schema?.type as string)) ?? '';
+    const fixedAllowedValueOption = isFixedCompactAllowedValueOption(schema);
+    const editType =
+      (fixedAllowedValueOption
+        ? (schema?.type as string) || (schema?.ui_type as string)
+        : (schema?.ui_type as string) || (schema?.type as string)) ?? '';
     // Scalars edit in place inside the row; complex fields (tall or nested
     // editors) still open the expanded card below.
     const inlineEditable =
@@ -573,8 +578,9 @@ export const CompactRow = memo(
     // — distinct from the read-row "Remove field" (which deletes an optional
     // field entirely). Once cleared, `changed` flips on and `hasValue` off, so
     // this button gives way to `revertButton` in the same slot — the morph the
-    // edit row's actions are designed around. Neutral (not danger): it's a
-    // reversible step, undone by Revert or by re-typing.
+    // edit row's actions are designed around. Clearing is destructive even
+    // though it can be reverted before saving, so both the trigger and its
+    // confirmation use danger intent.
     //
     // Only editors with NO built-in clear of their own get this button —
     // toggles and fixed-choice pickers. The text/number/date inputs already
@@ -587,6 +593,17 @@ export const CompactRow = memo(
       // CREATABLE one still renders the raw input (with its own ✕), so it keeps
       // its clear — matching the dispatch in AutoFormField/TemplateField.
       (!!size(schema?.allowed_values) && !schema?.allowed_values_creatable);
+    const confirmClearValue = (event?: React.MouseEvent) => {
+      event?.stopPropagation();
+      confirmAction({
+        title: 'Clear value',
+        description: `Clear the current value of "${label}"?`,
+        confirmLabel: 'Clear value',
+        confirmButtonIntent: 'danger',
+        intent: 'danger',
+        onConfirm: () => handleValueChange(optionName, undefined),
+      });
+    };
     const clearValueButton =
       hasValue && !readOnly && editorLacksOwnClear ?
         <ReqoreButton
@@ -594,12 +611,11 @@ export const CompactRow = memo(
           size='small'
           flat
           minimal
-          icon='CloseLine'
+          icon='DeleteBinLine'
+          intent='danger'
+          aria-label='Clear value'
           tooltip='Clear value'
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation();
-            handleValueChange(optionName, undefined);
-          }}
+          onClick={confirmClearValue}
         />
       : null;
     // Batched commit: a changed row is a draft until Save — mark it with the
@@ -619,6 +635,21 @@ export const CompactRow = memo(
           effect={{ uppercase: true, spaced: 1 }}
         />
       : null;
+    const isPassiveCloseAction = fixedAllowedValueOption || readOnly;
+    const closeExpandedFieldButton = (
+      <ReqoreButton
+        className='options-readfirst-done'
+        size='small'
+        intent={!isPassiveCloseAction ? 'success' : undefined}
+        flat={isPassiveCloseAction}
+        minimal={isPassiveCloseAction}
+        fixed
+        icon={isPassiveCloseAction ? 'CloseLine' : 'CheckLine'}
+        aria-label={isPassiveCloseAction ? 'Close field' : 'Done'}
+        tooltip={isPassiveCloseAction ? 'Close field' : 'Done'}
+        onClick={() => toggleExpandedOption(optionName)}
+      />
+    );
 
     // Info tiers: Tier 1 (danger/warning + dependency hints) must be visible
     // without interaction; Tier 2 (info/success, default notes) sits behind ⓘ.
@@ -860,15 +891,7 @@ export const CompactRow = memo(
                 renderInjectedOptionAction(action, index)
               )}
               {moreMenu}
-              <ReqoreButton
-                className='options-readfirst-done'
-                size='small'
-                intent='success'
-                fixed
-                icon='CheckLine'
-                tooltip='Done'
-                onClick={collapse}
-              />
+              {closeExpandedFieldButton}
             </StyledRowActions>
             {/* Cluster node is rendered LAST (it's absolutely positioned, so DOM
                 order doesn't move it) — keeping it out of the leading cells lets
@@ -1021,25 +1044,19 @@ export const CompactRow = memo(
               {hasValue && !readOnly ?
                 <ReqoreButton
                   size='small'
-                  icon='CloseLine'
+                  icon='DeleteBinLine'
                   minimal
                   flat
                   fixed
+                  intent='danger'
                   className='options-readfirst-clear'
+                  aria-label='Clear value'
                   tooltip='Clear value'
-                  onClick={() => handleValueChange(optionName, undefined)}
+                  onClick={confirmClearValue}
                 />
               : null}
               {moreMenu}
-              <ReqoreButton
-                size='small'
-                icon={readOnly ? 'CloseLine' : 'CheckLine'}
-                intent='success'
-                fixed
-                className='options-readfirst-done'
-                tooltip={readOnly ? 'Close' : 'Done'}
-                onClick={() => toggleExpandedOption(optionName)}
-              />
+              {closeExpandedFieldButton}
             </ReqoreControlGroup>
           </div>
           {/* Same fullscreen focused-editing affordance as the classic cards —

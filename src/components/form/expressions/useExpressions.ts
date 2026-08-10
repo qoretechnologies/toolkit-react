@@ -84,7 +84,10 @@ export const useExpressions = (
 
   return {
     expressions,
-    loading: system.loading || extra.loading,
+    // `extra` is deliberately not loaded without an expressions URL.  The
+    // generic fetch hook keeps an unstarted request in its initial loading
+    // state, so only include it when that request is actually enabled.
+    loading: system.loading || (!!expressionsUrl && extra.loading),
     error: errorOverride ?? system.error ?? extra.error,
     reload: () => {
       system.load();

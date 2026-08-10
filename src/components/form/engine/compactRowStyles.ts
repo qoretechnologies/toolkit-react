@@ -220,7 +220,8 @@ export const StyledEditCard = styled.div<{ $bg: string; $border: string }>`
 
   /* Single-value editors (operators, long-string, markdown, richtext, byte-size)
      carry the card's own "Clear value" action, so suppress the value input's
-     built-in ReqoreInput clear — ReqoreInput has no prop to hide it, and two ✕
+     built-in ReqoreInput clear — ReqoreInput has no prop to hide it, and a
+     separate input ✕ plus the row-level trash action
      read as a duplicate. Multi-input cards (hash/list/…) are not marked single,
      so their per-sub-field clears stay. */
   &.options-readfirst-card-single .reqore-clear-input-button {

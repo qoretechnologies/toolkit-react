@@ -5,6 +5,7 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 import { ChangeEvent, useState } from 'react';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
+import { defaultQorusTypes } from '../../../hooks/useQorusTypes';
 import {
   _testsChangeRichText,
   _testsChangeStringField,
@@ -90,6 +91,29 @@ const meta: Meta<typeof FormEngine> = {
     chromatic: {
       viewports: [2560],
     },
+    // `useQorusTypes` resolves the type catalogue as `size(data) ? data : defaultQorusTypes`,
+    // so a reachable, authenticated instance *replaces* the built-in list rather than
+    // supplementing it. These stories never opt into live data (no `live: true`), but the
+    // request fires anyway — which made `Option With Any Type` pass locally (401 → built-in
+    // list, so "Boolean" exists) and fail in CI, where the token is valid and the server's
+    // list decides the labels. Pin the catalogue so the type names the plays click are ours.
+    mockData: [
+      {
+        // `query()` builds `${instance}api/latest/${url}`, and the hook's url is
+        // `/system/qorus-type-info` — hence the doubled slash. Both spellings are listed
+        // so the mock keeps matching if that leading slash is ever dropped.
+        url: 'https://hq.qoretechnologies.com:8092/api/latest//system/qorus-type-info',
+        method: 'GET',
+        status: 200,
+        response: defaultQorusTypes,
+      },
+      {
+        url: 'https://hq.qoretechnologies.com:8092/api/latest/system/qorus-type-info',
+        method: 'GET',
+        status: 200,
+        response: defaultQorusTypes,
+      },
+    ],
   },
   render: ({ value, onChange, ...rest }: IFormEngineProps) => {
     const [val, setValue] = useState(value);
@@ -622,7 +646,7 @@ export const OptionWithAnyType: Story = {
     // and switch it to a specific custom type (Boolean).
     await _testsOpenTemplateMenu(4);
     await _testsClickButton({ label: 'Set Custom Value' });
-    await _testsClickButton({ label: 'True or False' });
+    await _testsClickButton({ label: 'Boolean' });
   },
 };
 
@@ -3361,6 +3385,57 @@ const langImg = (color: string, letter: string): string =>
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="${color}"/><text x="16" y="23" font-size="20" fill="white" text-anchor="middle" font-family="sans-serif">${letter}</text></svg>`
   )}`;
 
+const assertFixedChoiceCanCloseWithoutClearing = async (field: string, expectedLabel: string) => {
+  const cardSelector = `.options-readfirst-card[data-field="${field}"]`;
+  const rowSelector = `.readfirst-row[data-field="${field}"]`;
+
+  let card: HTMLElement | null = null;
+  await waitFor(
+    () => {
+      card = document.querySelector(cardSelector);
+      expect(card).toBeTruthy();
+    },
+    { timeout: 10000 }
+  );
+
+  const clearButton = card!.querySelector(
+    '.options-readfirst-clear[aria-label="Clear value"]'
+  ) as HTMLElement;
+  const closeButton = card!.querySelector(
+    '.options-readfirst-done[aria-label="Close field"]'
+  ) as HTMLElement;
+  await expect(clearButton).toBeInTheDocument();
+  await expect(closeButton).toBeInTheDocument();
+  // Clear is destructive and visually distinct from the adjacent passive
+  // actions. It must not mutate the value until the Reqore confirmation is
+  // accepted; cancelling keeps both the value and expanded editor intact.
+  await expect(getComputedStyle(clearButton).color).not.toBe(getComputedStyle(closeButton).color);
+  await fireEvent.click(clearButton);
+  await waitFor(() => expect(document.querySelector('.reqore-confirmation-modal')).toBeTruthy(), {
+    timeout: 10000,
+  });
+  await expect(document.querySelector('.reqore-confirmation-modal')?.textContent).toContain(
+    'Clear value'
+  );
+  await _testsClickButton({ label: 'Cancel' });
+  await waitFor(() => expect(document.querySelector('.reqore-confirmation-modal')).toBeNull());
+  await expect(document.querySelector(cardSelector)).toBeTruthy();
+
+  await fireEvent.click(closeButton);
+  await waitFor(() => expect(document.querySelector(cardSelector)).toBeNull(), {
+    timeout: 10000,
+  });
+
+  const row = document.querySelector(rowSelector) as HTMLElement;
+  expect(row?.textContent).toContain(expectedLabel);
+
+  // Re-open so the story's visual snapshot still covers the expanded fixed-choice card.
+  await fireEvent.click(row);
+  await waitFor(() => expect(document.querySelector(cardSelector)).toBeTruthy(), {
+    timeout: 10000,
+  });
+};
+
 /**
  * Enum field with per-value images (the IDE `language` field shape: `type:
  * 'enum'` + `items: [{ value, title, image }]`). Read-first shows the selected
@@ -3426,6 +3501,7 @@ export const CompactEnumWithImages: Story = {
       },
       { timeout: 10000 }
     );
+    await assertFixedChoiceCanCloseWithoutClearing('lang', 'Qore');
   },
 };
 
@@ -3502,6 +3578,7 @@ export const CompactEnumRichtextValue: Story = {
       },
       { timeout: 10000 }
     );
+    await assertFixedChoiceCanCloseWithoutClearing('lang', 'Qore');
   },
 };
 
@@ -4163,8 +4240,28 @@ export const CompactFieldTypesEditing: Story = {
       editRow('enabled').querySelector('.options-readfirst-revert')
     ).not.toBeInTheDocument();
 
-    // Clear it → the value empties, so Clear is replaced by Revert in place.
+    // Clear is destructive: cancelling its Reqore confirmation leaves the
+    // value untouched, while confirming empties it and swaps Clear for Revert.
     await fireEvent.click(editRow('enabled').querySelector('.options-readfirst-clear')!);
+    await waitFor(() => expect(document.querySelector('.reqore-confirmation-modal')).toBeTruthy(), {
+      timeout: 10000,
+    });
+    await _testsClickButton({ label: 'Cancel' });
+    await waitFor(() => expect(document.querySelector('.reqore-confirmation-modal')).toBeNull());
+    await expect(editRow('enabled').querySelector('.options-readfirst-clear')).toBeInTheDocument();
+
+    await fireEvent.click(editRow('enabled').querySelector('.options-readfirst-clear')!);
+    let confirmationModal: HTMLElement | null = null;
+    await waitFor(
+      () => {
+        confirmationModal = document.querySelector('.reqore-confirmation-modal');
+        expect(confirmationModal).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+    await userEvent.click(
+      within(confirmationModal!).getByRole('button', { name: 'Clear value' })
+    );
     await waitFor(() => {
       expect(editRow('enabled').querySelector('.options-readfirst-clear')).not.toBeInTheDocument();
       expect(editRow('enabled').querySelector('.options-readfirst-revert')).toBeInTheDocument();

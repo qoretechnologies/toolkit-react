@@ -101,7 +101,8 @@ import {
   getReadFirstCompletion,
   getReadFirstStatus,
   isOptionValueEmpty,
-  shouldAutoCollapseCompactAllowedValueOption,
+  isFixedCompactAllowedValueOption,
+  shouldAutoCollapseCompactOption,
 } from './readFirst';
 
 // Re-export types for consumers
@@ -282,7 +283,9 @@ const getOptionSchemaStorageType = (
   option?: TQorusFormFieldSchema,
   isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
 ): TQorusType =>
-  ((isRendererOnly(option?.ui_type)
+  ((isFixedCompactAllowedValueOption(option)
+    ? option?.type || option?.ui_type
+    : isRendererOnly(option?.ui_type)
     ? option?.type || option?.ui_type
     : option?.ui_type || option?.type) || 'any') as TQorusType;
 
@@ -556,6 +559,11 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   /** Opt-in: fetch global templates from `system/getContextData` for this context. */
   interfaceContext?: string;
   templateFieldProps?: Partial<ITemplateFieldProps>;
+  /**
+   * Force single-value selectors to use inline dropdowns even when their
+   * allowed values carry descriptions.
+   */
+  forceDropdown?: boolean;
   showTypeToggle?: boolean;
   /**
    * Compact (read-first) mode: each option renders as a row with its formatted
@@ -707,6 +715,7 @@ export const FormEngine = ({
   allowTemplates = true,
   interfaceContext,
   templateFieldProps,
+  forceDropdown,
   showTypeToggle = true,
   compact,
   compactFlush = false,
@@ -836,9 +845,12 @@ export const FormEngine = ({
       // same tick targets the stale (pre-move) layout, so the page doesn't budge.
       // A rAF lets the new position settle first.
       requestAnimationFrame(() => {
-        document
-          .querySelector(`.readfirst-row[data-field="${optionNames[0]}"]`)
-          ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        const target = document.querySelector<HTMLElement>(
+          `.readfirst-row[data-field="${optionNames[0]}"]`
+        );
+        if (typeof target?.scrollIntoView === 'function') {
+          target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        }
       });
     }
     setFlashedOptions(optionNames);
@@ -1161,7 +1173,7 @@ export const FormEngine = ({
         if (
           compact &&
           !readOnly &&
-          shouldAutoCollapseCompactAllowedValueOption(options?.[optionName], val)
+          shouldAutoCollapseCompactOption(options?.[optionName], val)
         ) {
           setExpandedOptions((prev) => prev.filter((name) => name !== optionName));
         }
@@ -1909,14 +1921,23 @@ export const FormEngine = ({
       //
       // The trailing fallbacks keep the row rendering when a server-driven
       // schema has not arrived yet (`type` undefined) instead of crashing.
-      const schemaUiType = options?.[optionName]?.ui_type as TQorusType;
+      const optionSchema = options?.[optionName];
+      const schemaUiType = optionSchema?.ui_type as TQorusType;
       const uiTypeIsAnyLike = schemaUiType === 'any' || schemaUiType === 'auto';
       const resolvedType =
-        (schemaUiType && !uiTypeIsAnyLike ? schemaUiType : undefined) ||
+        (isFixedCompactAllowedValueOption(optionSchema)
+          ? getOptionSchemaStorageType(optionSchema, isRendererOnly)
+          : schemaUiType && !uiTypeIsAnyLike
+            ? schemaUiType
+            : undefined) ||
         type ||
         schemaUiType ||
-        (options?.[optionName]?.type as TQorusType) ||
+        (optionSchema?.type as TQorusType) ||
         'any';
+      const effectiveForceDropdown =
+        forceDropdown ??
+        (templateFieldProps as { forceDropdown?: boolean } | undefined)?.forceDropdown;
+
       return (
         <>
           {(() => {
@@ -2057,8 +2078,16 @@ export const FormEngine = ({
             // reqraft: form-level expression fields get the Visual/Text shell
             // (DPQL text mode); opt out per-form via `templateFieldProps`.
             allowTextExpressions
+            // A fixed allowed-value field still needs its selector even when
+            // arbitrary custom values are forbidden. TemplateField uses this
+            // flag to decide whether to mount AutoFormField at all; treating
+            // `supports_custom_values: false` as "no input" left dependent
+            // delivery fields (Discord server/channel, for example) as empty
+            // control groups. The allowed-values renderer itself enforces the
+            // fixed catalogue and never exposes free-form entry.
             allowCustomValues={
-              options?.[optionName]?.supports_custom_values !== false && resolvedType !== 'any'
+              isFixedCompactAllowedValueOption(optionSchema) ||
+              (options?.[optionName]?.supports_custom_values !== false && resolvedType !== 'any')
             }
             templates={templates.value}
             {...getTypeAndCanBeNull(
@@ -2088,6 +2117,7 @@ export const FormEngine = ({
             default_value={getDefaultValue(options?.[optionName])}
             isDefaultTemplate={options?.[optionName]?.default_view === 'template'}
             allowed_values={options?.[optionName]?.allowed_values}
+            allowed_values_creatable={options?.[optionName]?.allowed_values_creatable}
             disabled={
               options?.[optionName]?.disabled ||
               readOnly ||
@@ -2105,6 +2135,7 @@ export const FormEngine = ({
               : undefined
             }
             {...templateFieldProps}
+            forceDropdown={effectiveForceDropdown}
           />
           <OptionFieldMessages
             schema={options || {}}
@@ -2148,6 +2179,7 @@ export const FormEngine = ({
       uniqueName,
       componentOverrides,
       templateFieldProps,
+      forceDropdown,
       availableOptions,
       fixedValue,
       // Depend on the specific `rest` values used, not the whole `rest` object

@@ -20,7 +20,10 @@ import {
   getReadFirstBucket,
   getReadFirstCompletion,
   getReadFirstStatus,
+  isFixedCompactAllowedValueOption,
+  isCompactBooleanOption,
   isOptionValueEmpty,
+  shouldAutoCollapseCompactOption,
   shouldAutoCollapseCompactAllowedValueOption,
   type IFirstAttentionFieldMeta,
 } from '../src/components/form/engine/readFirst';
@@ -47,6 +50,19 @@ describe('shouldAutoCollapseCompactAllowedValueOption', () => {
     allowed_values: [{ value: 'api', display_name: 'API' }],
   } as never;
 
+  it('identifies fixed allowed-value fields that do not need a Done confirmation', () => {
+    expect(isFixedCompactAllowedValueOption(fixedChoiceSchema)).toBe(true);
+    expect(
+      isFixedCompactAllowedValueOption({
+        ...fixedChoiceSchema,
+        allowed_values_creatable: true,
+      } as never)
+    ).toBe(false);
+    expect(
+      isFixedCompactAllowedValueOption({ ...fixedChoiceSchema, arg_schema: {} } as never)
+    ).toBe(false);
+  });
+
   it('auto-collapses fixed allowed-value selections', () => {
     expect(shouldAutoCollapseCompactAllowedValueOption(fixedChoiceSchema, 'api')).toBe(true);
   });
@@ -71,6 +87,22 @@ describe('shouldAutoCollapseCompactAllowedValueOption', () => {
         ['api']
       )
     ).toBe(false);
+  });
+});
+
+describe('shouldAutoCollapseCompactOption', () => {
+  it('identifies both supported boolean schema names', () => {
+    expect(isCompactBooleanOption({ type: 'bool' } as never)).toBe(true);
+    expect(isCompactBooleanOption({ ui_type: 'boolean' } as never)).toBe(true);
+    expect(isCompactBooleanOption({ type: 'string' } as never)).toBe(false);
+  });
+
+  it('auto-collapses explicit true and false choices but not an unset boolean', () => {
+    const schema = { type: 'bool', ui_type: 'bool' } as never;
+
+    expect(shouldAutoCollapseCompactOption(schema, true)).toBe(true);
+    expect(shouldAutoCollapseCompactOption(schema, false)).toBe(true);
+    expect(shouldAutoCollapseCompactOption(schema, undefined)).toBe(false);
   });
 });
 

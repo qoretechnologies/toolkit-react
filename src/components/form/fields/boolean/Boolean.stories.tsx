@@ -75,6 +75,40 @@ export const Unchecked: Story = {
   },
 };
 
+export const Unset: Story = {
+  args: {
+    checked: undefined,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Boolean field without a default choice. The switch remains visibly unset until the user explicitly chooses Yes or No.',
+      },
+    },
+  },
+};
+
+export const UnsetSelectsYes: Story = {
+  args: {
+    checked: undefined,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Verifies that an unset Boolean field saves the first explicit Yes selection instead of treating the missing value as No.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+
+    await userEvent.click(canvas.getByLabelText('Boolean'));
+    await expect(args.onChange).toHaveBeenLastCalledWith(true);
+  },
+};
+
 export const Disabled: Story = {
   args: {
     checked: true,
