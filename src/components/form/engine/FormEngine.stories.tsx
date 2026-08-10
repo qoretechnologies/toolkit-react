@@ -3398,16 +3398,30 @@ const assertFixedChoiceCanCloseWithoutClearing = async (field: string, expectedL
     { timeout: 10000 }
   );
 
-  await expect(
-    card!.querySelector('.options-readfirst-clear[aria-label="Clear value"]')
-  ).toBeInTheDocument();
-  await expect(
-    card!.querySelector('.options-readfirst-done[aria-label="Close field"]')
-  ).toBeInTheDocument();
-
-  await fireEvent.click(
-    card!.querySelector('.options-readfirst-done[aria-label="Close field"]') as HTMLElement
+  const clearButton = card!.querySelector(
+    '.options-readfirst-clear[aria-label="Clear value"]'
+  ) as HTMLElement;
+  const closeButton = card!.querySelector(
+    '.options-readfirst-done[aria-label="Close field"]'
+  ) as HTMLElement;
+  await expect(clearButton).toBeInTheDocument();
+  await expect(closeButton).toBeInTheDocument();
+  // Clear is destructive and visually distinct from the adjacent passive
+  // actions. It must not mutate the value until the Reqore confirmation is
+  // accepted; cancelling keeps both the value and expanded editor intact.
+  await expect(getComputedStyle(clearButton).color).not.toBe(getComputedStyle(closeButton).color);
+  await fireEvent.click(clearButton);
+  await waitFor(() => expect(document.querySelector('.reqore-confirmation-modal')).toBeTruthy(), {
+    timeout: 10000,
+  });
+  await expect(document.querySelector('.reqore-confirmation-modal')?.textContent).toContain(
+    'Clear value'
   );
+  await _testsClickButton({ label: 'Cancel' });
+  await waitFor(() => expect(document.querySelector('.reqore-confirmation-modal')).toBeNull());
+  await expect(document.querySelector(cardSelector)).toBeTruthy();
+
+  await fireEvent.click(closeButton);
   await waitFor(() => expect(document.querySelector(cardSelector)).toBeNull(), {
     timeout: 10000,
   });
@@ -4226,8 +4240,28 @@ export const CompactFieldTypesEditing: Story = {
       editRow('enabled').querySelector('.options-readfirst-revert')
     ).not.toBeInTheDocument();
 
-    // Clear it → the value empties, so Clear is replaced by Revert in place.
+    // Clear is destructive: cancelling its Reqore confirmation leaves the
+    // value untouched, while confirming empties it and swaps Clear for Revert.
     await fireEvent.click(editRow('enabled').querySelector('.options-readfirst-clear')!);
+    await waitFor(() => expect(document.querySelector('.reqore-confirmation-modal')).toBeTruthy(), {
+      timeout: 10000,
+    });
+    await _testsClickButton({ label: 'Cancel' });
+    await waitFor(() => expect(document.querySelector('.reqore-confirmation-modal')).toBeNull());
+    await expect(editRow('enabled').querySelector('.options-readfirst-clear')).toBeInTheDocument();
+
+    await fireEvent.click(editRow('enabled').querySelector('.options-readfirst-clear')!);
+    let confirmationModal: HTMLElement | null = null;
+    await waitFor(
+      () => {
+        confirmationModal = document.querySelector('.reqore-confirmation-modal');
+        expect(confirmationModal).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+    await userEvent.click(
+      within(confirmationModal!).getByRole('button', { name: 'Clear value' })
+    );
     await waitFor(() => {
       expect(editRow('enabled').querySelector('.options-readfirst-clear')).not.toBeInTheDocument();
       expect(editRow('enabled').querySelector('.options-readfirst-revert')).toBeInTheDocument();

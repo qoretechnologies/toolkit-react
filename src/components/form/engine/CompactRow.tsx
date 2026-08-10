@@ -578,8 +578,9 @@ export const CompactRow = memo(
     // — distinct from the read-row "Remove field" (which deletes an optional
     // field entirely). Once cleared, `changed` flips on and `hasValue` off, so
     // this button gives way to `revertButton` in the same slot — the morph the
-    // edit row's actions are designed around. Neutral (not danger): it's a
-    // reversible step, undone by Revert or by re-typing.
+    // edit row's actions are designed around. Clearing is destructive even
+    // though it can be reverted before saving, so both the trigger and its
+    // confirmation use danger intent.
     //
     // Only editors with NO built-in clear of their own get this button —
     // toggles and fixed-choice pickers. The text/number/date inputs already
@@ -592,6 +593,17 @@ export const CompactRow = memo(
       // CREATABLE one still renders the raw input (with its own ✕), so it keeps
       // its clear — matching the dispatch in AutoFormField/TemplateField.
       (!!size(schema?.allowed_values) && !schema?.allowed_values_creatable);
+    const confirmClearValue = (event?: React.MouseEvent) => {
+      event?.stopPropagation();
+      confirmAction({
+        title: 'Clear value',
+        description: `Clear the current value of "${label}"?`,
+        confirmLabel: 'Clear value',
+        confirmButtonIntent: 'danger',
+        intent: 'danger',
+        onConfirm: () => handleValueChange(optionName, undefined),
+      });
+    };
     const clearValueButton =
       hasValue && !readOnly && editorLacksOwnClear ?
         <ReqoreButton
@@ -600,12 +612,10 @@ export const CompactRow = memo(
           flat
           minimal
           icon='DeleteBinLine'
+          intent='danger'
           aria-label='Clear value'
           tooltip='Clear value'
-          onClick={(e: React.MouseEvent) => {
-            e.stopPropagation();
-            handleValueChange(optionName, undefined);
-          }}
+          onClick={confirmClearValue}
         />
       : null;
     // Batched commit: a changed row is a draft until Save — mark it with the
@@ -625,15 +635,18 @@ export const CompactRow = memo(
           effect={{ uppercase: true, spaced: 1 }}
         />
       : null;
+    const isPassiveCloseAction = fixedAllowedValueOption || readOnly;
     const closeExpandedFieldButton = (
       <ReqoreButton
         className='options-readfirst-done'
         size='small'
-        intent={!fixedAllowedValueOption && !readOnly ? 'success' : undefined}
+        intent={!isPassiveCloseAction ? 'success' : undefined}
+        flat={isPassiveCloseAction}
+        minimal={isPassiveCloseAction}
         fixed
-        icon={fixedAllowedValueOption || readOnly ? 'CloseLine' : 'CheckLine'}
-        aria-label={fixedAllowedValueOption || readOnly ? 'Close field' : 'Done'}
-        tooltip={fixedAllowedValueOption || readOnly ? 'Close field' : 'Done'}
+        icon={isPassiveCloseAction ? 'CloseLine' : 'CheckLine'}
+        aria-label={isPassiveCloseAction ? 'Close field' : 'Done'}
+        tooltip={isPassiveCloseAction ? 'Close field' : 'Done'}
         onClick={() => toggleExpandedOption(optionName)}
       />
     );
@@ -1035,10 +1048,11 @@ export const CompactRow = memo(
                   minimal
                   flat
                   fixed
+                  intent='danger'
                   className='options-readfirst-clear'
                   aria-label='Clear value'
                   tooltip='Clear value'
-                  onClick={() => handleValueChange(optionName, undefined)}
+                  onClick={confirmClearValue}
                 />
               : null}
               {moreMenu}
