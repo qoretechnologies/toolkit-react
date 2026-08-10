@@ -1,4 +1,6 @@
 export * from './meta';
+export * from './ticketModel';
+export * from './attachmentAccess';
 export * from './AttachmentChips';
 export * from './TicketMetaTags';
 export * from './TicketHeader';

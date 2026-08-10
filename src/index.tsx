@@ -35,7 +35,7 @@ export type {
   ICurrentUser,
   ICurrentUserStore,
 } from './stores/currentUser/currentUser';
-export { query } from './utils/fetch';
+export { fetchConfig, query } from './utils/fetch';
 export * from './utils/websocket';
 export { ReqraftLspClient } from './utils/lspClient';
 export type { IReqraftLspClientOptions } from './utils/lspClient';
@@ -60,3 +60,4 @@ export * from './components/dpqlEditor';
 export * from './components/qonsoleSmartInput';
 export * from './components/supportTicket';
 export * from './components/ticketThread';
+export * from './components/ticketReferences';
