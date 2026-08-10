@@ -235,13 +235,35 @@ export const SelectFormField = memo(
       [size(items), hideItemCount]
     );
 
-    if (autoSelect && filteredItems.length === 1 && !filteredItems[0].disabled) {
-      if (!disabled && !isEqual(filteredItems[0].value, value) && !value) {
-        handleSelectClick(filteredItems[0]);
-      }
+    const autoSelectedItem = useMemo(
+      () =>
+        autoSelect && filteredItems.length === 1 && !filteredItems[0].disabled
+          ? filteredItems[0]
+          : undefined,
+      [autoSelect, filteredItems]
+    );
 
-      const itemHasError = hasError(items, filteredItems[0].value);
-      const itemHasWarning = hasWarning(items, filteredItems[0].value);
+    // Selecting during render causes a parent-controlled field to synchronously
+    // update while this component is still rendering. React rejects that update
+    // and can enter an infinite render loop. Commit the derived default after
+    // rendering instead; the button below already renders the sole item's label
+    // while the controlled value catches up.
+    useEffect(() => {
+      const valueIsUnset = value === undefined || value === null || value === '';
+
+      if (
+        autoSelectedItem &&
+        !disabled &&
+        valueIsUnset &&
+        !isEqual(autoSelectedItem.value, value)
+      ) {
+        handleSelectClick(autoSelectedItem);
+      }
+    }, [autoSelectedItem, disabled, handleSelectClick, value]);
+
+    if (autoSelectedItem) {
+      const itemHasError = hasError(items, autoSelectedItem.value);
+      const itemHasWarning = hasWarning(items, autoSelectedItem.value);
 
       return (
         <ReqoreButton
@@ -252,12 +274,12 @@ export const SelectFormField = memo(
           fluid={fluid}
           flat={flat ?? false}
           size={componentSize}
-          label={getLabel(items, value ?? filteredItems[0].value)}
+          label={getLabel(items, value ?? autoSelectedItem.value)}
           description={getItemShortDescription(value as string) as string}
           readOnly
           fixed
           minimal
-          {...getIcon(filteredItems, filteredItems[0].value)}
+          {...getIcon(filteredItems, autoSelectedItem.value)}
           intent={
             itemHasError ? 'danger'
             : itemHasWarning ?

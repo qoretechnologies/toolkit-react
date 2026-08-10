@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { vi } from 'vitest';
 
 vi.mock('@qoretechnologies/reqore', () => ({
@@ -70,5 +71,33 @@ describe('SelectFormField', () => {
     fireEvent.click(screen.getByTestId('reqore-button'));
 
     expect(screen.getByTestId('select-modal')).toBeTruthy();
+  });
+
+  it('auto-selects a sole value after render without updating its parent during render', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const ControlledSelect = () => {
+      const [value, setValue] = useState<unknown>();
+
+      return (
+        <SelectFormField
+          autoSelect
+          items={[{ display_name: 'Only choice', value: 'only' }]}
+          value={value}
+          onChange={setValue}
+        />
+      );
+    };
+
+    render(<ControlledSelect />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId('reqore-button').textContent).toBe('Only choice')
+    );
+    const loggedErrors = consoleError.mock.calls.flat().join('\n');
+    expect(loggedErrors).not.toContain('Cannot update a component');
+    expect(loggedErrors).not.toContain('Too many re-renders');
+
+    consoleError.mockRestore();
   });
 });
