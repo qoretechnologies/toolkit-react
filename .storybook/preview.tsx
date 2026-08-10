@@ -3,6 +3,37 @@ import { ReqoreContent, ReqoreLayoutContent, ReqoreUIProvider } from '@qoretechn
 import { initializeReqraft } from '../src';
 import { fetchConfig } from '../src/utils/fetch';
 
+// TEMPORARY CI DIAGNOSTIC — remove once `Option With Any Type` is understood.
+// The story fails only in CI (green locally, and unreproducible here because no
+// available token authenticates against hq). Surface what actually tears the
+// preview down so the CI log names the cause instead of a downstream timeout.
+if (typeof window !== 'undefined' && !(window as any).__ciDiag) {
+  (window as any).__ciDiag = true;
+  window.addEventListener('unhandledrejection', (e: any) => {
+    const r = e?.reason;
+    // eslint-disable-next-line no-console
+    console.error(
+      'CI_DIAG unhandledrejection >>>',
+      'type=', typeof r,
+      'ctor=', r?.constructor?.name,
+      'msg=', String(r?.message ?? r),
+      'json=', (() => { try { return JSON.stringify(r); } catch { return '<unserializable>'; } })(),
+      'stack=', String(r?.stack ?? 'none')
+    );
+  });
+  window.addEventListener('error', (e: any) => {
+    // eslint-disable-next-line no-console
+    console.error('CI_DIAG error >>>', String(e?.message), 'stack=', String(e?.error?.stack ?? 'none'));
+  });
+  // The 401→redirect recursion documented below is the prime suspect: if the
+  // preview navigates away, say so — that is what replaces the canvas with the
+  // Storybook manager and produces the "No Preview" screen.
+  window.addEventListener('beforeunload', () => {
+    // eslint-disable-next-line no-console
+    console.error('CI_DIAG preview navigating away >>> href=', String(window.location.href));
+  });
+}
+
 export const parameters = {
   // No `actions.argTypesRegex` (removed in SB10): stories that assert on
   // handlers define explicit `fn()` spies from `storybook/test` instead.
