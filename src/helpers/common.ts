@@ -174,6 +174,25 @@ export const splitByteSize = (value?: string): [number | undefined, string | und
   return [amount?.[0] ? Number(amount[0]) : undefined, unit?.[0]];
 };
 
+/** Human-readable file size, e.g. `"12.3 KB"` — whole bytes below 1 KiB, one
+ *  decimal above. Shared by the ticket thread / references attachment rows. */
+export const formatBytes = (bytes: number): string => {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value.toFixed(1)} ${units[unit]}`;
+};
+
+/** True when a MIME content type is an image (`image/*`). */
+export const isImage = (contentType: string): boolean => contentType.startsWith('image/');
+
 // URL value splitting (IDE `urlField.tsx` behavior). Lives here rather than
 // in the Url component so `validations.ts` can use it without pulling the
 // component chain into non-DOM consumers (jest).
