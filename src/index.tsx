@@ -61,3 +61,4 @@ export * from './components/qonsoleSmartInput';
 export * from './components/supportTicket';
 export * from './components/ticketThread';
 export * from './components/ticketReferences';
+export * from './components/searchFilterBar';

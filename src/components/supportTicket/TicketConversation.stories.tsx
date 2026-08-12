@@ -53,7 +53,6 @@ const themed = (node: ReactNode) => (
 
 const refs = (
   <InterfaceReferenceTags
-    size='tiny'
     customTheme={{ main: 'custom1' }}
     references={[{ interface_kind: 'connection', interface_name: 'sftp-partner' }]}
   />

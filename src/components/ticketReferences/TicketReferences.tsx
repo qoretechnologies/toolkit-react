@@ -5,7 +5,6 @@ import {
   ReqoreDropdown,
   ReqoreEmptyState,
   ReqoreEntityRow,
-  ReqoreInput,
   ReqorePanel,
   ReqoreSpan,
   ReqoreSpinner,
@@ -17,6 +16,7 @@ import type { IReqoreEntityRowAction } from '@qoretechnologies/reqore/dist/compo
 import type { IReqorePanelSubAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import timeago from 'epoch-timeago';
+import { SearchFilterBar } from '../searchFilterBar';
 import styled from 'styled-components';
 import { formatBytes, isImage } from '../../helpers/common';
 import { ImageLightbox } from '../imageLightbox';
@@ -233,23 +233,23 @@ const useImageUrls = (
     }
     let active = true;
     const created: string[] = [];
-    Promise.allSettled(
-      ids.map((id) => fetchAttachmentUrl(id).then((url) => ({ id, url })))
-    ).then((results) => {
-      if (!active) {
-        return;
-      }
-      const next: Record<string, string | null> = {};
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled') {
-          next[r.value.id] = r.value.url;
-          created.push(r.value.url);
-        } else {
-          next[ids[i]] = null;
+    Promise.allSettled(ids.map((id) => fetchAttachmentUrl(id).then((url) => ({ id, url })))).then(
+      (results) => {
+        if (!active) {
+          return;
         }
-      });
-      setUrls(next);
-    });
+        const next: Record<string, string | null> = {};
+        results.forEach((r, i) => {
+          if (r.status === 'fulfilled') {
+            next[r.value.id] = r.value.url;
+            created.push(r.value.url);
+          } else {
+            next[ids[i]] = null;
+          }
+        });
+        setUrls(next);
+      }
+    );
     return () => {
       active = false;
       created.forEach((url) => URL.revokeObjectURL(url));
@@ -269,17 +269,6 @@ const useImageUrls = (
  * scroll container. Free-floating, it was easy to lose track of — and scrolling the
  * sections took the search box away with them, which is exactly when you want it.
  */
-const Toolbar = styled.div`
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(6px);
-`;
-
 /*
  * A screenshot tile: the image is the button, and the overflow menu is a sibling
  * layered over it — a <button> cannot legally contain another button, so the menu
@@ -371,19 +360,18 @@ const Screenshot = ({
 }) => (
   <ThumbTile>
     <Thumb type='button' title={att.filename} onClick={onOpen}>
-      {url ? (
+      {url ?
         <img src={url} alt={att.filename} />
-      ) : (
-        <ReqoreSpan effect={{ opacity: 0.5, textSize: 'small' }}>
+      : <ReqoreSpan effect={{ opacity: 0.5, textSize: 'small' }}>
           {url === null ? att.filename : '…'}
         </ReqoreSpan>
-      )}
+      }
       <ThumbCaption>{att.filename}</ThumbCaption>
     </Thumb>
     {/* One action doesn't earn a menu. With a single entry the overlay IS that
         action, so a tile and a file row offer the same thing the same way instead of
         hiding a download behind a caret on one surface and not the other. */}
-    {menu?.length === 1 ? (
+    {menu?.length === 1 ?
       <ReqoreButton
         className='screenshot-menu'
         icon={menu[0].icon}
@@ -397,7 +385,7 @@ const Screenshot = ({
           menu[0].onClick?.(menu[0]);
         }}
       />
-    ) : menu?.length ? (
+    : menu?.length ?
       <ReqoreDropdown
         className='screenshot-menu'
         icon='More2Line'
@@ -410,7 +398,7 @@ const Screenshot = ({
         items={menu}
         onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()}
       />
-    ) : null}
+    : null}
   </ThumbTile>
 );
 
@@ -468,8 +456,8 @@ export const TicketReferences = ({
     if (!onShowInChat) {
       return [];
     }
-    return messageId
-      ? [{ label: 'Show in chat', icon: 'Chat1Line', onClick: () => onShowInChat(messageId) }]
+    return messageId ?
+        [{ label: 'Show in chat', icon: 'Chat1Line', onClick: () => onShowInChat(messageId) }]
       : [
           {
             label: 'Show in chat',
@@ -488,17 +476,17 @@ export const TicketReferences = ({
 
     return [
       ...(primary ? [primary] : []),
-      ...(menu.length
-        ? [
-            {
-              icon: 'More2Line' as IReqoreIconName,
-              tooltip: 'More actions',
-              flat: true,
-              minimal: true,
-              actions: menu,
-            },
-          ]
-        : []),
+      ...(menu.length ?
+        [
+          {
+            icon: 'More2Line' as IReqoreIconName,
+            tooltip: 'More actions',
+            flat: true,
+            minimal: true,
+            actions: menu,
+          },
+        ]
+      : []),
     ];
   };
 
@@ -598,10 +586,10 @@ export const TicketReferences = ({
     return allRefs
       .filter((r) => matchesText(r.interface_name, r.interface_kind))
       .sort((a, b) =>
-        sort === 'name'
-          ? a.interface_name.localeCompare(b.interface_name)
-          : a.interface_kind.localeCompare(b.interface_kind) ||
-            a.interface_name.localeCompare(b.interface_name)
+        sort === 'name' ?
+          a.interface_name.localeCompare(b.interface_name)
+        : a.interface_kind.localeCompare(b.interface_kind) ||
+          a.interface_name.localeCompare(b.interface_name)
       );
   }, [allRefs, filter, matchesText, sort]);
 
@@ -660,62 +648,53 @@ export const TicketReferences = ({
   const filterOptions = FILTER_ORDER.filter((key) => key === 'all' || counts[key] > 0);
   const nothingVisible = !visibleRefs.length && !visibleImages.length && !visibleFiles.length;
 
-  const controlBar = showControls ? (
-    <Toolbar>
-      {/* the bar is a filter over the content, not content itself — at the default
-          size the two dropdowns read as primary actions and crowd the search field */}
-      <ReqoreControlGroup fluid wrap verticalAlign='center' gapSize='small' size='small'>
-      <ReqoreInput
-        icon='Search2Line'
-        placeholder='Search files and references…'
+  const controlBar =
+    showControls ?
+      <SearchFilterBar
+        sticky
         value={search}
-        onChange={(e) => setSearch(e.currentTarget.value)}
-        onClearClick={() => setSearch('')}
-        minimal
-        fluid
+        onChange={setSearch}
+        placeholder='Search files and references…'
+        filters={[
+          {
+            icon: FILTER_META[filter].icon,
+            label: FILTER_META[filter].label,
+            items: filterOptions.map((key) => ({
+              selected: filter === key,
+              icon: FILTER_META[key].icon,
+              label:
+                key === 'all' ?
+                  FILTER_META.all.label
+                : `${FILTER_META[key].label} (${counts[key]})`,
+              onClick: () => setFilter(key),
+            })),
+          },
+          {
+            icon: 'ArrowUpDownLine',
+            label: SORT_META[sort].label,
+            items: SORT_ORDER.map((key) => ({
+              selected: sort === key,
+              icon: SORT_META[key].icon,
+              label: SORT_META[key].label,
+              onClick: () => setSort(key),
+            })),
+          },
+        ]}
       />
-      <ReqoreDropdown
-        icon={FILTER_META[filter].icon}
-        label={FILTER_META[filter].label}
-        minimal
-        fixed
-        flat
-        items={filterOptions.map((key) => ({
-          selected: filter === key,
-          icon: FILTER_META[key].icon,
-          label: key === 'all' ? FILTER_META.all.label : `${FILTER_META[key].label} (${counts[key]})`,
-          onClick: () => setFilter(key),
-        }))}
-      />
-      <ReqoreDropdown
-        icon='ArrowUpDownLine'
-        label={SORT_META[sort].label}
-        minimal
-        fixed
-        flat
-        items={SORT_ORDER.map((key) => ({
-          selected: sort === key,
-          icon: SORT_META[key].icon,
-          label: SORT_META[key].label,
-          onClick: () => setSort(key),
-          }))}
-        />
-      </ReqoreControlGroup>
-    </Toolbar>
-  ) : null;
+    : null;
 
   return (
     <ReqoreControlGroup vertical fluid gapSize='big'>
       {controlBar}
 
-      {nothingVisible ? (
+      {nothingVisible ?
         <ReqoreEmptyState
           icon='Search2Line'
           title='No matching references or files'
           description={
-            query
-              ? `Nothing here matches “${search.trim()}”.`
-              : 'Nothing matches the current filter.'
+            query ?
+              `Nothing here matches “${search.trim()}”.`
+            : 'Nothing matches the current filter.'
           }
           flat
           transparent
@@ -732,9 +711,9 @@ export const TicketReferences = ({
             </ReqoreButton>
           }
         />
-      ) : null}
+      : null}
 
-      {visibleImages.length ? (
+      {visibleImages.length ?
         <ReqorePanel
           label='Screenshots'
           icon='ImageLine'
@@ -752,29 +731,29 @@ export const TicketReferences = ({
                 att={att}
                 url={urls[att.attachment_id]}
                 onOpen={() =>
-                  urls[att.attachment_id]
-                    ? setLightbox(i)
-                    : onDownloadAttachment?.(att.attachment_id, att.filename)
+                  urls[att.attachment_id] ?
+                    setLightbox(i)
+                  : onDownloadAttachment?.(att.attachment_id, att.filename)
                 }
                 menu={[
-                  ...(onDownloadAttachment
-                    ? [
-                        {
-                          label: 'Download',
-                          icon: 'DownloadLine' as IReqoreIconName,
-                          onClick: () => onDownloadAttachment(att.attachment_id, att.filename),
-                        },
-                      ]
-                    : []),
+                  ...(onDownloadAttachment ?
+                    [
+                      {
+                        label: 'Download',
+                        icon: 'DownloadLine' as IReqoreIconName,
+                        onClick: () => onDownloadAttachment(att.attachment_id, att.filename),
+                      },
+                    ]
+                  : []),
                   ...showInChatItem(att.message_id),
                 ]}
               />
             ))}
           </ReqoreColumns>
         </ReqorePanel>
-      ) : null}
+      : null}
 
-      {visibleRefs.length ? (
+      {visibleRefs.length ?
         <ReqorePanel
           label='Linked interfaces'
           icon='LinksLine'
@@ -808,18 +787,18 @@ export const TicketReferences = ({
                   }
                   flat
                   tooltip={
-                    onInterfaceClick
-                      ? `Open ${reference.interface_kind} ${reference.interface_name}`
-                      : undefined
+                    onInterfaceClick ?
+                      `Open ${reference.interface_kind} ${reference.interface_name}`
+                    : undefined
                   }
                   actions={rowActions(
-                    onInterfaceClick
-                      ? {
-                          icon: 'ArrowRightUpLine',
-                          tooltip: 'Open',
-                          onClick: () => onInterfaceClick(reference),
-                        }
-                      : undefined,
+                    onInterfaceClick ?
+                      {
+                        icon: 'ArrowRightUpLine',
+                        tooltip: 'Open',
+                        onClick: () => onInterfaceClick(reference),
+                      }
+                    : undefined,
                     reference.message_id
                   )}
                 />
@@ -827,9 +806,9 @@ export const TicketReferences = ({
             })}
           </ReqoreControlGroup>
         </ReqorePanel>
-      ) : null}
+      : null}
 
-      {visibleFiles.length ? (
+      {visibleFiles.length ?
         <ReqorePanel
           label='Files'
           icon='FileList3Line'
@@ -840,16 +819,16 @@ export const TicketReferences = ({
           labelSize={4}
           collapsible
           actions={
-            visibleFiles.length > 1 && onDownloadAttachment
-              ? [
-                  {
-                    icon: 'DownloadCloud2Line',
-                    label: 'Download all',
-                    onClick: () =>
-                      visibleFiles.forEach((f) => onDownloadAttachment(f.attachment_id, f.filename)),
-                  },
-                ]
-              : []
+            visibleFiles.length > 1 && onDownloadAttachment ?
+              [
+                {
+                  icon: 'DownloadCloud2Line',
+                  label: 'Download all',
+                  onClick: () =>
+                    visibleFiles.forEach((f) => onDownloadAttachment(f.attachment_id, f.filename)),
+                },
+              ]
+            : []
           }
         >
           {/* matches the interface rows above — the two lists read as one surface */}
@@ -876,13 +855,13 @@ export const TicketReferences = ({
                   metadata={<ReqoreTextEffect effect={META_EFFECT}>{provenance}</ReqoreTextEffect>}
                   flat
                   actions={rowActions(
-                    onDownloadAttachment
-                      ? {
-                          icon: 'DownloadLine',
-                          tooltip: 'Download',
-                          onClick: () => onDownloadAttachment(f.attachment_id, f.filename),
-                        }
-                      : undefined,
+                    onDownloadAttachment ?
+                      {
+                        icon: 'DownloadLine',
+                        tooltip: 'Download',
+                        onClick: () => onDownloadAttachment(f.attachment_id, f.filename),
+                      }
+                    : undefined,
                     f.message_id
                   )}
                 />
@@ -890,9 +869,9 @@ export const TicketReferences = ({
             })}
           </ReqoreControlGroup>
         </ReqorePanel>
-      ) : null}
+      : null}
 
-      {lightbox !== null && fetchAttachmentUrl ? (
+      {lightbox !== null && fetchAttachmentUrl ?
         <ImageLightbox
           images={visibleImages}
           index={lightbox}
@@ -901,7 +880,7 @@ export const TicketReferences = ({
           fetchAttachmentUrl={fetchAttachmentUrl}
           onDownload={onDownloadAttachment}
         />
-      ) : null}
+      : null}
     </ReqoreControlGroup>
   );
 };

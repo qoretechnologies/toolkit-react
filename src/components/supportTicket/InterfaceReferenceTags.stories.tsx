@@ -75,6 +75,43 @@ export const Clickable: Story = {
   },
 };
 
+/**
+ * The composer use: the chips are references you're about to send, so each carries
+ * an "×" to detach it. The thread's chips deliberately don't — there, they're a
+ * record of what was sent, and an × would offer to undo something that already
+ * happened.
+ */
+export const Removable: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the composer use, where every chip carries a remove "×". Clicking one calls onRemove with that reference so the composer can detach it before sending.',
+      },
+    },
+  },
+  args: { label: undefined, onRemove: fn() },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+    const remove = canvasElement.querySelectorAll('.reqore-tag-remove');
+
+    // one × per chip — not just on the one under the cursor
+    await expect(remove.length).toBe(4);
+
+    await userEvent.click(remove[1] as HTMLElement);
+    await waitFor(() =>
+      expect(args.onRemove).toHaveBeenCalledWith(
+        expect.objectContaining({
+          interface_kind: 'workflow',
+          interface_name: 'invoice-sync:2.3',
+        })
+      )
+    );
+    // the chips themselves are unchanged — removal is the host's to apply
+    await expect(canvas.getByText('order-sync:1.2')).toBeInTheDocument();
+  },
+};
+
 /** The in-thread use: no label — the chips sit under a message. */
 export const NoLabel: Story = {
   parameters: {

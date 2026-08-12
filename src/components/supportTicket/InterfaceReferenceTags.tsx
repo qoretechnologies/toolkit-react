@@ -15,6 +15,14 @@ export interface IInterfaceReferenceTagsProps {
   /** Open a referenced interface; chips are static (informational) when omitted —
    *  e.g. the staff view, which can't reach the customer's instance. */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
+  /**
+   * Detach a reference. Each chip grows an "×" when given — for the composer,
+   * where the chips are the references you're about to send and so are still
+   * editable. Omitted everywhere the chips are a record of what WAS sent (the
+   * thread, the ticket header, the Qonsole card): those aren't editable, and an
+   * × on them would offer to undo something that already happened.
+   */
+  onRemove?: (reference: IInterfaceReference) => void;
   size?: TSizes;
   /** Chip styling — pass `intent`/`customTheme` (e.g. `{ main: 'custom1' }`) to tint
    *  the reference chips to a surface's accent (the Qonsole/helpdesk composer does). */
@@ -38,6 +46,7 @@ export const InterfaceReferenceTags = ({
   label,
   resolveInterfaceIcon,
   onInterfaceClick,
+  onRemove,
   size = 'small',
   intent,
   customTheme,
@@ -77,6 +86,8 @@ export const InterfaceReferenceTags = ({
                 : `${reference.interface_kind}: ${reference.interface_name}`
             }
             onClick={onInterfaceClick ? () => onInterfaceClick(reference) : undefined}
+            onRemoveClick={onRemove ? () => onRemove(reference) : undefined}
+            removeTooltip={`Remove ${reference.interface_kind} ${reference.interface_name}`}
           />
         );
       })}

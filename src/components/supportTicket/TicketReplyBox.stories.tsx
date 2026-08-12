@@ -156,7 +156,6 @@ export const RichHelpdeskReply: Story = {
     // "References" label, the chips read as the referenced interfaces on their own
     aboveInput: (
       <InterfaceReferenceTags
-        size='tiny'
         references={[{ interface_kind: 'connection', interface_name: 'sftp-partner' }]}
         customTheme={{ main: 'custom1' }}
       />
@@ -203,7 +202,6 @@ export const AllReferenceTypes: Story = {
     defaultText: 'This one references every interface kind.',
     aboveInput: (
       <InterfaceReferenceTags
-        size='tiny'
         customTheme={{ main: 'custom1' }}
         references={[
           { interface_kind: 'workflow', interface_name: 'order-sync:1.2' },
@@ -269,7 +267,6 @@ export const QogTriggerAppLogo: Story = {
     defaultText: 'These qogs are referenced by their trigger apps.',
     aboveInput: (
       <InterfaceReferenceTags
-        size='tiny'
         customTheme={{ main: 'custom1' }}
         references={[
           // resolved live from trigger_app (the customer/IDE path)
@@ -337,7 +334,6 @@ export const WithScreenshotAndReferences: Story = {
     defaultFiles: [screenshotFile()],
     aboveInput: (
       <InterfaceReferenceTags
-        size='tiny'
         customTheme={{ main: 'custom1' }}
         references={[
           { interface_kind: 'connection', interface_name: 'sftp-partner' },

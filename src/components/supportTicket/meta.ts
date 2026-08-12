@@ -143,3 +143,43 @@ const DEFAULT_INTERFACE_ICONS: Record<string, IReqoreIconName> = {
 /** Default per-kind icon for a referenced interface, with a generic fallback. */
 export const defaultInterfaceIcon = (kind: string): IReqoreIconName =>
   DEFAULT_INTERFACE_ICONS[kind] ?? 'CodeBoxLine';
+
+// The reading name for each interface kind. The kind id (`value-map`, `ai-collection`)
+// is a wire value — it's what a host fetches with and what gets stored on the reference
+// — so it must never be what the user reads. These are plural because they name a
+// category the user picks from, not a single interface. `fsm` maps to "Qogs" like every
+// other user-facing surface; the id stays `fsm` wherever a host still uses it.
+const DEFAULT_INTERFACE_KIND_LABELS: Record<string, string> = {
+  workflow: 'Workflows',
+  service: 'Services',
+  job: 'Jobs',
+  fsm: 'Qogs',
+  qog: 'Qogs',
+  connection: 'Connections',
+  mapper: 'Mappers',
+  class: 'Classes',
+  'value-map': 'Value maps',
+  'ai-collection': 'AI collections',
+  'ai-endpoint': 'AI endpoints',
+  'ai-guardrail': 'AI guardrails',
+};
+
+/**
+ * Default reading name for an interface kind — "Value maps" for `value-map`. An
+ * unknown kind is humanised generically (separators to spaces, sentence case, a
+ * plural `s`) so a kind this map hasn't caught up with still reads as a word
+ * rather than an identifier. Consumers with their own vocabulary override the
+ * whole thing via the picker's `resolveKindLabel`.
+ */
+export const defaultInterfaceKindLabel = (kind: string): string => {
+  const known = DEFAULT_INTERFACE_KIND_LABELS[kind];
+
+  if (known) {
+    return known;
+  }
+
+  const words = kind.replace(/[-_]+/g, ' ').trim();
+  const sentenceCase = words.charAt(0).toUpperCase() + words.slice(1);
+
+  return sentenceCase.endsWith('s') ? sentenceCase : `${sentenceCase}s`;
+};
