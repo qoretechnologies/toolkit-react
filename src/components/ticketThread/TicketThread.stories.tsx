@@ -329,11 +329,11 @@ export const Loading: Story = {
     docs: {
       description: {
         story:
-          "Renders the loading state as a conversation-shaped skeleton — aria-busy and labelled 'Loading conversation', carrying no message content — rather than a spinner.",
+          "The FIRST load — loading with nothing to show yet — renders a conversation-shaped skeleton: aria-busy, labelled 'Loading conversation', carrying no message content, rather than a spinner. `messages` is empty deliberately; that is what makes this a first load rather than a refetch (see RefetchKeepsTheConversation).",
       },
     },
   },
-  args: { loading: true },
+  args: { loading: true, messages: [] },
   async play({ canvasElement }) {
     // the loading state is a conversation-shaped skeleton, not a spinner
     const skeleton = canvasElement.querySelector('[aria-busy="true"]');
@@ -341,6 +341,28 @@ export const Loading: Story = {
     await expect(skeleton).toHaveAttribute('aria-label', 'Loading conversation');
     // no real message content renders while loading
     await expect(canvasElement.textContent).toBe('');
+  },
+};
+
+export const RefetchKeepsTheConversation: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Loading with messages already on screen is a REFETCH, not a first load, and must leave the conversation alone. Every send triggers one — and where the thread is live, so does the other party sending — so blanking it here replaces a conversation the reader is in the middle of with pulsing placeholders, at the worst possible moment. The new message simply appears when the refetch resolves.',
+      },
+    },
+  },
+  args: { loading: true },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    // no skeleton: the thread is already showing something worth keeping
+    await expect(canvasElement.querySelector('[aria-busy="true"]')).toBeNull();
+    // ...and the existing messages are still on screen. Asserted on message bodies
+    // rather than author labels, which vary with `viewerRole`; getAllByText because a
+    // body can legitimately appear in more than one node.
+    await expect(canvas.getAllByText(/nightly/).length).toBeGreaterThan(0);
+    await expect(canvas.getAllByText(/datasource pool/).length).toBeGreaterThan(0);
   },
 };
 
