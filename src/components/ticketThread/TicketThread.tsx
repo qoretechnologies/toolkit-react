@@ -610,7 +610,12 @@ export const TicketThread = ({
       ? openingRefs
       : message.referenced_interfaces;
 
-  if (loading) {
+  // Only the FIRST load gets the skeleton. A refetch while messages are already on
+  // screen must leave them there: every send triggers one (and, where the thread is
+  // live, so does the other party sending), and blanking a conversation you are
+  // reading — replacing it with pulsing placeholders — is the single worst moment to
+  // do it. The new message simply appears when the refetch resolves.
+  if (loading && !messages.length) {
     return <ConversationSkeleton />;
   }
 
@@ -647,8 +652,23 @@ export const TicketThread = ({
                 avatar={{ icon: authorIcon(message) }}
                 label={authorLabel(message, viewerRole)}
                 timestamp={message.created ? <ReqoreTimeAgo time={message.created} /> : undefined}
-                intent={message.internal ? 'warning' : undefined}
-                customTheme={message.internal ? undefined : ACCENT}
+                // Own messages read as info-blue, the other party's as the purple
+                // accent — so the two sides of the conversation are told apart by
+                // colour as well as by side, and "which of these did I write?" is
+                // answerable at a glance. Deliberately keyed off `viewerRole`, so it
+                // stays correct on the staff surface too (staff replies are the blue
+                // ones there). Internal notes keep their warning intent and are not
+                // re-tinted — they are neither side of the conversation.
+                intent={
+                  message.internal
+                    ? 'warning'
+                    : message.author_type === viewerRole
+                      ? 'info'
+                      : undefined
+                }
+                customTheme={
+                  message.internal || message.author_type === viewerRole ? undefined : ACCENT
+                }
                 flat={false}
                 minimal
               >
