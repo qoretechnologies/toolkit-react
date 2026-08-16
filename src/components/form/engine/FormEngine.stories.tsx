@@ -5471,3 +5471,93 @@ export const CompactAutoFocusNonFocusableFirstField: Story = {
     await _testsWaitForText('Name');
   },
 };
+
+// A richtext value whose prose is interleaved with template chips — the shape an
+// alert rule's message body has. The read-first summary renders the chips inline
+// with the surrounding words, so the two have to sit on the same baseline.
+const RichtextTemplateSchema: IOptionsSchema = {
+  body: {
+    type: 'richtext',
+    ui_type: 'richtext',
+    display_name: 'Message Body',
+    required: true,
+  },
+};
+
+const RichtextTemplateValue: IOptions = {
+  body: {
+    type: 'richtext',
+    value: [
+      {
+        type: 'paragraph',
+        children: [
+          { text: 'Alert: ' },
+          { type: 'tag', value: '$alert:code', label: 'alert_code', children: [{ text: '' }] },
+          { text: ' Severity: ' },
+          { type: 'tag', value: '$alert:severity', label: 'severity', children: [{ text: '' }] },
+          { text: ' Rule: ' },
+          { type: 'tag', value: '$alert:rule', label: 'rule_name', children: [{ text: '' }] },
+        ],
+      },
+    ],
+  },
+} as unknown as IOptions;
+
+export const CompactReadFirstRichtextTemplateBaseline: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Read-first summary of a richtext value that mixes prose with template chips. The chips must sit on the same baseline as the words around them.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: RichtextTemplateSchema,
+    value: RichtextTemplateValue,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('alert_code');
+
+    const textRect = (predicate: (text: string) => boolean): DOMRect | undefined => {
+      const walker = document.createTreeWalker(canvasElement, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        if (predicate((node.textContent || '').trim())) {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          return range.getBoundingClientRect();
+        }
+        node = walker.nextNode();
+      }
+      return undefined;
+    };
+
+    const chipRect = textRect((text) => text === 'alert_code');
+    const proseRect = textRect((text) => text.startsWith('Alert:'));
+    await expect(chipRect).toBeTruthy();
+    await expect(proseRect).toBeTruthy();
+
+    const chipEl = Array.from(canvasElement.querySelectorAll('span')).find(
+      (element) => element.children.length === 0 && element.textContent?.trim() === 'alert_code'
+    ) as HTMLElement;
+    const proseEl = Array.from(canvasElement.querySelectorAll('span')).find(
+      (element) => element.children.length === 0 && element.textContent?.startsWith('Alert:')
+    ) as HTMLElement;
+
+    // The wrapper centres its items, so the chip's label and the prose share a
+    // baseline only while they are the same size — half-leading is symmetric, so
+    // equal type centred against itself lines up. A smaller chip label centred in
+    // a taller box rides above the words, which is what this guards against;
+    // asserting the boxes alone would pass either way, because the BOXES were
+    // always centred.
+    await expect(getComputedStyle(chipEl).fontSize).toBe(getComputedStyle(proseEl).fontSize);
+
+    const centreOffset = Math.abs(
+      chipRect!.top + chipRect!.height / 2 - (proseRect!.top + proseRect!.height / 2)
+    );
+    await expect(centreOffset).toBeLessThanOrEqual(1);
+  },
+};

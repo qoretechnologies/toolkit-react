@@ -330,6 +330,13 @@ export const CompactRow = memo(
                   <ReqoreTag
                     key={index}
                     size='tiny'
+                    // The chip's label has to be the same size as the prose it is
+                    // embedded in. The wrapper centres boxes, so two different text
+                    // sizes centred against each other cannot share a baseline, and
+                    // the chips visibly float above the words. Inheriting the row's
+                    // size makes centring align the baselines too, at whatever font
+                    // size the consuming app uses.
+                    style={{ fontSize: 'inherit' }}
                     icon='ExchangeDollarLine'
                     label={segment.text || segment.value}
                     tooltip={segment.value}
