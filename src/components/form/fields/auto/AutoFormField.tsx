@@ -726,6 +726,23 @@ function AutoField<T = any>({
               value={value}
             />
           );
+        // A connection's `connect_timeout` / `timeout` arrive from
+        // `getCreateConnectionOptions` as `type: 'timeout'` with a bare-integer
+        // default (45000) and an "in milliseconds" description. Without a case
+        // here they fell through to the `default:` branch below and rendered the
+        // "Unknown type!" placeholder in place of the field. `type='int'` is
+        // passed explicitly rather than relying on NumberFormField's default:
+        // milliseconds are whole numbers, and that prop is what drives both the
+        // integer parse and the step size.
+        case 'timeout':
+          return (
+            <NumberFormField
+              {...rest}
+              type='int'
+              onChange={(value) => handleChange(name, value)}
+              value={value}
+            />
+          );
         case 'byte-size':
           // The IDE spreads `{...rest}` here but its ByteSizeField ignores
           // extras — reqraft's forwards them into the amount input, and `rest`

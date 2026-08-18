@@ -43,7 +43,10 @@ const mapQorusTypeToFormFieldType = (type: string): TFormFieldType => {
   switch (base) {
     case 'richtext': return 'richtext';
     case 'bool': case 'boolean': return 'bool';
-    case 'int': case 'integer': case 'float': case 'number': return 'int';
+    // `timeout` is an integer count of milliseconds (a connection's
+    // connect_timeout / timeout); without it the default below renders it
+    // as a long-string text box.
+    case 'int': case 'integer': case 'float': case 'number': case 'timeout': return 'int';
     case 'date': return 'date';
     case 'file': return 'file';
     case 'rgbcolor': return 'rgbcolor';
@@ -177,6 +180,7 @@ export const FormField = <T extends TFormFieldType>({
       case 'integer':
       case 'float':
       case 'number':
+      case 'timeout':
         return (
           <NumberFormField
             {...rest}

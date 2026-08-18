@@ -395,6 +395,38 @@ export const File: Story = {
   },
 };
 
+/**
+ * A connection's `connect_timeout` / `timeout` option, as the server emits it:
+ * `type: 'timeout'` holding an integer count of milliseconds.
+ */
+export const Timeout: Story = {
+  args: {
+    defaultType: 'timeout',
+    defaultInternalType: 'timeout',
+    type: 'timeout',
+    value: 45000,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a connection's Connect Timeout option, which the server types as `timeout` and fills with 45000 milliseconds. The whole-millisecond number input is shown — before this type was recognised the field fell through to the dispatcher's fallback and displayed an \"Unknown type!\" tag in place of the editor.",
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+
+    const input = await canvas.findByDisplayValue('45000');
+    await expect(input).toBeInTheDocument();
+    await expect(input).toHaveAttribute('type', 'number');
+    // milliseconds are whole numbers — a fractional step would let an operator
+    // dial in a 0.1ms timeout
+    await expect(input).toHaveAttribute('step', '1');
+    await expect(canvas.queryByText('Unknown type!')).not.toBeInTheDocument();
+  },
+};
+
 export const AutoDoesNotChangeTypeBackToAuto: Story = {
   args: {
     defaultType: 'auto',
