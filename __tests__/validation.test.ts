@@ -192,6 +192,67 @@ describe('file', () => {
   it('rejects undefined', () => {
     expect(validateField('file', undefined)).toBe(false);
   });
+
+  // A Build-tab sub-value is a full option envelope carrying its own `type` and
+  // an optional `is_expression`. Validating the unwrapped `.value` as a bare
+  // `string` rejected everything that is not one — the operator could not use an
+  // expression or rich text for a file's name or content.
+  it('accepts an expression as the file name', () => {
+    expect(
+      validateField('file', {
+        name: {
+          type: 'richtext',
+          is_expression: true,
+          value: { exp: 'convert-to-string', args: [{ type: 'string', value: 'invoice' }] },
+        },
+        content: { type: 'data', value: 'JVBERi0xLjQK' },
+      })
+    ).toBe(true);
+  });
+
+  it('accepts an expression as the file content', () => {
+    expect(
+      validateField('file', {
+        name: { type: 'richtext', value: 'invoice.pdf' },
+        content: { type: 'data', is_expression: true, value: { exp: 'concat', args: [] } },
+      })
+    ).toBe(true);
+  });
+
+  it('accepts a rich-text paragraph array as the file name', () => {
+    expect(
+      validateField('file', {
+        name: {
+          type: 'richtext',
+          value: [{ type: 'paragraph', children: [{ text: 'invoice.pdf' }] }],
+        },
+        content: { type: 'data', value: 'JVBERi0xLjQK' },
+      })
+    ).toBe(true);
+  });
+
+  it('still rejects an envelope that only claims to be an expression', () => {
+    // No `is_expression`, so the part is validated against its declared type
+    // instead — an arbitrary object must not pass as "probably an expression".
+    expect(
+      validateField('file', {
+        name: { type: 'richtext', value: 'invoice.pdf' },
+        content: { type: 'data', value: { exp: 'concat', args: [] } },
+      })
+    ).toBe(false);
+  });
+
+  it('reports the content problem instead of letting the name mask it', () => {
+    const result = validateFieldWithResult('file', {
+      name: { type: 'richtext', value: '' },
+      content: { type: 'data', value: '' },
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.reasons).toHaveLength(2);
+    expect(result.reasons[0]).toMatch(/^File name is invalid/);
+    expect(result.reasons[1]).toMatch(/^File content is invalid/);
+  });
 });
 
 // ─── number ───────────────────────────────────────────────────────────────────
