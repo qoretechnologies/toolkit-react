@@ -795,9 +795,13 @@ export const FormEngine = ({
   // resolves, so the measurement effect must re-run when the node appears — a
   // ref wouldn't retrigger it.
   const [compactWrapNode, setCompactWrapNode] = useState<HTMLDivElement | null>(null);
+  // Ref mirror of the wrap node for callbacks that must not re-create when it
+  // mounts (flashOptions reads it inside a rAF).
+  const compactWrapNodeRef = useRef<HTMLDivElement | null>(null);
   const setCompactWrap = useCallback(
     (node: HTMLDivElement | null) => {
       compactWrapRef(node);
+      compactWrapNodeRef.current = node;
       setCompactWrapNode((prev) => (prev === node ? prev : node));
     },
     [compactWrapRef]
@@ -845,7 +849,12 @@ export const FormEngine = ({
       // same tick targets the stale (pre-move) layout, so the page doesn't budge.
       // A rAF lets the new position settle first.
       requestAnimationFrame(() => {
-        const target = document.querySelector<HTMLElement>(
+        // Scoped to THIS engine's wrap: several compact engines can be mounted at
+        // once with colliding field names (e.g. one form per state in the qog
+        // template drawer, each with `guild`/`channel`), and a document-wide
+        // lookup grabs the first match in the DOM — scrolling the container to a
+        // DIFFERENT form's row. No document fallback for the same reason.
+        const target = compactWrapNodeRef.current?.querySelector<HTMLElement>(
           `.readfirst-row[data-field="${optionNames[0]}"]`
         );
         if (typeof target?.scrollIntoView === 'function') {
