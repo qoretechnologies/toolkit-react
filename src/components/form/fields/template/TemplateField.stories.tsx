@@ -9,6 +9,7 @@
 // - the IDE's leaf story components (`LongStringField`, `Number`, `string`)
 //   are local 2-arg wrappers over reqraft's leaf fields, `auto` is the ported
 //   `AutoFormField`.
+import { ReqoreColumn, ReqoreColumns, ReqorePanel } from '@qoretechnologies/reqore';
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
@@ -650,5 +651,90 @@ export const TemplateWithItemsCanBeSelected: StoryObj<typeof meta> = {
     await TemplatesWithMultipleLevelsAndHashField.play(args);
     await _testsClickButton({ selector: '.reqore-menu-item-left-action' });
     await _testsWaitForText('Testing Hash');
+  },
+};
+
+// --- issue #90: multi-element field components -------------------------------
+// A consumer field component may return a React *fragment* rather than a single
+// element — qorus-ide's `api-manager` (schema-type panel + provider-options
+// columns) and `service-events` (info message + collection) both do. React
+// flattens those parts into TemplateField's host control group, which is a
+// horizontal row, so they land side by side instead of stacked. When the first
+// part is a full-width panel (`flex: 0 0 auto` — it cannot shrink) the rest is
+// left no room and is pushed outside the container.
+//
+// This mirrors that exact shape inside a container narrower than the parts'
+// combined intrinsic width, which is the real condition: the IDE's form section
+// is capped at 1280px by design, so the row can never simply grow.
+
+const MultiElementField = ({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  name,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  onChange,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  type,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  level,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  allowTemplates,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ...rest
+}: any) => (
+  <>
+    {/* `style={{ width: '100%' }}` mirrors qorus-ide's `SubField`, which is what
+        makes this part unable to yield space to the block after it. */}
+    <ReqorePanel label='API Schema Type' flat minimal style={{ width: '100%' }}>
+      <StringFormField value='restschema' onChange={() => {}} />
+    </ReqorePanel>
+    <ReqoreColumns columnsGap='20px' minColumnWidth='400px'>
+      <ReqoreColumn flexFlow='column'>
+        <ReqorePanel label='Provider options' flat minimal>
+          <StringFormField value='billing-demo' onChange={() => {}} />
+        </ReqorePanel>
+      </ReqoreColumn>
+    </ReqoreColumns>
+  </>
+);
+
+export const MultiElementComponentDoesNotOverflow: StoryObj<typeof meta> = {
+  args: {
+    // `fluid` is what FormEngine passes (`<TemplateField fluid …>`): it makes
+    // the host group size its children explicitly rather than letting them
+    // shrink, which is precisely why the overflow could not resolve itself.
+    fluid: true,
+    component: MultiElementField,
+    value: 'restschema',
+    type: 'string',
+  },
+  decorators: [
+    (Story) => (
+      <div style={{ width: 640 }} data-testid='constrained-host'>
+        <Story />
+      </div>
+    ),
+  ],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField around a field component that returns a fragment of two blocks (a full-width panel plus a 400px-minimum column) inside a 640px container — the shape qorus-ide uses for `api-manager`. The blocks stack instead of being clipped: the host row wraps, so no part is pushed outside the container and the row grows no horizontal scrollbar.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const group = canvasElement.querySelector('.reqore-control-group') as HTMLElement;
+    expect(group).toBeTruthy();
+
+    await waitFor(() => {
+      // the row wraps rather than overflowing, so nothing is clipped
+      expect(group.scrollWidth).toBeLessThanOrEqual(group.clientWidth + 1);
+    });
+
+    // and every part stays within the container's right edge
+    const hostRight = group.getBoundingClientRect().right;
+    Array.from(group.children).forEach((child) => {
+      expect(child.getBoundingClientRect().right).toBeLessThanOrEqual(hostRight + 1);
+    });
   },
 };
