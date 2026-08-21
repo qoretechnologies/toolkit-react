@@ -410,19 +410,17 @@ export const Timeout: Story = {
     docs: {
       description: {
         story:
-          "Renders a connection's Connect Timeout option, which the server types as `timeout` and fills with 45000 milliseconds. The whole-millisecond number input is shown — before this type was recognised the field fell through to the dispatcher's fallback and displayed an \"Unknown type!\" tag in place of the editor.",
+          "Renders a connection's Connect Timeout option, which the server types as `timeout` and fills with 45000 milliseconds. The unit-aware timeout field shows it as 45 with the seconds unit selected.",
       },
     },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
-    const input = await canvas.findByDisplayValue('45000');
+    const input = await canvas.findByDisplayValue('45');
     await expect(input).toBeInTheDocument();
     await expect(input).toHaveAttribute('type', 'number');
-    // milliseconds are whole numbers — a fractional step would let an operator
-    // dial in a 0.1ms timeout
-    await expect(input).toHaveAttribute('step', '1');
+    await expect(canvas.getByText('seconds')).toBeInTheDocument();
     await expect(canvas.queryByText('Unknown type!')).not.toBeInTheDocument();
   },
 };

@@ -4,6 +4,7 @@ export * from './fields/array/ArrayAuto';
 export * from './fields/array/ArrayAutoField';
 export * from './fields/auto/AutoFormField';
 export * from './fields/byte-size/ByteSize';
+export * from './fields/timeout/Timeout';
 export * from './fields/url/Url';
 export * from './fields/schema-definition';
 export * from './fields/boolean/Boolean';

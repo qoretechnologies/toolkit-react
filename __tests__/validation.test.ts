@@ -876,6 +876,34 @@ describe('byte-size', () => {
   });
 });
 
+// ─── timeout ──────────────────────────────────────────────────────────────────
+
+describe('timeout', () => {
+  it('accepts whole millisecond counts', () => {
+    expect(validateField('timeout', 45000)).toBe(true);
+    expect(validateField('timeout', 0)).toBe(true);
+  });
+
+  it('rejects fractional and non-numeric values', () => {
+    expect(validateField('timeout', 450.5)).toBe(false);
+    expect(validateField('timeout', '45000')).toBe(false);
+    expect(validateField('timeout', { value: 45000 })).toBe(false);
+  });
+
+  it('accepts null/undefined only when canBeNull', () => {
+    expect(validateField('timeout', null)).toBe(false);
+    expect(validateField('timeout', undefined)).toBe(false);
+    expect(validateField('timeout', null, {}, true)).toBe(true);
+    expect(validateField('timeout', undefined, {}, true)).toBe(true);
+  });
+
+  it('returns a reason on failure', () => {
+    const result = validateFieldWithResult('timeout', 450.5);
+    expect(result.isValid).toBe(false);
+    expect(result.reason).toBeDefined();
+  });
+});
+
 // ─── url ──────────────────────────────────────────────────────────────────────
 
 describe('url', () => {

@@ -30,6 +30,7 @@ import { StringFormField } from './string/String';
 import { ArrayAutoField } from './array/ArrayAutoField';
 import { AutoFormField } from './auto/AutoFormField';
 import { ByteSizeFormField } from './byte-size/ByteSize';
+import { TimeoutFormField } from './timeout/Timeout';
 import { UrlFormField } from './url/Url';
 import { SchemaDefinitionEditor } from './schema-definition';
 import { IDataSchemaDefinition } from './schema-definition/types';
@@ -43,10 +44,11 @@ const mapQorusTypeToFormFieldType = (type: string): TFormFieldType => {
   switch (base) {
     case 'richtext': return 'richtext';
     case 'bool': case 'boolean': return 'bool';
+    case 'int': case 'integer': case 'float': case 'number': return 'int';
     // `timeout` is an integer count of milliseconds (a connection's
     // connect_timeout / timeout); without it the default below renders it
     // as a long-string text box.
-    case 'int': case 'integer': case 'float': case 'number': case 'timeout': return 'int';
+    case 'timeout': return 'timeout';
     case 'date': return 'date';
     case 'file': return 'file';
     case 'rgbcolor': return 'rgbcolor';
@@ -176,11 +178,22 @@ export const FormField = <T extends TFormFieldType>({
           />
         );
 
+      case 'timeout':
+        return (
+          <TimeoutFormField
+            {...(fieldProps as any)}
+            value={value as number}
+            onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
+            disabled={(rest as { disabled?: boolean }).disabled}
+            readOnly={readonly}
+            size={fieldSize}
+          />
+        );
+
       case 'int':
       case 'integer':
       case 'float':
       case 'number':
-      case 'timeout':
         return (
           <NumberFormField
             {...rest}

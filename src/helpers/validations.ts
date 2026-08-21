@@ -529,6 +529,17 @@ export const _validateField = (
 
       return validResult();
     }
+    case 'timeout': {
+      // An integer count of milliseconds — the unit selector is display-only,
+      // so the stored value validates as an int.
+      const msResult = validateFieldWithResult('int', value);
+
+      if (!msResult.isValid) {
+        return withContext(msResult, 'Timeout must be a whole number of milliseconds');
+      }
+
+      return validResult();
+    }
     case 'url': {
       const protocolResult = validateFieldWithResult('string', getProtocol(value));
 

@@ -8,7 +8,7 @@ import { isUiEncodedValue } from './_structuredData/structuredData';
 import { renderExpressionToText } from '../expressions/renderExpressionToText';
 import { IExpressionValue } from '../expressions/types';
 import yaml from 'js-yaml';
-import { richtextToString } from '../../../helpers/common';
+import { formatTimeoutValue, richtextToString } from '../../../helpers/common';
 
 /** "N noun" with naive pluralisation ("1 item", "2 items"). */
 const pluralize = (count: number, noun: string): string =>
@@ -312,8 +312,9 @@ export const formatBytes = (bytes: number): string => {
 /**
  * Short read-first summary of a value; '' when unset (the caller renders the
  * placeholder). Bools → Yes/No, allowed_values → display label, colour →
- * hex/rgba, file → filename, richtext → plain text, list → joined names,
- * hash → "N fields" (generic "Set" fallback).
+ * hex/rgba, file → filename, richtext → plain text, timeout → scaled duration
+ * ("45 seconds"), list → joined names, hash → "N fields" (generic "Set"
+ * fallback).
  */
 /** Read-first summary of a `schema-definition` value: the schema name plus a
  * table count (e.g. `orders · 2 tables`). */
@@ -368,6 +369,12 @@ export const formatOptionValue = (
 
   if (type === 'rgbcolor') {
     return formatColorValue(value) ?? 'Set';
+  }
+
+  // Raw milliseconds read poorly at a glance — scale to the largest exact
+  // unit, matching what the expanded TimeoutFormField shows.
+  if (type === 'timeout' && typeof value === 'number') {
+    return formatTimeoutValue(value);
   }
 
   if (type === 'file') {
