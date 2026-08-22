@@ -730,42 +730,42 @@ export const TemplateField = memo(
     }
 
     return (
-      // `wrap` is deliberate and must stay AFTER the `{...rest}` spread: the
-      // form engine spreads the whole server-provided field descriptor into
-      // `rest`, so an unrelated `wrap` key in a schema must not be able to turn
-      // it off.
-      //
-      // This group hosts the field editor next to the template selector /
-      // dropdown, so it is a horizontal row. A consumer field component that
-      // returns a React fragment has ALL of its top-level elements flattened
-      // into that row rather than contributing one child, and a first element
-      // that is a full-width panel (`flex: 0 0 auto` — cannot shrink) then
-      // leaves the remaining parts no room and pushes them outside the
-      // container. Without wrapping, the parts are simply clipped and the row
-      // grows a horizontal scrollbar; with it they fall to the next line, which
-      // is the vertical stacking such a component was written to expect.
-      // See https://github.com/qoretechnologies/toolkit-react/issues/90.
       <ReqoreControlGroup
         fluid={rest.fluid}
         fixed={rest.fixed}
         size={rest.size}
         {...rest}
         stack={false}
-        wrap
         verticalAlign='flex-start'
       >
         {!isTemplate && allowCustomValues ? (
-          <Component
-            value={value}
-            allowTemplates={allowTemplates}
-            onChange={onChange}
-            name={name}
-            level={level}
-            {...rest}
-            aria-label={fieldAriaLabel}
-            className={`${className} template-selector`}
-            templates={componentTemplates}
-          />
+          // This group is a horizontal row: the editor sits beside the template
+          // selector / dropdown. A consumer field component that returns a React
+          // *fragment* would therefore have every one of its top-level elements
+          // flattened into that row and laid out side by side — and when the
+          // first is a full-width panel that cannot shrink, the rest is pushed
+          // outside the container (qorus-ide's `api-manager` and
+          // `service-events` both have that shape; issue #90).
+          //
+          // Giving the component its own vertical group makes it ONE child of
+          // the row again, so a fragment's parts stack the way such a component
+          // is written to expect. Deliberately not solved with `flex-wrap: wrap`
+          // on the row itself: that also stops the trailing controls shrinking
+          // to fit, so they break onto their own line and every ordinary
+          // single-element field row grows (caught by Qlip build 75).
+          <ReqoreControlGroup vertical fluid={rest.fluid} size={rest.size} stack={false}>
+            <Component
+              value={value}
+              allowTemplates={allowTemplates}
+              onChange={onChange}
+              name={name}
+              level={level}
+              {...rest}
+              aria-label={fieldAriaLabel}
+              className={`${className} template-selector`}
+              templates={componentTemplates}
+            />
+          </ReqoreControlGroup>
         ) : null}
 
         {isTemplate && templateSupportsCustomValues ? (
