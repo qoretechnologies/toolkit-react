@@ -318,13 +318,17 @@ export const _validateField = (
         const result = every(
           field.arg_schema,
           (fieldData: TQorusFormFieldSchema, argName: string) => {
-            if (parsedValue?.[argName] === undefined) {
+            const argValue = readArgValue(parsedValue?.[argName]);
+
+            // Absent and present-but-empty are the same answer to the only
+            // question the schema asks here: was the arg supplied?
+            if (argValue === undefined) {
               return !fieldData.required;
             }
 
             return validateFieldWithResult(
               (fieldData.ui_type as string) || (fieldData.type as string),
-              parsedValue?.[argName]?.value,
+              argValue,
               fieldData as unknown as IFieldValidationProps
             ).isValid;
           }
@@ -608,6 +612,25 @@ export const _validateField = (
 };
 
 // Memoized version
+/**
+ * Read one arg out of a hash, whichever of the two legitimate shapes it is in.
+ *
+ * A hash reaches validation both as plain values (`{name: 'init'}` — what the
+ * server sends, and what a list-of-hash row holds until it is edited) and as
+ * typed envelopes (`{name: {type: 'string', value: 'init'}}` — what FormEngine
+ * emits once the row has been through the form). `fixOptions` already
+ * reconciles the two for RENDERING; validation never learned the same rule, so
+ * a freshly-loaded row read as invalid while an edited one read as valid. That
+ * is what made every complete service-method row report "Hash arguments are
+ * invalid" while showing correct values.
+ *
+ * The `'value' in arg` test is the one `fixOptions` uses, including its known
+ * edge — an arg whose own value is a hash carrying a `value` key. Agreeing with
+ * the renderer beats being differently wrong from it.
+ */
+export const readArgValue = (arg: any): any =>
+  isObject(arg) && 'value' in (arg as object) ? (arg as { value: unknown }).value : arg;
+
 export const validateFieldWithResult: (
   type: string,
   value?: any,
