@@ -45,6 +45,12 @@ export interface IArrayAutoProps {
   default_value?: any;
   display_name?: string;
   type?: string;
+  /** Render each row's `arg_schema` sub-form in compact (read-first) mode,
+   *  matching the parent engine. Deliberately NOT destructured below: it rides
+   *  `...rest` into each row's `TemplateField` -> `AutoFormField`, whose `hash`
+   *  case hands it to the nested `FormEngine`. Destructuring it here would break
+   *  that chain and silently return every row to the classic layout. */
+  compact?: boolean;
   [key: string]: any;
 }
 

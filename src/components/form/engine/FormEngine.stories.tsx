@@ -1162,6 +1162,137 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
   },
 };
 
+// The companion above deliberately stops at the collapsed summary, which is
+// exactly where this bug hid: nothing expanded a list-of-hash row inside a
+// compact form. `compact` is destructured out of AutoFormField's `...rest`, so
+// while the `hash` case forwarded it explicitly to the nested FormEngine, the
+// `list` case handed `<ArrayAuto {...rest}>` no `compact` at all — every row's
+// arg_schema sub-form fell back to the CLASSIC engine (stacked labels + an
+// option filter) while every sibling field beside it rendered as a compact
+// read-first row. This story expands the row and asserts the sub-form is
+// compact, which is only observable once the rows are open.
+export const CompactNestedListRowsStayCompact: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Expands a list-of-hash option inside a compact form — each row\'s arg_schema sub-form renders as compact read-first rows, matching the parent, instead of falling back to the classic stacked-label form.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    value: {
+      methods: {
+        type: 'list',
+        value: [
+          { type: 'hash', value: { name: 'init', desc: 'initialises the service' } },
+          { type: 'hash', value: { name: 'run', desc: 'does the work' } },
+        ],
+      },
+    },
+    options: {
+      methods: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'hash',
+        display_name: 'Methods',
+        arg_schema: {
+          name: {
+            type: 'string',
+            ui_type: 'string',
+            display_name: 'Method Name',
+          },
+          desc: {
+            type: 'string',
+            ui_type: 'string',
+            display_name: 'Description',
+          },
+        },
+      },
+    } as unknown as IOptionsSchema,
+  },
+  play: async ({ canvasElement }) => {
+    // Collapsed, the row summarises by the items' names.
+    await _testsWaitForText('init, run');
+
+    // Open the Methods row — this mounts ArrayAuto and, with it, one
+    // arg_schema sub-form per row.
+    await _testsClickText('init, run');
+
+    await waitFor(
+      () => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2),
+      { timeout: 5000 }
+    );
+
+    // `data-field` and `readfirst-row` are mounted by CompactRow and by nothing
+    // else, so their presence INSIDE a row is the structural proof that the
+    // sub-form inherited compact. Without the fix both counts are 0 and the
+    // rows render the classic form instead.
+    await waitFor(
+      () => {
+        const rows = canvasElement.querySelectorAll('.array-auto-item');
+
+        rows.forEach((row) => {
+          expect(row.querySelector('[data-field="name"]')).toBeTruthy();
+          expect(row.querySelector('[data-field="desc"]')).toBeTruthy();
+          expect(row.querySelectorAll('.readfirst-row').length).toBeGreaterThan(0);
+        });
+      },
+      { timeout: 5000 }
+    );
+
+    // Each row shows its own values through the compact read-first summary.
+    await _testsWaitForText('initialises the service');
+    await _testsWaitForText('does the work');
+  },
+};
+
+// Phone width: the nested rows inherit the parent's responsive behaviour, so a
+// row's label/value pair stacks instead of overflowing the 360px container.
+// Worth its own story because the classic fallback this fix replaces sized its
+// inputs from the container and clipped them here.
+export const CompactNestedListRowsStayCompactMobile: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the expanded list-of-hash rows at a ~360px mobile viewport — each row\'s compact sub-form stacks into a single column rather than overflowing.',
+      },
+    },
+  },
+  args: CompactNestedListRowsStayCompact.args,
+  decorators: [
+    (StoryComponent: React.ComponentType) => (
+      <div style={{ maxWidth: 360, margin: '0 auto', border: '1px dashed #ffffff22' }}>
+        <StoryComponent />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('init, run');
+    await _testsClickText('init, run');
+
+    await waitFor(
+      () => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2),
+      { timeout: 5000 }
+    );
+    await waitFor(
+      () => {
+        canvasElement.querySelectorAll('.array-auto-item').forEach((row) => {
+          expect(row.querySelector('[data-field="name"]')).toBeTruthy();
+        });
+      },
+      { timeout: 5000 }
+    );
+
+    // Nothing spills out of the 360px container.
+    const container = canvasElement.querySelector('.array-auto-item') as HTMLElement;
+    expect(container.scrollWidth).toBeLessThanOrEqual(container.clientWidth + 1);
+  },
+};
+
 export const DependantsResetWhenParentChanges: Story = {
   parameters: {
     docs: {
