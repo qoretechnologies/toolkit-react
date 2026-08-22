@@ -753,7 +753,13 @@ export const TemplateField = memo(
           // on the row itself: that also stops the trailing controls shrinking
           // to fit, so they break onto their own line and every ordinary
           // single-element field row grows (caught by Qlip build 75).
-          <ReqoreControlGroup vertical fluid={rest.fluid} size={rest.size} stack={false}>
+          // `fluid` unconditionally, NOT `fluid={rest.fluid}`: this group only
+          // stands in for the slot the component used to occupy as a direct
+          // child, so it has to fill that slot whatever the outer row's own
+          // sizing is. Threading `rest.fluid` through made it size to content
+          // when that was falsy, collapsing fields that used to span the row
+          // (caught by Qlip build 76).
+          <ReqoreControlGroup vertical fluid size={rest.size} stack={false}>
             <Component
               value={value}
               allowTemplates={allowTemplates}
