@@ -328,6 +328,36 @@ const formatSchemaDefinition = (value: unknown): string => {
 
 /**
 /**
+ * How much prose a one-line summary may carry.
+ *
+ * The row's value cell is a single CSS-clipped line (`text-overflow: ellipsis`),
+ * so the CELL needs no cap — the browser does that. The `title` hover does: it
+ * is handed this same string whole, and a description is a document. Without a
+ * bound, hovering a 4,000-word description produces a 4,000-word native
+ * tooltip, which no browser renders usefully and no reader can scroll.
+ *
+ * 240 comfortably overfills the widest realistic cell (~80-120 characters), so
+ * nothing visible is lost, and leaves the hover as what it is useful as — the
+ * next sentence or two. The whole document is never far away: it renders in the
+ * row's inset below.
+ */
+export const SUMMARY_MAX_LENGTH = 240;
+
+/** Clip to {@link SUMMARY_MAX_LENGTH}, on a word boundary where there is one
+ *  close enough to the end, so a hover never stops mid-identifier. */
+const capSummary = (text: string): string => {
+  if (text.length <= SUMMARY_MAX_LENGTH) {
+    return text;
+  }
+
+  const cut = text.slice(0, SUMMARY_MAX_LENGTH);
+  const lastSpace = cut.lastIndexOf(' ');
+  const body = lastSpace > SUMMARY_MAX_LENGTH * 0.6 ? cut.slice(0, lastSpace) : cut;
+
+  return `${body.trimEnd()}…`;
+};
+
+/**
  * Summarise a markdown value as the prose it renders to.
  *
  * A read-first row has one line to work with, and for markdown that line was
@@ -350,34 +380,34 @@ export const summariseMarkdown = (value: unknown): string => {
     return '';
   }
 
-  return (
-    value
-      // a fenced block is never the summary of the thing it sits in
-      .replace(/```[\s\S]*?```/g, ' ')
-      // images before links — an image's `!` prefix would otherwise survive
-      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-      // autolinks: <https://example.com> → https://example.com
-      .replace(/<((?:https?|mailto):[^>\s]+)>/g, '$1')
-      // leading block markers: heading hashes, blockquote carets, list bullets
-      .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, '')
-      // setext underlines and thematic breaks carry no prose
-      .replace(/^\s{0,3}(?:={2,}|-{2,}|\*{3,}|_{3,})\s*$/gm, '')
-      // Emphasis / strong / strikethrough markers around their own text. The
-      // delimiters must hug the text they wrap, as CommonMark requires, and
-      // underscores additionally must not be intraword.
-      .replace(/(\*\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
-      .replace(/(?<![A-Za-z0-9])(___)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
-      .replace(/(\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
-      .replace(/(?<![A-Za-z0-9])(__)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
-      .replace(/(\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
-      .replace(/(?<![A-Za-z0-9])(_)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
-      .replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, '$1')
-      // inline code spans
-      .replace(/`+([^`]+)`+/g, '$1')
-      .replace(/\s+/g, ' ')
-      .trim()
-  );
+  const prose = value
+    // a fenced block is never the summary of the thing it sits in
+    .replace(/```[\s\S]*?```/g, ' ')
+    // images before links — an image's `!` prefix would otherwise survive
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // autolinks: <https://example.com> → https://example.com
+    .replace(/<((?:https?|mailto):[^>\s]+)>/g, '$1')
+    // leading block markers: heading hashes, blockquote carets, list bullets
+    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, '')
+    // setext underlines and thematic breaks carry no prose
+    .replace(/^\s{0,3}(?:={2,}|-{2,}|\*{3,}|_{3,})\s*$/gm, '')
+    // Emphasis / strong / strikethrough markers around their own text. The
+    // delimiters must hug the text they wrap, as CommonMark requires, and
+    // underscores additionally must not be intraword.
+    .replace(/(\*\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
+    .replace(/(?<![A-Za-z0-9])(___)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
+    .replace(/(\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
+    .replace(/(?<![A-Za-z0-9])(__)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
+    .replace(/(\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
+    .replace(/(?<![A-Za-z0-9])(_)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
+    .replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, '$1')
+    // inline code spans
+    .replace(/`+([^`]+)`+/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return capSummary(prose);
 };
 
 export const formatOptionValue = (
@@ -412,7 +442,14 @@ export const formatOptionValue = (
   // Same reasoning, different notation: show what the markdown says, not how it
   // is written.
   if ((schema as { ui_type?: string } | undefined)?.ui_type === 'markdown') {
-    return summariseMarkdown(value);
+    // `|| 'Set'` is not defensive padding. A description that is ONLY a fenced
+    // code block summarises to the empty string — the block is dropped, and
+    // there is no prose behind it — and CompactRow reads `formatted === ''` as
+    // "no value" and renders a faint em-dash. A field holding a whole code
+    // block would show as empty. `'Set'` is this file's established answer for
+    // "there is a value here that does not reduce to a line" (colours, files,
+    // richtext all use it), and the block itself still renders in the inset.
+    return summariseMarkdown(value) || 'Set';
   }
 
   const type = getValueType(option, schema);

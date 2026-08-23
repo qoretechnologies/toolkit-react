@@ -2,7 +2,11 @@ import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
-import { summariseMarkdown } from '../src/components/form/engine/readFirst';
+import {
+  formatOptionValue,
+  SUMMARY_MAX_LENGTH,
+  summariseMarkdown,
+} from '../src/components/form/engine/readFirst';
 import { FetchContext } from '../src/contexts/FetchContext';
 
 const fetchContext = {
@@ -85,6 +89,70 @@ describe('summariseMarkdown', () => {
     // keeps its shape
     expect(summariseMarkdown('a_b_c stays')).toBe('a_b_c stays');
     expect(summariseMarkdown('snake_case_name')).toBe('snake_case_name');
+  });
+});
+
+describe('summary bounds and the code-only edge', () => {
+  it('caps the summary so the hover stays readable', () => {
+    // The cell is CSS-clipped to one line, so the cap is not about the cell —
+    // it is about the `title` hover, which gets this string whole.
+    const long = `Receives orders from the partner portal. ${'word '.repeat(400)}`;
+    const summary = summariseMarkdown(long);
+
+    expect(summary.length).toBeLessThanOrEqual(SUMMARY_MAX_LENGTH + 1);
+    expect(summary.endsWith('…')).toBe(true);
+    // the beginning — the part a reader actually sees — is untouched
+    expect(summary.startsWith('Receives orders from the partner portal.')).toBe(true);
+  });
+
+  it('breaks the cap on a word boundary', () => {
+    const summary = summariseMarkdown('alpha '.repeat(100));
+
+    // never stops mid-word, which in these descriptions means mid-identifier
+    expect(summary).not.toMatch(/alph…$/);
+    expect(summary.endsWith('alpha…')).toBe(true);
+  });
+
+  it('leaves a short summary exactly as it is', () => {
+    expect(summariseMarkdown('## Order intake\n\nShort and done.')).toBe(
+      'Order intake Short and done.'
+    );
+  });
+
+  it('does not report a code-block-only description as empty', () => {
+    const codeOnly = '```qore\nint i = 1;\n```';
+
+    // The summariser drops the block and has nothing left — correct, it is a
+    // pure function with no prose to return.
+    expect(summariseMarkdown(codeOnly)).toBe('');
+
+    // But the ROW must not then read as "no value": CompactRow treats an empty
+    // formatted value as absent and renders a faint em-dash, so a field holding
+    // a whole code block would look empty. `formatOptionValue` is where that is
+    // caught.
+    expect(
+      formatOptionValue(
+        { type: 'string', value: codeOnly } as never,
+        {
+          type: 'string',
+          ui_type: 'markdown',
+        } as never
+      )
+    ).toBe('Set');
+  });
+
+  it('still summarises the prose when a code block is only part of it', () => {
+    const mixed = 'Receives orders.\n\n```js\nconst x = 1;\n```\n\nThen forwards them.';
+
+    expect(
+      formatOptionValue(
+        { type: 'string', value: mixed } as never,
+        {
+          type: 'string',
+          ui_type: 'markdown',
+        } as never
+      )
+    ).toBe('Receives orders. Then forwards them.');
   });
 });
 
