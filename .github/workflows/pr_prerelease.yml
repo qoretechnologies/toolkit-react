@@ -9,7 +9,9 @@
 # build of an UNMERGED PR — a durable bridge until the PR merges and `beta_release`
 # publishes the real version. Repoint consumers back to the released version on merge.
 #
-# Restricted to same-repo PRs so the org NPM_TOKEN is never exposed to forks.
+# Publishes with npm trusted publishing (OIDC): npm trusts this repository and
+# this workflow file by name, so there is no stored npm credential. Restricted to
+# same-repo PRs, since a fork must not be able to publish under that trust.
 
 name: PR prerelease
 
@@ -27,10 +29,15 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
+  # Trusted publishing: npm verifies a short-lived OIDC token minted for this
+  # workflow instead of a stored credential, so the job must be allowed to
+  # request one.
+  id-token: write
 
 jobs:
   Prerelease:
-    # Never run for PRs opened from forks — the org NPM_TOKEN must not be exposed.
+    # Never run for PRs opened from forks: npm trusts this repository's workflow,
+    # so a fork must not be able to run under that trust.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     env:
@@ -45,6 +52,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22.19.0
+          registry-url: https://registry.npmjs.org
+
+      # Trusted publishing is only implemented from npm 11.5.1; the npm bundled
+      # with this Node is older, and would fall back to looking for a token.
+      - name: Use an npm that can publish with OIDC
+        run: npm install -g npm@latest
 
       - name: Install modules
         run: yarn install
@@ -66,12 +79,13 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "Publishing $VER"
 
+      # Published by npm's own client so it can use the OIDC token: the publish
+      # action this replaced predates trusted publishing and only knows how to
+      # send a stored credential. No NPM_TOKEN is involved any more — npm trusts
+      # this repository and this workflow file by name, which is why renaming
+      # this file breaks publishing until the trusted publisher is updated.
       - name: Publish prerelease to npm (pr tag)
-        uses: JS-DevTools/npm-publish@v1
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
-          tag: pr
-          access: public
+        run: npm publish --tag pr --access public
 
       - name: Comment install command on the PR
         uses: actions/github-script@v7
