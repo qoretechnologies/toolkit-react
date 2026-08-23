@@ -19,6 +19,13 @@ import { TQorusType } from '@qoretechnologies/ts-toolkit';
  * `TQorusType` union (`code-editor` and `tool-catalog` are members of it, and
  * the validator has cases for `cron` and `schema-definition`). It is a fact
  * about which editor a name selects, so it has to be declared.
+ *
+ * `markdown` is the case that makes the rule concrete: the server describes a
+ * description field as `type: 'string'` with a `markdown` flag, and a string is
+ * exactly what it stores -- but the editor is the split editor/preview one, and
+ * the read-first row renders the document rather than printing its source.
+ * Without the declaration `getValueType` keeps preferring the stored `string`
+ * and neither ever fires.
  */
 export const BUILT_IN_RENDERER_ONLY_UI_TYPES: readonly string[] = [
   'active-windows',
@@ -26,6 +33,7 @@ export const BUILT_IN_RENDERER_ONLY_UI_TYPES: readonly string[] = [
   'code-editor',
   'cron',
   'dpql',
+  'markdown',
   'processor-mappings',
   'schema-definition',
   'test-cases',

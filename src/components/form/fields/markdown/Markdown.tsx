@@ -1,12 +1,24 @@
-import { ReqoreColumn, ReqoreColumns, ReqoreMessage } from '@qoretechnologies/reqore';
+import {
+  ReqoreColumn,
+  ReqoreColumns,
+  ReqoreMessage,
+  useReqoreProperty,
+} from '@qoretechnologies/reqore';
 import { IReqoreMessageProps } from '@qoretechnologies/reqore/dist/components/Message';
 import { ComponentProps } from 'react';
-import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
 import LongStringFormField, { ILongStringFormFieldProps } from '../long-string/LongString';
+import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
+import { defaultMarkdownRenderer } from './MarkdownView';
 
 export interface IMarkdownFormFieldProps extends ILongStringFormFieldProps {
-  markdownPreviewProps?: Partial<ComponentProps<typeof ReactMarkdown>>;
+  /**
+   * Hide the live preview regardless of the available width.
+   *
+   * The preview is dropped on its own below tablet width; this forces it off
+   * for a host that knows its container is narrow even on a wide viewport.
+   */
+  hidePreview?: boolean;
 }
 
 const StyledWrapper = styled(ReqoreColumns)<ComponentProps<typeof ReqoreColumns>>`
@@ -20,66 +32,9 @@ const StyledLongStringWrapper = styled(ReqoreColumn)`
   }
 `;
 
-const StyledMarkdown = styled(ReactMarkdown)<ComponentProps<typeof ReactMarkdown>>`
-  p {
-    font-size: 14px;
-
-    &:first-child {
-      margin-top: 0;
-    }
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
-  h1,
-  h2,
-  p,
-  i,
-  a {
-    color: rgba(255, 255, 255, 0.84);
-  }
-
-  h1 {
-    text-align: left;
-  }
-
-  h2 {
-    font-weight: 700;
-    padding: 0;
-    text-align: left;
-    line-height: 34.5px;
-    letter-spacing: -0.45px;
-  }
-
-  p,
-  i,
-  a {
-    letter-spacing: -0.03px;
-    line-height: 1.58;
-  }
-
-  a {
-    text-decoration: underline;
-  }
-
-  blockquote {
-    font-style: italic;
-    letter-spacing: -0.36px;
-    line-height: 44.4px;
-    overflow-wrap: break-word;
-    color: rgba(255, 255, 255, 0.68);
-    padding: 0 0 0 50px;
-  }
-
-  code {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 2px;
-    padding: 34px 6px;
-  }
-`;
-
 const StyledPreviewColumn = styled(ReqoreColumn)`
   width: 100%;
+  min-width: 0;
 `;
 
 const StyledPreviewWrapper = styled(ReqoreMessage)<IReqoreMessageProps>`
@@ -88,15 +43,35 @@ const StyledPreviewWrapper = styled(ReqoreMessage)<IReqoreMessageProps>`
   }
 `;
 
-export const MarkdownFormField = ({ markdownPreviewProps, ...rest }: IMarkdownFormFieldProps) => {
+export const MarkdownFormField = ({ hidePreview, ...rest }: IMarkdownFormFieldProps) => {
+  // The shared context is empty unless a host supplied a renderer. The row
+  // inset deliberately draws nothing in that case; the field's live preview
+  // cannot — a blank preview beside the editor is worse than reqraft's own
+  // CommonMark — so it falls back to the built-in view.
+  const renderMarkdown = useMarkdownRenderer() ?? defaultMarkdownRenderer;
+  // Side-by-side needs room for both halves. `ReqoreColumns` would stack them
+  // instead of dropping one, which on a phone means scrolling past a second
+  // copy of the text you are still typing -- so below tablet width the editor
+  // simply takes the whole field.
+  const isMobileOrTablet = useReqoreProperty('isMobileOrTablet');
+  const showPreview = !hidePreview && !isMobileOrTablet;
+
+  const editor = (
+    <StyledLongStringWrapper flexFlow='column'>
+      <LongStringFormField {...rest} />
+    </StyledLongStringWrapper>
+  );
+
+  if (!showPreview) {
+    return editor;
+  }
+
   return (
     <StyledWrapper columnsGap='10px'>
-      <StyledLongStringWrapper flexFlow='column'>
-        <LongStringFormField {...rest} />
-      </StyledLongStringWrapper>
+      {editor}
       <StyledPreviewColumn>
         <StyledPreviewWrapper size='small' aria-label='Preview' flat fluid>
-          <StyledMarkdown {...markdownPreviewProps}>{rest.value ?? ''}</StyledMarkdown>
+          {renderMarkdown({ value: rest.value ?? '', compact: true })}
         </StyledPreviewWrapper>
       </StyledPreviewColumn>
     </StyledWrapper>

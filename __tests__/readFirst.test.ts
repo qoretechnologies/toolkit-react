@@ -669,3 +669,51 @@ describe('getReadFirstBucket', () => {
     expect(getReadFirstBucket('optional')).toBe('optional');
   });
 });
+
+describe('formatOptionValue for a multi-select', () => {
+  const schema = {
+    type: 'list',
+    ui_type: 'select-array',
+    element_type: 'string',
+    allowed_values: [
+      {
+        display_name: 'Require Types',
+        desc: 'Requires types to be declared everywhere they can be.',
+        value: { type: 'richtext', value: 'PO_REQUIRE_TYPES' },
+      },
+      {
+        display_name: 'Strict Arguments',
+        desc: 'Rejects excess arguments in calls.',
+        value: { type: 'richtext', value: 'PO_STRICT_ARGS' },
+      },
+    ],
+  } as never;
+
+  it('reads the selection the way the picker does, not the way the wire does', () => {
+    // the stored value IS the constant name; showing it back is the picker's
+    // job undone
+    expect(
+      formatOptionValue(
+        { type: 'select-array', value: ['PO_REQUIRE_TYPES', 'PO_STRICT_ARGS'] } as never,
+        schema
+      )
+    ).toBe('Require Types, Strict Arguments');
+  });
+
+  it('keeps a value the allowed list does not carry', () => {
+    // a value the server accepts but this schema does not describe must still
+    // be visible — silently dropping it would read as "not set"
+    expect(
+      formatOptionValue({ type: 'select-array', value: ['PO_REQUIRE_TYPES', 'PO_LEGACY'] } as never, schema)
+    ).toBe('Require Types, PO_LEGACY');
+  });
+
+  it('leaves a list with no allowed values alone', () => {
+    expect(
+      formatOptionValue({ type: 'list', value: ['one', 'two'] } as never, {
+        type: 'list',
+        element_type: 'string',
+      } as never)
+    ).toBe('one, two');
+  });
+});

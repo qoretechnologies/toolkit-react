@@ -982,6 +982,72 @@ export const CompactRowCodeEditorPreview: Story = {
   },
 };
 
+export const CompactRowMarkdownPreview: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders compact-mode markdown rows over a service description — the multi-line row summarises its value as prose (no `##`, no `**`) with a line-count tag and mounts the rendered document under the row, while the one-line row keeps its single rendered line and no preview.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {
+      desc: {
+        type: 'string',
+        value:
+          '## Order intake\n\n' +
+          'Receives orders from the **partner** portal and hands each one to the\n' +
+          '`order-processing` workflow.\n\n' +
+          '- Rejects an order with no `customer_id`\n' +
+          '- Retries a transient portal failure three times\n\n' +
+          'See [the runbook](https://example.com/runbook) for the escalation path.\n',
+      },
+      summary: { type: 'string', value: 'Handles **partner** order intake.' },
+    },
+    // Cast for the same reason `cron` / `dpql` / `schema-definition` need one:
+    // a renderer-only `ui_type` names an EDITOR, and ts-toolkit's `TQorusType`
+    // enumerates STORAGE types, so it has no member for one. The stored type
+    // stays `string`, which is what the union does describe.
+    options: {
+      desc: { type: 'string', ui_type: 'markdown', display_name: 'Description' },
+      summary: { type: 'string', ui_type: 'markdown', display_name: 'Summary' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    // (a) The rendered document mounted under the multi-line row — a heading
+    //     ELEMENT, not a printed "## ", is what proves it rendered.
+    await waitFor(
+      () => {
+        const preview = canvasElement.querySelector('.options-readfirst-markdown');
+        expect(preview).toBeTruthy();
+        expect(preview?.querySelector('h2')?.textContent).toBe('Order intake');
+        expect(preview?.querySelector('strong')?.textContent).toBe('partner');
+      },
+      { timeout: 5000 }
+    );
+
+    // (b) The row's own line reads as prose: the markers are gone and the line
+    //     count says how much more there is.
+    const descRow = canvasElement.querySelector('[data-field="desc"]');
+    const descText = descRow?.querySelector('.options-readfirst-valuetext')?.textContent ?? '';
+    expect(descText).toContain('Order intake');
+    expect(descText).not.toContain('##');
+    expect(descText).not.toContain('**');
+    expect(descRow?.textContent ?? '').toMatch(/\d+\s*lines?/);
+
+    // (c) A one-liner is already fully rendered as the row's own text, so it
+    //     gets no second copy below it.
+    const summaryRow = canvasElement.querySelector('[data-field="summary"]');
+    expect(summaryRow?.querySelector('.options-readfirst-markdown')).toBeNull();
+    expect(summaryRow?.querySelector('.options-readfirst-valuetext')?.textContent).toBe(
+      'Handles partner order intake.'
+    );
+  },
+};
+
 // qorus#347-followup, scope forwarding: this story exercises the nested
 // case of the OptionInheritsRenderPropFromSibling contract. The parent
 // form declares `methods: { ui_type: 'list', element_type: 'hash',

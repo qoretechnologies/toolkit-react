@@ -12,11 +12,7 @@ import {
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { resolveOptionActions } from './optionActions';
-import {
-  IQorusFormField,
-  TQorusForm,
-  TQorusFormFieldSchema,
-} from '@qoretechnologies/ts-toolkit';
+import { IQorusFormField, TQorusForm, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import flatten from 'lodash/flatten';
 import size from 'lodash/size';
 import React, { memo } from 'react';
@@ -65,6 +61,15 @@ import {
   optionHasImages,
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
+
+/**
+ * Does this markdown value have more document in it than one row can show?
+ *
+ * Blank trailing lines do not count: a textarea leaves them behind constantly,
+ * and a one-line description that gained a stray newline must not suddenly
+ * grow an inset.
+ */
+const isMultilineMarkdown = (value: string): boolean => value.trim().includes('\n');
 
 // Types whose editors are too tall/nested to edit in-row — these keep the edit
 // card; `arg_schema` and operator fields are excluded separately.
@@ -117,7 +122,6 @@ const COMPACT_SINGLE_VALUE_TYPES = new Set([
 // consumer controls how many actions it injects.
 const MAX_INLINE_OPTION_ACTIONS = 2;
 
-
 // One read-first row: label | value | action collapsed; the real editor (the
 // classic renderOption) expanded. `hidden` = search-surfaced optional —
 // activating the row adds the field first.
@@ -143,18 +147,12 @@ export const CompactRow = memo(
     const readOnly = useContextSelector(CompactRowContext, (v) => v.readOnly);
     const commitMode = useContextSelector(CompactRowContext, (v) => v.commitMode);
     const options = useContextSelector(CompactRowContext, (v) => v.options);
-    const codePreviewRenderer = useContextSelector(
-      CompactRowContext,
-      (v) => v.codePreviewRenderer
-    );
+    const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
     const markdownRenderer = useMarkdownRenderer();
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
     const focusedEditing = useContextSelector(CompactRowContext, (v) => v.focusedEditing);
     const showFieldTypes = useContextSelector(CompactRowContext, (v) => v.showFieldTypes);
-    const showAllDescriptions = useContextSelector(
-      CompactRowContext,
-      (v) => v.showAllDescriptions
-    );
+    const showAllDescriptions = useContextSelector(CompactRowContext, (v) => v.showAllDescriptions);
     const isExpanded = useContextSelector(CompactRowContext, (v) =>
       v.expandedOptions.includes(optionName)
     );
@@ -206,6 +204,8 @@ export const CompactRow = memo(
     const cDanger = useContextSelector(CompactRowContext, (v) => v.cDanger);
     const cWarning = useContextSelector(CompactRowContext, (v) => v.cWarning);
     const cInfo = useContextSelector(CompactRowContext, (v) => v.cInfo);
+    // A markdown value renders as a document in the row's inset; the host's
+    // renderer when it supplied one, reqraft's own otherwise.
 
     // Value-cell content: colour adds a swatch, file an icon + size; hash keeps
     // its "N fields" summary (sub-fields reveal beneath the row).
@@ -244,7 +244,9 @@ export const CompactRow = memo(
               : wrapStyle
             }
           >
-            {swatch ? <StyledColorSwatch aria-hidden $color={swatch} $border={cDivider} /> : null}
+            {swatch ?
+              <StyledColorSwatch aria-hidden $color={swatch} $border={cDivider} />
+            : null}
             <span style={textStyle}>{formatted}</span>
           </span>
         );
@@ -295,6 +297,36 @@ export const CompactRow = memo(
             label={`${lines} ${lines === 1 ? 'line' : 'lines'}`}
             labelKey={`${chars} ${chars === 1 ? 'char' : 'chars'}`}
           />
+        );
+      }
+
+      // Markdown read summary: the row prints the value's prose (the markdown
+      // markers are stripped by `formatOptionValue`), so a multi-line document
+      // gets a chip carrying what the one truncated line cannot -- how much
+      // more there is -- and renders in full in the inset below, exactly as a
+      // code value does. A single-line value needs neither: its one line IS
+      // the whole document, already rendered as prose.
+      if (
+        valueType === 'markdown' &&
+        typeof field?.value === 'string' &&
+        isMultilineMarkdown(field.value)
+      ) {
+        // Only the count is chipped. Putting the prose inside the tag as well
+        // tints the whole row width, and a description then reads as one giant
+        // label rather than as the text it is. The guard above means the count
+        // is never 1.
+        const lines = field.value.trim().split('\n').length;
+        return (
+          <span style={wrapStyle}>
+            <ReqoreTag
+              size='small'
+              minimal
+              intent='info'
+              icon='MarkdownLine'
+              label={`${lines} lines`}
+            />
+            <span style={textStyle}>{formatted}</span>
+          </span>
         );
       }
 
@@ -463,9 +495,7 @@ export const CompactRow = memo(
     // "Has a value" = set to anything non-empty. Drives the edit-row Clear
     // button and the cluster node's filled state (see `memberSet`).
     const hasValue =
-      optionField?.value !== undefined &&
-      optionField?.value !== null &&
-      optionField?.value !== '';
+      optionField?.value !== undefined && optionField?.value !== null && optionField?.value !== '';
     // Required-group membership shows a PERSISTENT chip on every member: amber
     // "One of" while the group is unmet (tap → flash siblings), then a muted-green
     // resolution once satisfied — "Covers" on the field that satisfied it,
@@ -497,7 +527,9 @@ export const CompactRow = memo(
           role='presentation'
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
-          onMouseEnter={() => setHighlightedOptions(requiredGroupsInfo.members[chipGroups[0]] || [])}
+          onMouseEnter={() =>
+            setHighlightedOptions(requiredGroupsInfo.members[chipGroups[0]] || [])
+          }
           onMouseLeave={() => setHighlightedOptions([])}
         >
           <ReqoreDropdown
@@ -511,7 +543,8 @@ export const CompactRow = memo(
             icon={groupResolved ? 'CheckLine' : 'LinkM'}
             label={
               !groupResolved ? 'One of'
-              : coveredByLabel ? `Covered by “${coveredByLabel}”`
+              : coveredByLabel ?
+                `Covered by “${coveredByLabel}”`
               : 'Covers'
             }
             filterable={
@@ -521,24 +554,22 @@ export const CompactRow = memo(
               ...(chipGroups.length > 1 ?
                 [{ divider: true, label: groupName, dividerAlign: 'left' } as IReqoreDropdownItem]
               : []),
-              ...requiredGroupsInfo.members[groupName].map(
-                (member): IReqoreDropdownItem => ({
-                  label: (options?.[member]?.display_name as string) || member,
-                  icon: member === optionName ? 'MapPinLine' : 'ArrowRightLine',
-                  selected: member === optionName,
-                  disabled: member === optionName,
-                  onClick: member === optionName ? undefined : () => flashOption(member),
-                })
-              ),
+              ...requiredGroupsInfo.members[groupName].map((member): IReqoreDropdownItem => ({
+                label: (options?.[member]?.display_name as string) || member,
+                icon: member === optionName ? 'MapPinLine' : 'ArrowRightLine',
+                selected: member === optionName,
+                disabled: member === optionName,
+                onClick: member === optionName ? undefined : () => flashOption(member),
+              })),
             ])}
           />
         </span>
       : null;
     const fixedAllowedValueOption = isFixedCompactAllowedValueOption(schema);
     const editType =
-      (fixedAllowedValueOption
-        ? (schema?.type as string) || (schema?.ui_type as string)
-        : (schema?.ui_type as string) || (schema?.type as string)) ?? '';
+      (fixedAllowedValueOption ?
+        (schema?.type as string) || (schema?.ui_type as string)
+      : (schema?.ui_type as string) || (schema?.type as string)) ?? '';
     // Scalars edit in place inside the row; complex fields (tall or nested
     // editors) still open the expanded card below.
     const inlineEditable =
@@ -863,7 +894,9 @@ export const CompactRow = memo(
                 }}
               >
                 {label}
-                {required ? <ReqoreIcon icon='Asterisk' color='danger' size='10px' /> : null}
+                {required ?
+                  <ReqoreIcon icon='Asterisk' color='danger' size='10px' />
+                : null}
                 {helpIcon}
               </StyledRowLabel>
               {/* An OPEN field always shows its short_desc — that's where the hint
@@ -988,7 +1021,10 @@ export const CompactRow = memo(
           >
             <StyledCardHeading>
               <StyledCardLabel $color={cKey}>
-                {(schema as { icon?: string } | undefined)?.icon || (schema as { image?: string } | undefined)?.image ?
+                {(
+                  (schema as { icon?: string } | undefined)?.icon ||
+                  (schema as { image?: string } | undefined)?.image
+                ) ?
                   <ReqoreIcon
                     icon={(schema as { icon?: string } | undefined)?.icon as never}
                     image={(schema as { image?: string } | undefined)?.image}
@@ -997,7 +1033,9 @@ export const CompactRow = memo(
                 : null}
                 <span>
                   {label}
-                  {required ? <ReqoreIcon icon='Asterisk' color='danger' size='10px' /> : null}
+                  {required ?
+                    <ReqoreIcon icon='Asterisk' color='danger' size='10px' />
+                  : null}
                 </span>
                 {cardBadges.map((badge, index) =>
                   typeof badge === 'object' ?
@@ -1107,9 +1145,11 @@ export const CompactRow = memo(
     // more" disclosure; the row itself still expands the real editor on click.
     const valueType = getValueType(optionField, schema);
     const hashEntries =
-      !hidden &&
-      (valueType === 'hash' || valueType === 'free-hash') &&
-      (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition' ?
+      (
+        !hidden &&
+        (valueType === 'hash' || valueType === 'free-hash') &&
+        (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition'
+      ) ?
         getHashEntries(optionField, schema)
       : [];
     // A LIST OF HASHES/objects gets the same expandable structured preview a hash
@@ -1145,15 +1185,20 @@ export const CompactRow = memo(
     // rendered. The document renders in the same inset the code preview uses,
     // through the host's renderer, so the row shows the description the way the
     // page it describes will.
+    //
+    // Only a MULTI-LINE document earns the inset. A one-liner is already fully
+    // rendered as the row's own text, and a second copy of it below would make
+    // every description row tall for nothing.
     const showMarkdownPreview =
       !hidden &&
+      !showCodePreview &&
       !!markdownRenderer &&
       // keyed on the schema's ui_type, not on getValueType(): a markdown value
       // IS a string and the value type says so, which is the whole distinction
       // between how a value is stored and which editor draws it
       (schema as { ui_type?: string } | undefined)?.ui_type === 'markdown' &&
       typeof optionField?.value === 'string' &&
-      optionField.value.length > 0;
+      isMultilineMarkdown(optionField.value);
     const typeLabel =
       showFieldTypes ?
         `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
@@ -1257,7 +1302,10 @@ export const CompactRow = memo(
     // Row chrome: icon/image before the label; schema `intent` as the edge
     // stripe (message-severity stripes win when both apply).
     const rowChromeIcon =
-      (schema as { icon?: string } | undefined)?.icon || (schema as { image?: string } | undefined)?.image ?
+      (
+        (schema as { icon?: string } | undefined)?.icon ||
+        (schema as { image?: string } | undefined)?.image
+      ) ?
         <ReqoreIcon
           icon={(schema as { icon?: string } | undefined)?.icon as never}
           image={(schema as { image?: string } | undefined)?.image}
@@ -1305,7 +1353,7 @@ export const CompactRow = memo(
         role='button'
         tabIndex={0}
         aria-label={label}
-        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
         style={stripeStyle}
         onClick={activate}
@@ -1326,7 +1374,13 @@ export const CompactRow = memo(
             <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
               {label}
               {required ?
-                <ReqoreIcon icon='Asterisk' color='danger' size='10px' margin='left' marginSize='tiny' />
+                <ReqoreIcon
+                  icon='Asterisk'
+                  color='danger'
+                  size='10px'
+                  margin='left'
+                  marginSize='tiny'
+                />
               : null}
               {helpIcon}
             </span>
@@ -1351,7 +1405,13 @@ export const CompactRow = memo(
           // unreadable anyway. Every other value keeps its hover, which is the
           // only way to read one that the row had to truncate.
           title={
-            !empty && !hidden && !showCodePreview && typeof formatted === 'string' ?
+            (
+              !empty &&
+              !hidden &&
+              !showCodePreview &&
+              !showMarkdownPreview &&
+              typeof formatted === 'string'
+            ) ?
               formatted
             : undefined
           }
@@ -1446,7 +1506,9 @@ export const CompactRow = memo(
               renderer so a description reads identically here and on the page it
               belongs to. Only rendered when a host supplied one — there is no
               built-in fallback, because drawing markdown in a dialect nobody
-              chose is the problem this exists to avoid. */}
+              chose is the problem this exists to avoid. Propagation stops here
+              for the reason the code inset does it: a click on "Show more", or
+              on a link in the prose, must not also open the field editor. */}
           {showMarkdownPreview ?
             <StyledRowInset
               className='options-readfirst-inset options-readfirst-markdown-inset'
@@ -1488,10 +1550,7 @@ export const CompactRow = memo(
               locked fields show the "Depends on" chip in the chips area instead.) */}
           {fieldDisabled && !dependencyEntries.length ?
             <StyledActionSlot className='options-readfirst-trailing-slot' $width={18}>
-              <span
-                title={fieldDisabledReason}
-                style={{ display: 'inline-flex', opacity: 0.45 }}
-              >
+              <span title={fieldDisabledReason} style={{ display: 'inline-flex', opacity: 0.45 }}>
                 <ReqoreIcon className='options-readfirst-locked' icon='LockLine' size='14px' />
               </span>
             </StyledActionSlot>

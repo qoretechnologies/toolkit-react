@@ -1,8 +1,4 @@
-import {
-  IQorusFormField,
-  TQorusFormFieldSchema,
-  TQorusType,
-} from '@qoretechnologies/ts-toolkit';
+import { IQorusFormField, TQorusFormFieldSchema, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { isRendererOnlyUiType } from './rendererTypes';
 import { isUiEncodedValue } from './_structuredData/structuredData';
 import { renderExpressionToText } from '../expressions/renderExpressionToText';
@@ -46,9 +42,18 @@ const summarizeListItem = (item: unknown): string | number | undefined => {
 
 /** Summarise a list value: join item labels, or fall back to an "N items" count
  * (e.g. a list of anonymous hashes). Never prints raw objects. */
-const formatList = (items: unknown[]): string => {
+/**
+ * Join a list into one line, labelling each item from the field's allowed values
+ * where it has them.
+ *
+ * A multi-select stores what the server stores -- a parse option is
+ * `PO_REQUIRE_TYPES`, a permission is a code -- and the picker is what turns
+ * that into something readable. The row has the same allowed values the picker
+ * does, so it can read the same way instead of printing the wire form back.
+ */
+const formatList = (items: unknown[], schema?: TQorusFormFieldSchema): string => {
   const parts = items
-    .map(summarizeListItem)
+    .map((item) => getAllowedValueLabel(item, schema) ?? summarizeListItem(item))
     .filter((part) => part !== '' && part !== undefined && part !== null);
 
   return parts.length ? parts.join(', ') : pluralize(items.length, 'item');
@@ -95,8 +100,9 @@ export const isFixedCompactAllowedValueOption = (
   }
 
   const selectableSchema = schema as TQorusFormFieldSchema & { items?: unknown[] };
-  const options = selectableSchema.allowed_values?.length
-    ? selectableSchema.allowed_values
+  const options =
+    selectableSchema.allowed_values?.length ?
+      selectableSchema.allowed_values
     : selectableSchema.items;
 
   return !!(
@@ -115,9 +121,7 @@ export const shouldAutoCollapseCompactAllowedValueOption = (
 /** Boolean fields have three meaningful states: unset, Yes, and No. Once the
  * user chooses either boolean value in compact mode, the choice is complete
  * and the inline editor can close without a separate confirmation. */
-export const isCompactBooleanOption = (
-  schema: TQorusFormFieldSchema | undefined
-): boolean => {
+export const isCompactBooleanOption = (schema: TQorusFormFieldSchema | undefined): boolean => {
   const type = (schema?.ui_type || schema?.type)?.toLowerCase();
   return type === 'bool' || type === 'boolean';
 };
@@ -138,8 +142,7 @@ const findAllowedOption = (value: unknown, schema?: TQorusFormFieldSchema): any 
     return undefined;
   }
   return options.find(
-    (option) =>
-      option?.value?.value === value || option?.value === value || option?.name === value
+    (option) => option?.value?.value === value || option?.value === value || option?.name === value
   );
 };
 
@@ -185,9 +188,7 @@ interface IParsedColor {
 }
 
 /** Whether parsed colour parts carry usable RGB channels. */
-const hasRgb = (
-  c: IParsedColor
-): c is IParsedColor & { r: number; g: number; b: number } =>
+const hasRgb = (c: IParsedColor): c is IParsedColor & { r: number; g: number; b: number } =>
   c.r !== undefined && c.g !== undefined && c.b !== undefined;
 
 /** Parse an `rgbcolor` into normalised parts: accepts `{ r, g, b, a }` (may
@@ -238,9 +239,9 @@ export const colorToCss = (value: unknown): string | undefined => {
   if (!c) {
     return undefined;
   }
-  return hasRgb(c) ? `rgba(${clampChannel(c.r)}, ${clampChannel(c.g)}, ${clampChannel(c.b)}, ${c.a})` : (
-      c.hex
-    );
+  return hasRgb(c) ?
+      `rgba(${clampChannel(c.r)}, ${clampChannel(c.g)}, ${clampChannel(c.b)}, ${c.a})`
+    : c.hex;
 };
 
 /** Filename for a `file` value: accepts `{ name, content, size }`, the
@@ -289,9 +290,8 @@ export const getValueType = (
     return uiType;
   }
 
-  return (option?.type ||
-    uiType ||
-    (schema as { type?: string } | undefined)?.type) as string | undefined;
+  return (option?.type || uiType || (schema as { type?: string } | undefined)?.type) as
+    string | undefined;
 };
 
 /** Human-readable byte count (e.g. `1.2 KB`). */
@@ -327,6 +327,7 @@ const formatSchemaDefinition = (value: unknown): string => {
 };
 
 /**
+/**
  * Summarise a markdown value as the prose it renders to.
  *
  * A read-first row has one line to work with, and for markdown that line was
@@ -337,32 +338,46 @@ const formatSchemaDefinition = (value: unknown): string => {
  *
  * Deliberately not a markdown parser: this feeds a one-line summary and the
  * row's hover title, and the real document renders in the inset below the row.
+ *
+ * The inline rules below are CommonMark-shaped on purpose, because the naive
+ * versions corrupt exactly the text these descriptions are full of. `(\*|_)(.*?)\1`
+ * turns "2 * 3 * 4 items" into "2 3 4 items" and `retry_count_max` into
+ * `retrycountmax`: emphasis delimiters have to hug the text they wrap, and an
+ * underscore must not be intraword, or an option key loses its underscores.
  */
 export const summariseMarkdown = (value: unknown): string => {
   if (typeof value !== 'string') {
     return '';
   }
 
-  return value
-    // a fenced block is never the summary of the thing it sits in
-    .replace(/```[\s\S]*?```/g, ' ')
-    .split('\n')
-    .map((line) =>
-      line
-        .replace(/^\s{0,3}#{1,6}\s+/, '')
-        .replace(/^\s{0,3}[-*+]\s+/, '')
-        .replace(/^\s{0,3}\d+\.\s+/, '')
-        .replace(/^\s{0,3}>\s?/, '')
-        .trim()
-    )
-    .filter((line) => line.length > 0)
-    .join(' ')
-    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/(\*\*|__)(.*?)\1/g, '$2')
-    .replace(/(\*|_)(.*?)\1/g, '$2')
-    .replace(/`([^`]*)`/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return (
+    value
+      // a fenced block is never the summary of the thing it sits in
+      .replace(/```[\s\S]*?```/g, ' ')
+      // images before links — an image's `!` prefix would otherwise survive
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      // autolinks: <https://example.com> → https://example.com
+      .replace(/<((?:https?|mailto):[^>\s]+)>/g, '$1')
+      // leading block markers: heading hashes, blockquote carets, list bullets
+      .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, '')
+      // setext underlines and thematic breaks carry no prose
+      .replace(/^\s{0,3}(?:={2,}|-{2,}|\*{3,}|_{3,})\s*$/gm, '')
+      // Emphasis / strong / strikethrough markers around their own text. The
+      // delimiters must hug the text they wrap, as CommonMark requires, and
+      // underscores additionally must not be intraword.
+      .replace(/(\*\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
+      .replace(/(?<![A-Za-z0-9])(___)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
+      .replace(/(\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
+      .replace(/(?<![A-Za-z0-9])(__)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
+      .replace(/(\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
+      .replace(/(?<![A-Za-z0-9])(_)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
+      .replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, '$1')
+      // inline code spans
+      .replace(/`+([^`]+)`+/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
 };
 
 export const formatOptionValue = (
@@ -424,8 +439,17 @@ export const formatOptionValue = (
     return text && text.trim() ? text : 'Set';
   }
 
+  // A markdown value reads as prose, not as source: the row's one line — and
+  // the hover title built from it — would otherwise open with `# ` or spend its
+  // width on `[label](https://…)`. The rendered document itself is drawn in the
+  // row's inset below.
+  if (type === 'markdown' && typeof value === 'string') {
+    const text = summariseMarkdown(value);
+    return text || 'Set';
+  }
+
   if (Array.isArray(value)) {
-    return formatList(value);
+    return formatList(value, schema);
   }
 
   // A serialized list/hash (the object editor stores them as a YAML string):
@@ -433,7 +457,7 @@ export const formatOptionValue = (
   if (typeof value === 'string') {
     const parsed = parseSerialized(value, type);
     if (Array.isArray(parsed)) {
-      return formatList(parsed);
+      return formatList(parsed, schema);
     }
     if (parsed && typeof parsed === 'object') {
       return fieldCountLabel(parsed as object);
@@ -590,9 +614,7 @@ export const getReadFirstStatus = (s: {
 };
 
 /** Coarse bucket for the three status boxes (Needs attention / Set / Optional). */
-export const getReadFirstBucket = (
-  status: TReadFirstStatus
-): 'attention' | 'set' | 'optional' =>
+export const getReadFirstBucket = (status: TReadFirstStatus): 'attention' | 'set' | 'optional' =>
   status === 'set' ? 'set'
   : status === 'optional' ? 'optional'
   : 'attention';
