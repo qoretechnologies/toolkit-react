@@ -31,6 +31,7 @@ import {
 import { richtextToSegments } from '../../../helpers/common';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
 import { Description } from '../../Description';
+import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
 import {
@@ -146,6 +147,7 @@ export const CompactRow = memo(
       CompactRowContext,
       (v) => v.codePreviewRenderer
     );
+    const markdownRenderer = useMarkdownRenderer();
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
     const focusedEditing = useContextSelector(CompactRowContext, (v) => v.focusedEditing);
     const showFieldTypes = useContextSelector(CompactRowContext, (v) => v.showFieldTypes);
@@ -1137,6 +1139,21 @@ export const CompactRow = memo(
       valueType === 'code-editor' &&
       typeof optionField?.value === 'string' &&
       optionField.value.length > 0;
+    // Markdown reads the same way for the same reason: the row itself can only
+    // show a line of text, and for markdown that line is the SOURCE — the reader
+    // gets `## ` and `**` where the point of the value is what it looks like
+    // rendered. The document renders in the same inset the code preview uses,
+    // through the host's renderer, so the row shows the description the way the
+    // page it describes will.
+    const showMarkdownPreview =
+      !hidden &&
+      !!markdownRenderer &&
+      // keyed on the schema's ui_type, not on getValueType(): a markdown value
+      // IS a string and the value type says so, which is the whole distinction
+      // between how a value is stored and which editor draws it
+      (schema as { ui_type?: string } | undefined)?.ui_type === 'markdown' &&
+      typeof optionField?.value === 'string' &&
+      optionField.value.length > 0;
     const typeLabel =
       showFieldTypes ?
         `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
@@ -1422,6 +1439,26 @@ export const CompactRow = memo(
                     {optionField.value as string}
                   </StyledCodePreview>
                 }
+              </ReqoreCollapsibleContent>
+            </StyledRowInset>
+          : null}
+          {/* Markdown preview: same inset, same collapse, drawn by the host's
+              renderer so a description reads identically here and on the page it
+              belongs to. Only rendered when a host supplied one — there is no
+              built-in fallback, because drawing markdown in a dialect nobody
+              chose is the problem this exists to avoid. */}
+          {showMarkdownPreview ?
+            <StyledRowInset
+              className='options-readfirst-inset options-readfirst-markdown-inset'
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ReqoreCollapsibleContent
+                maxCollapsedHeight={96}
+                buttonProps={{ className: 'options-readfirst-viewmore' }}
+              >
+                <div className='options-readfirst-markdown'>
+                  {markdownRenderer!({ value: optionField.value as string, compact: true })}
+                </div>
               </ReqoreCollapsibleContent>
             </StyledRowInset>
           : null}

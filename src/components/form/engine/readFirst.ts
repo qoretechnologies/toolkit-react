@@ -326,6 +326,45 @@ const formatSchemaDefinition = (value: unknown): string => {
   return name ? `${name}${tables}` : 'Schema';
 };
 
+/**
+ * Summarise a markdown value as the prose it renders to.
+ *
+ * A read-first row has one line to work with, and for markdown that line was
+ * the SOURCE: a description opening with a heading read as `## Partner portal`,
+ * which is punctuation where the reader wanted the sentence. The markers are
+ * stripped rather than the value truncated, because what the row is standing in
+ * for is the rendered document, not the file behind it.
+ *
+ * Deliberately not a markdown parser: this feeds a one-line summary and the
+ * row's hover title, and the real document renders in the inset below the row.
+ */
+export const summariseMarkdown = (value: unknown): string => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value
+    // a fenced block is never the summary of the thing it sits in
+    .replace(/```[\s\S]*?```/g, ' ')
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^\s{0,3}#{1,6}\s+/, '')
+        .replace(/^\s{0,3}[-*+]\s+/, '')
+        .replace(/^\s{0,3}\d+\.\s+/, '')
+        .replace(/^\s{0,3}>\s?/, '')
+        .trim()
+    )
+    .filter((line) => line.length > 0)
+    .join(' ')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')
+    .replace(/(\*|_)(.*?)\1/g, '$2')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
 export const formatOptionValue = (
   option?: IQorusFormField,
   schema?: TQorusFormFieldSchema
@@ -353,6 +392,12 @@ export const formatOptionValue = (
   // name + table count rather than a meaningless top-level key count.
   if ((schema as { ui_type?: string } | undefined)?.ui_type === 'schema-definition') {
     return formatSchemaDefinition(value);
+  }
+
+  // Same reasoning, different notation: show what the markdown says, not how it
+  // is written.
+  if ((schema as { ui_type?: string } | undefined)?.ui_type === 'markdown') {
+    return summariseMarkdown(value);
   }
 
   const type = getValueType(option, schema);

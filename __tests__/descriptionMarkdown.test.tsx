@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Description } from '../src/components/Description';
 import { MarkdownRendererContext } from '../src/components/Description/markdownRendererContext';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
+import { summariseMarkdown } from '../src/components/form/engine/readFirst';
 import { FetchContext } from '../src/contexts/FetchContext';
 
 const fetchContext = {
@@ -110,5 +111,100 @@ describe('FormEngine markdownRenderer', () => {
 
     expect((await findAllByTestId('host-markdown')).length).toBeGreaterThan(0);
     expect(markdownRenderer).toHaveBeenCalledWith(expect.objectContaining({ value: DESC }));
+  });
+});
+
+describe('read-first markdown', () => {
+  const SOURCE =
+    '## Partner portal\n\n' +
+    'Receives orders from the **partner** portal and hands each one to the\n' +
+    '`order-processing` workflow.\n\n' +
+    '- Rejects an order with no `customer_id`\n';
+
+  const renderMarkdownRow = (props: Record<string, unknown> = {}) =>
+    render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext as never}>
+          <FormEngine
+            compact
+            name='markdown'
+            value={{ desc: { type: 'string', value: SOURCE } }}
+            options={
+              {
+                desc: { type: 'string', ui_type: 'markdown', display_name: 'Description' },
+              } as never
+            }
+            onChange={vi.fn()}
+            {...props}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+
+  it('summarises the value as prose rather than as source', async () => {
+    const { container } = renderMarkdownRow();
+
+    await waitFor(() => expect(container.querySelector('[data-field="desc"]')).toBeTruthy());
+    const text = container.querySelector('.options-readfirst-valuetext')?.textContent ?? '';
+
+    // the row has one line to work with, and it was spending it on punctuation
+    expect(text).toContain('Partner portal');
+    expect(text).not.toContain('##');
+    expect(text).not.toContain('**');
+    expect(text).not.toContain('`');
+  });
+
+  it('draws the document under the row with the host renderer', async () => {
+    const markdownRenderer = vi.fn(({ value, compact }) => (
+      <div data-testid='host-markdown' data-compact={String(!!compact)}>
+        {value}
+      </div>
+    ));
+
+    const { container, findByTestId } = renderMarkdownRow({ markdownRenderer });
+
+    await waitFor(() => expect(container.querySelector('[data-field="desc"]')).toBeTruthy());
+    expect(container.querySelector('.options-readfirst-markdown')).toBeTruthy();
+    expect((await findByTestId('host-markdown')).textContent).toBe(SOURCE);
+    // the inset is a row-height box behind a "show more", not a page
+    expect((await findByTestId('host-markdown')).getAttribute('data-compact')).toBe('true');
+  });
+
+  it('draws nothing extra when no host renderer is supplied', async () => {
+    const { container } = renderMarkdownRow();
+
+    await waitFor(() => expect(container.querySelector('[data-field="desc"]')).toBeTruthy());
+    // no built-in fallback here on purpose: drawing markdown in a dialect the
+    // host did not choose is the problem, not the fix
+    expect(container.querySelector('.options-readfirst-markdown')).toBeNull();
+  });
+});
+
+describe('summariseMarkdown', () => {
+  it('keeps the words and drops the notation', () => {
+    expect(summariseMarkdown('## Title\n\nSome **bold** and `code` text.')).toBe(
+      'Title Some bold and code text.'
+    );
+  });
+
+  it('flattens lists and quotes into one line', () => {
+    expect(summariseMarkdown('- first\n- second\n\n> quoted')).toBe('first second quoted');
+  });
+
+  it('drops a fenced block, which never summarises what surrounds it', () => {
+    expect(summariseMarkdown('Intro text\n\n```\nnot a summary\n```\n\nOutro')).toBe(
+      'Intro text Outro'
+    );
+  });
+
+  it('reduces a link to the words a reader sees', () => {
+    expect(summariseMarkdown('See [the guide](https://example.com/guide) first')).toBe(
+      'See the guide first'
+    );
+  });
+
+  it('survives a value that is not a string', () => {
+    expect(summariseMarkdown(undefined)).toBe('');
+    expect(summariseMarkdown({ a: 1 })).toBe('');
   });
 });
