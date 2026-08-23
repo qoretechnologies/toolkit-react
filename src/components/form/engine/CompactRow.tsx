@@ -142,6 +142,10 @@ export const CompactRow = memo(
     const readOnly = useContextSelector(CompactRowContext, (v) => v.readOnly);
     const commitMode = useContextSelector(CompactRowContext, (v) => v.commitMode);
     const options = useContextSelector(CompactRowContext, (v) => v.options);
+    const codePreviewRenderer = useContextSelector(
+      CompactRowContext,
+      (v) => v.codePreviewRenderer
+    );
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
     const focusedEditing = useContextSelector(CompactRowContext, (v) => v.focusedEditing);
     const showFieldTypes = useContextSelector(CompactRowContext, (v) => v.showFieldTypes);
@@ -1324,7 +1328,16 @@ export const CompactRow = memo(
           : null}
         </StyledLabelBlock>
         <StyledRowValue
-          title={!empty && !hidden && typeof formatted === 'string' ? formatted : undefined}
+          // A code field draws its whole value in the preview below, with
+          // "Show more" for the rest, so a hover carrying the same text is
+          // noise -- and a native tooltip holding a few hundred lines is
+          // unreadable anyway. Every other value keeps its hover, which is the
+          // only way to read one that the row had to truncate.
+          title={
+            !empty && !hidden && !showCodePreview && typeof formatted === 'string' ?
+              formatted
+            : undefined
+          }
           // A SET value reads at full key brightness so it stands out as the
           // actual data — crucial when stacked under a (muted) description on
           // mobile, where a dim value blends into the prose. The bold name still
@@ -1392,14 +1405,23 @@ export const CompactRow = memo(
                 maxCollapsedHeight={96}
                 buttonProps={{ className: 'options-readfirst-viewmore' }}
               >
-                <StyledCodePreview
-                  className='options-readfirst-code'
-                  $bg={cHover}
-                  $border={`${cDivider}88`}
-                  $fg={cKey}
-                >
-                  {optionField.value as string}
-                </StyledCodePreview>
+                {codePreviewRenderer ?
+                  codePreviewRenderer({
+                    value: optionField.value as string,
+                    name: optionName,
+                    schema,
+                    options,
+                    values: availableOptions,
+                  })
+                : <StyledCodePreview
+                    className='options-readfirst-code'
+                    $bg={cHover}
+                    $border={`${cDivider}88`}
+                    $fg={cKey}
+                  >
+                    {optionField.value as string}
+                  </StyledCodePreview>
+                }
               </ReqoreCollapsibleContent>
             </StyledRowInset>
           : null}

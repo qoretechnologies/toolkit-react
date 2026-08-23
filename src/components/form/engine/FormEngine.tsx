@@ -70,7 +70,11 @@ import {
   isValueTemplate,
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
-import { CompactRowContext, ICompactRowContext } from './compactRowContext';
+import {
+  CompactRowContext,
+  ICompactRowContext,
+  TCodePreviewRenderer,
+} from './compactRowContext';
 import {
   GROUP_INDENT,
   LABEL_COL_MAX,
@@ -635,6 +639,16 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   componentOverrides?: Record<string, React.FC<any>>;
   /**
+   * Draws the read-first preview of a `code-editor` value.
+   *
+   * The built-in preview is a plain monospace block, because this package
+   * cannot ship a syntax highlighter -- a code editor is the very dependency it
+   * keeps out, which is why the *editor* for `code-editor` also arrives through
+   * `componentOverrides`. A host that already has a highlighter supplies one
+   * here; everyone else keeps the plain block.
+   */
+  codePreviewRenderer?: TCodePreviewRenderer;
+  /**
    * The `ui_type` names among `componentOverrides` that select a bespoke editor
    * but store their value as the schema's plainer `type` (a `cron` editor stores
    * a string). Declaring them here keeps the field's stored `type` correct —
@@ -731,6 +745,7 @@ export const FormEngine = ({
   optionActions,
   optionActionsCollapse = 'auto',
   componentOverrides,
+  codePreviewRenderer,
   rendererOnlyUiTypes,
   inheritedFromParent,
   autoFocusFirstRequired,
@@ -2227,6 +2242,7 @@ export const FormEngine = ({
       operators,
       focusedEditing,
       showFieldTypes,
+      codePreviewRenderer,
       showAllDescriptions,
       expandedOptions,
       autoFocusNameRef,
@@ -2274,6 +2290,7 @@ export const FormEngine = ({
       operators,
       focusedEditing,
       showFieldTypes,
+      codePreviewRenderer,
       showAllDescriptions,
       expandedOptions,
       autoFocusNameRef,
