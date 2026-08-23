@@ -1036,6 +1036,14 @@ export const CompactRow = memo(
                   {required ?
                     <ReqoreIcon icon='Asterisk' color='danger' size='10px' />
                   : null}
+                  {/* The `?` belongs here too. The read row and the inline
+                      editor both carry it; the edit CARD did not — and the card
+                      is the path every field with an `arg_schema` takes, so a
+                      nested form like an auth profile's Context Mapping opened
+                      with its long description unreachable. Expanding a field
+                      is exactly when its explanation is wanted, so losing the
+                      affordance on the way in is backwards. */}
+                  {helpIcon}
                 </span>
                 {cardBadges.map((badge, index) =>
                   typeof badge === 'object' ?
