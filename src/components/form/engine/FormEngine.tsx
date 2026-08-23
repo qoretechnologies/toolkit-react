@@ -95,6 +95,10 @@ import {
   TCompactSort,
 } from './compactToolbarContext';
 import { OptionFieldMessages } from './OptionFieldMessages';
+import {
+  MarkdownRendererContext,
+  TMarkdownRenderer,
+} from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
   TReadFirstStatus,
@@ -649,6 +653,17 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   codePreviewRenderer?: TCodePreviewRenderer;
   /**
+   * Draws every markdown description this form shows -- the inline row
+   * description, the focused-editing header, and the field help dialog.
+   *
+   * A host with field descriptions has markdown elsewhere too, on its object
+   * pages and in its catalogues. Without this the same description renders one
+   * way inside a form and another way outside it, and the built-in dialect --
+   * no GFM, no host heading scale -- is the one nobody chose. Supplying a
+   * renderer here makes the form agree with the rest of the application.
+   */
+  markdownRenderer?: TMarkdownRenderer;
+  /**
    * The `ui_type` names among `componentOverrides` that select a bespoke editor
    * but store their value as the schema's plainer `type` (a `cron` editor stores
    * a string). Declaring them here keeps the field's stored `type` correct —
@@ -710,7 +725,7 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
 const STRECHABLE_TYPES = new Set<TQorusType>(['tool-catalog' as TQorusType]);
 
-export const FormEngine = ({
+const FormEngineImpl = ({
   name,
   uniqueName,
   value,
@@ -746,6 +761,10 @@ export const FormEngine = ({
   optionActionsCollapse = 'auto',
   componentOverrides,
   codePreviewRenderer,
+  // consumed by the wrapper below, which publishes it to every description this
+  // form draws; destructured here only so it cannot reach `rest` and be spread
+  // onto a DOM node
+  markdownRenderer: _markdownRenderer, // eslint-disable-line @typescript-eslint/no-unused-vars
   rendererOnlyUiTypes,
   inheritedFromParent,
   autoFocusFirstRequired,
@@ -3167,5 +3186,20 @@ export const FormEngine = ({
     </OptionsContext.Provider>
   );
 };
+
+/**
+ * Publishes the host's markdown renderer to every description this form draws.
+ *
+ * A provider rather than prop-drilling because the descriptions are not in one
+ * place: the inline row description, the focused-editing header and the field
+ * help dialog are three components at three depths, and the dialog is not even
+ * a child of the row it belongs to. Threading a renderer to each of them by
+ * hand is how one of them gets missed.
+ */
+export const FormEngine = (props: IFormEngineProps) => (
+  <MarkdownRendererContext.Provider value={props.markdownRenderer}>
+    <FormEngineImpl {...props} />
+  </MarkdownRendererContext.Provider>
+);
 
 export default FormEngine;
