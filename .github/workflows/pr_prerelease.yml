@@ -54,10 +54,14 @@ jobs:
           node-version: 22.19.0
           registry-url: https://registry.npmjs.org
 
-      # Trusted publishing is only implemented from npm 11.5.1; the npm bundled
-      # with this Node is older, and would fall back to looking for a token.
+      # Trusted publishing is only implemented from npm 11.5.1, and the npm
+      # bundled with this Node (10.9.3) is older -- it would fall back to looking
+      # for a token. Pinned to the 11 line rather than `latest`, because npm 12
+      # requires a newer Node than this workflow builds with and refuses to
+      # install here; bumping Node to suit the publish step would change the
+      # runtime the package is built and tested against.
       - name: Use an npm that can publish with OIDC
-        run: npm install -g npm@latest
+        run: npm install -g npm@^11.5.1
 
       - name: Install modules
         run: yarn install
