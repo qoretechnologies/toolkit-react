@@ -4,6 +4,15 @@ import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
 
+// `query` is imported directly by the components under test (CompactRow resolves
+// an arg_schema id with it, exactly as AutoFormField does), so it has to be
+// mocked at the module boundary — a FetchContext value never reaches it.
+const queryMock = vi.fn();
+vi.mock('../src/utils/fetch', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/utils/fetch')>()),
+  query: (...args: unknown[]) => queryMock(...args),
+}));
+
 const fetchContext = {
   get: vi.fn(async () => ({ ok: true, data: [] })),
   post: vi.fn(async () => ({ ok: true, data: [] })),
@@ -247,5 +256,64 @@ describe('a chosen value survives being opened', () => {
     });
     await waitFor(() => expect(item.textContent ?? '').toContain('Default RBAC'));
     expect(item.textContent ?? '').not.toContain('Scheme Type—');
+  });
+});
+
+describe('a sub-schema delivered as an id is fetched, not ignored', () => {
+  /**
+   * The server does not inline `arg_schema`. `encodeFieldsForUi()` registers it
+   * and sends an id string, which the consumer fetches back from
+   * `dataprovider/arg_schemas/<id>` — AutoFormField already did exactly this to
+   * build the editor.
+   *
+   * The preview understood only the inline object, so against a real server it
+   * silently fell back to the untyped data tree for EVERY described field. It
+   * passed every story because story fixtures hand-write the schema inline; the
+   * one shape that never appeared in a fixture was the only shape production
+   * ever sends. This test uses the id form for that reason.
+   */
+  const OPTIONS_WITH_ID = {
+    schemes: {
+      type: 'list',
+      ui_type: 'list',
+      element_type: 'hash',
+      display_name: 'Authentication Schemes',
+      // an id, exactly as the server sends it
+      arg_schema: 'auth-scheme-schema-id',
+    },
+  } as never;
+
+  const VALUE = {
+    schemes: { type: 'list', value: [{ type: 'hash', value: { type: 'default' } }] },
+  } as never;
+
+  it('renders the schema view once the id resolves', async () => {
+    queryMock.mockResolvedValue({ ok: true, data: SCHEME_SCHEMA });
+    const { container } = renderForm(OPTIONS_WITH_ID, VALUE);
+
+    // The id — not the schema — is what the row was handed, so the fetch is the
+    // only way it can know the shape.
+    await waitFor(() =>
+      expect(queryMock).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'dataprovider/arg_schemas/auth-scheme-schema-id' })
+      )
+    );
+
+    // The schema view appears only after the fetch resolves, so this waits rather
+    // than asserting synchronously.
+    await waitFor(() => expect(container.querySelector('.schema-data-view')).toBeTruthy());
+    const text = container.querySelector('.schema-data-view')?.textContent ?? '';
+    expect(text).toContain('Scheme Type');
+    expect(text).toContain('Default RBAC');
+  });
+
+  it('keeps the untyped tree when the id cannot be resolved', async () => {
+    // A failed lookup is not an error state: the row falls back to exactly what it
+    // rendered before the schema view existed, rather than showing nothing.
+    queryMock.mockResolvedValue({ ok: false, error: 'nope' });
+    const { container } = renderForm(OPTIONS_WITH_ID, VALUE);
+
+    await waitFor(() => expect(container.querySelector('[data-field="schemes"]')).toBeTruthy());
+    expect(container.querySelector('.schema-data-view')).toBeNull();
   });
 });

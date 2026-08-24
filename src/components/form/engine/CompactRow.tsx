@@ -53,6 +53,7 @@ import {
 } from './compactRowStyles';
 import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMessages';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
+import { query } from '../../../utils/fetch';
 import {
   colorToCss,
   formatBytes,
@@ -603,9 +604,53 @@ export const CompactRow = memo(
     // `SchemaDataView`); only genuinely undescribed data falls through to the
     // untyped data tree.
     //
+    // The server does NOT inline that sub-schema. `encodeFieldsForUi()` registers
+    // it and sends an id string in its place, which the consumer fetches back —
+    // exactly what AutoFormField does to build the editor ("Some arg schemas are
+    // not provided as objects, but as strings so we need to fetch them"). A
+    // preview that understood only the inline object therefore fell through to
+    // the untyped tree for every field a real server describes: the schema view
+    // worked against hand-written story fixtures and nowhere else.
+    //
     // Resolved here rather than beside the preview it feeds: the preview renders
     // below an early return, so a hook placed there would run conditionally.
-    const previewArgSchema = (schema as { arg_schema?: IQorusFormSchema } | undefined)?.arg_schema;
+    const rawArgSchema = (schema as { arg_schema?: IQorusFormSchema | string } | undefined)
+      ?.arg_schema;
+    const argSchemaId = typeof rawArgSchema === 'string' ? rawArgSchema : undefined;
+    const [resolvedArgSchema, setResolvedArgSchema] = React.useState<IQorusFormSchema | undefined>(
+      undefined
+    );
+
+    // Only worth a request when there is a described value to preview: a row whose
+    // value is unset or scalar renders no inset, so fetching its schema would buy
+    // a round trip per row and show nothing. `query` caches GETs, so rows sharing
+    // an id (every row of one list) cost one request between them.
+    const valueLooksStructured =
+      !!optionField?.value && typeof optionField.value === 'object';
+
+    React.useEffect(() => {
+      if (!argSchemaId || !valueLooksStructured) {
+        return undefined;
+      }
+      let cancelled = false;
+      (async () => {
+        const response = await query<IQorusFormSchema>({
+          url: `dataprovider/arg_schemas/${argSchemaId}`,
+          method: 'GET',
+        });
+        // A failed fetch is not an error state here: the preview simply stays the
+        // untyped tree, which is what it was before the schema view existed.
+        if (!cancelled && response.ok) {
+          setResolvedArgSchema(response.data as IQorusFormSchema);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [argSchemaId, valueLooksStructured]);
+
+    const previewArgSchema =
+      argSchemaId ? resolvedArgSchema : (rawArgSchema as IQorusFormSchema | undefined);
     const previewWithSchema = React.useMemo(
       () => canRenderWithSchema(optionField?.value, previewArgSchema),
       [optionField?.value, previewArgSchema]
