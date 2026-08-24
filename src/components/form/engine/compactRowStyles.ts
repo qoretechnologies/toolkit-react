@@ -381,6 +381,19 @@ export const StyledRowInset = styled.div`
   margin-top: 4px;
 `;
 
+/**
+ * The stack literal text renders in: source, ids, tokens, data strings.
+ *
+ * Defined HERE rather than taken from reqore's `ReqoreFonts.mono`, which is the
+ * same stack. Reqore is a peer dependency at `>=0.71.16` and that export arrived
+ * later, so reading it would crash every consumer inside the declared range —
+ * the whole form preview lost over a font choice. One local constant costs
+ * nothing and keeps the code preview and the schema view's data values
+ * identical, which is the only reason to share it in the first place.
+ */
+export const MONO_FONT_STACK =
+  "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace";
+
 // A collapsed code-block preview shown under the value summary for a
 // `code-editor` field.  Multi-line, monospace, subtle background — matches
 // the aesthetic of the classic code-view surface but small enough to sit
@@ -393,8 +406,7 @@ export const StyledCodePreview = styled.pre<{ $bg: string; $border: string; $fg:
   background: ${({ $bg }) => $bg};
   border: 1px solid ${({ $border }) => $border};
   color: ${({ $fg }) => $fg};
-  font-family:
-    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family: ${MONO_FONT_STACK};
   font-size: 11.5px;
   line-height: 1.5;
   white-space: pre;

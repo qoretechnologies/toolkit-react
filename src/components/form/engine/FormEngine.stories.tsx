@@ -1164,7 +1164,7 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
     docs: {
       description: {
         story:
-          "Renders the NestedOptionInheritsRenderPropFromAncestor schema with compact=true — the compact renderer summarises the list-of-hash rows as 'init, run' rather than [object Object].",
+          "Renders the NestedOptionInheritsRenderPropFromAncestor schema with compact=true — the compact renderer previews the list-of-hash rows through their arg_schema, naming each method, rather than printing [object Object].",
       },
     },
   },
@@ -1229,11 +1229,13 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
     await waitFor(() => expect(canvas.getAllByText('Methods').length).toBeGreaterThan(0), {
       timeout: 5000,
     });
-    // The list-of-hashes value summarises by the items' names — never a raw
-    // "[object Object]" (regression: it used to stringify each hash envelope).
-    await expect(
-      await canvas.findByText('init, run', undefined, { timeout: 5000 })
-    ).toBeInTheDocument();
+    // The list-of-hashes value names its items — never a raw "[object Object]"
+    // (regression: it used to stringify each hash envelope). The names now come
+    // from the schema preview rather than a joined summary line above it, so the
+    // assertion moved with them; what must never come back is the stringified
+    // envelope.
+    await expect(await canvas.findByText('init', undefined, { timeout: 5000 })).toBeInTheDocument();
+    await expect(await canvas.findByText('run')).toBeInTheDocument();
     await expect(canvasElement.textContent ?? '').not.toContain('[object Object]');
   },
 };
@@ -1290,12 +1292,15 @@ export const CompactNestedListRowsStayCompact: Story = {
     } as unknown as IOptionsSchema,
   },
   play: async ({ canvasElement }) => {
-    // Collapsed, the row summarises by the items' names.
-    await _testsWaitForText('init, run');
+    // Collapsed, the row previews its items through their schema — one numbered
+    // entry per method, each naming itself.
+    await _testsWaitForText('Method Name');
+    await _testsWaitForText('init');
 
     // Open the Methods row — this mounts ArrayAuto and, with it, one
-    // arg_schema sub-form per row.
-    await _testsClickText('init, run');
+    // arg_schema sub-form per row. Clicked by the field's NAME: the joined
+    // summary that used to sit on this row is gone, replaced by the preview.
+    await _testsClickText('Methods');
 
     await waitFor(
       () => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2),
@@ -1347,8 +1352,8 @@ export const CompactNestedListRowsStayCompactMobile: Story = {
     ),
   ],
   play: async ({ canvasElement }) => {
-    await _testsWaitForText('init, run');
-    await _testsClickText('init, run');
+    await _testsWaitForText('init');
+    await _testsClickText('Methods');
 
     await waitFor(
       () => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2),
@@ -4412,7 +4417,14 @@ export const CompactFieldTypes: Story = {
     await _testsWaitForText('#0000FF'); // colour → uppercase hex
     await _testsWaitForText('rgba(255, 0, 0, 0.5)'); // colour with alpha → rgba()
     await _testsWaitForText('config.txt'); // file → filename
-    await _testsWaitForText('3 fields'); // structured hash → field count summary
+    // A hash the schema DESCRIBES needs no count: its preview names every field,
+    // so "3 fields" above "Host / Port / Secure" would be the same fact twice.
+    // A hash it does not describe keeps the count — the untyped tree beneath it
+    // says nothing about what the value means, so the count is the only line
+    // that does. Both halves asserted here: the distinction IS the behaviour.
+    await _testsWaitForText('2 fields'); // undescribed hash → field count summary
+    await _testsWaitForText('Host'); // described hash → its fields, by name
+    await _testsWaitForTextToNotExist('3 fields');
     await _testsWaitForText('order-to-invoice'); // interface reference → raw value
 
     // Field stack (merged from dpql): byte-size shows its value string; the
@@ -5913,5 +5925,245 @@ export const CompactRowMarkdownWithoutRenderer: Story = {
     expect(descText).toContain('Order intake');
     expect(descText).not.toContain('##');
     expect(descText).not.toContain('**');
+  },
+};
+
+/**
+ * The auth-profile scheme sub-schema, which is where all three of the list-row
+ * affordances below were reported. One required choice with named allowed
+ * values, one field that belongs to a single choice.
+ */
+const AuthSchemeArgSchema = {
+  type: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Scheme Type',
+    short_desc: 'Authentication scheme type',
+    required: true,
+    allowed_values: [
+      { value: 'default', display_name: 'Default RBAC' },
+      { value: 'cookie', display_name: 'Cookie' },
+      { value: 'oauth2', display_name: 'OAuth2' },
+    ],
+  },
+  cookie_name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Session Cookie Name',
+    short_desc: 'Applies to the Cookie scheme alone',
+    depends_on: ['type=cookie'],
+  },
+} as unknown as IOptionsSchema;
+
+const AuthSchemeOptions = {
+  schemes: {
+    type: 'list',
+    ui_type: 'list',
+    element_type: 'hash',
+    display_name: 'Authentication Schemes',
+    short_desc: 'Schemes tried in order, first match wins',
+    required: true,
+    arg_schema: AuthSchemeArgSchema,
+  },
+} as unknown as IOptionsSchema;
+
+/**
+ * A list-of-hash row reads back in the words the form asked for the value.
+ *
+ * Reported on an auth profile: the row summarised as "2 items" and its preview
+ * printed a data tree — "Object · 1 field" over `type: default`. Both are
+ * exactly what is stored, and neither is a string the author has ever seen: the
+ * form calls that key "Scheme Type" and that value "Default RBAC". A row meant
+ * to confirm a choice showed a value nobody had chosen, in a shape nobody had
+ * asked about.
+ *
+ * A generic data view has to announce what it found, because inference is all it
+ * has. A field with an `arg_schema` needs none of that — the shape, the names and
+ * the choices are known before the value arrives — so the preview renders
+ * THROUGH the schema (`SchemaDataView`) and the summary resolves through the
+ * same one. The row, the preview and the editor cannot describe a value three
+ * ways.
+ */
+export const CompactListOfHashReadsInSchemaWords: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A list-of-hash option whose sub-schema names its fields and values. The collapsed row summarises by those names ("Default RBAC, Cookie") and the preview renders as labelled schema rows — "Scheme Type · Default RBAC" per numbered item — instead of an untyped data tree over the stored `type: default`.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: AuthSchemeOptions,
+    value: {
+      schemes: {
+        type: 'list',
+        value: [
+          { type: 'hash', value: { type: 'default' } },
+          { type: 'hash', value: { type: 'cookie', cookie_name: 'qorus-session' } },
+        ],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // The preview IS the value here — the row prints no summary line above it.
+    // A joined "Default RBAC, Cookie" directly over a preview that names both
+    // items is the same facts twice, the lossy version first.
+    const preview = await waitFor(() => {
+      const element = canvasElement.querySelector('.schema-data-view');
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    const text = preview.textContent ?? '';
+    expect(text).toContain('Scheme Type');
+    expect(text).toContain('Default RBAC');
+    expect(text).toContain('Session Cookie Name');
+
+    // Nothing announces the container's shape — that is the tell of a renderer
+    // guessing at data it has not been told about.
+    expect(text).not.toMatch(/Object\b/);
+    expect(text).not.toMatch(/\d+ fields?\b/);
+
+    // The joined summary is gone from the row, and it is the ROW that has to be
+    // checked: the same words still exist inside the preview, so asserting on
+    // the whole canvas would pass whether or not the line was removed.
+    const valueLine = canvasElement.querySelector(
+      '[data-field="schemes"] .options-readfirst-valuetext'
+    );
+    expect(valueLine?.textContent ?? '').not.toBe('Default RBAC, Cookie');
+
+    // A literal the author typed is set in mono; a chosen label is not.
+    const mono = [...preview.querySelectorAll('.schema-view-data')].map((el) =>
+      (el.textContent ?? '').trim()
+    );
+    expect(mono).toContain('qorus-session');
+    expect(mono).not.toContain('Default RBAC');
+
+    // The stored spellings are what the author never chose, so they must not be
+    // in the preview at all. Substring checks cannot say this — "Scheme Type"
+    // contains "type" and "Default RBAC" contains "default" — so the assertion
+    // is on whole leaf elements: no chip or cell reads exactly `type`,
+    // `cookie_name` or `default`. A substring assertion here passed against a
+    // preview that was still rendering the raw pair.
+    const leafTexts = [...preview.querySelectorAll('*')]
+      .filter((element) => element.children.length === 0)
+      .map((element) => (element.textContent ?? '').trim());
+    expect(leafTexts).toContain('Scheme Type');
+    for (const stored of ['type', 'cookie_name', 'default']) {
+      expect(leafTexts).not.toContain(stored);
+    }
+    expect(canvasElement.textContent ?? '').not.toContain('[object Object]');
+  },
+};
+
+/**
+ * Adding a list item opens the field the item cannot be saved without.
+ *
+ * `+ Add new item for "Authentication Scheme"` added a row whose one required
+ * field sat collapsed, so the author had to find it and click it before the
+ * form could be completed — a second click to reach the only thing the first
+ * click could have meant.
+ *
+ * The engine already had `autoFocusFirstRequired`, and it could not fire here:
+ * it waits for focus to be free so it never steals a caret, and a form mounted
+ * BY a click never sees free focus — the button that mounted it still holds it.
+ * Opening a row and moving the caret are separate decisions, so they are now
+ * separate flags; this one only opens.
+ */
+export const CompactAddedListRowOpensItsRequiredField: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicks "Add new item" on a list-of-hash option and shows the new row with its required "Scheme Type" field already open. Rows that were already in the value stay collapsed — only the row just added is opened.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: AuthSchemeOptions,
+    value: {
+      schemes: {
+        type: 'list',
+        value: [{ type: 'hash', value: { type: 'default' } }],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // Open the list itself, which mounts the rows and the Add button. Clicked by
+    // FIELD, not by its text: the row no longer prints a summary line, and the
+    // words that remain live inside the preview.
+    await _testsClickText('Authentication Schemes');
+    await waitFor(() => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(1));
+
+    // The row that was already there is collapsed — this is the state the new
+    // row must NOT be confused with.
+    const isOpen = (element: Element | null | undefined) =>
+      !!element &&
+      (element.classList.contains('readfirst-row-editing') ||
+        element.classList.contains('options-readfirst-card'));
+    const typeRows = () => canvasElement.querySelectorAll('[data-field="type"]');
+    expect([...typeRows()].some(isOpen)).toBe(false);
+
+    await _testsClickButton({ label: 'Add new item for "Authentication Schemes"' });
+
+    await waitFor(() => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2));
+    // Exactly one open required field: the one belonging to the row just added.
+    await waitFor(() => expect([...typeRows()].filter(isOpen)).toHaveLength(1));
+  },
+};
+
+/**
+ * The same schema-worded row at a phone-class width.
+ *
+ * The narrow branch is what makes this worth its own story: below 480px the row
+ * stacks the value under the label, so a summary and a preview that were both
+ * rewritten to be READ (rather than decoded) have to survive the stacking
+ * without wrapping into an unreadable column. `compactNarrow` comes from
+ * `useMeasure` on the form's own wrapper, not from a media query, so a narrow
+ * container is the honest way to reach the branch here — the viewport-parameter
+ * rule applies to media-query components, which this is not.
+ */
+export const CompactListOfHashReadsInSchemaWordsMobile: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The schema-worded list-of-hash row at a ~360px width: the summary and the renamed preview stack under the field name and stay legible in one column.',
+      },
+    },
+  },
+  args: CompactListOfHashReadsInSchemaWords.args,
+  decorators: [
+    (StoryComponent: React.ComponentType) => (
+      <div style={{ maxWidth: 360, margin: '0 auto', border: '1px dashed #ffffff22' }}>
+        <StoryComponent />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('Scheme Type');
+
+    // The narrow branch is actually engaged — otherwise this is the desktop
+    // story with a border round it, and it would pass while proving nothing.
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.readfirst-narrow')).toBeTruthy()
+    );
+
+    const preview = await waitFor(() => {
+      const element = canvasElement.querySelector('.schema-data-view');
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    const leafTexts = [...preview.querySelectorAll('*')]
+      .filter((element) => element.children.length === 0)
+      .map((element) => (element.textContent ?? '').trim());
+    expect(leafTexts).toContain('Scheme Type');
+    for (const stored of ['type', 'cookie_name', 'default']) {
+      expect(leafTexts).not.toContain(stored);
+    }
   },
 };

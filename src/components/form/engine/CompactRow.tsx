@@ -12,7 +12,12 @@ import {
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { resolveOptionActions } from './optionActions';
-import { IQorusFormField, TQorusForm, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
+import {
+  IQorusFormField,
+  IQorusFormSchema,
+  TQorusForm,
+  TQorusFormFieldSchema,
+} from '@qoretechnologies/ts-toolkit';
 import flatten from 'lodash/flatten';
 import size from 'lodash/size';
 import React, { memo } from 'react';
@@ -47,6 +52,7 @@ import {
   StyledStatusDot,
 } from './compactRowStyles';
 import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMessages';
+import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
 import {
   colorToCss,
   formatBytes,
@@ -591,6 +597,19 @@ export const CompactRow = memo(
       }, 60);
       return () => window.clearTimeout(id);
     }, [isExpanded, optionName, autoFocusNameRef]);
+
+    // The sub-schema describing this field's value, when it has one. A value the
+    // form knows the shape of is previewed THROUGH that shape (see
+    // `SchemaDataView`); only genuinely undescribed data falls through to the
+    // untyped data tree.
+    //
+    // Resolved here rather than beside the preview it feeds: the preview renders
+    // below an early return, so a hook placed there would run conditionally.
+    const previewArgSchema = (schema as { arg_schema?: IQorusFormSchema } | undefined)?.arg_schema;
+    const previewWithSchema = React.useMemo(
+      () => canRenderWithSchema(optionField?.value, previewArgSchema),
+      [optionField?.value, previewArgSchema]
+    );
 
     const revertButton =
       changed ?
@@ -1452,8 +1471,17 @@ export const CompactRow = memo(
               copy that used to sit above the document was a second rendering of
               the same text with the markers taken out (Qlip review, build #97).
               Without a renderer there is no inset, and the prose IS the value —
-              so the line stays, and `renderReadFirstValue` still produces it. */}
-          {showMarkdownPreview ? null : (
+              so the line stays, and `renderReadFirstValue` still produces it.
+
+              A schema-previewed value is the same situation. The summary is a
+              flattened join of the item labels ("Default RBAC, Cookie") sitting
+              directly above a preview that names every one of those items and
+              its fields — the same facts twice, the shorter version first, which
+              reads less like a summary than like a second, disagreeing answer.
+              An UNDESCRIBED value keeps its summary: the data tree beneath it
+              says nothing about what the value MEANS, so the summary is still
+              the only line that does. */}
+          {showMarkdownPreview || previewWithSchema ? null : (
             <span className='options-readfirst-valuetext'>
               {hidden || empty ? '—' : renderReadFirstValue(optionField, schema, formatted)}
             </span>
@@ -1486,17 +1514,45 @@ export const CompactRow = memo(
               onClick={(e) => e.stopPropagation()}
             >
               <ReqoreCollapsibleContent
-                maxCollapsedHeight={96}
+                // The schema view spends more height per datum than a data tree
+                // does — a labelled row rather than a packed chip — but there is
+                // far less of it to read, so it gets enough room to show a
+                // couple of complete items instead of fading out mid-row. A tree
+                // of unknown depth keeps the tighter cap.
+                maxCollapsedHeight={previewWithSchema ? 140 : 96}
                 buttonProps={{ className: 'options-readfirst-viewmore' }}
               >
                 <div className='options-readfirst-structured'>
-                  <StructuredDataView
-                    value={optionField?.value}
-                    collapsibleRoot={false}
-                    showTypes={showFieldTypes}
-                    defaultExpandDepth={2}
-                    onItemClick={() => activate()}
-                  />
+                  {previewWithSchema ?
+                    // The form already knows this value's shape, names and
+                    // choices, so the preview says it rather than making the
+                    // reader decode it: "Scheme Type — Default RBAC", not a data
+                    // tree announcing "Object · 1 field" over `type: default`.
+                    <SchemaDataView
+                      value={optionField?.value}
+                      schema={previewArgSchema!}
+                      showTypes={showFieldTypes}
+                      colors={{
+                        key: cKey,
+                        muted: cMuted,
+                        // Deliberately stronger than `cDivider`. That tier is for
+                        // decorative hairlines between rows, where being nearly
+                        // invisible is the point. This rule is load-bearing — it
+                        // is the only thing saying which fields belong to which
+                        // numbered item — so it gets the muted tier at partial
+                        // alpha: quiet, but actually visible.
+                        border: `${cMuted}66`,
+                      }}
+                      onItemClick={() => activate()}
+                    />
+                  : <StructuredDataView
+                      value={optionField?.value}
+                      collapsibleRoot={false}
+                      showTypes={showFieldTypes}
+                      defaultExpandDepth={2}
+                      onItemClick={() => activate()}
+                    />
+                  }
                 </div>
               </ReqoreCollapsibleContent>
             </StyledRowInset>

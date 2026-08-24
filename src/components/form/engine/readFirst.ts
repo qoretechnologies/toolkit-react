@@ -40,6 +40,57 @@ const summarizeListItem = (item: unknown): string | number | undefined => {
   return undefined;
 };
 
+/**
+ * Label ONE list item from the sub-schema that describes it.
+ *
+ * `summarizeListItem` can only read an item that names ITSELF — one carrying a
+ * `name` or `display_name` key. A hash whose fields are all domain fields names
+ * itself nowhere: an auth profile's scheme has `type`, `cookie_name`,
+ * `redirect_url`, and the row fell back to "2 items" — true, and silent about
+ * which two.
+ *
+ * The `arg_schema` is the same description the sub-form was built from, so the
+ * row can read an item the way the form asked for it: the FIRST declared field
+ * the item actually has, resolved through that field's allowed values. The
+ * scheme list then reads "Default RBAC, Cookie" — the words the author picked —
+ * instead of a count.
+ *
+ * Schema order, not value order: the first declared field is the one the form
+ * puts at the top of the item, which is the one that identifies it to its author.
+ * Value order is insertion order and would vary between two equal items.
+ */
+const summarizeHashItemFromSchema = (
+  item: unknown,
+  argSchema: Record<string, TQorusFormFieldSchema> | undefined
+): string | number | undefined => {
+  if (!argSchema) {
+    return undefined;
+  }
+  const record = isTypedEnvelope(item) ? item.value : item;
+  if (!record || typeof record !== 'object' || Array.isArray(record)) {
+    return undefined;
+  }
+  const fields = record as Record<string, unknown>;
+  const key = Object.keys(argSchema).find((name) => {
+    const raw = fields[name];
+    const value = isTypedEnvelope(raw) ? raw.value : raw;
+    return value !== undefined && value !== null && value !== '';
+  });
+  if (!key) {
+    return undefined;
+  }
+  const raw = fields[key];
+  const value = isTypedEnvelope(raw) ? raw.value : raw;
+  const label = getAllowedValueLabel(value, argSchema[key]);
+  if (label) {
+    return label;
+  }
+  // No allowed values (a free-text field): the stored value IS what was typed,
+  // so it reads correctly as-is. An object at this position has no short form,
+  // and a count beats printing its shape.
+  return typeof value === 'string' || typeof value === 'number' ? value : undefined;
+};
+
 /** Summarise a list value: join item labels, or fall back to an "N items" count
  * (e.g. a list of anonymous hashes). Never prints raw objects. */
 /**
@@ -52,8 +103,15 @@ const summarizeListItem = (item: unknown): string | number | undefined => {
  * does, so it can read the same way instead of printing the wire form back.
  */
 const formatList = (items: unknown[], schema?: TQorusFormFieldSchema): string => {
+  const argSchema = (schema as { arg_schema?: Record<string, TQorusFormFieldSchema> } | undefined)
+    ?.arg_schema;
   const parts = items
-    .map((item) => getAllowedValueLabel(item, schema) ?? summarizeListItem(item))
+    .map(
+      (item) =>
+        getAllowedValueLabel(item, schema) ??
+        summarizeListItem(item) ??
+        summarizeHashItemFromSchema(item, argSchema)
+    )
     .filter((part) => part !== '' && part !== undefined && part !== null);
 
   return parts.length ? parts.join(', ') : pluralize(items.length, 'item');
@@ -133,9 +191,25 @@ export const shouldAutoCollapseCompactOption = (
   !isOptionValueEmpty(value) &&
   (isCompactBooleanOption(schema) || isFixedCompactAllowedValueOption(schema));
 
-/** Prefer the matching allowed_values entry's display_name (fallback `name`)
- * over the raw stored value. */
-const findAllowedOption = (value: unknown, schema?: TQorusFormFieldSchema): any | undefined => {
+/**
+ * Prefer the matching allowed_values entry's display_name (fallback `name`)
+ * over the raw stored value.
+ *
+ * Exported (as `findAllowedValueOption`) because the form engine's value
+ * validation has to answer the SAME question — "is this stored value one of the
+ * declared choices?" — and answering it differently loses data. An
+ * `allowed_values` entry is written three ways: an envelope (`{value: {type,
+ * value}}`), a bare value (`{value: 'default'}`) or a named entry
+ * (`{name: 'default'}`). This has always accepted all three; the engine's
+ * clearing guard accepted only the first and the third, so a schema using the
+ * bare form had its value ERASED on load while this function went on rendering
+ * the display name for it — the row read "Default RBAC" collapsed and "—" when
+ * opened, and the value was gone from the submitted data.
+ */
+export const findAllowedValueOption = (
+  value: unknown,
+  schema?: TQorusFormFieldSchema
+): any | undefined => {
   const s = schema as { allowed_values?: any[]; items?: any[] } | undefined;
   const options = s?.allowed_values?.length ? s.allowed_values : s?.items;
   if (!options?.length) {
@@ -153,6 +227,9 @@ const getAllowedValueLabel = (
   const match = findAllowedOption(value, schema);
   return match ? match.display_name || match.title || match.name || undefined : undefined;
 };
+
+/** Local alias for the module's own callers. */
+const findAllowedOption = findAllowedValueOption;
 
 /** True when the field's selectable options carry images (logos). Such a choice
  * renders too tall/rich for an inline row, so compact opens it in the card. */

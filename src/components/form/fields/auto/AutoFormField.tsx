@@ -75,6 +75,10 @@ export interface IAutoFieldProps
   /** Render the arg_schema sub-form in compact (read-first) mode, matching the
    *  parent engine. */
   compact?: boolean;
+  /** Open the arg_schema sub-form's first attention row on mount, without taking
+   *  focus — see FormEngine's `expandFirstRequired`. Set by ArrayAuto on a
+   *  just-added row so its required choice is visible without a second click. */
+  expandFirstRequired?: boolean;
   path?: string;
   column?: boolean;
   level?: number;
@@ -161,6 +165,10 @@ function AutoField<T = any>({
   // Only the nested arg_schema mount sites re-forward this into their
   // sub-forms explicitly.
   inheritedFromParent,
+  // Destructured for the same reason as `inheritedFromParent`: only the nested
+  // sub-form mount site consumes it, and leaving it in `...rest` would spread an
+  // unknown attribute onto the primitive field renderers' DOM nodes.
+  expandFirstRequired,
   ...rest
 }: IAutoFieldProps & T) {
   const [currentType, setType] = useState<IQorusType>(defaultInternalType || null);
@@ -559,6 +567,9 @@ function AutoField<T = any>({
                 wrapperPadding='top'
                 flat
                 compact={compact}
+                // A row added just now: open the field it cannot be saved
+                // without, instead of making the author find it and click it.
+                expandFirstRequired={expandFirstRequired}
                 // Embedded sub-form: no scroll context of its own, so its toolbar
                 // isn't sticky and its header stays transparent (no dark backdrop).
                 compactNested

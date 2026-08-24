@@ -64,6 +64,12 @@ export const ArrayAuto = ({
 }: IArrayAutoProps): any => {
   const confirmAction = useReqoreProperty('confirmAction');
   const [localValue, setLocalValue] = useState(value);
+  // The row this component just created, so its sub-form can open the field it
+  // cannot be saved without. Only a row added HERE gets it: the rows already in
+  // the value were added by an earlier session (or arrived from the server), and
+  // opening one of those on mount would be this component reopening a decision
+  // the author already made.
+  const [justAddedIndex, setJustAddedIndex] = useState<number | undefined>(undefined);
 
   useWhyDidYouUpdate(`Array Auto ${name}`, {
     name,
@@ -87,6 +93,7 @@ export const ArrayAuto = ({
   );
 
   const addValue: () => void = () => {
+    setJustAddedIndex(localValue.length);
     setLocalValue([...localValue, defaultValueByType[rest.type]]);
   };
 
@@ -171,6 +178,11 @@ export const ArrayAuto = ({
             allowTemplates
             defaultType={rest.type}
             name={`${name}-${idx}`}
+            // AFTER `{...rest}` on purpose: this is the one prop that differs
+            // per row, and spreading rest over it would give every row the same
+            // answer. Rides TemplateField's `rest` into the row's AutoFormField,
+            // which hands it to the row's nested FormEngine (case 'hash').
+            expandFirstRequired={Number(idx) === justAddedIndex}
             value={val}
             onChange={(_name, value) => handleChange(idx, value)}
           />
