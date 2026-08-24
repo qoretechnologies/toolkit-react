@@ -3,6 +3,7 @@ import {
   ReqraftWebSocket,
   ReqraftWebSocketsManager,
 } from '../src/utils/websocket';
+import { query } from '../src/utils/fetch';
 
 // Mock nanoid (ESM-only module)
 let nanoidCounter = 0;
@@ -278,6 +279,65 @@ describe('ReqraftWebSocket', () => {
       expect(ReqraftWebSocketsManager.connections['lsp']).toBeDefined();
       expect(ReqraftWebSocketsManager.connections['lsp'].using).toBe(2);
       expect(pooled1.socket).toBe(pooled2.socket);
+    });
+  });
+
+  describe('reconnecting when the server is unreachable', () => {
+    // The reconnect path had NO unit coverage — every other test here passes
+    // `reconnect: false`, and the module mock resolves `query` unconditionally,
+    // so the one case that matters in production was never exercised.
+    afterEach(() => {
+      (query as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true } as never);
+    });
+
+    it('still reconnects when the server-status probe rejects', async () => {
+      // The probe is advisory — it exists so a dead session can redirect on a
+      // 401. `query()` REJECTS on a network error, and a network error is the
+      // normal state while reconnecting: the server being unreachable is the
+      // reason we are here. Awaiting it unguarded skipped `connect()`, so the
+      // socket never closed again, `maybeReconnect()` was never called again,
+      // and the state machine stopped silently — no further attempts, and no
+      // `onReconnectFailed` for a caller to react to.
+      (query as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Failed to fetch'));
+
+      const socket = new ReqraftWebSocket({
+        url: WS_URL,
+        reconnect: true,
+        maxReconnectTries: 2,
+        reconnectInterval: 1,
+        pooled: false,
+      });
+      const connect = vi.spyOn(socket, 'connect');
+
+      socket.reconnectTries = 0;
+      socket.maybeReconnect(1006);
+
+      await vi.waitFor(() => expect(connect).toHaveBeenCalled());
+
+      socket.remove();
+    });
+
+    it('reports failure once the tries are exhausted', async () => {
+      // The end of the same chain: whatever the probe did, a caller waiting to
+      // be told the reconnect gave up must actually be told.
+      (query as unknown as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Failed to fetch'));
+      const onReconnectFailed = vi.fn();
+
+      const socket = new ReqraftWebSocket({
+        url: WS_URL,
+        reconnect: true,
+        maxReconnectTries: 2,
+        reconnectInterval: 1,
+        pooled: false,
+        onReconnectFailed,
+      });
+
+      socket.reconnectTries = socket.options.maxReconnectTries;
+      socket.maybeReconnect(1006);
+
+      expect(onReconnectFailed).toHaveBeenCalled();
+
+      socket.remove();
     });
   });
 });
