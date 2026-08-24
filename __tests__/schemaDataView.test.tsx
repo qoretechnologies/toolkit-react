@@ -36,7 +36,7 @@ const SCHEME_SCHEMA = {
   enabled: { type: 'bool', ui_type: 'bool', display_name: 'Enabled' },
 } as never;
 
-const colors = { key: '#ffffff', muted: '#888888', border: '#333333' };
+const colors = { key: '#ffffff', muted: '#888888', border: '#333333', accent: '#3b8eea' };
 
 const renderView = (value: unknown, schema: never = SCHEME_SCHEMA, showTypes = false) =>
   render(

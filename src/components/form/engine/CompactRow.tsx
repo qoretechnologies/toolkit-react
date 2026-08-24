@@ -1587,6 +1587,18 @@ export const CompactRow = memo(
                         // numbered item — so it gets the muted tier at partial
                         // alpha: quiet, but actually visible.
                         border: `${cMuted}66`,
+                        // The identity accent for each item's heading.
+                        //
+                        // `custom1` first: BRAND_DESIGN §1 says apps may register
+                        // their own named intents and reference them like the
+                        // built-ins, and that is where a product's own accent
+                        // lives (qorus-ide registers its brand purple there).
+                        // Falling back to `info` keeps this working for a
+                        // consumer that registers nothing — the heading is
+                        // accented either way, just in the theme's own colour
+                        // rather than one this library picked.
+                        accent:
+                          (theme?.intents as Record<string, string> | undefined)?.custom1 || cInfo,
                       }}
                       onItemClick={() => activate()}
                     />

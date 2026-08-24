@@ -100,8 +100,19 @@ const StyledMarker = styled.div<{ $color: string }>`
  * supporting fields stay where they were. The label is not lost, it moves to the
  * title attribute — a heading that needs a caption is not a heading.
  */
-const StyledItemTitle = styled.div<{ $color: string; $mono: boolean }>`
+const StyledItemTitle = styled.div<{ $color: string; $mono: boolean; $accent: string }>`
   color: ${({ $color }) => $color};
+  /* An accent bar and a tinted surface, so the name is found by shape and not
+     only by size — at seven items, scanning a column of identical-weight text is
+     the thing this is trying to remove. The bar sits where the item's own rule
+     runs, so the heading reads as the start of that item rather than as a
+     decoration floating beside it. */
+  display: inline-block;
+  background: ${({ $accent }) => `${$accent}1f`};
+  border-left: 3px solid ${({ $accent }) => $accent};
+  border-radius: 0 4px 4px 0;
+  padding: 1px 8px;
+  margin-left: -11px;
   /* Outranks the field labels beneath it, which are 600 at 13px.
      One step was not enough: at 14px the name and the "Description" label under
      it read as the same thing, and the reported symptom was exactly that — the
@@ -134,6 +145,10 @@ const StyledItemFields = styled.div<{ $border: string }>`
  * fault rather than as a list.
  */
 const StyledFields = styled.div`
+  /* The supporting fields step in under the heading, so the heading keeps the
+     left edge to itself. This is the half that answers "the name is written in
+     the position of the label": with the labels indented, it no longer is. */
+  padding-left: 14px;
   display: grid;
   grid-template-columns: var(${LABEL_COL_VAR}, 140px) minmax(0, 1fr);
   column-gap: 10px;
@@ -187,8 +202,17 @@ export interface ISchemaDataViewProps {
   schema: IQorusFormSchema;
   /** Show each field's declared type beside its name. */
   showTypes?: boolean;
-  /** Colours, taken from the row so the preview matches its surroundings. */
-  colors: { key: string; muted: string; border: string };
+  /**
+   * Colours, taken from the row so the preview matches its surroundings.
+   *
+   * `accent` marks the identifying heading. It comes from the consuming row's
+   * THEME rather than a literal here, so an app that registers its own intent
+   * (BRAND_DESIGN §1 names qorus-ide's brand purple as exactly this case) gets
+   * its own colour without this component knowing anything about it. It is only
+   * ever a fill or a bar, never applied to text: an intent used as text fails
+   * contrast — a muted label measures 1.3:1.
+   */
+  colors: { key: string; muted: string; border: string; accent: string };
   onItemClick?: () => void;
 }
 
@@ -475,6 +499,7 @@ const SchemaLevel = ({
                           // promoting it must not change what it IS. A chosen
                           // label ("Default RBAC") is prose and stays prose.
                           $mono={!findAllowedValueOption(raw, fieldSchema)}
+                          $accent={colors.accent}
                           title={fieldLabel(titleKey, fieldSchema)}
                         >
                           {formatOptionValue(
