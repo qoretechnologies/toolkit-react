@@ -1457,6 +1457,23 @@ const FormEngineImpl = ({
     }
   }, [dependencyLockedNames.join('|')]);
 
+  // The not-yet-added optional fields: everything in the schema the form is not
+  // already showing a row for. This ONE list feeds all three ways a field gets
+  // added — the inline addable rows, the Fields menu, and its "Select all" — so
+  // whatever it leaves out is out of all three at once, and they cannot disagree.
+  //
+  // A field whose `depends_on` is not fulfilled is left out. It is not an option
+  // yet: `hasAllDependenciesFullfilled` is the same predicate that then refuses
+  // to let it be edited, so offering it can only end at a row that opens and says
+  // it is disabled — the dead end an auth profile's cookie-only fields showed
+  // while the scheme was Permissive. Setting the dependency brings the row back
+  // (and flashes it — see `dependencyLockedNames`), which is the discoverable
+  // path: pick the scheme, and the fields that scheme has appear.
+  //
+  // Only the not-yet-added ones. A field that already HAS a value stays listed
+  // even when its dependency later stops holding — it renders disabled with the
+  // reason, so the value is visible and removable rather than silently orphaned
+  // in a form that no longer mentions it.
   const filteredOptions: IQorusFormSchema = useMemo(
     () =>
       reduce(
@@ -1465,11 +1482,17 @@ const FormEngineImpl = ({
           if (optName in fixedValue) {
             return newOptions;
           }
+          if (
+            option?.depends_on &&
+            !hasAllDependenciesFullfilled(option.depends_on, availableOptions, options || {})
+          ) {
+            return newOptions;
+          }
           return { ...newOptions, [optName]: option };
         },
         {} as IQorusFormSchema
       ),
-    [JSON.stringify(options), JSON.stringify(fixedValue)]
+    [JSON.stringify(options), JSON.stringify(fixedValue), JSON.stringify(availableOptions)]
   );
 
   const isOptionValid = useCallback(

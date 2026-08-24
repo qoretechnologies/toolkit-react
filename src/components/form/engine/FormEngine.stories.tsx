@@ -1447,6 +1447,73 @@ export const DependantsResetWhenParentChanges: Story = {
   },
 };
 
+export const CompactWithholdsFieldsWithUnmetDependencies: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A field whose `depends_on` is not fulfilled is not offered as an addable one. The scheme here is Permissive, so the two cookie-only fields are absent from the Optional box entirely — only the field that depends on nothing is offered. Setting the scheme to Cookie brings them back (and flashes them). Before this, they were listed, and clicking one opened a row that said it was disabled: an affordance leading nowhere.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      type: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Scheme Type',
+        short_desc: 'Authentication scheme type',
+        required: true,
+      },
+      cookie_name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Session Cookie Name',
+        short_desc: 'Applies to the Cookie scheme alone',
+        depends_on: ['type=cookie'],
+      },
+      redirect_url: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Redirect URL',
+        short_desc: 'Applies to the Cookie scheme alone',
+        depends_on: ['type=cookie'],
+      },
+      note: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Note',
+        short_desc: 'Depends on nothing, so it is always offered',
+      },
+    } as IOptionsSchema,
+    value: {
+      type: { type: 'string', value: 'permissive' },
+    },
+  },
+  play: async () => {
+    await _testsWaitForText('Scheme Type');
+    await _expandOptionalBox();
+
+    // The independent field IS offered — without this the two absences below
+    // would also be explained by an Optional box that never opened.
+    await _testsWaitForText('Note');
+    await waitFor(
+      () => expect(document.querySelector('[data-field="note"]')).toBeTruthy(),
+      { timeout: 10000 }
+    );
+
+    await waitFor(
+      () => {
+        expect(document.querySelector('[data-field="cookie_name"]')).toBeNull();
+        expect(document.querySelector('[data-field="redirect_url"]')).toBeNull();
+      },
+      { timeout: 10000 }
+    );
+  },
+};
+
 export const ValueIsFixedWhenDefaultValueDoesNotMatchAndReadOnlyIsTrue: Story = {
   parameters: {
     docs: {
