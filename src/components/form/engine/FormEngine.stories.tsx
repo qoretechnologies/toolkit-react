@@ -1514,6 +1514,56 @@ export const CompactWithholdsFieldsWithUnmetDependencies: Story = {
   },
 };
 
+export const CompactConditionalMessage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A schema `messages` entry carrying `when` / `unless` appears only while the condition holds against the form's current values, using the same grammar as `depends_on`. Here the warning on `permissions` is declared `when: ['allow_anonymous=true']`, so it is absent until the exemption is switched on. A warning about a COMBINATION cannot be static: an always-on warning sitting over a valid configuration is one people learn to scroll past, so it is not there when it finally means something. The filter is applied everywhere the messages are read — including the read-first status — so a hidden message cannot colour a row or inflate the attention count.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      permissions: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Require All Of These Permissions',
+        short_desc: 'Every listed permission must be held',
+        messages: [
+          {
+            intent: 'warning',
+            title: 'Anonymous callers skip these',
+            content:
+              'The exemption below lets a caller with no credentials through without checking any of these requirements. Callers that DO present credentials are still checked.',
+            when: ['allow_anonymous=true'],
+          },
+        ],
+      },
+      allow_anonymous: {
+        type: 'bool',
+        ui_type: 'bool',
+        display_name: 'Exempt Anonymous Callers',
+        short_desc: 'Anonymous callers bypass the requirements above',
+      },
+    } as IOptionsSchema,
+    value: {
+      permissions: { type: 'string', value: 'READ-ORDER' },
+      allow_anonymous: { type: 'bool', value: true },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('Require All Of These Permissions');
+    // The condition holds in this story's args, so the warning is present.
+    await waitFor(
+      () => expect(canvasElement.textContent).toContain('Anonymous callers skip these'),
+      { timeout: 10000 }
+    );
+  },
+};
+
 export const ValueIsFixedWhenDefaultValueDoesNotMatchAndReadOnlyIsTrue: Story = {
   parameters: {
     docs: {

@@ -95,7 +95,11 @@ import {
   ICompactToolbarContext,
   TCompactSort,
 } from './compactToolbarContext';
-import { OptionFieldMessages } from './OptionFieldMessages';
+import {
+  IConditionalFieldMessage,
+  OptionFieldMessages,
+  getShownSchemaMessages,
+} from './OptionFieldMessages';
 import {
   MarkdownRendererContext,
   TMarkdownRenderer,
@@ -119,7 +123,17 @@ export type IOptions = TQorusForm;
 export type TFlatOptions = TQorusFlatForm;
 export type TOption = IQorusFormField;
 export type TOperatorValue = TQorusFormOperatorValue;
-export interface IOptionFieldMessage extends IQorusFormFieldMessage {}
+/**
+ * A field message, optionally conditional on the form's current values.
+ *
+ * `when` / `unless` use the `depends_on` grammar and are evaluated against the
+ * same form the field belongs to — see `isConditionalMessageShown`. Without
+ * either, the message is static and always shown, which is what every existing
+ * consumer gets.
+ */
+export interface IOptionFieldMessage
+  extends IQorusFormFieldMessage,
+    Pick<IConditionalFieldMessage, 'when' | 'unless'> {}
 export type IOptionsSchemaArg = TQorusFormFieldSchema;
 export interface IOptionsSchema extends IQorusFormSchema {}
 export interface IOperator extends IQorusFormOperator {}
@@ -1638,13 +1652,19 @@ const FormEngineImpl = ({
   // group's satisfaction); everything else by its own status.
   const schemaMsgIntent = useCallback(
     (name: string): 'danger' | 'warning' | undefined => {
-      const msgs = ((options?.[name] as { messages?: Array<{ intent?: string }> } | undefined)
-        ?.messages || []) as Array<{ intent?: string }>;
+      // Filtered, not raw: a message hidden by its own `when`/`unless` must not
+      // colour the row or push the field into "Needs attention" — the whole point
+      // of a conditional warning is that it is absent while it does not apply.
+      const msgs = getShownSchemaMessages(
+        (options?.[name] as { messages?: Array<{ intent?: string }> } | undefined)?.messages,
+        availableOptions,
+        options
+      );
       if (msgs.some((m) => m.intent === 'danger')) return 'danger';
       if (msgs.some((m) => m.intent === 'warning')) return 'warning';
       return undefined;
     },
-    [JSON.stringify(options)]
+    [JSON.stringify(options), JSON.stringify(availableOptions)]
   );
   const getOptionStatus = useCallback(
     (name: string, hidden = false): TReadFirstStatus => {
@@ -2015,7 +2035,11 @@ const FormEngineImpl = ({
             const schemaMsgs = (
               suppressSchemaMessages ?
                 []
-              : (options?.[optionName] as any)?.messages || []) as {
+              : getShownSchemaMessages(
+                  (options?.[optionName] as any)?.messages,
+                  availableOptions,
+                  options
+                )) as {
               intent?: string;
               title?: string;
               content?: string;

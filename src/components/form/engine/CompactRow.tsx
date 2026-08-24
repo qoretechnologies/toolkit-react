@@ -46,7 +46,7 @@ import {
   StyledRowValue,
   StyledStatusDot,
 } from './compactRowStyles';
-import { getOptionFieldMessages } from './OptionFieldMessages';
+import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMessages';
 import {
   colorToCss,
   formatBytes,
@@ -701,11 +701,13 @@ export const CompactRow = memo(
     type TInfoMsg = { intent?: string; title?: string; content: string };
     const schemaMessages: TInfoMsg[] =
       infoActive ?
-        ((((schema as any)?.messages || []) as any[]).map((m) => ({
-          intent: m.intent,
-          title: m.title,
-          content: m.content,
-        })) as TInfoMsg[])
+        (getShownSchemaMessages((schema as any)?.messages as any[], availableOptions, options).map(
+          (m) => ({
+            intent: m.intent,
+            title: m.title,
+            content: m.content,
+          })
+        ) as TInfoMsg[])
       : [];
     const fieldMessages: TInfoMsg[] =
       infoActive ?
