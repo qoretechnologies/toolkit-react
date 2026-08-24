@@ -102,19 +102,20 @@ const StyledMarker = styled.div<{ $color: string }>`
  */
 const StyledItemTitle = styled.div<{ $color: string; $mono: boolean }>`
   color: ${({ $color }) => $color};
-  /* Outranks the field labels beneath it — those are 600 at 13px, so a title at
-     the same size and weight does not read as a title at all: the eye lands on
-     "Method Body" as readily as on "init". A step up in both is what puts the
-     identifying value first. */
+  /* Outranks the field labels beneath it, which are 600 at 13px.
+     One step was not enough: at 14px the name and the "Description" label under
+     it read as the same thing, and the reported symptom was exactly that — the
+     name looked like another label. Three points and a full weight above the
+     labels is what separates "which item is this" from "what is in it". */
   font-weight: 700;
-  font-size: 14px;
-  line-height: 20px;
-  margin-bottom: 1px;
+  font-size: 16px;
+  line-height: 22px;
+  margin-bottom: 3px;
   min-width: 0;
   overflow-wrap: anywhere;
   /* A literal keeps its mono face, one notch down: mono runs visually larger at
-     the same pixel size, so 13.5px here sits level with 14px prose. */
-  ${({ $mono }) => ($mono ? `font-family: ${MONO_FONT_STACK}; font-size: 13.5px;` : '')}
+     the same pixel size, so 15px here sits level with 16px prose. */
+  ${({ $mono }) => ($mono ? `font-family: ${MONO_FONT_STACK}; font-size: 15px;` : '')}
 `;
 
 /** The rule tying an item's fields to its number. */
