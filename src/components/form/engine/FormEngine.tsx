@@ -77,6 +77,7 @@ import {
 } from './compactRowContext';
 import {
   GROUP_INDENT,
+  LABEL_AFFORDANCE_WIDTH,
   LABEL_COL_MAX,
   LABEL_COL_MIN,
   LABEL_COL_VAR,
@@ -860,9 +861,22 @@ const FormEngineImpl = ({
       widest = Math.max(widest, measurer.offsetWidth);
     });
     document.body.removeChild(measurer);
-    // Allowance for the required asterisk + help icon + the label's inner gaps.
-    const col = Math.max(LABEL_COL_MIN, Math.min(LABEL_COL_MAX, Math.round(widest) + 28));
-    wrap.style.setProperty(LABEL_COL_VAR, `${col}px`);
+    // The affordances are added AFTER the clamp, not inside it.
+    //
+    // They used to be inside — `min(MAX, widest + 28)` — which quietly spends the
+    // allowance the moment the labels are long enough to reach the ceiling. Past
+    // that point the column is exactly MAX and the text is free to use all of it,
+    // so the trailing `?` has nowhere to sit on the last line and wraps onto a
+    // line of its own. That is what an auth profile's authorization block showed:
+    // "Require All Of These Permissions" filling the column with a lone `?`
+    // beneath it.
+    //
+    // Clamping the TEXT and then adding the affordance means the reserved space
+    // survives at every label length. MAX still bounds how much room the NAME may
+    // take, which is what it is for; the asterisk and the `?` are chrome that has
+    // to fit beside it either way.
+    const text = Math.max(LABEL_COL_MIN, Math.min(LABEL_COL_MAX, Math.round(widest)));
+    wrap.style.setProperty(LABEL_COL_VAR, `${text + LABEL_AFFORDANCE_WIDTH}px`);
   }, [compact, options, theme, compactWrapNode]);
   // Editing rows pin min-height to the measured read row they replace, so the
   // toggle never shifts neighbours (height varies with chrome — measure it).
@@ -2574,6 +2588,11 @@ const FormEngineImpl = ({
     });
     const bucketCount = (b: TBucketKey) =>
       bucketGroups[b].reduce((n, g) => n + buckets[b][g].length, 0);
+
+    // "Is the Optional box the whole form?" — when nothing needs attention and
+    // nothing is set, collapsing it leaves a card with no visible content at all.
+    const onlyOptionalRows =
+      bucketCount('optional') > 0 && bucketCount('attention') === 0 && bucketCount('set') === 0;
     // 'general' / 'optional' are the SYNTHETIC fallback group keys getOptionGroup
     // assigns to fields with no explicit `group` — printing a "General"/"Optional"
     // sub-label for those is just noise, so suppress it. BUT a consumer may also
@@ -2742,7 +2761,17 @@ const FormEngineImpl = ({
                         // open whenever a query is active. (isCollapsed is the
                         // panel's controllable state; manual toggling still works
                         // when no query is set.)
-                        isCollapsed={box.key === 'optional' && !query}
+                        // The Optional box starts collapsed so a form opens on what
+                        // is in use — but only when there IS something else to
+                        // open on. When every field is optional it is the whole
+                        // form, and collapsing it renders a card that looks empty
+                        // and broken: an auth profile's Authorization block, whose
+                        // nine requirement fields are all optional, showed as a
+                        // titled card containing one collapsed "Optional 9" strip
+                        // and nothing else. A search still forces it open
+                        // (ReqorePanel unmounts collapsed content, so a match
+                        // inside it would be unreachable otherwise).
+                        isCollapsed={box.key === 'optional' && !query && !onlyOptionalRows}
                         label={
                           <StyledGroupHeader>
                             <ReqoreP effect={{ weight: 'bold' }} size='normal'>
