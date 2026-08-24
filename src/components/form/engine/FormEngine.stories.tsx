@@ -4127,6 +4127,29 @@ export const CompactFieldTypes: Story = {
           secure: { type: 'bool', display_name: 'Secure' },
         },
       },
+      // The list counterpart of `connectionInfo`: a list of hashes whose fields
+      // are declared. This is the shape the schema preview was built for, and the
+      // catalogue was missing it — it covered the described HASH but not the
+      // described LIST, which is the case that was actually reported.
+      routes: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'hash',
+        display_name: 'List of hashes (arg_schema)',
+        group: 'structured',
+        arg_schema: {
+          method: {
+            type: 'string',
+            display_name: 'Method',
+            allowed_values: [
+              { value: 'get', display_name: 'GET' },
+              { value: 'post', display_name: 'POST' },
+            ],
+          },
+          path: { type: 'string', display_name: 'Path' },
+          handler: { type: 'string', ui_type: 'code-editor', display_name: 'Handler' },
+        },
+      },
       freeConfig: {
         type: 'free-hash',
         ui_type: 'free-hash',
@@ -4335,6 +4358,22 @@ export const CompactFieldTypes: Story = {
           secure: { type: 'bool', value: true },
         },
       },
+      routes: {
+        type: 'list',
+        value: [
+          // One item complete, one with the optional field unset — the empty
+          // state stays exercised rather than being filled in everywhere.
+          {
+            type: 'hash',
+            value: {
+              method: 'get',
+              path: '/orders',
+              handler: 'sub get_orders() {\n    return orders.all();\n}',
+            },
+          },
+          { type: 'hash', value: { method: 'post', path: '/orders' } },
+        ],
+      },
       freeConfig: { type: 'free-hash', value: '%YAML 1.2\n---\nretries: 3\ntimeout: 30\n' },
       bigConfig: {
         type: 'hash',
@@ -4425,6 +4464,15 @@ export const CompactFieldTypes: Story = {
     await _testsWaitForText('2 fields'); // undescribed hash → field count summary
     await _testsWaitForText('Host'); // described hash → its fields, by name
     await _testsWaitForTextToNotExist('3 fields');
+
+    // Described LIST of hashes: numbered items, labels by display_name, and the
+    // allowed value read back as its label rather than the stored `get`.
+    await _testsWaitForText('Path');
+    await _testsWaitForText('/orders');
+    await _testsWaitForText('GET');
+    // A code sub-field renders AS code, not as a flattened mono line.
+    await _testsWaitForText('Handler');
+    await _testsWaitForText(/sub get_orders/);
     await _testsWaitForText('order-to-invoice'); // interface reference → raw value
 
     // Field stack (merged from dpql): byte-size shows its value string; the

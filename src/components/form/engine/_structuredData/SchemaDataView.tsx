@@ -1,4 +1,4 @@
-import { ReqoreIcon, ReqoreP, ReqoreTag } from '@qoretechnologies/reqore';
+import { ReqoreCollapsibleContent, ReqoreIcon, ReqoreP, ReqoreTag } from '@qoretechnologies/reqore';
 import {
   IQorusFormField,
   IQorusFormSchema,
@@ -6,7 +6,9 @@ import {
 } from '@qoretechnologies/ts-toolkit';
 import React from 'react';
 import styled from 'styled-components';
-import { MONO_FONT_STACK, StyledRowLabel, StyledRowValue } from '../compactRowStyles';
+import { useContextSelector } from 'use-context-selector';
+import { CompactRowContext } from '../compactRowContext';
+import { MONO_FONT_STACK, StyledCodePreview, StyledRowLabel, StyledRowValue } from '../compactRowStyles';
 import { findAllowedValueOption, formatOptionValue, getAllowedValueImage } from '../readFirst';
 import { isUiEncodedValue } from './structuredData';
 
@@ -140,6 +142,13 @@ const StyledNestedLabel = styled.div`
   grid-column: 1 / -1;
 `;
 
+/** A code value is a block, not a cell: it spans the grid under its own name. */
+const StyledCodeCell = styled.div`
+  grid-column: 1 / -1;
+  min-width: 0;
+  margin: 2px 0 4px;
+`;
+
 export interface ISchemaDataViewProps {
   /** The stored value, with or without `{type, value}` envelopes. */
   value: unknown;
@@ -173,6 +182,13 @@ const orderedKeys = (record: Record<string, unknown>, schema: IQorusFormSchema):
   const described = Object.keys(schema).filter((key) => isSet(unwrap(record[key])));
   const extra = Object.keys(record).filter((key) => !(key in schema) && isSet(unwrap(record[key])));
   return [...described, ...extra];
+};
+
+/** A field whose content is source code. `ui_type` is what the form renders by,
+ *  so it is what the preview reads by too — the storage type is just `string`. */
+const isCodeField = (fieldSchema: TQorusFormFieldSchema | undefined): boolean => {
+  const uiType = (fieldSchema as { ui_type?: string } | undefined)?.ui_type;
+  return uiType === 'code-editor';
 };
 
 const fieldLabel = (key: string, fieldSchema: TQorusFormFieldSchema | undefined): string =>
@@ -264,7 +280,17 @@ const SchemaRecord = ({
   schema: IQorusFormSchema;
   showTypes?: boolean;
   colors: ISchemaDataViewProps['colors'];
-}) => (
+}) => {
+  // The SAME host renderer the row above uses for a `code-editor` field. Read
+  // from context rather than threaded through props: a nested level is arbitrarily
+  // deep, and the renderer is a property of the form, not of any one level.
+  const codePreviewRenderer = useContextSelector(
+    CompactRowContext,
+    (v) => v.codePreviewRenderer
+  );
+  const cHover = useContextSelector(CompactRowContext, (v) => v.cHover);
+
+  return (
   <StyledFields className='schema-view-fields'>
     {orderedKeys(record, schema).map((key) => {
       const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
@@ -289,6 +315,45 @@ const SchemaRecord = ({
         );
       }
 
+      // A code value is source, and source is read as source: the host's renderer
+      // gives it the syntax highlighting (and read-only LSP hover) it has in the
+      // Source Code field, and "Show more" keeps a long body from taking over the
+      // preview. Flattening it to one mono line — which is what a plain value cell
+      // does — throws all of that away for a field whose whole content is code.
+      if (isCodeField(fieldSchema) && typeof value === 'string') {
+        return (
+          <React.Fragment key={key}>
+            <StyledNestedLabel>
+              <StyledRowLabel $color={colors.key}>{labelWithType}</StyledRowLabel>
+            </StyledNestedLabel>
+            <StyledCodeCell onClick={(event) => event.stopPropagation()}>
+              <ReqoreCollapsibleContent
+                maxCollapsedHeight={96}
+                buttonProps={{ className: 'options-readfirst-viewmore' }}
+              >
+                {codePreviewRenderer ?
+                  codePreviewRenderer({
+                    value,
+                    name: key,
+                    schema: fieldSchema,
+                    options: schema,
+                    values: record as never,
+                  })
+                : <StyledCodePreview
+                    className='options-readfirst-code'
+                    $bg={cHover}
+                    $border={`${colors.border}88`}
+                    $fg={colors.key}
+                  >
+                    {value}
+                  </StyledCodePreview>
+                }
+              </ReqoreCollapsibleContent>
+            </StyledCodeCell>
+          </React.Fragment>
+        );
+      }
+
       return (
         <React.Fragment key={key}>
           <StyledRowLabel $color={colors.key} title={label}>
@@ -303,7 +368,8 @@ const SchemaRecord = ({
       );
     })}
   </StyledFields>
-);
+  );
+};
 
 /** A level: a list of numbered items, or a single described hash. */
 const SchemaLevel = ({
