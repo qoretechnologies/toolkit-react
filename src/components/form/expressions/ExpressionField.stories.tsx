@@ -55,6 +55,19 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** The DPQL editor overlays "Connecting to language server…" / "Loading
+ * schema…" while its LSP session starts — a snapshot must never catch that
+ * transient, so every Text-mode play ends by waiting the overlay out. */
+const waitForLspIdle = (canvasElement: HTMLElement) =>
+  waitFor(
+    () => {
+      expect(canvasElement.querySelector('[contenteditable="true"]')).toBeInTheDocument();
+      expect(canvasElement.textContent).not.toContain('Connecting to language server');
+      expect(canvasElement.textContent).not.toContain('Loading schema');
+    },
+    { timeout: 10000 }
+  );
+
 /** The shell with a populated expression — the Visual/Text mode toggle. */
 export const Default: Story = {
   args: {
@@ -82,9 +95,8 @@ export const Default: Story = {
 };
 
 /**
- * Empty expression — the Text-mode "Parsed" preview shows `(empty)`. (The
- * preview element lives in Text mode; an empty AST renders to '' which the
- * shell displays as `(empty)`.)
+ * Empty expression — an empty AST renders no "Parsed" box at all (nothing to
+ * parse), just the bare editor waiting for input.
  */
 export const Empty: Story = {
   args: {
@@ -95,7 +107,7 @@ export const Empty: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField in Text mode with an empty expression AST — the "Parsed" preview shows the "(empty)" placeholder for an empty expression.',
+          'Renders ExpressionField in Text mode with an empty expression AST — only the DPQL editor shows; the "Parsed" preview box stays hidden until there is a query to parse.',
       },
     },
   },
@@ -105,18 +117,10 @@ export const Empty: Story = {
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
-    // The preview element is present and reads `(empty)` for an empty AST.
-    await waitFor(
-      () =>
-        expect(
-          canvasElement.querySelector('[data-testid="expression-preview"]')
-        ).toBeInTheDocument(),
-      { timeout: 6000 }
-    );
-    await waitFor(
-      () => expect(canvas.getByTestId('expression-preview').textContent).toContain('(empty)'),
-      { timeout: 6000 }
-    );
+    await waitForLspIdle(canvasElement);
+    // An empty query has nothing to parse — no Parsed box.
+    await expect(canvas.queryByTestId('expression-preview')).toBeNull();
+    await expect(canvas.queryByText('Parsed')).toBeNull();
   },
 };
 
@@ -230,6 +234,7 @@ export const ViaFormEngineTextMode: Story = {
       () => expect(canvas.getByTestId('expression-preview').textContent).toContain('John'),
       { timeout: 10000 }
     );
+    await waitForLspIdle(canvasElement);
   },
 };
 
@@ -314,6 +319,7 @@ export const ViaFormEngineTextTyping: Story = {
       () => expect(canvas.getByTestId('expression-preview')).toBeInTheDocument(),
       { timeout: 10000 }
     );
+    await waitForLspIdle(canvasElement);
   },
 };
 
@@ -358,6 +364,7 @@ export const TextMode: Story = {
       () => expect(canvas.getByTestId('expression-preview').textContent).toContain('name'),
       { timeout: 6000 }
     );
+    await waitForLspIdle(canvasElement);
   },
 };
 
