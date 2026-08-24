@@ -62,3 +62,4 @@ export * from './components/supportTicket';
 export * from './components/ticketThread';
 export * from './components/ticketReferences';
 export * from './components/searchFilterBar';
+export * from './components/codeSize';

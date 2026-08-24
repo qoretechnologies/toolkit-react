@@ -61,6 +61,19 @@ describe('read-first code preview', () => {
     expect(rowTitle(container, 'source')).toBeNull();
   });
 
+  it('summarises the code the row is not showing, through the shared size tag', async () => {
+    const { container } = renderForm();
+    await waitForRows(container);
+
+    // the row prints a measurement instead of a truncated first line; it comes
+    // from `ReqraftCodeSizeTag`, so a caller outside the form engine gets the
+    // same chip rather than a second, drifting copy of it
+    const row = container.querySelector('[data-field="source"]');
+
+    expect(row?.textContent).toContain('5 lines');
+    expect(row?.textContent).toContain(`${SOURCE.length} chars`);
+  });
+
   it('keeps the hover on values the row had to truncate', async () => {
     const { container } = renderForm();
     await waitForRows(container);

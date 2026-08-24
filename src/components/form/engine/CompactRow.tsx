@@ -31,6 +31,7 @@ import {
 } from '../../../helpers/templates';
 import { richtextToSegments } from '../../../helpers/common';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
+import { ReqraftCodeSizeTag } from '../../codeSize';
 import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
@@ -295,18 +296,7 @@ export const CompactRow = memo(
       // see `showCodePreview` below. Keeps the row height fixed while making
       // multi-line source readable without opening the full editor.
       if (valueType === 'code-editor' && typeof field?.value === 'string') {
-        const lines = field.value.split('\n').length;
-        const chars = field.value.length;
-        return (
-          <ReqoreTag
-            size='small'
-            minimal
-            intent='info'
-            icon='CodeLine'
-            label={`${lines} ${lines === 1 ? 'line' : 'lines'}`}
-            labelKey={`${chars} ${chars === 1 ? 'char' : 'chars'}`}
-          />
-        );
+        return <ReqraftCodeSizeTag code={field.value} />;
       }
 
       // Markdown read summary: the row prints the value's prose (the markdown
