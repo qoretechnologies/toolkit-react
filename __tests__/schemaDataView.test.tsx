@@ -55,9 +55,13 @@ const leaves = (container: HTMLElement) =>
 
 describe('the preview speaks the form’s language', () => {
   it('labels fields by display_name and values by their allowed value', () => {
-    const { container } = renderView([{ type: 'hash', value: { type: 'default' } }]);
+    // Two fields: the first heads the item (see the promotion tests below), so a
+    // labelled row only exists from the second onwards.
+    const { container } = renderView([
+      { type: 'hash', value: { type: 'default', cookie_name: 'qorus-session' } },
+    ]);
     const text = leaves(container);
-    expect(text).toContain('Scheme Type');
+    expect(text).toContain('Session Cookie Name');
     expect(text).toContain('Default RBAC');
     // The stored spellings are strings the author never saw. Whole-leaf
     // comparison is what makes this bite — "Scheme Type" contains "Type" and
@@ -97,9 +101,60 @@ describe('the preview speaks the form’s language', () => {
     // Reusing `StyledRowLabel` / `StyledRowValue` is the point: the preview must
     // not invent a second idea of what a field name looks like. The value class
     // is the one the rows above carry, which is how the two stay identical.
-    const { container } = renderView([{ type: 'hash', value: { type: 'default' } }]);
+    const { container } = renderView([
+      { type: 'hash', value: { type: 'default', cookie_name: 'qorus-session' } },
+    ]);
     const value = container.querySelector('.options-readfirst-valuetext');
-    expect(value?.textContent).toBe('Default RBAC');
+    expect(value?.textContent).toBe('qorus-session');
+  });
+
+  it('heads each item with its first value, so a list can be scanned by name', () => {
+    // The identifying value was reading as just another row — same size, same
+    // weight, behind its own label — so finding seven method names meant reading
+    // fourteen lines. The VALUE is promoted, not the label: `init` is what the
+    // reader is looking for, "Method Name" is not.
+    const { container } = renderView([
+      { type: 'hash', value: { type: 'default', cookie_name: 'a' } },
+      { type: 'hash', value: { type: 'cookie', cookie_name: 'b' } },
+    ]);
+    const titles = [...container.querySelectorAll('.schema-view-item-title')].map(
+      (element) => (element.textContent ?? '').trim()
+    );
+    expect(titles).toEqual(['Default RBAC', 'Cookie']);
+  });
+
+  it('does not also repeat the promoted field as a row', () => {
+    // One definition decides which field is promoted; if the heading and the rows
+    // disagreed, the item would show its name twice.
+    const { container } = renderView([
+      { type: 'hash', value: { type: 'default', cookie_name: 'qorus-session' } },
+    ]);
+    const text = leaves(container);
+    expect(text.filter((t) => t === 'Default RBAC')).toHaveLength(1);
+    expect(text).not.toContain('Scheme Type');
+  });
+
+  it('keeps the label reachable as the heading’s tooltip', () => {
+    // A heading that needs a caption is not a heading, but the field's name should
+    // not be unrecoverable either.
+    const { container } = renderView([{ type: 'hash', value: { type: 'default' } }]);
+    expect(container.querySelector('.schema-view-item-title')?.getAttribute('title')).toBe(
+      'Scheme Type'
+    );
+  });
+
+  it('does not promote a value that has no one-line form', () => {
+    // A code body is skipped as a heading — it belongs in the rows below where it
+    // renders as code and can actually be read.
+    const codeFirst = {
+      body: { type: 'string', ui_type: 'code-editor', display_name: 'Body' },
+      label: { type: 'string', display_name: 'Label' },
+    } as never;
+    const { container } = renderView(
+      [{ type: 'hash', value: { body: 'sub x() {}', label: 'the label' } }],
+      codeFirst
+    );
+    expect(container.querySelector('.schema-view-item-title')?.textContent).toBe('the label');
   });
 
   it('renders fields in SCHEMA order, not the order they happen to be stored', () => {

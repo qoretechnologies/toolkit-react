@@ -87,6 +87,36 @@ const StyledMarker = styled.div<{ $color: string }>`
   white-space: nowrap;
 `;
 
+/**
+ * The item's identifying value, set as its heading.
+ *
+ * The first field a schema declares is the one that says WHICH item this is — a
+ * method's name, a scheme's type — and it was reading as just another row: same
+ * size, same weight, sat behind its own label. Scanning seven methods meant
+ * reading fourteen lines to find seven names.
+ *
+ * Promoting the value (not the label) is what makes the list scannable: the eye
+ * lands on `init`, `onOrderStatus`, `onConnect` down the left edge, and the
+ * supporting fields stay where they were. The label is not lost, it moves to the
+ * title attribute — a heading that needs a caption is not a heading.
+ */
+const StyledItemTitle = styled.div<{ $color: string; $mono: boolean }>`
+  color: ${({ $color }) => $color};
+  /* Outranks the field labels beneath it — those are 600 at 13px, so a title at
+     the same size and weight does not read as a title at all: the eye lands on
+     "Method Body" as readily as on "init". A step up in both is what puts the
+     identifying value first. */
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 20px;
+  margin-bottom: 1px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  /* A literal keeps its mono face, one notch down: mono runs visually larger at
+     the same pixel size, so 13.5px here sits level with 14px prose. */
+  ${({ $mono }) => ($mono ? `font-family: ${MONO_FONT_STACK}; font-size: 13.5px;` : '')}
+`;
+
 /** The rule tying an item's fields to its number. */
 const StyledItemFields = styled.div<{ $border: string }>`
   border-left: 1px solid ${({ $border }) => $border};
@@ -191,6 +221,34 @@ const isCodeField = (fieldSchema: TQorusFormFieldSchema | undefined): boolean =>
   return uiType === 'code-editor';
 };
 
+/**
+ * The field whose value heads the item — the first DECLARED one holding a plain
+ * scalar.
+ *
+ * Schema order, not value order: the first declared field is the one the form
+ * puts at the top of an item, which is the one that says which item it is. A
+ * code body or a nested level is skipped, not because it is unimportant but
+ * because it has no one-line form — it belongs in the rows below where it can
+ * actually be read.
+ *
+ * One definition, used both to RENDER the heading and to omit that field from
+ * the rows. Computing it twice is how the heading and the rows start disagreeing
+ * about which field was promoted, and the item shows its name twice or not at
+ * all.
+ */
+const titleKeyFor = (
+  record: Record<string, unknown>,
+  schema: IQorusFormSchema
+): string | undefined =>
+  orderedKeys(record, schema).find((key) => {
+    const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
+    if (isCodeField(fieldSchema)) {
+      return false;
+    }
+    const raw = unwrap(record[key]);
+    return typeof raw === 'string' || typeof raw === 'number';
+  });
+
 const fieldLabel = (key: string, fieldSchema: TQorusFormFieldSchema | undefined): string =>
   (fieldSchema as { display_name?: string } | undefined)?.display_name || key;
 
@@ -275,11 +333,14 @@ const SchemaRecord = ({
   schema,
   showTypes,
   colors,
+  skipKey,
 }: {
   record: Record<string, unknown>;
   schema: IQorusFormSchema;
   showTypes?: boolean;
   colors: ISchemaDataViewProps['colors'];
+  /** Rendered as the item's heading already, so it must not repeat as a row. */
+  skipKey?: string;
 }) => {
   // The SAME host renderer the row above uses for a `code-editor` field. Read
   // from context rather than threaded through props: a nested level is arbitrarily
@@ -292,7 +353,9 @@ const SchemaRecord = ({
 
   return (
   <StyledFields className='schema-view-fields'>
-    {orderedKeys(record, schema).map((key) => {
+    {orderedKeys(record, schema)
+      .filter((key) => key !== skipKey)
+      .map((key) => {
       const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
       const nested = (fieldSchema as { arg_schema?: IQorusFormSchema } | undefined)?.arg_schema;
       const value = unwrap(record[key]);
@@ -395,12 +458,39 @@ const SchemaLevel = ({
               <StyledMarker $color={colors.muted}>{index + 1}.</StyledMarker>
               <StyledItemFields $border={colors.border}>
                 {isRecord(record) ?
-                  <SchemaRecord
-                    record={record}
-                    schema={schema}
-                    showTypes={showTypes}
-                    colors={colors}
-                  />
+                  <>
+                    {(() => {
+                      const titleKey = titleKeyFor(record, schema);
+                      if (!titleKey) {
+                        return null;
+                      }
+                      const fieldSchema = schema[titleKey] as TQorusFormFieldSchema | undefined;
+                      const raw = unwrap(record[titleKey]);
+                      return (
+                        <StyledItemTitle
+                          className='schema-view-item-title'
+                          $color={colors.key}
+                          // A literal keeps the mono treatment it has as a value —
+                          // promoting it must not change what it IS. A chosen
+                          // label ("Default RBAC") is prose and stays prose.
+                          $mono={!findAllowedValueOption(raw, fieldSchema)}
+                          title={fieldLabel(titleKey, fieldSchema)}
+                        >
+                          {formatOptionValue(
+                            { type: fieldSchema?.type, value: raw } as IQorusFormField,
+                            fieldSchema
+                          )}
+                        </StyledItemTitle>
+                      );
+                    })()}
+                    <SchemaRecord
+                      record={record}
+                      schema={schema}
+                      showTypes={showTypes}
+                      colors={colors}
+                      skipKey={titleKeyFor(record, schema)}
+                    />
+                  </>
                 : <StyledRowValue $color={colors.key}>
                     <span
                       className='options-readfirst-valuetext schema-view-data'

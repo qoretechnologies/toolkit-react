@@ -302,9 +302,9 @@ describe('a sub-schema delivered as an id is fetched, not ignored', () => {
     // The schema view appears only after the fetch resolves, so this waits rather
     // than asserting synchronously.
     await waitFor(() => expect(container.querySelector('.schema-data-view')).toBeTruthy());
-    const text = container.querySelector('.schema-data-view')?.textContent ?? '';
-    expect(text).toContain('Scheme Type');
-    expect(text).toContain('Default RBAC');
+    // The item's first value heads it, so the resolved schema shows up as the
+    // display name of that value — not as a labelled row.
+    expect(container.querySelector('.schema-view-item-title')?.textContent).toBe('Default RBAC');
   });
 
   it('keeps the untyped tree when the id cannot be resolved', async () => {

@@ -1294,8 +1294,9 @@ export const CompactNestedListRowsStayCompact: Story = {
   play: async ({ canvasElement }) => {
     // Collapsed, the row previews its items through their schema — one numbered
     // entry per method, each naming itself.
-    await _testsWaitForText('Method Name');
+    // The method name heads its item now, so that is what identifies the row.
     await _testsWaitForText('init');
+    await _testsWaitForText('run');
 
     // Open the Methods row — this mounts ArrayAuto and, with it, one
     // arg_schema sub-form per row. Clicked by the field's NAME: the joined
@@ -6065,8 +6066,12 @@ export const CompactListOfHashReadsInSchemaWords: Story = {
       return element!;
     });
     const text = preview.textContent ?? '';
-    expect(text).toContain('Scheme Type');
-    expect(text).toContain('Default RBAC');
+    // Each item is headed by its first value, so the list reads by name; the
+    // remaining fields keep their labels.
+    const titles = [...preview.querySelectorAll('.schema-view-item-title')].map((element) =>
+      (element.textContent ?? '').trim()
+    );
+    expect(titles).toEqual(['Default RBAC', 'Cookie']);
     expect(text).toContain('Session Cookie Name');
 
     // Nothing announces the container's shape — that is the tell of a renderer
@@ -6098,7 +6103,7 @@ export const CompactListOfHashReadsInSchemaWords: Story = {
     const leafTexts = [...preview.querySelectorAll('*')]
       .filter((element) => element.children.length === 0)
       .map((element) => (element.textContent ?? '').trim());
-    expect(leafTexts).toContain('Scheme Type');
+    expect(leafTexts).toContain('Default RBAC');
     for (const stored of ['type', 'cookie_name', 'default']) {
       expect(leafTexts).not.toContain(stored);
     }
@@ -6193,7 +6198,7 @@ export const CompactListOfHashReadsInSchemaWordsMobile: Story = {
     ),
   ],
   play: async ({ canvasElement }) => {
-    await _testsWaitForText('Scheme Type');
+    await _testsWaitForText('Default RBAC');
 
     // The narrow branch is actually engaged — otherwise this is the desktop
     // story with a border round it, and it would pass while proving nothing.
@@ -6209,7 +6214,7 @@ export const CompactListOfHashReadsInSchemaWordsMobile: Story = {
     const leafTexts = [...preview.querySelectorAll('*')]
       .filter((element) => element.children.length === 0)
       .map((element) => (element.textContent ?? '').trim());
-    expect(leafTexts).toContain('Scheme Type');
+    expect(leafTexts).toContain('Session Cookie Name');
     for (const stored of ['type', 'cookie_name', 'default']) {
       expect(leafTexts).not.toContain(stored);
     }
