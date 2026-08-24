@@ -1,9 +1,10 @@
-import { ReqoreControlGroup } from '@qoretechnologies/reqore';
+import { ReqoreControlGroup, useReqoreProperty } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { memo, useState } from 'react';
 import {
   getLargestExactTimeoutUnit,
   TIMEOUT_UNITS,
+  timeoutUnitSymbol,
   timeoutUnitToMs,
   TTimeoutUnit,
 } from '../../../../helpers/common';
@@ -19,6 +20,9 @@ export interface ITimeoutFormFieldProps {
   disabled?: boolean;
   readOnly?: boolean;
   size?: TSizes;
+  /** Show unit symbols (ms/s/m/h) instead of full names. Defaults to the
+   * viewport's phone-width flag. */
+  abbreviateUnits?: boolean;
   /** Unknown props (`aria-label`, …) forward to the primary (amount) input. */
   [key: string]: unknown;
 }
@@ -30,7 +34,9 @@ export interface ITimeoutFormFieldProps {
  * re-interprets the shown amount (45 seconds → 45 minutes).
  */
 export const TimeoutFormField = memo(
-  ({ value, onChange, disabled, readOnly, size, ...rest }: ITimeoutFormFieldProps) => {
+  ({ value, onChange, disabled, readOnly, size, abbreviateUnits, ...rest }: ITimeoutFormFieldProps) => {
+    const isMobile = useReqoreProperty('isMobile');
+    const shortUnits = abbreviateUnits ?? isMobile;
     // The ms value alone can't say whether 45000 should read "45 seconds" or
     // "45000 ms", so the unit is pinned once the user touches the field.
     // Until then — and whenever the controlled value stops dividing evenly by
@@ -59,7 +65,11 @@ export const TimeoutFormField = memo(
         />
         <SelectFormField
           fixed
+          hideItemCount
           items={UNIT_ITEMS}
+          // Where space is tight only the trigger abbreviates — the open
+          // picker keeps the full unit names.
+          valueLabel={shortUnits ? timeoutUnitSymbol(unit) : undefined}
           value={unit}
           onChange={(next) => {
             setPinnedUnit(next as TTimeoutUnit);

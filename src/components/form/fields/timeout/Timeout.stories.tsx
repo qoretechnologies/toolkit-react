@@ -67,6 +67,34 @@ export const WithValue: Story = {
   },
 };
 
+export const Mobile: Story = {
+  args: {
+    value: 45000,
+    // The phone presentation is prop-forced so the play is deterministic at
+    // any test-browser width; without the prop the field switches on the
+    // viewport's own phone-width flag.
+    abbreviateUnits: true,
+  },
+  parameters: {
+    // Capture at phone size; the selector abbreviation is prop-forced above.
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Renders the phone presentation of the Timeout field with 45000 milliseconds — the closed unit selector reads "s", while the open picker keeps the full seconds/minutes/hours names.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByDisplayValue('45')).toBeInTheDocument();
+    await fireEvent.click(canvas.getByText('s'));
+    const body = within(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(body.getByText('minutes')).toBeInTheDocument(), { timeout: 5000 });
+    await expect(body.getByText('hours')).toBeInTheDocument();
+  },
+};
+
 export const WithInexactValue: Story = {
   args: {
     value: 90500,

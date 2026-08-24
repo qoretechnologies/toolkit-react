@@ -177,16 +177,20 @@ export const splitByteSize = (value?: string): [number | undefined, string | und
 export type TTimeoutUnit = 'ms' | 'seconds' | 'minutes' | 'hours';
 
 /** Timeout display units, smallest → largest, with the ms multiplier each one
- * scales by. The stored value is always the integer millisecond count. */
-export const TIMEOUT_UNITS: { value: TTimeoutUnit; ms: number }[] = [
-  { value: 'ms', ms: 1 },
-  { value: 'seconds', ms: 1000 },
-  { value: 'minutes', ms: 60000 },
-  { value: 'hours', ms: 3600000 },
+ * scales by and the symbol shown where space is tight (phone-width selector).
+ * The stored value is always the integer millisecond count. */
+export const TIMEOUT_UNITS: { value: TTimeoutUnit; ms: number; short: string }[] = [
+  { value: 'ms', ms: 1, short: 'ms' },
+  { value: 'seconds', ms: 1000, short: 's' },
+  { value: 'minutes', ms: 60000, short: 'm' },
+  { value: 'hours', ms: 3600000, short: 'h' },
 ];
 
 export const timeoutUnitToMs = (unit: TTimeoutUnit): number =>
   TIMEOUT_UNITS.find(({ value }) => value === unit)!.ms;
+
+export const timeoutUnitSymbol = (unit: TTimeoutUnit): string =>
+  TIMEOUT_UNITS.find(({ value }) => value === unit)!.short;
 
 /** The largest unit that represents `value` without rounding (45000 →
  * seconds, 90500 → ms). Zero divides evenly by everything, so it stays ms. */
