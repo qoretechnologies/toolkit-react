@@ -313,23 +313,14 @@ export const CompactRow = memo(
         typeof field?.value === 'string' &&
         isMultilineMarkdown(field.value)
       ) {
-        // Only the count is chipped. Putting the prose inside the tag as well
-        // tints the whole row width, and a description then reads as one giant
-        // label rather than as the text it is. The guard above means the count
-        // is never 1.
-        const lines = field.value.trim().split('\n').length;
-        return (
-          <span style={wrapStyle}>
-            <ReqoreTag
-              size='small'
-              minimal
-              intent='info'
-              icon='MarkdownLine'
-              label={`${lines} lines`}
-            />
-            <span style={textStyle}>{formatted}</span>
-          </span>
-        );
+        // Prose only. The line count is metadata ABOUT the field, so it sits
+        // under the field's name (see `lineCountNote`) rather than in front of
+        // its content — the value column carries the value and nothing else.
+        //
+        // This branch is reached only when no host renderer is present; with one,
+        // the whole value line is suppressed in favour of the rendered document
+        // below (see `showMarkdownPreview` at the value span).
+        return <span style={textStyle}>{formatted}</span>;
       }
 
       // Selected allowed-value / enum item with a logo (e.g. language images):
@@ -1211,6 +1202,18 @@ export const CompactRow = memo(
       (schema as { ui_type?: string } | undefined)?.ui_type === 'markdown' &&
       typeof optionField?.value === 'string' &&
       isMultilineMarkdown(optionField.value);
+    // "9 lines" for a multi-line markdown value, shown under the field's name
+    // rather than in front of its content: it describes the field, not the value,
+    // and the value column is for the value. Rendered whether or not a host
+    // renderer is present — the count is the one thing the row cannot show you by
+    // showing you the text, and it is what tells you there is more below.
+    const lineCountNote =
+      !hidden &&
+      (schema as { ui_type?: string } | undefined)?.ui_type === 'markdown' &&
+      typeof optionField?.value === 'string' &&
+      isMultilineMarkdown(optionField.value) ?
+        `${optionField.value.trim().split('\n').length} lines`
+      : undefined;
     const typeLabel =
       showFieldTypes ?
         `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
@@ -1409,6 +1412,16 @@ export const CompactRow = memo(
               {labelShortDesc}
             </StyledLabelDesc>
           : null}
+          {lineCountNote ?
+            <ReqoreP
+              className='options-readfirst-label-lines'
+              size='tiny'
+              effect={{ opacity: 0.45, textAlign: 'left' }}
+              style={{ fontFamily: 'monospace' }}
+            >
+              {lineCountNote}
+            </ReqoreP>
+          : null}
         </StyledLabelBlock>
         <StyledRowValue
           // A code field draws its whole value in the preview below, with
@@ -1434,9 +1447,17 @@ export const CompactRow = memo(
           $color={empty || hidden ? `${cMuted}66` : cKey}
           $empty={empty || hidden}
         >
-          <span className='options-readfirst-valuetext'>
-            {hidden || empty ? '—' : renderReadFirstValue(optionField, schema, formatted)}
-          </span>
+          {/* A markdown value with a host renderer draws in full in the inset
+              below, so the row prints no value line at all: the stripped-prose
+              copy that used to sit above the document was a second rendering of
+              the same text with the markers taken out (Qlip review, build #97).
+              Without a renderer there is no inset, and the prose IS the value —
+              so the line stays, and `renderReadFirstValue` still produces it. */}
+          {showMarkdownPreview ? null : (
+            <span className='options-readfirst-valuetext'>
+              {hidden || empty ? '—' : renderReadFirstValue(optionField, schema, formatted)}
+            </span>
+          )}
           {valueReasons.map((m, i) => (
             <span
               key={`${m.content}-${i}`}

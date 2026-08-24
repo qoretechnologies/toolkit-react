@@ -985,7 +985,7 @@ export const CompactRowMarkdownPreview: Story = {
     docs: {
       description: {
         story:
-          'Renders compact-mode markdown rows over a service description, with a host markdown renderer supplied — the multi-line row summarises its value as prose (no `##`, no `**`) with a line-count tag and mounts the rendered document under the row, while the one-line row keeps its single rendered line and no preview.',
+          'Renders compact-mode markdown rows over a service description, with a host markdown renderer supplied — the multi-line row prints NO value line and mounts the rendered document under the row instead, since a stripped-prose copy above it would be the same text rendered twice. Its line count moves under the field name in the label column, in a small monospaced note, because the count describes the field rather than the value. The one-line row keeps its single rendered line, gets no preview and no count.',
       },
     },
   },
@@ -1033,19 +1033,25 @@ export const CompactRowMarkdownPreview: Story = {
       { timeout: 5000 }
     );
 
-    // (b) The row's own line reads as prose: the markers are gone and the line
-    //     count says how much more there is.
+    // (b) The value column holds the VALUE and nothing else. With a renderer
+    //     present the document is drawn in full below, so the stripped-prose copy
+    //     that used to sit above it is gone — two renderings of one value, stacked,
+    //     was the confusion this removes (Qlip review, build #97).
     const descRow = canvasElement.querySelector('[data-field="desc"]');
-    const descText = descRow?.querySelector('.options-readfirst-valuetext')?.textContent ?? '';
-    expect(descText).toContain('Order intake');
-    expect(descText).not.toContain('##');
-    expect(descText).not.toContain('**');
-    expect(descRow?.textContent ?? '').toMatch(/\d+\s*lines?/);
+    expect(descRow?.querySelector('.options-readfirst-valuetext')).toBeNull();
 
-    // (c) A one-liner is already fully rendered as the row's own text, so it
-    //     gets no second copy below it.
+    // (c) The line count describes the FIELD, so it sits under the field's name
+    //     in the label column — not in front of its content.
+    const lineNote = descRow?.querySelector('.options-readfirst-label-lines');
+    expect(lineNote?.textContent ?? '').toMatch(/^\d+ lines$/);
+    expect(getComputedStyle(lineNote as Element).fontFamily).toContain('monospace');
+
+    // (d) A one-liner is already fully rendered as the row's own text, so it
+    //     gets no second copy below it — and no line count, because there is
+    //     nothing more to count.
     const summaryRow = canvasElement.querySelector('[data-field="summary"]');
     expect(summaryRow?.querySelector('.options-readfirst-markdown')).toBeNull();
+    expect(summaryRow?.querySelector('.options-readfirst-label-lines')).toBeNull();
     expect(summaryRow?.querySelector('.options-readfirst-valuetext')?.textContent).toBe(
       'Handles partner order intake.'
     );
@@ -5883,7 +5889,7 @@ export const CompactRowMarkdownWithoutRenderer: Story = {
     docs: {
       description: {
         story:
-          'Renders the same compact markdown rows with no host renderer supplied — no rendered document mounts under the row, and the row still shows the description as prose rather than as markdown source.',
+          'Renders the same compact markdown rows with no host renderer supplied — no rendered document mounts under the row, so the prose IS the value and the row keeps showing it (markers stripped, not raw markdown source). The line count still sits under the field name.',
       },
     },
   },
