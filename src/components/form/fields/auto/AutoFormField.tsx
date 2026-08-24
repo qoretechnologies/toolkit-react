@@ -31,6 +31,7 @@ import { FieldAllowedValues, FieldAllowedValuesCheckGroup } from '../allowed-val
 import { ArrayAuto } from '../array/ArrayAuto';
 import BooleanFormField from '../boolean/Boolean';
 import { ByteSizeFormField } from '../byte-size/ByteSize';
+import { TimeoutFormField } from '../timeout/Timeout';
 import ColorFormField from '../color/Color';
 import CronFormField from '../cron/Cron';
 import { DateFormField } from '../date/Date';
@@ -732,6 +733,24 @@ function AutoField<T = any>({
               {...rest}
               onChange={(value) => handleChange(name, value)}
               value={value}
+            />
+          );
+        // A connection's `connect_timeout` / `timeout` arrive from
+        // `getCreateConnectionOptions` as `type: 'timeout'` with a bare-integer
+        // default (45000) and an "in milliseconds" description. The value stays
+        // that integer millisecond count — TimeoutFormField only adds the
+        // unit-aware display. Extras are trimmed the same way as `byte-size`
+        // below: `rest` carries `templates`, which would flip the inner
+        // NumberFormField into its templates-dropdown variant.
+        case 'timeout':
+          return (
+            <TimeoutFormField
+              value={value}
+              onChange={(val) => handleChange(name, val)}
+              disabled={rest.disabled}
+              readOnly={rest.readonly}
+              size={rest.size}
+              aria-label={rest['aria-label']}
             />
           );
         case 'byte-size':

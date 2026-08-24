@@ -93,6 +93,7 @@ const COMPACT_COMPLEX_TYPES = new Set([
   'options',
   'system-options',
   'byte-size',
+  'timeout',
   'markdown',
   'method-name',
   'class-connectors',
@@ -113,6 +114,7 @@ const COMPACT_SINGLE_VALUE_TYPES = new Set([
   'markdown',
   'richtext',
   'byte-size',
+  'timeout',
   'method-name',
 ]);
 

@@ -262,20 +262,45 @@ export const _validateField = (
     case 'file': {
       // Support both the Build-tab typed format ({ name: { type, value } })
       // and the Upload-tab flat format ({ name: 'file.txt' })
-      const nameValue = value?.name?.value ?? value?.name;
-      const contentValue = value?.content?.value ?? value?.content;
-      const nameResult = validateFieldWithResult('string', nameValue);
-      const contentResult = validateFieldWithResult('string', contentValue);
+      //
+      // A Build-tab sub-value is a full option envelope: it carries its own
+      // `type` and may hold an expression (`is_expression`) or a rich-text
+      // paragraph array rather than a bare string. This used to unwrap `.value`
+      // and validate it as a hard-coded `string` with no field, discarding both
+      // the declared type and the expression flag — so a `concat(...)` filename
+      // arrived at the string validator as `{ exp, args }`, rich text arrived as
+      // an array, and both were rejected with "Value must be a non-empty text".
+      //
+      // Validate each part against its OWN type and route `is_expression`
+      // through `isFunction`, exactly as the `system-options` recursion below
+      // does, so the `field?.isFunction` branch above gets a chance to run.
+      const validateFilePart = (part: any, fallbackType: string): IValidationResult => {
+        const isEnvelope = !!part && isObject(part) && ('value' in part || 'is_expression' in part);
 
-      if (!nameResult.isValid) {
-        return withContext(nameResult, 'File name is invalid');
-      }
+        return isEnvelope
+          ? validateFieldWithResult(part.type || fallbackType, part.value, {
+              isFunction: part.is_expression,
+            } as IFieldValidationProps)
+          : validateFieldWithResult(fallbackType, part);
+      };
 
-      if (!contentResult.isValid) {
-        return withContext(contentResult, 'File content is invalid');
-      }
+      // Fall back to the arg_schema's declared types for the flat Upload-tab
+      // shape: `name` is `richtext` (which also accepts a plain string) and
+      // `content` is `data`.
+      const nameResult = validateFilePart(value?.name, 'richtext');
+      const contentResult = validateFilePart(value?.content, 'data');
 
-      return validResult();
+      // Report both parts. Returning on the first failure meant a bad file name
+      // masked the content result entirely, so the form could only ever surface
+      // one problem at a time.
+      const reasons = [
+        ...(nameResult.isValid ? [] : withContext(nameResult, 'File name is invalid').reasons),
+        ...(contentResult.isValid
+          ? []
+          : withContext(contentResult, 'File content is invalid').reasons),
+      ];
+
+      return reasons.length ? invalidResult(reasons) : validResult();
     }
     case 'number': {
       return resultFromBoolean(
@@ -504,6 +529,17 @@ export const _validateField = (
 
       if (!sizeResult.isValid) {
         return withContext(sizeResult, 'Byte size unit is invalid');
+      }
+
+      return validResult();
+    }
+    case 'timeout': {
+      // An integer count of milliseconds — the unit selector is display-only,
+      // so the stored value validates as an int.
+      const msResult = validateFieldWithResult('int', value);
+
+      if (!msResult.isValid) {
+        return withContext(msResult, 'Timeout must be a whole number of milliseconds');
       }
 
       return validResult();

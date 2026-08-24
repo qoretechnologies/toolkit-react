@@ -52,6 +52,32 @@ export const Items: Story = {
   },
 };
 
+export const WithValueLabel: Story = {
+  args: {
+    value: 'seconds',
+    valueLabel: 's',
+    items: [{ value: 'ms' }, { value: 'seconds' }, { value: 'minutes' }],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field with a `valueLabel` override — the closed trigger shows the short "s" for the selected value, while opening the popover still lists the full item names.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('s')).toBeInTheDocument();
+    await fireEvent.click(canvas.getByText('s'));
+    await waitFor(
+      () => expect(within(document.body).getByText('seconds')).toBeInTheDocument(),
+      { timeout: 5000 }
+    );
+    await expect(within(document.body).getByText('minutes')).toBeInTheDocument();
+  },
+};
+
 export const ItemsWithDescription: Story = {
   parameters: {
     docs: {
