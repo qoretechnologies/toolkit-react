@@ -31,6 +31,11 @@ export interface ISelectFormFieldProps {
   asMenu?: boolean;
   icon?: IReqoreIconName;
   showDescription?: 'tooltip' | boolean;
+  /** Label for the CLOSED trigger in place of the selected item's
+   * `display_name` — the open list keeps the item labels (e.g. a unit symbol
+   * on the trigger, full names in the picker). Ignored while nothing is
+   * selected. */
+  valueLabel?: string;
   showPlaceholder?: boolean;
   showRightIcon?: boolean;
   hideItemCount?: boolean;
@@ -69,6 +74,7 @@ export const SelectFormField = memo(
     icon,
     filters,
     showDescription = true,
+    valueLabel,
     showPlaceholder = true,
     showRightIcon = true,
     hideItemCount,
@@ -274,7 +280,7 @@ export const SelectFormField = memo(
           fluid={fluid}
           flat={flat ?? false}
           size={componentSize}
-          label={getLabel(items, value ?? autoSelectedItem.value)}
+          label={valueLabel ?? getLabel(items, value ?? autoSelectedItem.value)}
           description={getItemShortDescription(value as string) as string}
           readOnly
           fixed
@@ -366,7 +372,7 @@ export const SelectFormField = memo(
             disabled={disabled}
           >
             {value ?
-              getLabel(items, value as string)
+              (valueLabel ?? getLabel(items, value as string))
             : showPlaceholder ?
               placeholder || 'Please select'
             : undefined}
@@ -402,7 +408,7 @@ export const SelectFormField = memo(
             }
           >
             {value ?
-              getLabel(items, value as string)
+              (valueLabel ?? getLabel(items, value as string))
             : showPlaceholder ?
               placeholder || 'Please select'
             : undefined}

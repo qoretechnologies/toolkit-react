@@ -174,6 +174,42 @@ export const splitByteSize = (value?: string): [number | undefined, string | und
   return [amount?.[0] ? Number(amount[0]) : undefined, unit?.[0]];
 };
 
+export type TTimeoutUnit = 'ms' | 'seconds' | 'minutes' | 'hours';
+
+/** Timeout display units, smallest → largest, with the ms multiplier each one
+ * scales by and the symbol shown where space is tight (phone-width selector).
+ * The stored value is always the integer millisecond count. */
+export const TIMEOUT_UNITS: { value: TTimeoutUnit; ms: number; short: string }[] = [
+  { value: 'ms', ms: 1, short: 'ms' },
+  { value: 'seconds', ms: 1000, short: 's' },
+  { value: 'minutes', ms: 60000, short: 'm' },
+  { value: 'hours', ms: 3600000, short: 'h' },
+];
+
+export const timeoutUnitToMs = (unit: TTimeoutUnit): number =>
+  TIMEOUT_UNITS.find(({ value }) => value === unit)!.ms;
+
+export const timeoutUnitSymbol = (unit: TTimeoutUnit): string =>
+  TIMEOUT_UNITS.find(({ value }) => value === unit)!.short;
+
+/** The largest unit that represents `value` without rounding (45000 →
+ * seconds, 90500 → ms). Zero divides evenly by everything, so it stays ms. */
+export const getLargestExactTimeoutUnit = (value?: number): TTimeoutUnit => {
+  for (let i = TIMEOUT_UNITS.length - 1; i >= 0; i--) {
+    if (value != null && value !== 0 && value % TIMEOUT_UNITS[i].ms === 0) {
+      return TIMEOUT_UNITS[i].value;
+    }
+  }
+  return 'ms';
+};
+
+/** Human-readable timeout (e.g. `"45 seconds"`) — scaled to the largest unit
+ * that represents the millisecond count exactly (90500 → `"90500 ms"`). */
+export const formatTimeoutValue = (ms: number): string => {
+  const unit = getLargestExactTimeoutUnit(ms);
+  return `${ms / timeoutUnitToMs(unit)} ${unit}`;
+};
+
 /** Human-readable file size, e.g. `"12.3 KB"` — whole bytes below 1 KiB, one
  *  decimal above. Shared by the ticket thread / references attachment rows. */
 export const formatBytes = (bytes: number): string => {

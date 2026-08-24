@@ -8,12 +8,15 @@ export type TFormFieldType =
   | TQorusType
   | 'softint' | 'softstring' | 'softbool' | 'softfloat' | 'softnumber' | 'softdate' | 'softlist'
   | 'byte-size'
+  // the server emits this for a connection's connect_timeout / timeout;
+  // it is not (yet) in ts-toolkit's TQorusType
+  | 'timeout'
   | 'multi-select'
   | 'schema-definition';
 
 export type TFormFieldValueType<T> =
   T extends 'string' | 'long-string' | 'binary' | 'email' | 'url' | 'enum' | 'select-string' | 'file-as-string' | 'byte-size' ? string
-  : T extends 'int' | 'integer' | 'float' | 'number' ? number
+  : T extends 'int' | 'integer' | 'float' | 'number' | 'timeout' ? number
   : T extends 'bool' | 'boolean' ? boolean
   : T extends 'date' ? Date | string
   : T extends 'hash' | 'free-hash' | 'data' ? Record<string, any>

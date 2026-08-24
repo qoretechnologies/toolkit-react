@@ -218,24 +218,29 @@ export const ExpressionField = memo(
               readOnly={readOnly}
               height='48px'
             />
-            <ReqoreMessage intent='info' size='small' title='Parsed' flat opaque={false}>
-              {preview.server ? (
-                // Server rendering shown through a read-only DpqlEditor:
-                // template-ref chips + LSP token colours; diagnostics off
-                // (the rendering is readable text, not parseable DPQL).
-                <div data-testid='expression-preview' style={{ width: '100%' }}>
-                  <DpqlEditor
-                    value={preview.text}
-                    onChange={noop}
-                    readOnly
-                    showDiagnostics={false}
-                    enableHover={false}
-                  />
-                </div>
-              ) : (
-                <code data-testid='expression-preview'>{preview.text || '(empty)'}</code>
-              )}
-            </ReqoreMessage>
+            {/* An empty query has nothing to parse — the box appears once a
+                parse result exists rather than sitting there holding a
+                placeholder token. */}
+            {preview.text ? (
+              <ReqoreMessage intent='info' size='small' title='Parsed' flat opaque={false}>
+                {preview.server ? (
+                  // Server rendering shown through a read-only DpqlEditor:
+                  // template-ref chips + LSP token colours; diagnostics off
+                  // (the rendering is readable text, not parseable DPQL).
+                  <div data-testid='expression-preview' style={{ width: '100%' }}>
+                    <DpqlEditor
+                      value={preview.text}
+                      onChange={noop}
+                      readOnly
+                      showDiagnostics={false}
+                      enableHover={false}
+                    />
+                  </div>
+                ) : (
+                  <code data-testid='expression-preview'>{preview.text}</code>
+                )}
+              </ReqoreMessage>
+            ) : null}
           </>
         ) : (
           <ExpressionBuilder
