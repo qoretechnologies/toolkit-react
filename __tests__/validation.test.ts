@@ -1029,3 +1029,113 @@ describe('schema-definition', () => {
     expect(validateField('schema-definition', null, {}, true)).toBe(true);
   });
 });
+
+// ─── hash with arg_schema, in both value shapes ────────────────────────────────
+
+describe('hash with arg_schema', () => {
+  // Exactly the shape a service-method row carries: two required args.
+  const methodSchema = {
+    arg_schema: {
+      name: { type: 'string', required: true },
+      desc: { type: 'string', required: true },
+      lock: { type: 'string' },
+    },
+  } as any;
+
+  it('accepts plain values, which is how the server sends them', () => {
+    // Regression: a freshly-loaded list-of-hash row holds plain values, and the
+    // validator only understood typed envelopes — so every complete
+    // service-method row reported "Hash arguments are invalid" on screen while
+    // displaying correct values.
+    expect(
+      validateFieldWithResult('hash', { name: 'init', desc: 'starts up' }, methodSchema).isValid
+    ).toBe(true);
+  });
+
+  it('accepts typed envelopes, which is what the form emits after an edit', () => {
+    expect(
+      validateFieldWithResult(
+        'hash',
+        {
+          name: { type: 'string', value: 'init' },
+          desc: { type: 'string', value: 'starts up' },
+        },
+        methodSchema
+      ).isValid
+    ).toBe(true);
+  });
+
+  it('accepts a row that mixes the two, which is a half-edited row', () => {
+    expect(
+      validateFieldWithResult(
+        'hash',
+        { name: { type: 'string', value: 'init' }, desc: 'starts up' },
+        methodSchema
+      ).isValid
+    ).toBe(true);
+  });
+
+  it('still rejects a missing required arg in either shape', () => {
+    expect(validateFieldWithResult('hash', { name: 'init' }, methodSchema).isValid).toBe(false);
+    expect(
+      validateFieldWithResult('hash', { name: { type: 'string', value: 'init' } }, methodSchema)
+        .isValid
+    ).toBe(false);
+  });
+
+  it('treats an envelope with no value as not supplied, not as an empty string', () => {
+    // required -> still invalid ...
+    expect(
+      validateFieldWithResult(
+        'hash',
+        { name: { type: 'string', value: undefined }, desc: 'starts up' },
+        methodSchema
+      ).isValid
+    ).toBe(false);
+    // ... but an optional arg in the same state must not sink the whole row
+    expect(
+      validateFieldWithResult(
+        'hash',
+        { name: 'init', desc: 'starts up', lock: { type: 'string', value: undefined } },
+        methodSchema
+      ).isValid
+    ).toBe(true);
+  });
+
+  it('rejects an arg whose value is present but the wrong type', () => {
+    expect(
+      validateFieldWithResult('hash', { name: '', desc: 'starts up' }, methodSchema).isValid
+    ).toBe(false);
+  });
+});
+
+describe('list of hashes with arg_schema', () => {
+  const methodsField = {
+    element_type: 'hash',
+    arg_schema: {
+      name: { type: 'string', required: true },
+      desc: { type: 'string', required: true },
+    },
+  } as any;
+
+  it('validates every row through the element schema, in the shape the list holds', () => {
+    // the list wraps each row in its own envelope; the row's own args are plain
+    const rows = [
+      { type: 'hash', value: { name: 'init', desc: 'starts up' } },
+      { type: 'hash', value: { name: 'run', desc: 'does the work' } },
+    ];
+
+    expect(validateFieldWithResult('list', rows, methodsField).isValid).toBe(true);
+  });
+
+  it('names the offending row when one is incomplete', () => {
+    const rows = [
+      { type: 'hash', value: { name: 'init', desc: 'starts up' } },
+      { type: 'hash', value: { name: 'run' } },
+    ];
+    const result = validateFieldWithResult('list', rows, methodsField);
+
+    expect(result.isValid).toBe(false);
+    expect(result.reason).toContain('List item 1');
+  });
+});

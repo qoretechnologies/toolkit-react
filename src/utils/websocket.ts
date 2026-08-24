@@ -188,7 +188,26 @@ export class ReqraftWebSocket {
     this.reconnectTries++;
     this.options?.onReconnecting?.(this.reconnectTries);
 
-    await this.checkServerStatus();
+    // The probe is ADVISORY: its only job is to let a dead session redirect on a
+    // 401 before we retry. It must never gate the reconnect itself.
+    //
+    // `query()` rejects on a network error, and a network error is the normal
+    // state while reconnecting — the server being unreachable is why we are
+    // here. Awaiting it unguarded meant the throw skipped `connect()`, so the
+    // socket never closed again, so `maybeReconnect()` was never called again:
+    // the state machine stopped silently, mid-way, with no further attempts and
+    // no `onReconnectFailed`. A caller waiting to be told the reconnect gave up
+    // waits forever, and the UI sits on CONNECTING.
+    //
+    // It surfaced as a CI-only story failure because a dev machine answers
+    // `/system/pid` (so the probe resolves and the chain advances) while CI has
+    // no server behind it — the same difference that makes it a REAL bug, since
+    // production has no server behind it either at exactly this moment.
+    try {
+      await this.checkServerStatus();
+    } catch (error) {
+      // deliberately ignored — see above
+    }
 
     this.connect();
   }

@@ -79,6 +79,18 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
 - **Search spans hidden fields.** The top search matches *all* schema fields, not just the listed ones: a
   match that is an optional field not yet in the form is surfaced as a dimmed **"Not in form — add"** row;
   activating it adds the field and opens its editor.
+- **An unmet `depends_on` withholds the field rather than offering it.** A field whose dependency is
+  not fulfilled is left out of the not-yet-added list entirely — so it is absent from the addable rows,
+  the Fields menu, and its **Select all** alike. All three read the one `filteredOptions` list, which is
+  where the gate lives, so they cannot disagree about what is available. The rule is that
+  `hasAllDependenciesFullfilled` is the *same* predicate that then refuses to let the field be edited:
+  offering one it rejects can only end at a row that opens and says it is disabled. (Reported on auth
+  profiles — an authentication scheme set to Permissive still offered `Cookie Name` and `Redirect URL`,
+  both `depends_on: ['type=cookie']`, and both dead ends.) Fulfilling the dependency brings the rows
+  back and flashes them (`dependencyLockedNames`), which is the discoverable path: pick the scheme, and
+  the fields that scheme has appear. **Only the not-yet-added ones** — a field that already holds a
+  value stays listed when its dependency later stops holding, rendered `readfirst-row-disabled` with the
+  reason, so a value still being submitted is visible and removable instead of silently orphaned.
 - **Sticky-top toolbar.** The completion meter + search + Fields menu are wrapped in a `position: sticky;
   top: 0` header (opaque background masks rows scrolling beneath), so filtering and adding optional fields
   stay reachable while scrolling a long form. (Replaced an earlier bottom "Additional options" bar that, as

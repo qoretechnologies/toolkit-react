@@ -32,6 +32,22 @@ export const GROUP_INDENT = `${COMPACT_ROW_PAD_X}px`;
 // invariant — the column may resize, but the surface stays glued to its edge.
 export const LABEL_COL_MIN = 120;
 export const LABEL_COL_MAX = COMPACT_LABEL_COL; // 220
+/**
+ * Room reserved beside a field's NAME for the chrome that trails it, summed from
+ * the parts rather than guessed: the required asterisk (10px), the `?` that opens
+ * the long description (12px), and the two 3px gaps of `StyledRowLabel`.
+ *
+ * Added to the measured column AFTER the min/max clamp. Inside it, a label long
+ * enough to reach the ceiling spends the allowance on itself and the `?` wraps to
+ * a line of its own.
+ *
+ * The 4px of slack is not padding for its own sake: the measurement rounds (an
+ * off-DOM `offsetWidth` is an integer) while the rendered text width is
+ * fractional, so a column sized to the exact sum still wraps. Measured on an auth
+ * profile — "Authentication Schemes" renders 152px of text and needs
+ * 152+3+10+3+12 = 180, was given exactly 180, and wrapped anyway.
+ */
+export const LABEL_AFFORDANCE_WIDTH = 10 + 12 + 3 * 2 + 4;
 export const LABEL_COL_VAR = '--readfirst-label-col';
 export const LABEL_COL = `var(${LABEL_COL_VAR}, ${COMPACT_LABEL_COL}px)`;
 export const PANEL_LEFT_CSS = `calc(${LABEL_COL} + ${COMPACT_ROW_PAD_X + COMPACT_ROW_GAP - 10}px)`;

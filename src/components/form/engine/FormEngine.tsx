@@ -70,9 +70,14 @@ import {
   isValueTemplate,
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
-import { CompactRowContext, ICompactRowContext } from './compactRowContext';
+import {
+  CompactRowContext,
+  ICompactRowContext,
+  TCodePreviewRenderer,
+} from './compactRowContext';
 import {
   GROUP_INDENT,
+  LABEL_AFFORDANCE_WIDTH,
   LABEL_COL_MAX,
   LABEL_COL_MIN,
   LABEL_COL_VAR,
@@ -90,7 +95,15 @@ import {
   ICompactToolbarContext,
   TCompactSort,
 } from './compactToolbarContext';
-import { OptionFieldMessages } from './OptionFieldMessages';
+import {
+  IConditionalFieldMessage,
+  OptionFieldMessages,
+  getShownSchemaMessages,
+} from './OptionFieldMessages';
+import {
+  MarkdownRendererContext,
+  TMarkdownRenderer,
+} from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
   TReadFirstStatus,
@@ -110,7 +123,17 @@ export type IOptions = TQorusForm;
 export type TFlatOptions = TQorusFlatForm;
 export type TOption = IQorusFormField;
 export type TOperatorValue = TQorusFormOperatorValue;
-export interface IOptionFieldMessage extends IQorusFormFieldMessage {}
+/**
+ * A field message, optionally conditional on the form's current values.
+ *
+ * `when` / `unless` use the `depends_on` grammar and are evaluated against the
+ * same form the field belongs to — see `isConditionalMessageShown`. Without
+ * either, the message is static and always shown, which is what every existing
+ * consumer gets.
+ */
+export interface IOptionFieldMessage
+  extends IQorusFormFieldMessage,
+    Pick<IConditionalFieldMessage, 'when' | 'unless'> {}
 export type IOptionsSchemaArg = TQorusFormFieldSchema;
 export interface IOptionsSchema extends IQorusFormSchema {}
 export interface IOperator extends IQorusFormOperator {}
@@ -635,6 +658,27 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   componentOverrides?: Record<string, React.FC<any>>;
   /**
+   * Draws the read-first preview of a `code-editor` value.
+   *
+   * The built-in preview is a plain monospace block, because this package
+   * cannot ship a syntax highlighter -- a code editor is the very dependency it
+   * keeps out, which is why the *editor* for `code-editor` also arrives through
+   * `componentOverrides`. A host that already has a highlighter supplies one
+   * here; everyone else keeps the plain block.
+   */
+  codePreviewRenderer?: TCodePreviewRenderer;
+  /**
+   * Draws every markdown description this form shows -- the inline row
+   * description, the focused-editing header, and the field help dialog.
+   *
+   * A host with field descriptions has markdown elsewhere too, on its object
+   * pages and in its catalogues. Without this the same description renders one
+   * way inside a form and another way outside it, and the built-in dialect --
+   * no GFM, no host heading scale -- is the one nobody chose. Supplying a
+   * renderer here makes the form agree with the rest of the application.
+   */
+  markdownRenderer?: TMarkdownRenderer;
+  /**
    * The `ui_type` names among `componentOverrides` that select a bespoke editor
    * but store their value as the schema's plainer `type` (a `cron` editor stores
    * a string). Declaring them here keeps the field's stored `type` correct —
@@ -696,7 +740,7 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
 const STRECHABLE_TYPES = new Set<TQorusType>(['tool-catalog' as TQorusType]);
 
-export const FormEngine = ({
+const FormEngineImpl = ({
   name,
   uniqueName,
   value,
@@ -731,6 +775,11 @@ export const FormEngine = ({
   optionActions,
   optionActionsCollapse = 'auto',
   componentOverrides,
+  codePreviewRenderer,
+  // consumed by the wrapper below, which publishes it to every description this
+  // form draws; destructured here only so it cannot reach `rest` and be spread
+  // onto a DOM node
+  markdownRenderer: _markdownRenderer, // eslint-disable-line @typescript-eslint/no-unused-vars
   rendererOnlyUiTypes,
   inheritedFromParent,
   autoFocusFirstRequired,
@@ -830,9 +879,22 @@ export const FormEngine = ({
       widest = Math.max(widest, measurer.offsetWidth);
     });
     document.body.removeChild(measurer);
-    // Allowance for the required asterisk + help icon + the label's inner gaps.
-    const col = Math.max(LABEL_COL_MIN, Math.min(LABEL_COL_MAX, Math.round(widest) + 28));
-    wrap.style.setProperty(LABEL_COL_VAR, `${col}px`);
+    // The affordances are added AFTER the clamp, not inside it.
+    //
+    // They used to be inside — `min(MAX, widest + 28)` — which quietly spends the
+    // allowance the moment the labels are long enough to reach the ceiling. Past
+    // that point the column is exactly MAX and the text is free to use all of it,
+    // so the trailing `?` has nowhere to sit on the last line and wraps onto a
+    // line of its own. That is what an auth profile's authorization block showed:
+    // "Require All Of These Permissions" filling the column with a lone `?`
+    // beneath it.
+    //
+    // Clamping the TEXT and then adding the affordance means the reserved space
+    // survives at every label length. MAX still bounds how much room the NAME may
+    // take, which is what it is for; the asterisk and the `?` are chrome that has
+    // to fit beside it either way.
+    const text = Math.max(LABEL_COL_MIN, Math.min(LABEL_COL_MAX, Math.round(widest)));
+    wrap.style.setProperty(LABEL_COL_VAR, `${text + LABEL_AFFORDANCE_WIDTH}px`);
   }, [compact, options, theme, compactWrapNode]);
   // Editing rows pin min-height to the measured read row they replace, so the
   // toggle never shifts neighbours (height varies with chrome — measure it).
@@ -1432,6 +1494,23 @@ export const FormEngine = ({
     }
   }, [dependencyLockedNames.join('|')]);
 
+  // The not-yet-added optional fields: everything in the schema the form is not
+  // already showing a row for. This ONE list feeds all three ways a field gets
+  // added — the inline addable rows, the Fields menu, and its "Select all" — so
+  // whatever it leaves out is out of all three at once, and they cannot disagree.
+  //
+  // A field whose `depends_on` is not fulfilled is left out. It is not an option
+  // yet: `hasAllDependenciesFullfilled` is the same predicate that then refuses
+  // to let it be edited, so offering it can only end at a row that opens and says
+  // it is disabled — the dead end an auth profile's cookie-only fields showed
+  // while the scheme was Permissive. Setting the dependency brings the row back
+  // (and flashes it — see `dependencyLockedNames`), which is the discoverable
+  // path: pick the scheme, and the fields that scheme has appear.
+  //
+  // Only the not-yet-added ones. A field that already HAS a value stays listed
+  // even when its dependency later stops holding — it renders disabled with the
+  // reason, so the value is visible and removable rather than silently orphaned
+  // in a form that no longer mentions it.
   const filteredOptions: IQorusFormSchema = useMemo(
     () =>
       reduce(
@@ -1440,11 +1519,17 @@ export const FormEngine = ({
           if (optName in fixedValue) {
             return newOptions;
           }
+          if (
+            option?.depends_on &&
+            !hasAllDependenciesFullfilled(option.depends_on, availableOptions, options || {})
+          ) {
+            return newOptions;
+          }
           return { ...newOptions, [optName]: option };
         },
         {} as IQorusFormSchema
       ),
-    [JSON.stringify(options), JSON.stringify(fixedValue)]
+    [JSON.stringify(options), JSON.stringify(fixedValue), JSON.stringify(availableOptions)]
   );
 
   const isOptionValid = useCallback(
@@ -1576,13 +1661,19 @@ export const FormEngine = ({
   // group's satisfaction); everything else by its own status.
   const schemaMsgIntent = useCallback(
     (name: string): 'danger' | 'warning' | undefined => {
-      const msgs = ((options?.[name] as { messages?: Array<{ intent?: string }> } | undefined)
-        ?.messages || []) as Array<{ intent?: string }>;
+      // Filtered, not raw: a message hidden by its own `when`/`unless` must not
+      // colour the row or push the field into "Needs attention" — the whole point
+      // of a conditional warning is that it is absent while it does not apply.
+      const msgs = getShownSchemaMessages(
+        (options?.[name] as { messages?: Array<{ intent?: string }> } | undefined)?.messages,
+        availableOptions,
+        options
+      );
       if (msgs.some((m) => m.intent === 'danger')) return 'danger';
       if (msgs.some((m) => m.intent === 'warning')) return 'warning';
       return undefined;
     },
-    [JSON.stringify(options)]
+    [JSON.stringify(options), JSON.stringify(availableOptions)]
   );
   const getOptionStatus = useCallback(
     (name: string, hidden = false): TReadFirstStatus => {
@@ -1953,7 +2044,11 @@ export const FormEngine = ({
             const schemaMsgs = (
               suppressSchemaMessages ?
                 []
-              : (options?.[optionName] as any)?.messages || []) as {
+              : getShownSchemaMessages(
+                  (options?.[optionName] as any)?.messages,
+                  availableOptions,
+                  options
+                )) as {
               intent?: string;
               title?: string;
               content?: string;
@@ -2236,6 +2331,7 @@ export const FormEngine = ({
       operators,
       focusedEditing,
       showFieldTypes,
+      codePreviewRenderer,
       showAllDescriptions,
       expandedOptions,
       autoFocusNameRef,
@@ -2283,6 +2379,7 @@ export const FormEngine = ({
       operators,
       focusedEditing,
       showFieldTypes,
+      codePreviewRenderer,
       showAllDescriptions,
       expandedOptions,
       autoFocusNameRef,
@@ -2524,6 +2621,11 @@ export const FormEngine = ({
     });
     const bucketCount = (b: TBucketKey) =>
       bucketGroups[b].reduce((n, g) => n + buckets[b][g].length, 0);
+
+    // "Is the Optional box the whole form?" — when nothing needs attention and
+    // nothing is set, collapsing it leaves a card with no visible content at all.
+    const onlyOptionalRows =
+      bucketCount('optional') > 0 && bucketCount('attention') === 0 && bucketCount('set') === 0;
     // 'general' / 'optional' are the SYNTHETIC fallback group keys getOptionGroup
     // assigns to fields with no explicit `group` — printing a "General"/"Optional"
     // sub-label for those is just noise, so suppress it. BUT a consumer may also
@@ -2692,7 +2794,17 @@ export const FormEngine = ({
                         // open whenever a query is active. (isCollapsed is the
                         // panel's controllable state; manual toggling still works
                         // when no query is set.)
-                        isCollapsed={box.key === 'optional' && !query}
+                        // The Optional box starts collapsed so a form opens on what
+                        // is in use — but only when there IS something else to
+                        // open on. When every field is optional it is the whole
+                        // form, and collapsing it renders a card that looks empty
+                        // and broken: an auth profile's Authorization block, whose
+                        // nine requirement fields are all optional, showed as a
+                        // titled card containing one collapsed "Optional 9" strip
+                        // and nothing else. A search still forces it open
+                        // (ReqorePanel unmounts collapsed content, so a match
+                        // inside it would be unreachable otherwise).
+                        isCollapsed={box.key === 'optional' && !query && !onlyOptionalRows}
                         label={
                           <StyledGroupHeader>
                             <ReqoreP effect={{ weight: 'bold' }} size='normal'>
@@ -3159,5 +3271,20 @@ export const FormEngine = ({
     </OptionsContext.Provider>
   );
 };
+
+/**
+ * Publishes the host's markdown renderer to every description this form draws.
+ *
+ * A provider rather than prop-drilling because the descriptions are not in one
+ * place: the inline row description, the focused-editing header and the field
+ * help dialog are three components at three depths, and the dialog is not even
+ * a child of the row it belongs to. Threading a renderer to each of them by
+ * hand is how one of them gets missed.
+ */
+export const FormEngine = (props: IFormEngineProps) => (
+  <MarkdownRendererContext.Provider value={props.markdownRenderer}>
+    <FormEngineImpl {...props} />
+  </MarkdownRendererContext.Provider>
+);
 
 export default FormEngine;

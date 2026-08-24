@@ -22,6 +22,7 @@ import {
 import { startDpqlMockLsp } from '../expressions/dpqlMockLsp';
 import { mockExpressions } from '../expressions/mockExpressions';
 import { mockPopulatedDefinition } from '../fields/schema-definition/mockDefinition';
+import { defaultMarkdownRenderer } from '../fields/markdown/MarkdownView';
 import {
   FormEngine,
   IFormEngineGroup,
@@ -322,7 +323,7 @@ export const DescriptionIsShown: Story = {
     docs: {
       description: {
         story:
-          'Renders the Basic FormEngine and clicks the Option with description label — the help panel opens with the option\'s long-form description.',
+          "Renders the Basic FormEngine and clicks the Option with description label — the help panel opens with the option's long-form description.",
       },
     },
   },
@@ -442,7 +443,7 @@ export const WithRequiredGroups: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with five options that all belong to one required_groups group — every row mounts and the group\'s one-of-required indicator is shown.',
+          "Renders FormEngine with five options that all belong to one required_groups group — every row mounts and the group's one-of-required indicator is shown.",
       },
     },
   },
@@ -462,7 +463,7 @@ export const WithRequiredGroupsFulfilled: Story = {
     docs: {
       description: {
         story:
-          'Renders the required-group schema with one of the group\'s options already filled — the group\'s one-of-required indicator marks the group as satisfied.',
+          "Renders the required-group schema with one of the group's options already filled — the group's one-of-required indicator marks the group as satisfied.",
       },
     },
   },
@@ -698,7 +699,7 @@ export const OptionsWithOnChangeTriggerEvents: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with an option that declares on_change: [\'refetch\']. Editing the field fires onChange with meta.events set to [\'refetch\'] so the host can re-fetch dependent options.',
+          "Renders FormEngine with an option that declares on_change: ['refetch']. Editing the field fires onChange with meta.events set to ['refetch'] so the host can re-fetch dependent options.",
       },
     },
   },
@@ -790,7 +791,7 @@ export const OptionInheritsRenderPropFromSibling: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with a code-editor field that declares inherit_props: { language: \'lang\' } — the sibling language picker feeds the editor\'s language prop at render time, and flipping the picker live-updates the syntax without any refetch.',
+          "Renders FormEngine with a code-editor field that declares inherit_props: { language: 'lang' } — the sibling language picker feeds the editor's language prop at render time, and flipping the picker live-updates the syntax without any refetch.",
       },
     },
   },
@@ -827,8 +828,7 @@ export const OptionInheritsRenderPropFromSibling: Story = {
 
     // Initial state: lang = "qore" → editor renderer receives language="qore"
     await waitFor(
-      () =>
-        expect(canvas.getByTestId('code-editor-language')).toHaveTextContent('syntax: qore'),
+      () => expect(canvas.getByTestId('code-editor-language')).toHaveTextContent('syntax: qore'),
       { timeout: 5000 }
     );
 
@@ -844,8 +844,7 @@ export const OptionInheritsRenderPropFromSibling: Story = {
     await userEvent.click(pythonItem);
 
     await waitFor(
-      () =>
-        expect(canvas.getByTestId('code-editor-language')).toHaveTextContent('syntax: python'),
+      () => expect(canvas.getByTestId('code-editor-language')).toHaveTextContent('syntax: python'),
       { timeout: 5000 }
     );
   },
@@ -900,10 +899,9 @@ export const OptionInheritsRenderPropFromSiblingCompact: Story = {
     // schema arrives intact + the source-code row is present. The full
     // interaction (lang flip -> language prop updates) is covered by the
     // classic `OptionInheritsRenderPropFromSibling` story.
-    await waitFor(
-      () => expect(canvas.getAllByText('Source Code').length).toBeGreaterThan(0),
-      { timeout: 5000 }
-    );
+    await waitFor(() => expect(canvas.getAllByText('Source Code').length).toBeGreaterThan(0), {
+      timeout: 5000,
+    });
   },
 };
 
@@ -982,6 +980,84 @@ export const CompactRowCodeEditorPreview: Story = {
   },
 };
 
+export const CompactRowMarkdownPreview: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders compact-mode markdown rows over a service description, with a host markdown renderer supplied — the multi-line row prints NO value line and mounts the rendered document under the row instead, since a stripped-prose copy above it would be the same text rendered twice. Its line count moves under the field name in the label column, in a small monospaced note, because the count describes the field rather than the value. The one-line row keeps its single rendered line, gets no preview and no count.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    // The row inset draws through the HOST's renderer and has no built-in
+    // fallback: a form that picks its own markdown dialect renders the same
+    // description differently from the page it belongs to, which is the whole
+    // problem this seam exists to avoid. `defaultMarkdownRenderer` is reqraft's
+    // own view, supplied here the way a host supplies its own.
+    markdownRenderer: defaultMarkdownRenderer,
+    value: {
+      desc: {
+        type: 'string',
+        value:
+          '## Order intake\n\n' +
+          'Receives orders from the **partner** portal and hands each one to the\n' +
+          '`order-processing` workflow.\n\n' +
+          '- Rejects an order with no `customer_id`\n' +
+          '- Retries a transient portal failure three times\n\n' +
+          'See [the runbook](https://example.com/runbook) for the escalation path.\n',
+      },
+      summary: { type: 'string', value: 'Handles **partner** order intake.' },
+    },
+    // Cast for the same reason `cron` / `dpql` / `schema-definition` need one:
+    // a renderer-only `ui_type` names an EDITOR, and ts-toolkit's `TQorusType`
+    // enumerates STORAGE types, so it has no member for one. The stored type
+    // stays `string`, which is what the union does describe.
+    options: {
+      desc: { type: 'string', ui_type: 'markdown', display_name: 'Description' },
+      summary: { type: 'string', ui_type: 'markdown', display_name: 'Summary' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    // (a) The rendered document mounted under the multi-line row — a heading
+    //     ELEMENT, not a printed "## ", is what proves it rendered.
+    await waitFor(
+      () => {
+        const preview = canvasElement.querySelector('.options-readfirst-markdown');
+        expect(preview).toBeTruthy();
+        expect(preview?.querySelector('h2')?.textContent).toBe('Order intake');
+        expect(preview?.querySelector('strong')?.textContent).toBe('partner');
+      },
+      { timeout: 5000 }
+    );
+
+    // (b) The value column holds the VALUE and nothing else. With a renderer
+    //     present the document is drawn in full below, so the stripped-prose copy
+    //     that used to sit above it is gone — two renderings of one value, stacked,
+    //     was the confusion this removes (Qlip review, build #97).
+    const descRow = canvasElement.querySelector('[data-field="desc"]');
+    expect(descRow?.querySelector('.options-readfirst-valuetext')).toBeNull();
+
+    // (c) The line count describes the FIELD, so it sits under the field's name
+    //     in the label column — not in front of its content.
+    const lineNote = descRow?.querySelector('.options-readfirst-label-lines');
+    expect(lineNote?.textContent ?? '').toMatch(/^\d+ lines$/);
+    expect(getComputedStyle(lineNote as Element).fontFamily).toContain('monospace');
+
+    // (d) A one-liner is already fully rendered as the row's own text, so it
+    //     gets no second copy below it — and no line count, because there is
+    //     nothing more to count.
+    const summaryRow = canvasElement.querySelector('[data-field="summary"]');
+    expect(summaryRow?.querySelector('.options-readfirst-markdown')).toBeNull();
+    expect(summaryRow?.querySelector('.options-readfirst-label-lines')).toBeNull();
+    expect(summaryRow?.querySelector('.options-readfirst-valuetext')?.textContent).toBe(
+      'Handles partner order intake.'
+    );
+  },
+};
+
 // qorus#347-followup, scope forwarding: this story exercises the nested
 // case of the OptionInheritsRenderPropFromSibling contract. The parent
 // form declares `methods: { ui_type: 'list', element_type: 'hash',
@@ -1000,7 +1076,7 @@ export const NestedOptionInheritsRenderPropFromAncestor: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with a list-of-hash methods option whose row sub-schema declares inherit_props: { language: \'language\' } — the parent-level forwarding threads the top-level language down to every row\'s code-editor body sub-field.',
+          "Renders FormEngine with a list-of-hash methods option whose row sub-schema declares inherit_props: { language: 'language' } — the parent-level forwarding threads the top-level language down to every row's code-editor body sub-field.",
       },
     },
   },
@@ -1088,7 +1164,7 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
     docs: {
       description: {
         story:
-          'Renders the NestedOptionInheritsRenderPropFromAncestor schema with compact=true — the compact renderer summarises the list-of-hash rows as \'init, run\' rather than [object Object].',
+          "Renders the NestedOptionInheritsRenderPropFromAncestor schema with compact=true — the compact renderer summarises the list-of-hash rows as 'init, run' rather than [object Object].",
       },
     },
   },
@@ -1150,15 +1226,146 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
     // already exercise), assert on the STRUCTURAL element: the schema
     // arrived intact through `inheritedFromParent` and the row-level
     // options include the body field wired to the code-editor override.
-    await waitFor(
-      () => expect(canvas.getAllByText('Methods').length).toBeGreaterThan(0),
-      { timeout: 5000 }
-    );
+    await waitFor(() => expect(canvas.getAllByText('Methods').length).toBeGreaterThan(0), {
+      timeout: 5000,
+    });
     // The list-of-hashes value summarises by the items' names — never a raw
     // "[object Object]" (regression: it used to stringify each hash envelope).
-    await expect(await canvas.findByText('init, run', undefined, { timeout: 5000 }))
-      .toBeInTheDocument();
+    await expect(
+      await canvas.findByText('init, run', undefined, { timeout: 5000 })
+    ).toBeInTheDocument();
     await expect(canvasElement.textContent ?? '').not.toContain('[object Object]');
+  },
+};
+
+// The companion above deliberately stops at the collapsed summary, which is
+// exactly where this bug hid: nothing expanded a list-of-hash row inside a
+// compact form. `compact` is destructured out of AutoFormField's `...rest`, so
+// while the `hash` case forwarded it explicitly to the nested FormEngine, the
+// `list` case handed `<ArrayAuto {...rest}>` no `compact` at all — every row's
+// arg_schema sub-form fell back to the CLASSIC engine (stacked labels + an
+// option filter) while every sibling field beside it rendered as a compact
+// read-first row. This story expands the row and asserts the sub-form is
+// compact, which is only observable once the rows are open.
+export const CompactNestedListRowsStayCompact: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Expands a list-of-hash option inside a compact form — each row's arg_schema sub-form renders as compact read-first rows, matching the parent, instead of falling back to the classic stacked-label form.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    value: {
+      methods: {
+        type: 'list',
+        value: [
+          { type: 'hash', value: { name: 'init', desc: 'initialises the service' } },
+          { type: 'hash', value: { name: 'run', desc: 'does the work' } },
+        ],
+      },
+    },
+    options: {
+      methods: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'hash',
+        display_name: 'Methods',
+        arg_schema: {
+          name: {
+            type: 'string',
+            ui_type: 'string',
+            display_name: 'Method Name',
+          },
+          desc: {
+            type: 'string',
+            ui_type: 'string',
+            display_name: 'Description',
+          },
+        },
+      },
+    } as unknown as IOptionsSchema,
+  },
+  play: async ({ canvasElement }) => {
+    // Collapsed, the row summarises by the items' names.
+    await _testsWaitForText('init, run');
+
+    // Open the Methods row — this mounts ArrayAuto and, with it, one
+    // arg_schema sub-form per row.
+    await _testsClickText('init, run');
+
+    await waitFor(
+      () => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2),
+      { timeout: 5000 }
+    );
+
+    // `data-field` and `readfirst-row` are mounted by CompactRow and by nothing
+    // else, so their presence INSIDE a row is the structural proof that the
+    // sub-form inherited compact. Without the fix both counts are 0 and the
+    // rows render the classic form instead.
+    await waitFor(
+      () => {
+        const rows = canvasElement.querySelectorAll('.array-auto-item');
+
+        rows.forEach((row) => {
+          expect(row.querySelector('[data-field="name"]')).toBeTruthy();
+          expect(row.querySelector('[data-field="desc"]')).toBeTruthy();
+          expect(row.querySelectorAll('.readfirst-row').length).toBeGreaterThan(0);
+        });
+      },
+      { timeout: 5000 }
+    );
+
+    // Each row shows its own values through the compact read-first summary.
+    await _testsWaitForText('initialises the service');
+    await _testsWaitForText('does the work');
+  },
+};
+
+// Phone width: the nested rows inherit the parent's responsive behaviour, so a
+// row's label/value pair stacks instead of overflowing the 360px container.
+// Worth its own story because the classic fallback this fix replaces sized its
+// inputs from the container and clipped them here.
+export const CompactNestedListRowsStayCompactMobile: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the expanded list-of-hash rows at a ~360px mobile viewport — each row's compact sub-form stacks into a single column rather than overflowing.",
+      },
+    },
+  },
+  args: CompactNestedListRowsStayCompact.args,
+  decorators: [
+    (StoryComponent: React.ComponentType) => (
+      <div style={{ maxWidth: 360, margin: '0 auto', border: '1px dashed #ffffff22' }}>
+        <StoryComponent />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('init, run');
+    await _testsClickText('init, run');
+
+    await waitFor(
+      () => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2),
+      { timeout: 5000 }
+    );
+    await waitFor(
+      () => {
+        canvasElement.querySelectorAll('.array-auto-item').forEach((row) => {
+          expect(row.querySelector('[data-field="name"]')).toBeTruthy();
+        });
+      },
+      { timeout: 5000 }
+    );
+
+    // Nothing spills out of the 360px container.
+    const container = canvasElement.querySelector('.array-auto-item') as HTMLElement;
+    expect(container.scrollWidth).toBeLessThanOrEqual(container.clientWidth + 1);
   },
 };
 
@@ -1167,7 +1374,7 @@ export const DependantsResetWhenParentChanges: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with two dependent options plus two has-dependents parents. Changing the parent\'s value clears every dependent\'s value while leaving the unrelated sibling untouched.',
+          "Renders FormEngine with two dependent options plus two has-dependents parents. Changing the parent's value clears every dependent's value while leaving the unrelated sibling untouched.",
       },
     },
   },
@@ -1242,6 +1449,123 @@ export const DependantsResetWhenParentChanges: Story = {
         dependent2: { type: 'hash', value: undefined },
       }),
       undefined
+    );
+  },
+};
+
+export const CompactWithholdsFieldsWithUnmetDependencies: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A field whose `depends_on` is not fulfilled is not offered as an addable one. The scheme here is Permissive, so the two cookie-only fields are absent from the Optional box entirely — only the field that depends on nothing is offered. Setting the scheme to Cookie brings them back (and flashes them). Before this, they were listed, and clicking one opened a row that said it was disabled: an affordance leading nowhere.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      type: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Scheme Type',
+        short_desc: 'Authentication scheme type',
+        required: true,
+      },
+      cookie_name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Session Cookie Name',
+        short_desc: 'Applies to the Cookie scheme alone',
+        depends_on: ['type=cookie'],
+      },
+      redirect_url: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Redirect URL',
+        short_desc: 'Applies to the Cookie scheme alone',
+        depends_on: ['type=cookie'],
+      },
+      note: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Note',
+        short_desc: 'Depends on nothing, so it is always offered',
+      },
+    } as IOptionsSchema,
+    value: {
+      type: { type: 'string', value: 'permissive' },
+    },
+  },
+  play: async () => {
+    await _testsWaitForText('Scheme Type');
+    await _expandOptionalBox();
+
+    // The independent field IS offered — without this the two absences below
+    // would also be explained by an Optional box that never opened.
+    await _testsWaitForText('Note');
+    await waitFor(
+      () => expect(document.querySelector('[data-field="note"]')).toBeTruthy(),
+      { timeout: 10000 }
+    );
+
+    await waitFor(
+      () => {
+        expect(document.querySelector('[data-field="cookie_name"]')).toBeNull();
+        expect(document.querySelector('[data-field="redirect_url"]')).toBeNull();
+      },
+      { timeout: 10000 }
+    );
+  },
+};
+
+export const CompactConditionalMessage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A schema `messages` entry carrying `when` / `unless` appears only while the condition holds against the form's current values, using the same grammar as `depends_on`. Here the warning on `permissions` is declared `when: ['allow_anonymous=true']`, so it is absent until the exemption is switched on. A warning about a COMBINATION cannot be static: an always-on warning sitting over a valid configuration is one people learn to scroll past, so it is not there when it finally means something. The filter is applied everywhere the messages are read — including the read-first status — so a hidden message cannot colour a row or inflate the attention count.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      permissions: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Require All Of These Permissions',
+        short_desc: 'Every listed permission must be held',
+        messages: [
+          {
+            intent: 'warning',
+            title: 'Anonymous callers skip these',
+            content:
+              'The exemption below lets a caller with no credentials through without checking any of these requirements. Callers that DO present credentials are still checked.',
+            when: ['allow_anonymous=true'],
+          },
+        ],
+      },
+      allow_anonymous: {
+        type: 'bool',
+        ui_type: 'bool',
+        display_name: 'Exempt Anonymous Callers',
+        short_desc: 'Anonymous callers bypass the requirements above',
+      },
+    } as IOptionsSchema,
+    value: {
+      permissions: { type: 'string', value: 'READ-ORDER' },
+      allow_anonymous: { type: 'bool', value: true },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('Require All Of These Permissions');
+    // The condition holds in this story's args, so the warning is present.
+    await waitFor(
+      () => expect(canvasElement.textContent).toContain('Anonymous callers skip these'),
+      { timeout: 10000 }
     );
   },
 };
@@ -1759,7 +2083,7 @@ export const CompactEditingShowsDescription: Story = {
     docs: {
       description: {
         story:
-          "Renders the compact form with the descriptions toggle off — a collapsed row hides its short description, and opening the row for editing reveals it under the field name along with the `?` help affordance.",
+          'Renders the compact form with the descriptions toggle off — a collapsed row hides its short description, and opening the row for editing reveals it under the field name along with the `?` help affordance.',
       },
     },
   },
@@ -1872,7 +2196,7 @@ export const CompactBasic: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colours as hex, hashes as field-count summaries), disabled and dependency-locked rows stay non-interactive, and the dependency lock\'s popover navigates to blockers.',
+          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colours as hex, hashes as field-count summaries), disabled and dependency-locked rows stay non-interactive, and the dependency lock's popover navigates to blockers.",
       },
     },
     chromatic: { disable: true },
@@ -2216,7 +2540,7 @@ export const CompactBatchedCommit: Story = {
     docs: {
       description: {
         story:
-          'Renders a valid form in commitMode=\'batched\'. Staging an edit adds the Draft chip and \'unsaved changes\' bar without committing; Save fires onCommit and clears the chips; Discard reverts the staged edit.',
+          "Renders a valid form in commitMode='batched'. Staging an edit adds the Draft chip and 'unsaved changes' bar without committing; Save fires onCommit and clears the chips; Discard reverts the staged edit.",
       },
     },
     chromatic: { disable: true },
@@ -2290,7 +2614,7 @@ export const CompactBatchedCommitInvalid: Story = {
     docs: {
       description: {
         story:
-          'Renders an invalid form in commitMode=\'batched\' — staging an edit shows the unsaved-changes bar but Save is disabled and onCommit never fires.',
+          "Renders an invalid form in commitMode='batched' — staging an edit shows the unsaved-changes bar but Save is disabled and onCommit never fires.",
       },
     },
   },
@@ -2664,7 +2988,7 @@ export const CompactPanelChangeScroll: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form inside a scrollable panel — opening a row keeps the panel\'s scroll position pinned rather than jumping to the top.',
+          "Renders a compact form inside a scrollable panel — opening a row keeps the panel's scroll position pinned rather than jumping to the top.",
       },
     },
     chromatic: { disable: true },
@@ -2710,9 +3034,9 @@ export const CompactPanelChangeScroll: Story = {
     // …and flashed, signalling the engine located/scrolled to its new panel.
     await waitFor(
       () =>
-        expect(
-          document.querySelector('.readfirst-row[data-field="opt"]')?.className
-        ).toContain('readfirst-row-flash'),
+        expect(document.querySelector('.readfirst-row[data-field="opt"]')?.className).toContain(
+          'readfirst-row-flash'
+        ),
       { timeout: 4000 }
     );
   },
@@ -2814,10 +3138,9 @@ export const CompactFieldsMenu: Story = {
     // Only Notes is expanded, so the single More (⋮) menu in the DOM is its own.
     // (ReqoreDropdown's trigger isn't a DOM descendant of the row, so don't scope
     // the selector to [data-field].)
-    await waitFor(
-      () => expect(document.querySelector('.options-readfirst-more')).toBeTruthy(),
-      { timeout: 10000 }
-    );
+    await waitFor(() => expect(document.querySelector('.options-readfirst-more')).toBeTruthy(), {
+      timeout: 10000,
+    });
     await _testsClickButton({ selector: '.options-readfirst-more' });
     let removeItem: Element | undefined;
     await waitFor(
@@ -2902,10 +3225,7 @@ export const CompactDescriptionsToggle: Story = {
     // Collapse back to the read row (Done) before toggling descriptions off.
     await _testsClickButton({ selector: '[data-field="host"] .options-readfirst-done' });
     await waitFor(
-      () =>
-        expect(
-          document.querySelector('.readfirst-row-editing[data-field="host"]')
-        ).toBeFalsy(),
+      () => expect(document.querySelector('.readfirst-row-editing[data-field="host"]')).toBeFalsy(),
       { timeout: 10000 }
     );
 
@@ -3606,7 +3926,7 @@ export const CompactSingleExpand: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with expandMode=\'single\' — opening one row automatically collapses whichever row was open before.',
+          "Renders a compact form with expandMode='single' — opening one row automatically collapses whichever row was open before.",
       },
     },
     chromatic: { disable: true },
@@ -3640,7 +3960,7 @@ export const CompactMultiExpand: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with expandMode=\'multi\' — every opened row stays open until it is explicitly done, so several editors can be on screen at once.',
+          "Renders a compact form with expandMode='multi' — every opened row stays open until it is explicitly done, so several editors can be on screen at once.",
       },
     },
     chromatic: { disable: true },
@@ -4259,9 +4579,7 @@ export const CompactFieldTypesEditing: Story = {
       },
       { timeout: 10000 }
     );
-    await userEvent.click(
-      within(confirmationModal!).getByRole('button', { name: 'Clear value' })
-    );
+    await userEvent.click(within(confirmationModal!).getByRole('button', { name: 'Clear value' }));
     await waitFor(() => {
       expect(editRow('enabled').querySelector('.options-readfirst-clear')).not.toBeInTheDocument();
       expect(editRow('enabled').querySelector('.options-readfirst-revert')).toBeInTheDocument();
@@ -4278,7 +4596,7 @@ export const CompactRequiredGroups: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form whose options belong to required_groups — the group\'s one-of-required indicator appears in the row rail and clears once any member is filled.',
+          "Renders a compact form whose options belong to required_groups — the group's one-of-required indicator appears in the row rail and clears once any member is filled.",
       },
     },
   },
@@ -4694,7 +5012,7 @@ export const CompactNonExistentFiltered: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with a value carrying an extra field that isn\'t in the schema — the extra field is filtered out and no row is rendered for it.',
+          "Renders a compact form with a value carrying an extra field that isn't in the schema — the extra field is filtered out and no row is rendered for it.",
       },
     },
     chromatic: { disable: true },
@@ -4722,7 +5040,7 @@ export const CompactHelpDialog: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form and clicks a row\'s Help action — the help dialog opens with the option\'s long-form description.',
+          "Renders a compact form and clicks a row's Help action — the help dialog opens with the option's long-form description.",
       },
     },
     chromatic: { disable: true },
@@ -5021,9 +5339,7 @@ export const CompactShowcase: Story = {
     // Schema message panels render inside the value cell of the row itself,
     // directly beneath the value.
     const infoPanel = (field: string) =>
-      document.querySelector(
-        `.readfirst-row[data-field="${field}"] .options-readfirst-info-panel`
-      );
+      document.querySelector(`.readfirst-row[data-field="${field}"] .options-readfirst-info-panel`);
 
     // Default-value notes and validation/dependency hints now render as a compact
     // INLINE reason (no ⓘ, no panel) — visible without any interaction.
@@ -5075,7 +5391,7 @@ export const CompactRequiredGroupRails: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with several required_groups — each group\'s rail sits alongside its rows so the operator can see which one-of-required set the row belongs to.',
+          "Renders a compact form with several required_groups — each group's rail sits alongside its rows so the operator can see which one-of-required set the row belongs to.",
       },
     },
   },
@@ -5559,5 +5875,43 @@ export const CompactReadFirstRichtextTemplateBaseline: Story = {
       chipRect!.top + chipRect!.height / 2 - (proseRect!.top + proseRect!.height / 2)
     );
     await expect(centreOffset).toBeLessThanOrEqual(1);
+  },
+};
+
+/**
+ * The other half of the markdown contract: with NO host renderer there is no
+ * inset at all. The row is not left empty though — its one line still carries
+ * the document's prose, summarised. Losing the RENDERING without a renderer is
+ * the design; losing the CONTENT would be a bug.
+ */
+export const CompactRowMarkdownWithoutRenderer: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same compact markdown rows with no host renderer supplied — no rendered document mounts under the row, so the prose IS the value and the row keeps showing it (markers stripped, not raw markdown source). The line count still sits under the field name.',
+      },
+    },
+  },
+  args: {
+    ...CompactRowMarkdownPreview.args,
+    markdownRenderer: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    const descRow = await waitFor(() => {
+      const row = canvasElement.querySelector('[data-field="desc"]');
+      expect(row).toBeTruthy();
+      return row!;
+    });
+
+    // No renderer, no inset — reqraft does not fall back to a dialect the host
+    // never chose.
+    expect(descRow.querySelector('.options-readfirst-markdown')).toBeNull();
+
+    // ...but the prose survives: the markers are stripped, not the content.
+    const descText = descRow.querySelector('.options-readfirst-valuetext')?.textContent ?? '';
+    expect(descText).toContain('Order intake');
+    expect(descText).not.toContain('##');
+    expect(descText).not.toContain('**');
   },
 };

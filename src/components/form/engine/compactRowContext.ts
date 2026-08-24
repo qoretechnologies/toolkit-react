@@ -5,6 +5,7 @@ import {
   IQorusFormField,
   IQorusFormSchema,
   TQorusForm,
+  TQorusFormFieldSchema,
 } from '@qoretechnologies/ts-toolkit';
 import { MutableRefObject } from 'react';
 import { createContext } from 'use-context-selector';
@@ -17,6 +18,24 @@ import { TOptionActions } from './optionActions';
  * so each row reads only the fields it needs. Assembled once (memoised) by
  * `FormEngine` and provided around the compact render output.
  */
+/**
+ * Renders the read-first preview of a `code-editor` value.
+ *
+ * @param value the field's source text
+ * @param name the field's name
+ * @param schema the field's schema, when the form has one for it
+ * @param options every field's schema in the same scope
+ * @param values every field's current value in the same scope, so the language
+ * can be resolved from a sibling field rather than configured twice
+ */
+export type TCodePreviewRenderer = (props: {
+  value: string;
+  name: string;
+  schema?: TQorusFormFieldSchema;
+  options?: IQorusFormSchema;
+  values?: TQorusForm;
+}) => React.ReactNode;
+
 export interface ICompactRowContext {
   // Props / config
   readOnly?: boolean;
@@ -88,6 +107,18 @@ export interface ICompactRowContext {
     editorSize?: 'small',
     suppressSchemaMessages?: boolean
   ) => React.ReactNode;
+  /**
+   * Draws the read-first preview of a `code-editor` value.
+   *
+   * The built-in preview is a plain monospace block: this package cannot ship a
+   * syntax highlighter, and a code editor is exactly the dependency it keeps out
+   * (which is why the *editor* for `code-editor` also arrives through
+   * `componentOverrides`).  A host that already has a highlighter supplies one
+   * here and gets highlighted source in the row; everyone else keeps the plain
+   * block.  `options` is handed over so a host can resolve the language from a
+   * sibling field rather than being told it twice.
+   */
+  codePreviewRenderer?: TCodePreviewRenderer;
 
   // Theme + theme-derived colours
   theme: IReqoreTheme;

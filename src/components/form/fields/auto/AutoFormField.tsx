@@ -685,6 +685,14 @@ function AutoField<T = any>({
                 allowed_values={rest.element_allowed_values}
                 allowed_values_creatable={rest.element_allowed_values_creatable}
                 type={effectiveElementType}
+                // Propagate compact into every row, exactly as the `hash` case
+                // above does for a single sub-form. `compact` is destructured
+                // out of `rest`, so without this each row's AutoFormField saw
+                // `compact: undefined` and its arg_schema sub-form fell back to
+                // the classic FormEngine — a list-of-hash field inside a compact
+                // form rendered stacked labels + an option filter, while every
+                // sibling field rendered as a compact read-first row.
+                compact={compact}
                 componentOverrides={componentOverrides}
                 // qorus#347-followup (scope forwarding): thread the accumulated
                 // inheritance bag through the list wrapper so each row's
