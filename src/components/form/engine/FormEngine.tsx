@@ -2577,8 +2577,39 @@ const FormEngineImpl = ({
       if (requiredOnly && !(schema?.required || schema?.required_groups)) {
         return false;
       }
-      return matchesQuery(optionName);
+      // A field that absorbs a sibling also answers for it: searching
+      // "language" has to surface the row that now holds the language control,
+      // or the field becomes unreachable through the filter.
+      if (matchesQuery(optionName)) return true;
+      const absorb = (schema as { absorb_fields?: string[] } | undefined)?.absorb_fields;
+      return !!absorb?.some((absorbedName) => matchesQuery(absorbedName));
     };
+
+    // Fields a sibling absorbs into its own container.
+    //
+    // A field declaring `absorb_fields: ['language']` renders that sibling's
+    // control inside its own row instead of letting it have a row of its own.
+    // The pair this exists for is a code editor and its language: they are one
+    // decision — "what is this code, and in what language" — and reading them
+    // as two unrelated rows one above the other is what the layout used to say.
+    //
+    // Absorbed fields stay in `grouped`, and therefore in the Set / Optional /
+    // Needs-attention counts and in the completion meter. Only the ROW is
+    // skipped. Dropping them from the buckets instead would leave the meter
+    // ("13/18 set", computed from `availableOptions`) disagreeing with the box
+    // badge beside it, which counts row entries.
+    const absorbedBy: Record<string, string> = {};
+    forEach(options, (option, optionName) => {
+      const absorb = (option as { absorb_fields?: string[] } | undefined)?.absorb_fields;
+      if (!absorb?.length) return;
+      absorb.forEach((absorbedName) => {
+        // Only absorb a sibling that exists and is not already spoken for; a
+        // schema naming a missing field must not make the field disappear.
+        if (options?.[absorbedName] && !absorbedBy[absorbedName]) {
+          absorbedBy[absorbedName] = optionName;
+        }
+      });
+    });
 
     // Group the options by their raw `group` key, remembering the order groups
     // first appear in the schema. Each row carries a `hidden` flag.
@@ -2732,6 +2763,11 @@ const FormEngineImpl = ({
     // together at the first member's slot and rendered as a connected rail (flat
     // rows — no wrapper — so the value surface applies normally; the rail + nodes
     // are drawn per member). Narrow stacks fall back to flat rows.
+    // The absorbed siblings a host row must render, in schema order. Empty for
+    // every row that absorbs nothing, which is all of them by default.
+    const absorbedNamesFor = (hostName: string): string[] =>
+      Object.keys(absorbedBy).filter((absorbedName) => absorbedBy[absorbedName] === hostName);
+
     const renderGroupRows = (names: Array<{ name: string; hidden: boolean }>) => {
       const renderRow = (
         entry: { name: string; hidden?: boolean },
@@ -2754,6 +2790,9 @@ const FormEngineImpl = ({
           clustered={clustered}
           clusterFirst={clusterFirst}
           clusterLast={clusterLast}
+          // The siblings this row renders inside itself instead of leaving
+          // them a row of their own — see `absorbedBy`.
+          absorbedFields={absorbedNamesFor(entry.name)}
         />
       );
       // (Clustering runs in narrow mode too now — the "One of the below is
@@ -2762,6 +2801,10 @@ const FormEngineImpl = ({
       const emitted = new Set<string>();
       const groupOf = (name: string) =>
         (options?.[name]?.required_groups as string[] | undefined)?.[0];
+      // An absorbed field keeps its place in the buckets — so the Set /
+      // Optional counts and the completion meter still see it — but its host
+      // renders its control, so it gets no row of its own here.
+      names = names.filter((entry) => !absorbedBy[entry.name]);
       return names.map((entry) => {
         const grp = groupOf(entry.name);
         if (!grp) return renderRow(entry, false);

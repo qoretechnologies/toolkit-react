@@ -978,6 +978,71 @@ export const CompactRowCancelEdit: Story = {
   },
 };
 
+// Language and Source code are one decision — "what is this code, and in what
+// language" — and the form used to ask it as two unrelated rows one above the
+// other. `absorb_fields` lets the editor take the language into its own
+// container so the pair reads as the single element it is.
+export const CompactRowAbsorbsLanguage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a code-editor row that absorbs its Language sibling — the language control sits inside the Source Code container above the editor instead of on a row of its own, and the collapsed row summarises it as a chip beside the code size.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    componentOverrides: { 'code-editor': CodeEditorStandin },
+    value: {
+      language: { type: 'string', value: 'qore' },
+      source: { type: 'string', value: '%new-style\nclass Example {\n}\n' },
+    },
+    options: {
+      language: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Language',
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
+          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+        ],
+      },
+      source: {
+        type: 'string',
+        ui_type: 'code-editor',
+        display_name: 'Source Code',
+        inherit_props: { language: 'language' },
+        absorb_fields: ['language'],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // The absorbed field has no row of its own.
+    await waitFor(() => expect(canvasElement.querySelector('[data-field="source"]')).toBeTruthy());
+    expect(canvasElement.querySelector('[data-field="language"]')).toBeNull();
+
+    // Collapsed, the host still reports the absorbed value — otherwise the
+    // language would vanish from the form whenever the editor is closed.
+    const sourceRow = canvasElement.querySelector('[data-field="source"]');
+    expect(sourceRow?.textContent ?? '').toContain('qore');
+
+    // Opening the host renders the language control inside its container.
+    fireEvent.click(sourceRow as HTMLElement);
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy()
+    );
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.options-readfirst-absorbed')).toBeTruthy()
+    );
+    // It is still identifiable as its own field, not a property of the editor.
+    expect(canvasElement.querySelector('.options-readfirst-absorbed')?.textContent ?? '').toContain(
+      'Language'
+    );
+  },
+};
+
 export const CompactRowCancelEditAffordance: Story = {
   ...CompactRowCancelEdit,
   parameters: {

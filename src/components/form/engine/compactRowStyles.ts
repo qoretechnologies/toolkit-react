@@ -690,3 +690,27 @@ export const StyledGroupBody = styled.div<{
     padding-bottom: 0;
   }
 `;
+
+// One absorbed sibling, rendered inside its host row's container rather than
+// on a row of its own (see `absorb_fields`). The pair this exists for is a code
+// editor and its language: reading them as two unrelated rows one above the
+// other said they were separate decisions, and they are not.
+//
+// Laid out as label-then-control on one line so it reads as a property of the
+// element it now sits in, and separated from the editor below it by a hairline
+// rather than a gap — the two share one container, so the seam has to look like
+// a division inside it and not like two stacked things.
+export const StyledAbsorbedField = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid ${({ theme }) => `${theme.main}22`};
+`;
+
+export const StyledAbsorbedLabel = styled(ReqoreP)`
+  flex: 0 0 auto;
+  margin: 0;
+`;

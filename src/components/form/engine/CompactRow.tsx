@@ -46,6 +46,8 @@ import {
   StyledColumn,
   StyledEditCard,
   StyledLabelBlock,
+  StyledAbsorbedField,
+  StyledAbsorbedLabel,
   StyledLabelDesc,
   StyledRowActions,
   StyledRowInset,
@@ -144,10 +146,16 @@ export const CompactRow = memo(
     clustered = false,
     clusterFirst = false,
     clusterLast = false,
+    absorbedFields,
   }: {
     optionName: string;
     optionField: IQorusFormField;
     hidden?: boolean;
+    /** Siblings this row renders inside its own container instead of leaving
+     *  them a row each — declared by the schema's `absorb_fields`. The pair it
+     *  exists for is a code editor and its language: one decision, so one
+     *  element. */
+    absorbedFields?: string[];
     // Rendered inside a required-group cluster: leading status node + rail, and no
     // per-row "one of" chip (the cluster header carries it). first/last trim the
     // rail segment so it spans node-to-node, not past the end members.
@@ -158,6 +166,13 @@ export const CompactRow = memo(
     const readOnly = useContextSelector(CompactRowContext, (v) => v.readOnly);
     const commitMode = useContextSelector(CompactRowContext, (v) => v.commitMode);
     const options = useContextSelector(CompactRowContext, (v) => v.options);
+
+    // An absorbed field keeps its own name — it is a different field, not a
+    // property of its host — so the label comes from its schema exactly as it
+    // would on its own row.
+    const getAbsorbedLabel = (absorbedName: string): string =>
+      (options?.[absorbedName] as { display_name?: string } | undefined)?.display_name ||
+      absorbedName;
     const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
     const markdownRenderer = useMarkdownRenderer();
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
@@ -297,7 +312,33 @@ export const CompactRow = memo(
       // see `showCodePreview` below. Keeps the row height fixed while making
       // multi-line source readable without opening the full editor.
       if (valueType === 'code-editor' && typeof field?.value === 'string') {
-        return <ReqraftCodeSizeTag code={field.value} />;
+        // An absorbed sibling has no row of its own, so a COLLAPSED host has to
+        // carry its value or it disappears from the form entirely when closed.
+        // It reads as a chip beside the size chip — "Qore · 62 lines" — which
+        // is the same summary the read-only interface pages already show.
+        return (
+          <ReqoreControlGroup gapSize='tiny' verticalAlign='center' wrap>
+            {(absorbedFields ?? []).map((absorbedName) => {
+              const absorbedValue = (
+                availableOptions?.[absorbedName] as IQorusFormField | undefined
+              )?.value;
+              if (absorbedValue === undefined || absorbedValue === null || absorbedValue === '') {
+                return null;
+              }
+              return (
+                <ReqoreTag
+                  key={absorbedName}
+                  className='options-readfirst-absorbed-tag'
+                  size='small'
+                  minimal
+                  label={String(absorbedValue)}
+                  tooltip={getAbsorbedLabel(absorbedName)}
+                />
+              );
+            })}
+            <ReqraftCodeSizeTag code={field.value} />
+          </ReqoreControlGroup>
+        );
       }
 
       // Markdown read summary: the row prints the value's prose (the markdown
@@ -995,6 +1036,33 @@ export const CompactRow = memo(
       />
     );
 
+    // The absorbed siblings' controls, rendered inside this row.
+    //
+    // Each keeps its own label so it is still identifiable — it is a different
+    // field, not a property of this one — but it sits inside this row's
+    // container, above the editor, so the pair reads as the single decision it
+    // is. `renderOption` is the same function the row uses for its own editor,
+    // so an absorbed field renders exactly as it would have on its own row.
+    const absorbedNodes =
+      absorbedFields?.length ?
+        absorbedFields
+          .map((absorbedName) => {
+            const absorbedField = availableOptions?.[absorbedName] as IQorusFormField | undefined;
+            if (!absorbedField) return null;
+            return (
+              <StyledAbsorbedField key={absorbedName} className='options-readfirst-absorbed'>
+                <StyledAbsorbedLabel size='small' effect={{ opacity: 0.6 }}>
+                  {getAbsorbedLabel(absorbedName)}
+                </StyledAbsorbedLabel>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  {renderOption(absorbedName, absorbedField, 'small', true)}
+                </div>
+              </StyledAbsorbedField>
+            );
+          })
+          .filter(Boolean)
+      : null;
+
     // Declared here rather than beside the hash rows below: the `isExpanded`
     // branch returns before that point, and its editor needs to know whether it is
     // holding code.
@@ -1077,6 +1145,10 @@ export const CompactRow = memo(
 
                   It renders here, at the top of the value cell, which is exactly where
                   it sits on the read row — so the switch moves nothing. */}
+              {/* Absorbed siblings sit at the TOP of the value cell, above the
+                  editor they belong to — the language you are writing in is
+                  read before the code, not after it. */}
+              {absorbedNodes}
               {valueType === 'code-editor' && typeof optionField?.value === 'string' ?
                 <div className='options-readfirst-editing-summary'>
                   <ReqraftCodeSizeTag code={optionField.value} />
@@ -1278,6 +1350,10 @@ export const CompactRow = memo(
               {closeExpandedFieldButton}
             </ReqoreControlGroup>
           </div>
+          {/* Absorbed siblings render in the CARD form of an open field too,
+              not only the inline row — which shape a field opens into depends
+              on its type, and absorbing must not depend on that. */}
+          {absorbedNodes}
           {/* Same fullscreen focused-editing affordance as the classic cards —
               the modal mounts when this option is focused. */}
           <FocusedEditing
