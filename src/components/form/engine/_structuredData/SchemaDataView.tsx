@@ -9,7 +9,16 @@ import styled from 'styled-components';
 import { useContextSelector } from 'use-context-selector';
 import { CompactRowContext } from '../compactRowContext';
 import { MONO_FONT_STACK, StyledCodePreview, StyledRowLabel, StyledRowValue } from '../compactRowStyles';
-import { findAllowedValueOption, formatOptionValue, getAllowedValueImage } from '../readFirst';
+import {
+  fieldLabel,
+  findAllowedValueOption,
+  formatOptionValue,
+  getAllowedValueImage,
+  isCodeField,
+  orderedKeys,
+  recordIdentity,
+  titleKeyFor,
+} from '../readFirst';
 import { isUiEncodedValue } from './structuredData';
 
 /**
@@ -224,59 +233,6 @@ const unwrap = (item: unknown): unknown => (isUiEncodedValue(item) ? item.value 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-/** Whether a value is worth a row of its own. `false` and `0` are values. */
-const isSet = (value: unknown): boolean =>
-  value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && !value.length);
-
-/**
- * The keys to render, in the order to render them: the schema's own order first
- * (that is the order the form puts the fields in), then anything stored that the
- * schema does not mention, so undescribed data is shown rather than dropped.
- */
-const orderedKeys = (record: Record<string, unknown>, schema: IQorusFormSchema): string[] => {
-  const described = Object.keys(schema).filter((key) => isSet(unwrap(record[key])));
-  const extra = Object.keys(record).filter((key) => !(key in schema) && isSet(unwrap(record[key])));
-  return [...described, ...extra];
-};
-
-/** A field whose content is source code. `ui_type` is what the form renders by,
- *  so it is what the preview reads by too — the storage type is just `string`. */
-const isCodeField = (fieldSchema: TQorusFormFieldSchema | undefined): boolean => {
-  const uiType = (fieldSchema as { ui_type?: string } | undefined)?.ui_type;
-  return uiType === 'code-editor';
-};
-
-/**
- * The field whose value heads the item — the first DECLARED one holding a plain
- * scalar.
- *
- * Schema order, not value order: the first declared field is the one the form
- * puts at the top of an item, which is the one that says which item it is. A
- * code body or a nested level is skipped, not because it is unimportant but
- * because it has no one-line form — it belongs in the rows below where it can
- * actually be read.
- *
- * One definition, used both to RENDER the heading and to omit that field from
- * the rows. Computing it twice is how the heading and the rows start disagreeing
- * about which field was promoted, and the item shows its name twice or not at
- * all.
- */
-const titleKeyFor = (
-  record: Record<string, unknown>,
-  schema: IQorusFormSchema
-): string | undefined =>
-  orderedKeys(record, schema).find((key) => {
-    const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
-    if (isCodeField(fieldSchema)) {
-      return false;
-    }
-    const raw = unwrap(record[key]);
-    return typeof raw === 'string' || typeof raw === 'number';
-  });
-
-const fieldLabel = (key: string, fieldSchema: TQorusFormFieldSchema | undefined): string =>
-  (fieldSchema as { display_name?: string } | undefined)?.display_name || key;
-
 /**
  * The width of the shared label column, measured from the longest name that will
  * actually be rendered.
@@ -485,12 +441,10 @@ const SchemaLevel = ({
                 {isRecord(record) ?
                   <>
                     {(() => {
-                      const titleKey = titleKeyFor(record, schema);
-                      if (!titleKey) {
+                      const identity = recordIdentity(record, schema);
+                      if (!identity) {
                         return null;
                       }
-                      const fieldSchema = schema[titleKey] as TQorusFormFieldSchema | undefined;
-                      const raw = unwrap(record[titleKey]);
                       return (
                         <StyledItemTitle
                           className='schema-view-item-title'
@@ -498,14 +452,11 @@ const SchemaLevel = ({
                           // A literal keeps the mono treatment it has as a value —
                           // promoting it must not change what it IS. A chosen
                           // label ("Default RBAC") is prose and stays prose.
-                          $mono={!findAllowedValueOption(raw, fieldSchema)}
+                          $mono={identity.mono}
                           $accent={colors.accent}
-                          title={fieldLabel(titleKey, fieldSchema)}
+                          title={identity.label}
                         >
-                          {formatOptionValue(
-                            { type: fieldSchema?.type, value: raw } as IQorusFormField,
-                            fieldSchema
-                          )}
+                          {identity.text}
                         </StyledItemTitle>
                       );
                     })()}

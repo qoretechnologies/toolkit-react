@@ -1,4 +1,9 @@
-import { IQorusFormField, TQorusFormFieldSchema, TQorusType } from '@qoretechnologies/ts-toolkit';
+import {
+  IQorusFormField,
+  IQorusFormSchema,
+  TQorusFormFieldSchema,
+  TQorusType,
+} from '@qoretechnologies/ts-toolkit';
 import { isRendererOnlyUiType } from './rendererTypes';
 import { isUiEncodedValue } from './_structuredData/structuredData';
 import { renderExpressionToText } from '../expressions/renderExpressionToText';
@@ -793,3 +798,117 @@ export const getFirstAttentionOptionName = (
 
   return undefined;
 };
+
+/* ------------------------------------------------------------------------- */
+/* Record identity — which field says WHICH item this is                      */
+/*                                                                            */
+/* Lives here, beside the formatters it uses, rather than in the view that    */
+/* first needed it: it is data logic, not rendering, and BOTH list renderers  */
+/* plus their tests import it. Keeping it in `SchemaDataView` dragged React,  */
+/* styled-components and every Reqore component it renders into any module    */
+/* that only wanted to know an item's name — which broke `arrayAutoField`'s   */
+/* mocked-Reqore test the moment the editable list started using it.          */
+/* ------------------------------------------------------------------------- */
+
+/** A UI-encoded value carries its type alongside it; the record's own value is inside. */
+const unwrap = (value: unknown): unknown =>
+  isUiEncodedValue(value) ? (value as { value: unknown }).value : value;
+
+/** Whether a value is worth a row of its own. `false` and `0` are values. */
+export const isSet = (value: unknown): boolean =>
+  value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && !value.length);
+
+/**
+ * The keys to render, in the order to render them: the schema's own order first
+ * (that is the order the form puts the fields in), then anything stored that the
+ * schema does not mention, so undescribed data is shown rather than dropped.
+ */
+export const orderedKeys = (record: Record<string, unknown>, schema: IQorusFormSchema): string[] => {
+  const described = Object.keys(schema).filter((key) => isSet(unwrap(record[key])));
+  const extra = Object.keys(record).filter((key) => !(key in schema) && isSet(unwrap(record[key])));
+  return [...described, ...extra];
+};
+
+/** A field whose content is source code. `ui_type` is what the form renders by,
+ *  so it is what the preview reads by too — the storage type is just `string`. */
+export const isCodeField = (fieldSchema: TQorusFormFieldSchema | undefined): boolean => {
+  const uiType = (fieldSchema as { ui_type?: string } | undefined)?.ui_type;
+  return uiType === 'code-editor';
+};
+
+/**
+ * The field whose value heads the item — the first DECLARED one holding a plain
+ * scalar.
+ *
+ * Schema order, not value order: the first declared field is the one the form
+ * puts at the top of an item, which is the one that says which item it is. A
+ * code body or a nested level is skipped, not because it is unimportant but
+ * because it has no one-line form — it belongs in the rows below where it can
+ * actually be read.
+ *
+ * One definition, used both to RENDER the heading and to omit that field from
+ * the rows. Computing it twice is how the heading and the rows start disagreeing
+ * about which field was promoted, and the item shows its name twice or not at
+ * all.
+ */
+export const titleKeyFor = (
+  record: Record<string, unknown>,
+  schema: IQorusFormSchema
+): string | undefined =>
+  orderedKeys(record, schema).find((key) => {
+    const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
+    if (isCodeField(fieldSchema)) {
+      return false;
+    }
+    const raw = unwrap(record[key]);
+    return typeof raw === 'string' || typeof raw === 'number';
+  });
+
+/** What identifies one record: which field was promoted, and how to draw it. */
+export interface IRecordIdentity {
+  /** The promoted field's key, so a caller can omit it from the rows below. */
+  key: string;
+  /** The value, formatted the way its own row would format it. */
+  text: string;
+  /** The promoted field's label — a caption for the heading, not a second line. */
+  label: string;
+  /** A literal keeps its mono face; a chosen label is prose. */
+  mono: boolean;
+}
+
+/**
+ * The identity of one record, for any surface that heads a list item with it.
+ *
+ * Exported because the preview is not the only place a list of records is shown:
+ * the editable list (`ArrayAuto`) heads the same records, and it must promote the
+ * same field and format it the same way. Two implementations would drift the
+ * moment one of them learned about a new field type, and the reader would meet
+ * an item called `init` in the preview and `#1` in the editor.
+ */
+export const recordIdentity = (
+  record: Record<string, unknown>,
+  schema: IQorusFormSchema | undefined
+): IRecordIdentity | undefined => {
+  if (!schema) {
+    return undefined;
+  }
+
+  const key = titleKeyFor(record, schema);
+
+  if (!key) {
+    return undefined;
+  }
+
+  const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
+  const raw = unwrap(record[key]);
+
+  return {
+    key,
+    text: formatOptionValue({ type: fieldSchema?.type, value: raw } as IQorusFormField, fieldSchema),
+    label: fieldLabel(key, fieldSchema),
+    mono: !findAllowedValueOption(raw, fieldSchema),
+  };
+};
+
+export const fieldLabel = (key: string, fieldSchema: TQorusFormFieldSchema | undefined): string =>
+  (fieldSchema as { display_name?: string } | undefined)?.display_name || key;

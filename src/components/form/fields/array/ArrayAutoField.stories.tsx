@@ -339,3 +339,56 @@ export const ComplexHashItems: Story = {
     await expect(document.querySelectorAll('.array-auto-compact-tag').length).toBe(0);
   },
 };
+
+/**
+ * The editable list, headed by what identifies each record.
+ *
+ * The rows used to read `#1 #2 #3`, so finding one method meant opening each in
+ * turn — and the collapsed preview beside it already headed the same records
+ * `init` / `onOrderStatus`, which made one item answer to two names. Both now
+ * resolve the heading through `recordIdentity`: the first field the SCHEMA
+ * declares that holds a scalar, skipping any it leaves unset. The position keeps
+ * a badge, so "the third one" is still answerable.
+ */
+export const HashItemsHeadedByIdentity: Story = {
+  args: {
+    type: 'hash',
+    display_name: 'Service Methods',
+    arg_schema: {
+      name: { type: 'string', ui_type: 'string', display_name: 'Method Name', required: true },
+      description: { type: 'string', ui_type: 'string', display_name: 'Description' },
+    },
+    value: [
+      { name: 'init', description: 'The init method' },
+      { name: 'onOrderStatus', description: 'Handles order status callbacks' },
+      { description: 'Added but not yet named' },
+      {},
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders four hash items headed by their identifying value: two named methods read as "init" and "onOrderStatus", one with no name falls through to its description, and an entirely empty one keeps its position number.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(() => expect(document.querySelectorAll('.array-auto-item').length).toBe(4), {
+      timeout: 5000,
+    });
+
+    const headings = [...document.querySelectorAll('.array-auto-item')].map(
+      (item) => item.textContent ?? ''
+    );
+
+    await expect(headings[0]).toContain('init');
+    await expect(headings[1]).toContain('onOrderStatus');
+    // An unset field is skipped rather than promoted blank, so this one is
+    // headed by the next field that IS set.
+    await expect(headings[2]).toContain('Added but not yet named');
+    // And a record with nothing set at all keeps its position — there is
+    // genuinely nothing to call it.
+    await expect(headings[3]).toContain('#4');
+  },
+};

@@ -9,6 +9,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { map, size } from 'lodash';
+import { recordIdentity } from '../../engine/readFirst';
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { validateFieldWithResult } from '../../../../helpers/validations';
@@ -279,11 +280,27 @@ export const ArrayAutoField = memo(
 
     return (
       <ReqoreControlGroup vertical fluid>
-        {map(localValue, (val, idx) => (
+        {map(localValue, (val, idx) => {
+          // The same field the collapsed preview promotes, resolved by the same
+          // definition — see `recordIdentity`. Both editable list renderers head
+          // their records with it, so an item cannot be called `init` in one
+          // place and `#1` in another.
+          const identity =
+            val && typeof val === 'object' && !Array.isArray(val)
+              ? recordIdentity(val as Record<string, unknown>, arg_schema)
+              : undefined;
+
+          return (
           <ReqorePanel
             key={idx}
-            label={`#${idx + 1}`}
-            badge={display_name || name}
+            // `#N` stays as the fallback: a record whose identifying field is
+            // still empty has nothing to be called yet, and a blank heading
+            // would be worse than a number.
+            label={identity?.text || `#${idx + 1}`}
+            tooltip={identity?.label}
+            // The position moves to the badge once the name owns the heading,
+            // so "which of these is third" stays answerable.
+            badge={identity ? `#${idx + 1}` : display_name || name}
             collapsible
             unMountContentOnCollapse={false}
             responsiveActions={false}
@@ -321,7 +338,8 @@ export const ArrayAutoField = memo(
             })}
             {renderValidationMessage(val)}
           </ReqorePanel>
-        ))}
+          );
+        })}
 
         <ReqoreButton
           onClick={addItem}
