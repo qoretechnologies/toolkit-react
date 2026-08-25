@@ -19,6 +19,7 @@ import {
   TQorusFormFieldSchema,
 } from '@qoretechnologies/ts-toolkit';
 import flatten from 'lodash/flatten';
+import isEqual from 'lodash/isEqual';
 import size from 'lodash/size';
 import React, { memo } from 'react';
 import { useContextSelector } from 'use-context-selector';
@@ -589,6 +590,41 @@ export const CompactRow = memo(
       return () => window.clearTimeout(id);
     }, [isExpanded, optionName, autoFocusNameRef]);
 
+    // What the field held when it was opened — the baseline Cancel restores.
+    //
+    // Deliberately NOT `originalValue`, which is the whole form's load-time
+    // snapshot. That answers "undo every change ever made to this field", which
+    // is a different question from "forget what I just typed"; a Cancel sitting
+    // next to Done has to mean the second one, or it silently throws away edits
+    // the user made earlier and had already accepted.
+    //
+    // The dependency list is `isExpanded` alone on purpose: adding the value
+    // would re-take the snapshot on every keystroke, leaving nothing to cancel.
+    const editEntryValue = React.useRef<{ value: any; type?: string } | undefined>(undefined);
+    React.useEffect(() => {
+      if (isExpanded) {
+        editEntryValue.current = { value: optionField?.value, type: optionField?.type };
+      } else {
+        editEntryValue.current = undefined;
+      }
+    }, [isExpanded]);
+
+    // True while the open editor holds something other than what it opened with.
+    const editedSinceOpened =
+      isExpanded &&
+      !!editEntryValue.current &&
+      !isEqual(editEntryValue.current.value, optionField?.value);
+
+    // Discard whatever was typed since the field was opened and close it. Used
+    // by both the Cancel button and Escape, so the two cannot diverge.
+    const cancelEdit = React.useCallback(() => {
+      const snapshot = editEntryValue.current;
+      if (snapshot && !isEqual(snapshot.value, optionField?.value)) {
+        handleValueChange(optionName, snapshot.value, snapshot.type);
+      }
+      toggleExpandedOption(optionName);
+    }, [handleValueChange, optionField?.value, optionName, toggleExpandedOption]);
+
     // The sub-schema describing this field's value, when it has one. A value the
     // form knows the shape of is previewed THROUGH that shape (see
     // `SchemaDataView`); only genuinely undescribed data falls through to the
@@ -646,6 +682,18 @@ export const CompactRow = memo(
       [optionField?.value, previewArgSchema]
     );
 
+    // The form-load revert: back to the value the FORM was loaded with.
+    //
+    // In an open editor this is offered only when it would do something
+    // `cancelEditButton` does not — that is, when the field was already
+    // modified BEFORE it was opened, so "undo this edit" and "undo every edit"
+    // are different answers. On the usual path (open an untouched field, type,
+    // change your mind) the two are identical, and two buttons with the same
+    // effect and different names are worse than one.
+    //
+    // It is unconditional on the READ row, where it renders inline in the
+    // status-dot column — there is no edit in progress there to cancel, so the
+    // whole-field revert is the only undo that makes sense.
     const revertButton =
       changed ?
         <ReqoreButton
@@ -727,6 +775,42 @@ export const CompactRow = memo(
         />
       : null;
     const isPassiveCloseAction = fixedAllowedValueOption || readOnly;
+    // Cancel — the counterpart to Done, and the answer to "how do I get out of
+    // here without keeping this". Done was the only way to leave an open field,
+    // so every way out committed: the check, clicking away, and Escape (which
+    // closed without discarding, so it committed too, silently).
+    //
+    // Shown only while there is something to discard. On an untouched field
+    // Cancel and Done would do exactly the same thing, and two buttons that
+    // differ in name but not in effect are worse than one.
+    //
+    // Not offered when the close action is passive (read-only, or a fixed
+    // choice) — nothing can have been typed, so there is nothing to cancel.
+    const cancelEditButton =
+      !isPassiveCloseAction && editedSinceOpened ?
+        <ReqoreButton
+          className='options-readfirst-cancel'
+          size='small'
+          flat
+          fixed
+          icon='CloseLine'
+          intent='warning'
+          // "Cancel edit", not "Cancel": a bare Cancel collides with the one
+          // in Reqore's confirmation modal, and this one is specifically about
+          // abandoning the edit rather than dismissing a dialog.
+          aria-label='Cancel edit'
+          tooltip='Cancel edit — discard the changes made since this field was opened'
+          onClick={(event: React.MouseEvent) => {
+            event.stopPropagation();
+            cancelEdit();
+          }}
+        />
+      : null;
+    // See `revertButton` above for why this is conditional in the edit row.
+    const openedWithFormLoadValue =
+      !editEntryValue.current ||
+      isEqual(editEntryValue.current.value, originalValue.current?.[optionName]?.value);
+    const editRowRevertButton = openedWithFormLoadValue ? null : revertButton;
     const closeExpandedFieldButton = (
       <ReqoreButton
         className='options-readfirst-done'
@@ -973,7 +1057,11 @@ export const CompactRow = memo(
               onKeyDown={(event) => {
                 if (event.key === 'Escape') {
                   event.stopPropagation();
-                  collapse();
+                  // Escape discards. It used to call `collapse()`, which closed
+                  // the field and KEPT whatever had been typed — the one
+                  // keystroke every editor treats as "get me out of this
+                  // without saving" was the quietest way to commit.
+                  cancelEdit();
                 }
               }}
             >
@@ -1002,7 +1090,8 @@ export const CompactRow = memo(
                   OptionFieldMessages strip below already says it — showing
                   both was redundant. The tag stays on READ rows, where no
                   message strip is visible. */}
-              {revertButton}
+              {editRowRevertButton}
+              {cancelEditButton}
               {clearValueButton}
               {inlineOptionActions.map((action, index) =>
                 renderInjectedOptionAction(action, index)

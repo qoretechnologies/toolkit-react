@@ -912,6 +912,104 @@ export const OptionInheritsRenderPropFromSiblingCompact: Story = {
 // cell couldn't provide on its own. Locks the compact preview so a future
 // CompactRow refactor can't silently reduce a Qorus source-code field to an
 // ellipsised one-liner again.
+// An open field used to have exactly one way out — the green Done check — so
+// every exit committed, Escape included. This locks the Cancel affordance in
+// place: it appears only once there is something to discard, and it puts the
+// value back to what the field was opened with.
+export const CompactRowCancelEdit: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact row opened for editing with a changed value — the Cancel action appears beside Done, and clicking it puts the field back to the value it was opened with and closes it.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: { cookie_name: { type: 'string', value: 'my-cookie' } },
+    options: {
+      cookie_name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Cookie Name',
+        short_desc: 'Cookie name for cookie authentication',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // Open the field.
+    const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
+    expect(row).toBeTruthy();
+    fireEvent.click(row!);
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy()
+    );
+
+    // An untouched field offers no Cancel — it would do exactly what Done does.
+    expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeNull();
+
+    const input = canvasElement.querySelector<HTMLInputElement>(
+      '[data-field="cookie_name"] input, [data-field="cookie_name"] textarea'
+    );
+    expect(input).toBeTruthy();
+    fireEvent.change(input!, { target: { value: 'changed-cookie' } });
+
+    // Cancel appears the moment the value differs from what was opened.
+    await waitFor(
+      () => expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeTruthy(),
+      { timeout: 5000 }
+    );
+
+    fireEvent.click(canvasElement.querySelector<HTMLElement>('.options-readfirst-cancel')!);
+
+    // The row closes and the opened-with value is back.
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeNull(), {
+      timeout: 5000,
+    });
+    await waitFor(
+      () =>
+        expect(
+          canvasElement.querySelector('[data-field="cookie_name"]')?.textContent ?? ''
+        ).toContain('my-cookie'),
+      { timeout: 5000 }
+    );
+  },
+};
+
+export const CompactRowCancelEditAffordance: Story = {
+  ...CompactRowCancelEdit,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact row open for editing with a changed value, stopping while it is open — Cancel edit sits beside the green Done check, which is what an open field used to offer on its own.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
+    expect(row).toBeTruthy();
+    fireEvent.click(row!);
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy()
+    );
+
+    const input = canvasElement.querySelector<HTMLInputElement>(
+      '[data-field="cookie_name"] input, [data-field="cookie_name"] textarea'
+    );
+    fireEvent.change(input!, { target: { value: 'changed-cookie' } });
+
+    await waitFor(
+      () => expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeTruthy(),
+      { timeout: 5000 }
+    );
+    // Both ways out are on screen together, which is the point of the story.
+    expect(canvasElement.querySelector('.options-readfirst-done')).toBeTruthy();
+  },
+};
+
 export const CompactRowCodeEditorPreview: Story = {
   parameters: {
     docs: {
@@ -4643,7 +4741,12 @@ export const CompactFieldTypesEditing: Story = {
     await userEvent.click(within(confirmationModal!).getByRole('button', { name: 'Clear value' }));
     await waitFor(() => {
       expect(editRow('enabled').querySelector('.options-readfirst-clear')).not.toBeInTheDocument();
-      expect(editRow('enabled').querySelector('.options-readfirst-revert')).toBeInTheDocument();
+      // Clear swaps for the undo affordance. In an OPEN field that is
+      // "Cancel edit" — the field was opened holding its form-load value, so
+      // undoing this edit and reverting the field are the same thing and only
+      // one button is offered. The form-load revert reappears here only when
+      // the field was already modified before it was opened.
+      expect(editRow('enabled').querySelector('.options-readfirst-cancel')).toBeInTheDocument();
     });
   },
 };
