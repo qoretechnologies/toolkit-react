@@ -106,5 +106,24 @@ export const Undescribed: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(canvasElement.textContent).toContain('legacy_flag');
+
+    // A field name renders on ONE line. The label column is measured from the
+    // longest name, and the label carries `overflow-wrap: anywhere` — so an
+    // under-measured column does not ellipsise, it breaks the name in half.
+    // That is exactly what happened when the labels became uppercase and the
+    // measurement was still in `ch`, which knows nothing about the tracking:
+    // `LEGACY_FLAG` came out over two lines.
+    //
+    // Asserted as geometry rather than as a width, because the width is the
+    // thing that keeps being wrong — the invariant is that the name fits.
+    const label = [...canvasElement.querySelectorAll<HTMLElement>('.schema-view-fields > *')].find(
+      (element) => (element.textContent ?? '').trim().toLowerCase() === 'legacy_flag'
+    );
+
+    await expect(label).toBeTruthy();
+
+    const lineHeight = parseFloat(getComputedStyle(label!).lineHeight) || 16;
+
+    await expect(label!.offsetHeight).toBeLessThan(lineHeight * 1.6);
   },
 };

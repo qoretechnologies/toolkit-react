@@ -267,6 +267,12 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
  * the `%` ceiling stops one long name from taking the whole row when the inset
  * is narrow — a phone, or a deeply nested level.
  */
+/** Approximate rendered width of one label character, in px. See `labelColumn`. */
+const LABEL_CHAR_PX = 9.5;
+
+/** Gap to the value, so the longest label is not flush against it. */
+const LABEL_SLACK_PX = 14;
+
 const labelColumn = (value: unknown, schema: IQorusFormSchema): string => {
   const inner = unwrap(value);
   const records = (Array.isArray(inner) ? inner.map(unwrap) : [inner]).filter(isRecord);
@@ -278,7 +284,14 @@ const labelColumn = (value: unknown, schema: IQorusFormSchema): string => {
     );
     return Math.max(widest, own);
   }, 0);
-  return longest ? `min(${longest + 1}ch, 45%)` : '140px';
+  // px, not `ch`. `ch` is the base font's `0` advance and knows nothing about
+  // the label's own treatment — uppercase, semibold, `letter-spacing: 0.06em`,
+  // at 12px — so it under-measures by about a tenth. With `overflow-wrap:
+  // anywhere` on the label, an under-measured column does not ellipsise, it
+  // BREAKS THE NAME IN HALF: `LEGACY_FLAG` came out over two lines the moment
+  // the labels became uppercase. Erring high costs a few px of gap; erring low
+  // costs a broken word.
+  return longest ? `min(${Math.ceil(longest * LABEL_CHAR_PX + LABEL_SLACK_PX)}px, 45%)` : '140px';
 };
 
 /**
