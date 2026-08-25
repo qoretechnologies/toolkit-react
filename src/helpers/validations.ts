@@ -14,6 +14,51 @@ import { getAddress, getProtocol, splitByteSize } from './common';
 import { getOptionsFromRequiredGroups } from './options';
 import { getTemplateKey, getTemplateValue, isValueTemplate } from './templates';
 
+/** The five cron fields, in order, as a schedule hash may name them. */
+const CRON_FIELDS: [string, string][] = [
+  ['minutes', 'minute'],
+  ['hours', 'hour'],
+  ['days', 'day'],
+  ['months', 'month'],
+  ['dow', 'weekday'],
+];
+
+/**
+ * A five-field cron expression, from either representation a caller may hold.
+ *
+ * A schedule reaches the form in one of two shapes, and both are legitimate: a
+ * joined string (`"0 0 1 1 *"`), or the hash a Qorus job carries
+ * (`{minutes, hours, days, months, dow}` — also accepted under the singular
+ * `minute`/`hour`/`day`/`month`/`weekday` spellings). The renderer already
+ * accepted both; validation did not, and fed the hash straight to
+ * `isValidCron`, which calls `.trim()` on it.
+ *
+ * Returns `undefined` for anything that is neither, so the caller reports an
+ * invalid value rather than throwing.
+ */
+export const cronExpressionFromValue = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const hash = value as Record<string, unknown>;
+  const parts = CRON_FIELDS.map(([plural, singular]) => {
+    const field = hash[plural] ?? hash[singular];
+    return field === undefined || field === null || field === '' ? '*' : String(field);
+  });
+
+  // An object with none of the five keys is not a schedule — every part
+  // defaulting to `*` would otherwise turn any object at all into "* * * * *"
+  return parts.every((part) => part === '*') &&
+    !CRON_FIELDS.some(([plural, singular]) => plural in hash || singular in hash)
+    ? undefined
+    : parts.join(' ');
+};
+
 export interface IValidationResult {
   isValid: boolean;
   reason?: string;
@@ -322,11 +367,23 @@ export const _validateField = (
     case 'array':
     case 'file-tree':
       return resultFromBoolean(value && value.length > 0, 'At least one value is required');
-    case 'cron':
+    case 'cron': {
       if (!value) {
         return invalidResult('Cron value is required');
       }
-      return resultFromBoolean(isValidCron(value, { alias: true }), 'Cron expression is invalid');
+      const expression = cronExpressionFromValue(value);
+      // A value that is neither a cron string nor a schedule hash is INVALID,
+      // not a crash: `isValidCron` calls `.trim()` on whatever it is given, so
+      // passing it a hash threw a TypeError out of validation and took the
+      // whole form down through the host's error boundary.
+      if (expression === undefined) {
+        return invalidResult('Cron expression is invalid');
+      }
+      return resultFromBoolean(
+        isValidCron(expression, { alias: true }),
+        'Cron expression is invalid'
+      );
+    }
     case 'date':
       return resultFromBoolean(
         value !== undefined &&
