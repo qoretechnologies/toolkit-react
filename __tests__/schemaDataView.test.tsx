@@ -230,3 +230,38 @@ describe('undescribed data keeps the renderer built for undescribed data', () =>
     );
   });
 });
+
+describe('the preview speaks the detail pages’ vocabulary', () => {
+  const TWO_FIELD_SCHEMA = {
+    name: { type: 'string', ui_type: 'string', display_name: 'Method Name' },
+    description: { type: 'string', ui_type: 'string', display_name: 'Description' },
+  } as never;
+
+  it('renders a field name as an uppercase eyebrow', () => {
+    // Two fields, because the first declared one is promoted to the heading and
+    // omitted from the rows — a single-field record leaves nothing to assert on.
+    const { container } = renderView(
+      [{ name: 'init', description: 'init method' }],
+      TWO_FIELD_SCHEMA
+    );
+
+    // The label is furniture and the value is what the eye lands on — the same
+    // treatment the read-only interface panels use, so an in-editor list and a
+    // detail-page panel showing one shape do not look like two components.
+    const label = container.querySelector('.schema-view-fields > *');
+
+    expect(label && getComputedStyle(label).textTransform).toBe('uppercase');
+  });
+
+  it('never uppercases a VALUE', () => {
+    // Values are frequently case-sensitive: a service method is `onOrderStatus`,
+    // and rendering it `ONORDERSTATUS` would misname it.
+    const { container } = renderView(
+      [{ name: 'onOrderStatus', description: 'returns a status' }],
+      TWO_FIELD_SCHEMA
+    );
+
+    expect(container.textContent).toContain('onOrderStatus');
+    expect(container.textContent).not.toContain('ONORDERSTATUS');
+  });
+});

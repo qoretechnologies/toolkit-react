@@ -35,10 +35,11 @@ import { isUiEncodedValue } from './structuredData';
  * So a described value is rendered the way the form asked for it, in the form's
  * own clothes:
  *
- * - Field names use `StyledRowLabel` and values use `StyledRowValue` — the very
- *   components the option rows above are built from. Not a copy of their CSS: a
- *   copy is a second definition of "what a form label looks like", and the two
- *   drift the first time either is touched.
+ * - Field names use `StyledFieldLabel` (a `StyledRowLabel` in the read-only
+ *   eyebrow treatment) and values use `StyledRowValue` — the very components the
+ *   option rows above are built from. Not a copy of their CSS: a copy is a
+ *   second definition of "what a form label looks like", and the two drift the
+ *   first time either is touched.
  * - Values are formatted by the same `formatOptionValue` the rows use, so an
  *   `allowed_values` entry resolves to its display name, a bool to Yes/No, a
  *   date to the app's format. The same words appear in the summary, the preview
@@ -153,6 +154,30 @@ const StyledItemFields = styled.div<{ $border: string }>`
  * and leave the items ragged against each other, which reads as a rendering
  * fault rather than as a list.
  */
+/**
+ * A record field's name, in the detail-page vocabulary.
+ *
+ * Uppercase, tracked and dimmed, so a field name reads as furniture and the
+ * VALUE beside it is what the eye lands on. Same treatment the read-only
+ * interface panels use, which is the point: an in-editor list of records and a
+ * detail-page panel showing the same shape should not look like two components.
+ *
+ * A variant rather than a change to `StyledRowLabel`: that one is the FORM's own
+ * option-row label, and the form's fields are not read-only furniture — they are
+ * the things you are about to edit. Composing it keeps the colour, weight base
+ * and wrapping behaviour in one place instead of copying them.
+ *
+ * Applies to the label only. A VALUE is never uppercased: values are frequently
+ * case-sensitive — a service method is `onOrderStatus`, not `ONORDERSTATUS` —
+ * and the item heading is a value.
+ */
+const StyledFieldLabel = styled(StyledRowLabel)`
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+`;
+
 const StyledFields = styled.div`
   /* The supporting fields step in under the heading, so the heading keeps the
      left edge to itself. This is the half that answers "the name is written in
@@ -256,6 +281,16 @@ const labelColumn = (value: unknown, schema: IQorusFormSchema): string => {
   return longest ? `min(${longest + 1}ch, 45%)` : '140px';
 };
 
+/**
+ * `true` when a value is an address a browser can open.
+ *
+ * Deliberately per VALUE, not per field: a field named `url` frequently holds
+ * something that is not one — a bare path, a regex, a template — and offering
+ * those a link promises a destination there is not.
+ */
+const isNavigableUrl = (value: unknown): value is string =>
+  typeof value === 'string' && /^(https?|wss?|ftps?):\/\//i.test(value);
+
 /** One field's value, rendered the way its row above renders it. */
 const FieldValue = ({
   field,
@@ -302,6 +337,23 @@ const FieldValue = ({
             />
           : null}
           {formatted}
+          {isNavigableUrl(field.value) ?
+            // The read-only detail views make an address openable, and a
+            // preview that shows the same value should not be the one place it
+            // is inert. A real anchor, so middle-click and "copy link address"
+            // work; `stopPropagation` because the row around it toggles.
+            <a
+              className='schema-view-open-url'
+              href={field.value}
+              target='_blank'
+              rel='noreferrer noopener'
+              aria-label='Open in a new tab'
+              style={{ marginLeft: 4, verticalAlign: 'middle' }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <ReqoreIcon icon='ExternalLinkLine' size='11px' />
+            </a>
+          : null}
         </span>
       }
     </StyledRowValue>
@@ -350,7 +402,7 @@ const SchemaRecord = ({
         return (
           <React.Fragment key={key}>
             <StyledNestedLabel>
-              <StyledRowLabel $color={colors.key}>{labelWithType}</StyledRowLabel>
+              <StyledFieldLabel $color={colors.key}>{labelWithType}</StyledFieldLabel>
             </StyledNestedLabel>
             <StyledNested $border={colors.border}>
               <SchemaLevel value={value} schema={nested} showTypes={showTypes} colors={colors} />
@@ -368,7 +420,7 @@ const SchemaRecord = ({
         return (
           <React.Fragment key={key}>
             <StyledNestedLabel>
-              <StyledRowLabel $color={colors.key}>{labelWithType}</StyledRowLabel>
+              <StyledFieldLabel $color={colors.key}>{labelWithType}</StyledFieldLabel>
             </StyledNestedLabel>
             <StyledCodeCell onClick={(event) => event.stopPropagation()}>
               <ReqoreCollapsibleContent
@@ -400,9 +452,9 @@ const SchemaRecord = ({
 
       return (
         <React.Fragment key={key}>
-          <StyledRowLabel $color={colors.key} title={label}>
+          <StyledFieldLabel $color={colors.key} title={label}>
             {labelWithType}
-          </StyledRowLabel>
+          </StyledFieldLabel>
           <FieldValue
             field={{ type: fieldSchema?.type, value } as IQorusFormField}
             fieldSchema={fieldSchema}
