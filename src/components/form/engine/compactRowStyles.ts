@@ -320,6 +320,12 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* The code size chip kept above an OPEN editor. The read row puts the same chip
+     at the top of the value cell with a 2px row-gap under it; matching that here is
+     what stops the editor moving as the field opens. */
+  .options-readfirst-editing-summary {
+    margin-bottom: 2px;
+  }
   .options-readfirst-reason {
     font-style: italic;
     font-size: 12px;

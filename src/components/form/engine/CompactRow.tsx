@@ -911,6 +911,11 @@ export const CompactRow = memo(
       />
     );
 
+    // Declared here rather than beside the hash rows below: the `isExpanded`
+    // branch returns before that point, and its editor needs to know whether it is
+    // holding code.
+    const valueType = getValueType(optionField, schema);
+
     if (isExpanded) {
       if (inlineEditable) {
         const collapse = () => toggleExpandedOption(optionName);
@@ -972,6 +977,23 @@ export const CompactRow = memo(
                 }
               }}
             >
+              {/* The size chip survives into the editor.
+
+                  Opening a field replaces the whole value cell with its editor, which
+                  for every other type is right — the editor shows the value, so a
+                  summary of it above would say the same thing twice. Code is the
+                  exception: the chip counts lines and characters, which the editor
+                  does not show anywhere. Dropping it lost real information AND moved
+                  everything under it up by the height of a chip, so the editor
+                  appeared to jump as it opened.
+
+                  It renders here, at the top of the value cell, which is exactly where
+                  it sits on the read row — so the switch moves nothing. */}
+              {valueType === 'code-editor' && typeof optionField?.value === 'string' ?
+                <div className='options-readfirst-editing-summary'>
+                  <ReqraftCodeSizeTag code={optionField.value} />
+                </div>
+              : null}
               {renderOption(optionName, optionField, 'small', true)}
             </div>
             <StyledRowActions>
@@ -1200,7 +1222,6 @@ export const CompactRow = memo(
     ];
     // A hash row reveals its sub-fields as read-only sub-rows under a "view
     // more" disclosure; the row itself still expands the real editor on click.
-    const valueType = getValueType(optionField, schema);
     const hashEntries =
       (
         !hidden &&
