@@ -37,6 +37,42 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
+      # One bump per PR, enforced. The rule has always been in AGENTS.md, but nothing
+      # checked it, so a PR could walk 0.10.36 -> 0.10.46 a patch at a time and every
+      # prerelease along the way published happily (#95). The bumps are invisible in
+      # review — each diff looks correct on its own — and only the tenth is obviously
+      # wrong, by which point nine version numbers have been burned that never shipped.
+      #
+      # Compares against the merge-base rather than develop's tip, so a branch does not
+      # go red because someone else released while it was open. A rebase moves the
+      # merge-base and the count recomputes from there.
+      #
+      # Minor and major changes are skipped, not judged: those are deliberate and this
+      # check has no way to know how many are intended.
+      - name: Check the version was bumped exactly once
+        run: |
+          git fetch origin develop --quiet
+          BASE=$(git merge-base origin/develop HEAD)
+          FROM=$(git show "$BASE:package.json" | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).version" | cut -d- -f1)
+          TO=$(node -p "require('./package.json').version" | cut -d- -f1)
+          echo "merge-base: $FROM   head: $TO"
+
+          if [ "${FROM%.*}" != "${TO%.*}" ]; then
+            echo "::notice::minor/major changed ($FROM -> $TO) — bump count not checked"
+            exit 0
+          fi
+
+          DELTA=$(( ${TO##*.} - ${FROM##*.} ))
+          if [ "$DELTA" -lt 0 ]; then
+            echo "::error::version went backwards ($FROM -> $TO)"
+            exit 1
+          fi
+          if [ "$DELTA" -gt 1 ]; then
+            echo "::error::package.json was bumped $DELTA times on this branch ($FROM -> $TO). Bump exactly once per PR — set it to $(echo $FROM | awk -F. '{print $1"."$2"."$3+1}') unless that is taken. See AGENTS.md, Versioning."
+            exit 1
+          fi
+          echo "bumped ${DELTA}x — ok"
+
       - name: Print head git commit message
         id: get_head_commit_message
         run: |
