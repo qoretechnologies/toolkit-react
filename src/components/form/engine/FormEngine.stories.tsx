@@ -2,7 +2,7 @@ import { ReqoreInput } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react-vite';
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
 import { defaultQorusTypes } from '../../../hooks/useQorusTypes';
@@ -1140,6 +1140,98 @@ export const CompactRowCodeEditorPreview: Story = {
     const sourceRow = canvasElement.querySelector('[data-field="source"]');
     expect(sourceRow).toBeTruthy();
     expect(sourceRow?.textContent ?? '').toMatch(/\d+\s*lines?/);
+  },
+};
+
+export const CompactRowCodeEditorMessage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A schema `messages` entry on a code-editor field. Every other field surfaces its messages on the collapsed row; a code field draws a preview in the same cell, and the message has to survive beside it — a diagnostic the reader only finds by opening the field is not reported. Qorus puts source-validation results here, so an invalid service is called out on the row rather than at save time.",
+      },
+    },
+  },
+  args: {
+    ...CompactRowCodeEditorPreview.args,
+    options: {
+      ...(CompactRowCodeEditorPreview.args as any).options,
+      source: {
+        ...(CompactRowCodeEditorPreview.args as any).options.source,
+        messages: [
+          {
+            intent: 'danger',
+            title: 'Line 4',
+            content: "syntax error, unexpected '}'",
+          },
+        ],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // The message renders on the collapsed row, beside the code preview rather
+    // than instead of it.
+    await waitFor(
+      () => {
+        const row = canvasElement.querySelector('[data-field="source"]');
+        expect(row?.textContent ?? '').toContain('Line 4');
+        expect(row?.textContent ?? '').toContain("syntax error, unexpected '}'");
+      },
+      { timeout: 5000 }
+    );
+
+    const row = canvasElement.querySelector('[data-field="source"]');
+    // ... and the preview it sits beside is still there.
+    expect(row?.textContent ?? '').toContain('class ExampleJob inherits QorusJob');
+  },
+};
+
+/**
+ * Adds a schema message to a field a moment AFTER the form has mounted, the way
+ * a host that validates asynchronously does.
+ */
+const LateMessageHarness = (args: any) => {
+  const [options, setOptions] = useState(args.options);
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () =>
+        setOptions((current: any) => ({
+          ...current,
+          source: {
+            ...current.source,
+            messages: [
+              { intent: 'danger', title: 'Line 4', content: "syntax error, unexpected '}'" },
+            ],
+          },
+        })),
+      100
+    );
+    return () => clearTimeout(timer);
+  }, []);
+
+  return <FormEngine {...args} options={options} />;
+};
+
+export const CompactRowCodeEditorLateMessage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same message, but added to the schema after the form has mounted — which is how a host that validates asynchronously delivers one. A message that only renders when it was present at mount is no use to a validator: the answer always arrives later than the field did.',
+      },
+    },
+  },
+  args: { ...CompactRowCodeEditorPreview.args },
+  render: (args) => <LateMessageHarness {...args} />,
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () => {
+        const row = canvasElement.querySelector('[data-field="source"]');
+        expect(row?.textContent ?? '').toContain('Line 4');
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
