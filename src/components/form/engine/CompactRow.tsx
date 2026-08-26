@@ -1145,6 +1145,23 @@ export const CompactRow = memo(
 
                   It renders here, at the top of the value cell, which is exactly where
                   it sits on the read row — so the switch moves nothing. */}
+              {/* The field's own schema messages follow it into the editor.
+
+                  A message is guidance about the value, so the moment it matters
+                  most is while the value is being changed — and a diagnostic is
+                  useless anywhere else: it names a line the author can only act
+                  on with the editor in front of them. They used to render on the
+                  READ row alone, so opening the field to fix what one said was
+                  what made it disappear. Worse for a host that opens a field on
+                  arrival: the message was never visible at all.
+
+                  Above the editor rather than below it, and above the absorbed
+                  siblings, because it is the reason the author opened the row. */}
+              {panelMessages.length ?
+                <div className='options-readfirst-info-panel'>
+                  {panelMessages.map(renderInfoStrip)}
+                </div>
+              : null}
               {/* Absorbed siblings sit at the TOP of the value cell, above the
                   editor they belong to — the language you are writing in is
                   read before the code, not after it. */}

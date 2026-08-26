@@ -1158,6 +1158,13 @@ export const CompactRowCodeEditorMessage: Story = {
       ...(CompactRowCodeEditorPreview.args as any).options,
       source: {
         ...(CompactRowCodeEditorPreview.args as any).options.source,
+        // The field ABSORBS its language sibling, which is how Qorus ships it:
+        // the language control renders inside the Source Code container. That
+        // is the shape the message has to survive.
+        absorb_fields: ['language'],
+        // Qorus groups its fields (INFO / SCALING), so the row renders inside a
+        // group rather than in a flat list.
+        group: 'info',
         messages: [
           {
             intent: 'danger',
@@ -1232,6 +1239,33 @@ export const CompactRowCodeEditorLateMessage: Story = {
       },
       { timeout: 10000 }
     );
+  },
+};
+
+export const CompactRowMessageWhileEditing: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "The same message, with the row OPEN. A schema message is guidance about the value, so the moment it matters most is while the value is being edited — and a validation diagnostic is useless anywhere else: it names a line the author can only fix with the editor in front of them. Qorus opens the Source Code row on arrival, so a message that only survives on the collapsed row was never seen at all.",
+      },
+    },
+  },
+  args: { ...CompactRowCodeEditorMessage.args },
+  play: async ({ canvasElement }) => {
+    // Open the row, the way an author does before fixing what the message says.
+    await waitFor(() => {
+      expect(canvasElement.querySelector('[data-field="source"]')).toBeTruthy();
+    });
+    await fireEvent.click(canvasElement.querySelector('[data-field="source"]') as HTMLElement);
+
+    await waitFor(() => {
+      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy();
+    });
+
+    const editingRow = canvasElement.querySelector('.readfirst-row-editing') as HTMLElement;
+    expect(editingRow?.textContent ?? '').toContain('Line 4');
+    expect(editingRow?.textContent ?? '').toContain("syntax error, unexpected '}'");
   },
 };
 
