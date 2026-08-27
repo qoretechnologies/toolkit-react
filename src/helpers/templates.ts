@@ -1,10 +1,24 @@
+import { modalStore } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import {
   TReqoreDropdownItem,
   TReqoreDropdownItems,
 } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { cloneDeep, size } from 'lodash';
+import { createElement } from 'react';
+import { ReqraftTemplateExampleValueModal } from '../components/form/fields/template/ExampleValueModal';
 import { areQorusTypesCompatible } from './expressions';
+
+/**
+ * The DOM ceiling for a serialized example value in a picker item — a
+ * binary-carrying field's example (e.g. an email attachment body) can be an
+ * entire base64 file, and it must not enter the item wholesale. The VISUAL
+ * truncation is not this number: past the ceiling the item also gets a
+ * single-line-ellipsis description (`descriptionEffect.noWrap`), which cuts at
+ * the popover's ACTUAL rendered width — container-intrinsic, no breakpoints —
+ * paired with the "?" action that shows the full value.
+ */
+export const TEMPLATE_EXAMPLE_PREVIEW_LENGTH = 150;
 
 /**
  * Shared template string utilities.
@@ -224,11 +238,26 @@ export const buildTemplates = (
         items: childItems,
         data_role: itemDataRole,
       }): TReqoreDropdownItem => {
+        const serializedExample =
+          example_value !== undefined ? JSON.stringify(example_value) : undefined;
+        const exampleIsLong =
+          serializedExample !== undefined &&
+          serializedExample.length > TEMPLATE_EXAMPLE_PREVIEW_LENGTH;
+
         const item: TReqoreDropdownItem = {
           label: itemDisplayName,
-          description: example_value
-            ? `Example value: ${JSON.stringify(example_value)}`
+          description: serializedExample
+            ? `Example value: ${
+                exampleIsLong
+                  ? `${serializedExample.slice(0, TEMPLATE_EXAMPLE_PREVIEW_LENGTH)}…`
+                  : serializedExample
+              }`
             : undefined,
+          // Ellipsize ONLY where the "?" full-value affordance exists — for a
+          // short value an ellipsis would hide information with no way to
+          // reveal it. The single line cuts at the rendered width, so the
+          // preview adapts to any popover/panel width without breakpoints.
+          descriptionEffect: exampleIsLong ? { noWrap: true } : undefined,
           badge: type,
           metadata: {
             image: logo,
@@ -244,6 +273,26 @@ export const buildTemplates = (
           transparent: false,
           minimal: true,
         };
+
+        if (exampleIsLong) {
+          // Menu-item actions stop propagation, so the click never selects or
+          // expands the item. The modal rides reqore's global modal queue
+          // (rendered by the provider portal), so no host component is needed
+          // — the modals wrapper injects `isOpen`/`onClose` itself.
+          item.rightAction = {
+            icon: 'QuestionLine',
+            compact: true,
+            tooltip: 'Show the full example value',
+            onClick: () => {
+              modalStore.getState().addModal(
+                createElement(ReqraftTemplateExampleValueModal, {
+                  label: itemDisplayName,
+                  value: serializedExample,
+                })
+              );
+            },
+          };
+        }
 
         if (childItems?.length) {
           item.items = mapTemplates(
