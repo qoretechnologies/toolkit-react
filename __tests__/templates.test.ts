@@ -3,6 +3,7 @@ import {
   buildTemplates,
   filterTemplatesByType,
   findTemplate,
+  findTemplateByPath,
   getTemplateKey,
   getTemplateValue,
   isBracedTemplateToken,
@@ -118,6 +119,31 @@ describe('helpers/templates', () => {
       expect(findTemplate(aliased, '$data:{dc_ai_reply.usage.total_tokens}')?.label).toBe(
         'Total Tokens'
       );
+    });
+
+    // A catalogue stops at a list: `choices` is offered, `choices[0]...` is
+    // not, so an operator's hand-extended path has no item of its own.
+    it('names a hand-extended path after its nearest catalogue ancestor', () => {
+      const extended = findTemplateByPath(aliased, '$data:{3.choices[0].message.content}');
+      expect(extended?.item.label).toBe('Choices');
+      expect(extended?.remainder).toBe('[0].message.content');
+
+      // …and through the alias spelling, which is how a template Qog saves it.
+      const viaAlias = findTemplateByPath(aliased, '$data:{dc_ai_reply.choices[0].message.content}');
+      expect(viaAlias?.item.label).toBe('Choices');
+      expect(viaAlias?.remainder).toBe('[0].message.content');
+    });
+
+    it('only matches at a path boundary, within the same token key', () => {
+      // `choicesOther` must not be named after `choices`.
+      expect(findTemplateByPath(aliased, '$data:{3.choicesOther}')).toBeUndefined();
+      // A different token key never lends its name to a $data value.
+      expect(findTemplateByPath(aliased, '$config:{3.choices.deep}')).toBeUndefined();
+      // An exact value is not an extension — findTemplate answers that.
+      expect(findTemplateByPath(aliased, '$data:{3.choices}')).toBeUndefined();
+      // Non-braced and unknown values resolve to nothing.
+      expect(findTemplateByPath(aliased, '$local:id')).toBeUndefined();
+      expect(findTemplateByPath(aliased, '$data:{9.nope.deep}')).toBeUndefined();
     });
 
     it('keeps the item value authoritative and still rejects unknown refs', () => {

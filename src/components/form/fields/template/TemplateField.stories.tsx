@@ -411,6 +411,55 @@ export const AliasedStateTemplateValue: StoryObj<typeof meta> = {
   },
 };
 
+/** A catalogue can only offer what the action's output type declares, so it
+ *  stops at a list — `choices` is offered, `choices[0].message.content` is
+ *  hand-written past it. Such a value has no item of its own and used to
+ *  render as its raw token; it is now named after its nearest ancestor. */
+export const ExtendedPathTemplateValue: StoryObj<typeof meta> = {
+  args: {
+    component: LongStringField,
+    type: 'string',
+    allowTemplates: true,
+    allowCustomValues: true,
+    value: '$data:{dc_ai_reply.choices[0].message.content}',
+    templates: {
+      items: [
+        {
+          label: 'Generate AI Reply',
+          items: [
+            {
+              label: 'Choices',
+              value: '$data:{3.choices}',
+              badge: 'list',
+              metadata: { aliasValues: ['$data:{dc_ai_reply.choices}'] },
+            },
+          ],
+        },
+      ],
+    } as any,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField holding a path extended past the named field it starts from ($data:{dc_ai_reply.choices[0].message.content}, where the catalogue only offers "choices") — the chip is named after its nearest ancestor as "Choices[0].message.content" instead of printing the raw token.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => {
+      const chip = Array.from(document.querySelectorAll('.reqore-button')).find((button) =>
+        button.textContent?.includes('Choices[0].message.content')
+      );
+      expect(chip, 'the extended path is named after its ancestor').toBeTruthy();
+    });
+    const rawChips = Array.from(document.querySelectorAll('.reqore-button')).filter((button) =>
+      button.textContent?.includes('$data:{')
+    );
+    expect(rawChips, 'no chip prints the raw token').toHaveLength(0);
+  },
+};
+
 export const ElementTypeInListShowsCorrectTemplates: StoryObj<typeof meta> = {
   args: {
     component: auto,

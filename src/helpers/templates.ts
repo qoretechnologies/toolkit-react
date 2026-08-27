@@ -103,6 +103,68 @@ const matchesTemplateValue = (item: TReqoreDropdownItem, value: string): boolean
   item.value === value ||
   !!(item.metadata as { aliasValues?: string[] } | undefined)?.aliasValues?.includes(value);
 
+/** Splits `$data:{a.b.c}` into its key (`$data`) and inner path (`a.b.c`). */
+const TEMPLATE_TOKEN_PATH = /^(\$[A-Za-z_][\w-]*):\{(.*)\}$/;
+
+const getTokenPath = (value?: unknown): { key: string; path: string } | undefined => {
+  const match = typeof value === 'string' ? TEMPLATE_TOKEN_PATH.exec(value) : null;
+  return match ? { key: match[1], path: match[2] } : undefined;
+};
+
+/**
+ * The longest catalogue item whose path is a PREFIX of `value`, plus the part
+ * of the path it does not cover.
+ *
+ * A catalogue can only offer what the action's output type declares, so it
+ * stops at a list: `choices` is offered, `choices[0].message.content` is not —
+ * an operator hand-extends the path past the named field. Such a value has no
+ * item to match and used to render as its own raw token. Naming it by its
+ * nearest ancestor (`Choices[0].message.content`) keeps the chip readable
+ * without inventing a catalogue entry that does not exist.
+ *
+ * The match must break at a path boundary (`.` or `[`) so `choicesOther` is
+ * never named after `choices`, and the token keys must agree so a `$config:`
+ * item never names a `$data:` value.
+ */
+export const findTemplateByPath = (
+  templates: IReqoreFormTemplates,
+  value: string
+): { item: TReqoreDropdownItem; remainder: string } | undefined => {
+  const ref = getTokenPath(value);
+  if (!ref) return undefined;
+
+  let best: { item: TReqoreDropdownItem; path: string; remainder: string } | undefined;
+
+  const consider = (item: TReqoreDropdownItem, candidate?: string) => {
+    const itemPath = getTokenPath(candidate);
+    if (!itemPath || itemPath.key !== ref.key || !ref.path.startsWith(itemPath.path)) {
+      return;
+    }
+    const boundary = ref.path[itemPath.path.length];
+    if (boundary !== '.' && boundary !== '[') {
+      return;
+    }
+    if (!best || itemPath.path.length > best.path.length) {
+      best = { item, path: itemPath.path, remainder: ref.path.slice(itemPath.path.length) };
+    }
+  };
+
+  const walk = (items?: TReqoreDropdownItems) => {
+    items?.forEach((item) => {
+      consider(item, item.value as string);
+      (item.metadata as { aliasValues?: string[] } | undefined)?.aliasValues?.forEach((alias) =>
+        consider(item, alias)
+      );
+      if (item.items) {
+        walk(item.items);
+      }
+    });
+  };
+
+  walk(templates?.items);
+  return best ? { item: best.item, remainder: best.remainder } : undefined;
+};
+
 export const findTemplate = (
   templates: IReqoreFormTemplates,
   value: string
