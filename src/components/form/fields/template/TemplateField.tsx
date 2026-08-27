@@ -30,13 +30,12 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
   filterTemplatesByType as templatesFilterFunc,
-  findTemplate,
-  findTemplateByPath,
   getTemplateKey,
   getTemplateValue,
   isBracedTemplateToken,
   isCompleteTemplateToken,
   isValueTemplate,
+  resolveTemplateLabel,
 } from '../../../../helpers/templates';
 import { getTypeFromValue } from '../../../../helpers/validations';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
@@ -219,18 +218,11 @@ export const TemplateDropdownSelector = memo(
     size,
     ...rest
   }: ITemplateDropdownSelectorProps) => {
-    const exactTemplate = findTemplate(templates, value);
-    // A path hand-extended past the named field it starts from (`choices` is
-    // offered, `choices[0].message.content` is not) has no item of its own —
-    // name it after its nearest ancestor rather than printing the raw token.
-    const extendedTemplate = exactTemplate ? undefined : findTemplateByPath(templates, value);
-    const template = exactTemplate || extendedTemplate?.item;
-    const label =
-      exactTemplate?.label ||
-      (extendedTemplate && `${extendedTemplate.item.label}${extendedTemplate.remainder}`) ||
-      value ||
-      rest.label ||
-      'Select Template';
+    // One resolver for every surface that names a reference — the picker chip
+    // here, the read-only tag, and the compact row's expression summary.
+    const resolved = resolveTemplateLabel(templates, value);
+    const template = resolved.item;
+    const label = resolved.label || rest.label || 'Select Template';
     const leftIconProps = useMemo(
       (): IReqoreButtonProps['leftIconProps'] => ({
         image: template?.metadata?.image,
@@ -380,7 +372,7 @@ export const TemplateField = memo(
     const showTemplateToggle = allowCustomValues && allowTemplates && !rest.arg_schema;
 
     // Only a BRACED context ref (`$data:{…}` — machine-written, nobody types
-    // one) renders as the picker chip (label + app image via findTemplate)
+    // one) renders as the picker chip (named via `resolveTemplateLabel`)
     // rather than as its raw text in a string editor. Plain word-path tokens
     // (`$local:id`) are typeable, so per the build #123 review they keep the
     // input that offers templates while typing. Mixed text-and-token strings

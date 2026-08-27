@@ -22,6 +22,8 @@ import {
   findTemplate,
   getTemplateTagStyle,
   isValueTemplate,
+  resolveTemplateLabel,
+  splitTemplateTokens,
   TTemplateMeta,
 } from '../../../helpers/templates';
 import { richtextToSegments } from '../../../helpers/common';
@@ -375,6 +377,48 @@ export const CompactRow = memo(
                       (templates ? findTemplate(templates, segment.value || '') : undefined)
                         ?.metadata as TTemplateMeta | undefined
                     )}
+                  />
+                : <span key={index} style={{ whiteSpace: 'pre' }}>
+                    {segment.text}
+                  </span>
+              )}
+            </span>
+          );
+        }
+      }
+
+      // An expression summarises to one line of text, and any template
+      // reference inside it used to print as its own raw token — the same
+      // reference the editor shows as a named chip. Chip them here too, on the
+      // richtext branch's pattern above, so a value reads the same wherever it
+      // is shown. Falls through to the plain string when the summary holds no
+      // reference, or when nothing resolves it to a name.
+      if ((field as { is_expression?: boolean })?.is_expression && formatted) {
+        const segments = splitTemplateTokens(formatted);
+        const named = segments.map((segment) =>
+          segment.kind === 'token' ?
+            { ...segment, ...resolveTemplateLabel(templates, segment.text) }
+          : segment
+        );
+        const resolvesAny = named.some(
+          (segment) => segment.kind === 'token' && segment.label !== segment.text
+        );
+
+        if (resolvesAny) {
+          return (
+            <span style={{ ...wrapStyle, gap: 4, overflow: 'hidden' }}>
+              {named.map((segment, index) =>
+                segment.kind === 'token' ?
+                  <ReqoreTag
+                    key={index}
+                    size='tiny'
+                    // Inherit the row's font size so the chip shares a baseline
+                    // with the text around it — see the richtext branch above.
+                    style={{ fontSize: 'inherit' }}
+                    icon='ExchangeDollarLine'
+                    label={segment.label}
+                    tooltip={segment.text}
+                    {...getTemplateTagStyle(segment.item?.metadata as TTemplateMeta | undefined)}
                   />
                 : <span key={index} style={{ whiteSpace: 'pre' }}>
                     {segment.text}
