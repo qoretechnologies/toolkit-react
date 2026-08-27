@@ -38,6 +38,29 @@ export const getTemplateValue = (value: string): string => {
   return value.substring(colonIndex + 1);
 };
 
+/**
+ * The canonical template-token grammar (twin of the IDE's
+ * `helpers/templateValue.ts` — keep the two in step). A token is
+ * `$<key>:<segment>(:<segment>)*` where the key may carry dashes
+ * (`-expr`) and every segment is either a plain word or a braced
+ * context reference — `{W2n….filename}` — whose content may hold dots,
+ * colons, spaces and dashes (`:{deep:test:list}`,
+ * `{id.Created by.name}`). `isValueTemplate` above stays deliberately
+ * LOOSER (starts with `$`, has `:`): it answers "does the user mean a
+ * template here" while typing; use the strict check below when a decision
+ * must not misfire on user-typed dollar-strings.
+ */
+export const TEMPLATE_TOKEN_SOURCE =
+  '\\$[A-Za-z_][\\w-]*(?::(?:\\{[^}]*\\}|[A-Za-z_][\\w-]*))+';
+
+const COMPLETE_TEMPLATE_TOKEN = new RegExp(`^${TEMPLATE_TOKEN_SOURCE}$`);
+
+/** STRICT whole-value check: the entire string is one well-formed template
+ *  token (`:{id.path}`, `:item`, …) — nothing before or after.
+ *  `'$foo: hello'` passes the loose check but not this one. */
+export const isCompleteTemplateToken = (value?: unknown): value is string =>
+  typeof value === 'string' && COMPLETE_TEMPLATE_TOKEN.test(value);
+
 export const findTemplate = (
   templates: IReqoreFormTemplates,
   value: string

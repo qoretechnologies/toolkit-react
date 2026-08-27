@@ -33,6 +33,7 @@ import {
   findTemplate,
   getTemplateKey,
   getTemplateValue,
+  isCompleteTemplateToken,
   isValueTemplate,
 } from '../../../../helpers/templates';
 import { getTypeFromValue } from '../../../../helpers/validations';
@@ -335,8 +336,15 @@ export const TemplateField = memo(
 
     useEffect(() => {
       if (!isTemplate && isValueTemplate(value) && allowTemplates) {
-        // Do not set the template value if the value is a string in auto mode
-        if (type === 'auto' && getTypeFromValue(value) === 'string') {
+        // In auto mode, leave user-typed dollar-strings alone ('$foo: hello'
+        // passes the loose check) — but a string that IS one well-formed token
+        // ($data:{…}, $config:item) must still flip into template mode, or an
+        // arg whose value hydrates after mount is stuck rendering raw text.
+        if (
+          type === 'auto' &&
+          getTypeFromValue(value) === 'string' &&
+          !isCompleteTemplateToken(value)
+        ) {
           return;
         }
 
@@ -358,6 +366,14 @@ export const TemplateField = memo(
     );
 
     const showTemplateToggle = allowCustomValues && allowTemplates && !rest.arg_schema;
+
+    // A value that IS one well-formed token renders as the picker chip (label +
+    // app image via findTemplate) rather than as its raw `$data:{…}` text in a
+    // string editor — a plain textarea cannot chip, so a rehydrated draft used
+    // to show the literal token. Mixed text-and-token strings keep the string
+    // editor; the chip-in-editor treatment arrives with the rich-text string
+    // mode.
+    const templateValueIsCompleteToken = isCompleteTemplateToken(templateValue);
 
     const templateSupportsCustomValues =
       allowCustomValues && type === 'string' && !hasOnlyAllowedValues;
@@ -752,7 +768,7 @@ export const TemplateField = memo(
           />
         ) : null}
 
-        {isTemplate && templateSupportsCustomValues ? (
+        {isTemplate && templateSupportsCustomValues && !templateValueIsCompleteToken ? (
           <LongStringField
             className='template-selector'
             type='string'
@@ -769,7 +785,8 @@ export const TemplateField = memo(
           />
         ) : null}
 
-        {showTemplatesDropdown ? (
+        {showTemplatesDropdown ||
+        (isTemplate && templateSupportsCustomValues && templateValueIsCompleteToken) ? (
           <TemplateDropdownSelector
             allowCustomValues={allowCustomValues}
             templates={templates}

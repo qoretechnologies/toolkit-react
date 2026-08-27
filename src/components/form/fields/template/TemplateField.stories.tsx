@@ -307,6 +307,56 @@ export const TemplateValue: StoryObj<typeof meta> = {
   },
 };
 
+/** REGRESSION — a rehydrated whole-token template value (the FSM state-output
+ *  `$data:{…}` form above all) must render as the picker CHIP, not as its raw
+ *  token text in a string editor. */
+export const BracedTemplateValue: StoryObj<typeof meta> = {
+  args: {
+    component: LongStringField,
+    type: 'string',
+    allowTemplates: true,
+    allowCustomValues: true,
+    value: '$data:{W2n_BuSHbaNrbvV1MkfPF.filename}',
+    templates: buildTemplates({
+      state_outputs: {
+        display_name: 'Context Data',
+        short_desc: 'Outputs of previous states',
+        app: 'GoogleDrive',
+        items: [
+          {
+            name: 'filename',
+            display_name: 'Filename',
+            short_desc: 'The uploaded file name',
+            desc: 'The uploaded file name',
+            value: '$data:{W2n_BuSHbaNrbvV1MkfPF.filename}',
+            type: 'string',
+          },
+        ],
+      },
+    } as any),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for a string field whose saved value is a braced state-output reference ($data:{id.filename}) — the field shows the resolved picker chip ("Filename"), never the raw token in a textarea, which is what rehydrated drafts degraded to before the token grammar learned braces.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => {
+      const chip = Array.from(document.querySelectorAll('.reqore-button')).find((button) =>
+        button.textContent?.includes('Filename')
+      );
+      expect(chip, 'the braced value renders as the labeled picker chip').toBeTruthy();
+    });
+    const rawTextareas = Array.from(document.querySelectorAll('textarea')).filter((textarea) =>
+      textarea.value.includes('$data:{')
+    );
+    expect(rawTextareas, 'no textarea holds the raw token').toHaveLength(0);
+  },
+};
+
 export const ElementTypeInListShowsCorrectTemplates: StoryObj<typeof meta> = {
   args: {
     component: auto,
@@ -521,7 +571,7 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches to the $local:id template value.',
+          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches into template mode and shows the resolved picker chip (a whole-token value renders as the chip, not as its raw $local:id text).',
       },
     },
   },
@@ -533,7 +583,15 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
 
     await sleep(100);
 
-    await expect(canvas.getByDisplayValue('$local:id')).toBeInTheDocument();
+    // A whole-token value renders as the resolved picker chip — never as the
+    // raw token in a textarea (that was the rehydration bug).
+    await waitFor(() => {
+      const chip = Array.from(canvasElement.querySelectorAll('.reqore-button')).find((button) =>
+        button.textContent?.includes('Interface ID')
+      );
+      expect(chip, 'the picked template renders as the labeled chip').toBeTruthy();
+    });
+    await expect(canvas.queryByDisplayValue('$local:id')).not.toBeInTheDocument();
   },
 };
 

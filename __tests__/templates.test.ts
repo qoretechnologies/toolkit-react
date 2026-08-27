@@ -5,6 +5,7 @@ import {
   findTemplate,
   getTemplateKey,
   getTemplateValue,
+  isCompleteTemplateToken,
   isValueTemplate,
   ITemplatesPayload,
 } from '../src/helpers/templates';
@@ -24,6 +25,24 @@ describe('helpers/templates', () => {
       expect(getTemplateValue('$config:item')).toBe('item');
       // Values containing colons stay intact.
       expect(getTemplateValue('$config:a:b')).toBe('a:b');
+    });
+
+    it('strictly recognizes whole-value tokens, braced context refs included', () => {
+      // the FSM state-output form that used to rehydrate as raw text
+      expect(isCompleteTemplateToken('$data:{W2n_BuSHbaNrbvV1MkfPF.filename}')).toBe(true);
+      // braced paths may carry colons, dots, spaces and dashes
+      expect(isCompleteTemplateToken('$data:{deep:test:list}')).toBe(true);
+      expect(isCompleteTemplateToken('$data:{id.Created by.name}')).toBe(true);
+      expect(isCompleteTemplateToken('$data:{abc.Multi-select}')).toBe(true);
+      // dashed template keys and plain word paths
+      expect(isCompleteTemplateToken('$qore-expr:{1 + 2}')).toBe(true);
+      expect(isCompleteTemplateToken('$local:input')).toBe(true);
+      // NOT whole tokens: surrounding text, spaced dollar-strings, digit keys
+      expect(isCompleteTemplateToken('x $data:{a.b}')).toBe(false);
+      expect(isCompleteTemplateToken('$data:{a.b}.csv')).toBe(false);
+      expect(isCompleteTemplateToken('$foo: hello')).toBe(false);
+      expect(isCompleteTemplateToken('$5:00 fee')).toBe(false);
+      expect(isCompleteTemplateToken(undefined)).toBe(false);
     });
   });
 
