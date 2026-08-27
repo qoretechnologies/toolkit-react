@@ -19,6 +19,7 @@ import { AutoFormField as auto } from '../auto/AutoFormField';
 import LongStringFormField from '../long-string/LongString';
 import NumberFormField from '../number/Number';
 import { StringFormField } from '../string/String';
+import { LONG_EXAMPLE_VALUE } from './__fixtures__/longExampleValue';
 import { TemplateField } from './TemplateField';
 import multiLevelTemplates from './__fixtures__/multiLevelTemplates.json';
 import templates from './__fixtures__/templates.json';
@@ -650,5 +651,151 @@ export const TemplateWithItemsCanBeSelected: StoryObj<typeof meta> = {
     await TemplatesWithMultipleLevelsAndHashField.play(args);
     await _testsClickButton({ selector: '.reqore-menu-item-left-action' });
     await _testsWaitForText('Testing Hash');
+  },
+};
+
+/* One group, four items covering every affordance combination:
+   - "Attachment Body"       — leaf, LONG example  → "?" (right) only
+   - "Attachment Name"       — leaf, short example → no actions at all
+   - "Message Author Props"  — hash with children, LONG example (the whole
+     object) → BOTH: the "+" select action (left) and the "?" (right)
+   - "Delivery Flags"        — hash with children, short example → "+" only
+   The sentinel at the very end proves truncation in the picker and
+   completeness in the modal. */
+const longExampleTemplates = {
+  gmail_attachment: {
+    display_name: 'New Attachment',
+    short_desc: 'Data from the attachment trigger',
+    app: 'Gmail',
+    items: [
+      {
+        name: 'attachment_body',
+        display_name: 'Attachment Body',
+        value: '$data:{on_attachment.data}',
+        type: 'data',
+        example_value: LONG_EXAMPLE_VALUE,
+      },
+      {
+        name: 'attachment_name',
+        display_name: 'Attachment Name',
+        value: '$data:{on_attachment.name}',
+        type: 'string',
+        example_value: 'invoice.pdf',
+      },
+      {
+        name: 'author',
+        display_name: 'Message Author Properties',
+        value: '$data:{on_attachment.author}',
+        type: 'hash',
+        // A parent's example is the whole object, so it goes long almost by
+        // definition — this is the "+ AND ?" case.
+        example_value: {
+          name: 'Ada Lovelace',
+          email: 'ada@example.com',
+          signature: LONG_EXAMPLE_VALUE.slice(0, 600),
+        },
+        items: [
+          {
+            name: 'author_name',
+            display_name: 'Name',
+            value: '$data:{on_attachment.author.name}',
+            type: 'string',
+            example_value: 'Ada Lovelace',
+          },
+          {
+            name: 'author_email',
+            display_name: 'Email',
+            value: '$data:{on_attachment.author.email}',
+            type: 'string',
+            example_value: 'ada@example.com',
+          },
+        ],
+      },
+      {
+        name: 'flags',
+        display_name: 'Delivery Flags',
+        value: '$data:{on_attachment.flags}',
+        type: 'hash',
+        // Small object: the serialized example stays under the preview
+        // threshold, so this parent keeps ONLY the "+" select action.
+        example_value: { read: true },
+        items: [
+          {
+            name: 'flags_read',
+            display_name: 'Read',
+            value: '$data:{on_attachment.flags.read}',
+            type: 'bool',
+            example_value: true,
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
+  args: {
+    component: LongStringField,
+    value: 'Some string',
+    type: 'string',
+    templates: buildTemplates(longExampleTemplates as any),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Every item-affordance combination in one picker: a leaf with a whole-base64-file example gets ONLY the "?" action (right) opening the full value in a modal; a hash parent whose own example object is long gets BOTH the "+" select action (left) and the "?"; a small hash parent keeps only the "+"; and a short leaf has no actions at all. Neither previewing nor copying ever selects an item.',
+      },
+    },
+  },
+  play: async ({ args }) => {
+    await _testsOpenTemplates();
+    await _testsWaitForText('Attachment Body');
+
+    // The picker shows TRUNCATED previews — the long value's tail sentinel
+    // must not be in the popover…
+    const popover = document.querySelector('.reqore-popover-content');
+    await expect(popover.textContent).toContain('Example value: "JVBERi0x');
+    await expect(popover.textContent).not.toContain('THE_VERY_END');
+
+    // …and the affordances land exactly by shape: "?" on the long leaf AND
+    // the long-example hash parent (2), "+" on both hash parents (2) — the
+    // long-example parent carries both at once. The short leaf and the small
+    // parent's example stay modal-free.
+    await expect(popover.querySelectorAll('.reqore-menu-item-right-action').length).toBe(2);
+    await expect(popover.querySelectorAll('.reqore-menu-item-left-action').length).toBe(2);
+
+    await _testsClickButton({ selector: '.reqore-menu-item-right-action' });
+
+    const modal = await waitFor(
+      () => {
+        const el = document.querySelector('.reqraft-template-example-value-modal');
+        if (!el) throw new Error('modal not open yet');
+        return el;
+      },
+      { timeout: 10000 }
+    );
+
+    // The modal holds the WHOLE value, down to the sentinel.
+    const textarea = modal.querySelector('textarea') as HTMLTextAreaElement;
+    await expect(textarea.value.endsWith('THE_VERY_END"')).toBe(true);
+
+    // Close it; opening/previewing must never have selected the item.
+    fireEvent.click(modal.querySelector('.reqore-drawer-close-button'));
+    await waitFor(
+      () => {
+        if (document.querySelector('.reqraft-template-example-value-modal')) {
+          throw new Error('modal still open');
+        }
+      },
+      { timeout: 10000 }
+    );
+    await expect(args.onChange).not.toHaveBeenCalled();
+
+    // End on the informative frame for the visual snapshot: the popover with
+    // the truncated preview and its "?" action visible (the assertions above
+    // close everything, which would leave the capture showing an empty field).
+    await _testsOpenTemplates();
+    await _testsWaitForText('Attachment Body');
   },
 };

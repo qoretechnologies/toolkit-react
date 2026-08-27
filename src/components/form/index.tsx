@@ -21,6 +21,7 @@ export * from './fields/rich-text/RichText';
 export * from './fields/select/Select';
 export * from './fields/select/SelectCollection';
 export * from './fields/string/String';
+export * from './fields/template/ExampleValueModal';
 export * from './fields/template/TemplateField';
 export * from './engine/FormEngine';
 export * from './engine/optionActions';
