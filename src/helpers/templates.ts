@@ -84,6 +84,25 @@ export const isCompleteTemplateToken = (value?: unknown): value is string =>
 export const isBracedTemplateToken = (value?: unknown): value is string =>
   isCompleteTemplateToken(value) && value.includes(':{');
 
+/**
+ * An FSM state carries TWO identities: the key it occupies in the `states`
+ * hash and its own `id`. The IDE gives both the same nanoid, so nothing
+ * authored there can tell them apart — but a template hand-writes numbered
+ * keys (`'1'`, `'2'`, …) over meaningful ids (`dc_ai_reply`), its saved
+ * `$data:{…}` references use the **id**, and the server's design-time
+ * catalogue spells its item values with the **key**. The two never match as
+ * text, so a template-derived Qog renders the raw token where a named chip
+ * belongs.
+ *
+ * The producer of the catalogue (the IDE, which is the side that holds the
+ * states) attaches the alternate spelling here rather than rewriting either
+ * side — a picked value must keep storing exactly what the catalogue says.
+ * Consuming it is therefore purely a display concern.
+ */
+const matchesTemplateValue = (item: TReqoreDropdownItem, value: string): boolean =>
+  item.value === value ||
+  !!(item.metadata as { aliasValues?: string[] } | undefined)?.aliasValues?.includes(value);
+
 export const findTemplate = (
   templates: IReqoreFormTemplates,
   value: string
@@ -94,7 +113,7 @@ export const findTemplate = (
 
   const findItem = (items: TReqoreDropdownItems) => {
     items?.forEach((item) => {
-      if (item.value === value) {
+      if (matchesTemplateValue(item, value)) {
         result = item;
         return;
       }

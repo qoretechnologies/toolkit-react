@@ -31,8 +31,27 @@ IDE surface that exposed it: FSM draft 70, `split($data:{…filename}, …)`.
 | `src/helpers/templates.ts` | `TEMPLATE_TOKEN_SOURCE` (canonical grammar, braced segments allow `.: -` and spaces) + strict `isCompleteTemplateToken` |
 | `src/components/form/fields/template/TemplateField.tsx` | auto-mode flip guard narrowed to complete tokens; whole-token template values render the `TemplateDropdownSelector` picker chip instead of the LongString textarea |
 | `src/components/form/fields/template/TemplateField.stories.tsx` | new `BracedTemplateValue` regression story; `TemplateCanBeSelected` play updated to assert the chip (was asserting the raw-token textarea) |
-| `__tests__/templates.test.ts` | strict-grammar cases (braced, colon-braces, dashed keys, spaced paths, negatives) |
-| `package.json` | `0.10.36` → `0.10.37` (every-PR-bumps rule) |
+| `__tests__/templates.test.ts` | strict-grammar cases (braced, colon-braces, dashed keys, spaced paths, negatives) + alias resolution |
+| `package.json` | `0.10.36` → `0.10.38` (every-PR-bumps rule; re-bumped after develop published `0.10.37`) |
+
+### Second fix in this PR — the state-identity alias
+
+An FSM state has TWO identities: its key in the `states` hash and its own
+`id`. The IDE gives both the same nanoid, so nothing authored there can tell
+them apart — but a **template** hand-writes numbered keys (`'1'`, `'2'`, …)
+over meaningful ids (`dc_ai_reply`), its saved `$data:{…}` refs use the id,
+and the server's catalogue (`sprintf("$data:{%s.%s}", state_id, name)`)
+spells item values with the key. They never match as text, so every
+template-derived Qog printed the raw token where a named chip belongs —
+`$data:{dc_ai_reply.choices}` in the Discord assistant's Save Reply state.
+
+`findTemplate` now also accepts an item's `metadata.aliasValues`. The
+producer that holds the states (qorus-ide's `buildTemplates`) attaches the
+alternate spelling; reqraft only consumes it. Nothing rewrites either
+spelling, so a picked value still stores exactly what the catalogue says —
+this is display-only. The alternative (emitting the id from the server, or
+rewriting catalogue values FE-side) changes what new picks store and needs
+the id's uniqueness enforced first; see the qorus-side write-up.
 
 Deliberately NOT done here: the qorus-ide-style rich-editor treatment for
 template mode. Develop's `RichTextFormField` has no string mode — that is

@@ -83,6 +83,50 @@ describe('helpers/templates', () => {
       expect(findTemplate(templates, '$ctx:nope')).toBeUndefined();
       expect(findTemplate(templates, '')).toBeUndefined();
     });
+
+    // A template-authored FSM state is keyed '3' in the states hash while its
+    // own id is `dc_ai_reply`; the catalogue spells item values with the key
+    // and the saved reference uses the id. The producer supplies the alternate
+    // spelling so the label still resolves — see `matchesTemplateValue`.
+    const aliased: IReqoreFormTemplates = {
+      items: [
+        {
+          label: 'Generate AI Reply',
+          items: [
+            {
+              label: 'Choices',
+              value: '$data:{3.choices}',
+              metadata: { aliasValues: ['$data:{dc_ai_reply.choices}'] },
+            },
+            {
+              label: 'Usage',
+              items: [
+                {
+                  label: 'Total Tokens',
+                  value: '$data:{3.usage.total_tokens}',
+                  metadata: { aliasValues: ['$data:{dc_ai_reply.usage.total_tokens}'] },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    it('resolves an item through an alias spelling, at any depth', () => {
+      expect(findTemplate(aliased, '$data:{dc_ai_reply.choices}')?.label).toBe('Choices');
+      expect(findTemplate(aliased, '$data:{dc_ai_reply.usage.total_tokens}')?.label).toBe(
+        'Total Tokens'
+      );
+    });
+
+    it('keeps the item value authoritative and still rejects unknown refs', () => {
+      // The catalogue's own spelling wins and is what a pick stores.
+      expect(findTemplate(aliased, '$data:{3.choices}')?.value).toBe('$data:{3.choices}');
+      expect(findTemplate(aliased, '$data:{dc_ai_reply.choices}')?.value).toBe('$data:{3.choices}');
+      // An alias never widens the match to another state.
+      expect(findTemplate(aliased, '$data:{dc_send_reply.choices}')).toBeUndefined();
+    });
   });
 
   describe('filterTemplatesByType', () => {

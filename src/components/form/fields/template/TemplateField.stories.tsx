@@ -358,6 +358,59 @@ export const BracedTemplateValue: StoryObj<typeof meta> = {
   },
 };
 
+/** A template-authored Qog keys its states `'1'`, `'2'`, … while each state
+ *  carries its own id, and its saved `$data:{…}` refs use that id — so the
+ *  catalogue (spelled with the key) and the value (spelled with the id) never
+ *  match as text. The producer supplies the alternate spelling as an alias so
+ *  the chip still resolves to a name instead of printing the raw token. */
+export const AliasedStateTemplateValue: StoryObj<typeof meta> = {
+  args: {
+    component: LongStringField,
+    type: 'string',
+    allowTemplates: true,
+    allowCustomValues: true,
+    // what the Qog has saved — the state's own id
+    value: '$data:{dc_ai_reply.choices}',
+    templates: {
+      items: [
+        {
+          label: 'Generate AI Reply',
+          description: 'Outputs of the Groq chat-completion state',
+          items: [
+            {
+              label: 'Choices',
+              // what the server's catalogue offers — the states-hash key
+              value: '$data:{3.choices}',
+              badge: 'list',
+              metadata: { aliasValues: ['$data:{dc_ai_reply.choices}'] },
+            },
+          ],
+        },
+      ],
+    } as any,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField holding a state-output reference spelled with the state id ($data:{dc_ai_reply.choices}) while the catalogue offers the same item spelled with the states-hash key ($data:{3.choices}) — the chip resolves through the item alias and shows "Choices", where it used to print the raw token.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => {
+      const chip = Array.from(document.querySelectorAll('.reqore-button')).find((button) =>
+        button.textContent?.includes('Choices')
+      );
+      expect(chip, 'the aliased value resolves to the labeled picker chip').toBeTruthy();
+    });
+    const rawChips = Array.from(document.querySelectorAll('.reqore-button')).filter((button) =>
+      button.textContent?.includes('$data:{')
+    );
+    expect(rawChips, 'no chip prints the raw token').toHaveLength(0);
+  },
+};
+
 export const ElementTypeInListShowsCorrectTemplates: StoryObj<typeof meta> = {
   args: {
     component: auto,
