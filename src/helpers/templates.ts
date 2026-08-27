@@ -191,6 +191,14 @@ export const findTemplate = (
 };
 
 /**
+ * Joins a catalogue item's name to the part of the path it does not cover.
+ * A field step reads as a step (`Choices › message`), while an array index
+ * binds to the name it indexes (`Choices[0]`) rather than floating off it.
+ */
+const composeExtendedLabel = (label: string, remainder: string): string =>
+  remainder.startsWith('.') ? `${label} › ${remainder.slice(1)}` : `${label}${remainder}`;
+
+/**
  * The one answer to "what is this reference called?", so a value reads the
  * same in the picker chip, the read-only tag and the compact row's summary.
  * Exact match first (aliases included), then the nearest catalogue ancestor
@@ -212,7 +220,10 @@ export const resolveTemplateLabel = (
 
   const extended = findTemplateByPath(templates, value);
   if (extended) {
-    return { label: `${extended.item.label}${extended.remainder}`, item: extended.item };
+    return {
+      label: composeExtendedLabel(extended.item.label as string, extended.remainder),
+      item: extended.item,
+    };
   }
 
   return { label: value };

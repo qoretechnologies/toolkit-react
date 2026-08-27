@@ -34,8 +34,8 @@ import {
   getTemplateValue,
   isBracedTemplateToken,
   isCompleteTemplateToken,
+  describeTemplateReference,
   isValueTemplate,
-  resolveTemplateLabel,
 } from '../../../../helpers/templates';
 import { getTypeFromValue } from '../../../../helpers/validations';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
@@ -219,8 +219,10 @@ export const TemplateDropdownSelector = memo(
     ...rest
   }: ITemplateDropdownSelectorProps) => {
     // One resolver for every surface that names a reference — the picker chip
-    // here, the read-only tag, and the compact row's expression summary.
-    const resolved = resolveTemplateLabel(templates, value);
+    // here, the read-only tag, and the compact row's expression summary. The
+    // row and this editor must agree: a reference that reads as its path when
+    // the row is closed cannot read as `$data:{…}` the moment it is opened.
+    const resolved = describeTemplateReference(templates, value);
     const template = resolved.item;
     const label = resolved.label || rest.label || 'Select Template';
     const leftIconProps = useMemo(

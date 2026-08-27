@@ -4,7 +4,7 @@ import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { memo } from 'react';
 import {
   getTemplateTagStyle,
-  resolveTemplateLabel,
+  describeTemplateReference,
   TTemplateMeta,
 } from '../../../../helpers/templates';
 
@@ -26,7 +26,7 @@ export interface IReadOnlyTemplateTagProps {
  */
 export const ReadOnlyTemplateTag = memo(
   ({ value, templates, size }: IReadOnlyTemplateTagProps) => {
-    const { label, item } = resolveTemplateLabel(templates, value);
+    const { label, item } = describeTemplateReference(templates, value);
     const metadata = item?.metadata as TTemplateMeta | undefined;
     return (
       <ReqoreTagGroup size={size}>

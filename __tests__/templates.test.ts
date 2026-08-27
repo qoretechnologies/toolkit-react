@@ -184,6 +184,18 @@ describe('helpers/templates', () => {
       ).toBe('Choices[0].message.content');
     });
 
+    it('joins a field step with a separator and keeps an index attached', () => {
+      // A field step reads as a step…
+      expect(resolveTemplateLabel(templates, '$data:{3.choices.first}').label).toBe(
+        'Choices \u203a first'
+      );
+      // …while an array index binds to the name it indexes, rather than
+      // floating off it as a separate step.
+      expect(resolveTemplateLabel(templates, '$data:{3.choices[0].message.content}').label).toBe(
+        'Choices[0].message.content'
+      );
+    });
+
     it('falls back to the raw value when the catalogue explains nothing', () => {
       expect(resolveTemplateLabel(templates, '$data:{9.unknown}').label).toBe('$data:{9.unknown}');
       expect(resolveTemplateLabel(undefined, '$data:{3.choices}').label).toBe('$data:{3.choices}');
