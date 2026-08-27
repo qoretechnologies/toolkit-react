@@ -164,5 +164,64 @@ describe('helpers/templates', () => {
       // An item's own data_role wins over the inherited group role.
       expect(hashItem?.items?.[0].metadata?.dataRole).toBe('output');
     });
+
+    describe('long example values', () => {
+      const longValue = `${'x'.repeat(200)}THE_END`;
+      const longPayload: ITemplatesPayload = {
+        ctx: {
+          display_name: 'Context Data',
+          items: [
+            {
+              display_name: 'Attachment Body',
+              value: '$local:data',
+              type: 'data',
+              example_value: longValue,
+            },
+            {
+              display_name: 'Attachment Name',
+              value: '$local:name',
+              type: 'string',
+              example_value: 'invoice.pdf',
+            },
+            {
+              display_name: 'Author',
+              value: '$local:author',
+              type: 'hash',
+              // A parent whose own serialized example is long: must carry BOTH
+              // the select leftAction and the full-value rightAction.
+              example_value: { signature: 'y'.repeat(200) },
+              items: [
+                { display_name: 'Name', value: '$local:author.name', type: 'string' },
+              ],
+            },
+          ],
+        },
+      };
+
+      it('caps past the DOM ceiling and injects the full-value rightAction', () => {
+        const leaf = buildTemplates(longPayload)?.items?.[0].items?.[0];
+        expect(leaf?.description).toBe(`Example value: ${`"${'x'.repeat(200)}`.slice(0, 150)}…`);
+        expect(leaf?.description).not.toContain('THE_END');
+        expect(leaf?.rightAction?.icon).toBe('QuestionLine');
+        // The visual truncation is the single-line ellipsis, cut at the
+        // rendered width — container-intrinsic, no breakpoints.
+        expect(leaf?.descriptionEffect).toEqual({ noWrap: true });
+      });
+
+      it('leaves short examples whole, wrapping, and affordance-free', () => {
+        const leaf = buildTemplates(longPayload)?.items?.[0].items?.[1];
+        expect(leaf?.description).toBe('Example value: "invoice.pdf"');
+        expect(leaf?.rightAction).toBeUndefined();
+        // No ellipsis without the "?" to reveal what it hides.
+        expect(leaf?.descriptionEffect).toBeUndefined();
+      });
+
+      it('gives a long-example parent both the select and full-value actions', () => {
+        const parent = buildTemplates(longPayload)?.items?.[0].items?.[2];
+        expect(parent?.leftAction?.icon).toBe('AddCircleLine');
+        expect(parent?.rightAction?.icon).toBe('QuestionLine');
+        expect(parent?.descriptionEffect).toEqual({ noWrap: true });
+      });
+    });
   });
 });

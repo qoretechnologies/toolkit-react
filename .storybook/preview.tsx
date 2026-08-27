@@ -1,5 +1,10 @@
 import withMockdate from '@netsells/storybook-mockdate';
-import { ReqoreContent, ReqoreLayoutContent, ReqoreUIProvider } from '@qoretechnologies/reqore';
+import {
+  ReqoreContent,
+  ReqoreLayoutContent,
+  ReqoreModalsWrapper,
+  ReqoreUIProvider,
+} from '@qoretechnologies/reqore';
 import { initializeReqraft } from '../src';
 import { fetchConfig } from '../src/utils/fetch';
 
@@ -79,6 +84,11 @@ export const decorators = [
         }}
       >
         <Reqraft appName='storybook' waitForStorage={false} {...context.args.reqraftOptions}>
+          {/* Renders reqore's global modal queue (modalStore.addModal) — apps
+              mount this at their root (see qorus-ide providers/Interfaces);
+              without it, anything using the queue (e.g. the template picker's
+              full example-value modal) enqueues into the void in stories. */}
+          <ReqoreModalsWrapper />
           <ReqoreLayoutContent style={{ height: '100%' }}>
             <ReqoreContent style={{ padding: '20px', display: 'flex', flexFlow: 'column' }}>
               <Story />
