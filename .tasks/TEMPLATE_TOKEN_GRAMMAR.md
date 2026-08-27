@@ -1,6 +1,6 @@
 # Template token grammar — braced context refs rehydrate as chips
 
-**Status:** done pending user verify (branch `bugfix/template-token-grammar`, worktree `~/Projects/qorus-frontend/reqraft-template-grammar`)
+**Status:** committed `0ef167c`, in PR to develop (branch `bugfix/template-token-grammar`, worktree `~/Projects/qorus-frontend/reqraft-template-grammar`)
 
 No standalone design doc — this is a two-repo bugfix; the qorus-ide twin
 (`src/helpers/templateValue.ts` there) is the reference for the shared
@@ -49,5 +49,5 @@ chip now.
 - [x] `yarn precheck` green (lint, 593/593 unit, prod tsc)
 - [x] Qlip PNGs read for `BracedTemplateValue` + `TemplateCanBeSelected` (chips confirmed)
 - [x] **STOP — user signed off 2026-08-27** (see `VERIFY.local.md`)
-- [ ] Commit + PR to develop; verify version still above last published at push time (the richtext-string-storage branch also bumps `package.json` — whichever merges second rebases and re-bumps)
+- [x] Commit + PR to develop — `0ef167c`; version re-checked at push time (beta `0.10.36`, ours `0.10.37` ✓; PR #95's prereleases ALSO sit at `0.10.37` — whichever merges second rebases and re-bumps)
 - [ ] Pin the CI prerelease (`0.10.37-pr.<N>.g<sha>`) in qorus-ide, lockfile committed; after merge, move qorus-ide to the released version
