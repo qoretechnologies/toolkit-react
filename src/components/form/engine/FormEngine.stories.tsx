@@ -2862,9 +2862,10 @@ export const CompactMultiSelectEditing: Story = {
   },
   play: async () => {
     await _testsWaitForText('Audiences');
-    // Read row joins the selected items.
-    await _testsWaitForText('orders');
-    await _testsClickText('orders');
+    // Read row joins the selected items, labelled the way the picker labels
+    // them (`Orders`) rather than the way they are stored (`orders`).
+    await _testsWaitForText('Orders');
+    await _testsClickText('Orders');
     await waitFor(() => expect(document.querySelector('.options-readfirst-card')).toBeTruthy(), {
       timeout: 10000,
     });
@@ -3648,8 +3649,16 @@ export const CompactExpressions: Story = {
   play: async () => {
     const stop = startDpqlMockLsp();
     try {
-      // Read-first: the offline DPQL summary of the AST.
-      await _testsWaitForText('"$local:name" == "John"');
+      // Read-first: the offline DPQL summary of the AST — the literals read as
+      // the text they are, and the template reference reads as a chip rather
+      // than as its raw `$local:name` token inside the string.
+      await waitFor(() => {
+        const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
+          tag.textContent?.includes('$local:name')
+        );
+        expect(chip, 'the reference in the summary renders as a chip').toBeTruthy();
+      });
+      await _testsWaitForText('" == "John"');
 
       // Drill in → the card hosts the ExpressionField (Visual builder).
       await fireEvent.click(
@@ -4406,7 +4415,8 @@ export const CompactFieldTypes: Story = {
     await _testsWaitForText('0 0 * * *'); // cron
     await _testsWaitForText('Python'); // select → allowed_value display label
     await _testsWaitForText('Medium'); // enum → allowed_value display label
-    await _testsWaitForText('orders, batch'); // multi-select joined
+    // multi-select joined, labelled the way the picker labels them
+    await _testsWaitForText('Orders, Batch');
     await _testsWaitForText('a, b'); // list joined
     await _testsWaitForText('x, y, z'); // YAML-serialized list summarised
     await _testsWaitForText('#0000FF'); // colour → uppercase hex
@@ -4420,8 +4430,15 @@ export const CompactFieldTypes: Story = {
     // than a raw hash key-count.
     await _testsWaitForText('512MiB');
     await _testsWaitForText(/example_customer_addresses/);
-    // Expression field → read-first shows the offline DPQL summary of the AST.
-    await _testsWaitForText('"$local:name" == "John"');
+    // Expression field → read-first shows the offline DPQL summary of the AST,
+    // with the template reference inside it chipped rather than printed raw.
+    await waitFor(() => {
+      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
+        tag.textContent?.includes('$local:name')
+      );
+      expect(chip, 'the reference in the summary renders as a chip').toBeTruthy();
+    });
+    await _testsWaitForText('" == "John"');
     await expect(document.querySelectorAll('.options-readfirst-card')).toHaveLength(0);
 
     // A hash renders its read-first preview (the structured tree by default)
@@ -5913,5 +5930,146 @@ export const CompactRowMarkdownWithoutRenderer: Story = {
     expect(descText).toContain('Order intake');
     expect(descText).not.toContain('##');
     expect(descText).not.toContain('**');
+  },
+};
+
+/**
+ * The read-first summary of an EXPRESSION: it renders to one line of text, and
+ * a template reference inside it used to print as its own raw token — the same
+ * reference the editor shows as a named chip. This is the Save Reply row of the
+ * Discord assistant template, whose value is
+ * `trim($data:{dc_ai_reply.choices[0].message.content})`.
+ */
+export const CompactExpressionTemplateChips: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact read-first row whose value is an expression wrapping a template reference — the reference renders as a named chip inside the summary text (trim("Choices[0].message.content")) rather than as its raw $data token.',
+      },
+    },
+    chromatic: { disable: true },
+  },
+  render: () => (
+    <FormEngine
+      compact
+      name='exprChips'
+      stringTemplates={
+        {
+          items: [
+            {
+              label: 'Generate AI Reply',
+              items: [
+                {
+                  label: 'Choices',
+                  value: '$data:{3.choices}',
+                  metadata: { aliasValues: ['$data:{dc_ai_reply.choices}'] },
+                },
+              ],
+            },
+          ],
+        } as any
+      }
+      options={
+        {
+          reply: {
+            type: 'string',
+            display_name: 'Value',
+            desc: 'The new value for the variable',
+            supports_expressions: true,
+            required: true,
+          },
+        } as unknown as IQorusFormSchema
+      }
+      value={
+        {
+          reply: {
+            type: 'string',
+            is_expression: true,
+            value: {
+              exp: 'trim',
+              args: [{ type: 'string', value: '$data:{dc_ai_reply.choices[0].message.content}' }],
+            },
+          },
+        } as any
+      }
+      onChange={fn()}
+    />
+  ),
+  play: async () => {
+    // The summary keeps its literal text…
+    await _testsWaitForText('trim("', undefined, 1);
+    // …and the reference inside it is a named chip, not the raw token.
+    await waitFor(() => {
+      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
+        tag.textContent?.includes('Choices[0].message.content')
+      );
+      expect(chip, 'the reference renders as a named chip in the summary').toBeTruthy();
+    });
+    const raw = Array.from(document.querySelectorAll('.readfirst-row')).filter((row) =>
+      row.textContent?.includes('$data:{')
+    );
+    expect(raw, 'the row prints no raw token').toHaveLength(0);
+  },
+};
+
+/**
+ * The same row on a surface with NO template catalogue — the Automation Hub
+ * template preview, which never fetches one. There is no name to resolve the
+ * reference to, so the chip carries the reference's own path: the wrapper still
+ * reads as `trim("…")` text, and the reference stops reading as code.
+ */
+export const CompactExpressionWithoutCatalogue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact read-first row whose value is an expression wrapping a template reference, with no templates supplied — the reference still renders as a chip carrying its own path (dc_ai_reply.choices[0].message.content) rather than the raw $data token.',
+      },
+    },
+    chromatic: { disable: true },
+  },
+  render: () => (
+    <FormEngine
+      compact
+      name='exprNoCatalogue'
+      options={
+        {
+          reply: {
+            type: 'string',
+            display_name: 'Value',
+            desc: 'The new value for the variable',
+            supports_expressions: true,
+            required: true,
+          },
+        } as unknown as IQorusFormSchema
+      }
+      value={
+        {
+          reply: {
+            type: 'string',
+            is_expression: true,
+            value: {
+              exp: 'trim',
+              args: [{ type: 'string', value: '$data:{dc_ai_reply.choices[0].message.content}' }],
+            },
+          },
+        } as any
+      }
+      onChange={fn()}
+    />
+  ),
+  play: async () => {
+    await _testsWaitForText('trim("', undefined, 1);
+    await waitFor(() => {
+      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
+        tag.textContent?.includes('dc_ai_reply.choices[0].message.content')
+      );
+      expect(chip, 'the reference chips even with no catalogue').toBeTruthy();
+    });
+    const raw = Array.from(document.querySelectorAll('.readfirst-row')).filter((row) =>
+      row.textContent?.includes('$data:{')
+    );
+    expect(raw, 'the row prints no raw token').toHaveLength(0);
   },
 };

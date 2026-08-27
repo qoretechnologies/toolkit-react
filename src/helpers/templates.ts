@@ -190,6 +190,102 @@ export const findTemplate = (
   return result;
 };
 
+/**
+ * The one answer to "what is this reference called?", so a value reads the
+ * same in the picker chip, the read-only tag and the compact row's summary.
+ * Exact match first (aliases included), then the nearest catalogue ancestor
+ * for a hand-extended path, and finally the raw token — which is honest when
+ * the catalogue holds nothing that explains the value.
+ */
+export const resolveTemplateLabel = (
+  templates: IReqoreFormTemplates | undefined,
+  value: string
+): { label: string; item?: TReqoreDropdownItem } => {
+  if (!templates || !value) {
+    return { label: value };
+  }
+
+  const exact = findTemplate(templates, value);
+  if (exact) {
+    return { label: (exact.label as string) || value, item: exact };
+  }
+
+  const extended = findTemplateByPath(templates, value);
+  if (extended) {
+    return { label: `${extended.item.label}${extended.remainder}`, item: extended.item };
+  }
+
+  return { label: value };
+};
+
+/**
+ * What to call a reference when the catalogue explains nothing about it — the
+ * reference's own path, with the token wrapper stripped:
+ * `$data:{dc_ai_reply.choices[0].message.content}` reads as
+ * `dc_ai_reply.choices[0].message.content`.
+ *
+ * Surfaces exist with no catalogue at all (the Automation Hub template preview
+ * never fetches one), and there the raw token is the only thing left to show.
+ * Showing it as `$data:{…}` renders a value as code; showing the path renders
+ * it as a name, which is the honest floor.
+ */
+export const getTemplateReferencePath = (value: string): string =>
+  getTokenPath(value)?.path ?? value;
+
+/**
+ * The best available name for a reference, for a surface that must show
+ * something readable no matter what: the catalogue's name when it has one,
+ * otherwise the bare path. `resolveTemplateLabel` keeps falling back to the
+ * raw token, because a picker that cannot resolve a value should say exactly
+ * what the value is.
+ */
+export const describeTemplateReference = (
+  templates: IReqoreFormTemplates | undefined,
+  value: string
+): { label: string; item?: TReqoreDropdownItem } => {
+  const resolved = resolveTemplateLabel(templates, value);
+  return resolved.item ? resolved : { label: getTemplateReferencePath(value) };
+};
+
+const EMBEDDED_TEMPLATE_TOKEN = new RegExp(TEMPLATE_TOKEN_SOURCE, 'g');
+
+export type TTemplateTextSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'token'; text: string };
+
+/**
+ * Splits prose that embeds template tokens into its literal and token parts —
+ * `trim("$data:{…}")` becomes `trim("`, the token, `")`. Used to chip the
+ * references inside a rendered expression instead of printing them raw.
+ */
+export const splitTemplateTokens = (text?: string): TTemplateTextSegment[] => {
+  if (!text) {
+    return [];
+  }
+
+  const segments: TTemplateTextSegment[] = [];
+  let lastIndex = 0;
+
+  // A fresh regex per call: a shared /g instance carries `lastIndex` between
+  // calls and would skip tokens on the second string it is given.
+  const pattern = new RegExp(EMBEDDED_TEMPLATE_TOKEN.source, 'g');
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ kind: 'text', text: text.slice(lastIndex, match.index) });
+    }
+    segments.push({ kind: 'token', text: match[0] });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push({ kind: 'text', text: text.slice(lastIndex) });
+  }
+
+  return segments;
+};
+
 // Ported verbatim from qorus-ide `helpers/functions.tsx` (FIELD_STACK_REPORT
 // batch) — the previous reqraft version used naive badge equality; the IDE
 // routes compatibility through `areQorusTypesCompatible` (int↔string coercion

@@ -5,6 +5,10 @@ import {
   findTemplate,
   findTemplateByPath,
   getTemplateKey,
+  describeTemplateReference,
+  getTemplateReferencePath,
+  resolveTemplateLabel,
+  splitTemplateTokens,
   getTemplateValue,
   isBracedTemplateToken,
   isCompleteTemplateToken,
@@ -152,6 +156,76 @@ describe('helpers/templates', () => {
       expect(findTemplate(aliased, '$data:{dc_ai_reply.choices}')?.value).toBe('$data:{3.choices}');
       // An alias never widens the match to another state.
       expect(findTemplate(aliased, '$data:{dc_send_reply.choices}')).toBeUndefined();
+    });
+  });
+
+  describe('resolveTemplateLabel / splitTemplateTokens', () => {
+    const templates: IReqoreFormTemplates = {
+      items: [
+        {
+          label: 'Generate AI Reply',
+          items: [
+            {
+              label: 'Choices',
+              value: '$data:{3.choices}',
+              metadata: { aliasValues: ['$data:{dc_ai_reply.choices}'] },
+            },
+          ],
+        },
+      ],
+    };
+
+    it('names a reference the same way for every surface', () => {
+      // exact, alias, and hand-extended all resolve through one entry point
+      expect(resolveTemplateLabel(templates, '$data:{3.choices}').label).toBe('Choices');
+      expect(resolveTemplateLabel(templates, '$data:{dc_ai_reply.choices}').label).toBe('Choices');
+      expect(
+        resolveTemplateLabel(templates, '$data:{dc_ai_reply.choices[0].message.content}').label
+      ).toBe('Choices[0].message.content');
+    });
+
+    it('falls back to the raw value when the catalogue explains nothing', () => {
+      expect(resolveTemplateLabel(templates, '$data:{9.unknown}').label).toBe('$data:{9.unknown}');
+      expect(resolveTemplateLabel(undefined, '$data:{3.choices}').label).toBe('$data:{3.choices}');
+    });
+
+    it('describes a reference readably when the catalogue explains nothing', () => {
+      // The Automation Hub template preview fetches no catalogue at all, and
+      // the raw token is all that is left — show the path, not the wrapper.
+      expect(
+        describeTemplateReference(undefined, '$data:{dc_ai_reply.choices[0].message.content}').label
+      ).toBe('dc_ai_reply.choices[0].message.content');
+      expect(getTemplateReferencePath('$data:{dc_ai_reply.choices}')).toBe('dc_ai_reply.choices');
+      // A word token is already short; there is no wrapper to strip.
+      expect(getTemplateReferencePath('$local:id')).toBe('$local:id');
+      // With a catalogue the name still wins.
+      expect(describeTemplateReference(templates, '$data:{3.choices}').label).toBe('Choices');
+    });
+
+    it('splits an expression summary into its text and token parts', () => {
+      expect(splitTemplateTokens('trim("$data:{dc_ai_reply.choices[0].message.content}")')).toEqual([
+        { kind: 'text', text: 'trim("' },
+        { kind: 'token', text: '$data:{dc_ai_reply.choices[0].message.content}' },
+        { kind: 'text', text: '")' },
+      ]);
+    });
+
+    it('handles prose with no tokens, and several tokens in one line', () => {
+      expect(splitTemplateTokens('plain text')).toEqual([{ kind: 'text', text: 'plain text' }]);
+      expect(splitTemplateTokens('')).toEqual([]);
+      const many = splitTemplateTokens('$local:a == $data:{3.choices}');
+      expect(many.filter((s) => s.kind === 'token').map((s) => s.text)).toEqual([
+        '$local:a',
+        '$data:{3.choices}',
+      ]);
+    });
+
+    it('does not carry regex state between calls', () => {
+      // A shared /g regex would skip the token on the second call.
+      const first = splitTemplateTokens('$data:{3.choices}');
+      const second = splitTemplateTokens('$data:{3.choices}');
+      expect(second).toEqual(first);
+      expect(second.some((s) => s.kind === 'token')).toBe(true);
     });
   });
 
