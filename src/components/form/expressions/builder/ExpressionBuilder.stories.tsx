@@ -416,16 +416,9 @@ export const ArgsChangeWhenOperatorChanges: Story = {
     },
   },
   play: async () => {
-    // Of the seeded `contains` string operands, the whole-token `$local:input`
-    // renders as a template chip; only the literal 'es' keeps a textarea.
+    // Both string operands of the seeded `contains` render as textareas.
     await waitFor(
-      () => {
-        expect(document.querySelectorAll('.expression .reqore-textarea')).toHaveLength(1);
-        const chip = Array.from(document.querySelectorAll('.expression .reqore-button')).find(
-          (button) => button.textContent?.includes('$local:input')
-        );
-        expect(chip).toBeTruthy();
-      },
+      () => expect(document.querySelectorAll('.expression .reqore-textarea')).toHaveLength(2),
       { timeout: 10000 }
     );
 

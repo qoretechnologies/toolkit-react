@@ -1,6 +1,6 @@
 # Template token grammar — braced context refs rehydrate as chips
 
-**Status:** committed `0ef167c`, in PR to develop (branch `bugfix/template-token-grammar`, worktree `~/Projects/qorus-frontend/reqraft-template-grammar`)
+**Status:** in PR #96 to develop — reworked per Foxhoundn's build-123 qlip review: chips only for BRACED context refs (`isBracedTemplateToken`); plain `$local:*` word tokens keep the template-offering input (his 14 denials), matching his accepted `BracedTemplateValue` baseline. Also added the requested SchemaDefinition Empty play (wait for form rows, not just tab chrome).
 
 No standalone design doc — this is a two-repo bugfix; the qorus-ide twin
 (`src/helpers/templateValue.ts` there) is the reference for the shared

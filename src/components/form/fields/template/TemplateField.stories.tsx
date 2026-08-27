@@ -571,7 +571,7 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches into template mode and shows the resolved picker chip (a whole-token value renders as the chip, not as its raw $local:id text).',
+          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches to the $local:id template value inside the template-offering input (plain word tokens stay typeable; only braced context refs chip).',
       },
     },
   },
@@ -583,15 +583,7 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
 
     await sleep(100);
 
-    // A whole-token value renders as the resolved picker chip — never as the
-    // raw token in a textarea (that was the rehydration bug).
-    await waitFor(() => {
-      const chip = Array.from(canvasElement.querySelectorAll('.reqore-button')).find((button) =>
-        button.textContent?.includes('Interface ID')
-      );
-      expect(chip, 'the picked template renders as the labeled chip').toBeTruthy();
-    });
-    await expect(canvas.queryByDisplayValue('$local:id')).not.toBeInTheDocument();
+    await expect(canvas.getByDisplayValue('$local:id')).toBeInTheDocument();
   },
 };
 

@@ -61,6 +61,15 @@ const COMPLETE_TEMPLATE_TOKEN = new RegExp(`^${TEMPLATE_TOKEN_SOURCE}$`);
 export const isCompleteTemplateToken = (value?: unknown): value is string =>
   typeof value === 'string' && COMPLETE_TEMPLATE_TOKEN.test(value);
 
+/** A complete token carrying at least one BRACED context segment —
+ *  `$data:{W2n….filename}`, `$qore-expr:{1 + 2}`. These are machine-written
+ *  references nobody types by hand, so a surface may render them as a picker
+ *  chip. Plain word-path tokens (`$local:id`) stay typeable and belong in the
+ *  template-offering input (build #123 review). Word segments cannot contain
+ *  `{`, so `:{` inside a complete token always starts a braced segment. */
+export const isBracedTemplateToken = (value?: unknown): value is string =>
+  isCompleteTemplateToken(value) && value.includes(':{');
+
 export const findTemplate = (
   templates: IReqoreFormTemplates,
   value: string

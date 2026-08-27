@@ -33,6 +33,7 @@ import {
   findTemplate,
   getTemplateKey,
   getTemplateValue,
+  isBracedTemplateToken,
   isCompleteTemplateToken,
   isValueTemplate,
 } from '../../../../helpers/templates';
@@ -367,13 +368,14 @@ export const TemplateField = memo(
 
     const showTemplateToggle = allowCustomValues && allowTemplates && !rest.arg_schema;
 
-    // A value that IS one well-formed token renders as the picker chip (label +
-    // app image via findTemplate) rather than as its raw `$data:{…}` text in a
-    // string editor — a plain textarea cannot chip, so a rehydrated draft used
-    // to show the literal token. Mixed text-and-token strings keep the string
-    // editor; the chip-in-editor treatment arrives with the rich-text string
-    // mode.
-    const templateValueIsCompleteToken = isCompleteTemplateToken(templateValue);
+    // Only a BRACED context ref (`$data:{…}` — machine-written, nobody types
+    // one) renders as the picker chip (label + app image via findTemplate)
+    // rather than as its raw text in a string editor. Plain word-path tokens
+    // (`$local:id`) are typeable, so per the build #123 review they keep the
+    // input that offers templates while typing. Mixed text-and-token strings
+    // keep the string editor too; the chip-in-editor treatment arrives with
+    // the rich-text string mode.
+    const templateValueIsBracedToken = isBracedTemplateToken(templateValue);
 
     const templateSupportsCustomValues =
       allowCustomValues && type === 'string' && !hasOnlyAllowedValues;
@@ -768,7 +770,7 @@ export const TemplateField = memo(
           />
         ) : null}
 
-        {isTemplate && templateSupportsCustomValues && !templateValueIsCompleteToken ? (
+        {isTemplate && templateSupportsCustomValues && !templateValueIsBracedToken ? (
           <LongStringField
             className='template-selector'
             type='string'
@@ -786,7 +788,7 @@ export const TemplateField = memo(
         ) : null}
 
         {showTemplatesDropdown ||
-        (isTemplate && templateSupportsCustomValues && templateValueIsCompleteToken) ? (
+        (isTemplate && templateSupportsCustomValues && templateValueIsBracedToken) ? (
           <TemplateDropdownSelector
             allowCustomValues={allowCustomValues}
             templates={templates}

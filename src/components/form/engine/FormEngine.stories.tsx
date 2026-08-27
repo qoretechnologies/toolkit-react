@@ -193,9 +193,7 @@ export const Basic: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
 
-    // The whole-token template value renders as the picker chip with the
-    // resolved catalogue label — never as raw `$local:test` text in an input.
-    await waitFor(() => expect(canvas.getAllByText('Test (local)')[0]).toBeInTheDocument(), {
+    await waitFor(() => expect(canvas.getAllByDisplayValue('$local:test')[0]).toBeInTheDocument(), {
       timeout: 10000,
     });
     await waitFor(

@@ -5,6 +5,7 @@ import {
   findTemplate,
   getTemplateKey,
   getTemplateValue,
+  isBracedTemplateToken,
   isCompleteTemplateToken,
   isValueTemplate,
   ITemplatesPayload,
@@ -43,6 +44,20 @@ describe('helpers/templates', () => {
       expect(isCompleteTemplateToken('$foo: hello')).toBe(false);
       expect(isCompleteTemplateToken('$5:00 fee')).toBe(false);
       expect(isCompleteTemplateToken(undefined)).toBe(false);
+    });
+
+    it('tells braced context refs apart from plain typeable tokens', () => {
+      // braced refs are machine-written — surfaces may chip them
+      expect(isBracedTemplateToken('$data:{W2n_BuSHbaNrbvV1MkfPF.filename}')).toBe(true);
+      expect(isBracedTemplateToken('$qore-expr:{1 + 2}')).toBe(true);
+      expect(isBracedTemplateToken('$data:step:{a.b}')).toBe(true);
+      // plain word paths stay typeable — they keep the template-offering input
+      expect(isBracedTemplateToken('$local:input')).toBe(false);
+      expect(isBracedTemplateToken('$config:a:b')).toBe(false);
+      // not complete tokens at all
+      expect(isBracedTemplateToken('x $data:{a.b}')).toBe(false);
+      expect(isBracedTemplateToken('$data:{a.b}.csv')).toBe(false);
+      expect(isBracedTemplateToken(undefined)).toBe(false);
     });
   });
 
