@@ -744,7 +744,7 @@ export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Every item-affordance combination in one picker: a leaf with a whole-base64-file example gets ONLY the "?" action (right) opening the full value in a modal; a hash parent whose own example object is long gets BOTH the "+" select action (left) and the "?"; a small hash parent keeps only the "+"; and a short leaf has no actions at all. Neither previewing nor copying ever selects an item.',
+          'Every item-affordance combination in one picker: a leaf with a whole-base64-file example gets a single-line ellipsized preview (cut at the popover\'s actual width — no breakpoints) and the "?" action (right) opening the full value in a modal; a hash parent whose own example object is long gets BOTH the "+" select action (left) and the "?"; a small hash parent keeps only the "+"; and a short leaf keeps its full wrapped preview with no actions. Neither previewing nor copying ever selects an item.',
       },
     },
   },
@@ -764,6 +764,20 @@ export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
     // parent's example stay modal-free.
     await expect(popover.querySelectorAll('.reqore-menu-item-right-action').length).toBe(2);
     await expect(popover.querySelectorAll('.reqore-menu-item-left-action').length).toBe(2);
+
+    // Long previews are single-line ellipsized at the RENDERED width
+    // (container-intrinsic — the same item adapts to any popover width);
+    // short previews keep normal wrapping.
+    const descriptions = popover.querySelectorAll('.reqore-button-description');
+    const longDescription = Array.from(descriptions).find((el) =>
+      el.textContent?.includes('JVBERi0x')
+    ) as HTMLElement;
+    const shortDescription = Array.from(descriptions).find((el) =>
+      el.textContent?.includes('invoice.pdf')
+    ) as HTMLElement;
+    await expect(getComputedStyle(longDescription).whiteSpace).toBe('nowrap');
+    await expect(longDescription.scrollWidth).toBeGreaterThan(longDescription.clientWidth);
+    await expect(getComputedStyle(shortDescription).whiteSpace).not.toBe('nowrap');
 
     await _testsClickButton({ selector: '.reqore-menu-item-right-action' });
 

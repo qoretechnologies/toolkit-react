@@ -7,6 +7,16 @@ export interface IReqraftTemplateExampleValueModalProps extends Partial<IReqoreM
   label?: string;
   /** The FULL serialized example value. */
   value: string;
+  /** Copy-action label. @default 'Copy' */
+  copyLabel?: string;
+  /**
+   * Notification shown after a successful copy (prop-overridable so consumers
+   * can pass translated copy — same contract as `ReqoreExportModal`).
+   * @default 'Example value copied to clipboard'
+   */
+  copyNotificationContent?: string;
+  /** Notification shown when the browser denies clipboard access. @default 'Could not copy to clipboard' */
+  copyFailedNotificationContent?: string;
 }
 
 /* Fill the modal's fixed-height body instead of scaling with content: a
@@ -26,7 +36,14 @@ const FILL_STYLE: CSSProperties = { height: '100%' };
  * rendering it standalone, e.g. in a story).
  */
 export const ReqraftTemplateExampleValueModal = memo(
-  ({ label, value, ...rest }: IReqraftTemplateExampleValueModalProps) => {
+  ({
+    label,
+    value,
+    copyLabel = 'Copy',
+    copyNotificationContent = 'Example value copied to clipboard',
+    copyFailedNotificationContent = 'Could not copy to clipboard',
+    ...rest
+  }: IReqraftTemplateExampleValueModalProps) => {
     const addNotification = useReqoreProperty('addNotification');
 
     const handleCopyClick = useCallback(async () => {
@@ -35,18 +52,18 @@ export const ReqraftTemplateExampleValueModal = memo(
       try {
         await navigator.clipboard.writeText(value);
         addNotification({
-          content: 'Example value copied to clipboard',
+          content: copyNotificationContent,
           intent: 'success',
           duration: 3000,
         });
       } catch (error) {
         addNotification({
-          content: 'Could not copy to clipboard',
+          content: copyFailedNotificationContent,
           intent: 'danger',
           duration: 3000,
         });
       }
-    }, [value, addNotification]);
+    }, [value, addNotification, copyNotificationContent, copyFailedNotificationContent]);
 
     return (
       <ReqoreModal
@@ -57,7 +74,7 @@ export const ReqraftTemplateExampleValueModal = memo(
         bottomActions={[
           {
             position: 'right',
-            label: 'Copy',
+            label: copyLabel,
             icon: 'ClipboardLine',
             onClick: () => {
               handleCopyClick();

@@ -10,11 +10,13 @@ import { ReqraftTemplateExampleValueModal } from '../components/form/fields/temp
 import { areQorusTypesCompatible } from './expressions';
 
 /**
- * How much of a serialized example value the picker item shows inline. Past
- * this, the description is cut and the item grows a "?" action opening the
- * full value in a modal — a binary-carrying field's example (e.g. an email
- * attachment body) can be an entire base64 file, and rendered whole it makes
- * the picker unusable. ~150 chars is a few lines in the picker's popover.
+ * The DOM ceiling for a serialized example value in a picker item — a
+ * binary-carrying field's example (e.g. an email attachment body) can be an
+ * entire base64 file, and it must not enter the item wholesale. The VISUAL
+ * truncation is not this number: past the ceiling the item also gets a
+ * single-line-ellipsis description (`descriptionEffect.noWrap`), which cuts at
+ * the popover's ACTUAL rendered width — container-intrinsic, no breakpoints —
+ * paired with the "?" action that shows the full value.
  */
 export const TEMPLATE_EXAMPLE_PREVIEW_LENGTH = 150;
 
@@ -219,6 +221,11 @@ export const buildTemplates = (
                   : serializedExample
               }`
             : undefined,
+          // Ellipsize ONLY where the "?" full-value affordance exists — for a
+          // short value an ellipsis would hide information with no way to
+          // reveal it. The single line cuts at the rendered width, so the
+          // preview adapts to any popover/panel width without breakpoints.
+          descriptionEffect: exampleIsLong ? { noWrap: true } : undefined,
           badge: type,
           metadata: {
             image: logo,
