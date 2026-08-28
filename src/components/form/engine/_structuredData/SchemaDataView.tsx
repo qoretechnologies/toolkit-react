@@ -1,4 +1,10 @@
-import { ReqoreCollapsibleContent, ReqoreIcon, ReqoreP, ReqoreTag } from '@qoretechnologies/reqore';
+import {
+  ReqoreCollapsibleContent,
+  ReqoreIcon,
+  ReqoreLink,
+  ReqoreP,
+  ReqoreTag,
+} from '@qoretechnologies/reqore';
 import {
   IQorusFormField,
   IQorusFormSchema,
@@ -139,10 +145,39 @@ const StyledItemTitle = styled.div<{ $color: string; $mono: boolean; $accent: st
   ${({ $mono }) => ($mono ? `font-family: ${MONO_FONT_STACK}; font-size: 15px;` : '')}
 `;
 
-/** The rule tying an item's fields to its number. */
-const StyledItemFields = styled.div<{ $border: string }>`
-  border-left: 1px solid ${({ $border }) => $border};
-  padding-left: 10px;
+/**
+ * Does this record have anything to show BELOW its heading?
+ *
+ * The heading consumes the identifying field, so a record holding only that has
+ * an empty body — and a rule drawn down an empty body is a line to nowhere.
+ */
+const hasContentUnderHeading = (record: unknown, schema?: IQorusFormSchema): boolean => {
+  if (!isRecord(record)) {
+    return true;
+  }
+  const titleKey = titleKeyFor(record, schema);
+
+  return Object.entries(record).some(
+    ([key, value]) =>
+      key !== titleKey && value !== undefined && value !== null && value !== ''
+  );
+};
+
+/** The rule tying an item's fields to its number.
+ *
+ * Same 3px as the heading's accent bar directly above it: at 1px the two read as
+ * two different devices stacked on each other rather than one rule running down
+ * the item, and the padding drops to 8px so the text stays on the same column.
+ *
+ * The rule is drawn only when something is actually under the heading. The
+ * heading is pulled left of the rule by its own negative margin, so an item
+ * whose record holds nothing but its identity showed a 1-2px sliver of line and
+ * nothing else — which reads as a rendering artefact, because that is what it
+ * was. It keeps a transparent border in that case so the column does not shift.
+ */
+const StyledItemFields = styled.div<{ $border: string; $rule: boolean }>`
+  border-left: 3px solid ${({ $border, $rule }) => ($rule ? $border : 'transparent')};
+  padding-left: 8px;
   min-width: 0;
 `;
 
@@ -349,24 +384,22 @@ const FieldValue = ({
               style={{ flexShrink: 0, marginRight: 6, verticalAlign: 'middle' }}
             />
           : null}
-          {formatted}
           {isNavigableUrl(field.value) ?
-            // The read-only detail views make an address openable, and a
-            // preview that shows the same value should not be the one place it
-            // is inert. A real anchor, so middle-click and "copy link address"
-            // work; `stopPropagation` because the row around it toggles.
-            <a
+            // The address IS the link — it used to render as inert text with a
+            // separate icon button beside it to open it, which is two things
+            // where there is one. ReqoreLink renders a real anchor, so
+            // middle-click and "copy link address" still work;
+            // `stopPropagation` because the row around it toggles.
+            <ReqoreLink
               className='schema-view-open-url'
               href={field.value}
               target='_blank'
               rel='noreferrer noopener'
-              aria-label='Open in a new tab'
-              style={{ marginLeft: 4, verticalAlign: 'middle' }}
-              onClick={(event) => event.stopPropagation()}
+              onClick={(event: React.MouseEvent) => event.stopPropagation()}
             >
-              <ReqoreIcon icon='ExternalLinkLine' size='11px' />
-            </a>
-          : null}
+              {formatted}
+            </ReqoreLink>
+          : formatted}
         </span>
       }
     </StyledRowValue>
@@ -502,7 +535,10 @@ const SchemaLevel = ({
           return (
             <StyledItem key={index} className='schema-view-item'>
               <StyledMarker $color={colors.muted}>{index + 1}.</StyledMarker>
-              <StyledItemFields $border={colors.border}>
+              <StyledItemFields
+                $border={colors.border}
+                $rule={hasContentUnderHeading(record, schema)}
+              >
                 {isRecord(record) ?
                   <>
                     {(() => {
