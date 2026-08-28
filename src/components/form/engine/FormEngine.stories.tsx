@@ -786,6 +786,27 @@ const CodeEditorStandin = ({
 // (rendered by a host-injected code-editor) inherits `language` from
 // a sibling `lang` picker, so flipping the picker live-changes the
 // editor's syntax highlighting with no refetch.
+/**
+ * The same stand-in without the "syntax: <language>" tag.
+ *
+ * That tag exists to prove an inherited `language` prop reaches the renderer,
+ * and the stories that assert it keep it. Where the row already shows a Language
+ * control directly above the editor, it is the same fact stated twice — which is
+ * what the review flagged on `CompactRowAbsorbsLanguage`.
+ */
+const CodeEditorStandinNoSyntax = (props: Parameters<typeof CodeEditorStandin>[0]) => (
+  <div data-testid='code-editor-mock'>
+    <ReqoreInput
+      fluid
+      size={props.size}
+      icon='CodeLine'
+      placeholder='Source code (stand-in code-editor)'
+      value={typeof props.value === 'string' ? props.value : ''}
+      onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange?.(event.target.value)}
+    />
+  </div>
+);
+
 export const OptionInheritsRenderPropFromSibling: Story = {
   parameters: {
     docs: {
@@ -994,7 +1015,7 @@ export const CompactRowAbsorbsLanguage: Story = {
   args: {
     compact: true,
     minColumnWidth: '360px',
-    componentOverrides: { 'code-editor': CodeEditorStandin },
+    componentOverrides: { 'code-editor': CodeEditorStandinNoSyntax },
     value: {
       language: { type: 'string', value: 'qore' },
       source: { type: 'string', value: '%new-style\nclass Example {\n}\n' },

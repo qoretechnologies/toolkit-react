@@ -424,6 +424,9 @@ function AutoField<T = any>({
         value={value}
         name={name}
         onChange={handleChange}
+        // The picker heads itself with the field's own name rather than a
+        // generic "Select one:".
+        label={rest.display_name}
         size={rest.size}
         disabled={rest.disabled}
         app={rest.app}

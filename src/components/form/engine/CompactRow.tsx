@@ -47,7 +47,6 @@ import {
   StyledEditCard,
   StyledLabelBlock,
   StyledAbsorbedField,
-  StyledAbsorbedLabel,
   StyledLabelDesc,
   StyledRowActions,
   StyledRowInset,
@@ -1056,10 +1055,10 @@ export const CompactRow = memo(
             const absorbedField = availableOptions?.[absorbedName] as IQorusFormField | undefined;
             if (!absorbedField) return null;
             return (
+              // No label element of its own: the editor now heads itself with
+              // the field's name (see FieldAllowedValuesCheckGroup), so a label
+              // beside it printed the same word twice.
               <StyledAbsorbedField key={absorbedName} className='options-readfirst-absorbed'>
-                <StyledAbsorbedLabel size='small' effect={{ opacity: 0.6 }}>
-                  {getAbsorbedLabel(absorbedName)}
-                </StyledAbsorbedLabel>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   {renderOption(absorbedName, absorbedField, 'small', true)}
                 </div>

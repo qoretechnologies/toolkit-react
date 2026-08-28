@@ -43,15 +43,28 @@ export const FieldAllowedValuesCheckGroup = memo(
     onChange,
     name,
     value,
+    label,
     ...rest
   }: Partial<Omit<IFieldAllowedValuesProps, 'items'>> & {
     multiSelect?: boolean;
     items: ISelectFormFieldItem[];
+    /**
+     * The field's own name, used as the group's heading.
+     *
+     * A picker headed by what it IS beats one headed by a generic instruction:
+     * "Select one:" says nothing the shape of a radio group has not already
+     * said, and in a container that absorbs a sibling it forced the field's name
+     * to be printed a second time beside the group. Falls back to the
+     * instruction when a field declares no display name.
+     */
+    label?: string;
   }) => {
     return (
       <ReqoreControlGroup vertical size={rest.size || 'small'} gapSize='tiny'>
         <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
-          {multiSelect ? 'Select one or more:' : 'Select one:'}
+          {label ? `${label}:`
+          : multiSelect ? 'Select one or more:'
+          : 'Select one:'}
         </ReqoreSpan>
         {items?.map((item) => (
           <ReqoreCheckbox
@@ -110,6 +123,7 @@ export const FieldAllowedValues = memo(
     disabled,
     name,
     readOnly,
+    label,
   }: IFieldAllowedValuesProps) => {
     const fullItems = useMemo(() => {
       const result = [
@@ -138,6 +152,7 @@ export const FieldAllowedValues = memo(
             onChange={onChange}
             value={value}
             name={name}
+            label={label}
           />
         );
       }
