@@ -336,7 +336,6 @@ export const CompactRow = memo(
                 />
               );
             })}
-            <ReqraftCodeSizeTag code={field.value} />
           </ReqoreControlGroup>
         );
       }
@@ -833,6 +832,7 @@ export const CompactRow = memo(
           className='options-readfirst-cancel'
           size='small'
           flat
+          minimal
           fixed
           icon='CloseLine'
           intent='warning'
@@ -1068,6 +1068,22 @@ export const CompactRow = memo(
     // holding code.
     const valueType = getValueType(optionField, schema);
 
+    // How much source there is describes the FIELD, not its value, so the chip
+    // sits under the field's name — the same rule `lineCountNote` already
+    // follows for a multi-line markdown value, and the same reason: the value
+    // column carries the value and nothing else. It renders on the read row and
+    // the open one alike, because "how much code is here?" is a question that
+    // outlives opening the editor.
+    const codeSizeNode =
+      valueType === 'code-editor' &&
+      typeof optionField?.value === 'string' &&
+      optionField.value !== '' ?
+        <ReqraftCodeSizeTag
+          className='options-readfirst-label-code-size'
+          code={optionField.value}
+        />
+      : null;
+
     if (isExpanded) {
       if (inlineEditable) {
         const collapse = () => toggleExpandedOption(optionName);
@@ -1083,7 +1099,7 @@ export const CompactRow = memo(
             }
             {...clusterHoverProps}
           >
-            <StyledLabelBlock>
+            <StyledLabelBlock className='options-readfirst-label-block'>
               <StyledRowLabel
                 role='button'
                 tabIndex={0}
@@ -1118,6 +1134,7 @@ export const CompactRow = memo(
                   {labelShortDesc}
                 </StyledLabelDesc>
               : null}
+              {codeSizeNode}
             </StyledLabelBlock>
             <div
               ref={editorRef}
@@ -1166,11 +1183,6 @@ export const CompactRow = memo(
                   editor they belong to — the language you are writing in is
                   read before the code, not after it. */}
               {absorbedNodes}
-              {valueType === 'code-editor' && typeof optionField?.value === 'string' ?
-                <div className='options-readfirst-editing-summary'>
-                  <ReqraftCodeSizeTag code={optionField.value} />
-                </div>
-              : null}
               {renderOption(optionName, optionField, 'small', true)}
             </div>
             <StyledRowActions>
@@ -1638,7 +1650,7 @@ export const CompactRow = memo(
         {...clusterHoverProps}
       >
         {clusterNode}
-        <StyledLabelBlock>
+        <StyledLabelBlock className='options-readfirst-label-block'>
           <StyledRowLabel title={schema?.short_desc || undefined} $color={cKey}>
             {rowChromeIcon}
             {/* label + asterisk + help flow as ONE inline run, so the asterisk
@@ -1669,6 +1681,7 @@ export const CompactRow = memo(
               {labelShortDesc}
             </StyledLabelDesc>
           : null}
+          {codeSizeNode}
           {lineCountNote ?
             <ReqoreP
               className='options-readfirst-label-lines'

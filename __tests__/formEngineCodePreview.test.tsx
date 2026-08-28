@@ -126,7 +126,7 @@ describe('code size chip when the field is open', () => {
     );
   };
 
-  it('keeps the size chip above the editor', async () => {
+  it('keeps the size chip when the field opens', async () => {
     const { container } = renderForm();
     await waitForRows(container);
 
@@ -137,24 +137,27 @@ describe('code size chip when the field is open', () => {
 
     await openSourceRow(container);
 
-    const summary = container.querySelector('.options-readfirst-editing-summary');
+    const chip = container.querySelector('.options-readfirst-label-code-size');
 
-    expect(summary).toBeTruthy();
-    expect(summary?.textContent).toContain('5 lines');
-    expect(summary?.textContent).toContain(`${SOURCE.length} chars`);
+    expect(chip).toBeTruthy();
+    expect(chip?.textContent).toContain('5 lines');
+    expect(chip?.textContent).toContain(`${SOURCE.length} chars`);
   });
 
-  it('puts it in the value cell, above the editor, where the read row had it', async () => {
+  it('puts it under the field name, not in the value cell', async () => {
+    // How much source there is describes the FIELD, not its value, so it belongs
+    // in the label column beside the name -- the same rule the multi-line
+    // markdown line count already follows. In the value cell it sat in front of
+    // the content it was describing.
     const { container } = renderForm();
     await openSourceRow(container);
 
-    // same cell and same order as the read row: that is what stops the editor
-    // moving as the field opens
-    const cell = container.querySelector(
-      '.readfirst-row-editing .options-readfirst-editing-summary'
-    )?.parentElement;
+    const chip = container.querySelector('.options-readfirst-label-code-size');
 
-    expect(cell?.firstElementChild?.className).toContain('options-readfirst-editing-summary');
+    expect(chip).toBeTruthy();
+    expect(chip?.closest('.options-readfirst-label-block')).toBeTruthy();
+    // and nothing is left behind in the value cell
+    expect(container.querySelector('.options-readfirst-editing-summary')).toBeNull();
   });
 
   it('does not add a summary to a field the editor already speaks for', async () => {
