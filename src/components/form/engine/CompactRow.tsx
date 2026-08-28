@@ -234,6 +234,27 @@ export const CompactRow = memo(
 
     // Value-cell content: colour adds a swatch, file an icon + size; hash keeps
     // its "N fields" summary (sub-fields reveal beneath the row).
+    /**
+     * Flattens the line breaks in one prose segment of a richtext SUMMARY.
+     *
+     * The read-first row is a single line: every other value type reaches it
+     * through `whiteSpace: 'nowrap'`, which collapses newlines for free. The
+     * richtext branch is the only one that opts into `'pre'` — it has to, or the
+     * spaces that separate a word from the chip beside it are dropped — and `pre`
+     * also honours the newlines, which `nowrap` would have eaten.
+     *
+     * So a genuinely multi-line value (an alert rule's Gmail message body is five
+     * `\n`-separated lines) gave each segment after the first a blank first line.
+     * The wrapper centres its items, so a two-line-tall box centred against
+     * one-line chips put every word 12px below the chip beside it, and the row
+     * read as a staircase. Measured on supah: prose boxes 30px against 14px chips.
+     *
+     * A space, not nothing: consecutive prose segments are merged before they get
+     * here, so a value with a break and no chip between its lines would otherwise
+     * lose the word boundary entirely.
+     */
+    const collapseSummaryBreaks = (text: string): string => text.replace(/\s*\r?\n\s*/g, ' ');
+
     const renderReadFirstValue = (
       field: IQorusFormField,
       schema: TQorusFormFieldSchema | undefined,
@@ -414,7 +435,7 @@ export const CompactRow = memo(
                     )}
                   />
                 : <span key={index} style={{ whiteSpace: 'pre' }}>
-                    {segment.text}
+                    {collapseSummaryBreaks(segment.text)}
                   </span>
               )}
             </span>
@@ -1461,6 +1482,19 @@ export const CompactRow = memo(
       valueType === 'code-editor' &&
       typeof optionField?.value === 'string' &&
       optionField.value.length > 0;
+    // A richtext value that renders as CHIPS is drawn in full by the row itself:
+    // the chips are the value, and the reader is looking straight at it. The
+    // native `title` below would then hover the raw source of the very thing the
+    // chips replace ("[$fsminput:severity] $fsminput:alert_code") — and, because
+    // each chip carries its own Reqore tooltip, hovering one fires BOTH: the chip
+    // popover and the row's browser tooltip, in different places, saying almost
+    // the same thing. Only the popover shows up in a screenshot, which is what
+    // made the pair hard to report.
+    const showsTemplateChips =
+      !hidden &&
+      valueType === 'richtext' &&
+      Array.isArray(optionField?.value) &&
+      richtextToSegments(optionField.value as never).some((segment) => segment.kind === 'tag');
     // Markdown reads the same way for the same reason: the row itself can only
     // show a line of text, and for markdown that line is the SOURCE — the reader
     // gets `## ` and `**` where the point of the value is what it looks like
@@ -1707,14 +1741,17 @@ export const CompactRow = memo(
           // A code field draws its whole value in the preview below, with
           // "Show more" for the rest, so a hover carrying the same text is
           // noise -- and a native tooltip holding a few hundred lines is
-          // unreadable anyway. Every other value keeps its hover, which is the
-          // only way to read one that the row had to truncate.
+          // unreadable anyway. A chipped richtext value is the same case: the row
+          // already draws it in full, and its chips carry their own tooltips.
+          // Every other value keeps its hover, which is the only way to read one
+          // that the row had to truncate.
           title={
             (
               !empty &&
               !hidden &&
               !showCodePreview &&
               !showMarkdownPreview &&
+              !showsTemplateChips &&
               typeof formatted === 'string'
             ) ?
               formatted

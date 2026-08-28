@@ -6255,6 +6255,102 @@ export const CompactReadFirstRichtextTemplateBaseline: Story = {
 };
 
 /**
+ * The same summary, built from the value the server actually sends.
+ *
+ * `CompactReadFirstRichtextTemplateBaseline` above separates its chips with
+ * SPACES, and that is why it kept passing while the row stayed broken: an alert
+ * rule's Gmail message body is five `\n`-separated lines, and the newline is the
+ * whole difference. The richtext branch is the only read-first value that opts
+ * into `white-space: pre` — it has to, or the space between a word and the chip
+ * beside it is dropped — and `pre` honours the newlines too. Every prose segment
+ * after the first then rendered a blank first line, measured 30px against the
+ * chips' 14px, and the wrapper's `align-items: center` put each word 12px below
+ * the chip next to it. The row read as a staircase (supah, 2026-08-28).
+ *
+ * The row is a single line by construction; every other value type reaches that
+ * through `nowrap`, which eats newlines for free. So the fix is to collapse them
+ * here as well, and this story holds the two things that prove it: the prose
+ * boxes are one line tall, not two, and they still share a centre with the chips.
+ */
+const RichtextMultilineTemplateValue: IOptions = {
+  body: {
+    type: 'richtext',
+    value: [
+      {
+        type: 'paragraph',
+        children: [
+          { text: 'Alert: ' },
+          { type: 'tag', value: '$fsminput:alert_code', label: 'alert_code', children: [{ text: '' }] },
+          { text: '\nSeverity: ' },
+          { type: 'tag', value: '$fsminput:severity', label: 'severity', children: [{ text: '' }] },
+          { text: '\nRule: ' },
+          { type: 'tag', value: '$fsminput:rule_name', label: 'rule_name', children: [{ text: '' }] },
+        ],
+      },
+    ],
+  },
+} as unknown as IOptions;
+
+export const CompactReadFirstRichtextMultilineTemplate: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A multi-line richtext value in the read-first row. The row is one line, so the value's newlines must collapse rather than break — and the row must not also hover the raw template source, which is what the chips are there to replace.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: RichtextTemplateSchema,
+    value: RichtextMultilineTemplateValue,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('alert_code');
+
+    const proseSpans = Array.from(canvasElement.querySelectorAll('span')).filter(
+      // the collapsed newline leaves the segment with a leading space
+      (element) =>
+        element.children.length === 0 && /^\s*(Alert|Severity|Rule):/.test(element.textContent || '')
+    ) as HTMLElement[];
+    await expect(proseSpans.length).toBe(3);
+
+    // No hard break survives into the summary: a segment that still carried its
+    // newline would render a blank first line and measure two lines tall.
+    for (const span of proseSpans) {
+      await expect(span.textContent).not.toContain('\n');
+    }
+
+    const chipEl = Array.from(canvasElement.querySelectorAll('span')).find(
+      (element) => element.children.length === 0 && element.textContent?.trim() === 'alert_code'
+    ) as HTMLElement;
+    const chipHeight = chipEl.getBoundingClientRect().height;
+
+    // One line tall, like the chip beside it -- this is the assertion that fails
+    // on the unfixed code, where the blank line doubled it.
+    for (const span of proseSpans) {
+      await expect(span.getBoundingClientRect().height).toBeLessThan(chipHeight * 1.6);
+    }
+
+    // ...and they still sit on the chips' centre line, which is what the earlier
+    // baseline fix bought and this must not give back.
+    const chipRect = chipEl.getBoundingClientRect();
+    for (const span of proseSpans) {
+      const rect = span.getBoundingClientRect();
+      const offset = Math.abs(rect.top + rect.height / 2 - (chipRect.top + chipRect.height / 2));
+      await expect(offset).toBeLessThanOrEqual(1.5);
+    }
+
+    // The row draws the value in full as chips, so it must not ALSO carry a
+    // native tooltip of the raw source: hovering a chip fired that and the chip's
+    // own popover together, and only the popover is visible in a screenshot.
+    const valueCell = chipEl.closest('[title]');
+    await expect(valueCell).toBeNull();
+  },
+};
+
+/**
  * The other half of the markdown contract: with NO host renderer there is no
  * inset at all. The row is not left empty though — its one line still carries
  * the document's prose, summarised. Losing the RENDERING without a renderer is
