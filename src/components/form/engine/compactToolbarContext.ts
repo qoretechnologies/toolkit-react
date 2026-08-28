@@ -24,6 +24,14 @@ export interface ICompactToolbarOptionalField {
  */
 export interface ICompactToolbarContext {
   readOnly?: boolean;
+  /** Which parts to render, already resolved from the engine's `compactToolbar`
+   *  prop — every key present, no undefined to re-default here. */
+  parts: {
+    completion: boolean;
+    search: boolean;
+    fields: boolean;
+    help: boolean;
+  };
   // Completion meter
   invalidCount: number;
   attentionCount: number;

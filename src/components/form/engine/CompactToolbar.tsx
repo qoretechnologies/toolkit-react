@@ -109,6 +109,7 @@ const StyledPct = styled.span`
  */
 export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProps>) => {
   const {
+    parts,
     readOnly,
     invalidCount,
     attentionCount,
@@ -144,7 +145,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
 
   return (
     <ReqoreControlGroup {...reqoreProps} vertical fluid fixed={false} gapSize='big'>
-      {completion.total ?
+      {parts.completion && completion.total ?
         <StyledCompletion className='options-readfirst-completion'>
           <StyledCompletionLine>
             {!readOnly ?
@@ -183,9 +184,9 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
         </StyledCompletion>
       : null}
 
-      {hasMultipleOptions || (invalidCount && !readOnly) ?
+      {(parts.search && hasMultipleOptions) || (parts.fields && invalidCount && !readOnly) ?
         <ReqoreControlGroup vertical fluid gapSize='normal'>
-          {hasMultipleOptions ?
+          {parts.search && hasMultipleOptions ?
             <ReqoreControlGroup fluid verticalAlign='center'>
               <ReqoreInput
                 fluid
@@ -201,7 +202,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 }
                 onClearClick={() => setCompactQuery('')}
               />
-              {!readOnly ?
+              {parts.fields && !readOnly ?
                 <ReqoreDropdown
                   fixed
                   flat
@@ -281,18 +282,22 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                   }
                 />
               : null}
-              <ReqoreButton
-                fixed
-                flat
-                minimal={showAllDescriptions === true}
-                icon={showAllDescriptions ? 'InformationFill' : 'InformationLine'}
-                className='options-readfirst-descriptions'
-                intent={showAllDescriptions ? 'info' : undefined}
-                tooltip={
-                  showAllDescriptions ? 'Hide all field information' : 'Show all field information'
-                }
-                onClick={onToggleAllDescriptions}
-              />
+              {parts.help ?
+                <ReqoreButton
+                  fixed
+                  flat
+                  minimal={showAllDescriptions === true}
+                  icon={showAllDescriptions ? 'InformationFill' : 'InformationLine'}
+                  className='options-readfirst-descriptions'
+                  intent={showAllDescriptions ? 'info' : undefined}
+                  tooltip={
+                    showAllDescriptions ? 'Hide all field information' : (
+                      'Show all field information'
+                    )
+                  }
+                  onClick={onToggleAllDescriptions}
+                />
+              : null}
             </ReqoreControlGroup>
           : null}
         </ReqoreControlGroup>

@@ -125,6 +125,21 @@ import {
 } from './readFirst';
 
 // Re-export types for consumers
+/** The compact form's three status boxes. */
+export type TFormEngineBoxKey = 'attention' | 'set' | 'optional';
+
+/** Which parts of the compact toolbar to render — see `compactToolbar`. */
+export interface IFormEngineToolbarParts {
+  /** The "Ready / 4 of 6 set / 67%" line and its meter. */
+  completion?: boolean;
+  /** The "Filter fields…" input. */
+  search?: boolean;
+  /** The field-picker dropdown (add optional fields, reset, revert). */
+  fields?: boolean;
+  /** The help button that opens the options dialog. */
+  help?: boolean;
+}
+
 export type IOptions = TQorusForm;
 export type TFlatOptions = TQorusFlatForm;
 export type TOption = IQorusFormField;
@@ -659,6 +674,37 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * No-op in classic (non-compact) mode.
    */
   compactPanelProps?: IReqorePanelProps;
+  /**
+   * Compact mode only: which status boxes start collapsed. Defaults to
+   * `['optional']` — a form opens on what is in use.
+   *
+   * Pass `['set', 'optional']` where the form is one item in a longer list and
+   * the reader is choosing WHICH to open rather than reading this one, e.g. a
+   * template's per-action option forms stacked in a drawer.
+   *
+   * Two escapes override this and are not negotiable: a box always opens while
+   * a search query is running (`ReqorePanel` unmounts collapsed content, so a
+   * match inside a closed box would be unreachable), and the Optional box stays
+   * open when every row is optional, because collapsing it would render a card
+   * that looks empty and broken.
+   */
+  compactCollapsedGroups?: TFormEngineBoxKey[];
+  /**
+   * Compact mode only: which parts of the form's toolbar to show. `true`
+   * (default) shows all of it; `false` hides the whole thing.
+   *
+   * The parts already hide themselves when they have nothing to say — the
+   * completion meter needs at least one counted option, and the search and
+   * field-picker need more than one option to pick between — so reach for this
+   * only to hide something that WOULD have rendered. A per-action form asking
+   * for one value, say, has a meter reading 0/1 that tells the reader nothing
+   * they cannot see in the row below it.
+   *
+   * Hiding `search` removes the only way to run a query, which is what forces
+   * a collapsed box open; `compactCollapsedGroups` then fully determines what
+   * is open.
+   */
+  compactToolbar?: boolean | IFormEngineToolbarParts;
   /** Compact mode only: per-group display metadata (label / icon / subtitle /
    * order) — the server only sends the bare group key. */
   groups?: Record<string, IFormEngineGroup>;
@@ -825,6 +871,8 @@ const FormEngineImpl = ({
   compactFlush = false,
   compactNested = false,
   compactPanelProps,
+  compactCollapsedGroups = ['optional'],
+  compactToolbar = true,
   commitMode = 'immediate',
   expandMode = 'single',
   onCommit,
@@ -2536,6 +2584,14 @@ const FormEngineImpl = ({
     ]
   );
 
+  // `compactToolbar` resolved to a full object, so neither the context type nor
+  // the toolbar itself has to re-default anything. `null` means no toolbar.
+  const compactToolbarParts = useMemo(() => {
+    if (compactToolbar === false) return null;
+    const all = { completion: true, search: true, fields: true, help: true };
+    return compactToolbar === true ? all : { ...all, ...compactToolbar };
+  }, [JSON.stringify(compactToolbar)]);
+
   const compactToolbarContextValue = useMemo<ICompactToolbarContext>(
     () => ({
       readOnly,
@@ -2544,6 +2600,7 @@ const FormEngineImpl = ({
       completion: readFirstCompletion,
       showInvalidOnly: showInvalidOptionsOnly,
       onToggleInvalidOnly: handleToggleInvalidOnly,
+      parts: compactToolbarParts ?? { completion: false, search: false, fields: false, help: false },
       hasMultipleOptions: size(availableOptions) > 1,
       compactQuery,
       setCompactQuery,
@@ -2594,10 +2651,14 @@ const FormEngineImpl = ({
 
   // The engine's own toolbar action, plus whatever the consumer added through
   // `compactPanelProps.actions` — appended, so an outside action can never
-  // knock the form's toolbar out of the header.
+  // knock the form's toolbar out of the header. Only `compactToolbar={false}`
+  // removes it, and then the header carries just the consumer's own actions.
   const compactHeaderActions = useMemo(
-    () => [{ as: CompactToolbar, responsive: false }, ...(compactPanelProps?.actions || [])],
-    [compactPanelProps?.actions]
+    () => [
+      ...(compactToolbarParts ? [{ as: CompactToolbar, responsive: false }] : []),
+      ...(compactPanelProps?.actions || []),
+    ],
+    [compactPanelProps?.actions, compactToolbarParts]
   );
   const renderCompact = () => {
     const headerBg = `${changeDarkness(getMainBackgroundColor(theme), 0.02)}${percentToHexAlpha(88)}`;
@@ -2732,17 +2793,16 @@ const FormEngineImpl = ({
     // schema-group order (thin sub-labels) and the required-group clustering: an
     // unmet one-of group's members all land in attention and still rail up.
     type TRowEntry = { name: string; hidden: boolean };
-    type TBucketKey = 'attention' | 'set' | 'optional';
-    const buckets: Record<TBucketKey, Record<string, TRowEntry[]>> = {
+    const buckets: Record<TFormEngineBoxKey, Record<string, TRowEntry[]>> = {
       attention: {},
       set: {},
       optional: {},
     };
-    const bucketGroups: Record<TBucketKey, string[]> = { attention: [], set: [], optional: [] };
+    const bucketGroups: Record<TFormEngineBoxKey, string[]> = { attention: [], set: [], optional: [] };
     // Freeze the box of any field currently being edited (or whose one-of group
     // has an edited member) to its last settled box — so finishing an edit that
     // flips its status doesn't remount it in another box and steal focus.
-    const stableBucketOf = (entry: TRowEntry): TBucketKey => {
+    const stableBucketOf = (entry: TRowEntry): TFormEngineBoxKey => {
       const fresh = getOptionBucket(entry.name, entry.hidden);
       const groupBeingEdited =
         !entry.hidden &&
@@ -2766,7 +2826,7 @@ const FormEngineImpl = ({
         buckets[b][groupName].push(entry);
       });
     });
-    const bucketCount = (b: TBucketKey) =>
+    const bucketCount = (b: TFormEngineBoxKey) =>
       bucketGroups[b].reduce((n, g) => n + buckets[b][g].length, 0);
 
     // "Is the Optional box the whole form?" — when nothing needs attention and
@@ -2782,7 +2842,7 @@ const FormEngineImpl = ({
     const showGroupSubLabel = (groupName: string) =>
       (groupName !== 'general' && groupName !== 'optional') || !!groups?.[groupName];
     const STATUS_BOXES: Array<{
-      key: TBucketKey;
+      key: TFormEngineBoxKey;
       label: string;
       intent?: 'warning' | 'success';
       icon: IReqoreIconName;
@@ -2954,24 +3014,29 @@ const FormEngineImpl = ({
                         minimal
                         collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
                         collapsible
-                        // The Optional box now holds every not-yet-added field, so
-                        // it starts COLLAPSED to keep the form focused on what's in
-                        // use. But a SEARCH must surface matching addable fields —
-                        // and ReqorePanel unmounts collapsed content — so force it
-                        // open whenever a query is active. (isCollapsed is the
-                        // panel's controllable state; manual toggling still works
-                        // when no query is set.)
-                        // The Optional box starts collapsed so a form opens on what
-                        // is in use — but only when there IS something else to
-                        // open on. When every field is optional it is the whole
-                        // form, and collapsing it renders a card that looks empty
-                        // and broken: an auth profile's Authorization block, whose
-                        // nine requirement fields are all optional, showed as a
-                        // titled card containing one collapsed "Optional 9" strip
-                        // and nothing else. A search still forces it open
-                        // (ReqorePanel unmounts collapsed content, so a match
-                        // inside it would be unreachable otherwise).
-                        isCollapsed={box.key === 'optional' && !query && !onlyOptionalRows}
+                        // Which boxes start closed is the consumer's call
+                        // (`compactCollapsedGroups`, default `['optional']`: the
+                        // Optional box holds every not-yet-added field, so a form
+                        // opens on what is in use). Two rules override it:
+                        //
+                        // A SEARCH forces every box open — ReqorePanel unmounts
+                        // collapsed content, so a match inside a closed box would
+                        // be unreachable. (isCollapsed is the panel's controllable
+                        // state; manual toggling still works with no query set.)
+                        //
+                        // The Optional box stays open when it is the ONLY box,
+                        // because collapsing it renders a card that looks empty and
+                        // broken: an auth profile's Authorization block, whose nine
+                        // requirement fields are all optional, showed as a titled
+                        // card containing one collapsed "Optional 9" strip and
+                        // nothing else. This does not generalise to the other two —
+                        // a lone Set box collapsed is a deliberate ask, and its
+                        // header still reports what is in there.
+                        isCollapsed={
+                          compactCollapsedGroups.includes(box.key) &&
+                          !query &&
+                          !(box.key === 'optional' && onlyOptionalRows)
+                        }
                         label={
                           <StyledGroupHeader>
                             <ReqoreP effect={{ weight: 'bold' }} size='normal'>
