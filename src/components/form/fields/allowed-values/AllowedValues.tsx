@@ -62,10 +62,17 @@ export const FieldAllowedValuesCheckGroup = memo(
             disabled={rest.disabled}
             readOnly={rest.readOnly}
             intent={item.value === value ? 'info' : undefined}
+            // `isEqual`, and only once there is a value to match. The single
+            // -select branch compared JSON.stringify(value) with
+            // JSON.stringify(item.value), and JSON.stringify(undefined) is
+            // undefined — so an unset field whose items carry no resolved value
+            // compared undefined with undefined and reported EVERY option as
+            // checked, on a field that was simultaneously "This field is
+            // required". Nothing selected must read as nothing selected.
             checked={
               multiSelect
                 ? Array.isArray(value) && value.some((v) => isEqual(v, item.value))
-                : JSON.stringify(value) === JSON.stringify(item.value)
+                : value !== undefined && value !== null && isEqual(value, item.value)
             }
             onClick={() => {
               if (multiSelect) {
