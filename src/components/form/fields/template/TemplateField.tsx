@@ -30,9 +30,11 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
   filterTemplatesByType as templatesFilterFunc,
-  findTemplate,
   getTemplateKey,
   getTemplateValue,
+  isBracedTemplateToken,
+  isCompleteTemplateToken,
+  describeTemplateReference,
   isValueTemplate,
 } from '../../../../helpers/templates';
 import { getTypeFromValue } from '../../../../helpers/validations';
@@ -216,8 +218,13 @@ export const TemplateDropdownSelector = memo(
     size,
     ...rest
   }: ITemplateDropdownSelectorProps) => {
-    const template = findTemplate(templates, value);
-    const label = template?.label || value || rest.label || 'Select Template';
+    // One resolver for every surface that names a reference — the picker chip
+    // here, the read-only tag, and the compact row's expression summary. The
+    // row and this editor must agree: a reference that reads as its path when
+    // the row is closed cannot read as `$data:{…}` the moment it is opened.
+    const resolved = describeTemplateReference(templates, value);
+    const template = resolved.item;
+    const label = resolved.label || rest.label || 'Select Template';
     const leftIconProps = useMemo(
       (): IReqoreButtonProps['leftIconProps'] => ({
         image: template?.metadata?.image,
@@ -335,8 +342,15 @@ export const TemplateField = memo(
 
     useEffect(() => {
       if (!isTemplate && isValueTemplate(value) && allowTemplates) {
-        // Do not set the template value if the value is a string in auto mode
-        if (type === 'auto' && getTypeFromValue(value) === 'string') {
+        // In auto mode, leave user-typed dollar-strings alone ('$foo: hello'
+        // passes the loose check) — but a string that IS one well-formed token
+        // ($data:{…}, $config:item) must still flip into template mode, or an
+        // arg whose value hydrates after mount is stuck rendering raw text.
+        if (
+          type === 'auto' &&
+          getTypeFromValue(value) === 'string' &&
+          !isCompleteTemplateToken(value)
+        ) {
           return;
         }
 
@@ -358,6 +372,15 @@ export const TemplateField = memo(
     );
 
     const showTemplateToggle = allowCustomValues && allowTemplates && !rest.arg_schema;
+
+    // Only a BRACED context ref (`$data:{…}` — machine-written, nobody types
+    // one) renders as the picker chip (named via `resolveTemplateLabel`)
+    // rather than as its raw text in a string editor. Plain word-path tokens
+    // (`$local:id`) are typeable, so per the build #123 review they keep the
+    // input that offers templates while typing. Mixed text-and-token strings
+    // keep the string editor too; the chip-in-editor treatment arrives with
+    // the rich-text string mode.
+    const templateValueIsBracedToken = isBracedTemplateToken(templateValue);
 
     const templateSupportsCustomValues =
       allowCustomValues && type === 'string' && !hasOnlyAllowedValues;
@@ -752,7 +775,7 @@ export const TemplateField = memo(
           />
         ) : null}
 
-        {isTemplate && templateSupportsCustomValues ? (
+        {isTemplate && templateSupportsCustomValues && !templateValueIsBracedToken ? (
           <LongStringField
             className='template-selector'
             type='string'
@@ -769,7 +792,8 @@ export const TemplateField = memo(
           />
         ) : null}
 
-        {showTemplatesDropdown ? (
+        {showTemplatesDropdown ||
+        (isTemplate && templateSupportsCustomValues && templateValueIsBracedToken) ? (
           <TemplateDropdownSelector
             allowCustomValues={allowCustomValues}
             templates={templates}

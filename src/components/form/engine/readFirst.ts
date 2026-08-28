@@ -134,15 +134,40 @@ export const shouldAutoCollapseCompactOption = (
   (isCompactBooleanOption(schema) || isFixedCompactAllowedValueOption(schema));
 
 /** Prefer the matching allowed_values entry's display_name (fallback `name`)
- * over the raw stored value. */
+ * over the raw stored value.
+ *
+ * A LIST carries its options under `element_allowed_values` — they constrain
+ * each element, not the list itself — so a multi-select that was missing here
+ * printed what it stores rather than what you picked: `orders, batch` for
+ * fields whose picker reads "Orders, Batch". The gap shows worst exactly where
+ * allowed values earn their keep, since the stored form is often not readable
+ * at all (a permission code, `PO_REQUIRE_TYPES`, an app-specific id). */
 const findAllowedOption = (value: unknown, schema?: TQorusFormFieldSchema): any | undefined => {
-  const s = schema as { allowed_values?: any[]; items?: any[] } | undefined;
-  const options = s?.allowed_values?.length ? s.allowed_values : s?.items;
+  const s = schema as
+    | { allowed_values?: any[]; element_allowed_values?: any[]; items?: any[] }
+    | undefined;
+  const options =
+    (s?.allowed_values?.length && s.allowed_values) ||
+    (s?.element_allowed_values?.length && s.element_allowed_values) ||
+    s?.items;
   if (!options?.length) {
     return undefined;
   }
+  // A stored element can be the bare value or the typed `{type, value}`
+  // envelope the form engine round-trips; match either against either.
+  const stored =
+    value && typeof value === 'object' && 'value' in (value as Record<string, unknown>) ?
+      (value as Record<string, unknown>).value
+    : value;
+
   return options.find(
-    (option) => option?.value?.value === value || option?.value === value || option?.name === value
+    (option) =>
+      option?.value?.value === value ||
+      option?.value === value ||
+      option?.name === value ||
+      option?.value?.value === stored ||
+      option?.value === stored ||
+      option?.name === stored
   );
 };
 

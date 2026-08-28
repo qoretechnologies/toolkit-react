@@ -308,6 +308,158 @@ export const TemplateValue: StoryObj<typeof meta> = {
   },
 };
 
+/** REGRESSION — a rehydrated whole-token template value (the FSM state-output
+ *  `$data:{…}` form above all) must render as the picker CHIP, not as its raw
+ *  token text in a string editor. */
+export const BracedTemplateValue: StoryObj<typeof meta> = {
+  args: {
+    component: LongStringField,
+    type: 'string',
+    allowTemplates: true,
+    allowCustomValues: true,
+    value: '$data:{W2n_BuSHbaNrbvV1MkfPF.filename}',
+    templates: buildTemplates({
+      state_outputs: {
+        display_name: 'Context Data',
+        short_desc: 'Outputs of previous states',
+        app: 'GoogleDrive',
+        items: [
+          {
+            name: 'filename',
+            display_name: 'Filename',
+            short_desc: 'The uploaded file name',
+            desc: 'The uploaded file name',
+            value: '$data:{W2n_BuSHbaNrbvV1MkfPF.filename}',
+            type: 'string',
+          },
+        ],
+      },
+    } as any),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for a string field whose saved value is a braced state-output reference ($data:{id.filename}) — the field shows the resolved picker chip ("Filename"), never the raw token in a textarea, which is what rehydrated drafts degraded to before the token grammar learned braces.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => {
+      const chip = Array.from(document.querySelectorAll('.reqore-button')).find((button) =>
+        button.textContent?.includes('Filename')
+      );
+      expect(chip, 'the braced value renders as the labeled picker chip').toBeTruthy();
+    });
+    const rawTextareas = Array.from(document.querySelectorAll('textarea')).filter((textarea) =>
+      textarea.value.includes('$data:{')
+    );
+    expect(rawTextareas, 'no textarea holds the raw token').toHaveLength(0);
+  },
+};
+
+/** A template-authored Qog keys its states `'1'`, `'2'`, … while each state
+ *  carries its own id, and its saved `$data:{…}` refs use that id — so the
+ *  catalogue (spelled with the key) and the value (spelled with the id) never
+ *  match as text. The producer supplies the alternate spelling as an alias so
+ *  the chip still resolves to a name instead of printing the raw token. */
+export const AliasedStateTemplateValue: StoryObj<typeof meta> = {
+  args: {
+    component: LongStringField,
+    type: 'string',
+    allowTemplates: true,
+    allowCustomValues: true,
+    // what the Qog has saved — the state's own id
+    value: '$data:{dc_ai_reply.choices}',
+    templates: {
+      items: [
+        {
+          label: 'Generate AI Reply',
+          description: 'Outputs of the Groq chat-completion state',
+          items: [
+            {
+              label: 'Choices',
+              // what the server's catalogue offers — the states-hash key
+              value: '$data:{3.choices}',
+              badge: 'list',
+              metadata: { aliasValues: ['$data:{dc_ai_reply.choices}'] },
+            },
+          ],
+        },
+      ],
+    } as any,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField holding a state-output reference spelled with the state id ($data:{dc_ai_reply.choices}) while the catalogue offers the same item spelled with the states-hash key ($data:{3.choices}) — the chip resolves through the item alias and shows "Choices", where it used to print the raw token.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => {
+      const chip = Array.from(document.querySelectorAll('.reqore-button')).find((button) =>
+        button.textContent?.includes('Choices')
+      );
+      expect(chip, 'the aliased value resolves to the labeled picker chip').toBeTruthy();
+    });
+    const rawChips = Array.from(document.querySelectorAll('.reqore-button')).filter((button) =>
+      button.textContent?.includes('$data:{')
+    );
+    expect(rawChips, 'no chip prints the raw token').toHaveLength(0);
+  },
+};
+
+/** A catalogue can only offer what the action's output type declares, so it
+ *  stops at a list — `choices` is offered, `choices[0].message.content` is
+ *  hand-written past it. Such a value has no item of its own and used to
+ *  render as its raw token; it is now named after its nearest ancestor. */
+export const ExtendedPathTemplateValue: StoryObj<typeof meta> = {
+  args: {
+    component: LongStringField,
+    type: 'string',
+    allowTemplates: true,
+    allowCustomValues: true,
+    value: '$data:{dc_ai_reply.choices[0].message.content}',
+    templates: {
+      items: [
+        {
+          label: 'Generate AI Reply',
+          items: [
+            {
+              label: 'Choices',
+              value: '$data:{3.choices}',
+              badge: 'list',
+              metadata: { aliasValues: ['$data:{dc_ai_reply.choices}'] },
+            },
+          ],
+        },
+      ],
+    } as any,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField holding a path extended past the named field it starts from ($data:{dc_ai_reply.choices[0].message.content}, where the catalogue only offers "choices") — the chip is named after its nearest ancestor as "Choices[0].message.content" instead of printing the raw token.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => {
+      const chip = Array.from(document.querySelectorAll('.reqore-button')).find((button) =>
+        button.textContent?.includes('Choices[0].message.content')
+      );
+      expect(chip, 'the extended path is named after its ancestor').toBeTruthy();
+    });
+    const rawChips = Array.from(document.querySelectorAll('.reqore-button')).filter((button) =>
+      button.textContent?.includes('$data:{')
+    );
+    expect(rawChips, 'no chip prints the raw token').toHaveLength(0);
+  },
+};
+
 export const ElementTypeInListShowsCorrectTemplates: StoryObj<typeof meta> = {
   args: {
     component: auto,
@@ -522,7 +674,7 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches to the $local:id template value.',
+          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches to the $local:id template value inside the template-offering input (plain word tokens stay typeable; only braced context refs chip).',
       },
     },
   },
