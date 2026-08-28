@@ -950,6 +950,11 @@ export const CompactRow = memo(
         />
       : null;
 
+    // The gap rides on the message itself rather than on the panel around it:
+    // the panel is a vertical ReqoreControlGroup, which owns its own layout and
+    // stacks children flush, and the class rule that used to carry a 4px gap
+    // never reached this element at all — which is why two messages read as one
+    // two-tone block with no space between them.
     const renderInfoStrip = (m: TInfoMsg, index: number) => (
       <ReqoreMessage
         key={`${m.content}-${index}`}
@@ -958,6 +963,7 @@ export const CompactRow = memo(
         flat
         intent={m.intent as never}
         title={m.title}
+        style={{ marginBottom: 8 }}
       >
         {m.content}
       </ReqoreMessage>
@@ -1175,9 +1181,14 @@ export const CompactRow = memo(
                   Above the editor rather than below it, and above the absorbed
                   siblings, because it is the reason the author opened the row. */}
               {panelMessages.length ?
-                <div className='options-readfirst-info-panel'>
+                <ReqoreControlGroup
+                  className='options-readfirst-info-panel'
+                  vertical
+                  fluid
+                  gapSize='normal'
+                >
                   {panelMessages.map(renderInfoStrip)}
-                </div>
+                </ReqoreControlGroup>
               : null}
               {/* Absorbed siblings sit at the TOP of the value cell, above the
                   editor they belong to — the language you are writing in is
@@ -1750,7 +1761,14 @@ export const CompactRow = memo(
               value (full width of the value column) — never pushed down by the
               label's short_desc. */}
           {panelMessages.length ?
-            <div className='options-readfirst-info-panel'>{panelMessages.map(renderInfoStrip)}</div>
+            <ReqoreControlGroup
+              className='options-readfirst-info-panel'
+              vertical
+              fluid
+              gapSize='normal'
+            >
+              {panelMessages.map(renderInfoStrip)}
+            </ReqoreControlGroup>
           : null}
           {/* The structured hash/list preview also lives in the value cell, so it
               starts directly under the value summary ("N fields"), not below the
