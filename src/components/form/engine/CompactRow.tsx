@@ -30,7 +30,7 @@ import {
   isValueTemplate,
   TTemplateMeta,
 } from '../../../helpers/templates';
-import { richtextToSegments } from '../../../helpers/common';
+import { richtextToSegments, richtextToString } from '../../../helpers/common';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
 import { ReqraftCodeSizeTag } from '../../codeSize';
 import { Description } from '../../Description';
@@ -137,6 +137,26 @@ const MAX_INLINE_OPTION_ACTIONS = 2;
 // One read-first row: label | value | action collapsed; the real editor (the
 // classic renderOption) expanded. `hidden` = search-surfaced optional —
 // activating the row adds the field first.
+/**
+ * The text inside a rich-text envelope, when a list item is one.
+ *
+ * An option like Gmail's `to` is `type: "list"`, `element_type: "string"`,
+ * `supports_templates: true`: each element is a plain string that may carry
+ * template tags, so its editor is a rich-text one and the element value arrives
+ * wrapped as `{type: "richtext", value: [{type: "paragraph", …}]}`.
+ *
+ * That envelope is a string in a coat, not structured data. The hash-list test
+ * unwraps `item.value`, found the Slate document — an object — and classed a
+ * list of email addresses as a list of hashes, so the row drew an expandable
+ * `type / children / text` tree instead of the address the operator typed.
+ */
+export const richtextItemText = (item: unknown): string | undefined =>
+  item && typeof item === 'object' && (item as { type?: unknown }).type === 'richtext' ?
+    richtextToString(
+      (item as { value?: Parameters<typeof richtextToString>[0] }).value
+    )
+  : undefined;
+
 export const CompactRow = memo(
   ({
     optionName,
@@ -402,6 +422,15 @@ export const CompactRow = memo(
         isValueTemplate(field.value)
       ) {
         return <ReadOnlyTemplateTag value={field.value} templates={templates} size='small' />;
+      }
+
+      // A LIST whose elements are rich-text envelopes is a list of strings, so it
+      // reads as those strings. Without this the row fell through to the generic
+      // list summary and printed a bare count ("1 item") above the structured
+      // tree, never the address itself.
+      if (Array.isArray(field?.value) && field.value.some((item) => richtextItemText(item) !== undefined)) {
+        const texts = field.value.map((item) => richtextItemText(item) ?? String(item ?? ''));
+        return <span style={textStyle}>{texts.filter((text) => text !== '').join(', ')}</span>;
       }
 
       // Richtext read-first summary: inline $-chips for embedded template tags
@@ -1465,6 +1494,9 @@ export const CompactRow = memo(
       Array.isArray(optionField?.value) &&
       optionField.value.length > 0 &&
       optionField.value.some((item) => {
+        if (richtextItemText(item) !== undefined) {
+          return false;
+        }
         const inner =
           item && typeof item === 'object' && 'value' in (item as Record<string, unknown>) ?
             (item as Record<string, unknown>).value

@@ -6351,6 +6351,77 @@ export const CompactReadFirstRichtextMultilineTemplate: Story = {
 };
 
 /**
+ * A list of template-capable STRINGS, which is what an email `To` field is.
+ *
+ * Gmail's `to` is `type: "list"`, `element_type: "string"`,
+ * `supports_templates: true`, so each element is edited with a rich-text editor
+ * and its value arrives wrapped: `{type: "richtext", value: [{type:
+ * "paragraph", …}]}`. The hash-list test unwrapped `item.value`, found the Slate
+ * document — an object — and classed a list of addresses as a list of hashes, so
+ * the row drew an expandable `type / children / text` tree instead of the
+ * address (supah, 2026-08-29).
+ *
+ * A rich-text envelope is a string in a coat. The row reads it as one.
+ */
+const RichtextListSchema: IOptionsSchema = {
+  to: {
+    type: 'list',
+    element_type: 'string',
+    supports_templates: true,
+    display_name: 'To',
+    required: true,
+  } as never,
+};
+
+const RichtextListValue: IOptions = {
+  to: {
+    type: 'list',
+    value: [
+      { type: 'richtext', value: [{ type: 'paragraph', children: [{ text: 'ops@example.com' }] }] },
+      { type: 'richtext', value: [{ type: 'paragraph', children: [{ text: 'sre@example.com' }] }] },
+    ],
+  },
+} as unknown as IOptions;
+
+export const CompactReadFirstRichtextStringList: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A list of template-capable string elements reads as its strings, not as a structured-data tree: the rich-text envelope each element arrives in is a string in a coat.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: RichtextListSchema,
+    value: RichtextListValue,
+  },
+  play: async ({ canvasElement }) => {
+    // The row itself, not a global text search: the addresses have to be IN the
+    // `to` row, which is the whole point.
+    await waitFor(
+      () => {
+        const row = canvasElement.querySelector('[data-field="to"]');
+        expect(row).toBeTruthy();
+        // The addresses themselves, not a bare "2 items" count.
+        expect(row?.textContent ?? '').toContain('ops@example.com');
+      },
+      { timeout: 10000 }
+    );
+
+    const text = canvasElement.querySelector('[data-field="to"]')?.textContent ?? '';
+    await expect(text).toContain('sre@example.com');
+
+    // ...and none of the document's internals leak into the row. These are the
+    // labels the structured-data tree prints, and they are what the operator saw.
+    await expect(text).not.toContain('paragraph');
+    await expect(text).not.toContain('children');
+  },
+};
+
+/**
  * The other half of the markdown contract: with NO host renderer there is no
  * inset at all. The row is not left empty though — its one line still carries
  * the document's prose, summarised. Losing the RENDERING without a renderer is
