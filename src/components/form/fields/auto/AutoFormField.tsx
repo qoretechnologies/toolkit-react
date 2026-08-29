@@ -18,6 +18,7 @@ import React, { memo, useCallback, useEffect, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import useMount from 'react-use/lib/useMount';
 import { typedToYaml, yamlToTyped } from '../../../../helpers/common';
+import { getListElementValue } from '../../../../helpers/options';
 import {
   getTypeFromValue,
   getValueOrDefaultValue,
@@ -656,11 +657,7 @@ function AutoField<T = any>({
             // element: the row rendered as an empty, invalid item, and the
             // emptiness was then written back over the stored value.
             const formatFromServerValue = (value) => {
-              return (value || []).map((item) =>
-                item && typeof item === 'object' && !Array.isArray(item) && 'value' in item ?
-                  item.value
-                : item
-              );
+              return (value || []).map(getListElementValue);
             };
 
             const mappedAllowedValues = rest.element_allowed_values?.map((ev) => ({

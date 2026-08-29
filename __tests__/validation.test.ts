@@ -1139,3 +1139,53 @@ describe('list of hashes with arg_schema', () => {
     expect(result.reason).toContain('List item 1');
   });
 });
+
+/**
+ * A list validates its elements in whichever shape they arrive.
+ *
+ * The editor keeps each element in a `{value, type}` envelope while the form is
+ * open, but a value read back from storage is what the server contract asks
+ * for: for `element_type: 'string'`, the bare strings. Reaching straight for
+ * `.value` made every stored element validate as empty, so a saved list came
+ * back "List item 0 is invalid: Text value is empty" — which bucketed the field
+ * as needing attention even though its progress meter counted it as set.
+ *
+ * Reported on an alert rule's Gmail delivery action, whose To: address is
+ * exactly this shape.
+ */
+describe('list elements in either shape', () => {
+  const field = { element_type: 'string', has_to_have_value: true } as never;
+
+  it('accepts bare string elements — the shape storage holds', () => {
+    expect(validateField('list', ['ops@example.com'], field)).toBe(true);
+  });
+
+  it('accepts enveloped elements — the shape the editor writes', () => {
+    expect(validateField('list', [{ value: 'ops@example.com', type: 'string' }], field)).toBe(true);
+  });
+
+  it('accepts a list mixing both shapes', () => {
+    expect(
+      validateField('list', ['first@example.com', { value: 'second@example.com' }], field)
+    ).toBe(true);
+  });
+
+  it('still rejects an element that is genuinely empty, in either shape', () => {
+    // The narrowing must not turn the validator into a rubber stamp.
+    expect(validateField('list', [''], field)).toBe(false);
+    expect(validateField('list', [{ value: '', type: 'string' }], field)).toBe(false);
+  });
+
+  it('reports which element failed', () => {
+    const result = validateFieldWithResult('list', ['ok@example.com', ''], field);
+    expect(result.isValid).toBe(false);
+    expect(result.reason ?? '').toContain('List item 1');
+  });
+
+  it('does not throw on a null element', () => {
+    // `parsedValue[i].value` threw here rather than reporting the element
+    // invalid, taking the whole form's validation pass down with it.
+    expect(() => validateField('list', [null], field)).not.toThrow();
+    expect(validateField('list', [null], field)).toBe(false);
+  });
+});

@@ -11,7 +11,7 @@ import isNumber from 'lodash/isNumber';
 import isObject from 'lodash/isPlainObject';
 import size from 'lodash/size';
 import { getAddress, getProtocol, splitByteSize } from './common';
-import { getOptionsFromRequiredGroups } from './options';
+import { getListElementValue, getOptionsFromRequiredGroups } from './options';
 import { getTemplateKey, getTemplateValue, isValueTemplate } from './templates';
 
 /** The five cron fields, in order, as a schedule hash may name them. */
@@ -453,7 +453,7 @@ export const _validateField = (
         for (let i = 0; i < parsedValue.length; i++) {
           const itemResult = validateFieldWithResult(
             (field.ui_element_type as string) || (field.element_type as string),
-            parsedValue[i].value,
+            getListElementValue(parsedValue[i]),
             field
           );
 
