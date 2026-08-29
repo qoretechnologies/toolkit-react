@@ -1,5 +1,5 @@
 import { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
-import { TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
+import { TQorusFormFieldSchema, TQorusFormOperatorValue } from '@qoretechnologies/ts-toolkit';
 import yaml from 'js-yaml';
 
 // ─── Typed ↔ YAML helpers ──────────────────────────────────────────────────────
@@ -162,6 +162,16 @@ export const richtextToSegments = (
   richtext.forEach(walk);
   return segments;
 };
+
+/**
+ * An operator value as the list it logically is.
+ *
+ * An option's `op` holds either one operator or a chain of them, and both
+ * spellings are legitimate on the wire. Every reader wants the list.
+ */
+export const fixOperatorValue = (
+  operator: TQorusFormOperatorValue
+): (string | null | undefined)[] => (Array.isArray(operator) ? operator : [operator]);
 
 export const insertAtIndex = (array: any[] = [], index = 0, value: any): any[] => {
   return [...array.slice(0, index), value, ...array.slice(index)];

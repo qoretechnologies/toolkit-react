@@ -103,25 +103,47 @@ describe('connection', () => {
 
 // ─── binary ───────────────────────────────────────────────────────────────────
 
+/**
+ * The wire form is base64, matching the server decode. Hex is accepted only
+ * under the legacy `0x` prefix, which is what keeps the even-length and
+ * hex-alphabet rules meaningful: without the prefix there is nothing to say a
+ * string was meant as hex rather than as the base64 it also parses as.
+ */
 describe('binary', () => {
-  it('accepts valid hex string', () => {
+  it('accepts base64', () => {
     expect(validateField('binary', 'deadbeef')).toBe(true);
+    expect(validateField('binary', 'aGVsbG8=')).toBe(true);
+    expect(validateField('binary', 'aGVsbG8h')).toBe(true);
+  });
+
+  it('accepts a base64 data: URL', () => {
+    expect(validateField('binary', 'data:image/png;base64,iVBORw0KGgo=')).toBe(true);
   });
 
   it('accepts 0x-prefixed hex', () => {
     expect(validateField('binary', '0xDEAD')).toBe(true);
   });
 
-  it('rejects non-hex characters', () => {
-    expect(validateField('binary', 'zzzz')).toBe(false);
+  it('rejects characters that are in neither alphabet', () => {
+    expect(validateField('binary', 'not base64!')).toBe(false);
+    expect(validateField('binary', '****')).toBe(false);
   });
 
-  it('rejects odd-length hex', () => {
-    expect(validateField('binary', 'abc')).toBe(false);
+  it('rejects odd-length 0x hex', () => {
+    expect(validateField('binary', '0xabc')).toBe(false);
+  });
+
+  it('rejects non-hex characters after a 0x prefix', () => {
+    expect(validateField('binary', '0xzzzz')).toBe(false);
+  });
+
+  it('rejects padding in the middle of a base64 value', () => {
+    expect(validateField('binary', 'aGV=sbG8')).toBe(false);
   });
 
   it('rejects empty string', () => {
     expect(validateField('binary', '')).toBe(false);
+    expect(validateField('binary', '   ')).toBe(false);
   });
 
   it('rejects non-string', () => {

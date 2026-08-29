@@ -49,7 +49,12 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
 import styled from 'styled-components';
 import { createContext } from 'use-context-selector';
-import { getDefaultValue, insertAtIndex, richtextToString } from '../../../helpers/common';
+import {
+  fixOperatorValue,
+  getDefaultValue,
+  insertAtIndex,
+  richtextToString,
+} from '../../../helpers/common';
 import { getRequiredOptionMessage } from '../../../helpers/options';
 import {
   IValidationResult,
@@ -292,9 +297,10 @@ const getTypeFromOperator = (
   return (operators[last(operatorData) as string]?.type as TQorusType) || null;
 };
 
-export const fixOperatorValue = (operator: TOperatorValue): (string | null | undefined)[] => {
-  return isArray(operator) ? operator : [operator];
-};
+/** Re-exported from `helpers/common` so existing importers keep working; it
+ *  lives there because `helpers/validations` needs it and cannot import this
+ *  module (this module imports the validators). */
+export { fixOperatorValue } from '../../../helpers/common';
 
 /**
  * The renderer-only predicate. Defaults to reqraft's built-ins; a FormEngine
