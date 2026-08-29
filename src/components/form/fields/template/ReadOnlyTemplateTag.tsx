@@ -2,7 +2,11 @@ import { ReqoreTag, ReqoreTagGroup } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { memo } from 'react';
-import { findTemplate, getTemplateTagStyle, TTemplateMeta } from '../../../../helpers/templates';
+import {
+  getTemplateTagStyle,
+  describeTemplateReference,
+  TTemplateMeta,
+} from '../../../../helpers/templates';
 
 export interface IReadOnlyTemplateTagProps {
   /** The template reference value, e.g. `$local:test`. */
@@ -22,14 +26,14 @@ export interface IReadOnlyTemplateTagProps {
  */
 export const ReadOnlyTemplateTag = memo(
   ({ value, templates, size }: IReadOnlyTemplateTagProps) => {
-    const template = templates ? findTemplate(templates, value) : undefined;
-    const metadata = template?.metadata as TTemplateMeta | undefined;
+    const { label, item } = describeTemplateReference(templates, value);
+    const metadata = item?.metadata as TTemplateMeta | undefined;
     return (
       <ReqoreTagGroup size={size}>
         <ReqoreTag
           icon='ExchangeDollarLine'
           leftIconProps={{ image: metadata?.image }}
-          label={template?.label || value}
+          label={label}
           tooltip={value}
           {...getTemplateTagStyle(metadata)}
         />

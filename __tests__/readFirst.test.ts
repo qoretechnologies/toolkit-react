@@ -708,6 +708,35 @@ describe('formatOptionValue for a multi-select', () => {
     ).toBe('Require Types, PO_LEGACY');
   });
 
+  it('reads a LIST selection through element_allowed_values, the key a list uses', () => {
+    // A list constrains its ELEMENTS, so its options live under
+    // `element_allowed_values`. Missing that key made every multi-select print
+    // what it stores rather than what was picked.
+    const listSchema = {
+      type: 'list',
+      ui_type: 'list',
+      element_allowed_values: [
+        { display_name: 'Orders', value: { type: 'string', value: 'orders' } },
+        { display_name: 'Batch', value: { type: 'string', value: 'batch' } },
+      ],
+    } as never;
+
+    expect(formatOptionValue({ type: 'list', value: ['orders', 'batch'] } as never, listSchema)).toBe(
+      'Orders, Batch'
+    );
+    // stored as typed envelopes rather than bare strings
+    expect(
+      formatOptionValue(
+        { type: 'list', value: [{ type: 'string', value: 'orders' }] } as never,
+        listSchema
+      )
+    ).toBe('Orders');
+    // a value the list does not describe stays visible
+    expect(formatOptionValue({ type: 'list', value: ['orders', 'other'] } as never, listSchema)).toBe(
+      'Orders, other'
+    );
+  });
+
   it('leaves a list with no allowed values alone', () => {
     expect(
       formatOptionValue({ type: 'list', value: ['one', 'two'] } as never, {

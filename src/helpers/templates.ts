@@ -52,6 +52,119 @@ export const getTemplateValue = (value: string): string => {
   return value.substring(colonIndex + 1);
 };
 
+/**
+ * The canonical template-token grammar (twin of the IDE's
+ * `helpers/templateValue.ts` — keep the two in step). A token is
+ * `$<key>:<segment>(:<segment>)*` where the key may carry dashes
+ * (`-expr`) and every segment is either a plain word or a braced
+ * context reference — `{W2n….filename}` — whose content may hold dots,
+ * colons, spaces and dashes (`:{deep:test:list}`,
+ * `{id.Created by.name}`). `isValueTemplate` above stays deliberately
+ * LOOSER (starts with `$`, has `:`): it answers "does the user mean a
+ * template here" while typing; use the strict check below when a decision
+ * must not misfire on user-typed dollar-strings.
+ */
+export const TEMPLATE_TOKEN_SOURCE =
+  '\\$[A-Za-z_][\\w-]*(?::(?:\\{[^}]*\\}|[A-Za-z_][\\w-]*))+';
+
+const COMPLETE_TEMPLATE_TOKEN = new RegExp(`^${TEMPLATE_TOKEN_SOURCE}$`);
+
+/** STRICT whole-value check: the entire string is one well-formed template
+ *  token (`:{id.path}`, `:item`, …) — nothing before or after.
+ *  `'$foo: hello'` passes the loose check but not this one. */
+export const isCompleteTemplateToken = (value?: unknown): value is string =>
+  typeof value === 'string' && COMPLETE_TEMPLATE_TOKEN.test(value);
+
+/** A complete token carrying at least one BRACED context segment —
+ *  `$data:{W2n….filename}`, `$qore-expr:{1 + 2}`. These are machine-written
+ *  references nobody types by hand, so a surface may render them as a picker
+ *  chip. Plain word-path tokens (`$local:id`) stay typeable and belong in the
+ *  template-offering input (build #123 review). Word segments cannot contain
+ *  `{`, so `:{` inside a complete token always starts a braced segment. */
+export const isBracedTemplateToken = (value?: unknown): value is string =>
+  isCompleteTemplateToken(value) && value.includes(':{');
+
+/**
+ * An FSM state carries TWO identities: the key it occupies in the `states`
+ * hash and its own `id`. The IDE gives both the same nanoid, so nothing
+ * authored there can tell them apart — but a template hand-writes numbered
+ * keys (`'1'`, `'2'`, …) over meaningful ids (`dc_ai_reply`), its saved
+ * `$data:{…}` references use the **id**, and the server's design-time
+ * catalogue spells its item values with the **key**. The two never match as
+ * text, so a template-derived Qog renders the raw token where a named chip
+ * belongs.
+ *
+ * The producer of the catalogue (the IDE, which is the side that holds the
+ * states) attaches the alternate spelling here rather than rewriting either
+ * side — a picked value must keep storing exactly what the catalogue says.
+ * Consuming it is therefore purely a display concern.
+ */
+const matchesTemplateValue = (item: TReqoreDropdownItem, value: string): boolean =>
+  item.value === value ||
+  !!(item.metadata as { aliasValues?: string[] } | undefined)?.aliasValues?.includes(value);
+
+/** Splits `$data:{a.b.c}` into its key (`$data`) and inner path (`a.b.c`). */
+const TEMPLATE_TOKEN_PATH = /^(\$[A-Za-z_][\w-]*):\{(.*)\}$/;
+
+const getTokenPath = (value?: unknown): { key: string; path: string } | undefined => {
+  const match = typeof value === 'string' ? TEMPLATE_TOKEN_PATH.exec(value) : null;
+  return match ? { key: match[1], path: match[2] } : undefined;
+};
+
+/**
+ * The longest catalogue item whose path is a PREFIX of `value`, plus the part
+ * of the path it does not cover.
+ *
+ * A catalogue can only offer what the action's output type declares, so it
+ * stops at a list: `choices` is offered, `choices[0].message.content` is not —
+ * an operator hand-extends the path past the named field. Such a value has no
+ * item to match and used to render as its own raw token. Naming it by its
+ * nearest ancestor (`Choices[0].message.content`) keeps the chip readable
+ * without inventing a catalogue entry that does not exist.
+ *
+ * The match must break at a path boundary (`.` or `[`) so `choicesOther` is
+ * never named after `choices`, and the token keys must agree so a `$config:`
+ * item never names a `$data:` value.
+ */
+export const findTemplateByPath = (
+  templates: IReqoreFormTemplates,
+  value: string
+): { item: TReqoreDropdownItem; remainder: string } | undefined => {
+  const ref = getTokenPath(value);
+  if (!ref) return undefined;
+
+  let best: { item: TReqoreDropdownItem; path: string; remainder: string } | undefined;
+
+  const consider = (item: TReqoreDropdownItem, candidate?: string) => {
+    const itemPath = getTokenPath(candidate);
+    if (!itemPath || itemPath.key !== ref.key || !ref.path.startsWith(itemPath.path)) {
+      return;
+    }
+    const boundary = ref.path[itemPath.path.length];
+    if (boundary !== '.' && boundary !== '[') {
+      return;
+    }
+    if (!best || itemPath.path.length > best.path.length) {
+      best = { item, path: itemPath.path, remainder: ref.path.slice(itemPath.path.length) };
+    }
+  };
+
+  const walk = (items?: TReqoreDropdownItems) => {
+    items?.forEach((item) => {
+      consider(item, item.value as string);
+      (item.metadata as { aliasValues?: string[] } | undefined)?.aliasValues?.forEach((alias) =>
+        consider(item, alias)
+      );
+      if (item.items) {
+        walk(item.items);
+      }
+    });
+  };
+
+  walk(templates?.items);
+  return best ? { item: best.item, remainder: best.remainder } : undefined;
+};
+
 export const findTemplate = (
   templates: IReqoreFormTemplates,
   value: string
@@ -62,7 +175,7 @@ export const findTemplate = (
 
   const findItem = (items: TReqoreDropdownItems) => {
     items?.forEach((item) => {
-      if (item.value === value) {
+      if (matchesTemplateValue(item, value)) {
         result = item;
         return;
       }
@@ -75,6 +188,113 @@ export const findTemplate = (
 
   findItem(templates?.items);
   return result;
+};
+
+/**
+ * Joins a catalogue item's name to the part of the path it does not cover.
+ * A field step reads as a step (`Choices › message`), while an array index
+ * binds to the name it indexes (`Choices[0]`) rather than floating off it.
+ */
+const composeExtendedLabel = (label: string, remainder: string): string =>
+  remainder.startsWith('.') ? `${label} › ${remainder.slice(1)}` : `${label}${remainder}`;
+
+/**
+ * The one answer to "what is this reference called?", so a value reads the
+ * same in the picker chip, the read-only tag and the compact row's summary.
+ * Exact match first (aliases included), then the nearest catalogue ancestor
+ * for a hand-extended path, and finally the raw token — which is honest when
+ * the catalogue holds nothing that explains the value.
+ */
+export const resolveTemplateLabel = (
+  templates: IReqoreFormTemplates | undefined,
+  value: string
+): { label: string; item?: TReqoreDropdownItem } => {
+  if (!templates || !value) {
+    return { label: value };
+  }
+
+  const exact = findTemplate(templates, value);
+  if (exact) {
+    return { label: (exact.label as string) || value, item: exact };
+  }
+
+  const extended = findTemplateByPath(templates, value);
+  if (extended) {
+    return {
+      label: composeExtendedLabel(extended.item.label as string, extended.remainder),
+      item: extended.item,
+    };
+  }
+
+  return { label: value };
+};
+
+/**
+ * What to call a reference when the catalogue explains nothing about it — the
+ * reference's own path, with the token wrapper stripped:
+ * `$data:{dc_ai_reply.choices[0].message.content}` reads as
+ * `dc_ai_reply.choices[0].message.content`.
+ *
+ * Surfaces exist with no catalogue at all (the Automation Hub template preview
+ * never fetches one), and there the raw token is the only thing left to show.
+ * Showing it as `$data:{…}` renders a value as code; showing the path renders
+ * it as a name, which is the honest floor.
+ */
+export const getTemplateReferencePath = (value: string): string =>
+  getTokenPath(value)?.path ?? value;
+
+/**
+ * The best available name for a reference, for a surface that must show
+ * something readable no matter what: the catalogue's name when it has one,
+ * otherwise the bare path. `resolveTemplateLabel` keeps falling back to the
+ * raw token, because a picker that cannot resolve a value should say exactly
+ * what the value is.
+ */
+export const describeTemplateReference = (
+  templates: IReqoreFormTemplates | undefined,
+  value: string
+): { label: string; item?: TReqoreDropdownItem } => {
+  const resolved = resolveTemplateLabel(templates, value);
+  return resolved.item ? resolved : { label: getTemplateReferencePath(value) };
+};
+
+const EMBEDDED_TEMPLATE_TOKEN = new RegExp(TEMPLATE_TOKEN_SOURCE, 'g');
+
+export type TTemplateTextSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'token'; text: string };
+
+/**
+ * Splits prose that embeds template tokens into its literal and token parts —
+ * `trim("$data:{…}")` becomes `trim("`, the token, `")`. Used to chip the
+ * references inside a rendered expression instead of printing them raw.
+ */
+export const splitTemplateTokens = (text?: string): TTemplateTextSegment[] => {
+  if (!text) {
+    return [];
+  }
+
+  const segments: TTemplateTextSegment[] = [];
+  let lastIndex = 0;
+
+  // A fresh regex per call: a shared /g instance carries `lastIndex` between
+  // calls and would skip tokens on the second string it is given.
+  const pattern = new RegExp(EMBEDDED_TEMPLATE_TOKEN.source, 'g');
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ kind: 'text', text: text.slice(lastIndex, match.index) });
+    }
+    segments.push({ kind: 'token', text: match[0] });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push({ kind: 'text', text: text.slice(lastIndex) });
+  }
+
+  return segments;
 };
 
 // Ported verbatim from qorus-ide `helpers/functions.tsx` (FIELD_STACK_REPORT
