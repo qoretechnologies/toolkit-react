@@ -317,3 +317,72 @@ describe('a sub-schema delivered as an id is fetched, not ignored', () => {
     expect(container.querySelector('.schema-data-view')).toBeNull();
   });
 });
+
+/**
+ * A list of strings reads back as its strings.
+ *
+ * The list editor keeps each element in a `{value, type}` envelope while the
+ * form is being edited, and `formatToServerValue` is what puts it there. But a
+ * value read back from storage holds what the server contract asks for, and for
+ * `type: 'list'` with `element_type: 'string'` that is the bare strings.
+ *
+ * Unwrapping those with `item?.value` answered `undefined` for every element,
+ * so a saved list opened as rows that were present but empty and invalid — and
+ * on a form that autosaves, that emptiness was written straight back over the
+ * stored value. Reported on an alert rule's Gmail delivery action: the
+ * operator's To: address was there before a refresh and gone after it.
+ *
+ * The assertions open the row on purpose. The COLLAPSED summary reads a list of
+ * strings correctly either way, so a test that stops at the read-first row
+ * passes while the editor beneath it is empty — which is exactly how the bug
+ * reached an operator.
+ */
+describe('a stored list of strings survives being opened', () => {
+  const TO_SCHEMA = {
+    to: {
+      type: 'list',
+      ui_type: 'list',
+      element_type: 'string',
+      display_name: 'To',
+      short_desc: 'Message recipient addresses',
+      required: true,
+      supports_templates: true,
+    },
+  } as never;
+
+  const openTo = async (value: unknown) => {
+    const { container } = renderForm(TO_SCHEMA, value as never);
+    await waitFor(() => expect(container.querySelector('[data-field="to"]')).toBeTruthy());
+    fireEvent.click(container.querySelector('[data-field="to"]')!);
+    return waitFor(() => {
+      const items = Array.from(container.querySelectorAll('.array-auto-item'));
+      expect(items.length).toBeGreaterThan(0);
+      return items;
+    });
+  };
+
+  it('opens a bare string element with its value — the shape storage holds', async () => {
+    const items = await openTo({ to: { type: 'list', value: ['ops@example.com'] } });
+    await waitFor(() => expect(items[0].textContent ?? '').toContain('ops@example.com'));
+  });
+
+  it('still opens an enveloped element — the shape the editor writes', async () => {
+    // The same list mid-edit. Both shapes have to read, or fixing one direction
+    // just moves the empty row to the other.
+    const items = await openTo({
+      to: { type: 'list', value: [{ value: 'ops@example.com', type: 'string' }] },
+    });
+    await waitFor(() => expect(items[0].textContent ?? '').toContain('ops@example.com'));
+  });
+
+  it('opens every element of a multi-element list', async () => {
+    const items = await openTo({
+      to: { type: 'list', value: ['first@example.com', 'second@example.com'] },
+    });
+    await waitFor(() => {
+      const text = items.map((i) => i.textContent ?? '').join(' ');
+      expect(text).toContain('first@example.com');
+      expect(text).toContain('second@example.com');
+    });
+  });
+});

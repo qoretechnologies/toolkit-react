@@ -647,8 +647,20 @@ function AutoField<T = any>({
               });
             };
 
+            // An element may arrive bare or in a `{value, type}` envelope. The
+            // envelope is what `formatToServerValue` writes, so a list the user
+            // has edited in this session is always wrapped — but a list read
+            // back from storage holds exactly what the server contract asks
+            // for, which for a list of strings is the strings themselves.
+            // Reaching for `.value` on those answered `undefined` for every
+            // element: the row rendered as an empty, invalid item, and the
+            // emptiness was then written back over the stored value.
             const formatFromServerValue = (value) => {
-              return (value || []).map((item) => item?.value);
+              return (value || []).map((item) =>
+                item && typeof item === 'object' && !Array.isArray(item) && 'value' in item ?
+                  item.value
+                : item
+              );
             };
 
             const mappedAllowedValues = rest.element_allowed_values?.map((ev) => ({
