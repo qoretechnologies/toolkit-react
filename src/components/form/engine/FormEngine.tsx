@@ -438,9 +438,19 @@ export const fixOptions = (
       // every value declared the bare way: the collapsed row still showed its
       // display name while the editor showed "—" and the value never reached
       // the submitted data.
+      // `allowed_values: []` is NOT "no value is permitted" — it is the server
+      // saying it has no reference values to offer right now (the app-action
+      // catalogue ships exactly that, with an
+      // `option_reference_values_unavailable` message attached). An empty array
+      // is truthy, so testing the array itself made every such option erase the
+      // operator's stored value on the first render, before the
+      // connection-refreshed schema arrived to say otherwise — and the emptied
+      // form then autosaved over the draft, so the value was gone for good.
+      // Only an option that actually declares choices can have a value that is
+      // not one of them.
       if (
         newOption.value !== undefined &&
-        options?.[optionName]?.allowed_values &&
+        options?.[optionName]?.allowed_values?.length &&
         !findAllowedValueOption(newOption.value, options?.[optionName]) &&
         !isValueTemplate(newOption.value) &&
         !options?.[optionName]?.multiselect &&
