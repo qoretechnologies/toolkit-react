@@ -511,6 +511,12 @@ function AutoField<T = any>({
           return (
             <LongStringFormField
               {...rest}
+              // These four share one editor but not one shape: a `string` holds
+              // exactly one line, while `data`, `binary` and `long-string` hold
+              // a document. Without the type the field cannot tell them apart
+              // and treats them all as documents, so an interface's Internal
+              // Name — which becomes a YAML key — accepted Enter.
+              type={currentType}
               onChange={(value) => handleChange(name, value)}
               value={value}
             />

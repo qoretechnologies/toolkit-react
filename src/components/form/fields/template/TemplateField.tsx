@@ -72,8 +72,17 @@ export const TemplatesListProps: IReqoreDropdownProps = {
 // markup stays verbatim. `type`/`level`/`allowTemplates` are destructured
 // only to keep them off the underlying ReQore component / DOM.
 /* eslint-disable @typescript-eslint/no-unused-vars */
+// `type` is FORWARDED here, unlike the other wrappers below: the long-string
+// field consumes it to decide whether it holds one line (a `string` does, a
+// `long-string`, `hash` or `list` does not) and never spreads it to the DOM.
+// Dropping it made every string field in every FormEngine form a growing
+// textarea, so an alert rule's Internal Name took Enter.
 const LongStringField = ({ name, onChange, type, level, allowTemplates, ...rest }: any) => (
-  <LongStringFormField {...rest} onChange={(value: string) => onChange?.(name, value)} />
+  <LongStringFormField
+    {...rest}
+    type={type}
+    onChange={(value: string) => onChange?.(name, value)}
+  />
 );
 const Number = ({ name, onChange, type, level, allowTemplates, ...rest }: any) => (
   <NumberFormField {...rest} onChange={(value: number | string) => onChange?.(name, value)} />
@@ -374,6 +383,11 @@ export const TemplateField = memo(
       showTemplatesDropdown;
 
     const Component = componentFromType ? ComponentMap[type] : Comp;
+    // Only a ComponentMap component gets `type`: it is ours and CONSUMES the
+    // prop (the long-string field needs it to know whether it holds one line)
+    // rather than spreading it onto the DOM. A caller-supplied `Comp` is someone
+    // else's, which is why `type` was kept off this call in the first place.
+    const componentTypeProp = componentFromType ? { type } : {};
     const fieldAriaLabel = rest['aria-label'] ?? label ?? rest.display_name ?? name;
 
     const filteredTemplates = useMemo<IReqoreFormTemplates>(():
@@ -746,6 +760,7 @@ export const TemplateField = memo(
             name={name}
             level={level}
             {...rest}
+            {...componentTypeProp}
             aria-label={fieldAriaLabel}
             className={`${className} template-selector`}
             templates={componentTemplates}
