@@ -373,6 +373,23 @@ export const fixOptions = (
         (fixedValue[name] as IQorusFormField)?.value === undefined
       ) {
         obj = option.default_value as IQorusFormField;
+      } else if (
+        option.default_view === 'expression' &&
+        (fixedValue[name] as IQorusFormField)?.value === undefined
+      ) {
+        // A field the schema declares as opening in expression mode starts as an
+        // EMPTY expression, not as its raw default. `isDefaultFunction` already
+        // makes the renderer open that way, so without this the data disagreed
+        // with what the operator was looking at: an expression editor whose
+        // value was still the plain default, and no `is_expression` on the field
+        // until the first edit.
+        obj = {
+          type,
+          value: {
+            args: [],
+          },
+          is_expression: true,
+        };
       } else {
         obj = {
           type,

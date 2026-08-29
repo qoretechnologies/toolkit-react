@@ -95,3 +95,53 @@ describe('fixOptions with an empty allowed_values', () => {
     expect((out.sender as any).value).toBe('noreply@example.com');
   });
 });
+
+/**
+ * A field declared to open in expression mode starts as an EMPTY expression.
+ *
+ * `isDefaultFunction` already makes the renderer open such a field in
+ * expression mode from the schema alone, so seeding the value keeps the DATA
+ * agreeing with what the operator sees: without it the expression editor is
+ * showing a plain default value, and the field carries no `is_expression` until
+ * the first edit.
+ *
+ * Ported from the IDE's copy of `fixOptions` when the two were consolidated —
+ * reqraft's is now the only implementation, so this behaviour has to live here
+ * or it is silently lost for every form that had it.
+ */
+describe('fixOptions with default_view: expression', () => {
+  const schema = (extra: Record<string, unknown> = {}) =>
+    ({
+      threshold: {
+        type: 'int',
+        display_name: 'Threshold',
+        required: true,
+        default_view: 'expression',
+        ...extra,
+      },
+    }) as never;
+
+  it('seeds an empty expression when the field has no value', () => {
+    expect(fixOptions({}, schema()).threshold).toMatchObject({
+      value: { args: [] },
+      is_expression: true,
+    });
+  });
+
+  it('leaves an existing value alone', () => {
+    expect(fixOptions({ threshold: 5 } as never, schema()).threshold).toMatchObject({ value: 5 });
+  });
+
+  it('does not seed a field whose default_view is something else', () => {
+    const out = fixOptions({}, schema({ default_view: 'template' }));
+    expect((out.threshold as { is_expression?: boolean }).is_expression).toBeUndefined();
+  });
+
+  it('still prefers an is_expression default_value when the schema carries one', () => {
+    // The branch above this one. Seeding must not shadow a real default.
+    const withDefault = schema({
+      default_value: { type: 'int', value: { args: [1] }, is_expression: true },
+    });
+    expect(fixOptions({}, withDefault).threshold).toMatchObject({ value: { args: [1] } });
+  });
+});
