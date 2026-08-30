@@ -469,6 +469,38 @@ describe('auto', () => {
   it('rejects invalid YAML', () => {
     expect(validateField('auto', '{')).toBe(false);
   });
+
+  // An `auto` field's value is usually already the structure it describes --
+  // the hash editor and the list editor both write one. Handing that to
+  // `jsyaml.load()` stringified it first, so a hash arrived as the flow
+  // sequence `["object Object"]`, was detected as a list, and came back
+  // *"Value must be a list"*: an invalid marker on a value that is fine.
+  it('accepts a hash that is already a hash, rather than reading it as YAML', () => {
+    const result = validateFieldWithResult('auto', { sku: 'sku-1', qty: 1 });
+    expect(result.isValid).toBe(true);
+    expect(result.reason).toBeUndefined();
+  });
+
+  it('accepts a list that is already a list', () => {
+    expect(validateField('auto', [1, 2, 3])).toBe(true);
+    expect(validateField('auto', [{ name: 'a' }])).toBe(true);
+  });
+
+  it('accepts a nested structure', () => {
+    expect(validateField('auto', { order: { items: [{ sku: 'a' }] } })).toBe(true);
+  });
+
+  it('still reads a YAML string as YAML', () => {
+    // The string path is the one that has YAML in it, and it is unchanged.
+    expect(validateField('auto', 'key: value')).toBe(true);
+    expect(validateField('auto', '[1, 2]')).toBe(true);
+    expect(validateField('auto', '{')).toBe(false);
+  });
+
+  it('accepts a number and a boolean without stringifying them', () => {
+    expect(validateField('auto', 42)).toBe(true);
+    expect(validateField('auto', true)).toBe(true);
+  });
 });
 
 describe('any alias', () => {

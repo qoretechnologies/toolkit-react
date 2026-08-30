@@ -1040,16 +1040,28 @@ export const _validateField = (
     }
     case 'auto':
     case 'any': {
-      let yamlCorrect = true;
-      let parsedData: any;
-      try {
-        parsedData = jsyaml.load(value);
-      } catch (e) {
-        yamlCorrect = false;
-      }
-
-      if (!yamlCorrect) {
-        return invalidResult('Value is not valid YAML');
+      // Only a STRING has YAML in it. An `auto` field's value is usually
+      // already the structure it describes -- a hash the form's hash editor
+      // wrote, a list from a list editor -- and `jsyaml.load()` stringifies
+      // whatever it is handed first: an object becomes `"[object Object]"`,
+      // which YAML then reads as the flow sequence `["object Object"]`. So the
+      // auto-detected type came back `list`, the value was validated as a list,
+      // and every hash stored in an `auto` field was reported *"Value must be a
+      // list"* -- an invalid marker on a value that is fine. A list fared no
+      // better: `[1, 2]` stringified to `"1,2"` and detected as a string.
+      //
+      // Every other branch that accepts either shape already parses through
+      // `maybeParseYaml`, which passes a non-string straight through; this one
+      // reached for `jsyaml` directly. It cannot use `maybeParseYaml` as-is
+      // because that reports a YAML error as an absent value, and "not valid
+      // YAML" and "empty" are different answers here.
+      let parsedData: any = value;
+      if (isString(value)) {
+        try {
+          parsedData = jsyaml.load(value);
+        } catch (e) {
+          return invalidResult('Value is not valid YAML');
+        }
       }
 
       if (parsedData) {
