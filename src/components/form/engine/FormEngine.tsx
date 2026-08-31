@@ -2948,6 +2948,10 @@ const FormEngineImpl = ({
                 $flush={compactFlush || compactNested}
               >
                 <StyledCompactPanel
+                  // Mirrors the toolbar's own search-row gate: when no search
+                  // row renders, the header is a thin strip and sits tight to
+                  // the first status box (see StyledCompactPanel).
+                  $tightHeader={!(compactToolbarParts?.search && size(availableOptions) > 1)}
                   // The top-level form scrolls, so its toolbar STICKS and carries a
                   // dark blurred backdrop so content ghosts cleanly beneath it. A
                   // nested (arg_schema) sub-form owns no scroll context — drop the

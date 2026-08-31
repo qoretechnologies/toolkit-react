@@ -61,6 +61,9 @@ export const PANEL_LEFT_CSS = `calc(${LABEL_COL} + ${COMPACT_ROW_PAD_X + COMPACT
 export const StyledCompactPanel = styled(ReqorePanel)<{
   $headerBg: string;
   $nested?: boolean;
+  /** True when the toolbar renders no search row (hidden via `compactToolbar`,
+   *  self-hidden on a single-option form, or no toolbar at all). */
+  $tightHeader?: boolean;
 }>`
   > .reqore-panel-title {
     /* The blur + translateZ exist only to make the STICKY top-level toolbar ghost
@@ -71,13 +74,17 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
         'backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transform: translateZ(0);'
       )}
     padding-top: ${GAP_FROM_SIZE[HEADER_GAP]}px;
-    /* Less below than above: the space over the toolbar separates it from the
-       panel edge, but the space under it runs into the panel content's own
-       8px padding — at \`big\` the two stacked to a 26px band between the
-       completion meter and the first status box (rejected on build #140 as
-       "unnecessarily big"). \`normal\` lands the meter at the boxes' own 10px
-       rhythm. */
-    padding-bottom: ${GAP_FROM_SIZE.normal}px;
+    /* A header with a SEARCH ROW keeps the \`big\` gap below it — a tall
+       interactive control earns separation from the content it filters. A
+       header without one (search hidden via \`compactToolbar\`, self-hidden on
+       a single-option form, or no toolbar at all) is a thin strip, and at
+       \`big\` its padding stacked onto the panel content's own 8px into a 26px
+       dead band between the completion meter and the first status box —
+       rejected on build #140 as "unnecessarily big". \`normal\` lands it at
+       the boxes' own 10px rhythm, and scoping the change here keeps every
+       search-bearing form pixel-identical. */
+    padding-bottom: ${({ $tightHeader }) =>
+      $tightHeader ? GAP_FROM_SIZE.normal : GAP_FROM_SIZE[HEADER_GAP]}px;
   }
 
   /* Group framing. The HORIZONTAL rule is a real element in the header
