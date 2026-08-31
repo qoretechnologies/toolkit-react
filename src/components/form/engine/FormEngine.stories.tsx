@@ -2,7 +2,7 @@ import { ReqoreInput } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react-vite';
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
 import { defaultQorusTypes } from '../../../hooks/useQorusTypes';
@@ -786,6 +786,27 @@ const CodeEditorStandin = ({
 // (rendered by a host-injected code-editor) inherits `language` from
 // a sibling `lang` picker, so flipping the picker live-changes the
 // editor's syntax highlighting with no refetch.
+/**
+ * The same stand-in without the "syntax: <language>" tag.
+ *
+ * That tag exists to prove an inherited `language` prop reaches the renderer,
+ * and the stories that assert it keep it. Where the row already shows a Language
+ * control directly above the editor, it is the same fact stated twice — which is
+ * what the review flagged on `CompactRowAbsorbsLanguage`.
+ */
+const CodeEditorStandinNoSyntax = (props: Parameters<typeof CodeEditorStandin>[0]) => (
+  <div data-testid='code-editor-mock'>
+    <ReqoreInput
+      fluid
+      size={props.size}
+      icon='CodeLine'
+      placeholder='Source code (stand-in code-editor)'
+      value={typeof props.value === 'string' ? props.value : ''}
+      onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange?.(event.target.value)}
+    />
+  </div>
+);
+
 export const OptionInheritsRenderPropFromSibling: Story = {
   parameters: {
     docs: {
@@ -912,19 +933,182 @@ export const OptionInheritsRenderPropFromSiblingCompact: Story = {
 // cell couldn't provide on its own. Locks the compact preview so a future
 // CompactRow refactor can't silently reduce a Qorus source-code field to an
 // ellipsised one-liner again.
-export const CompactRowCodeEditorPreview: Story = {
+// An open field used to have exactly one way out — the green Done check — so
+// every exit committed, Escape included. This locks the Cancel affordance in
+// place: it appears only once there is something to discard, and it puts the
+// value back to what the field was opened with.
+export const CompactRowCancelEdit: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a compact-mode code-editor row over a multi-line Qore source value — the value cell replaces the truncated string with a lines/chars summary tag and a collapsible monospace preview mounts under the row.',
+          'Renders a compact row opened for editing with a changed value — the Cancel action appears beside Done, and clicking it puts the field back to the value it was opened with and closes it.',
       },
     },
   },
   args: {
     compact: true,
     minColumnWidth: '360px',
-    componentOverrides: { 'code-editor': CodeEditorStandin },
+    value: { cookie_name: { type: 'string', value: 'my-cookie' } },
+    options: {
+      cookie_name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Cookie Name',
+        short_desc: 'Cookie name for cookie authentication',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // Open the field.
+    const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
+    expect(row).toBeTruthy();
+    fireEvent.click(row!);
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy()
+    );
+
+    // An untouched field offers no Cancel — it would do exactly what Done does.
+    expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeNull();
+
+    const input = canvasElement.querySelector<HTMLInputElement>(
+      '[data-field="cookie_name"] input, [data-field="cookie_name"] textarea'
+    );
+    expect(input).toBeTruthy();
+    fireEvent.change(input!, { target: { value: 'changed-cookie' } });
+
+    // Cancel appears the moment the value differs from what was opened.
+    await waitFor(
+      () => expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeTruthy(),
+      { timeout: 5000 }
+    );
+
+    fireEvent.click(canvasElement.querySelector<HTMLElement>('.options-readfirst-cancel')!);
+
+    // The row closes and the opened-with value is back.
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeNull(), {
+      timeout: 5000,
+    });
+    await waitFor(
+      () =>
+        expect(
+          canvasElement.querySelector('[data-field="cookie_name"]')?.textContent ?? ''
+        ).toContain('my-cookie'),
+      { timeout: 5000 }
+    );
+  },
+};
+
+// Language and Source code are one decision — "what is this code, and in what
+// language" — and the form used to ask it as two unrelated rows one above the
+// other. `absorb_fields` lets the editor take the language into its own
+// container so the pair reads as the single element it is.
+export const CompactRowAbsorbsLanguage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a code-editor row that absorbs its Language sibling — the language control sits inside the Source Code container above the editor instead of on a row of its own, and the collapsed row summarises it as a chip beside the code size.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    componentOverrides: { 'code-editor': CodeEditorStandinNoSyntax },
+    value: {
+      language: { type: 'string', value: 'qore' },
+      source: { type: 'string', value: '%new-style\nclass Example {\n}\n' },
+    },
+    options: {
+      language: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Language',
+        allowed_values: [
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
+          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+        ],
+      },
+      source: {
+        type: 'string',
+        ui_type: 'code-editor',
+        display_name: 'Source Code',
+        inherit_props: { language: 'language' },
+        absorb_fields: ['language'],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // The absorbed field has no row of its own.
+    await waitFor(() => expect(canvasElement.querySelector('[data-field="source"]')).toBeTruthy());
+    expect(canvasElement.querySelector('[data-field="language"]')).toBeNull();
+
+    // Collapsed, the host still reports the absorbed value — otherwise the
+    // language would vanish from the form whenever the editor is closed.
+    const sourceRow = canvasElement.querySelector('[data-field="source"]');
+    expect(sourceRow?.textContent ?? '').toContain('qore');
+
+    // Opening the host renders the language control inside its container.
+    fireEvent.click(sourceRow as HTMLElement);
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy()
+    );
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.options-readfirst-absorbed')).toBeTruthy()
+    );
+    // It is still identifiable as its own field, not a property of the editor.
+    expect(canvasElement.querySelector('.options-readfirst-absorbed')?.textContent ?? '').toContain(
+      'Language'
+    );
+  },
+};
+
+export const CompactRowCancelEditAffordance: Story = {
+  ...CompactRowCancelEdit,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact row open for editing with a changed value, stopping while it is open — Cancel edit sits beside the green Done check, which is what an open field used to offer on its own.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
+    expect(row).toBeTruthy();
+    fireEvent.click(row!);
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy()
+    );
+
+    const input = canvasElement.querySelector<HTMLInputElement>(
+      '[data-field="cookie_name"] input, [data-field="cookie_name"] textarea'
+    );
+    fireEvent.change(input!, { target: { value: 'changed-cookie' } });
+
+    await waitFor(
+      () => expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeTruthy(),
+      { timeout: 5000 }
+    );
+    // Both ways out are on screen together, which is the point of the story.
+    expect(canvasElement.querySelector('.options-readfirst-done')).toBeTruthy();
+  },
+};
+
+export const CompactRowCodeEditorPreview: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact-mode code-editor row over a multi-line Qore source value — the value cell replaces the truncated string with a monospaced size note under the field name and a collapsible monospace preview mounts under the row. The stand-in prints no "syntax:" line: this row carries a Language control directly above the editor, so it would be the same fact stated twice.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    componentOverrides: { 'code-editor': CodeEditorStandinNoSyntax },
     value: {
       language: { type: 'string', value: 'qore' },
       source: {
@@ -977,6 +1161,132 @@ export const CompactRowCodeEditorPreview: Story = {
     const sourceRow = canvasElement.querySelector('[data-field="source"]');
     expect(sourceRow).toBeTruthy();
     expect(sourceRow?.textContent ?? '').toMatch(/\d+\s*lines?/);
+  },
+};
+
+export const CompactRowCodeEditorMessage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A schema `messages` entry on a code-editor field. Every other field surfaces its messages on the collapsed row; a code field draws a preview in the same cell, and the message has to survive beside it — a diagnostic the reader only finds by opening the field is not reported. Qorus puts source-validation results here, so an invalid service is called out on the row rather than at save time.",
+      },
+    },
+  },
+  args: {
+    ...CompactRowCodeEditorPreview.args,
+    options: {
+      ...(CompactRowCodeEditorPreview.args as any).options,
+      source: {
+        ...(CompactRowCodeEditorPreview.args as any).options.source,
+        // The field ABSORBS its language sibling, which is how Qorus ships it:
+        // the language control renders inside the Source Code container. That
+        // is the shape the message has to survive.
+        absorb_fields: ['language'],
+        // Qorus groups its fields (INFO / SCALING), so the row renders inside a
+        // group rather than in a flat list.
+        group: 'info',
+        messages: [
+          {
+            intent: 'danger',
+            title: 'Line 4',
+            content: "syntax error, unexpected '}'",
+          },
+        ],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // The message renders on the collapsed row, beside the code preview rather
+    // than instead of it.
+    await waitFor(
+      () => {
+        const row = canvasElement.querySelector('[data-field="source"]');
+        expect(row?.textContent ?? '').toContain('Line 4');
+        expect(row?.textContent ?? '').toContain("syntax error, unexpected '}'");
+      },
+      { timeout: 5000 }
+    );
+
+    const row = canvasElement.querySelector('[data-field="source"]');
+    // ... and the preview it sits beside is still there.
+    expect(row?.textContent ?? '').toContain('class ExampleJob inherits QorusJob');
+  },
+};
+
+/**
+ * Adds a schema message to a field a moment AFTER the form has mounted, the way
+ * a host that validates asynchronously does.
+ */
+const LateMessageHarness = (args: any) => {
+  const [options, setOptions] = useState(args.options);
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () =>
+        setOptions((current: any) => ({
+          ...current,
+          source: {
+            ...current.source,
+            messages: [
+              { intent: 'danger', title: 'Line 4', content: "syntax error, unexpected '}'" },
+            ],
+          },
+        })),
+      100
+    );
+    return () => clearTimeout(timer);
+  }, []);
+
+  return <FormEngine {...args} options={options} />;
+};
+
+export const CompactRowCodeEditorLateMessage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same message, but added to the schema after the form has mounted — which is how a host that validates asynchronously delivers one. A message that only renders when it was present at mount is no use to a validator: the answer always arrives later than the field did.',
+      },
+    },
+  },
+  args: { ...CompactRowCodeEditorPreview.args },
+  render: (args) => <LateMessageHarness {...args} />,
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () => {
+        const row = canvasElement.querySelector('[data-field="source"]');
+        expect(row?.textContent ?? '').toContain('Line 4');
+      },
+      { timeout: 10000 }
+    );
+  },
+};
+
+export const CompactRowMessageWhileEditing: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "The same message, with the row OPEN. A schema message is guidance about the value, so the moment it matters most is while the value is being edited — and a validation diagnostic is useless anywhere else: it names a line the author can only fix with the editor in front of them. Qorus opens the Source Code row on arrival, so a message that only survives on the collapsed row was never seen at all.",
+      },
+    },
+  },
+  args: { ...CompactRowCodeEditorMessage.args },
+  play: async ({ canvasElement }) => {
+    // Open the row, the way an author does before fixing what the message says.
+    await waitFor(() => {
+      expect(canvasElement.querySelector('[data-field="source"]')).toBeTruthy();
+    });
+    await fireEvent.click(canvasElement.querySelector('[data-field="source"]') as HTMLElement);
+
+    await waitFor(() => {
+      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy();
+    });
+
+    const editingRow = canvasElement.querySelector('.readfirst-row-editing') as HTMLElement;
+    expect(editingRow?.textContent ?? '').toContain('Line 4');
+    expect(editingRow?.textContent ?? '').toContain("syntax error, unexpected '}'");
   },
 };
 
@@ -1164,7 +1474,7 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
     docs: {
       description: {
         story:
-          "Renders the NestedOptionInheritsRenderPropFromAncestor schema with compact=true — the compact renderer summarises the list-of-hash rows as 'init, run' rather than [object Object].",
+          "Renders the NestedOptionInheritsRenderPropFromAncestor schema with compact=true — the compact renderer previews the list-of-hash rows through their arg_schema, naming each method, rather than printing [object Object].",
       },
     },
   },
@@ -1229,11 +1539,13 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
     await waitFor(() => expect(canvas.getAllByText('Methods').length).toBeGreaterThan(0), {
       timeout: 5000,
     });
-    // The list-of-hashes value summarises by the items' names — never a raw
-    // "[object Object]" (regression: it used to stringify each hash envelope).
-    await expect(
-      await canvas.findByText('init, run', undefined, { timeout: 5000 })
-    ).toBeInTheDocument();
+    // The list-of-hashes value names its items — never a raw "[object Object]"
+    // (regression: it used to stringify each hash envelope). The names now come
+    // from the schema preview rather than a joined summary line above it, so the
+    // assertion moved with them; what must never come back is the stringified
+    // envelope.
+    await expect(await canvas.findByText('init', undefined, { timeout: 5000 })).toBeInTheDocument();
+    await expect(await canvas.findByText('run')).toBeInTheDocument();
     await expect(canvasElement.textContent ?? '').not.toContain('[object Object]');
   },
 };
@@ -1290,12 +1602,16 @@ export const CompactNestedListRowsStayCompact: Story = {
     } as unknown as IOptionsSchema,
   },
   play: async ({ canvasElement }) => {
-    // Collapsed, the row summarises by the items' names.
-    await _testsWaitForText('init, run');
+    // Collapsed, the row previews its items through their schema — one numbered
+    // entry per method, each naming itself.
+    // The method name heads its item now, so that is what identifies the row.
+    await _testsWaitForText('init');
+    await _testsWaitForText('run');
 
     // Open the Methods row — this mounts ArrayAuto and, with it, one
-    // arg_schema sub-form per row.
-    await _testsClickText('init, run');
+    // arg_schema sub-form per row. Clicked by the field's NAME: the joined
+    // summary that used to sit on this row is gone, replaced by the preview.
+    await _testsClickText('Methods');
 
     await waitFor(
       () => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2),
@@ -1347,8 +1663,8 @@ export const CompactNestedListRowsStayCompactMobile: Story = {
     ),
   ],
   play: async ({ canvasElement }) => {
-    await _testsWaitForText('init, run');
-    await _testsClickText('init, run');
+    await _testsWaitForText('init');
+    await _testsClickText('Methods');
 
     await waitFor(
       () => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2),
@@ -4131,6 +4447,29 @@ export const CompactFieldTypes: Story = {
           secure: { type: 'bool', display_name: 'Secure' },
         },
       },
+      // The list counterpart of `connectionInfo`: a list of hashes whose fields
+      // are declared. This is the shape the schema preview was built for, and the
+      // catalogue was missing it — it covered the described HASH but not the
+      // described LIST, which is the case that was actually reported.
+      routes: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'hash',
+        display_name: 'List of hashes (arg_schema)',
+        group: 'structured',
+        arg_schema: {
+          method: {
+            type: 'string',
+            display_name: 'Method',
+            allowed_values: [
+              { value: 'get', display_name: 'GET' },
+              { value: 'post', display_name: 'POST' },
+            ],
+          },
+          path: { type: 'string', display_name: 'Path' },
+          handler: { type: 'string', ui_type: 'code-editor', display_name: 'Handler' },
+        },
+      },
       freeConfig: {
         type: 'free-hash',
         ui_type: 'free-hash',
@@ -4339,6 +4678,22 @@ export const CompactFieldTypes: Story = {
           secure: { type: 'bool', value: true },
         },
       },
+      routes: {
+        type: 'list',
+        value: [
+          // One item complete, one with the optional field unset — the empty
+          // state stays exercised rather than being filled in everywhere.
+          {
+            type: 'hash',
+            value: {
+              method: 'get',
+              path: '/orders',
+              handler: 'sub get_orders() {\n    return orders.all();\n}',
+            },
+          },
+          { type: 'hash', value: { method: 'post', path: '/orders' } },
+        ],
+      },
       freeConfig: { type: 'free-hash', value: '%YAML 1.2\n---\nretries: 3\ntimeout: 30\n' },
       bigConfig: {
         type: 'hash',
@@ -4422,7 +4777,23 @@ export const CompactFieldTypes: Story = {
     await _testsWaitForText('#0000FF'); // colour → uppercase hex
     await _testsWaitForText('rgba(255, 0, 0, 0.5)'); // colour with alpha → rgba()
     await _testsWaitForText('config.txt'); // file → filename
-    await _testsWaitForText('3 fields'); // structured hash → field count summary
+    // A hash the schema DESCRIBES needs no count: its preview names every field,
+    // so "3 fields" above "Host / Port / Secure" would be the same fact twice.
+    // A hash it does not describe keeps the count — the untyped tree beneath it
+    // says nothing about what the value means, so the count is the only line
+    // that does. Both halves asserted here: the distinction IS the behaviour.
+    await _testsWaitForText('2 fields'); // undescribed hash → field count summary
+    await _testsWaitForText('Host'); // described hash → its fields, by name
+    await _testsWaitForTextToNotExist('3 fields');
+
+    // Described LIST of hashes: numbered items, labels by display_name, and the
+    // allowed value read back as its label rather than the stored `get`.
+    await _testsWaitForText('Path');
+    await _testsWaitForText('/orders');
+    await _testsWaitForText('GET');
+    // A code sub-field renders AS code, not as a flattened mono line.
+    await _testsWaitForText('Handler');
+    await _testsWaitForText(/sub get_orders/);
     await _testsWaitForText('order-to-invoice'); // interface reference → raw value
 
     // Field stack (merged from dpql): byte-size shows its value string; the
@@ -4599,7 +4970,12 @@ export const CompactFieldTypesEditing: Story = {
     await userEvent.click(within(confirmationModal!).getByRole('button', { name: 'Clear value' }));
     await waitFor(() => {
       expect(editRow('enabled').querySelector('.options-readfirst-clear')).not.toBeInTheDocument();
-      expect(editRow('enabled').querySelector('.options-readfirst-revert')).toBeInTheDocument();
+      // Clear swaps for the undo affordance. In an OPEN field that is
+      // "Cancel edit" — the field was opened holding its form-load value, so
+      // undoing this edit and reverting the field are the same thing and only
+      // one button is offered. The form-load revert reappears here only when
+      // the field was already modified before it was opened.
+      expect(editRow('enabled').querySelector('.options-readfirst-cancel')).toBeInTheDocument();
     });
   },
 };
@@ -5896,6 +6272,173 @@ export const CompactReadFirstRichtextTemplateBaseline: Story = {
 };
 
 /**
+ * The same summary, built from the value the server actually sends.
+ *
+ * `CompactReadFirstRichtextTemplateBaseline` above separates its chips with
+ * SPACES, and that is why it kept passing while the row stayed broken: an alert
+ * rule's Gmail message body is five `\n`-separated lines, and the newline is the
+ * whole difference. The richtext branch is the only read-first value that opts
+ * into `white-space: pre` — it has to, or the space between a word and the chip
+ * beside it is dropped — and `pre` honours the newlines too. Every prose segment
+ * after the first then rendered a blank first line, measured 30px against the
+ * chips' 14px, and the wrapper's `align-items: center` put each word 12px below
+ * the chip next to it. The row read as a staircase (supah, 2026-08-28).
+ *
+ * The row is a single line by construction; every other value type reaches that
+ * through `nowrap`, which eats newlines for free. So the fix is to collapse them
+ * here as well, and this story holds the two things that prove it: the prose
+ * boxes are one line tall, not two, and they still share a centre with the chips.
+ */
+const RichtextMultilineTemplateValue: IOptions = {
+  body: {
+    type: 'richtext',
+    value: [
+      {
+        type: 'paragraph',
+        children: [
+          { text: 'Alert: ' },
+          { type: 'tag', value: '$fsminput:alert_code', label: 'alert_code', children: [{ text: '' }] },
+          { text: '\nSeverity: ' },
+          { type: 'tag', value: '$fsminput:severity', label: 'severity', children: [{ text: '' }] },
+          { text: '\nRule: ' },
+          { type: 'tag', value: '$fsminput:rule_name', label: 'rule_name', children: [{ text: '' }] },
+        ],
+      },
+    ],
+  },
+} as unknown as IOptions;
+
+export const CompactReadFirstRichtextMultilineTemplate: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A multi-line richtext value in the read-first row. The row is one line, so the value's newlines must collapse rather than break — and the row must not also hover the raw template source, which is what the chips are there to replace.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: RichtextTemplateSchema,
+    value: RichtextMultilineTemplateValue,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('alert_code');
+
+    const proseSpans = Array.from(canvasElement.querySelectorAll('span')).filter(
+      // the collapsed newline leaves the segment with a leading space
+      (element) =>
+        element.children.length === 0 && /^\s*(Alert|Severity|Rule):/.test(element.textContent || '')
+    ) as HTMLElement[];
+    await expect(proseSpans.length).toBe(3);
+
+    // No hard break survives into the summary: a segment that still carried its
+    // newline would render a blank first line and measure two lines tall.
+    for (const span of proseSpans) {
+      await expect(span.textContent).not.toContain('\n');
+    }
+
+    const chipEl = Array.from(canvasElement.querySelectorAll('span')).find(
+      (element) => element.children.length === 0 && element.textContent?.trim() === 'alert_code'
+    ) as HTMLElement;
+    const chipHeight = chipEl.getBoundingClientRect().height;
+
+    // One line tall, like the chip beside it -- this is the assertion that fails
+    // on the unfixed code, where the blank line doubled it.
+    for (const span of proseSpans) {
+      await expect(span.getBoundingClientRect().height).toBeLessThan(chipHeight * 1.6);
+    }
+
+    // ...and they still sit on the chips' centre line, which is what the earlier
+    // baseline fix bought and this must not give back.
+    const chipRect = chipEl.getBoundingClientRect();
+    for (const span of proseSpans) {
+      const rect = span.getBoundingClientRect();
+      const offset = Math.abs(rect.top + rect.height / 2 - (chipRect.top + chipRect.height / 2));
+      await expect(offset).toBeLessThanOrEqual(1.5);
+    }
+
+    // The row draws the value in full as chips, so it must not ALSO carry a
+    // native tooltip of the raw source: hovering a chip fired that and the chip's
+    // own popover together, and only the popover is visible in a screenshot.
+    const valueCell = chipEl.closest('[title]');
+    await expect(valueCell).toBeNull();
+  },
+};
+
+/**
+ * A list of template-capable STRINGS, which is what an email `To` field is.
+ *
+ * Gmail's `to` is `type: "list"`, `element_type: "string"`,
+ * `supports_templates: true`, so each element is edited with a rich-text editor
+ * and its value arrives wrapped: `{type: "richtext", value: [{type:
+ * "paragraph", …}]}`. The hash-list test unwrapped `item.value`, found the Slate
+ * document — an object — and classed a list of addresses as a list of hashes, so
+ * the row drew an expandable `type / children / text` tree instead of the
+ * address (supah, 2026-08-29).
+ *
+ * A rich-text envelope is a string in a coat. The row reads it as one.
+ */
+const RichtextListSchema: IOptionsSchema = {
+  to: {
+    type: 'list',
+    element_type: 'string',
+    supports_templates: true,
+    display_name: 'To',
+    required: true,
+  } as never,
+};
+
+const RichtextListValue: IOptions = {
+  to: {
+    type: 'list',
+    value: [
+      { type: 'richtext', value: [{ type: 'paragraph', children: [{ text: 'ops@example.com' }] }] },
+      { type: 'richtext', value: [{ type: 'paragraph', children: [{ text: 'sre@example.com' }] }] },
+    ],
+  },
+} as unknown as IOptions;
+
+export const CompactReadFirstRichtextStringList: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A list of template-capable string elements reads as its strings, not as a structured-data tree: the rich-text envelope each element arrives in is a string in a coat.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: RichtextListSchema,
+    value: RichtextListValue,
+  },
+  play: async ({ canvasElement }) => {
+    // The row itself, not a global text search: the addresses have to be IN the
+    // `to` row, which is the whole point.
+    await waitFor(
+      () => {
+        const row = canvasElement.querySelector('[data-field="to"]');
+        expect(row).toBeTruthy();
+        // The addresses themselves, not a bare "2 items" count.
+        expect(row?.textContent ?? '').toContain('ops@example.com');
+      },
+      { timeout: 10000 }
+    );
+
+    const text = canvasElement.querySelector('[data-field="to"]')?.textContent ?? '';
+    await expect(text).toContain('sre@example.com');
+
+    // ...and none of the document's internals leak into the row. These are the
+    // labels the structured-data tree prints, and they are what the operator saw.
+    await expect(text).not.toContain('paragraph');
+    await expect(text).not.toContain('children');
+  },
+};
+
+/**
  * The other half of the markdown contract: with NO host renderer there is no
  * inset at all. The row is not left empty though — its one line still carries
  * the document's prose, summarised. Losing the RENDERING without a renderer is
@@ -5930,6 +6473,250 @@ export const CompactRowMarkdownWithoutRenderer: Story = {
     expect(descText).toContain('Order intake');
     expect(descText).not.toContain('##');
     expect(descText).not.toContain('**');
+  },
+};
+
+/**
+ * The auth-profile scheme sub-schema, which is where all three of the list-row
+ * affordances below were reported. One required choice with named allowed
+ * values, one field that belongs to a single choice.
+ */
+const AuthSchemeArgSchema = {
+  type: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Scheme Type',
+    short_desc: 'Authentication scheme type',
+    required: true,
+    allowed_values: [
+      { value: 'default', display_name: 'Default RBAC' },
+      { value: 'cookie', display_name: 'Cookie' },
+      { value: 'oauth2', display_name: 'OAuth2' },
+    ],
+  },
+  cookie_name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Session Cookie Name',
+    short_desc: 'Applies to the Cookie scheme alone',
+    depends_on: ['type=cookie'],
+  },
+} as unknown as IOptionsSchema;
+
+const AuthSchemeOptions = {
+  schemes: {
+    type: 'list',
+    ui_type: 'list',
+    element_type: 'hash',
+    display_name: 'Authentication Schemes',
+    short_desc: 'Schemes tried in order, first match wins',
+    required: true,
+    arg_schema: AuthSchemeArgSchema,
+  },
+} as unknown as IOptionsSchema;
+
+/**
+ * A list-of-hash row reads back in the words the form asked for the value.
+ *
+ * Reported on an auth profile: the row summarised as "2 items" and its preview
+ * printed a data tree — "Object · 1 field" over `type: default`. Both are
+ * exactly what is stored, and neither is a string the author has ever seen: the
+ * form calls that key "Scheme Type" and that value "Default RBAC". A row meant
+ * to confirm a choice showed a value nobody had chosen, in a shape nobody had
+ * asked about.
+ *
+ * A generic data view has to announce what it found, because inference is all it
+ * has. A field with an `arg_schema` needs none of that — the shape, the names and
+ * the choices are known before the value arrives — so the preview renders
+ * THROUGH the schema (`SchemaDataView`) and the summary resolves through the
+ * same one. The row, the preview and the editor cannot describe a value three
+ * ways.
+ */
+export const CompactListOfHashReadsInSchemaWords: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A list-of-hash option whose sub-schema names its fields and values. The collapsed row summarises by those names ("Default RBAC, Cookie") and the preview renders as labelled schema rows — "Scheme Type · Default RBAC" per numbered item — instead of an untyped data tree over the stored `type: default`.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: AuthSchemeOptions,
+    value: {
+      schemes: {
+        type: 'list',
+        value: [
+          { type: 'hash', value: { type: 'default' } },
+          { type: 'hash', value: { type: 'cookie', cookie_name: 'qorus-session' } },
+        ],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // The preview IS the value here — the row prints no summary line above it.
+    // A joined "Default RBAC, Cookie" directly over a preview that names both
+    // items is the same facts twice, the lossy version first.
+    const preview = await waitFor(() => {
+      const element = canvasElement.querySelector('.schema-data-view');
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    const text = preview.textContent ?? '';
+    // Each item is headed by its first value, so the list reads by name; the
+    // remaining fields keep their labels.
+    const titles = [...preview.querySelectorAll('.schema-view-item-title')].map((element) =>
+      (element.textContent ?? '').trim()
+    );
+    expect(titles).toEqual(['Default RBAC', 'Cookie']);
+    expect(text).toContain('Session Cookie Name');
+
+    // Nothing announces the container's shape — that is the tell of a renderer
+    // guessing at data it has not been told about.
+    expect(text).not.toMatch(/Object\b/);
+    expect(text).not.toMatch(/\d+ fields?\b/);
+
+    // The joined summary is gone from the row, and it is the ROW that has to be
+    // checked: the same words still exist inside the preview, so asserting on
+    // the whole canvas would pass whether or not the line was removed.
+    const valueLine = canvasElement.querySelector(
+      '[data-field="schemes"] .options-readfirst-valuetext'
+    );
+    expect(valueLine?.textContent ?? '').not.toBe('Default RBAC, Cookie');
+
+    // A literal the author typed is set in mono; a chosen label is not.
+    const mono = [...preview.querySelectorAll('.schema-view-data')].map((el) =>
+      (el.textContent ?? '').trim()
+    );
+    expect(mono).toContain('qorus-session');
+    expect(mono).not.toContain('Default RBAC');
+
+    // The stored spellings are what the author never chose, so they must not be
+    // in the preview at all. Substring checks cannot say this — "Scheme Type"
+    // contains "type" and "Default RBAC" contains "default" — so the assertion
+    // is on whole leaf elements: no chip or cell reads exactly `type`,
+    // `cookie_name` or `default`. A substring assertion here passed against a
+    // preview that was still rendering the raw pair.
+    const leafTexts = [...preview.querySelectorAll('*')]
+      .filter((element) => element.children.length === 0)
+      .map((element) => (element.textContent ?? '').trim());
+    expect(leafTexts).toContain('Default RBAC');
+    for (const stored of ['type', 'cookie_name', 'default']) {
+      expect(leafTexts).not.toContain(stored);
+    }
+    expect(canvasElement.textContent ?? '').not.toContain('[object Object]');
+  },
+};
+
+/**
+ * Adding a list item opens the field the item cannot be saved without.
+ *
+ * `+ Add new item for "Authentication Scheme"` added a row whose one required
+ * field sat collapsed, so the author had to find it and click it before the
+ * form could be completed — a second click to reach the only thing the first
+ * click could have meant.
+ *
+ * The engine already had `autoFocusFirstRequired`, and it could not fire here:
+ * it waits for focus to be free so it never steals a caret, and a form mounted
+ * BY a click never sees free focus — the button that mounted it still holds it.
+ * Opening a row and moving the caret are separate decisions, so they are now
+ * separate flags; this one only opens.
+ */
+export const CompactAddedListRowOpensItsRequiredField: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicks "Add new item" on a list-of-hash option and shows the new row with its required "Scheme Type" field already open. Rows that were already in the value stay collapsed — only the row just added is opened.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: AuthSchemeOptions,
+    value: {
+      schemes: {
+        type: 'list',
+        value: [{ type: 'hash', value: { type: 'default' } }],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // Open the list itself, which mounts the rows and the Add button. Clicked by
+    // FIELD, not by its text: the row no longer prints a summary line, and the
+    // words that remain live inside the preview.
+    await _testsClickText('Authentication Schemes');
+    await waitFor(() => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(1));
+
+    // The row that was already there is collapsed — this is the state the new
+    // row must NOT be confused with.
+    const isOpen = (element: Element | null | undefined) =>
+      !!element &&
+      (element.classList.contains('readfirst-row-editing') ||
+        element.classList.contains('options-readfirst-card'));
+    const typeRows = () => canvasElement.querySelectorAll('[data-field="type"]');
+    expect([...typeRows()].some(isOpen)).toBe(false);
+
+    await _testsClickButton({ label: 'Add new item for "Authentication Schemes"' });
+
+    await waitFor(() => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2));
+    // Exactly one open required field: the one belonging to the row just added.
+    await waitFor(() => expect([...typeRows()].filter(isOpen)).toHaveLength(1));
+  },
+};
+
+/**
+ * The same schema-worded row at a phone-class width.
+ *
+ * The narrow branch is what makes this worth its own story: below 480px the row
+ * stacks the value under the label, so a summary and a preview that were both
+ * rewritten to be READ (rather than decoded) have to survive the stacking
+ * without wrapping into an unreadable column. `compactNarrow` comes from
+ * `useMeasure` on the form's own wrapper, not from a media query, so a narrow
+ * container is the honest way to reach the branch here — the viewport-parameter
+ * rule applies to media-query components, which this is not.
+ */
+export const CompactListOfHashReadsInSchemaWordsMobile: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The schema-worded list-of-hash row at a ~360px width: the summary and the renamed preview stack under the field name and stay legible in one column.',
+      },
+    },
+  },
+  args: CompactListOfHashReadsInSchemaWords.args,
+  decorators: [
+    (StoryComponent: React.ComponentType) => (
+      <div style={{ maxWidth: 360, margin: '0 auto', border: '1px dashed #ffffff22' }}>
+        <StoryComponent />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('Default RBAC');
+
+    // The narrow branch is actually engaged — otherwise this is the desktop
+    // story with a border round it, and it would pass while proving nothing.
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.readfirst-narrow')).toBeTruthy()
+    );
+
+    const preview = await waitFor(() => {
+      const element = canvasElement.querySelector('.schema-data-view');
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    const leafTexts = [...preview.querySelectorAll('*')]
+      .filter((element) => element.children.length === 0)
+      .map((element) => (element.textContent ?? '').trim());
+    expect(leafTexts).toContain('Session Cookie Name');
+    for (const stored of ['type', 'cookie_name', 'default']) {
+      expect(leafTexts).not.toContain(stored);
+    }
   },
 };
 

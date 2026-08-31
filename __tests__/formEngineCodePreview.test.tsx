@@ -1,5 +1,5 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
@@ -61,6 +61,19 @@ describe('read-first code preview', () => {
     expect(rowTitle(container, 'source')).toBeNull();
   });
 
+  it('summarises the code the row is not showing, through the shared size tag', async () => {
+    const { container } = renderForm();
+    await waitForRows(container);
+
+    // the row prints a measurement instead of a truncated first line; it comes
+    // from `ReqraftCodeSizeTag`, so a caller outside the form engine gets the
+    // same chip rather than a second, drifting copy of it
+    const row = container.querySelector('[data-field="source"]');
+
+    expect(row?.textContent).toContain('5 lines');
+    expect(row?.textContent).toContain(`${SOURCE.length} chars`);
+  });
+
   it('keeps the hover on values the row had to truncate', async () => {
     const { container } = renderForm();
     await waitForRows(container);
@@ -96,5 +109,72 @@ describe('read-first code preview', () => {
         values: expect.objectContaining({ note: expect.objectContaining({ value: 'a plain string value' }) }),
       })
     );
+  });
+});
+
+describe('code size chip when the field is open', () => {
+  const openSourceRow = async (container: HTMLElement) => {
+    await waitForRows(container);
+    // `data-field` sits on the row element itself, not on a wrapper around it
+    const row = container.querySelector('[data-field="source"]');
+
+    expect(row).toBeTruthy();
+    fireEvent.click(row as HTMLElement);
+
+    await waitFor(() =>
+      expect(container.querySelector('.readfirst-row-editing')).toBeTruthy()
+    );
+  };
+
+  it('keeps the size chip when the field opens', async () => {
+    const { container } = renderForm();
+    await waitForRows(container);
+
+    // the chip counts lines and characters, which the editor does not show
+    // anywhere -- so unlike every other read-first value it is not made redundant
+    // by opening the field, and dropping it lost information
+    expect(container.textContent).toContain('5 lines');
+
+    await openSourceRow(container);
+
+    const chip = container.querySelector('.options-readfirst-label-code-size');
+
+    expect(chip).toBeTruthy();
+    expect(chip?.textContent).toContain('5 lines');
+    expect(chip?.textContent).toContain(`${SOURCE.length} chars`);
+  });
+
+  it('puts it under the field name, not in the value cell', async () => {
+    // How much source there is describes the FIELD, not its value, so it belongs
+    // in the label column beside the name -- the same rule the multi-line
+    // markdown line count already follows. In the value cell it sat in front of
+    // the content it was describing.
+    const { container } = renderForm();
+    await openSourceRow(container);
+
+    const chip = container.querySelector('.options-readfirst-label-code-size');
+
+    expect(chip).toBeTruthy();
+    expect(chip?.closest('.options-readfirst-label-block')).toBeTruthy();
+    // and nothing is left behind in the value cell
+    expect(container.querySelector('.options-readfirst-editing-summary')).toBeNull();
+  });
+
+  it('does not add a summary to a field the editor already speaks for', async () => {
+    const { container } = renderForm();
+    await waitForRows(container);
+
+    const noteRow = container.querySelector('[data-field="note"]');
+    fireEvent.click(noteRow as HTMLElement);
+
+    await waitFor(() =>
+      expect(container.querySelector('.readfirst-row-editing')).toBeTruthy()
+    );
+
+    // a plain string editor shows the value itself; a summary above it would say
+    // the same thing twice
+    expect(
+      container.querySelector('[data-field="note"] .options-readfirst-editing-summary')
+    ).toBeNull();
   });
 });

@@ -43,15 +43,28 @@ export const FieldAllowedValuesCheckGroup = memo(
     onChange,
     name,
     value,
+    label,
     ...rest
   }: Partial<Omit<IFieldAllowedValuesProps, 'items'>> & {
     multiSelect?: boolean;
     items: ISelectFormFieldItem[];
+    /**
+     * The field's own name, used as the group's heading.
+     *
+     * A picker headed by what it IS beats one headed by a generic instruction:
+     * "Select one:" says nothing the shape of a radio group has not already
+     * said, and in a container that absorbs a sibling it forced the field's name
+     * to be printed a second time beside the group. Falls back to the
+     * instruction when a field declares no display name.
+     */
+    label?: string;
   }) => {
     return (
       <ReqoreControlGroup vertical size={rest.size || 'small'} gapSize='tiny'>
         <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
-          {multiSelect ? 'Select one or more:' : 'Select one:'}
+          {label ? `${label}:`
+          : multiSelect ? 'Select one or more:'
+          : 'Select one:'}
         </ReqoreSpan>
         {items?.map((item) => (
           <ReqoreCheckbox
@@ -62,10 +75,17 @@ export const FieldAllowedValuesCheckGroup = memo(
             disabled={rest.disabled}
             readOnly={rest.readOnly}
             intent={item.value === value ? 'info' : undefined}
+            // `isEqual`, and only once there is a value to match. The single
+            // -select branch compared JSON.stringify(value) with
+            // JSON.stringify(item.value), and JSON.stringify(undefined) is
+            // undefined — so an unset field whose items carry no resolved value
+            // compared undefined with undefined and reported EVERY option as
+            // checked, on a field that was simultaneously "This field is
+            // required". Nothing selected must read as nothing selected.
             checked={
               multiSelect
                 ? Array.isArray(value) && value.some((v) => isEqual(v, item.value))
-                : JSON.stringify(value) === JSON.stringify(item.value)
+                : value !== undefined && value !== null && isEqual(value, item.value)
             }
             onClick={() => {
               if (multiSelect) {
@@ -103,6 +123,7 @@ export const FieldAllowedValues = memo(
     disabled,
     name,
     readOnly,
+    label,
   }: IFieldAllowedValuesProps) => {
     const fullItems = useMemo(() => {
       const result = [
@@ -131,6 +152,7 @@ export const FieldAllowedValues = memo(
             onChange={onChange}
             value={value}
             name={name}
+            label={label}
           />
         );
       }

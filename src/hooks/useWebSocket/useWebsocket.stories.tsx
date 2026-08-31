@@ -39,13 +39,15 @@ const CompWithHook = (args: IUseReqraftWebSocketOptions) => {
 
 const meta = {
   title: 'Hooks/useWebSocket',
-  async beforeEach() {
+  async beforeEach({ parameters }: { parameters: Record<string, any> }) {
     const url = `wss://hq.qoretechnologies.com:8092/log-test?token=${process.env.REACT_APP_QORUS_TOKEN}`;
     let server = new Server(url);
     let killTimeout: NodeJS.Timeout;
+    /** Set while the server is dead: every connection that lands is closed. */
+    let killed = false;
 
     server.on('connection', (socket) => {
-      if (killTimeout) {
+      if (killed) {
         server.close();
         return;
       }
@@ -58,10 +60,25 @@ const meta = {
 
         if (data === 'kill') {
           server.close();
+          killed = true;
+
+          // Whether a killed server ever comes back is the story's choice, not
+          // a timer's. `Reconnects` needs it back to prove the socket recovers;
+          // `ReconnectFails` needs it gone for good to prove the socket gives
+          // up. Reviving on a fixed delay made the second one a race: it wins
+          // only if three attempts finish inside those three seconds, and each
+          // attempt first awaits an HTTP probe whose latency on CI is unbounded.
+          // When the probes ran slow the third attempt landed after the revival
+          // and CONNECTED, so `onReconnectFailed` never fired and the story
+          // failed — on CI only, and only sometimes.
+          if (parameters.killedServerReturns === false) {
+            return;
+          }
 
           killTimeout = setTimeout(() => {
             server = new Server(url);
             killTimeout = null;
+            killed = false;
           }, 3000);
 
           return;
@@ -74,6 +91,7 @@ const meta = {
     return () => {
       killTimeout && clearTimeout(killTimeout);
       killTimeout = null;
+      killed = false;
       server.close({
         code: 4999,
         reason: 'Test ended',
@@ -201,6 +219,9 @@ export const ReconnectFails: Story = {
     reconnectInterval: 500,
   },
   parameters: {
+    killedServerReturns: false,
+    // The server stays dead, so exhausting the attempts is the only outcome
+    // available no matter how long each one takes.
     docs: {
       description: {
         story:

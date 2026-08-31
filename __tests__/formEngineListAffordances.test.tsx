@@ -1,0 +1,388 @@
+import { ReqoreUIProvider } from '@qoretechnologies/reqore';
+import { fireEvent, render, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { FormEngine } from '../src/components/form/engine/FormEngine';
+import { FetchContext } from '../src/contexts/FetchContext';
+
+// `query` is imported directly by the components under test (CompactRow resolves
+// an arg_schema id with it, exactly as AutoFormField does), so it has to be
+// mocked at the module boundary — a FetchContext value never reaches it.
+const queryMock = vi.fn();
+vi.mock('../src/utils/fetch', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../src/utils/fetch')>()),
+  query: (...args: unknown[]) => queryMock(...args),
+}));
+
+const fetchContext = {
+  get: vi.fn(async () => ({ ok: true, data: [] })),
+  post: vi.fn(async () => ({ ok: true, data: [] })),
+  put: vi.fn(async () => ({ ok: true, data: [] })),
+  del: vi.fn(async () => ({ ok: true, data: [] })),
+};
+
+/**
+ * Two affordances on a compact form that both stopped one click short of the
+ * thing they exist to reveal.
+ *
+ * Reported together on an auth profile:
+ *
+ *  - "+ Add new item for Authentication Scheme" added a row whose ONE required
+ *    field — the scheme type, without which the profile cannot be saved — sat
+ *    collapsed behind a second click.
+ *  - Opening the "Optional" box at the bottom of a form mounted its fields below
+ *    the fold, so the click looked like it had done nothing.
+ *
+ * Both are the same shape: an action whose whole point is to reveal something,
+ * that leaves the something unrevealed.
+ */
+
+/** The auth-profile scheme sub-schema: one required choice, one dependent field. */
+const SCHEME_SCHEMA = {
+  type: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Scheme Type',
+    required: true,
+    short_desc: 'Authentication scheme type',
+    allowed_values: [
+      { value: 'default', display_name: 'Default RBAC' },
+      { value: 'cookie', display_name: 'Cookie' },
+    ],
+  },
+  cookie_name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Session Cookie Name',
+  },
+} as never;
+
+const renderForm = (options: never, value?: never) =>
+  render(
+    <ReqoreUIProvider>
+      <FetchContext.Provider value={fetchContext}>
+        <FormEngine compact name='profile' value={value} options={options} onChange={vi.fn()} />
+      </FetchContext.Provider>
+    </ReqoreUIProvider>
+  );
+
+const findByText = (container: HTMLElement, selector: string, text: string) =>
+  [...container.querySelectorAll(selector)].find((el) => (el.textContent || '').includes(text));
+
+/**
+ * Whether a field's row is OPEN.
+ *
+ * CompactRow gives an expanded row one of two shapes — an inline editing row or
+ * an expanded card — and a collapsed one gets neither. The selector has to carry
+ * the class, not just the field: a nested sub-form wraps its row in a second
+ * element that also carries `data-field`, so querying the field alone can return
+ * the wrapper and report every row as collapsed.
+ */
+const isFieldExpanded = (container: HTMLElement, field: string) =>
+  !!container.querySelector(
+    `[data-field="${field}"].readfirst-row-editing, [data-field="${field}"].options-readfirst-card`
+  );
+
+describe('a just-added list row opens the field it cannot be saved without', () => {
+  const OPTIONS = {
+    schemes: {
+      type: 'list',
+      ui_type: 'list',
+      element_type: 'hash',
+      display_name: 'Authentication Schemes',
+      required: true,
+      arg_schema: SCHEME_SCHEMA,
+    },
+  } as never;
+
+  /** Open the list field itself, which mounts ArrayAuto and its Add button. */
+  const openList = async (container: HTMLElement) => {
+    await waitFor(() => expect(container.querySelector('[data-field="schemes"]')).toBeTruthy());
+    fireEvent.click(container.querySelector('[data-field="schemes"]')!);
+    await waitFor(() =>
+      expect(findByText(container, 'button', 'Add new item')).toBeTruthy()
+    );
+  };
+
+  it('expands the required sub-field of the row it just added', async () => {
+    const { container } = renderForm(OPTIONS);
+    await openList(container);
+
+    fireEvent.click(findByText(container, 'button', 'Add new item')!);
+
+    // The row's required field is OPEN — an editing row or an expanded card,
+    // which are the two shapes CompactRow gives an expanded row. Collapsed, it
+    // renders neither: the read-first row carries plain `readfirst-row` only.
+    await waitFor(() => expect(isFieldExpanded(container, 'type')).toBe(true));
+  });
+
+  it('leaves the OTHER sub-fields of that row alone', async () => {
+    // "Open the first thing that needs attention", not "open everything". A row
+    // that expanded every field would be the classic stacked form again.
+    const { container } = renderForm(OPTIONS);
+    await openList(container);
+    fireEvent.click(findByText(container, 'button', 'Add new item')!);
+
+    await waitFor(() => expect(isFieldExpanded(container, 'type')).toBe(true));
+    // Either not offered yet (it is optional, so it lives in the Optional box)
+    // or offered and collapsed — never expanded.
+    expect(isFieldExpanded(container, 'cookie_name')).toBe(false);
+  });
+
+  it('does not open a required field on rows that were already there', async () => {
+    // A value that arrived from the server has an empty required field too. The
+    // author did not just create it, and re-opening it on every mount would
+    // reopen a decision they may have deliberately left for later.
+    const { container } = renderForm(OPTIONS, {
+      schemes: { type: 'list', value: [{ type: 'hash', value: {} }] },
+    } as never);
+    await openList(container);
+
+    await waitFor(() => expect(container.querySelector('[data-field="type"]')).toBeTruthy());
+    expect(isFieldExpanded(container, 'type')).toBe(false);
+  });
+});
+
+describe('opening a status box scrolls its content into view', () => {
+  // Every optional field lives in the "Optional" box, which stacks last — so on
+  // a form of any length it opens below the fold.
+  const OPTIONAL_ONLY = {
+    first: { type: 'string', ui_type: 'string', display_name: 'First Option' },
+    second: { type: 'string', ui_type: 'string', display_name: 'Second Option' },
+    third: { type: 'string', ui_type: 'string', display_name: 'Third Option' },
+  } as never;
+
+  /** The status box carrying `label`, and its collapse control (the only button
+   *  in its header). */
+  const statusBox = (container: HTMLElement, label: string) =>
+    [...container.querySelectorAll('.options-readfirst-group')].find((group) =>
+      (group.textContent || '').startsWith(label)
+    );
+
+  it('reveals the rows the click just mounted', async () => {
+    // jsdom implements no scrolling at all — `scrollIntoView` is not on the
+    // prototype — so the call itself IS the observable behaviour here. What the
+    // browser then does with `block: 'nearest'` is the browser's contract, not
+    // this component's.
+    const scrollIntoView = vi.fn();
+    (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView = scrollIntoView;
+
+    // A form of ONLY optional fields opens its Optional box by itself, which
+    // would fire the reveal before the test could act. One required field beside
+    // them restores the reported shape: a collapsed Optional box under
+    // something else.
+    const { container } = renderForm({
+      required_one: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Required Option',
+        required: true,
+      },
+      ...(OPTIONAL_ONLY as object),
+    } as never);
+
+    await waitFor(() => expect(statusBox(container, 'Optional')).toBeTruthy());
+    const box = statusBox(container, 'Optional')!;
+    expect(container.querySelector('[data-field="first"]')).toBeNull();
+
+    scrollIntoView.mockClear();
+    fireEvent.click(box.querySelector('button')!);
+
+    // The rows exist AND the box was scrolled to — the reveal has to happen
+    // after the rows mount, or it scrolls to a box that has not grown yet.
+    await waitFor(() => expect(container.querySelector('[data-field="first"]')).toBeTruthy());
+    expect(scrollIntoView).toHaveBeenCalled();
+    expect(scrollIntoView.mock.calls[0][0]).toMatchObject({ block: 'nearest' });
+
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
+  it('does not scroll when a box is COLLAPSED', async () => {
+    // Closing a box moves content off the screen on purpose. Scrolling to it
+    // would fight the user's own decision to put it away.
+    const scrollIntoView = vi.fn();
+    (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView = scrollIntoView;
+
+    const { container } = renderForm(OPTIONAL_ONLY);
+
+    // An all-optional form opens the box itself, so the first click here closes it.
+    await waitFor(() => expect(container.querySelector('[data-field="first"]')).toBeTruthy());
+    const box = statusBox(container, 'Optional')!;
+
+    scrollIntoView.mockClear();
+    fireEvent.click(box.querySelector('button')!);
+
+    await waitFor(() => expect(container.querySelector('[data-field="first"]')).toBeNull());
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+});
+
+describe('a chosen value survives being opened', () => {
+  /**
+   * The data-loss half of the same report. A sub-field whose `allowed_values`
+   * are written the bare way (`{value: 'default', display_name: 'Default RBAC'}`)
+   * had its value cleared as the form loaded, because the engine's clearing
+   * guard recognised only two of the three shapes an allowed value is written
+   * in. The collapsed row kept showing "Default RBAC" — the labelling path
+   * recognised all three — so the value looked present right up until the row
+   * was opened, where it read "—", and it was already gone from the form data.
+   */
+  const OPTIONS = {
+    schemes: {
+      type: 'list',
+      ui_type: 'list',
+      element_type: 'hash',
+      display_name: 'Authentication Schemes',
+      arg_schema: SCHEME_SCHEMA,
+    },
+  } as never;
+
+  it('keeps a bare-shaped allowed value when the row is opened', async () => {
+    const { container } = renderForm(OPTIONS, {
+      schemes: { type: 'list', value: [{ type: 'hash', value: { type: 'default' } }] },
+    } as never);
+
+    await waitFor(() => expect(container.querySelector('[data-field="schemes"]')).toBeTruthy());
+    fireEvent.click(container.querySelector('[data-field="schemes"]')!);
+
+    // Inside the opened row, the field reads its display name — not the empty
+    // dash. Asserting on the sub-form is what makes this bite: the COLLAPSED
+    // summary showed the right thing throughout the bug.
+    const item = await waitFor(() => {
+      const element = container.querySelector('.array-auto-item');
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    await waitFor(() => expect(item.textContent ?? '').toContain('Default RBAC'));
+    expect(item.textContent ?? '').not.toContain('Scheme Type—');
+  });
+});
+
+describe('a sub-schema delivered as an id is fetched, not ignored', () => {
+  /**
+   * The server does not inline `arg_schema`. `encodeFieldsForUi()` registers it
+   * and sends an id string, which the consumer fetches back from
+   * `dataprovider/arg_schemas/<id>` — AutoFormField already did exactly this to
+   * build the editor.
+   *
+   * The preview understood only the inline object, so against a real server it
+   * silently fell back to the untyped data tree for EVERY described field. It
+   * passed every story because story fixtures hand-write the schema inline; the
+   * one shape that never appeared in a fixture was the only shape production
+   * ever sends. This test uses the id form for that reason.
+   */
+  const OPTIONS_WITH_ID = {
+    schemes: {
+      type: 'list',
+      ui_type: 'list',
+      element_type: 'hash',
+      display_name: 'Authentication Schemes',
+      // an id, exactly as the server sends it
+      arg_schema: 'auth-scheme-schema-id',
+    },
+  } as never;
+
+  const VALUE = {
+    schemes: { type: 'list', value: [{ type: 'hash', value: { type: 'default' } }] },
+  } as never;
+
+  it('renders the schema view once the id resolves', async () => {
+    queryMock.mockResolvedValue({ ok: true, data: SCHEME_SCHEMA });
+    const { container } = renderForm(OPTIONS_WITH_ID, VALUE);
+
+    // The id — not the schema — is what the row was handed, so the fetch is the
+    // only way it can know the shape.
+    await waitFor(() =>
+      expect(queryMock).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'dataprovider/arg_schemas/auth-scheme-schema-id' })
+      )
+    );
+
+    // The schema view appears only after the fetch resolves, so this waits rather
+    // than asserting synchronously.
+    await waitFor(() => expect(container.querySelector('.schema-data-view')).toBeTruthy());
+    // The item's first value heads it, so the resolved schema shows up as the
+    // display name of that value — not as a labelled row.
+    expect(container.querySelector('.schema-view-item-title')?.textContent).toBe('Default RBAC');
+  });
+
+  it('keeps the untyped tree when the id cannot be resolved', async () => {
+    // A failed lookup is not an error state: the row falls back to exactly what it
+    // rendered before the schema view existed, rather than showing nothing.
+    queryMock.mockResolvedValue({ ok: false, error: 'nope' });
+    const { container } = renderForm(OPTIONS_WITH_ID, VALUE);
+
+    await waitFor(() => expect(container.querySelector('[data-field="schemes"]')).toBeTruthy());
+    expect(container.querySelector('.schema-data-view')).toBeNull();
+  });
+});
+
+/**
+ * A list of strings reads back as its strings.
+ *
+ * The list editor keeps each element in a `{value, type}` envelope while the
+ * form is being edited, and `formatToServerValue` is what puts it there. But a
+ * value read back from storage holds what the server contract asks for, and for
+ * `type: 'list'` with `element_type: 'string'` that is the bare strings.
+ *
+ * Unwrapping those with `item?.value` answered `undefined` for every element,
+ * so a saved list opened as rows that were present but empty and invalid — and
+ * on a form that autosaves, that emptiness was written straight back over the
+ * stored value. Reported on an alert rule's Gmail delivery action: the
+ * operator's To: address was there before a refresh and gone after it.
+ *
+ * The assertions open the row on purpose. The COLLAPSED summary reads a list of
+ * strings correctly either way, so a test that stops at the read-first row
+ * passes while the editor beneath it is empty — which is exactly how the bug
+ * reached an operator.
+ */
+describe('a stored list of strings survives being opened', () => {
+  const TO_SCHEMA = {
+    to: {
+      type: 'list',
+      ui_type: 'list',
+      element_type: 'string',
+      display_name: 'To',
+      short_desc: 'Message recipient addresses',
+      required: true,
+      supports_templates: true,
+    },
+  } as never;
+
+  const openTo = async (value: unknown) => {
+    const { container } = renderForm(TO_SCHEMA, value as never);
+    await waitFor(() => expect(container.querySelector('[data-field="to"]')).toBeTruthy());
+    fireEvent.click(container.querySelector('[data-field="to"]')!);
+    return waitFor(() => {
+      const items = Array.from(container.querySelectorAll('.array-auto-item'));
+      expect(items.length).toBeGreaterThan(0);
+      return items;
+    });
+  };
+
+  it('opens a bare string element with its value — the shape storage holds', async () => {
+    const items = await openTo({ to: { type: 'list', value: ['ops@example.com'] } });
+    await waitFor(() => expect(items[0].textContent ?? '').toContain('ops@example.com'));
+  });
+
+  it('still opens an enveloped element — the shape the editor writes', async () => {
+    // The same list mid-edit. Both shapes have to read, or fixing one direction
+    // just moves the empty row to the other.
+    const items = await openTo({
+      to: { type: 'list', value: [{ value: 'ops@example.com', type: 'string' }] },
+    });
+    await waitFor(() => expect(items[0].textContent ?? '').toContain('ops@example.com'));
+  });
+
+  it('opens every element of a multi-element list', async () => {
+    const items = await openTo({
+      to: { type: 'list', value: ['first@example.com', 'second@example.com'] },
+    });
+    await waitFor(() => {
+      const text = items.map((i) => i.textContent ?? '').join(' ');
+      expect(text).toContain('first@example.com');
+      expect(text).toContain('second@example.com');
+    });
+  });
+});

@@ -569,7 +569,9 @@ export const FormField = <T extends TFormFieldType>({
       return (
         <ReqoreControlGroup vertical size='tiny'>
           <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
-            Select one:
+            {/* Headed by the field's own name; "Select one:" only when it has
+                none. Same rule as FieldAllowedValuesCheckGroup. */}
+            {display_name ? `${display_name}:` : 'Select one:'}
           </ReqoreSpan>
           {allowed_values.map((item, index) => {
             const itemValue = item.value?.value;

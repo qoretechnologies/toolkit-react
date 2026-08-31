@@ -46,6 +46,58 @@ const numberRenderItem: IArrayAutoFieldProps['renderItem'] = ({
   />
 );
 
+/**
+ * Hash items are records, so a renderer that casts the item to a string prints
+ * `[object Object]` and shows nothing at all. This one reads the record through
+ * the schema that describes it: one input per declared field, labelled by that
+ * field's `display_name`, carrying the value actually stored under its key.
+ *
+ * With no `arg_schema` there is nothing to name the parts with, so the record is
+ * shown as JSON — unhelpful, but at least it is the data.
+ */
+const hashRenderItem: IArrayAutoFieldProps['renderItem'] = ({
+  value,
+  onChange,
+  disabled,
+  readOnly,
+  size,
+  arg_schema,
+}) => {
+  const record = (value ?? {}) as Record<string, unknown>;
+  const fields = Object.entries(arg_schema ?? {});
+
+  if (!fields.length) {
+    return (
+      <StringFormField
+        value={JSON.stringify(record)}
+        onChange={() => {}}
+        disabled={disabled}
+        readOnly
+        size={size as any}
+        aria-label='Array item input'
+      />
+    );
+  }
+
+  return (
+    <ReqoreControlGroup vertical fluid gapSize='small'>
+      {fields.map(([fieldName, fieldSchema]) => (
+        <StringFormField
+          key={fieldName}
+          value={(record[fieldName] as string) ?? ''}
+          onChange={(v) => onChange({ ...record, [fieldName]: v })}
+          disabled={disabled}
+          readOnly={readOnly}
+          size={size as any}
+          aria-label={
+            ((fieldSchema as { display_name?: string })?.display_name as string) ?? fieldName
+          }
+        />
+      ))}
+    </ReqoreControlGroup>
+  );
+};
+
 const meta = {
   component: ArrayAutoField,
   title: 'Components/Form/Auto Array',
@@ -322,6 +374,7 @@ export const ComplexHashItems: Story = {
     type: 'hash',
     value: [{ key: 'value' }],
     display_name: 'Hash Items',
+    renderItem: hashRenderItem,
   },
   parameters: {
     docs: {
@@ -337,5 +390,86 @@ export const ComplexHashItems: Story = {
       timeout: 5000,
     });
     await expect(document.querySelectorAll('.array-auto-compact-tag').length).toBe(0);
+  },
+};
+
+/**
+ * The editable list, headed by what identifies each record.
+ *
+ * The rows used to read `#1 #2 #3`, so finding one method meant opening each in
+ * turn — and the collapsed preview beside it already headed the same records
+ * `init` / `onOrderStatus`, which made one item answer to two names. Both now
+ * resolve the heading through `recordIdentity`: the first field the SCHEMA
+ * declares that holds a scalar, skipping any it leaves unset. The position keeps
+ * a badge, so "the third one" is still answerable.
+ */
+export const HashItemsHeadedByIdentity: Story = {
+  args: {
+    type: 'hash',
+    display_name: 'Service Methods',
+    arg_schema: {
+      name: { type: 'string', ui_type: 'string', display_name: 'Method Name', required: true },
+      description: { type: 'string', ui_type: 'string', display_name: 'Description' },
+    },
+    value: [
+      { name: 'init', description: 'The init method' },
+      { name: 'onOrderStatus', description: 'Handles order status callbacks' },
+      { description: 'Added but not yet named' },
+      {},
+    ],
+    renderItem: hashRenderItem,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders four hash items headed by their identifying value: two named methods read as "init" and "onOrderStatus", one with no name falls through to its description, and an entirely empty one keeps its position number.',
+      },
+    },
+  },
+  async play() {
+    await waitFor(() => expect(document.querySelectorAll('.array-auto-item').length).toBe(4), {
+      timeout: 5000,
+    });
+
+    const headings = [...document.querySelectorAll('.array-auto-item')].map(
+      (item) => item.textContent ?? ''
+    );
+
+    await expect(headings[0]).toContain('init');
+    await expect(headings[1]).toContain('onOrderStatus');
+    // An unset field is skipped rather than promoted blank, so this one is
+    // headed by the next field that IS set.
+    await expect(headings[2]).toContain('Added but not yet named');
+    // And a record with nothing set at all keeps its position — there is
+    // genuinely nothing to call it.
+    await expect(headings[3]).toContain('#4');
+
+    // The heading is only half the story: each item must also render the record
+    // it is heading, field by field. Asserting the inputs is what would have
+    // caught them all printing "[object Object]" — the heading resolved
+    // correctly while every value below it was a stringified hash.
+    const nameInputs = document.querySelectorAll<HTMLInputElement>(
+      'input[aria-label="Method Name"]'
+    );
+    const descInputs = document.querySelectorAll<HTMLInputElement>(
+      'input[aria-label="Description"]'
+    );
+
+    await expect(nameInputs.length).toBe(4);
+    await expect(descInputs.length).toBe(4);
+    await expect(nameInputs[0].value).toBe('init');
+    await expect(descInputs[0].value).toBe('The init method');
+    await expect(nameInputs[1].value).toBe('onOrderStatus');
+    // The unnamed record: no name to show, but the description it IS headed by
+    // has to be there.
+    await expect(nameInputs[2].value).toBe('');
+    await expect(descInputs[2].value).toBe('Added but not yet named');
+    // And the empty one renders empty inputs rather than an empty item.
+    await expect(nameInputs[3].value).toBe('');
+    await expect(descInputs[3].value).toBe('');
+
+    // Nothing anywhere may read as a stringified record.
+    await expect(document.body.textContent).not.toContain('[object Object]');
   },
 };

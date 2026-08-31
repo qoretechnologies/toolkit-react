@@ -320,6 +320,12 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* The code size chip kept above an OPEN editor. The read row puts the same chip
+     at the top of the value cell with a 2px row-gap under it; matching that here is
+     what stops the editor moving as the field opens. */
+  .options-readfirst-editing-summary {
+    margin-bottom: 2px;
+  }
   .options-readfirst-reason {
     font-style: italic;
     font-size: 12px;
@@ -381,6 +387,19 @@ export const StyledRowInset = styled.div`
   margin-top: 4px;
 `;
 
+/**
+ * The stack literal text renders in: source, ids, tokens, data strings.
+ *
+ * Defined HERE rather than taken from reqore's `ReqoreFonts.mono`, which is the
+ * same stack. Reqore is a peer dependency at `>=0.71.16` and that export arrived
+ * later, so reading it would crash every consumer inside the declared range —
+ * the whole form preview lost over a font choice. One local constant costs
+ * nothing and keeps the code preview and the schema view's data values
+ * identical, which is the only reason to share it in the first place.
+ */
+export const MONO_FONT_STACK =
+  "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace";
+
 // A collapsed code-block preview shown under the value summary for a
 // `code-editor` field.  Multi-line, monospace, subtle background — matches
 // the aesthetic of the classic code-view surface but small enough to sit
@@ -393,8 +412,7 @@ export const StyledCodePreview = styled.pre<{ $bg: string; $border: string; $fg:
   background: ${({ $bg }) => $bg};
   border: 1px solid ${({ $border }) => $border};
   color: ${({ $fg }) => $fg};
-  font-family:
-    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family: ${MONO_FONT_STACK};
   font-size: 11.5px;
   line-height: 1.5;
   white-space: pre;
@@ -671,4 +689,28 @@ export const StyledGroupBody = styled.div<{
     padding-top: 0;
     padding-bottom: 0;
   }
+`;
+
+// One absorbed sibling, rendered inside its host row's container rather than
+// on a row of its own (see `absorb_fields`). The pair this exists for is a code
+// editor and its language: reading them as two unrelated rows one above the
+// other said they were separate decisions, and they are not.
+//
+// Laid out as label-then-control on one line so it reads as a property of the
+// element it now sits in, and separated from the editor below it by a hairline
+// rather than a gap — the two share one container, so the seam has to look like
+// a division inside it and not like two stacked things.
+export const StyledAbsorbedField = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid ${({ theme }) => `${theme.main}22`};
+`;
+
+export const StyledAbsorbedLabel = styled(ReqoreP)`
+  flex: 0 0 auto;
+  margin: 0;
 `;

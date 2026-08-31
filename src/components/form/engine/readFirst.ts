@@ -1,4 +1,9 @@
-import { IQorusFormField, TQorusFormFieldSchema, TQorusType } from '@qoretechnologies/ts-toolkit';
+import {
+  IQorusFormField,
+  IQorusFormSchema,
+  TQorusFormFieldSchema,
+  TQorusType,
+} from '@qoretechnologies/ts-toolkit';
 import { isRendererOnlyUiType } from './rendererTypes';
 import { isUiEncodedValue } from './_structuredData/structuredData';
 import { renderExpressionToText } from '../expressions/renderExpressionToText';
@@ -40,6 +45,57 @@ const summarizeListItem = (item: unknown): string | number | undefined => {
   return undefined;
 };
 
+/**
+ * Label ONE list item from the sub-schema that describes it.
+ *
+ * `summarizeListItem` can only read an item that names ITSELF — one carrying a
+ * `name` or `display_name` key. A hash whose fields are all domain fields names
+ * itself nowhere: an auth profile's scheme has `type`, `cookie_name`,
+ * `redirect_url`, and the row fell back to "2 items" — true, and silent about
+ * which two.
+ *
+ * The `arg_schema` is the same description the sub-form was built from, so the
+ * row can read an item the way the form asked for it: the FIRST declared field
+ * the item actually has, resolved through that field's allowed values. The
+ * scheme list then reads "Default RBAC, Cookie" — the words the author picked —
+ * instead of a count.
+ *
+ * Schema order, not value order: the first declared field is the one the form
+ * puts at the top of the item, which is the one that identifies it to its author.
+ * Value order is insertion order and would vary between two equal items.
+ */
+const summarizeHashItemFromSchema = (
+  item: unknown,
+  argSchema: Record<string, TQorusFormFieldSchema> | undefined
+): string | number | undefined => {
+  if (!argSchema) {
+    return undefined;
+  }
+  const record = isTypedEnvelope(item) ? item.value : item;
+  if (!record || typeof record !== 'object' || Array.isArray(record)) {
+    return undefined;
+  }
+  const fields = record as Record<string, unknown>;
+  const key = Object.keys(argSchema).find((name) => {
+    const raw = fields[name];
+    const value = isTypedEnvelope(raw) ? raw.value : raw;
+    return value !== undefined && value !== null && value !== '';
+  });
+  if (!key) {
+    return undefined;
+  }
+  const raw = fields[key];
+  const value = isTypedEnvelope(raw) ? raw.value : raw;
+  const label = getAllowedValueLabel(value, argSchema[key]);
+  if (label) {
+    return label;
+  }
+  // No allowed values (a free-text field): the stored value IS what was typed,
+  // so it reads correctly as-is. An object at this position has no short form,
+  // and a count beats printing its shape.
+  return typeof value === 'string' || typeof value === 'number' ? value : undefined;
+};
+
 /** Summarise a list value: join item labels, or fall back to an "N items" count
  * (e.g. a list of anonymous hashes). Never prints raw objects. */
 /**
@@ -52,8 +108,15 @@ const summarizeListItem = (item: unknown): string | number | undefined => {
  * does, so it can read the same way instead of printing the wire form back.
  */
 const formatList = (items: unknown[], schema?: TQorusFormFieldSchema): string => {
+  const argSchema = (schema as { arg_schema?: Record<string, TQorusFormFieldSchema> } | undefined)
+    ?.arg_schema;
   const parts = items
-    .map((item) => getAllowedValueLabel(item, schema) ?? summarizeListItem(item))
+    .map(
+      (item) =>
+        getAllowedValueLabel(item, schema) ??
+        summarizeListItem(item) ??
+        summarizeHashItemFromSchema(item, argSchema)
+    )
     .filter((part) => part !== '' && part !== undefined && part !== null);
 
   return parts.length ? parts.join(', ') : pluralize(items.length, 'item');
@@ -133,7 +196,8 @@ export const shouldAutoCollapseCompactOption = (
   !isOptionValueEmpty(value) &&
   (isCompactBooleanOption(schema) || isFixedCompactAllowedValueOption(schema));
 
-/** Prefer the matching allowed_values entry's display_name (fallback `name`)
+/**
+ * Prefer the matching allowed_values entry's display_name (fallback `name`)
  * over the raw stored value.
  *
  * A LIST carries its options under `element_allowed_values` — they constrain
@@ -141,8 +205,23 @@ export const shouldAutoCollapseCompactOption = (
  * printed what it stores rather than what you picked: `orders, batch` for
  * fields whose picker reads "Orders, Batch". The gap shows worst exactly where
  * allowed values earn their keep, since the stored form is often not readable
- * at all (a permission code, `PO_REQUIRE_TYPES`, an app-specific id). */
-const findAllowedOption = (value: unknown, schema?: TQorusFormFieldSchema): any | undefined => {
+ * at all (a permission code, `PO_REQUIRE_TYPES`, an app-specific id).
+ *
+ * Exported (as `findAllowedValueOption`) because the form engine's value
+ * validation has to answer the SAME question — "is this stored value one of the
+ * declared choices?" — and answering it differently loses data. An
+ * `allowed_values` entry is written three ways: an envelope (`{value: {type,
+ * value}}`), a bare value (`{value: 'default'}`) or a named entry
+ * (`{name: 'default'}`). This has always accepted all three; the engine's
+ * clearing guard accepted only the first and the third, so a schema using the
+ * bare form had its value ERASED on load while this function went on rendering
+ * the display name for it — the row read "Default RBAC" collapsed and "—" when
+ * opened, and the value was gone from the submitted data.
+ */
+export const findAllowedValueOption = (
+  value: unknown,
+  schema?: TQorusFormFieldSchema
+): any | undefined => {
   const s = schema as
     | { allowed_values?: any[]; element_allowed_values?: any[]; items?: any[] }
     | undefined;
@@ -178,6 +257,9 @@ const getAllowedValueLabel = (
   const match = findAllowedOption(value, schema);
   return match ? match.display_name || match.title || match.name || undefined : undefined;
 };
+
+/** Local alias for the module's own callers. */
+const findAllowedOption = findAllowedValueOption;
 
 /** True when the field's selectable options carry images (logos). Such a choice
  * renders too tall/rich for an inline row, so compact opens it in the card. */
@@ -741,3 +823,117 @@ export const getFirstAttentionOptionName = (
 
   return undefined;
 };
+
+/* ------------------------------------------------------------------------- */
+/* Record identity — which field says WHICH item this is                      */
+/*                                                                            */
+/* Lives here, beside the formatters it uses, rather than in the view that    */
+/* first needed it: it is data logic, not rendering, and BOTH list renderers  */
+/* plus their tests import it. Keeping it in `SchemaDataView` dragged React,  */
+/* styled-components and every Reqore component it renders into any module    */
+/* that only wanted to know an item's name — which broke `arrayAutoField`'s   */
+/* mocked-Reqore test the moment the editable list started using it.          */
+/* ------------------------------------------------------------------------- */
+
+/** A UI-encoded value carries its type alongside it; the record's own value is inside. */
+const unwrap = (value: unknown): unknown =>
+  isUiEncodedValue(value) ? (value as { value: unknown }).value : value;
+
+/** Whether a value is worth a row of its own. `false` and `0` are values. */
+export const isSet = (value: unknown): boolean =>
+  value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && !value.length);
+
+/**
+ * The keys to render, in the order to render them: the schema's own order first
+ * (that is the order the form puts the fields in), then anything stored that the
+ * schema does not mention, so undescribed data is shown rather than dropped.
+ */
+export const orderedKeys = (record: Record<string, unknown>, schema: IQorusFormSchema): string[] => {
+  const described = Object.keys(schema).filter((key) => isSet(unwrap(record[key])));
+  const extra = Object.keys(record).filter((key) => !(key in schema) && isSet(unwrap(record[key])));
+  return [...described, ...extra];
+};
+
+/** A field whose content is source code. `ui_type` is what the form renders by,
+ *  so it is what the preview reads by too — the storage type is just `string`. */
+export const isCodeField = (fieldSchema: TQorusFormFieldSchema | undefined): boolean => {
+  const uiType = (fieldSchema as { ui_type?: string } | undefined)?.ui_type;
+  return uiType === 'code-editor';
+};
+
+/**
+ * The field whose value heads the item — the first DECLARED one holding a plain
+ * scalar.
+ *
+ * Schema order, not value order: the first declared field is the one the form
+ * puts at the top of an item, which is the one that says which item it is. A
+ * code body or a nested level is skipped, not because it is unimportant but
+ * because it has no one-line form — it belongs in the rows below where it can
+ * actually be read.
+ *
+ * One definition, used both to RENDER the heading and to omit that field from
+ * the rows. Computing it twice is how the heading and the rows start disagreeing
+ * about which field was promoted, and the item shows its name twice or not at
+ * all.
+ */
+export const titleKeyFor = (
+  record: Record<string, unknown>,
+  schema: IQorusFormSchema
+): string | undefined =>
+  orderedKeys(record, schema).find((key) => {
+    const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
+    if (isCodeField(fieldSchema)) {
+      return false;
+    }
+    const raw = unwrap(record[key]);
+    return typeof raw === 'string' || typeof raw === 'number';
+  });
+
+/** What identifies one record: which field was promoted, and how to draw it. */
+export interface IRecordIdentity {
+  /** The promoted field's key, so a caller can omit it from the rows below. */
+  key: string;
+  /** The value, formatted the way its own row would format it. */
+  text: string;
+  /** The promoted field's label — a caption for the heading, not a second line. */
+  label: string;
+  /** A literal keeps its mono face; a chosen label is prose. */
+  mono: boolean;
+}
+
+/**
+ * The identity of one record, for any surface that heads a list item with it.
+ *
+ * Exported because the preview is not the only place a list of records is shown:
+ * the editable list (`ArrayAuto`) heads the same records, and it must promote the
+ * same field and format it the same way. Two implementations would drift the
+ * moment one of them learned about a new field type, and the reader would meet
+ * an item called `init` in the preview and `#1` in the editor.
+ */
+export const recordIdentity = (
+  record: Record<string, unknown>,
+  schema: IQorusFormSchema | undefined
+): IRecordIdentity | undefined => {
+  if (!schema) {
+    return undefined;
+  }
+
+  const key = titleKeyFor(record, schema);
+
+  if (!key) {
+    return undefined;
+  }
+
+  const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
+  const raw = unwrap(record[key]);
+
+  return {
+    key,
+    text: formatOptionValue({ type: fieldSchema?.type, value: raw } as IQorusFormField, fieldSchema),
+    label: fieldLabel(key, fieldSchema),
+    mono: !findAllowedValueOption(raw, fieldSchema),
+  };
+};
+
+export const fieldLabel = (key: string, fieldSchema: TQorusFormFieldSchema | undefined): string =>
+  (fieldSchema as { display_name?: string } | undefined)?.display_name || key;

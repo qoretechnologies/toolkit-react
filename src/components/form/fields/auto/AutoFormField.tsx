@@ -18,6 +18,7 @@ import React, { memo, useCallback, useEffect, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import useMount from 'react-use/lib/useMount';
 import { typedToYaml, yamlToTyped } from '../../../../helpers/common';
+import { getListElementValue } from '../../../../helpers/options';
 import {
   getTypeFromValue,
   getValueOrDefaultValue,
@@ -75,6 +76,10 @@ export interface IAutoFieldProps
   /** Render the arg_schema sub-form in compact (read-first) mode, matching the
    *  parent engine. */
   compact?: boolean;
+  /** Open the arg_schema sub-form's first attention row on mount, without taking
+   *  focus — see FormEngine's `expandFirstRequired`. Set by ArrayAuto on a
+   *  just-added row so its required choice is visible without a second click. */
+  expandFirstRequired?: boolean;
   path?: string;
   column?: boolean;
   level?: number;
@@ -161,6 +166,10 @@ function AutoField<T = any>({
   // Only the nested arg_schema mount sites re-forward this into their
   // sub-forms explicitly.
   inheritedFromParent,
+  // Destructured for the same reason as `inheritedFromParent`: only the nested
+  // sub-form mount site consumes it, and leaving it in `...rest` would spread an
+  // unknown attribute onto the primitive field renderers' DOM nodes.
+  expandFirstRequired,
   ...rest
 }: IAutoFieldProps & T) {
   const [currentType, setType] = useState<IQorusType>(defaultInternalType || null);
@@ -416,6 +425,9 @@ function AutoField<T = any>({
         value={value}
         name={name}
         onChange={handleChange}
+        // The picker heads itself with the field's own name rather than a
+        // generic "Select one:".
+        label={rest.display_name}
         size={rest.size}
         disabled={rest.disabled}
         app={rest.app}
@@ -499,6 +511,12 @@ function AutoField<T = any>({
           return (
             <LongStringFormField
               {...rest}
+              // These four share one editor but not one shape: a `string` holds
+              // exactly one line, while `data`, `binary` and `long-string` hold
+              // a document. Without the type the field cannot tell them apart
+              // and treats them all as documents, so an interface's Internal
+              // Name — which becomes a YAML key — accepted Enter.
+              type={currentType}
               onChange={(value) => handleChange(name, value)}
               value={value}
             />
@@ -559,6 +577,9 @@ function AutoField<T = any>({
                 wrapperPadding='top'
                 flat
                 compact={compact}
+                // A row added just now: open the field it cannot be saved
+                // without, instead of making the author find it and click it.
+                expandFirstRequired={expandFirstRequired}
                 // Embedded sub-form: no scroll context of its own, so its toolbar
                 // isn't sticky and its header stays transparent (no dark backdrop).
                 compactNested
@@ -633,8 +654,16 @@ function AutoField<T = any>({
               });
             };
 
+            // An element may arrive bare or in a `{value, type}` envelope. The
+            // envelope is what `formatToServerValue` writes, so a list the user
+            // has edited in this session is always wrapped — but a list read
+            // back from storage holds exactly what the server contract asks
+            // for, which for a list of strings is the strings themselves.
+            // Reaching for `.value` on those answered `undefined` for every
+            // element: the row rendered as an empty, invalid item, and the
+            // emptiness was then written back over the stored value.
             const formatFromServerValue = (value) => {
-              return (value || []).map((item) => item?.value);
+              return (value || []).map(getListElementValue);
             };
 
             const mappedAllowedValues = rest.element_allowed_values?.map((ev) => ({

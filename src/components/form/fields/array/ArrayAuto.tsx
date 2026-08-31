@@ -24,6 +24,7 @@ import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 // Direct imports — the cycle (ArrayAuto → TemplateField/auto → ArrayAuto) is
 // safe the same way Field → AutoFormField → Field is.
+import { recordIdentity } from '../../engine/readFirst';
 import { AutoFormField } from '../auto/AutoFormField';
 import { TemplateField } from '../template/TemplateField';
 
@@ -64,6 +65,12 @@ export const ArrayAuto = ({
 }: IArrayAutoProps): any => {
   const confirmAction = useReqoreProperty('confirmAction');
   const [localValue, setLocalValue] = useState(value);
+  // The row this component just created, so its sub-form can open the field it
+  // cannot be saved without. Only a row added HERE gets it: the rows already in
+  // the value were added by an earlier session (or arrived from the server), and
+  // opening one of those on mount would be this component reopening a decision
+  // the author already made.
+  const [justAddedIndex, setJustAddedIndex] = useState<number | undefined>(undefined);
 
   useWhyDidYouUpdate(`Array Auto ${name}`, {
     name,
@@ -87,6 +94,7 @@ export const ArrayAuto = ({
   );
 
   const addValue: () => void = () => {
+    setJustAddedIndex(localValue.length);
     setLocalValue([...localValue, defaultValueByType[rest.type]]);
   };
 
@@ -126,12 +134,29 @@ export const ArrayAuto = ({
   // Render list of auto fields
   return (
     <ReqoreControlGroup vertical fluid>
-      {map(localValue, (val: string | number, idx: string) => (
+      {map(localValue, (val: string | number, idx: string) => {
+        // The same field the collapsed preview promotes, resolved by the same
+        // definition — see `recordIdentity`. A list of seven methods headed
+        // `#1 … #7` makes the reader open each one to find out which is which,
+        // and heading them differently in the preview and the editor would make
+        // one item answer to two names.
+        const identity =
+          val && typeof val === 'object' && !Array.isArray(val)
+            ? recordIdentity(val as Record<string, unknown>, rest.arg_schema)
+            : undefined;
+
+        return (
         <ReqorePanel
           key={idx}
-          label={`#${idx + 1}`}
+          // `#N` stays as the fallback: a row whose identifying field is still
+          // empty (one just added) has nothing to be called yet, and a blank
+          // heading would be worse than a number.
+          label={identity?.text || `#${idx + 1}`}
+          tooltip={identity?.label}
           unMountContentOnCollapse={false}
-          badge={display_name || name}
+          // The position moves to the badge once the name owns the heading, so
+          // "which of these is third" stays answerable.
+          badge={identity ? `#${idx + 1}` : display_name || name}
           collapsible
           responsiveActions={false}
           responsiveTitle={false}
@@ -171,12 +196,18 @@ export const ArrayAuto = ({
             allowTemplates
             defaultType={rest.type}
             name={`${name}-${idx}`}
+            // AFTER `{...rest}` on purpose: this is the one prop that differs
+            // per row, and spreading rest over it would give every row the same
+            // answer. Rides TemplateField's `rest` into the row's AutoFormField,
+            // which hands it to the row's nested FormEngine (case 'hash').
+            expandFirstRequired={Number(idx) === justAddedIndex}
             value={val}
             onChange={(_name, value) => handleChange(idx, value)}
           />
           {showValidationMessage(val)}
         </ReqorePanel>
-      ))}
+        );
+      })}
       <ReqoreControlGroup fluid>
         <ReqoreButton
           onClick={addValue}

@@ -174,6 +174,18 @@ yarn build:test         # Type-check without emit
 `.github/workflows/beta_release.yml` runs on **every push to `develop`** and publishes to NPM using whatever `version` is in `package.json` at push time. A merge without a bump therefore tries to re-publish an already-published version and **fails** (NPM refuses to re-publish). This applies to **every** PR — features, fixes, chores, and docs-only changes alike. There is no exception.
 
 - Bump the **patch** for an ordinary PR while in beta (pre-1.0) — e.g. `0.10.9` → `0.10.10`. Do NOT bump minor/major for ordinary feature/fix PRs.
+- Bump **exactly once per PR**, not once per commit. If the branch has already bumped, leave it alone —
+  a second bump does not make the merge any more publishable, it just burns a version that never ships.
+  Check before you reach for it: `git diff $(git merge-base origin/develop HEAD) -- package.json`. A PR
+  that walked 0.10.36 → 0.10.46 one commit at a time is what this line exists to prevent (#95), and its
+  prereleases are stamped from `package.json`, so a base that moves every push hands consumers what look
+  like ten different release lines instead of successive previews of one.
+- Bump **exactly once per PR**, not once per commit. If the branch has already bumped, leave it alone —
+  a second bump does not make the merge any more publishable, it just burns a version that never ships.
+  Check before you reach for it: `git diff $(git merge-base origin/develop HEAD) -- package.json`. A PR
+  that walked 0.10.36 → 0.10.46 one commit at a time is what this line exists to prevent (#95), and its
+  prereleases are stamped from `package.json`, so a base that moves every push hands consumers what look
+  like ten different release lines instead of successive previews of one.
 - Bump in `package.json` only (no git tag): `npm version patch --no-git-tag-version`, and include the bump in the PR's commit.
 - If another PR bumps to the same version before yours merges, rebase and bump again — the version at merge time must be strictly greater than the last published one.
 

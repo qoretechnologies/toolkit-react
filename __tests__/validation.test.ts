@@ -103,25 +103,47 @@ describe('connection', () => {
 
 // ─── binary ───────────────────────────────────────────────────────────────────
 
+/**
+ * The wire form is base64, matching the server decode. Hex is accepted only
+ * under the legacy `0x` prefix, which is what keeps the even-length and
+ * hex-alphabet rules meaningful: without the prefix there is nothing to say a
+ * string was meant as hex rather than as the base64 it also parses as.
+ */
 describe('binary', () => {
-  it('accepts valid hex string', () => {
+  it('accepts base64', () => {
     expect(validateField('binary', 'deadbeef')).toBe(true);
+    expect(validateField('binary', 'aGVsbG8=')).toBe(true);
+    expect(validateField('binary', 'aGVsbG8h')).toBe(true);
+  });
+
+  it('accepts a base64 data: URL', () => {
+    expect(validateField('binary', 'data:image/png;base64,iVBORw0KGgo=')).toBe(true);
   });
 
   it('accepts 0x-prefixed hex', () => {
     expect(validateField('binary', '0xDEAD')).toBe(true);
   });
 
-  it('rejects non-hex characters', () => {
-    expect(validateField('binary', 'zzzz')).toBe(false);
+  it('rejects characters that are in neither alphabet', () => {
+    expect(validateField('binary', 'not base64!')).toBe(false);
+    expect(validateField('binary', '****')).toBe(false);
   });
 
-  it('rejects odd-length hex', () => {
-    expect(validateField('binary', 'abc')).toBe(false);
+  it('rejects odd-length 0x hex', () => {
+    expect(validateField('binary', '0xabc')).toBe(false);
+  });
+
+  it('rejects non-hex characters after a 0x prefix', () => {
+    expect(validateField('binary', '0xzzzz')).toBe(false);
+  });
+
+  it('rejects padding in the middle of a base64 value', () => {
+    expect(validateField('binary', 'aGV=sbG8')).toBe(false);
   });
 
   it('rejects empty string', () => {
     expect(validateField('binary', '')).toBe(false);
+    expect(validateField('binary', '   ')).toBe(false);
   });
 
   it('rejects non-string', () => {
@@ -446,6 +468,38 @@ describe('auto', () => {
 
   it('rejects invalid YAML', () => {
     expect(validateField('auto', '{')).toBe(false);
+  });
+
+  // An `auto` field's value is usually already the structure it describes --
+  // the hash editor and the list editor both write one. Handing that to
+  // `jsyaml.load()` stringified it first, so a hash arrived as the flow
+  // sequence `["object Object"]`, was detected as a list, and came back
+  // *"Value must be a list"*: an invalid marker on a value that is fine.
+  it('accepts a hash that is already a hash, rather than reading it as YAML', () => {
+    const result = validateFieldWithResult('auto', { sku: 'sku-1', qty: 1 });
+    expect(result.isValid).toBe(true);
+    expect(result.reason).toBeUndefined();
+  });
+
+  it('accepts a list that is already a list', () => {
+    expect(validateField('auto', [1, 2, 3])).toBe(true);
+    expect(validateField('auto', [{ name: 'a' }])).toBe(true);
+  });
+
+  it('accepts a nested structure', () => {
+    expect(validateField('auto', { order: { items: [{ sku: 'a' }] } })).toBe(true);
+  });
+
+  it('still reads a YAML string as YAML', () => {
+    // The string path is the one that has YAML in it, and it is unchanged.
+    expect(validateField('auto', 'key: value')).toBe(true);
+    expect(validateField('auto', '[1, 2]')).toBe(true);
+    expect(validateField('auto', '{')).toBe(false);
+  });
+
+  it('accepts a number and a boolean without stringifying them', () => {
+    expect(validateField('auto', 42)).toBe(true);
+    expect(validateField('auto', true)).toBe(true);
   });
 });
 
@@ -1137,5 +1191,55 @@ describe('list of hashes with arg_schema', () => {
 
     expect(result.isValid).toBe(false);
     expect(result.reason).toContain('List item 1');
+  });
+});
+
+/**
+ * A list validates its elements in whichever shape they arrive.
+ *
+ * The editor keeps each element in a `{value, type}` envelope while the form is
+ * open, but a value read back from storage is what the server contract asks
+ * for: for `element_type: 'string'`, the bare strings. Reaching straight for
+ * `.value` made every stored element validate as empty, so a saved list came
+ * back "List item 0 is invalid: Text value is empty" — which bucketed the field
+ * as needing attention even though its progress meter counted it as set.
+ *
+ * Reported on an alert rule's Gmail delivery action, whose To: address is
+ * exactly this shape.
+ */
+describe('list elements in either shape', () => {
+  const field = { element_type: 'string', has_to_have_value: true } as never;
+
+  it('accepts bare string elements — the shape storage holds', () => {
+    expect(validateField('list', ['ops@example.com'], field)).toBe(true);
+  });
+
+  it('accepts enveloped elements — the shape the editor writes', () => {
+    expect(validateField('list', [{ value: 'ops@example.com', type: 'string' }], field)).toBe(true);
+  });
+
+  it('accepts a list mixing both shapes', () => {
+    expect(
+      validateField('list', ['first@example.com', { value: 'second@example.com' }], field)
+    ).toBe(true);
+  });
+
+  it('still rejects an element that is genuinely empty, in either shape', () => {
+    // The narrowing must not turn the validator into a rubber stamp.
+    expect(validateField('list', [''], field)).toBe(false);
+    expect(validateField('list', [{ value: '', type: 'string' }], field)).toBe(false);
+  });
+
+  it('reports which element failed', () => {
+    const result = validateFieldWithResult('list', ['ok@example.com', ''], field);
+    expect(result.isValid).toBe(false);
+    expect(result.reason ?? '').toContain('List item 1');
+  });
+
+  it('does not throw on a null element', () => {
+    // `parsedValue[i].value` threw here rather than reporting the element
+    // invalid, taking the whole form's validation pass down with it.
+    expect(() => validateField('list', [null], field)).not.toThrow();
+    expect(validateField('list', [null], field)).toBe(false);
   });
 });

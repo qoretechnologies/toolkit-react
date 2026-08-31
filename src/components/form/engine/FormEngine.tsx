@@ -49,7 +49,12 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
 import styled from 'styled-components';
 import { createContext } from 'use-context-selector';
-import { getDefaultValue, insertAtIndex, richtextToString } from '../../../helpers/common';
+import {
+  fixOperatorValue,
+  getDefaultValue,
+  insertAtIndex,
+  richtextToString,
+} from '../../../helpers/common';
 import { getRequiredOptionMessage } from '../../../helpers/options';
 import {
   IValidationResult,
@@ -107,6 +112,7 @@ import {
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
   TReadFirstStatus,
+  findAllowedValueOption,
   getFirstAttentionOptionName,
   getOptionGroup,
   getOptionGroupLabel,
@@ -291,9 +297,10 @@ const getTypeFromOperator = (
   return (operators[last(operatorData) as string]?.type as TQorusType) || null;
 };
 
-export const fixOperatorValue = (operator: TOperatorValue): (string | null | undefined)[] => {
-  return isArray(operator) ? operator : [operator];
-};
+/** Re-exported from `helpers/common` so existing importers keep working; it
+ *  lives there because `helpers/validations` needs it and cannot import this
+ *  module (this module imports the validators). */
+export { fixOperatorValue } from '../../../helpers/common';
 
 /**
  * The renderer-only predicate. Defaults to reqraft's built-ins; a FormEngine
@@ -372,6 +379,23 @@ export const fixOptions = (
         (fixedValue[name] as IQorusFormField)?.value === undefined
       ) {
         obj = option.default_value as IQorusFormField;
+      } else if (
+        option.default_view === 'expression' &&
+        (fixedValue[name] as IQorusFormField)?.value === undefined
+      ) {
+        // A field the schema declares as opening in expression mode starts as an
+        // EMPTY expression, not as its raw default. `isDefaultFunction` already
+        // makes the renderer open that way, so without this the data disagreed
+        // with what the operator was looking at: an expression editor whose
+        // value was still the plain default, and no `is_expression` on the field
+        // until the first edit.
+        obj = {
+          type,
+          value: {
+            args: [],
+          },
+          is_expression: true,
+        };
       } else {
         obj = {
           type,
@@ -429,13 +453,28 @@ export const fixOptions = (
         };
       }
 
+      // A value that is not one of the declared choices is dropped. What counts
+      // as "one of the choices" is `findAllowedValueOption` — the same predicate
+      // the read-first row uses to LABEL a value — because a value the row can
+      // name is by definition a value the form must keep. Inlining a narrower
+      // test here (envelope and `name`, but not a bare `value`) silently erased
+      // every value declared the bare way: the collapsed row still showed its
+      // display name while the editor showed "—" and the value never reached
+      // the submitted data.
+      // `allowed_values: []` is NOT "no value is permitted" — it is the server
+      // saying it has no reference values to offer right now (the app-action
+      // catalogue ships exactly that, with an
+      // `option_reference_values_unavailable` message attached). An empty array
+      // is truthy, so testing the array itself made every such option erase the
+      // operator's stored value on the first render, before the
+      // connection-refreshed schema arrived to say otherwise — and the emptied
+      // form then autosaved over the draft, so the value was gone for good.
+      // Only an option that actually declares choices can have a value that is
+      // not one of them.
       if (
         newOption.value !== undefined &&
-        options?.[optionName]?.allowed_values &&
-        !options?.[optionName]?.allowed_values?.find(
-          (allowedValue: any) =>
-            allowedValue.value?.value === newOption.value || allowedValue.name === newOption.value
-        ) &&
+        options?.[optionName]?.allowed_values?.length &&
+        !findAllowedValueOption(newOption.value, options?.[optionName]) &&
         !isValueTemplate(newOption.value) &&
         !options?.[optionName]?.multiselect &&
         !options?.[optionName]?.allowed_values_creatable
@@ -716,6 +755,27 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   autoFocusFirstRequired?: boolean;
 
   /**
+   * Opt-in: on mount, OPEN the first row that needs attention — without taking
+   * focus.
+   *
+   * `autoFocusFirstRequired` fuses two decisions that are not the same: which
+   * row is open (layout) and where the caret is (focus). Focus is the half that
+   * can be stolen, so that flag waits for focus to be free — and a form mounted
+   * BY a click never sees free focus, because the button that mounted it still
+   * has it. Adding a list item is exactly that case: the row the author must
+   * fill stayed shut behind a second click, and the flag that exists to prevent
+   * it could not fire.
+   *
+   * Opening a row takes nothing from the user, so this half needs no guard. Use
+   * it where the mount is already the answer to a deliberate action; use
+   * `autoFocusFirstRequired` where the form is the destination and the caret
+   * should land in it. Setting both keeps the focusing behaviour. Same one-shot
+   * contract: it fires on the first render with focusable content and then never
+   * again for the life of the instance. No-op in classic mode. Default: off.
+   */
+  expandFirstRequired?: boolean;
+
+  /**
    * Names of read-first rows to open on mount, in addition to whatever the
    * user opens afterwards.
    *
@@ -783,6 +843,7 @@ const FormEngineImpl = ({
   rendererOnlyUiTypes,
   inheritedFromParent,
   autoFocusFirstRequired,
+  expandFirstRequired,
   initialExpandedOptions,
   ...rest
 }: IFormEngineProps) => {
@@ -831,6 +892,47 @@ const FormEngineImpl = ({
   const [showInvalidOptionsOnly, setShowInvalidOptionsOnly] = useState<boolean>(false);
   // Which options are expanded into their editor (several can be open at once).
   const [expandedOptions, setExpandedOptions] = useState<string[]>([]);
+
+  // --- Reveal a status box's content when it is opened ----------------------
+  //
+  // The status boxes stack, so the last one ("Optional", which holds every
+  // not-yet-added field) sits at the bottom of the form — frequently at the
+  // bottom of the scroll container too. Opening it mounts its rows BELOW the
+  // fold: the box's own header is all that stays on screen, the click appears to
+  // have done nothing, and the fields it just revealed have to be hunted for by
+  // scrolling.
+  //
+  // The box that was just opened, read by the layout effect below. Held as state
+  // rather than acted on inside the collapse handler because the handler runs
+  // BEFORE React re-renders — at that moment the rows do not exist yet, so the
+  // box has not grown and there is nothing to scroll to. A layout effect runs
+  // after the DOM is updated and before paint, which makes the reveal
+  // deterministic instead of a guessed delay.
+  const [openedStatusBox, setOpenedStatusBox] = useState<string | undefined>(undefined);
+  const statusBoxRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  useLayoutEffect(() => {
+    if (!openedStatusBox) {
+      return;
+    }
+    const element = statusBoxRefs.current[openedStatusBox];
+    // Consume it either way: a box that has gone (a search narrowed it out of
+    // existence) must not leave a pending reveal armed for a later render.
+    setOpenedStatusBox(undefined);
+    // `scrollIntoView` is not implemented in jsdom, and a missing reveal must
+    // never break a form.
+    if (!element?.scrollIntoView) {
+      return;
+    }
+    // 'nearest' scrolls the MINIMUM needed: nothing at all when the box is
+    // already fully visible, and a top-alignment when it is taller than the
+    // viewport (header plus the first rows — the right answer for a long
+    // Optional list). Anything else moves the page when it did not need to.
+    element.scrollIntoView({
+      block: 'nearest',
+      behavior:
+        window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth',
+    });
+  }, [openedStatusBox]);
   // Remembers each row's last settled status box, so an actively-edited field
   // stays put when its status flips (e.g. becomes valid) instead of jumping to
   // another box mid-edit and stealing focus. Keyed by option name.
@@ -1863,7 +1965,11 @@ const FormEngineImpl = ({
   // (or below-the-fold) form is never scrolled into view on mount.
   const autoFocusNameRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (!autoFocusFirstRequired || !compact || !options) {
+    // Two decisions, one scan. `autoFocusFirstRequired` opens the row AND puts
+    // the caret in it; `expandFirstRequired` only opens it. Setting both keeps
+    // the focusing behaviour, since focusing implies opening.
+    const wantsFocus = !!autoFocusFirstRequired;
+    if ((!wantsFocus && !expandFirstRequired) || !compact || !options) {
       return;
     }
     if (hasAutoFocusedRef.current) {
@@ -1881,8 +1987,14 @@ const FormEngineImpl = ({
     // clean mount focus rests on the body, so the intended "drop into the first
     // field" still fires. Bailing here leaves `hasAutoFocusedRef` false, so it
     // retries once focus is free.
+    //
+    // Only the FOCUSING variant waits: opening a row moves no caret, so there is
+    // nothing to steal and nothing to wait for. Making the expand-only variant
+    // wait here would make it a no-op in its main use — a sub-form mounted by a
+    // click, where the button that mounted it still holds focus and never gives
+    // it up.
     const active = document.activeElement as HTMLElement | null;
-    if (active && active !== document.body) {
+    if (wantsFocus && active && active !== document.body) {
       return;
     }
 
@@ -1910,7 +2022,10 @@ const FormEngineImpl = ({
 
     if (target) {
       // Set the ref before the state update so CompactRow's focus timer sees it.
-      autoFocusNameRef.current = target;
+      // Expand-only leaves it unset, which is what keeps the caret where it is.
+      if (wantsFocus) {
+        autoFocusNameRef.current = target;
+      }
       setExpandedOptions((prev) =>
         prev.includes(target) ? prev
         : expandMode === 'multi' ? [...prev, target]
@@ -1919,6 +2034,7 @@ const FormEngineImpl = ({
     }
   }, [
     autoFocusFirstRequired,
+    expandFirstRequired,
     compact,
     options,
     availableOptions,
@@ -2494,8 +2610,39 @@ const FormEngineImpl = ({
       if (requiredOnly && !(schema?.required || schema?.required_groups)) {
         return false;
       }
-      return matchesQuery(optionName);
+      // A field that absorbs a sibling also answers for it: searching
+      // "language" has to surface the row that now holds the language control,
+      // or the field becomes unreachable through the filter.
+      if (matchesQuery(optionName)) return true;
+      const absorb = (schema as { absorb_fields?: string[] } | undefined)?.absorb_fields;
+      return !!absorb?.some((absorbedName) => matchesQuery(absorbedName));
     };
+
+    // Fields a sibling absorbs into its own container.
+    //
+    // A field declaring `absorb_fields: ['language']` renders that sibling's
+    // control inside its own row instead of letting it have a row of its own.
+    // The pair this exists for is a code editor and its language: they are one
+    // decision — "what is this code, and in what language" — and reading them
+    // as two unrelated rows one above the other is what the layout used to say.
+    //
+    // Absorbed fields stay in `grouped`, and therefore in the Set / Optional /
+    // Needs-attention counts and in the completion meter. Only the ROW is
+    // skipped. Dropping them from the buckets instead would leave the meter
+    // ("13/18 set", computed from `availableOptions`) disagreeing with the box
+    // badge beside it, which counts row entries.
+    const absorbedBy: Record<string, string> = {};
+    forEach(options, (option, optionName) => {
+      const absorb = (option as { absorb_fields?: string[] } | undefined)?.absorb_fields;
+      if (!absorb?.length) return;
+      absorb.forEach((absorbedName) => {
+        // Only absorb a sibling that exists and is not already spoken for; a
+        // schema naming a missing field must not make the field disappear.
+        if (options?.[absorbedName] && !absorbedBy[absorbedName]) {
+          absorbedBy[absorbedName] = optionName;
+        }
+      });
+    });
 
     // Group the options by their raw `group` key, remembering the order groups
     // first appear in the schema. Each row carries a `hidden` flag.
@@ -2649,6 +2796,11 @@ const FormEngineImpl = ({
     // together at the first member's slot and rendered as a connected rail (flat
     // rows — no wrapper — so the value surface applies normally; the rail + nodes
     // are drawn per member). Narrow stacks fall back to flat rows.
+    // The absorbed siblings a host row must render, in schema order. Empty for
+    // every row that absorbs nothing, which is all of them by default.
+    const absorbedNamesFor = (hostName: string): string[] =>
+      Object.keys(absorbedBy).filter((absorbedName) => absorbedBy[absorbedName] === hostName);
+
     const renderGroupRows = (names: Array<{ name: string; hidden: boolean }>) => {
       const renderRow = (
         entry: { name: string; hidden?: boolean },
@@ -2671,6 +2823,9 @@ const FormEngineImpl = ({
           clustered={clustered}
           clusterFirst={clusterFirst}
           clusterLast={clusterLast}
+          // The siblings this row renders inside itself instead of leaving
+          // them a row of their own — see `absorbedBy`.
+          absorbedFields={absorbedNamesFor(entry.name)}
         />
       );
       // (Clustering runs in narrow mode too now — the "One of the below is
@@ -2679,6 +2834,10 @@ const FormEngineImpl = ({
       const emitted = new Set<string>();
       const groupOf = (name: string) =>
         (options?.[name]?.required_groups as string[] | undefined)?.[0];
+      // An absorbed field keeps its place in the buckets — so the Set /
+      // Optional counts and the completion meter still see it — but its host
+      // renders its control, so it gets no row of its own here.
+      names = names.filter((entry) => !absorbedBy[entry.name]);
       return names.map((entry) => {
         const grp = groupOf(entry.name);
         if (!grp) return renderRow(entry, false);
@@ -2783,6 +2942,14 @@ const FormEngineImpl = ({
                         $accent={accent}
                         $bg={boxBg}
                         key={box.key}
+                        ref={(node: HTMLDivElement | null) => {
+                          statusBoxRefs.current[box.key] = node;
+                        }}
+                        // Opening arms the reveal; collapsing disarms it, so a
+                        // close never scrolls.
+                        onCollapseChange={(collapsed) =>
+                          setOpenedStatusBox(collapsed ? undefined : box.key)
+                        }
                         flat
                         minimal
                         collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}

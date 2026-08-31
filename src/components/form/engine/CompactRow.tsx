@@ -12,8 +12,14 @@ import {
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { resolveOptionActions } from './optionActions';
-import { IQorusFormField, TQorusForm, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
+import {
+  IQorusFormField,
+  IQorusFormSchema,
+  TQorusForm,
+  TQorusFormFieldSchema,
+} from '@qoretechnologies/ts-toolkit';
 import flatten from 'lodash/flatten';
+import isEqual from 'lodash/isEqual';
 import size from 'lodash/size';
 import React, { memo } from 'react';
 import { useContextSelector } from 'use-context-selector';
@@ -26,8 +32,9 @@ import {
   splitTemplateTokens,
   TTemplateMeta,
 } from '../../../helpers/templates';
-import { richtextToSegments } from '../../../helpers/common';
+import { richtextToSegments, richtextToString } from '../../../helpers/common';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
+import { describeCodeSize, formatCodeChars, formatCodeLines } from '../../codeSize';
 import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
@@ -41,6 +48,7 @@ import {
   StyledColumn,
   StyledEditCard,
   StyledLabelBlock,
+  StyledAbsorbedField,
   StyledLabelDesc,
   StyledRowActions,
   StyledRowInset,
@@ -49,6 +57,8 @@ import {
   StyledStatusDot,
 } from './compactRowStyles';
 import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMessages';
+import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
+import { query } from '../../../utils/fetch';
 import {
   colorToCss,
   formatBytes,
@@ -129,6 +139,26 @@ const MAX_INLINE_OPTION_ACTIONS = 2;
 // One read-first row: label | value | action collapsed; the real editor (the
 // classic renderOption) expanded. `hidden` = search-surfaced optional —
 // activating the row adds the field first.
+/**
+ * The text inside a rich-text envelope, when a list item is one.
+ *
+ * An option like Gmail's `to` is `type: "list"`, `element_type: "string"`,
+ * `supports_templates: true`: each element is a plain string that may carry
+ * template tags, so its editor is a rich-text one and the element value arrives
+ * wrapped as `{type: "richtext", value: [{type: "paragraph", …}]}`.
+ *
+ * That envelope is a string in a coat, not structured data. The hash-list test
+ * unwraps `item.value`, found the Slate document — an object — and classed a
+ * list of email addresses as a list of hashes, so the row drew an expandable
+ * `type / children / text` tree instead of the address the operator typed.
+ */
+export const richtextItemText = (item: unknown): string | undefined =>
+  item && typeof item === 'object' && (item as { type?: unknown }).type === 'richtext' ?
+    richtextToString(
+      (item as { value?: Parameters<typeof richtextToString>[0] }).value
+    )
+  : undefined;
+
 export const CompactRow = memo(
   ({
     optionName,
@@ -137,10 +167,16 @@ export const CompactRow = memo(
     clustered = false,
     clusterFirst = false,
     clusterLast = false,
+    absorbedFields,
   }: {
     optionName: string;
     optionField: IQorusFormField;
     hidden?: boolean;
+    /** Siblings this row renders inside its own container instead of leaving
+     *  them a row each — declared by the schema's `absorb_fields`. The pair it
+     *  exists for is a code editor and its language: one decision, so one
+     *  element. */
+    absorbedFields?: string[];
     // Rendered inside a required-group cluster: leading status node + rail, and no
     // per-row "one of" chip (the cluster header carries it). first/last trim the
     // rail segment so it spans node-to-node, not past the end members.
@@ -151,6 +187,13 @@ export const CompactRow = memo(
     const readOnly = useContextSelector(CompactRowContext, (v) => v.readOnly);
     const commitMode = useContextSelector(CompactRowContext, (v) => v.commitMode);
     const options = useContextSelector(CompactRowContext, (v) => v.options);
+
+    // An absorbed field keeps its own name — it is a different field, not a
+    // property of its host — so the label comes from its schema exactly as it
+    // would on its own row.
+    const getAbsorbedLabel = (absorbedName: string): string =>
+      (options?.[absorbedName] as { display_name?: string } | undefined)?.display_name ||
+      absorbedName;
     const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
     const markdownRenderer = useMarkdownRenderer();
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
@@ -213,6 +256,27 @@ export const CompactRow = memo(
 
     // Value-cell content: colour adds a swatch, file an icon + size; hash keeps
     // its "N fields" summary (sub-fields reveal beneath the row).
+    /**
+     * Flattens the line breaks in one prose segment of a richtext SUMMARY.
+     *
+     * The read-first row is a single line: every other value type reaches it
+     * through `whiteSpace: 'nowrap'`, which collapses newlines for free. The
+     * richtext branch is the only one that opts into `'pre'` — it has to, or the
+     * spaces that separate a word from the chip beside it are dropped — and `pre`
+     * also honours the newlines, which `nowrap` would have eaten.
+     *
+     * So a genuinely multi-line value (an alert rule's Gmail message body is five
+     * `\n`-separated lines) gave each segment after the first a blank first line.
+     * The wrapper centres its items, so a two-line-tall box centred against
+     * one-line chips put every word 12px below the chip beside it, and the row
+     * read as a staircase. Measured on supah: prose boxes 30px against 14px chips.
+     *
+     * A space, not nothing: consecutive prose segments are merged before they get
+     * here, so a value with a break and no chip between its lines would otherwise
+     * lose the word boundary entirely.
+     */
+    const collapseSummaryBreaks = (text: string): string => text.replace(/\s*\r?\n\s*/g, ' ');
+
     const renderReadFirstValue = (
       field: IQorusFormField,
       schema: TQorusFormFieldSchema | undefined,
@@ -290,17 +354,31 @@ export const CompactRow = memo(
       // see `showCodePreview` below. Keeps the row height fixed while making
       // multi-line source readable without opening the full editor.
       if (valueType === 'code-editor' && typeof field?.value === 'string') {
-        const lines = field.value.split('\n').length;
-        const chars = field.value.length;
+        // An absorbed sibling has no row of its own, so a COLLAPSED host has to
+        // carry its value or it disappears from the form entirely when closed.
+        // It reads as a chip beside the size chip — "Qore · 62 lines" — which
+        // is the same summary the read-only interface pages already show.
         return (
-          <ReqoreTag
-            size='small'
-            minimal
-            intent='info'
-            icon='CodeLine'
-            label={`${lines} ${lines === 1 ? 'line' : 'lines'}`}
-            labelKey={`${chars} ${chars === 1 ? 'char' : 'chars'}`}
-          />
+          <ReqoreControlGroup gapSize='tiny' verticalAlign='center' wrap>
+            {(absorbedFields ?? []).map((absorbedName) => {
+              const absorbedValue = (
+                availableOptions?.[absorbedName] as IQorusFormField | undefined
+              )?.value;
+              if (absorbedValue === undefined || absorbedValue === null || absorbedValue === '') {
+                return null;
+              }
+              return (
+                <ReqoreTag
+                  key={absorbedName}
+                  className='options-readfirst-absorbed-tag'
+                  size='small'
+                  minimal
+                  label={String(absorbedValue)}
+                  tooltip={getAbsorbedLabel(absorbedName)}
+                />
+              );
+            })}
+          </ReqoreControlGroup>
         );
       }
 
@@ -348,6 +426,15 @@ export const CompactRow = memo(
         return <ReadOnlyTemplateTag value={field.value} templates={templates} size='small' />;
       }
 
+      // A LIST whose elements are rich-text envelopes is a list of strings, so it
+      // reads as those strings. Without this the row fell through to the generic
+      // list summary and printed a bare count ("1 item") above the structured
+      // tree, never the address itself.
+      if (Array.isArray(field?.value) && field.value.some((item) => richtextItemText(item) !== undefined)) {
+        const texts = field.value.map((item) => richtextItemText(item) ?? String(item ?? ''));
+        return <span style={textStyle}>{texts.filter((text) => text !== '').join(', ')}</span>;
+      }
+
       // Richtext read-first summary: inline $-chips for embedded template tags
       // with the prose around them (the IDE intent scheme via getTemplateTagStyle),
       // kept lightweight instead of mounting the full editor — that lives in the
@@ -379,7 +466,7 @@ export const CompactRow = memo(
                     )}
                   />
                 : <span key={index} style={{ whiteSpace: 'pre' }}>
-                    {segment.text}
+                    {collapseSummaryBreaks(segment.text)}
                   </span>
               )}
             </span>
@@ -637,6 +724,110 @@ export const CompactRow = memo(
       return () => window.clearTimeout(id);
     }, [isExpanded, optionName, autoFocusNameRef]);
 
+    // What the field held when it was opened — the baseline Cancel restores.
+    //
+    // Deliberately NOT `originalValue`, which is the whole form's load-time
+    // snapshot. That answers "undo every change ever made to this field", which
+    // is a different question from "forget what I just typed"; a Cancel sitting
+    // next to Done has to mean the second one, or it silently throws away edits
+    // the user made earlier and had already accepted.
+    //
+    // The dependency list is `isExpanded` alone on purpose: adding the value
+    // would re-take the snapshot on every keystroke, leaving nothing to cancel.
+    const editEntryValue = React.useRef<{ value: any; type?: string } | undefined>(undefined);
+    React.useEffect(() => {
+      if (isExpanded) {
+        editEntryValue.current = { value: optionField?.value, type: optionField?.type };
+      } else {
+        editEntryValue.current = undefined;
+      }
+    }, [isExpanded]);
+
+    // True while the open editor holds something other than what it opened with.
+    const editedSinceOpened =
+      isExpanded &&
+      !!editEntryValue.current &&
+      !isEqual(editEntryValue.current.value, optionField?.value);
+
+    // Discard whatever was typed since the field was opened and close it. Used
+    // by both the Cancel button and Escape, so the two cannot diverge.
+    const cancelEdit = React.useCallback(() => {
+      const snapshot = editEntryValue.current;
+      if (snapshot && !isEqual(snapshot.value, optionField?.value)) {
+        handleValueChange(optionName, snapshot.value, snapshot.type);
+      }
+      toggleExpandedOption(optionName);
+    }, [handleValueChange, optionField?.value, optionName, toggleExpandedOption]);
+
+    // The sub-schema describing this field's value, when it has one. A value the
+    // form knows the shape of is previewed THROUGH that shape (see
+    // `SchemaDataView`); only genuinely undescribed data falls through to the
+    // untyped data tree.
+    //
+    // The server does NOT inline that sub-schema. `encodeFieldsForUi()` registers
+    // it and sends an id string in its place, which the consumer fetches back —
+    // exactly what AutoFormField does to build the editor ("Some arg schemas are
+    // not provided as objects, but as strings so we need to fetch them"). A
+    // preview that understood only the inline object therefore fell through to
+    // the untyped tree for every field a real server describes: the schema view
+    // worked against hand-written story fixtures and nowhere else.
+    //
+    // Resolved here rather than beside the preview it feeds: the preview renders
+    // below an early return, so a hook placed there would run conditionally.
+    const rawArgSchema = (schema as { arg_schema?: IQorusFormSchema | string } | undefined)
+      ?.arg_schema;
+    const argSchemaId = typeof rawArgSchema === 'string' ? rawArgSchema : undefined;
+    const [resolvedArgSchema, setResolvedArgSchema] = React.useState<IQorusFormSchema | undefined>(
+      undefined
+    );
+
+    // Only worth a request when there is a described value to preview: a row whose
+    // value is unset or scalar renders no inset, so fetching its schema would buy
+    // a round trip per row and show nothing. `query` caches GETs, so rows sharing
+    // an id (every row of one list) cost one request between them.
+    const valueLooksStructured =
+      !!optionField?.value && typeof optionField.value === 'object';
+
+    React.useEffect(() => {
+      if (!argSchemaId || !valueLooksStructured) {
+        return undefined;
+      }
+      let cancelled = false;
+      (async () => {
+        const response = await query<IQorusFormSchema>({
+          url: `dataprovider/arg_schemas/${argSchemaId}`,
+          method: 'GET',
+        });
+        // A failed fetch is not an error state here: the preview simply stays the
+        // untyped tree, which is what it was before the schema view existed.
+        if (!cancelled && response.ok) {
+          setResolvedArgSchema(response.data as IQorusFormSchema);
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [argSchemaId, valueLooksStructured]);
+
+    const previewArgSchema =
+      argSchemaId ? resolvedArgSchema : (rawArgSchema as IQorusFormSchema | undefined);
+    const previewWithSchema = React.useMemo(
+      () => canRenderWithSchema(optionField?.value, previewArgSchema),
+      [optionField?.value, previewArgSchema]
+    );
+
+    // The form-load revert: back to the value the FORM was loaded with.
+    //
+    // In an open editor this is offered only when it would do something
+    // `cancelEditButton` does not — that is, when the field was already
+    // modified BEFORE it was opened, so "undo this edit" and "undo every edit"
+    // are different answers. On the usual path (open an untouched field, type,
+    // change your mind) the two are identical, and two buttons with the same
+    // effect and different names are worse than one.
+    //
+    // It is unconditional on the READ row, where it renders inline in the
+    // status-dot column — there is no edit in progress there to cancel, so the
+    // whole-field revert is the only undo that makes sense.
     const revertButton =
       changed ?
         <ReqoreButton
@@ -718,6 +909,43 @@ export const CompactRow = memo(
         />
       : null;
     const isPassiveCloseAction = fixedAllowedValueOption || readOnly;
+    // Cancel — the counterpart to Done, and the answer to "how do I get out of
+    // here without keeping this". Done was the only way to leave an open field,
+    // so every way out committed: the check, clicking away, and Escape (which
+    // closed without discarding, so it committed too, silently).
+    //
+    // Shown only while there is something to discard. On an untouched field
+    // Cancel and Done would do exactly the same thing, and two buttons that
+    // differ in name but not in effect are worse than one.
+    //
+    // Not offered when the close action is passive (read-only, or a fixed
+    // choice) — nothing can have been typed, so there is nothing to cancel.
+    const cancelEditButton =
+      !isPassiveCloseAction && editedSinceOpened ?
+        <ReqoreButton
+          className='options-readfirst-cancel'
+          size='small'
+          flat
+          minimal
+          fixed
+          icon='CloseLine'
+          intent='warning'
+          // "Cancel edit", not "Cancel": a bare Cancel collides with the one
+          // in Reqore's confirmation modal, and this one is specifically about
+          // abandoning the edit rather than dismissing a dialog.
+          aria-label='Cancel edit'
+          tooltip='Cancel edit — discard the changes made since this field was opened'
+          onClick={(event: React.MouseEvent) => {
+            event.stopPropagation();
+            cancelEdit();
+          }}
+        />
+      : null;
+    // See `revertButton` above for why this is conditional in the edit row.
+    const openedWithFormLoadValue =
+      !editEntryValue.current ||
+      isEqual(editEntryValue.current.value, originalValue.current?.[optionName]?.value);
+    const editRowRevertButton = openedWithFormLoadValue ? null : revertButton;
     const closeExpandedFieldButton = (
       <ReqoreButton
         className='options-readfirst-done'
@@ -816,6 +1044,11 @@ export const CompactRow = memo(
         />
       : null;
 
+    // The gap rides on the message itself rather than on the panel around it:
+    // the panel is a vertical ReqoreControlGroup, which owns its own layout and
+    // stacks children flush, and the class rule that used to carry a 4px gap
+    // never reached this element at all — which is why two messages read as one
+    // two-tone block with no space between them.
     const renderInfoStrip = (m: TInfoMsg, index: number) => (
       <ReqoreMessage
         key={`${m.content}-${index}`}
@@ -824,6 +1057,7 @@ export const CompactRow = memo(
         flat
         intent={m.intent as never}
         title={m.title}
+        style={{ marginBottom: 8 }}
       >
         {m.content}
       </ReqoreMessage>
@@ -902,6 +1136,68 @@ export const CompactRow = memo(
       />
     );
 
+    // The absorbed siblings' controls, rendered inside this row.
+    //
+    // Each keeps its own label so it is still identifiable — it is a different
+    // field, not a property of this one — but it sits inside this row's
+    // container, above the editor, so the pair reads as the single decision it
+    // is. `renderOption` is the same function the row uses for its own editor,
+    // so an absorbed field renders exactly as it would have on its own row.
+    const absorbedNodes =
+      absorbedFields?.length ?
+        absorbedFields
+          .map((absorbedName) => {
+            const absorbedField = availableOptions?.[absorbedName] as IQorusFormField | undefined;
+            if (!absorbedField) return null;
+            return (
+              // No label element of its own: the editor now heads itself with
+              // the field's name (see FieldAllowedValuesCheckGroup), so a label
+              // beside it printed the same word twice.
+              <StyledAbsorbedField key={absorbedName} className='options-readfirst-absorbed'>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  {renderOption(absorbedName, absorbedField, 'small', true)}
+                </div>
+              </StyledAbsorbedField>
+            );
+          })
+          .filter(Boolean)
+      : null;
+
+    // Declared here rather than beside the hash rows below: the `isExpanded`
+    // branch returns before that point, and its editor needs to know whether it is
+    // holding code.
+    const valueType = getValueType(optionField, schema);
+
+    // How much source there is describes the FIELD, not its value, so the count
+    // sits under the field's name — the same rule `lineCountNote` already
+    // follows for a multi-line markdown value, and the same reason: the value
+    // column carries the value and nothing else. It renders on the read row and
+    // the open one alike, because "how much code is here?" is a question that
+    // outlives opening the editor.
+    //
+    // It is a plain monospaced note rather than a tag, and deliberately the same
+    // one `lineCountNote` renders: both answer "how big is this field's value?"
+    // in the same corner of the same column, so stating one as a chip and the
+    // other as text made two spellings of one idea.
+    const codeSizeNode =
+      valueType === 'code-editor' &&
+      typeof optionField?.value === 'string' &&
+      optionField.value !== '' ?
+        (() => {
+          const { lines, chars } = describeCodeSize(optionField.value as string);
+          return (
+            <ReqoreP
+              className='options-readfirst-label-code-size'
+              size='tiny'
+              effect={{ opacity: 0.45, textAlign: 'left' }}
+              style={{ fontFamily: 'monospace' }}
+            >
+              {`${formatCodeChars(chars)} ${formatCodeLines(lines)}`}
+            </ReqoreP>
+          );
+        })()
+      : null;
+
     if (isExpanded) {
       if (inlineEditable) {
         const collapse = () => toggleExpandedOption(optionName);
@@ -917,7 +1213,7 @@ export const CompactRow = memo(
             }
             {...clusterHoverProps}
           >
-            <StyledLabelBlock>
+            <StyledLabelBlock className='options-readfirst-label-block'>
               <StyledRowLabel
                 role='button'
                 tabIndex={0}
@@ -952,6 +1248,7 @@ export const CompactRow = memo(
                   {labelShortDesc}
                 </StyledLabelDesc>
               : null}
+              {codeSizeNode}
             </StyledLabelBlock>
             <div
               ref={editorRef}
@@ -959,10 +1256,52 @@ export const CompactRow = memo(
               onKeyDown={(event) => {
                 if (event.key === 'Escape') {
                   event.stopPropagation();
-                  collapse();
+                  // Escape discards. It used to call `collapse()`, which closed
+                  // the field and KEPT whatever had been typed — the one
+                  // keystroke every editor treats as "get me out of this
+                  // without saving" was the quietest way to commit.
+                  cancelEdit();
                 }
               }}
             >
+              {/* The size chip survives into the editor.
+
+                  Opening a field replaces the whole value cell with its editor, which
+                  for every other type is right — the editor shows the value, so a
+                  summary of it above would say the same thing twice. Code is the
+                  exception: the chip counts lines and characters, which the editor
+                  does not show anywhere. Dropping it lost real information AND moved
+                  everything under it up by the height of a chip, so the editor
+                  appeared to jump as it opened.
+
+                  It renders here, at the top of the value cell, which is exactly where
+                  it sits on the read row — so the switch moves nothing. */}
+              {/* The field's own schema messages follow it into the editor.
+
+                  A message is guidance about the value, so the moment it matters
+                  most is while the value is being changed — and a diagnostic is
+                  useless anywhere else: it names a line the author can only act
+                  on with the editor in front of them. They used to render on the
+                  READ row alone, so opening the field to fix what one said was
+                  what made it disappear. Worse for a host that opens a field on
+                  arrival: the message was never visible at all.
+
+                  Above the editor rather than below it, and above the absorbed
+                  siblings, because it is the reason the author opened the row. */}
+              {panelMessages.length ?
+                <ReqoreControlGroup
+                  className='options-readfirst-info-panel'
+                  vertical
+                  fluid
+                  gapSize='normal'
+                >
+                  {panelMessages.map(renderInfoStrip)}
+                </ReqoreControlGroup>
+              : null}
+              {/* Absorbed siblings sit at the TOP of the value cell, above the
+                  editor they belong to — the language you are writing in is
+                  read before the code, not after it. */}
+              {absorbedNodes}
               {renderOption(optionName, optionField, 'small', true)}
             </div>
             <StyledRowActions>
@@ -971,7 +1310,8 @@ export const CompactRow = memo(
                   OptionFieldMessages strip below already says it — showing
                   both was redundant. The tag stays on READ rows, where no
                   message strip is visible. */}
-              {revertButton}
+              {editRowRevertButton}
+              {cancelEditButton}
               {clearValueButton}
               {inlineOptionActions.map((action, index) =>
                 renderInjectedOptionAction(action, index)
@@ -1158,6 +1498,10 @@ export const CompactRow = memo(
               {closeExpandedFieldButton}
             </ReqoreControlGroup>
           </div>
+          {/* Absorbed siblings render in the CARD form of an open field too,
+              not only the inline row — which shape a field opens into depends
+              on its type, and absorbing must not depend on that. */}
+          {absorbedNodes}
           {/* Same fullscreen focused-editing affordance as the classic cards —
               the modal mounts when this option is focused. */}
           <FocusedEditing
@@ -1191,7 +1535,6 @@ export const CompactRow = memo(
     ];
     // A hash row reveals its sub-fields as read-only sub-rows under a "view
     // more" disclosure; the row itself still expands the real editor on click.
-    const valueType = getValueType(optionField, schema);
     const hashEntries =
       (
         !hidden &&
@@ -1210,6 +1553,9 @@ export const CompactRow = memo(
       Array.isArray(optionField?.value) &&
       optionField.value.length > 0 &&
       optionField.value.some((item) => {
+        if (richtextItemText(item) !== undefined) {
+          return false;
+        }
         const inner =
           item && typeof item === 'object' && 'value' in (item as Record<string, unknown>) ?
             (item as Record<string, unknown>).value
@@ -1227,6 +1573,19 @@ export const CompactRow = memo(
       valueType === 'code-editor' &&
       typeof optionField?.value === 'string' &&
       optionField.value.length > 0;
+    // A richtext value that renders as CHIPS is drawn in full by the row itself:
+    // the chips are the value, and the reader is looking straight at it. The
+    // native `title` below would then hover the raw source of the very thing the
+    // chips replace ("[$fsminput:severity] $fsminput:alert_code") — and, because
+    // each chip carries its own Reqore tooltip, hovering one fires BOTH: the chip
+    // popover and the row's browser tooltip, in different places, saying almost
+    // the same thing. Only the popover shows up in a screenshot, which is what
+    // made the pair hard to report.
+    const showsTemplateChips =
+      !hidden &&
+      valueType === 'richtext' &&
+      Array.isArray(optionField?.value) &&
+      richtextToSegments(optionField.value as never).some((segment) => segment.kind === 'tag');
     // Markdown reads the same way for the same reason: the row itself can only
     // show a line of text, and for markdown that line is the SOURCE — the reader
     // gets `## ` and `**` where the point of the value is what it looks like
@@ -1426,7 +1785,7 @@ export const CompactRow = memo(
         {...clusterHoverProps}
       >
         {clusterNode}
-        <StyledLabelBlock>
+        <StyledLabelBlock className='options-readfirst-label-block'>
           <StyledRowLabel title={schema?.short_desc || undefined} $color={cKey}>
             {rowChromeIcon}
             {/* label + asterisk + help flow as ONE inline run, so the asterisk
@@ -1457,6 +1816,7 @@ export const CompactRow = memo(
               {labelShortDesc}
             </StyledLabelDesc>
           : null}
+          {codeSizeNode}
           {lineCountNote ?
             <ReqoreP
               className='options-readfirst-label-lines'
@@ -1472,14 +1832,17 @@ export const CompactRow = memo(
           // A code field draws its whole value in the preview below, with
           // "Show more" for the rest, so a hover carrying the same text is
           // noise -- and a native tooltip holding a few hundred lines is
-          // unreadable anyway. Every other value keeps its hover, which is the
-          // only way to read one that the row had to truncate.
+          // unreadable anyway. A chipped richtext value is the same case: the row
+          // already draws it in full, and its chips carry their own tooltips.
+          // Every other value keeps its hover, which is the only way to read one
+          // that the row had to truncate.
           title={
             (
               !empty &&
               !hidden &&
               !showCodePreview &&
               !showMarkdownPreview &&
+              !showsTemplateChips &&
               typeof formatted === 'string'
             ) ?
               formatted
@@ -1497,8 +1860,17 @@ export const CompactRow = memo(
               copy that used to sit above the document was a second rendering of
               the same text with the markers taken out (Qlip review, build #97).
               Without a renderer there is no inset, and the prose IS the value —
-              so the line stays, and `renderReadFirstValue` still produces it. */}
-          {showMarkdownPreview ? null : (
+              so the line stays, and `renderReadFirstValue` still produces it.
+
+              A schema-previewed value is the same situation. The summary is a
+              flattened join of the item labels ("Default RBAC, Cookie") sitting
+              directly above a preview that names every one of those items and
+              its fields — the same facts twice, the shorter version first, which
+              reads less like a summary than like a second, disagreeing answer.
+              An UNDESCRIBED value keeps its summary: the data tree beneath it
+              says nothing about what the value MEANS, so the summary is still
+              the only line that does. */}
+          {showMarkdownPreview || previewWithSchema ? null : (
             <span className='options-readfirst-valuetext'>
               {hidden || empty ? '—' : renderReadFirstValue(optionField, schema, formatted)}
             </span>
@@ -1516,7 +1888,14 @@ export const CompactRow = memo(
               value (full width of the value column) — never pushed down by the
               label's short_desc. */}
           {panelMessages.length ?
-            <div className='options-readfirst-info-panel'>{panelMessages.map(renderInfoStrip)}</div>
+            <ReqoreControlGroup
+              className='options-readfirst-info-panel'
+              vertical
+              fluid
+              gapSize='normal'
+            >
+              {panelMessages.map(renderInfoStrip)}
+            </ReqoreControlGroup>
           : null}
           {/* The structured hash/list preview also lives in the value cell, so it
               starts directly under the value summary ("N fields"), not below the
@@ -1531,17 +1910,57 @@ export const CompactRow = memo(
               onClick={(e) => e.stopPropagation()}
             >
               <ReqoreCollapsibleContent
-                maxCollapsedHeight={96}
+                // The schema view spends more height per datum than a data tree
+                // does — a labelled row rather than a packed chip — but there is
+                // far less of it to read, so it gets enough room to show a
+                // couple of complete items instead of fading out mid-row. A tree
+                // of unknown depth keeps the tighter cap.
+                maxCollapsedHeight={previewWithSchema ? 140 : 96}
                 buttonProps={{ className: 'options-readfirst-viewmore' }}
               >
                 <div className='options-readfirst-structured'>
-                  <StructuredDataView
-                    value={optionField?.value}
-                    collapsibleRoot={false}
-                    showTypes={showFieldTypes}
-                    defaultExpandDepth={2}
-                    onItemClick={() => activate()}
-                  />
+                  {previewWithSchema ?
+                    // The form already knows this value's shape, names and
+                    // choices, so the preview says it rather than making the
+                    // reader decode it: "Scheme Type — Default RBAC", not a data
+                    // tree announcing "Object · 1 field" over `type: default`.
+                    <SchemaDataView
+                      value={optionField?.value}
+                      schema={previewArgSchema!}
+                      showTypes={showFieldTypes}
+                      colors={{
+                        key: cKey,
+                        muted: cMuted,
+                        // Deliberately stronger than `cDivider`. That tier is for
+                        // decorative hairlines between rows, where being nearly
+                        // invisible is the point. This rule is load-bearing — it
+                        // is the only thing saying which fields belong to which
+                        // numbered item — so it gets the muted tier at partial
+                        // alpha: quiet, but actually visible.
+                        border: `${cMuted}66`,
+                        // The identity accent for each item's heading.
+                        //
+                        // `custom1` first: BRAND_DESIGN §1 says apps may register
+                        // their own named intents and reference them like the
+                        // built-ins, and that is where a product's own accent
+                        // lives (qorus-ide registers its brand purple there).
+                        // Falling back to `info` keeps this working for a
+                        // consumer that registers nothing — the heading is
+                        // accented either way, just in the theme's own colour
+                        // rather than one this library picked.
+                        accent:
+                          (theme?.intents as Record<string, string> | undefined)?.custom1 || cInfo,
+                      }}
+                      onItemClick={() => activate()}
+                    />
+                  : <StructuredDataView
+                      value={optionField?.value}
+                      collapsibleRoot={false}
+                      showTypes={showFieldTypes}
+                      defaultExpandDepth={2}
+                      onItemClick={() => activate()}
+                    />
+                  }
                 </div>
               </ReqoreCollapsibleContent>
             </StyledRowInset>
