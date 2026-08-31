@@ -7,6 +7,7 @@ export {
   getTypeFromValue,
   maybeParseYaml,
   hasAllDependenciesFullfilled,
+  parseDependency,
   validateOptionWithRequiredGroups,
 } from './helpers/validations';
 export type { IValidationResult } from './helpers/validations';

@@ -1809,6 +1809,68 @@ export const getUnresolvedRequiredOptions = (
   return unresolved;
 };
 
+/**
+ * Split a dependency entry into the sibling it names and how its value is compared.
+ *
+ * Three forms: `name` (the sibling must simply have a value), `name=value` (it must
+ * have exactly that value) and `name!=value` (it must have a value, and not that
+ * one). The negative form is what lets a field say it applies to every variant of a
+ * record but one — spelling that as an `any-of` list of every other variant is both
+ * unreadable in the "Depends on" lock and silently wrong the moment a variant is
+ * added.
+ *
+ * `!=` deliberately requires the sibling to be answered: "not X" is a statement about
+ * an answer, so an unanswered sibling does not satisfy it and the field stays locked.
+ */
+export const parseDependency = (
+  dependency: string
+): { name: string; op?: '=' | '!='; value?: string } => {
+  const neqIdx = dependency.indexOf('!=');
+  if (neqIdx !== -1) {
+    return {
+      name: dependency.substring(0, neqIdx),
+      op: '!=',
+      value: dependency.substring(neqIdx + 2),
+    };
+  }
+
+  const eqIdx = dependency.indexOf('=');
+  if (eqIdx !== -1) {
+    return {
+      name: dependency.substring(0, eqIdx),
+      op: '=',
+      value: dependency.substring(eqIdx + 1),
+    };
+  }
+
+  return { name: dependency };
+};
+
+/** Whether one dependency entry holds against the current form values. */
+const isDependencyFulfilled = (
+  dependency: string,
+  options: TQorusForm,
+  optionsSchema?: IQorusFormSchema
+): boolean => {
+  const { name, op, value } = parseDependency(dependency);
+
+  if (op) {
+    const optValue = options?.[name]?.value;
+    if (optValue == null) {
+      return false;
+    }
+    return op === '=' ? String(optValue) === value : String(optValue) !== value;
+  }
+
+  return options?.[name]
+    ? validateField(options[name].type, options[name].value, {
+        ...(optionsSchema?.[name] as unknown as IFieldValidationProps),
+        options,
+        optionSchema: optionsSchema,
+      })
+    : true;
+};
+
 export const hasAllDependenciesFullfilled = (
   dependencies: string[] | string[][],
   options: TQorusForm,
@@ -1819,38 +1881,19 @@ export const hasAllDependenciesFullfilled = (
   }
 
   return dependencies.every((dependency: string | string[]) => {
+    // A nested list is an ANY. It used to look each entry up as a whole form-field
+    // name, so a `name=value` entry inside one found no field and returned `true`
+    // unconditionally — the any-of group was satisfied by anything at all, while
+    // CompactRow's lock rendered those same entries as real comparisons. Both halves
+    // now go through one parser, so the grammar cannot mean two things.
     if (isArray(dependency)) {
-      return (dependency as string[]).some((dep) => {
-        return options?.[dep]
-          ? validateField(options[dep].type, options[dep].value, {
-              ...(optionsSchema?.[dep] as unknown as IFieldValidationProps),
-              options,
-              optionSchema: optionsSchema,
-            })
-          : true;
-      });
+      return (dependency as string[]).some((dep) =>
+        isDependencyFulfilled(dep, options, optionsSchema)
+      );
     }
 
-    if (isString(dependency)) {
-      const eqIdx = (dependency as string).indexOf('=');
-      if (eqIdx !== -1) {
-        const depName = (dependency as string).substring(0, eqIdx);
-        const depValue = (dependency as string).substring(eqIdx + 1);
-        const optValue = options?.[depName]?.value;
-        return optValue != null && String(optValue) === depValue;
-      }
-    }
-
-    return options?.[dependency as string]
-      ? validateField(
-          options[dependency as string].type,
-          options[dependency as string].value,
-          {
-            ...(optionsSchema?.[dependency as string] as unknown as IFieldValidationProps),
-            options,
-            optionSchema: optionsSchema,
-          }
-        )
+    return isString(dependency)
+      ? isDependencyFulfilled(dependency as string, options, optionsSchema)
       : true;
   });
 };

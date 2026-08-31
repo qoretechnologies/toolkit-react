@@ -23,7 +23,7 @@ import isEqual from 'lodash/isEqual';
 import size from 'lodash/size';
 import React, { memo } from 'react';
 import { useContextSelector } from 'use-context-selector';
-import { hasAllDependenciesFullfilled } from '../../../helpers/validations';
+import { hasAllDependenciesFullfilled, parseDependency } from '../../../helpers/validations';
 import {
   findTemplate,
   getTemplateTagStyle,
@@ -1622,35 +1622,45 @@ export const CompactRow = memo(
       showFieldTypes ?
         `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
       : null;
-    // Disabled rows (schema flag or unmet deps) can't open — a lock + reason
-    // renders instead. Form-level readOnly still opens in view mode (Close).
+    // A `readonly` field is one the system owns — an assigned id, a recorded
+    // provenance. The server states that on the field itself; only the older
+    // compat projection also mapped it to `disabled`, so on this path the form
+    // was handed `readonly` alone and rendered an editable control for a value
+    // no answer of the user's can change.
+    const fieldReadonly = !!(schema as { readonly?: boolean } | undefined)?.readonly;
+    // Disabled rows (schema flag, readonly, or unmet deps) can't open — a lock +
+    // reason renders instead. Form-level readOnly still opens in view mode (Close).
     const fieldDisabled =
       !hidden &&
       !readOnly &&
       (!!schema?.disabled ||
+        fieldReadonly ||
         !hasAllDependenciesFullfilled(schema?.depends_on, availableOptions, options || {}));
     const fieldDisabledReason =
-      schema?.disabled ? 'This field is disabled' : 'Disabled — dependencies are not fulfilled';
+      schema?.disabled ? 'This field is disabled'
+      : fieldReadonly ? 'Set by Qorus — not editable'
+      : 'Disabled — dependencies are not fulfilled';
     // Dependency contract: top-level entries must ALL hold; a nested array
-    // means ANY of its entries; `name=value` requires that exact value.
+    // means ANY of its entries; `name=value` requires that exact value, and
+    // `name!=value` requires any other answer. Parsed by the same helper the
+    // predicate uses, so the lock cannot describe a rule the form does not apply.
     const dependencyEntries =
-      fieldDisabled && !schema?.disabled ?
+      fieldDisabled && !schema?.disabled && !fieldReadonly ?
         ((schema?.depends_on || []) as (string | string[])[])
       : [];
     const describeDependency = (dep: string) => {
-      const eqIndex = dep.indexOf('=');
-      const depName = eqIndex === -1 ? dep : dep.slice(0, eqIndex);
-      const expected = eqIndex === -1 ? undefined : dep.slice(eqIndex + 1);
+      const { name: depName, op, value: expected } = parseDependency(dep);
       const depLabel = (options?.[depName]?.display_name as string) || depName;
       const depValue = (availableOptions as TQorusForm)?.[depName]?.value;
       return {
         name: depName,
         exists: !!options?.[depName],
-        label: expected === undefined ? depLabel : `${depLabel} = ${expected}`,
+        label: !op ? depLabel : `${depLabel} ${op === '=' ? '=' : '≠'} ${expected}`,
         fulfilled:
-          expected === undefined ?
-            !isOptionValueEmpty(depValue)
-          : depValue != null && String(depValue) === expected,
+          !op ? !isOptionValueEmpty(depValue)
+          : depValue == null ? false
+          : op === '=' ? String(depValue) === expected
+          : String(depValue) !== expected,
       };
     };
     const depHighlightNames = (flatten(dependencyEntries as never[]) as string[])
