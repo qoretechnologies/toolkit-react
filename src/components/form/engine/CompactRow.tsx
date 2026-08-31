@@ -34,7 +34,7 @@ import {
 } from '../../../helpers/templates';
 import { richtextToSegments, richtextToString } from '../../../helpers/common';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
-import { ReqraftCodeSizeTag } from '../../codeSize';
+import { describeCodeSize, formatCodeChars, formatCodeLines } from '../../codeSize';
 import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
@@ -1168,20 +1168,34 @@ export const CompactRow = memo(
     // holding code.
     const valueType = getValueType(optionField, schema);
 
-    // How much source there is describes the FIELD, not its value, so the chip
+    // How much source there is describes the FIELD, not its value, so the count
     // sits under the field's name — the same rule `lineCountNote` already
     // follows for a multi-line markdown value, and the same reason: the value
     // column carries the value and nothing else. It renders on the read row and
     // the open one alike, because "how much code is here?" is a question that
     // outlives opening the editor.
+    //
+    // It is a plain monospaced note rather than a tag, and deliberately the same
+    // one `lineCountNote` renders: both answer "how big is this field's value?"
+    // in the same corner of the same column, so stating one as a chip and the
+    // other as text made two spellings of one idea.
     const codeSizeNode =
       valueType === 'code-editor' &&
       typeof optionField?.value === 'string' &&
       optionField.value !== '' ?
-        <ReqraftCodeSizeTag
-          className='options-readfirst-label-code-size'
-          code={optionField.value}
-        />
+        (() => {
+          const { lines, chars } = describeCodeSize(optionField.value as string);
+          return (
+            <ReqoreP
+              className='options-readfirst-label-code-size'
+              size='tiny'
+              effect={{ opacity: 0.45, textAlign: 'left' }}
+              style={{ fontFamily: 'monospace' }}
+            >
+              {`${formatCodeChars(chars)} ${formatCodeLines(lines)}`}
+            </ReqoreP>
+          );
+        })()
       : null;
 
     if (isExpanded) {

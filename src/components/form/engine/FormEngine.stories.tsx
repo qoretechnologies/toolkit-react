@@ -1101,14 +1101,14 @@ export const CompactRowCodeEditorPreview: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact-mode code-editor row over a multi-line Qore source value — the value cell replaces the truncated string with a lines/chars summary tag and a collapsible monospace preview mounts under the row.',
+          'Renders a compact-mode code-editor row over a multi-line Qore source value — the value cell replaces the truncated string with a monospaced size note under the field name and a collapsible monospace preview mounts under the row. The stand-in prints no "syntax:" line: this row carries a Language control directly above the editor, so it would be the same fact stated twice.',
       },
     },
   },
   args: {
     compact: true,
     minColumnWidth: '360px',
-    componentOverrides: { 'code-editor': CodeEditorStandin },
+    componentOverrides: { 'code-editor': CodeEditorStandinNoSyntax },
     value: {
       language: { type: 'string', value: 'qore' },
       source: {
