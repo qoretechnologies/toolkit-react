@@ -1879,8 +1879,20 @@ export const CompactRow = memo(
               reads less like a summary than like a second, disagreeing answer.
               An UNDESCRIBED value keeps its summary: the data tree beneath it
               says nothing about what the value MEANS, so the summary is still
-              the only line that does. */}
-          {showMarkdownPreview || previewWithSchema ? null : (
+              the only line that does.
+
+              Both suppressions are conditional on the replacement ACTUALLY
+              rendering. `previewWithSchema` only asks whether the value and its
+              `arg_schema` COULD be drawn as a schema preview; whether one is
+              drawn is `showStructuredPreview`, and the two disagree for a field
+              whose value type is a host ui_type rather than a list or a hash —
+              a test's `cases` (`ui_type: "test-cases"`, an array of case hashes
+              with an `arg_schema`) could be previewed but is not, because
+              `isHashList` only recognises `list`/`free-list`/`array`. The row
+              then dropped its summary in favour of a preview that never came
+              and rendered nothing at all: a test with cases read as a bare
+              "Cases" and looked unset until it was opened. */}
+          {showMarkdownPreview || (previewWithSchema && showStructuredPreview) ? null : (
             <span className='options-readfirst-valuetext'>
               {hidden || empty ? '—' : renderReadFirstValue(optionField, schema, formatted)}
             </span>
