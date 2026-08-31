@@ -71,7 +71,13 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
         'backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transform: translateZ(0);'
       )}
     padding-top: ${GAP_FROM_SIZE[HEADER_GAP]}px;
-    padding-bottom: ${GAP_FROM_SIZE[HEADER_GAP]}px;
+    /* Less below than above: the space over the toolbar separates it from the
+       panel edge, but the space under it runs into the panel content's own
+       8px padding — at \`big\` the two stacked to a 26px band between the
+       completion meter and the first status box (rejected on build #140 as
+       "unnecessarily big"). \`normal\` lands the meter at the boxes' own 10px
+       rhythm. */
+    padding-bottom: ${GAP_FROM_SIZE.normal}px;
   }
 
   /* Group framing. The HORIZONTAL rule is a real element in the header
