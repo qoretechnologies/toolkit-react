@@ -6860,3 +6860,214 @@ export const CompactExpressionWithoutCatalogue: Story = {
     expect(raw, 'the row prints no raw token').toHaveLength(0);
   },
 };
+
+// --- PR #99: compactCollapsedGroups + compactToolbar --------------------------
+
+/** Find a status box (`Needs attention` / `Set` / `Optional`) by its title.
+ *  A collapsed ReqorePanel unmounts its content, so "has no
+ *  `.reqore-panel-content`" IS the collapsed assertion. */
+const findStatusBox = (title: string) =>
+  Array.from(document.querySelectorAll('.options-readfirst-group')).find((panel) =>
+    panel.querySelector('.reqore-panel-title')?.textContent?.includes(title)
+  );
+
+const expectBoxCollapsed = async (title: string) => {
+  await waitFor(
+    () => {
+      const box = findStatusBox(title);
+      expect(box, `the "${title}" box renders`).toBeTruthy();
+      expect(
+        box!.querySelector('.reqore-panel-content'),
+        `the "${title}" box is collapsed (content unmounted)`
+      ).toBeFalsy();
+    },
+    { timeout: 10000 }
+  );
+};
+
+const expectBoxOpen = async (title: string) => {
+  await waitFor(
+    () => {
+      const box = findStatusBox(title);
+      expect(box, `the "${title}" box renders`).toBeTruthy();
+      expect(
+        box!.querySelector('.reqore-panel-content'),
+        `the "${title}" box is open (content mounted)`
+      ).toBeTruthy();
+    },
+    { timeout: 10000 }
+  );
+};
+
+/**
+ * The template drawer's combination: a form that is one item in a longer list,
+ * where the reader chooses WHICH form to open rather than reading this one.
+ */
+export const CompactChosenCollapsedBoxes: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with `compactCollapsedGroups={[\'set\', \'optional\']}` — the Set and Optional boxes start collapsed while Needs attention stays open, and typing a search query forces every box open (a collapsed panel unmounts its content, so a match inside one would be unreachable); clearing the query collapses them again.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactFieldsMenuSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+    compactCollapsedGroups: ['set', 'optional'],
+  },
+  play: async () => {
+    // Needs attention is not in the collapse list — its row is on screen.
+    await expectBoxOpen('Needs attention');
+    await _testsWaitForText('Description');
+
+    // Set and Optional start collapsed: headers present, rows unmounted.
+    await expectBoxCollapsed('Set');
+    await expectBoxCollapsed('Optional');
+    await _testsWaitForTextToNotExist('order-fulfilment');
+
+    // A search overrides the collapse list — the matching Set row surfaces…
+    await _testsChangeStringField({
+      selector: 'input[placeholder="Filter fields..."]',
+      value: 'name',
+    });
+    await expectBoxOpen('Set');
+    await _testsWaitForText('order-fulfilment');
+
+    // …and clearing the query hands control back to the collapse list.
+    await _testsChangeStringField({
+      selector: 'input[placeholder="Filter fields..."]',
+      value: '',
+    });
+    await expectBoxCollapsed('Set');
+    await _testsWaitForTextToNotExist('order-fulfilment');
+  },
+};
+
+export const CompactToolbarHidden: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a compact form with `compactToolbar={false}` — the completion meter, search, field picker and help button are all gone, and the header carries only the consumer's own `compactPanelProps.actions`; the rows themselves are untouched.",
+      },
+    },
+  },
+  args: {
+    ...Compact.args,
+    compactToolbar: false,
+    compactPanelProps: {
+      label: 'Save Reply',
+      actions: [{ label: 'Apply', icon: 'CheckLine', responsive: false }],
+    },
+  },
+  play: async () => {
+    // The rows and the consumer's own header action render…
+    await _testsWaitForText('order-fulfilment');
+    await _testsWaitForText('Apply');
+
+    // …and none of the engine's toolbar does.
+    await waitFor(() => {
+      expect(document.querySelector('.options-readfirst-completion')).toBeFalsy();
+      expect(document.querySelector('input[placeholder="Filter fields..."]')).toBeFalsy();
+      expect(document.querySelector('.options-readfirst-fields')).toBeFalsy();
+      expect(document.querySelector('.options-readfirst-descriptions')).toBeFalsy();
+    });
+  },
+};
+
+export const CompactToolbarTrimmed: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with `compactToolbar={{ completion: false, help: false }}` — the keys listed turn their parts off (no meter, no help button) while the unlisted ones keep their defaults (search and the field picker still render), proving the object form merges over all-on rather than replacing it.',
+      },
+    },
+  },
+  args: {
+    ...Compact.args,
+    options: CompactFieldsMenuSchema,
+    compactToolbar: { completion: false, help: false },
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+
+    // Listed parts are off…
+    await waitFor(() => {
+      expect(document.querySelector('.options-readfirst-completion')).toBeFalsy();
+      expect(document.querySelector('.options-readfirst-descriptions')).toBeFalsy();
+    });
+
+    // …unlisted parts keep rendering.
+    await waitFor(() => {
+      expect(document.querySelector('input[placeholder="Filter fields..."]')).toBeTruthy();
+      expect(document.querySelector('.options-readfirst-fields')).toBeTruthy();
+    });
+  },
+};
+
+export const CompactCollapseListLeavesLoneOptionalOpen: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders an all-optional compact form with an explicit `compactCollapsedGroups={['optional']}` — the Optional box stays open anyway, because it is the whole form and collapsing it would render a titled card containing one collapsed strip and nothing else. The invariant outranks the consumer's collapse list.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      alpha: { type: 'string', ui_type: 'string', display_name: 'Alpha' },
+      beta: { type: 'string', ui_type: 'string', display_name: 'Beta' },
+    } as unknown as IOptionsSchema,
+    value: {} as IOptions,
+    compactCollapsedGroups: ['optional'],
+  },
+  play: async () => {
+    // The lone Optional box is open — its rows are on screen with no click.
+    await expectBoxOpen('Optional');
+    await _testsWaitForText('Alpha');
+    await _testsWaitForText('Beta');
+  },
+};
+
+export const CompactNoSearchCollapseIsFinal: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a compact form with `compactToolbar={{ search: false }}` and `compactCollapsedGroups={['set']}` — with the search gone there is no query to force a box open, so the collapse list fully determines what is open: Set stays collapsed, and Optional (not listed — the list replaces the default rather than adding to it) renders open.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactFieldsMenuSchema,
+    value: CompactValue,
+    groups: CompactGroups,
+    compactCollapsedGroups: ['set'],
+    compactToolbar: { search: false },
+  },
+  play: async () => {
+    await _testsWaitForText('Description');
+
+    // No search input — nothing can override the collapse list.
+    await waitFor(() =>
+      expect(document.querySelector('input[placeholder="Filter fields..."]')).toBeFalsy()
+    );
+
+    // Set is collapsed for good; Optional is NOT in the list, so it is open —
+    // the list replaces the `['optional']` default rather than extending it.
+    await expectBoxCollapsed('Set');
+    await expectBoxOpen('Optional');
+    await _testsWaitForTextToNotExist('order-fulfilment');
+  },
+};
