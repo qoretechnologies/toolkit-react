@@ -364,6 +364,18 @@ function AutoField<T = any>({
     return (
       <Override
         {...rest}
+        // The field's SHAPE, which `rest` does not carry: these three are
+        // destructured into named props above, so a host editor received a
+        // field it could not describe. `arg_schema` is the sub-schema a host
+        // sub-form renders FROM — without it the IDE's test-cases drawer fell
+        // back to humanising each key, so `Path`, `Actual` and `Expected` were
+        // asked for with no label of their own and no description, while the
+        // text sat one fetch away. `element_type`/`ui_element_type` travel with
+        // it: a sub-schema alone cannot say whether the value is one hash or a
+        // list of them.
+        arg_schema={arg_schema}
+        element_type={element_type}
+        ui_element_type={ui_element_type}
         name={name}
         value={value}
         onChange={(val: any, emittedType?: IQorusType, emittedIsFunction?: boolean) => {
