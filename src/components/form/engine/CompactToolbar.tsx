@@ -109,6 +109,7 @@ const StyledPct = styled.span`
  */
 export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProps>) => {
   const {
+    parts,
     readOnly,
     invalidCount,
     attentionCount,
@@ -144,7 +145,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
 
   return (
     <ReqoreControlGroup {...reqoreProps} vertical fluid fixed={false} gapSize='big'>
-      {completion.total ?
+      {parts.completion && completion.total ?
         <StyledCompletion className='options-readfirst-completion'>
           <StyledCompletionLine>
             {!readOnly ?
@@ -183,104 +184,110 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
         </StyledCompletion>
       : null}
 
-      {hasMultipleOptions || (invalidCount && !readOnly) ?
+      {/* The wrapper renders exactly when its one child (the search row) does —
+          a wider gate here used to render the group EMPTY when the search was
+          hidden (or self-hidden on a single-option form) while invalid fields
+          existed, and the empty group claimed a slot in the outer
+          `gapSize='big'` stack: a phantom gap between the completion meter and
+          the first status box. */}
+      {parts.search && hasMultipleOptions ?
         <ReqoreControlGroup vertical fluid gapSize='normal'>
-          {hasMultipleOptions ?
-            <ReqoreControlGroup fluid verticalAlign='center'>
-              <ReqoreInput
-                fluid
-                pill
-                icon='Search2Line'
-                iconColor='muted'
-                placeholder='Filter fields...'
-                value={compactQuery}
-                intent={compactQuery ? 'info' : undefined}
-                className='options-readfirst-search'
-                onChange={(event: React.FormEvent<HTMLInputElement>) =>
-                  setCompactQuery(event.currentTarget.value)
+          <ReqoreControlGroup fluid verticalAlign='center'>
+            <ReqoreInput
+              fluid
+              pill
+              icon='Search2Line'
+              iconColor='muted'
+              placeholder='Filter fields...'
+              value={compactQuery}
+              intent={compactQuery ? 'info' : undefined}
+              className='options-readfirst-search'
+              onChange={(event: React.FormEvent<HTMLInputElement>) =>
+                setCompactQuery(event.currentTarget.value)
+              }
+              onClearClick={() => setCompactQuery('')}
+            />
+            {parts.fields && !readOnly ?
+              <ReqoreDropdown
+                fixed
+                flat
+                filterable
+                icon='Filter3Line'
+                tooltip='Fields'
+                className='options-readfirst-fields'
+                intent={requiredOnly ? 'info' : undefined}
+                badge={requiredOnly ? 'Required only' : undefined}
+                onItemSelect={(item: IReqoreDropdownItem) =>
+                  item.value && onAddOptionalField(item.value)
                 }
-                onClearClick={() => setCompactQuery('')}
+                items={
+                  [
+                    {
+                      label: 'Required only',
+                      selected: requiredOnly,
+                      icon: requiredOnly ? 'CheckboxCircleLine' : 'CheckboxBlankCircleLine',
+                      tooltip: 'Show only required fields',
+                      onClick: () => setRequiredOnly((value) => !value),
+                    },
+                    {
+                      label: 'Show field types',
+                      selected: showFieldTypes,
+                      icon: showFieldTypes ? 'CheckboxCircleLine' : 'CheckboxBlankCircleLine',
+                      tooltip: 'Annotate each field with its type',
+                      onClick: onToggleFieldTypes,
+                    },
+                    // Sort by — a submenu (collapsed by default) so the five modes
+                    // don't crowd the Fields menu. Reorders fields WITHIN each group
+                    // (groups + required-group rails preserved); the active non-
+                    // default mode shows as a badge on the parent.
+                    {
+                      label: 'Sort by',
+                      icon: 'ArrowUpDownLine',
+                      intent: compactSort !== 'schema' ? 'info' : undefined,
+                      badge:
+                        compactSort !== 'schema' ?
+                          SORT_MODES.find((mode) => mode.value === compactSort)?.label
+                        : undefined,
+                      items: SORT_MODES.map((mode) => ({
+                        label: mode.label,
+                        tooltip: mode.tooltip,
+                        selected: compactSort === mode.value,
+                        icon:
+                          compactSort === mode.value ?
+                            'CheckboxCircleLine'
+                          : 'CheckboxBlankCircleLine',
+                        onClick: () => setCompactSort(mode.value),
+                      })),
+                    },
+                    {
+                      label: 'Select all',
+                      icon: 'MenuAddLine',
+                      tooltip: 'Add every optional field',
+                      disabled: filteredCount === 0,
+                      onClick: onAddAll,
+                    },
+                    {
+                      label: 'Default fields',
+                      icon: 'RestartLine',
+                      tooltip: 'Reset to the default set of fields',
+                      onClick: onResetDefaults,
+                    },
+                    {
+                      label: 'Revert all changes',
+                      icon: 'HistoryLine',
+                      tooltip: 'Undo all edits back to the loaded values',
+                      disabled: !canRevert,
+                      onClick: onRevertAll,
+                    },
+                    // The individual not-yet-added fields are no longer listed here —
+                    // they render as addable rows in the Optional box instead. The
+                    // menu keeps only the bulk actions above (Select all / Default
+                    // fields / filters).
+                  ] as TReqoreDropdownItems
+                }
               />
-              {!readOnly ?
-                <ReqoreDropdown
-                  fixed
-                  flat
-                  filterable
-                  icon='Filter3Line'
-                  tooltip='Fields'
-                  className='options-readfirst-fields'
-                  intent={requiredOnly ? 'info' : undefined}
-                  badge={requiredOnly ? 'Required only' : undefined}
-                  onItemSelect={(item: IReqoreDropdownItem) =>
-                    item.value && onAddOptionalField(item.value)
-                  }
-                  items={
-                    [
-                      {
-                        label: 'Required only',
-                        selected: requiredOnly,
-                        icon: requiredOnly ? 'CheckboxCircleLine' : 'CheckboxBlankCircleLine',
-                        tooltip: 'Show only required fields',
-                        onClick: () => setRequiredOnly((value) => !value),
-                      },
-                      {
-                        label: 'Show field types',
-                        selected: showFieldTypes,
-                        icon: showFieldTypes ? 'CheckboxCircleLine' : 'CheckboxBlankCircleLine',
-                        tooltip: 'Annotate each field with its type',
-                        onClick: onToggleFieldTypes,
-                      },
-                      // Sort by — a submenu (collapsed by default) so the five modes
-                      // don't crowd the Fields menu. Reorders fields WITHIN each group
-                      // (groups + required-group rails preserved); the active non-
-                      // default mode shows as a badge on the parent.
-                      {
-                        label: 'Sort by',
-                        icon: 'ArrowUpDownLine',
-                        intent: compactSort !== 'schema' ? 'info' : undefined,
-                        badge:
-                          compactSort !== 'schema' ?
-                            SORT_MODES.find((mode) => mode.value === compactSort)?.label
-                          : undefined,
-                        items: SORT_MODES.map((mode) => ({
-                          label: mode.label,
-                          tooltip: mode.tooltip,
-                          selected: compactSort === mode.value,
-                          icon:
-                            compactSort === mode.value ?
-                              'CheckboxCircleLine'
-                            : 'CheckboxBlankCircleLine',
-                          onClick: () => setCompactSort(mode.value),
-                        })),
-                      },
-                      {
-                        label: 'Select all',
-                        icon: 'MenuAddLine',
-                        tooltip: 'Add every optional field',
-                        disabled: filteredCount === 0,
-                        onClick: onAddAll,
-                      },
-                      {
-                        label: 'Default fields',
-                        icon: 'RestartLine',
-                        tooltip: 'Reset to the default set of fields',
-                        onClick: onResetDefaults,
-                      },
-                      {
-                        label: 'Revert all changes',
-                        icon: 'HistoryLine',
-                        tooltip: 'Undo all edits back to the loaded values',
-                        disabled: !canRevert,
-                        onClick: onRevertAll,
-                      },
-                      // The individual not-yet-added fields are no longer listed here —
-                      // they render as addable rows in the Optional box instead. The
-                      // menu keeps only the bulk actions above (Select all / Default
-                      // fields / filters).
-                    ] as TReqoreDropdownItems
-                  }
-                />
-              : null}
+            : null}
+            {parts.help ?
               <ReqoreButton
                 fixed
                 flat
@@ -293,8 +300,8 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 }
                 onClick={onToggleAllDescriptions}
               />
-            </ReqoreControlGroup>
-          : null}
+            : null}
+          </ReqoreControlGroup>
         </ReqoreControlGroup>
       : null}
     </ReqoreControlGroup>
