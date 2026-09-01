@@ -75,11 +75,7 @@ import {
   isValueTemplate,
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
-import {
-  CompactRowContext,
-  ICompactRowContext,
-  TCodePreviewRenderer,
-} from './compactRowContext';
+import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer } from './compactRowContext';
 import {
   GROUP_INDENT,
   LABEL_AFFORDANCE_WIDTH,
@@ -122,6 +118,7 @@ import {
   isOptionValueEmpty,
   isFixedCompactAllowedValueOption,
   shouldAutoCollapseCompactOption,
+  isUnsetSchemaHash,
 } from './readFirst';
 
 // Re-export types for consumers
@@ -153,8 +150,7 @@ export type TOperatorValue = TQorusFormOperatorValue;
  * consumer gets.
  */
 export interface IOptionFieldMessage
-  extends IQorusFormFieldMessage,
-    Pick<IConditionalFieldMessage, 'when' | 'unless'> {}
+  extends IQorusFormFieldMessage, Pick<IConditionalFieldMessage, 'when' | 'unless'> {}
 export type IOptionsSchemaArg = TQorusFormFieldSchema;
 export interface IOptionsSchema extends IQorusFormSchema {}
 export interface IOperator extends IQorusFormOperator {}
@@ -328,11 +324,9 @@ const getOptionSchemaStorageType = (
   option?: TQorusFormFieldSchema,
   isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
 ): TQorusType =>
-  ((isFixedCompactAllowedValueOption(option)
-    ? option?.type || option?.ui_type
-    : isRendererOnly(option?.ui_type)
-    ? option?.type || option?.ui_type
-    : option?.ui_type || option?.type) || 'any') as TQorusType;
+  ((isFixedCompactAllowedValueOption(option) ? option?.type || option?.ui_type
+  : isRendererOnly(option?.ui_type) ? option?.type || option?.ui_type
+  : option?.ui_type || option?.type) || 'any') as TQorusType;
 
 const getOptionFieldStorageType = (
   optionName: string,
@@ -344,9 +338,9 @@ const getOptionFieldStorageType = (
 ): TQorusType => {
   const schemaOption = schema?.[optionName];
   const storedType =
-    fieldType && !(fieldType === schemaOption?.ui_type && isRendererOnly(fieldType))
-      ? fieldType
-      : getOptionSchemaStorageType(schemaOption, isRendererOnly);
+    fieldType && !(fieldType === schemaOption?.ui_type && isRendererOnly(fieldType)) ?
+      fieldType
+    : getOptionSchemaStorageType(schemaOption, isRendererOnly);
 
   return getType(storedType as TQorusType, operators, operatorData);
 };
@@ -1210,7 +1204,10 @@ const FormEngineImpl = ({
           setOptions({});
           return;
         }
-        setLocalValue({ fields: fixOptions(value, data.data, undefined, isRendererOnly), meta: undefined });
+        setLocalValue({
+          fields: fixOptions(value, data.data, undefined, isRendererOnly),
+          meta: undefined,
+        });
         if (!operatorsUrl) {
           setLoading(false);
         }
@@ -1255,7 +1252,10 @@ const FormEngineImpl = ({
         }
         setOptions(data.data);
         onOptionsLoaded?.(data.data);
-        setLocalValue({ fields: fixOptions({}, data.data, undefined, isRendererOnly), meta: undefined });
+        setLocalValue({
+          fields: fixOptions({}, data.data, undefined, isRendererOnly),
+          meta: undefined,
+        });
       })();
     }
   }, [url, customUrl]);
@@ -1312,12 +1312,14 @@ const FormEngineImpl = ({
         const isAnyLike = schemaType === 'any' || schemaType === 'auto';
         // For any/auto schema types, preserve the user's chosen type stored in the field
         const resolvedSchemaType =
-          isAnyLike && (fields[optionName] as IQorusFormField)?.type
-            ? ((fields[optionName] as IQorusFormField).type as TQorusType)
-            : (fields[optionName] as IQorusFormField)?.type === options?.[optionName]?.ui_type &&
-                isRendererOnly((fields[optionName] as IQorusFormField)?.type)
-              ? schemaType
-              : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
+          isAnyLike && (fields[optionName] as IQorusFormField)?.type ?
+            ((fields[optionName] as IQorusFormField).type as TQorusType)
+          : (
+            (fields[optionName] as IQorusFormField)?.type === options?.[optionName]?.ui_type &&
+            isRendererOnly((fields[optionName] as IQorusFormField)?.type)
+          ) ?
+            schemaType
+          : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
         const type =
           _type ||
           getTypeAndCanBeNull(resolvedSchemaType, options?.[optionName]?.allowed_values).type;
@@ -1391,11 +1393,7 @@ const FormEngineImpl = ({
 
         onSingleOptionsChange?.(optionName, updatedValue[optionName]);
 
-        if (
-          compact &&
-          !readOnly &&
-          shouldAutoCollapseCompactOption(options?.[optionName], val)
-        ) {
+        if (compact && !readOnly && shouldAutoCollapseCompactOption(options?.[optionName], val)) {
           setExpandedOptions((prev) => prev.filter((name) => name !== optionName));
         }
 
@@ -1838,7 +1836,11 @@ const FormEngineImpl = ({
         isRendererOnly
       );
       const value = (availableOptions as TQorusForm)?.[name]?.value;
-      const empty = isOptionValueEmpty(value);
+      // A schema-declared hash whose every entry is a materialised-but-unset
+      // field holds nothing, so it is not "set" — without this the row showed a
+      // green set-dot and counted toward the completion meter while the
+      // sub-form it summarises said 0/3 set.
+      const empty = isOptionValueEmpty(value) || isUnsetSchemaHash(value, schema);
       const reqGroups = (schema?.required_groups as string[] | undefined) || [];
       const required = !!(schema?.required || reqGroups.length);
       const covered =
@@ -2141,7 +2143,10 @@ const FormEngineImpl = ({
           next[optionName] = value as IQorusFormField;
         }
       });
-      return { fields: fixOptions(next, options || {}, operators, isRendererOnly), meta: undefined };
+      return {
+        fields: fixOptions(next, options || {}, operators, isRendererOnly),
+        meta: undefined,
+      };
     });
     setRequiredOnly(false);
   }, [JSON.stringify(options), JSON.stringify(operators), isRendererOnly]);
@@ -2189,11 +2194,10 @@ const FormEngineImpl = ({
       const schemaUiType = optionSchema?.ui_type as TQorusType;
       const uiTypeIsAnyLike = schemaUiType === 'any' || schemaUiType === 'auto';
       const resolvedType =
-        (isFixedCompactAllowedValueOption(optionSchema)
-          ? getOptionSchemaStorageType(optionSchema, isRendererOnly)
-          : schemaUiType && !uiTypeIsAnyLike
-            ? schemaUiType
-            : undefined) ||
+        (isFixedCompactAllowedValueOption(optionSchema) ?
+          getOptionSchemaStorageType(optionSchema, isRendererOnly)
+        : schemaUiType && !uiTypeIsAnyLike ? schemaUiType
+        : undefined) ||
         type ||
         schemaUiType ||
         (optionSchema?.type as TQorusType) ||
@@ -2605,7 +2609,12 @@ const FormEngineImpl = ({
       completion: readFirstCompletion,
       showInvalidOnly: showInvalidOptionsOnly,
       onToggleInvalidOnly: handleToggleInvalidOnly,
-      parts: compactToolbarParts ?? { completion: false, search: false, fields: false, help: false },
+      parts: compactToolbarParts ?? {
+        completion: false,
+        search: false,
+        fields: false,
+        help: false,
+      },
       hasMultipleOptions: size(availableOptions) > 1,
       compactQuery,
       setCompactQuery,
@@ -2803,7 +2812,11 @@ const FormEngineImpl = ({
       set: {},
       optional: {},
     };
-    const bucketGroups: Record<TFormEngineBoxKey, string[]> = { attention: [], set: [], optional: [] };
+    const bucketGroups: Record<TFormEngineBoxKey, string[]> = {
+      attention: [],
+      set: [],
+      optional: [],
+    };
     // Freeze the box of any field currently being edited (or whose one-of group
     // has an edited member) to its last settled box — so finishing an edit that
     // flips its status doesn't remount it in another box and steal focus.
