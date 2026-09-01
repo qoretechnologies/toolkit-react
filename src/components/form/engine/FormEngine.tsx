@@ -6,6 +6,7 @@ import {
   ReqoreIcon,
   ReqoreMessage,
   ReqoreP,
+  ReqorePanel,
   ReqoreSkeleton,
   ReqoreTag,
   ReqoreTagGroup,
@@ -2859,6 +2860,30 @@ const FormEngineImpl = ({
     // other and DOES get its sub-label.
     const showGroupSubLabel = (groupName: string) =>
       (groupName !== 'general' && groupName !== 'optional') || !!groups?.[groupName];
+
+    // `preselected` means "show this option by default when a new form is
+    // loaded, so it's visible to the user". An empty non-required preselected
+    // field buckets to 'optional' (nothing is wrong with it, and it has no
+    // value), and the Optional box is collapsed by default — so the very
+    // fields the schema asked to put in front of the author were the ones
+    // nobody could see. A preselected row therefore forces its box open.
+    //
+    // A hidden row is an addable the author has not put in the form yet, so it
+    // is never what `preselected` is talking about, however its schema is
+    // flagged.
+    const isPreselectedRow = (entry: TRowEntry) =>
+      !entry.hidden &&
+      !!(options?.[entry.name] as { preselected?: boolean } | undefined)?.preselected;
+    // ONLY the Optional box. A preselected field that HAS a value buckets to
+    // 'set' and one that fails validation to 'attention'; in both boxes the
+    // field is already accounted for, and whether those boxes start collapsed
+    // is the consumer's deliberate `compactCollapsedGroups` choice. Overriding
+    // them here forced the Set box open against an explicit request.
+    const groupHasPreselectedRow = (boxKey: TFormEngineBoxKey, groupName: string) =>
+      boxKey === 'optional' && (buckets[boxKey][groupName] || []).some(isPreselectedRow);
+    const boxHasPreselectedRows = (boxKey: TFormEngineBoxKey) =>
+      boxKey === 'optional' &&
+      bucketGroups[boxKey].some((groupName) => groupHasPreselectedRow(boxKey, groupName));
     const STATUS_BOXES: Array<{
       key: TFormEngineBoxKey;
       label: string;
@@ -2947,6 +2972,38 @@ const FormEngineImpl = ({
       });
     };
 
+    // One schema group inside a status box: its thin sub-label, the group's
+    // subtitle, then its rows. Factored out of the box body so the SAME markup
+    // renders both the groups a box shows directly and the ones it defers
+    // behind the inner collapse.
+    const renderBoxGroup = (boxKey: TFormEngineBoxKey, groupName: string) => {
+      const groupConfig = groups?.[groupName];
+      return (
+        <React.Fragment key={groupName}>
+          {showGroupSubLabel(groupName) ?
+            <StyledStatusBoxGroupLabel>
+              {getOptionGroupLabel(groupName, groups)}
+            </StyledStatusBoxGroupLabel>
+          : null}
+          {showGroupSubLabel(groupName) && groupConfig?.subtitle ?
+            <ReqoreP
+              size='small'
+              effect={{ opacity: 0.6 }}
+              style={{
+                marginTop: 2,
+                marginBottom: 8,
+                marginLeft: GROUP_INDENT,
+                paddingRight: 10,
+              }}
+            >
+              {groupConfig.subtitle}
+            </ReqoreP>
+          : null}
+          {renderGroupRows(buckets[boxKey][groupName])}
+        </React.Fragment>
+      );
+    };
+
     return (
       <OptionsContext.Provider value={{ schema: options, value: availableOptions }}>
         <CompactRowContext.Provider value={compactRowContextValue}>
@@ -3008,6 +3065,31 @@ const FormEngineImpl = ({
                     const groupsInBox = bucketGroups[box.key];
                     const count = bucketCount(box.key);
                     if (!count) return null;
+                    const hasPreselectedRows = boxHasPreselectedRows(box.key);
+                    const wouldCollapse =
+                      compactCollapsedGroups.includes(box.key) &&
+                      !query &&
+                      !(box.key === 'optional' && onlyOptionalRows);
+                    // Only a box that was opened SOLELY to reveal a preselected
+                    // row splits its body; a box that renders open anyway shows
+                    // all of its groups as before.
+                    const splitForPreselected = wouldCollapse && hasPreselectedRows;
+                    const shownGroups =
+                      splitForPreselected ?
+                        groupsInBox.filter((groupName) =>
+                          groupHasPreselectedRow(box.key, groupName)
+                        )
+                      : groupsInBox;
+                    const deferredGroups =
+                      splitForPreselected ?
+                        groupsInBox.filter(
+                          (groupName) => !groupHasPreselectedRow(box.key, groupName)
+                        )
+                      : [];
+                    const deferredCount = deferredGroups.reduce(
+                      (n, groupName) => n + (buckets[box.key][groupName] || []).length,
+                      0
+                    );
                     const accent =
                       box.key === 'attention' ? cWarning
                       : box.key === 'set' ? cSuccess
@@ -3054,11 +3136,15 @@ const FormEngineImpl = ({
                         // nothing else. This does not generalise to the other two —
                         // a lone Set box collapsed is a deliberate ask, and its
                         // header still reports what is in there.
-                        isCollapsed={
-                          compactCollapsedGroups.includes(box.key) &&
-                          !query &&
-                          !(box.key === 'optional' && onlyOptionalRows)
-                        }
+                        //
+                        // A PRESELECTED row overrides it too: the schema asked
+                        // for that field to be visible on a new form, so the
+                        // box it lands in opens. The groups it does NOT appear
+                        // in stay behind an inner collapse below, so opening
+                        // the box reveals the preselected fields without also
+                        // dumping every not-yet-added optional field on the
+                        // author.
+                        isCollapsed={wouldCollapse && !hasPreselectedRows}
                         label={
                           <StyledGroupHeader>
                             <ReqoreP effect={{ weight: 'bold' }} size='normal'>
@@ -3091,34 +3177,50 @@ const FormEngineImpl = ({
                           $lineColor={cGroupLine}
                           className={compactNarrow ? 'readfirst-narrow' : undefined}
                         >
-                          {groupsInBox.map((groupName) => {
-                            const groupConfig = groups?.[groupName];
-                            return (
-                              <React.Fragment key={groupName}>
-                                {showGroupSubLabel(groupName) ?
-                                  <StyledStatusBoxGroupLabel>
-                                    {getOptionGroupLabel(groupName, groups)}
-                                  </StyledStatusBoxGroupLabel>
-                                : null}
-                                {showGroupSubLabel(groupName) && groupConfig?.subtitle ?
-                                  <ReqoreP
-                                    size='small'
-                                    effect={{ opacity: 0.6 }}
-                                    style={{
-                                      marginTop: 2,
-                                      marginBottom: 8,
-                                      marginLeft: GROUP_INDENT,
-                                      paddingRight: 10,
-                                    }}
-                                  >
-                                    {groupConfig.subtitle}
-                                  </ReqoreP>
-                                : null}
-                                {renderGroupRows(buckets[box.key][groupName])}
-                              </React.Fragment>
-                            );
-                          })}
+                          {shownGroups.map((groupName) => renderBoxGroup(box.key, groupName))}
                         </StyledGroupBody>
+                        {/* The rest of a box that only opened to reveal a
+                            preselected row. ReqorePanel owns its own open state,
+                            so this needs no hook inside the map — which is just
+                            as well, because the box body maps GROUPS. A search
+                            forces it open for the same reason the boxes open: a
+                            collapsed panel unmounts its content, so a match in
+                            here would otherwise be unreachable. It gets its own
+                            StyledGroupBody so the rows inside keep the same gaps,
+                            dividers and label column as the ones above. */}
+                        {deferredGroups.length ?
+                          <ReqorePanel
+                            flat
+                            minimal
+                            transparent
+                            collapsible
+                            isCollapsed={!query}
+                            padded={false}
+                            className='options-readfirst-more'
+                            collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
+                            contentStyle={{ padding: 0 }}
+                            label={
+                              <ReqoreP
+                                size='small'
+                                effect={{ opacity: 0.6 }}
+                              >{`${deferredCount} more optional field${deferredCount === 1 ? '' : 's'}`}</ReqoreP>
+                            }
+                          >
+                            <StyledGroupBody
+                              $divider={cDivider}
+                              $hover={cHover}
+                              $focus={cWarning}
+                              $success={cSuccess}
+                              $rowBg={cRowBg}
+                              $lineColor={cGroupLine}
+                              className={compactNarrow ? 'readfirst-narrow' : undefined}
+                            >
+                              {deferredGroups.map((groupName) =>
+                                renderBoxGroup(box.key, groupName)
+                              )}
+                            </StyledGroupBody>
+                          </ReqorePanel>
+                        : null}
                       </StyledStatusBox>
                     );
                   })}
