@@ -1,4 +1,5 @@
 import { ReqoreControlGroup, ReqoreDropdown, ReqoreInput } from '@qoretechnologies/reqore';
+import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import styled, { css } from 'styled-components';
 
@@ -70,6 +71,16 @@ export interface ISearchFilterBarProps {
    * panel (the References tab); a bar above a page-level list does not need it.
    */
   sticky?: boolean;
+  /**
+   * Intent for the search box.
+   *
+   * A bar that is narrowing the list should look different from one that is
+   * not — otherwise a reader who arrives at a short list cannot tell whether it
+   * is short or filtered. Callers pass `'info'` while a query is active. Left
+   * to the caller rather than derived from `value`, because a caller may hold
+   * other filter state this component never sees.
+   */
+  intent?: TReqoreIntent;
 }
 
 export const SearchFilterBar = ({
@@ -79,6 +90,7 @@ export const SearchFilterBar = ({
   filters = [],
   stacked,
   sticky,
+  intent,
 }: ISearchFilterBarProps) => (
   <Container $sticky={sticky}>
     {/* `size='small'` on the GROUP, not per control: the bar filters the content, it
@@ -98,6 +110,7 @@ export const SearchFilterBar = ({
         value={value}
         onChange={(event) => onChange((event.currentTarget as HTMLInputElement).value)}
         onClearClick={value ? () => onChange('') : undefined}
+        intent={intent}
         minimal
         fluid
       />

@@ -198,6 +198,13 @@ const StyledSkeletonThread = styled.div`
   gap: 12px;
   width: 100%;
   min-height: 100%;
+  /* A real message carries its own bubble, so it never touches the host's edge.
+     The skeleton is bare bars, and without this its avatars and lines were
+     pressed flat against the border of whatever holds the thread — which reads
+     as a clipped render rather than as loading. border-box so the padding comes
+     out of the 100% rather than adding to it. */
+  box-sizing: border-box;
+  padding: 12px;
 `;
 
 const StyledSkeletonRow = styled.div<{ $self: boolean }>`

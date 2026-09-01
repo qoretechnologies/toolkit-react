@@ -11,7 +11,7 @@
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import jsyaml from 'js-yaml';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { StoryMeta } from '../../../../types';
 import { buildTemplates } from '../../../../helpers/templates';
@@ -510,5 +510,51 @@ export const ListWithElementType: Story = {
           'Renders AutoFormField in list mode with an int element type — new items are added as integers rather than requiring the operator to pick a per-item type.',
       },
     },
+  },
+};
+
+/**
+ * A named `arg_schema` whose fetch fails.
+ *
+ * The field asks the server for `dataprovider/arg_schemas/<name>`. When that
+ * request rejected — a malformed instance URL, an aborted request, a transport
+ * error — the rejection escaped the effect's async IIFE unhandled, `setError`
+ * never ran, and `finalArgSchema` stayed undefined. The loading branch then
+ * returned on every subsequent render and the error branch below it was
+ * unreachable, so the field showed "Loading field data..." for the life of the
+ * form: a request that failed instantly and one that is merely slow looked
+ * exactly the same, forever.
+ *
+ * The transport is stubbed rather than left to the dev server, so the story
+ * exercises that path and only that path.
+ */
+export const NamedArgSchemaFetchFails: Story = {
+  args: {
+    name: 'rules',
+    type: 'list',
+    element_type: 'hash',
+    arg_schema: 'a-schema-that-does-not-resolve' as any,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The named arg schema could not be fetched, so the field says so instead of showing an endless "Loading field data..." spinner with the error it had already received never rendered.',
+      },
+    },
+  },
+  decorators: [
+    (Story) => {
+      const real = window.fetch;
+      window.fetch = (() =>
+        Promise.reject(new Error('Failed to fetch the field schema'))) as typeof window.fetch;
+      useEffect(() => () => {
+        window.fetch = real;
+      }, []);
+      return <Story />;
+    },
+  ],
+  play: async () => {
+    await waitForText(/Failed to fetch the field schema|could not be loaded/);
   },
 };
