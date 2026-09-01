@@ -52,6 +52,26 @@ export const isRecord = (value: unknown): value is Record<string, unknown> =>
 export const isStructuredContainerValue = (value: unknown): boolean =>
   Array.isArray(value) || isRecord(value);
 
+/**
+ * A field the form materialised but left UNSET: `{type: 'int'}`, no `value` key.
+ *
+ * `fixOptions` omits the key entirely when the value is undefined, so this is
+ * what an untouched sub-field of a schema-declared hash looks like on the wire.
+ * It is an EMPTY ENVELOPE, never content — and every renderer has to agree on
+ * that, because the ones that do not count the envelope's own `type` key and
+ * report an unset field as "1 field" while the sub-form correctly says 0 set.
+ *
+ * Deliberately separate from {@link isUiEncodedValue}, which requires a `value`
+ * and therefore cannot see this shape. Callers gate on knowing the field is
+ * schema-declared: without a schema saying so, a `{type: …}` object could
+ * legitimately be somebody's data.
+ */
+export const isEmptyUiEnvelope = (value: unknown): boolean =>
+  isRecord(value) &&
+  typeof value.type === 'string' &&
+  !('value' in value) &&
+  Object.keys(value).every((key) => UI_ENVELOPE_KEYS.has(key));
+
 export const isUiEncodedValue = (value: unknown): value is IUiEncodedValue => {
   if (!isRecord(value) || typeof value.type !== 'string' || !('value' in value)) {
     return false;

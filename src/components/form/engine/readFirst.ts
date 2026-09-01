@@ -5,7 +5,7 @@ import {
   TQorusType,
 } from '@qoretechnologies/ts-toolkit';
 import { isRendererOnlyUiType } from './rendererTypes';
-import { isUiEncodedValue } from './_structuredData/structuredData';
+import { isEmptyUiEnvelope, isUiEncodedValue } from './_structuredData/structuredData';
 import { renderExpressionToText } from '../expressions/renderExpressionToText';
 import { IExpressionValue } from '../expressions/types';
 import yaml from 'js-yaml';
@@ -223,8 +223,7 @@ export const findAllowedValueOption = (
   schema?: TQorusFormFieldSchema
 ): any | undefined => {
   const s = schema as
-    | { allowed_values?: any[]; element_allowed_values?: any[]; items?: any[] }
-    | undefined;
+    { allowed_values?: any[]; element_allowed_values?: any[]; items?: any[] } | undefined;
   const options =
     (s?.allowed_values?.length && s.allowed_values) ||
     (s?.element_allowed_values?.length && s.element_allowed_values) ||
@@ -683,13 +682,10 @@ export const getHashEntries = (
     // "Timeout (Seconds) 1 field" three times over while the sub-form correctly
     // said 0/3 set. With a sub-schema present, a `type`-only object is an empty
     // envelope, never content.
-    const isEmptyEnvelope =
-      !!subSchema &&
-      !!raw &&
-      typeof raw === 'object' &&
-      !Array.isArray(raw) &&
-      !('value' in (raw as object)) &&
-      Object.keys(raw as object).every((k) => k === 'type' || k === 'is_expression');
+    // Shared with SchemaDataView, which previews this same value one level
+    // down: two renderers disagreeing about what an unset field looks like is
+    // how the row said "1 field" long after this one stopped.
+    const isEmptyEnvelope = !!subSchema && isEmptyUiEnvelope(raw);
     const isFieldShape =
       (!!subSchema &&
         !!raw &&
@@ -863,7 +859,10 @@ export const isSet = (value: unknown): boolean =>
  * (that is the order the form puts the fields in), then anything stored that the
  * schema does not mention, so undescribed data is shown rather than dropped.
  */
-export const orderedKeys = (record: Record<string, unknown>, schema: IQorusFormSchema): string[] => {
+export const orderedKeys = (
+  record: Record<string, unknown>,
+  schema: IQorusFormSchema
+): string[] => {
   const described = Object.keys(schema).filter((key) => isSet(unwrap(record[key])));
   const extra = Object.keys(record).filter((key) => !(key in schema) && isSet(unwrap(record[key])));
   return [...described, ...extra];
@@ -944,7 +943,10 @@ export const recordIdentity = (
 
   return {
     key,
-    text: formatOptionValue({ type: fieldSchema?.type, value: raw } as IQorusFormField, fieldSchema),
+    text: formatOptionValue(
+      { type: fieldSchema?.type, value: raw } as IQorusFormField,
+      fieldSchema
+    ),
     label: fieldLabel(key, fieldSchema),
     mono: !findAllowedValueOption(raw, fieldSchema),
   };

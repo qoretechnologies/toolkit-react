@@ -14,7 +14,12 @@ import React from 'react';
 import styled from 'styled-components';
 import { useContextSelector } from 'use-context-selector';
 import { CompactRowContext } from '../compactRowContext';
-import { MONO_FONT_STACK, StyledCodePreview, StyledRowLabel, StyledRowValue } from '../compactRowStyles';
+import {
+  MONO_FONT_STACK,
+  StyledCodePreview,
+  StyledRowLabel,
+  StyledRowValue,
+} from '../compactRowStyles';
 import {
   fieldLabel,
   findAllowedValueOption,
@@ -25,7 +30,7 @@ import {
   recordIdentity,
   titleKeyFor,
 } from '../readFirst';
-import { isUiEncodedValue } from './structuredData';
+import { isEmptyUiEnvelope, isUiEncodedValue } from './structuredData';
 
 /**
  * A read-only rendering of a value THROUGH the schema that describes it.
@@ -158,8 +163,7 @@ const hasContentUnderHeading = (record: unknown, schema?: IQorusFormSchema): boo
   const titleKey = titleKeyFor(record, schema);
 
   return Object.entries(record).some(
-    ([key, value]) =>
-      key !== titleKey && value !== undefined && value !== null && value !== ''
+    ([key, value]) => key !== titleKey && value !== undefined && value !== null && value !== ''
   );
 };
 
@@ -424,92 +428,109 @@ const SchemaRecord = ({
   // The SAME host renderer the row above uses for a `code-editor` field. Read
   // from context rather than threaded through props: a nested level is arbitrarily
   // deep, and the renderer is a property of the form, not of any one level.
-  const codePreviewRenderer = useContextSelector(
-    CompactRowContext,
-    (v) => v.codePreviewRenderer
-  );
+  const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
   const cHover = useContextSelector(CompactRowContext, (v) => v.cHover);
 
   return (
-  <StyledFields className='schema-view-fields'>
-    {orderedKeys(record, schema)
-      .filter((key) => key !== skipKey)
-      .map((key) => {
-      const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
-      const nested = (fieldSchema as { arg_schema?: IQorusFormSchema } | undefined)?.arg_schema;
-      const value = unwrap(record[key]);
-      const label = fieldLabel(key, fieldSchema);
-      const labelWithType =
-        showTypes && fieldSchema?.type ? `${label} · ${fieldSchema.type}` : label;
+    <StyledFields className='schema-view-fields'>
+      {orderedKeys(record, schema)
+        .filter((key) => key !== skipKey)
+        .map((key) => {
+          const fieldSchema = schema[key] as TQorusFormFieldSchema | undefined;
+          const nested = (fieldSchema as { arg_schema?: IQorusFormSchema } | undefined)?.arg_schema;
+          // A schema-declared field the form materialised but never filled in
+          // arrives as `{type: 'int'}` with no `value` key. `unwrap` cannot see
+          // that — `isUiEncodedValue` requires a `value` — so it fell through as
+          // CONTENT and was wrapped as one below, and `formatOptionValue` counted
+          // the envelope's own `type` key: an untouched Runtime Defaults read
+          // "Timeout (Seconds) 1 field" three times over while the sub-form it
+          // previews correctly said 0/3 set. `fieldSchema` is what licenses the
+          // reading: the schema declares this field, so a `{type}`-only object
+          // under it is an empty envelope, never somebody's data.
+          const raw = record[key];
+          // `!nested` is the discriminator, and it is not a detail: a field that
+      // declares its OWN level describes what is inside it, so `{type: 'default'}`
+      // there is content — the scheme's Scheme Type, reading "Default RBAC" —
+      // not an envelope. Only a leaf can be empty in this sense.
+      const value =
+        fieldSchema && !nested && isEmptyUiEnvelope(raw) ? undefined : unwrap(raw);
+          const label = fieldLabel(key, fieldSchema);
+          const labelWithType =
+            showTypes && fieldSchema?.type ? `${label} · ${fieldSchema.type}` : label;
 
-      // A field that describes its own level renders AS that level, indented
-      // under its name — the same decision, one step down.
-      if (nested && (isRecord(value) || Array.isArray(value))) {
-        return (
-          <React.Fragment key={key}>
-            <StyledNestedLabel>
-              <StyledFieldLabel $color={colors.key}>{labelWithType}</StyledFieldLabel>
-            </StyledNestedLabel>
-            <StyledNested $border={colors.border}>
-              <SchemaLevel value={value} schema={nested} showTypes={showTypes} colors={colors} />
-            </StyledNested>
-          </React.Fragment>
-        );
-      }
+          // A field that describes its own level renders AS that level, indented
+          // under its name — the same decision, one step down.
+          if (nested && (isRecord(value) || Array.isArray(value))) {
+            return (
+              <React.Fragment key={key}>
+                <StyledNestedLabel>
+                  <StyledFieldLabel $color={colors.key}>{labelWithType}</StyledFieldLabel>
+                </StyledNestedLabel>
+                <StyledNested $border={colors.border}>
+                  <SchemaLevel
+                    value={value}
+                    schema={nested}
+                    showTypes={showTypes}
+                    colors={colors}
+                  />
+                </StyledNested>
+              </React.Fragment>
+            );
+          }
 
-      // A code value is source, and source is read as source: the host's renderer
-      // gives it the syntax highlighting (and read-only LSP hover) it has in the
-      // Source Code field, and "Show more" keeps a long body from taking over the
-      // preview. Flattening it to one mono line — which is what a plain value cell
-      // does — throws all of that away for a field whose whole content is code.
-      if (isCodeField(fieldSchema) && typeof value === 'string') {
-        return (
-          <React.Fragment key={key}>
-            <StyledNestedLabel>
-              <StyledFieldLabel $color={colors.key}>{labelWithType}</StyledFieldLabel>
-            </StyledNestedLabel>
-            <StyledCodeCell onClick={(event) => event.stopPropagation()}>
-              <ReqoreCollapsibleContent
-                maxCollapsedHeight={96}
-                buttonProps={{ className: 'options-readfirst-viewmore' }}
-              >
-                {codePreviewRenderer ?
-                  codePreviewRenderer({
-                    value,
-                    name: key,
-                    schema: fieldSchema,
-                    options: schema,
-                    values: record as never,
-                  })
-                : <StyledCodePreview
-                    className='options-readfirst-code'
-                    $bg={cHover}
-                    $border={`${colors.border}88`}
-                    $fg={colors.key}
+          // A code value is source, and source is read as source: the host's renderer
+          // gives it the syntax highlighting (and read-only LSP hover) it has in the
+          // Source Code field, and "Show more" keeps a long body from taking over the
+          // preview. Flattening it to one mono line — which is what a plain value cell
+          // does — throws all of that away for a field whose whole content is code.
+          if (isCodeField(fieldSchema) && typeof value === 'string') {
+            return (
+              <React.Fragment key={key}>
+                <StyledNestedLabel>
+                  <StyledFieldLabel $color={colors.key}>{labelWithType}</StyledFieldLabel>
+                </StyledNestedLabel>
+                <StyledCodeCell onClick={(event) => event.stopPropagation()}>
+                  <ReqoreCollapsibleContent
+                    maxCollapsedHeight={96}
+                    buttonProps={{ className: 'options-readfirst-viewmore' }}
                   >
-                    {value}
-                  </StyledCodePreview>
-                }
-              </ReqoreCollapsibleContent>
-            </StyledCodeCell>
-          </React.Fragment>
-        );
-      }
+                    {codePreviewRenderer ?
+                      codePreviewRenderer({
+                        value,
+                        name: key,
+                        schema: fieldSchema,
+                        options: schema,
+                        values: record as never,
+                      })
+                    : <StyledCodePreview
+                        className='options-readfirst-code'
+                        $bg={cHover}
+                        $border={`${colors.border}88`}
+                        $fg={colors.key}
+                      >
+                        {value}
+                      </StyledCodePreview>
+                    }
+                  </ReqoreCollapsibleContent>
+                </StyledCodeCell>
+              </React.Fragment>
+            );
+          }
 
-      return (
-        <React.Fragment key={key}>
-          <StyledFieldLabel $color={colors.key} title={label}>
-            {labelWithType}
-          </StyledFieldLabel>
-          <FieldValue
-            field={{ type: fieldSchema?.type, value } as IQorusFormField}
-            fieldSchema={fieldSchema}
-            color={colors.key}
-          />
-        </React.Fragment>
-      );
-    })}
-  </StyledFields>
+          return (
+            <React.Fragment key={key}>
+              <StyledFieldLabel $color={colors.key} title={label}>
+                {labelWithType}
+              </StyledFieldLabel>
+              <FieldValue
+                field={{ type: fieldSchema?.type, value } as IQorusFormField}
+                fieldSchema={fieldSchema}
+                color={colors.key}
+              />
+            </React.Fragment>
+          );
+        })}
+    </StyledFields>
   );
 };
 
