@@ -16,6 +16,13 @@ import { getHashEntries } from '../src/components/form/engine/readFirst';
  * undefined — `{type: 'integer'}`. `getHashEntries` recognised an envelope by
  * `'value' in raw`, which is false for exactly that shape, so it treated the
  * envelope as the value itself and counted its own `type` key: "1 field".
+ *
+ * That fix made the value read empty. The rule went further afterwards: an
+ * unset sub-field is not listed in a read view AT ALL, because `preselected`
+ * says the FORM should show the field, not that the object has a value for it.
+ * See `unsetHashReadsUnset.test.ts` — this file keeps the original defect
+ * pinned from the other side: whatever else changes, no unset sub-field may
+ * ever summarise as "1 field".
  */
 const SCHEMA = {
   type: 'hash',
@@ -32,10 +39,20 @@ describe('a materialised but unset hash sub-field', () => {
       { type: 'hash', value: { timeout_s: { type: 'integer' }, fixture: { type: 'string' } } } as never,
       SCHEMA
     );
-    expect(entries.map((e) => [e.label, e.value])).toEqual([
-      ['Timeout (Seconds)', ''],
-      ['Fixture', ''],
-    ]);
+    // Not listed at all now — and, the point of this test, never "1 field".
+    expect(entries).toEqual([]);
+    expect(entries.map((e) => e.value)).not.toContain('1 field');
+  });
+
+  it('lists only the sub-fields that have a value', () => {
+    const entries = getHashEntries(
+      {
+        type: 'hash',
+        value: { timeout_s: { type: 'integer' }, fixture: { type: 'string', value: 'seed' } },
+      } as never,
+      SCHEMA
+    );
+    expect(entries.map((e) => [e.label, e.value])).toEqual([['Fixture', 'seed']]);
   });
 
   it('still summarises a sub-field that does have a value', () => {

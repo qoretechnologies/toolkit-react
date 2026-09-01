@@ -155,6 +155,45 @@ export const isOptionValueEmpty = (value: unknown): boolean =>
   value === '' ||
   (Array.isArray(value) && value.length === 0);
 
+/**
+ * A schema-declared hash whose every entry is a materialised-but-unset field.
+ *
+ * `preselected` on a sub-field means "show this in the form so the author sees
+ * it exists" — a FORM instruction. Opening the sub-form materialises each one,
+ * `fixOptions` writes `{type: 'int'}` with no value, and the draft autosaves
+ * that, so the stored hash permanently carries keys that stand for nothing.
+ *
+ * The row then read those keys as content: `Runtime Defaults` listed three
+ * sub-fields with no values, counted toward "7/12 set", and showed a green
+ * set-dot — while the sub-form it summarises correctly said 0/3 set. Nothing
+ * was ever entered.
+ *
+ * Requires the sub-schema, and requires each key to be declared by it: without
+ * that, `{type: 'x'}` could be somebody's data rather than an empty envelope.
+ */
+export const isUnsetSchemaHash = (value: unknown, schema?: TQorusFormFieldSchema): boolean => {
+  const argSchema = (schema as { arg_schema?: Record<string, unknown> } | undefined)?.arg_schema;
+  if (!argSchema || typeof argSchema !== 'object') {
+    return false;
+  }
+  const inner =
+    value && typeof value === 'object' && !Array.isArray(value) && 'value' in (value as object) ?
+      (value as { value: unknown }).value
+    : value;
+  if (!inner || typeof inner !== 'object' || Array.isArray(inner)) {
+    return false;
+  }
+  const keys = Object.keys(inner as object);
+  return (
+    keys.length > 0 &&
+    keys.every(
+      (key) =>
+        !!(argSchema as Record<string, unknown>)[key] &&
+        isEmptyUiEnvelope((inner as Record<string, unknown>)[key])
+    )
+  );
+};
+
 export const isFixedCompactAllowedValueOption = (
   schema: TQorusFormFieldSchema | undefined
 ): boolean => {
@@ -523,7 +562,7 @@ export const formatOptionValue = (
 ): string => {
   const value = option?.value;
 
-  if (isOptionValueEmpty(value)) {
+  if (isOptionValueEmpty(value) || isUnsetSchemaHash(value, schema)) {
     return '';
   }
 
@@ -665,46 +704,55 @@ export const getHashEntries = (
   const argSchema = (schema as { arg_schema?: Record<string, TQorusFormFieldSchema> } | undefined)
     ?.arg_schema;
 
-  return Object.keys(hashObject).map((key) => {
-    const raw = hashObject![key];
-    const subSchema = argSchema?.[key];
-    // A schema-declared (`arg_schema`) hash stores each entry as a
-    // `{ type, value }` field descriptor — gate on the sub-schema's presence.
-    // A schema-less hash *usually* stores raw values, but the server's typed
-    // serialization can nest envelopes there too (e.g. a hash default_value
-    // whose entries are `{ type: 'string', value: 'x' }`) — recognise those by
-    // their strict shape (a string `type`, a `value`, and no foreign keys) so
-    // the sub-row shows 'x' rather than counting the envelope's own keys.
-    // `'value' in raw` is FALSE for a materialised-but-unset field: `fixOptions`
-    // omits the key entirely when the value is undefined, leaving `{type: 'x'}`.
-    // Requiring `value` therefore classed that envelope as a raw hash VALUE and
-    // counted its own `type` key, so an untouched Runtime Defaults collapsed to
-    // "Timeout (Seconds) 1 field" three times over while the sub-form correctly
-    // said 0/3 set. With a sub-schema present, a `type`-only object is an empty
-    // envelope, never content.
-    // Shared with SchemaDataView, which previews this same value one level
-    // down: two renderers disagreeing about what an unset field looks like is
-    // how the row said "1 field" long after this one stopped.
-    const isEmptyEnvelope = !!subSchema && isEmptyUiEnvelope(raw);
-    const isFieldShape =
-      (!!subSchema &&
-        !!raw &&
-        typeof raw === 'object' &&
-        !Array.isArray(raw) &&
-        'value' in (raw as object)) ||
-      isEmptyEnvelope ||
-      isTypedEnvelope(raw);
-    const subOption: IQorusFormField =
-      isFieldShape ?
-        (raw as IQorusFormField)
-      : ({ type: subSchema?.type as IQorusFormField['type'], value: raw } as IQorusFormField);
+  return Object.keys(hashObject)
+    .filter((key) => {
+      // Only sub-fields with a value belong in a read view. `preselected`
+      // materialises a field so the FORM shows it; that is not a statement
+      // that the object has one, and listing it here says the opposite of
+      // what the sub-form says.
+      const subSchema = argSchema?.[key];
+      return !(subSchema && isEmptyUiEnvelope(hashObject![key]));
+    })
+    .map((key) => {
+      const raw = hashObject![key];
+      const subSchema = argSchema?.[key];
+      // A schema-declared (`arg_schema`) hash stores each entry as a
+      // `{ type, value }` field descriptor — gate on the sub-schema's presence.
+      // A schema-less hash *usually* stores raw values, but the server's typed
+      // serialization can nest envelopes there too (e.g. a hash default_value
+      // whose entries are `{ type: 'string', value: 'x' }`) — recognise those by
+      // their strict shape (a string `type`, a `value`, and no foreign keys) so
+      // the sub-row shows 'x' rather than counting the envelope's own keys.
+      // `'value' in raw` is FALSE for a materialised-but-unset field: `fixOptions`
+      // omits the key entirely when the value is undefined, leaving `{type: 'x'}`.
+      // Requiring `value` therefore classed that envelope as a raw hash VALUE and
+      // counted its own `type` key, so an untouched Runtime Defaults collapsed to
+      // "Timeout (Seconds) 1 field" three times over while the sub-form correctly
+      // said 0/3 set. With a sub-schema present, a `type`-only object is an empty
+      // envelope, never content.
+      // Shared with SchemaDataView, which previews this same value one level
+      // down: two renderers disagreeing about what an unset field looks like is
+      // how the row said "1 field" long after this one stopped.
+      const isEmptyEnvelope = !!subSchema && isEmptyUiEnvelope(raw);
+      const isFieldShape =
+        (!!subSchema &&
+          !!raw &&
+          typeof raw === 'object' &&
+          !Array.isArray(raw) &&
+          'value' in (raw as object)) ||
+        isEmptyEnvelope ||
+        isTypedEnvelope(raw);
+      const subOption: IQorusFormField =
+        isFieldShape ?
+          (raw as IQorusFormField)
+        : ({ type: subSchema?.type as IQorusFormField['type'], value: raw } as IQorusFormField);
 
-    return {
-      name: key,
-      label: subSchema?.display_name || key,
-      value: formatOptionValue(subOption, subSchema),
-    };
-  });
+      return {
+        name: key,
+        label: subSchema?.display_name || key,
+        value: formatOptionValue(subOption, subSchema),
+      };
+    });
 };
 
 const titleCase = (value: string): string =>
