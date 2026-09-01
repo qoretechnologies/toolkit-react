@@ -213,16 +213,31 @@ function AutoField<T = any>({
   useEffect(() => {
     if (typeof arg_schema === 'string') {
       (async () => {
-        const schema = await query<IOptionsSchema>({
-          url: `dataprovider/arg_schemas/${arg_schema}`,
-          method: 'GET',
-        });
+        /* The await is guarded because `query` can REJECT rather than answer
+           `{ ok: false }` — a malformed instance URL, an aborted request, a
+           transport error. Unguarded, that rejection escaped the async IIFE as
+           an unhandled promise rejection, `setError` never ran, `finalArgSchema`
+           stayed undefined, and the field showed "Loading field data..." for the
+           life of the form: a request that failed instantly and a request that
+           is merely slow looked exactly the same, forever. */
+        try {
+          const schema = await query<IOptionsSchema>({
+            url: `dataprovider/arg_schemas/${arg_schema}`,
+            method: 'GET',
+          });
 
-        if (schema.ok) {
-          setError(undefined);
-          setFinalArgSchema(schema.data);
-        } else {
-          setError(schema.error);
+          if (schema.ok) {
+            setError(undefined);
+            setFinalArgSchema(schema.data);
+          } else {
+            setError(schema.error ?? `The schema "${arg_schema}" could not be loaded.`);
+          }
+        } catch (fetchError) {
+          setError(
+            fetchError instanceof Error ?
+              fetchError.message
+            : `The schema "${arg_schema}" could not be loaded.`
+          );
         }
       })();
     } else {
@@ -417,6 +432,23 @@ function AutoField<T = any>({
         onChange={(next) => handleChange(name, next, 'string')}
         readOnly={rest.readonly || rest.disabled}
       />
+    );
+  }
+
+  /* The error is checked BEFORE the spinner, and the spinner waits on the error
+     being absent.
+
+     A named `arg_schema` is fetched (`dataprovider/arg_schemas/<name>`), and when
+     that fetch failed `finalArgSchema` stayed undefined forever — so this spinner
+     returned on every subsequent render and the `if (error)` branch further down
+     was unreachable. The field sat on "Loading field data..." for the life of the
+     form with no way to find out why, which is indistinguishable from a request
+     that is merely slow. */
+  if (arg_schema && !finalArgSchema && error) {
+    return (
+      <ReqoreMessage intent='danger' size='small'>
+        {error}
+      </ReqoreMessage>
     );
   }
 
