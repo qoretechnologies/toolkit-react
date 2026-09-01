@@ -2388,6 +2388,11 @@ const FormEngineImpl = ({
             allowed_values_creatable={options?.[optionName]?.allowed_values_creatable}
             disabled={
               options?.[optionName]?.disabled ||
+              // a system-owned field states that as `readonly`; only the older
+              // compat projection also sent `disabled`, so honouring only
+              // `disabled` rendered an editable control for a value the user
+              // cannot change (see CompactRow's `fieldReadonly`)
+              (options?.[optionName] as { readonly?: boolean } | undefined)?.readonly ||
               readOnly ||
               !hasAllDependenciesFullfilled(
                 options?.[optionName]?.depends_on,

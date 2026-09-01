@@ -676,12 +676,27 @@ export const getHashEntries = (
     // whose entries are `{ type: 'string', value: 'x' }`) — recognise those by
     // their strict shape (a string `type`, a `value`, and no foreign keys) so
     // the sub-row shows 'x' rather than counting the envelope's own keys.
+    // `'value' in raw` is FALSE for a materialised-but-unset field: `fixOptions`
+    // omits the key entirely when the value is undefined, leaving `{type: 'x'}`.
+    // Requiring `value` therefore classed that envelope as a raw hash VALUE and
+    // counted its own `type` key, so an untouched Runtime Defaults collapsed to
+    // "Timeout (Seconds) 1 field" three times over while the sub-form correctly
+    // said 0/3 set. With a sub-schema present, a `type`-only object is an empty
+    // envelope, never content.
+    const isEmptyEnvelope =
+      !!subSchema &&
+      !!raw &&
+      typeof raw === 'object' &&
+      !Array.isArray(raw) &&
+      !('value' in (raw as object)) &&
+      Object.keys(raw as object).every((k) => k === 'type' || k === 'is_expression');
     const isFieldShape =
       (!!subSchema &&
         !!raw &&
         typeof raw === 'object' &&
         !Array.isArray(raw) &&
         'value' in (raw as object)) ||
+      isEmptyEnvelope ||
       isTypedEnvelope(raw);
     const subOption: IQorusFormField =
       isFieldShape ?
