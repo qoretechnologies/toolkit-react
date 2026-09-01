@@ -8,10 +8,10 @@
 
 import {
   ReqoreButton,
+  ReqoreCallout,
   ReqoreControlGroup,
   ReqoreDropdown,
   ReqoreIcon,
-  ReqoreMessage,
   ReqoreRichTextEditor,
   ReqoreSpan,
   ReqoreTextarea,
@@ -358,10 +358,14 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
   };
 
   if (disabled) {
+    /* A callout, not a message. This stands in for the composer itself — it is
+       the thing the reader meets where they expected somewhere to type — and a
+       ReqoreMessage draws that as a notification bar, which reads as something
+       having gone wrong rather than as "this conversation is closed". */
     return (
-      <ReqoreMessage intent='muted' icon='LockLine' size='small' flat>
+      <ReqoreCallout intent='muted' icon='LockLine' size='small' flat rounded={false}>
         {disabledReason}
-      </ReqoreMessage>
+      </ReqoreCallout>
     );
   }
 
