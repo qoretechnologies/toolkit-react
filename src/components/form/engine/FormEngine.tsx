@@ -835,6 +835,24 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * (non-compact) mode.
    */
   initialExpandedOptions?: string[];
+
+  /**
+   * Cap how many rows a status box shows before the rest fold behind a
+   * "N more fields" control. Applies to every box — Needs attention, Set and
+   * Optional alike — so a long form stays scannable instead of making the
+   * reader page past one box to reach the next.
+   *
+   * Optional keeps its own rule on top of this: a box that would have
+   * collapsed but holds preselected rows shows those rows rather than an
+   * arbitrary first-N. The cap then applies to that set, so
+   * `maxFieldsShown: 5` over 10 preselected fields shows 5 — and opening the
+   * control reveals EVERY row in the box, not just the other 5 preselected
+   * ones, because once the reader has asked to see more, hiding the rest is
+   * the same defect one level down.
+   *
+   * Unset (the default) leaves every box uncapped.
+   */
+  maxFieldsShown?: number;
 }
 
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
@@ -887,6 +905,7 @@ const FormEngineImpl = ({
   autoFocusFirstRequired,
   expandFirstRequired,
   initialExpandedOptions,
+  maxFieldsShown,
   ...rest
 }: IFormEngineProps) => {
   // Built-ins + whatever the consumer declared for its own injected editors.
@@ -934,6 +953,9 @@ const FormEngineImpl = ({
   const [showInvalidOptionsOnly, setShowInvalidOptionsOnly] = useState<boolean>(false);
   // Which options are expanded into their editor (several can be open at once).
   const [expandedOptions, setExpandedOptions] = useState<string[]>([]);
+  /** Status boxes whose "N more fields" control the reader has opened. Keyed by
+      box so opening Optional does not also unfold Set. */
+  const [expandedMoreBoxes, setExpandedMoreBoxes] = useState<TFormEngineBoxKey[]>([]);
 
   // --- Reveal a status box's content when it is opened ----------------------
   //
@@ -2490,6 +2512,9 @@ const FormEngineImpl = ({
   const cBg = (theme as { main?: string } | undefined)?.main || '#181818';
   const cRowBg = changeDarkness(getMainBackgroundColor(theme), 0.01);
   const cGroupLine = `${cText}1f`;
+  // The "N more fields" row's dashed edge. Well above the divider tint: this
+  // one is an affordance the reader has to notice, not a hairline between rows.
+  const cMoreBorder = `${cText}4d`;
 
   // The closure surface the extracted CompactRow reads through context. Refs and
   // setters are stable; the state/memo/handler fields change identity as they do
@@ -2859,6 +2884,30 @@ const FormEngineImpl = ({
     // other and DOES get its sub-label.
     const showGroupSubLabel = (groupName: string) =>
       (groupName !== 'general' && groupName !== 'optional') || !!groups?.[groupName];
+
+    // `preselected` means "show this option by default when a new form is
+    // loaded, so it's visible to the user". An empty non-required preselected
+    // field buckets to 'optional' (nothing is wrong with it, and it has no
+    // value), and the Optional box is collapsed by default — so the very
+    // fields the schema asked to put in front of the author were the ones
+    // nobody could see. A preselected row therefore forces its box open.
+    //
+    // A hidden row is an addable the author has not put in the form yet, so it
+    // is never what `preselected` is talking about, however its schema is
+    // flagged.
+    const isPreselectedRow = (entry: TRowEntry) =>
+      !entry.hidden &&
+      !!(options?.[entry.name] as { preselected?: boolean } | undefined)?.preselected;
+    // ONLY the Optional box. A preselected field that HAS a value buckets to
+    // 'set' and one that fails validation to 'attention'; in both boxes the
+    // field is already accounted for, and whether those boxes start collapsed
+    // is the consumer's deliberate `compactCollapsedGroups` choice. Overriding
+    // them here forced the Set box open against an explicit request.
+    const groupHasPreselectedRow = (boxKey: TFormEngineBoxKey, groupName: string) =>
+      boxKey === 'optional' && (buckets[boxKey][groupName] || []).some(isPreselectedRow);
+    const boxHasPreselectedRows = (boxKey: TFormEngineBoxKey) =>
+      boxKey === 'optional' &&
+      bucketGroups[boxKey].some((groupName) => groupHasPreselectedRow(boxKey, groupName));
     const STATUS_BOXES: Array<{
       key: TFormEngineBoxKey;
       label: string;
@@ -2947,6 +2996,52 @@ const FormEngineImpl = ({
       });
     };
 
+    // One schema group inside a status box: its thin sub-label, the group's
+    // subtitle, then its rows. Factored out of the box body so the SAME markup
+    // renders both the groups a box shows directly and the ones it defers
+    // behind the inner collapse.
+    /** @param only when given, render just these rows of the group — the group
+        can be split across the shown and folded halves of a capped box, and its
+        label must appear above whichever half holds its first row. */
+    const renderBoxGroup = (
+      boxKey: TFormEngineBoxKey,
+      groupName: string,
+      only?: Set<string>
+    ) => {
+      const groupConfig = groups?.[groupName];
+      const rows =
+        only ?
+          (buckets[boxKey][groupName] || []).filter((entry) => only.has(entry.name))
+        : buckets[boxKey][groupName];
+      if (only && !rows.length) {
+        return null;
+      }
+      return (
+        <React.Fragment key={groupName}>
+          {showGroupSubLabel(groupName) ?
+            <StyledStatusBoxGroupLabel>
+              {getOptionGroupLabel(groupName, groups)}
+            </StyledStatusBoxGroupLabel>
+          : null}
+          {showGroupSubLabel(groupName) && groupConfig?.subtitle ?
+            <ReqoreP
+              size='small'
+              effect={{ opacity: 0.6 }}
+              style={{
+                marginTop: 2,
+                marginBottom: 8,
+                marginLeft: GROUP_INDENT,
+                paddingRight: 10,
+              }}
+            >
+              {groupConfig.subtitle}
+            </ReqoreP>
+          : null}
+          {renderGroupRows(rows)}
+        </React.Fragment>
+      );
+    };
+
     return (
       <OptionsContext.Provider value={{ schema: options, value: availableOptions }}>
         <CompactRowContext.Provider value={compactRowContextValue}>
@@ -3008,6 +3103,54 @@ const FormEngineImpl = ({
                     const groupsInBox = bucketGroups[box.key];
                     const count = bucketCount(box.key);
                     if (!count) return null;
+                    const hasPreselectedRows = boxHasPreselectedRows(box.key);
+                    const wouldCollapse =
+                      compactCollapsedGroups.includes(box.key) &&
+                      !query &&
+                      !(box.key === 'optional' && onlyOptionalRows);
+                    // Only a box that was opened SOLELY to reveal a preselected
+                    // row splits its body; a box that renders open anyway shows
+                    // all of its groups as before.
+                    const splitForPreselected = wouldCollapse && hasPreselectedRows;
+
+                    // Which rows this box shows, and which fold away, decided at
+                    // ROW level because `maxFieldsShown` counts fields — a
+                    // group-level split can only ever cut at a group boundary.
+                    // Group order is preserved so the visible rows read in the
+                    // same order they would if nothing were folded.
+                    const orderedRows: TRowEntry[] = groupsInBox.flatMap(
+                      (groupName) => buckets[box.key][groupName] || []
+                    );
+                    // Optional's own rule first: a box opened solely to reveal
+                    // preselected rows offers those, not an arbitrary first-N.
+                    const candidateRows =
+                      splitForPreselected ? orderedRows.filter(isPreselectedRow) : orderedRows;
+                    // …then the cap applies to whatever that left.
+                    const capped =
+                      maxFieldsShown !== undefined && candidateRows.length > maxFieldsShown;
+                    const shownRows = capped ? candidateRows.slice(0, maxFieldsShown) : candidateRows;
+                    const shownRowSet = new Set(shownRows.map((entry) => entry.name));
+                    // Everything the box holds that is not on show. Once the
+                    // reader asks for more they get the whole box — withholding
+                    // the non-preselected remainder behind a second control is
+                    // the same defect one level down.
+                    const deferredRowSet = new Set(
+                      orderedRows
+                        .filter((entry) => !shownRowSet.has(entry.name))
+                        .map((entry) => entry.name)
+                    );
+                    const deferredCount = deferredRowSet.size;
+                    const shownGroups = groupsInBox.filter((groupName) =>
+                      (buckets[box.key][groupName] || []).some((entry) =>
+                        shownRowSet.has(entry.name)
+                      )
+                    );
+                    const deferredGroups = groupsInBox.filter((groupName) =>
+                      (buckets[box.key][groupName] || []).some(
+                        (entry) => !shownRowSet.has(entry.name)
+                      )
+                    );
+                    const moreOpen = Boolean(query) || expandedMoreBoxes.includes(box.key);
                     const accent =
                       box.key === 'attention' ? cWarning
                       : box.key === 'set' ? cSuccess
@@ -3054,11 +3197,15 @@ const FormEngineImpl = ({
                         // nothing else. This does not generalise to the other two —
                         // a lone Set box collapsed is a deliberate ask, and its
                         // header still reports what is in there.
-                        isCollapsed={
-                          compactCollapsedGroups.includes(box.key) &&
-                          !query &&
-                          !(box.key === 'optional' && onlyOptionalRows)
-                        }
+                        //
+                        // A PRESELECTED row overrides it too: the schema asked
+                        // for that field to be visible on a new form, so the
+                        // box it lands in opens. The groups it does NOT appear
+                        // in stay behind an inner collapse below, so opening
+                        // the box reveals the preselected fields without also
+                        // dumping every not-yet-added optional field on the
+                        // author.
+                        isCollapsed={wouldCollapse && !hasPreselectedRows}
                         label={
                           <StyledGroupHeader>
                             <ReqoreP effect={{ weight: 'bold' }} size='normal'>
@@ -3089,35 +3236,51 @@ const FormEngineImpl = ({
                           $success={cSuccess}
                           $rowBg={cRowBg}
                           $lineColor={cGroupLine}
+                          $moreBorder={cMoreBorder}
                           className={compactNarrow ? 'readfirst-narrow' : undefined}
                         >
-                          {groupsInBox.map((groupName) => {
-                            const groupConfig = groups?.[groupName];
-                            return (
-                              <React.Fragment key={groupName}>
-                                {showGroupSubLabel(groupName) ?
-                                  <StyledStatusBoxGroupLabel>
-                                    {getOptionGroupLabel(groupName, groups)}
-                                  </StyledStatusBoxGroupLabel>
-                                : null}
-                                {showGroupSubLabel(groupName) && groupConfig?.subtitle ?
-                                  <ReqoreP
-                                    size='small'
-                                    effect={{ opacity: 0.6 }}
-                                    style={{
-                                      marginTop: 2,
-                                      marginBottom: 8,
-                                      marginLeft: GROUP_INDENT,
-                                      paddingRight: 10,
-                                    }}
-                                  >
-                                    {groupConfig.subtitle}
-                                  </ReqoreP>
-                                : null}
-                                {renderGroupRows(buckets[box.key][groupName])}
-                              </React.Fragment>
-                            );
-                          })}
+                          {shownGroups.map((groupName) =>
+                            renderBoxGroup(box.key, groupName, shownRowSet)
+                          )}
+                          {/* The control lives INSIDE the group body, as the last
+                              row, so it inherits the rows' grid, padding and
+                              hover and lines up with them. Outside it was a bare
+                              line of text in the box's corner, which is what the
+                              build #154 review rejected. */}
+                          {deferredCount ?
+                            <button
+                              type='button'
+                              className='readfirst-row readfirst-more-row options-readfirst-more'
+                              aria-expanded={moreOpen}
+                              onClick={() =>
+                                setExpandedMoreBoxes((prev) =>
+                                  prev.includes(box.key) ?
+                                    prev.filter((k) => k !== box.key)
+                                  : [...prev, box.key]
+                                )
+                              }
+                            >
+                              <ReqoreP size='small' effect={{ opacity: 0.8 }}>
+                                {moreOpen ?
+                                  'Show fewer'
+                                : `${deferredCount} more ${box.key === 'optional' ? 'optional ' : ''}field${deferredCount === 1 ? '' : 's'}`
+                                }
+                              </ReqoreP>
+                              <ReqoreIcon
+                                icon='ArrowDownSLine'
+                                size='small'
+                                className='readfirst-more-chevron'
+                                effect={{ opacity: 0.8 }}
+                              />
+                            </button>
+                          : null}
+                          {/* A search forces the fold open for the same reason
+                              the boxes open: an unmounted row cannot be found. */}
+                          {deferredCount && moreOpen ?
+                            deferredGroups.map((groupName) =>
+                              renderBoxGroup(box.key, groupName, deferredRowSet)
+                            )
+                          : null}
                         </StyledGroupBody>
                       </StyledStatusBox>
                     );
