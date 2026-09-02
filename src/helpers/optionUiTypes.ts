@@ -27,6 +27,14 @@ export const OPTION_SCALAR_UI_TYPES = [
   'float',
   'number',
   'byte-size',
+  // an integer count of milliseconds rendered through the unit-aware timeout
+  // field; `validateField` has carried a dedicated `case 'timeout'` since the
+  // connection-options work, and a type the validator has a branch for must be
+  // in the vocabulary the same switch is keyed on — consumers ask
+  // `isOptionUiType` before they ever reach the validator, and an unlisted
+  // type reads as unknown (qorus-ide's timeout field regressed exactly this
+  // way when its local registry copy was consolidated onto this one).
+  'timeout',
   'url',
   'code-editor',
   'rgbcolor',
