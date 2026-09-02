@@ -61,6 +61,7 @@ import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDat
 import { query } from '../../../utils/fetch';
 import {
   colorToCss,
+  findAllowedValueOption,
   formatBytes,
   formatOptionValue,
   getAllowedValueImage,
@@ -154,9 +155,7 @@ const MAX_INLINE_OPTION_ACTIONS = 2;
  */
 export const richtextItemText = (item: unknown): string | undefined =>
   item && typeof item === 'object' && (item as { type?: unknown }).type === 'richtext' ?
-    richtextToString(
-      (item as { value?: Parameters<typeof richtextToString>[0] }).value
-    )
+    richtextToString((item as { value?: Parameters<typeof richtextToString>[0] }).value)
   : undefined;
 
 export const CompactRow = memo(
@@ -280,7 +279,11 @@ export const CompactRow = memo(
     const renderReadFirstValue = (
       field: IQorusFormField,
       schema: TQorusFormFieldSchema | undefined,
-      formatted: string
+      formatted: string,
+      // An editable row gets one line and an ellipsis — its value line is a
+      // summary you click to open. A read-only row is the only rendering the
+      // value gets, so it wraps.
+      full = false
     ): React.ReactNode => {
       const valueType = getValueType(field, schema);
       const wrapStyle: React.CSSProperties = {
@@ -289,12 +292,12 @@ export const CompactRow = memo(
         gap: 6,
         minWidth: 0,
         maxWidth: '100%',
+        ...(full ? { flexWrap: 'wrap' } : {}),
       };
-      const textStyle: React.CSSProperties = {
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      };
+      const textStyle: React.CSSProperties =
+        full ?
+          { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
+        : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
       if (valueType === 'rgbcolor') {
         const swatch = colorToCss(field?.value);
@@ -430,7 +433,10 @@ export const CompactRow = memo(
       // reads as those strings. Without this the row fell through to the generic
       // list summary and printed a bare count ("1 item") above the structured
       // tree, never the address itself.
-      if (Array.isArray(field?.value) && field.value.some((item) => richtextItemText(item) !== undefined)) {
+      if (
+        Array.isArray(field?.value) &&
+        field.value.some((item) => richtextItemText(item) !== undefined)
+      ) {
         const texts = field.value.map((item) => richtextItemText(item) ?? String(item ?? ''));
         return <span style={textStyle}>{texts.filter((text) => text !== '').join(', ')}</span>;
       }
@@ -465,8 +471,8 @@ export const CompactRow = memo(
                         ?.metadata as TTemplateMeta | undefined
                     )}
                   />
-                : <span key={index} style={{ whiteSpace: 'pre' }}>
-                    {collapseSummaryBreaks(segment.text)}
+                : <span key={index} style={{ whiteSpace: full ? 'pre-wrap' : 'pre' }}>
+                    {full ? segment.text : collapseSummaryBreaks(segment.text)}
                   </span>
               )}
             </span>
@@ -508,7 +514,7 @@ export const CompactRow = memo(
                     tooltip={segment.text}
                     {...getTemplateTagStyle(segment.item?.metadata as TTemplateMeta | undefined)}
                   />
-                : <span key={index} style={{ whiteSpace: 'pre' }}>
+                : <span key={index} style={{ whiteSpace: full ? 'pre-wrap' : 'pre' }}>
                     {segment.text}
                   </span>
               )}
@@ -517,7 +523,7 @@ export const CompactRow = memo(
         }
       }
 
-      return formatted;
+      return full ? <span style={textStyle}>{formatted}</span> : formatted;
     };
 
     const schema = options?.[optionName];
@@ -614,6 +620,8 @@ export const CompactRow = memo(
       );
     };
     const required = !!(schema?.required || schema?.required_groups);
+    // The asterisk says "you have to fill this in". Read-only, nobody does.
+    const requiredMark = required && !readOnly;
     const removable =
       !readOnly && !schema?.preselected && !schema?.required && !schema?.required_groups;
     const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
@@ -785,8 +793,7 @@ export const CompactRow = memo(
     // value is unset or scalar renders no inset, so fetching its schema would buy
     // a round trip per row and show nothing. `query` caches GETs, so rows sharing
     // an id (every row of one list) cost one request between them.
-    const valueLooksStructured =
-      !!optionField?.value && typeof optionField.value === 'object';
+    const valueLooksStructured = !!optionField?.value && typeof optionField.value === 'object';
 
     React.useEffect(() => {
       if (!argSchemaId || !valueLooksStructured) {
@@ -908,7 +915,7 @@ export const CompactRow = memo(
           effect={{ uppercase: true, spaced: 1 }}
         />
       : null;
-    const isPassiveCloseAction = fixedAllowedValueOption || readOnly;
+    const isPassiveCloseAction = fixedAllowedValueOption;
     // Cancel — the counterpart to Done, and the answer to "how do I get out of
     // here without keeping this". Done was the only way to leave an open field,
     // so every way out committed: the check, clicking away, and Escape (which
@@ -918,8 +925,8 @@ export const CompactRow = memo(
     // Cancel and Done would do exactly the same thing, and two buttons that
     // differ in name but not in effect are worse than one.
     //
-    // Not offered when the close action is passive (read-only, or a fixed
-    // choice) — nothing can have been typed, so there is nothing to cancel.
+    // Not offered when the close action is passive (a fixed choice) —
+    // nothing can have been typed, so there is nothing to cancel.
     const cancelEditButton =
       !isPassiveCloseAction && editedSinceOpened ?
         <ReqoreButton
@@ -975,8 +982,13 @@ export const CompactRow = memo(
           })
         ) as TInfoMsg[])
       : [];
+    // Validation verdicts and dependency hints are the editor's: "text value
+    // is empty", "disabled until X is set" tell someone what to do next, and
+    // a reader has no next. A read-only row states the value and leaves it.
+    // The default-value note below is different — it says what applies when
+    // nothing is set, which is a fact about the record — and stays.
     const fieldMessages: TInfoMsg[] =
-      infoActive ?
+      infoActive && !readOnly ?
         getOptionFieldMessages({
           schema: options || {},
           option: optionField || ({} as IQorusFormField),
@@ -1180,9 +1192,11 @@ export const CompactRow = memo(
     // in the same corner of the same column, so stating one as a chip and the
     // other as text made two spellings of one idea.
     const codeSizeNode =
-      valueType === 'code-editor' &&
-      typeof optionField?.value === 'string' &&
-      optionField.value !== '' ?
+      (
+        valueType === 'code-editor' &&
+        typeof optionField?.value === 'string' &&
+        optionField.value !== ''
+      ) ?
         (() => {
           const { lines, chars } = describeCodeSize(optionField.value as string);
           return (
@@ -1198,7 +1212,7 @@ export const CompactRow = memo(
         })()
       : null;
 
-    if (isExpanded) {
+    if (isExpanded && !readOnly) {
       if (inlineEditable) {
         const collapse = () => toggleExpandedOption(optionName);
         const editingRow = (
@@ -1528,22 +1542,22 @@ export const CompactRow = memo(
               }
             }}
           >
-          {/* Same fullscreen focused-editing affordance as the classic cards —
+            {/* Same fullscreen focused-editing affordance as the classic cards —
               the modal mounts when this option is focused. */}
-          <FocusedEditing
-            isFullscreen={focusedEditing === optionName}
-            onClose={() => setFocusedEditing(undefined)}
-            description={(schema?.display_name as string) || optionName}
-          >
-            {focusedEditing === optionName ?
-              <Description
-                longDescription={schema?.desc}
-                shortDescription={schema?.short_desc}
-                longDescriptionShownByDefault
-              />
-            : null}
-            {renderOption(optionName, optionField)}
-          </FocusedEditing>
+            <FocusedEditing
+              isFullscreen={focusedEditing === optionName}
+              onClose={() => setFocusedEditing(undefined)}
+              description={(schema?.display_name as string) || optionName}
+            >
+              {focusedEditing === optionName ?
+                <Description
+                  longDescription={schema?.desc}
+                  shortDescription={schema?.short_desc}
+                  longDescriptionShownByDefault
+                />
+              : null}
+              {renderOption(optionName, optionField)}
+            </FocusedEditing>
           </div>
         </StyledEditCard>
       );
@@ -1653,16 +1667,48 @@ export const CompactRow = memo(
       (schema as { ui_type?: string } | undefined)?.ui_type === 'markdown' &&
       typeof optionField?.value === 'string' &&
       isMultilineMarkdown(optionField.value);
+    // Read-only: a long plain-text value is drawn in FULL under the row, in
+    // the same inset and under the same "Show more" cap a code value gets,
+    // instead of one line with an ellipsis and a browser tooltip holding the
+    // rest. The editable row truncates because its value line is a summary
+    // you click to open; a read row is the only rendering the value gets.
+    //
+    // "Plain" is `formatted === value`: the text was rendered verbatim — not
+    // a template resolved to a chip, not an allowed value shown by its label,
+    // not a sensitive value masked, not markdown summarised. Only text that
+    // would not fit the line moves down: a break in it, or more than a short
+    // sentence's worth of characters (a short value wraps in place).
+    const showLongTextInset =
+      readOnly &&
+      !hidden &&
+      !showCodePreview &&
+      !showMarkdownPreview &&
+      !showStructuredPreview &&
+      typeof optionField?.value === 'string' &&
+      formatted === optionField.value &&
+      (optionField.value.includes('\n') || optionField.value.length > 120);
+    // Read-only: a choice reads as the option AND what it means —
+    // "Authenticated users", then "callers must present a token". The picker
+    // showed that description while choosing; a reader has no picker.
+    const chosenOption =
+      readOnly && !hidden && !empty ?
+        (findAllowedValueOption(optionField?.value, schema) as
+          { desc?: string; short_desc?: string } | undefined)
+      : undefined;
+    const readOnlyChoiceDesc = chosenOption?.desc || chosenOption?.short_desc;
+
     // "9 lines" for a multi-line markdown value, shown under the field's name
     // rather than in front of its content: it describes the field, not the value,
     // and the value column is for the value. Rendered whether or not a host
     // renderer is present — the count is the one thing the row cannot show you by
     // showing you the text, and it is what tells you there is more below.
     const lineCountNote =
-      !hidden &&
-      (schema as { ui_type?: string } | undefined)?.ui_type === 'markdown' &&
-      typeof optionField?.value === 'string' &&
-      isMultilineMarkdown(optionField.value) ?
+      (
+        !hidden &&
+        (schema as { ui_type?: string } | undefined)?.ui_type === 'markdown' &&
+        typeof optionField?.value === 'string' &&
+        isMultilineMarkdown(optionField.value)
+      ) ?
         `${optionField.value.trim().split('\n').length} lines`
       : undefined;
     const typeLabel =
@@ -1676,7 +1722,8 @@ export const CompactRow = memo(
     // no answer of the user's can change.
     const fieldReadonly = !!(schema as { readonly?: boolean } | undefined)?.readonly;
     // Disabled rows (schema flag, readonly, or unmet deps) can't open — a lock +
-    // reason renders instead. Form-level readOnly still opens in view mode (Close).
+    // reason renders instead. A form-level readOnly row never opens at all, and
+    // shows no lock either: nothing on a read-only form is locked, it is read.
     const fieldDisabled =
       !hidden &&
       !readOnly &&
@@ -1761,7 +1808,12 @@ export const CompactRow = memo(
         </span>
       : null;
     const activate = (event?: { currentTarget?: Element | null }) => {
-      if (fieldDisabled) {
+      // A read-only row is not a control. It used to open into the editor
+      // with `readOnly` handed down (an id in a greyed-out input, a choice
+      // that could still be changed); then into a read view of the same
+      // value — which showed nothing the row could not show itself once it
+      // stopped truncating. So it shows everything, and opens nothing.
+      if (fieldDisabled || readOnly) {
         return;
       }
       const target = event?.currentTarget as HTMLElement | undefined;
@@ -1816,7 +1868,9 @@ export const CompactRow = memo(
       invalid: worstIntent === 'danger',
       warned: worstIntent === 'warning',
     });
-    const dotStatus = hidden || fieldDisabled ? undefined : rowStatus;
+    // No dot at all in a read-only form: the dot reports progress on the
+    // form, and a read view has no progress to report.
+    const dotStatus = hidden || fieldDisabled || readOnly ? undefined : rowStatus;
     const dotColor =
       dotStatus === 'invalid' ? cDanger
       : dotStatus === 'todo' ? cWarning
@@ -1826,19 +1880,23 @@ export const CompactRow = memo(
       <div
         key={optionName}
         data-field={optionName}
-        role='button'
-        tabIndex={0}
-        aria-label={label}
-        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        role={readOnly ? undefined : 'button'}
+        tabIndex={readOnly ? undefined : 0}
+        aria-label={readOnly ? undefined : label}
+        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
         style={stripeStyle}
-        onClick={activate}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            activate(event);
-          }
-        }}
+        onClick={readOnly ? undefined : activate}
+        onKeyDown={
+          readOnly ? undefined : (
+            (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                activate(event);
+              }
+            }
+          )
+        }
         {...clusterHoverProps}
       >
         {clusterNode}
@@ -1849,7 +1907,7 @@ export const CompactRow = memo(
                 stays right after the last word even when the name wraps. */}
             <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
               {label}
-              {required ?
+              {requiredMark ?
                 <ReqoreIcon
                   icon='Asterisk'
                   color='danger'
@@ -1897,6 +1955,8 @@ export const CompactRow = memo(
             (
               !empty &&
               !hidden &&
+              // A read row wraps its value, so a hover has nothing to add.
+              !readOnly &&
               !showCodePreview &&
               !showMarkdownPreview &&
               !showsTemplateChips &&
@@ -1939,13 +1999,18 @@ export const CompactRow = memo(
               then dropped its summary in favour of a preview that never came
               and rendered nothing at all: a test with cases read as a bare
               "Cases" and looked unset until it was opened. */}
-          {showMarkdownPreview || (previewWithSchema && showStructuredPreview) ? null : (
-            <span className='options-readfirst-valuetext'>
+          {(
+            showMarkdownPreview || showLongTextInset || (previewWithSchema && showStructuredPreview)
+          ) ?
+            null
+          : <span className='options-readfirst-valuetext'>
               {hidden || empty ?
                 formattedDefault || '—'
-              : renderReadFirstValue(optionField, schema, formatted)}
-            </span>
-          )}
+              : renderReadFirstValue(optionField, schema, formatted, readOnly)}
+            </span>}
+          {readOnlyChoiceDesc ?
+            <span className='options-readfirst-choice-desc'>{readOnlyChoiceDesc}</span>
+          : null}
           {valueReasons.map((m, i) => (
             <span
               key={`${m.content}-${i}`}
@@ -2089,6 +2154,18 @@ export const CompactRow = memo(
                 <div className='options-readfirst-markdown'>
                   {markdownRenderer!({ value: optionField.value as string, compact: true })}
                 </div>
+              </ReqoreCollapsibleContent>
+            </StyledRowInset>
+          : null}
+          {/* Read-only long text: see `showLongTextInset`. No click guard —
+              the read row has no click to guard against. */}
+          {showLongTextInset ?
+            <StyledRowInset className='options-readfirst-inset options-readfirst-text-inset'>
+              <ReqoreCollapsibleContent
+                maxCollapsedHeight={96}
+                buttonProps={{ className: 'options-readfirst-viewmore' }}
+              >
+                <div className='options-readfirst-text'>{optionField.value as string}</div>
               </ReqoreCollapsibleContent>
             </StyledRowInset>
           : null}

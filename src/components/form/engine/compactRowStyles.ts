@@ -354,6 +354,22 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     gap: 4px;
     margin-top: 4px;
   }
+  /* Read-only companions of the value: what a chosen option means, on its own
+     line under it; and a long text drawn in full in the inset. */
+  .options-readfirst-choice-desc {
+    flex-basis: 100%;
+    width: 100%;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    opacity: 0.6;
+  }
+  .options-readfirst-text {
+    color: ${({ $color }) => $color};
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+  }
 `;
 
 export const StyledRowActions = styled.div`
@@ -633,6 +649,22 @@ export const StyledGroupBody = styled.div<{
   }
   .readfirst-row-editing > div:nth-child(3) {
     padding-top: 3px;
+  }
+  /* A read-only row is not a control. No pointer and no hover tint, because a
+     click does nothing; and its value wraps in full — the row is the only
+     rendering the value gets, so a line cut with an ellipsis would be the
+     reader's whole answer. */
+  .readfirst-row-read {
+    cursor: default;
+  }
+  .readfirst-row-read:hover {
+    background: transparent;
+  }
+  .readfirst-row-read .options-readfirst-valuetext {
+    white-space: pre-wrap;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
   }
   .readfirst-row-editing:hover {
     background: ${({ $hover }) => $hover};
