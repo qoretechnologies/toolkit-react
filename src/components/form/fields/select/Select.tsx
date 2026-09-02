@@ -3,12 +3,12 @@ import {
   ReqoreDropdown,
   ReqoreMenu,
   ReqoreMenuItem,
-  ReqoreSingleSelect,
+  ReqoreSelect,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps, TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
-import { TReqoreMultiSelectItem } from '@qoretechnologies/reqore/dist/components/MultiSelect';
+import { TReqoreSelectItem } from '@qoretechnologies/reqore/dist/components/Select';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { isEqual, size } from 'lodash';
@@ -262,7 +262,7 @@ export const SelectFormField = memo(
       [autoSelect, canCreateItems, filteredItems]
     );
 
-    const creatableItems = useMemo<TReqoreMultiSelectItem[]>(
+    const creatableItems = useMemo<TReqoreSelectItem[]>(
       () =>
         filteredItems.map((item) => ({
           value: valueToShow(item.value) as string,
@@ -310,7 +310,7 @@ export const SelectFormField = memo(
 
     if (canCreateItems) {
       return (
-        <ReqoreSingleSelect
+        <ReqoreSelect
           items={creatableItems}
           value={
             value === undefined || value === null ? undefined : (valueToShow(value) as string)
