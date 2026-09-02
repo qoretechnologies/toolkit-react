@@ -24,6 +24,7 @@ import { MultiSelectFormField } from './multi-select/MultiSelectFormField';
 import NumberFormField from './number/Number';
 import { ReqraftObjectFormField } from './object/Object';
 import { RichTextFormField } from './rich-text/RichText';
+import { rendersCreatableValueSelect } from './allowed-values/AllowedValues';
 import { SelectFormField } from './select/Select';
 import { getSelectItemShortDescription } from './select/SelectCollection';
 import { StringFormField } from './string/String';
@@ -38,9 +39,13 @@ import { IDataSchemaDefinition } from './schema-definition/types';
 // because modules are all loaded before any component renders
 import { FormEngine } from '../engine/FormEngine';
 
+/** Soft Qore types (softint, softstring, …) render as their concrete base —
+ * the soft/hard distinction is value-level, not UI. */
+const stripSoftType = (type?: string): string | undefined =>
+  type?.startsWith('soft') ? type.slice(4) : type;
+
 const mapQorusTypeToFormFieldType = (type: string): TFormFieldType => {
-  // Soft Qore types (softint, softstring, …) render as their concrete base.
-  const base = type?.startsWith('soft') ? type.slice(4) : type;
+  const base = stripSoftType(type);
   switch (base) {
     case 'richtext': return 'richtext';
     case 'bool': case 'boolean': return 'bool';
@@ -125,11 +130,7 @@ export const FormField = <T extends TFormFieldType>({
   };
 
   const renderField = (type: T) => {
-    // Soft Qore types (softint, softstring, …) render identically to their
-    // concrete counterpart — the soft/hard distinction is value-level, not UI.
-    const renderType = (type as string)?.startsWith('soft')
-      ? (type as string).slice(4)
-      : (type as string);
+    const renderType = stripSoftType(type as string) as string;
 
     // Multi-select consumes `allowed_values` directly as its option list and
     // is always an array value, so it must render even when the values are
@@ -149,6 +150,13 @@ export const FormField = <T extends TFormFieldType>({
 
     // When allowed_values are set without creatable, hide the raw field
     if (allowed_values?.length && !allowed_values_creatable) {
+      return null;
+    }
+
+    // A creatable string field's value is held by the chip picker that
+    // `renderAllowedValues` draws below, so a raw field here would be a second
+    // control for the same value.
+    if (rendersCreatableValueSelect(renderType, allowed_values_creatable, allowed_values)) {
       return null;
     }
 
@@ -545,7 +553,30 @@ export const FormField = <T extends TFormFieldType>({
     // don't also render the single-value allowed-values control.
     if ((type as string) === 'multi-select' || (type as string) === 'select-array') return null;
 
-    // Creatable: "Saved & Suggested Values" style — no value, fills field and resets
+    // Creatable, and the value fits a chip: ONE control that both holds the
+    // value and offers the candidates. The raw field above stood down for it.
+    if (
+      rendersCreatableValueSelect(
+        stripSoftType(type as string),
+        allowed_values_creatable,
+        allowed_values
+      )
+    ) {
+      return (
+        <SelectFormField
+          items={allowed_values.map(mapAllowedValue)}
+          value={value}
+          onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
+          canCreateItems
+          fluid
+          size={fieldSize}
+          disabled={(rest as { disabled?: boolean }).disabled}
+        />
+      );
+    }
+
+    // Creatable but not chip-shaped: "Saved & Suggested Values" style — no
+    // value, fills the raw field and resets
     if (allowed_values_creatable) {
       return (
         <SelectFormField

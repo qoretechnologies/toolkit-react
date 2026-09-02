@@ -36,6 +36,27 @@ export interface IFieldAllowedValuesProps extends Pick<
 
 const DISALLOW_COMPACT_AO_TYPES = ['connection'];
 
+/**
+ * Whether a creatable field's value is carried by the chip picker rather than
+ * by a raw editor with a suggestion list beside it.
+ *
+ * `string` only, and only with something to suggest. Every other shape a
+ * creatable field can declare either does not fit a one-line chip (a document
+ * — `long-string`, `binary`, `data`; a hash; a list) or would come back out of
+ * one as a string (a number, a date), and a field with nothing to offer is
+ * better served by the editor it has always had. Those keep today's rendering:
+ * the raw editor, with the saved-and-suggested picker under it.
+ *
+ * Both the renderer of the picker (`FieldAllowedValues`) and the renderer of
+ * the raw editor (`AutoFormField`, `FormField`) ask this, so that exactly one
+ * of them draws the value.
+ */
+export const rendersCreatableValueSelect = (
+  type?: string,
+  allowCreation?: boolean,
+  items?: unknown[]
+): boolean => !!allowCreation && type === 'string' && count(items) > 0;
+
 export const FieldAllowedValuesCheckGroup = memo(
   ({
     items,
@@ -141,6 +162,27 @@ export const FieldAllowedValues = memo(
 
     if (!count(fullItems) || type === 'enum' || (!count(items) && !showSavedValues)) {
       return null;
+    }
+
+    // Creatable, and the value fits a chip: ONE control that both holds the
+    // value and offers the candidates, instead of a raw editor with a
+    // value-less suggestion picker beside it. The author sees what is set
+    // without having to read a path out of a text box.
+    if (rendersCreatableValueSelect(type, allowCreation, items)) {
+      return (
+        <Select
+          items={fullItems}
+          value={value}
+          onChange={(value) => onChange(name, value)}
+          canCreateItems
+          fluid
+          fixed={false}
+          showDescription={Boolean(showDescription || showDescription === undefined)}
+          style={style}
+          size={size}
+          disabled={disabled || readOnly}
+        />
+      );
     }
 
     // These are simple allowed values

@@ -28,7 +28,11 @@ import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 import { query } from '../../../../utils/fetch';
 import { DpqlEditor } from '../../../dpqlEditor';
 import { FormEngine, IOptionsSchema } from '../../engine/FormEngine';
-import { FieldAllowedValues, FieldAllowedValuesCheckGroup } from '../allowed-values/AllowedValues';
+import {
+  FieldAllowedValues,
+  FieldAllowedValuesCheckGroup,
+  rendersCreatableValueSelect,
+} from '../allowed-values/AllowedValues';
 import { ArrayAuto } from '../array/ArrayAuto';
 import BooleanFormField from '../boolean/Boolean';
 import { ByteSizeFormField } from '../byte-size/ByteSize';
@@ -531,6 +535,19 @@ function AutoField<T = any>({
           description={value === default_value ? rest.default_value_desc : undefined}
         />
       );
+    }
+
+    // A creatable string field's value is held by the chip picker that
+    // `renderAllowedValues` draws below, so a raw editor here would be a
+    // second control for the same value.
+    if (
+      rendersCreatableValueSelect(
+        currentType,
+        rest.allowed_values_creatable,
+        rest.allowed_values
+      )
+    ) {
+      return null;
     }
 
     // Non-creatable allowed_values render through FieldAllowedValues
