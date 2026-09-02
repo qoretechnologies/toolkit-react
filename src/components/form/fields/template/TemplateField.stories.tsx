@@ -264,7 +264,7 @@ export const AutoComponent: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField wrapping the AutoFormField dispatcher — the operator can pick a type from the auto picker or switch to a template value.',
+          'Renders TemplateField over an untyped (`auto`) field that accepts templates. While the field is empty it opens on the template selector rather than the data-type picker, so the author can say which value they mean before answering how it is stored.',
       },
     },
   },
