@@ -280,8 +280,9 @@ export const CompactRow = memo(
       field: IQorusFormField,
       schema: TQorusFormFieldSchema | undefined,
       formatted: string,
-      // The collapsed row gets one line and an ellipsis; the OPEN read-only
-      // row (see `isExpanded && readOnly` below) gets the whole value, wrapped.
+      // An editable row gets one line and an ellipsis — its value line is a
+      // summary you click to open. A read-only row is the only rendering the
+      // value gets, so it wraps.
       full = false
     ): React.ReactNode => {
       const valueType = getValueType(field, schema);
@@ -914,7 +915,7 @@ export const CompactRow = memo(
           effect={{ uppercase: true, spaced: 1 }}
         />
       : null;
-    const isPassiveCloseAction = fixedAllowedValueOption || readOnly;
+    const isPassiveCloseAction = fixedAllowedValueOption;
     // Cancel — the counterpart to Done, and the answer to "how do I get out of
     // here without keeping this". Done was the only way to leave an open field,
     // so every way out committed: the check, clicking away, and Escape (which
@@ -924,8 +925,8 @@ export const CompactRow = memo(
     // Cancel and Done would do exactly the same thing, and two buttons that
     // differ in name but not in effect are worse than one.
     //
-    // Not offered when the close action is passive (read-only, or a fixed
-    // choice) — nothing can have been typed, so there is nothing to cancel.
+    // Not offered when the close action is passive (a fixed choice) —
+    // nothing can have been typed, so there is nothing to cancel.
     const cancelEditButton =
       !isPassiveCloseAction && editedSinceOpened ?
         <ReqoreButton
@@ -1541,22 +1542,22 @@ export const CompactRow = memo(
               }
             }}
           >
-          {/* Same fullscreen focused-editing affordance as the classic cards —
+            {/* Same fullscreen focused-editing affordance as the classic cards —
               the modal mounts when this option is focused. */}
-          <FocusedEditing
-            isFullscreen={focusedEditing === optionName}
-            onClose={() => setFocusedEditing(undefined)}
-            description={(schema?.display_name as string) || optionName}
-          >
-            {focusedEditing === optionName ?
-              <Description
-                longDescription={schema?.desc}
-                shortDescription={schema?.short_desc}
-                longDescriptionShownByDefault
-              />
-            : null}
-            {renderOption(optionName, optionField)}
-          </FocusedEditing>
+            <FocusedEditing
+              isFullscreen={focusedEditing === optionName}
+              onClose={() => setFocusedEditing(undefined)}
+              description={(schema?.display_name as string) || optionName}
+            >
+              {focusedEditing === optionName ?
+                <Description
+                  longDescription={schema?.desc}
+                  shortDescription={schema?.short_desc}
+                  longDescriptionShownByDefault
+                />
+              : null}
+              {renderOption(optionName, optionField)}
+            </FocusedEditing>
           </div>
         </StyledEditCard>
       );
@@ -1666,6 +1667,36 @@ export const CompactRow = memo(
       (schema as { ui_type?: string } | undefined)?.ui_type === 'markdown' &&
       typeof optionField?.value === 'string' &&
       isMultilineMarkdown(optionField.value);
+    // Read-only: a long plain-text value is drawn in FULL under the row, in
+    // the same inset and under the same "Show more" cap a code value gets,
+    // instead of one line with an ellipsis and a browser tooltip holding the
+    // rest. The editable row truncates because its value line is a summary
+    // you click to open; a read row is the only rendering the value gets.
+    //
+    // "Plain" is `formatted === value`: the text was rendered verbatim — not
+    // a template resolved to a chip, not an allowed value shown by its label,
+    // not a sensitive value masked, not markdown summarised. Only text that
+    // would not fit the line moves down: a break in it, or more than a short
+    // sentence's worth of characters (a short value wraps in place).
+    const showLongTextInset =
+      readOnly &&
+      !hidden &&
+      !showCodePreview &&
+      !showMarkdownPreview &&
+      !showStructuredPreview &&
+      typeof optionField?.value === 'string' &&
+      formatted === optionField.value &&
+      (optionField.value.includes('\n') || optionField.value.length > 120);
+    // Read-only: a choice reads as the option AND what it means —
+    // "Authenticated users", then "callers must present a token". The picker
+    // showed that description while choosing; a reader has no picker.
+    const chosenOption =
+      readOnly && !hidden && !empty ?
+        (findAllowedValueOption(optionField?.value, schema) as
+          { desc?: string; short_desc?: string } | undefined)
+      : undefined;
+    const readOnlyChoiceDesc = chosenOption?.desc || chosenOption?.short_desc;
+
     // "9 lines" for a multi-line markdown value, shown under the field's name
     // rather than in front of its content: it describes the field, not the value,
     // and the value column is for the value. Rendered whether or not a host
@@ -1691,7 +1722,8 @@ export const CompactRow = memo(
     // no answer of the user's can change.
     const fieldReadonly = !!(schema as { readonly?: boolean } | undefined)?.readonly;
     // Disabled rows (schema flag, readonly, or unmet deps) can't open — a lock +
-    // reason renders instead. Form-level readOnly still opens in view mode (Close).
+    // reason renders instead. A form-level readOnly row never opens at all, and
+    // shows no lock either: nothing on a read-only form is locked, it is read.
     const fieldDisabled =
       !hidden &&
       !readOnly &&
@@ -1776,7 +1808,12 @@ export const CompactRow = memo(
         </span>
       : null;
     const activate = (event?: { currentTarget?: Element | null }) => {
-      if (fieldDisabled) {
+      // A read-only row is not a control. It used to open into the editor
+      // with `readOnly` handed down (an id in a greyed-out input, a choice
+      // that could still be changed); then into a read view of the same
+      // value — which showed nothing the row could not show itself once it
+      // stopped truncating. So it shows everything, and opens nothing.
+      if (fieldDisabled || readOnly) {
         return;
       }
       const target = event?.currentTarget as HTMLElement | undefined;
@@ -1839,255 +1876,27 @@ export const CompactRow = memo(
       : dotStatus === 'todo' ? cWarning
       : dotStatus === 'set' ? cSuccess || cInfo
       : undefined;
-    // ---------------------------------------------------------------------
-    // Read-only, OPEN: a view of the value, never an editor.
-    //
-    // A read-only form used to open a row into the same editor the editable
-    // form uses, with `readOnly` handed down and each editor left to honour
-    // it. Some did, by disabling themselves — an id in a greyed-out input;
-    // some did not — a choice that could still be changed. Either way the
-    // reader was given a control, and the one thing a read view must never
-    // hand over is a control.
-    //
-    // Opening a row here means "show me all of it": the value in full — the
-    // text wrapped instead of cut at one line, the whole code block, every
-    // field of a hash, the chosen option with what it means — and the
-    // field's explanation under it. Nothing on the row is interactive except
-    // the actions the host injected and Close.
-    // ---------------------------------------------------------------------
-    if (isExpanded && readOnly) {
-      const collapse = () => toggleExpandedOption(optionName);
-      const chosen = findAllowedValueOption(optionField?.value, schema) as
-        { desc?: string; short_desc?: string } | undefined;
-      const chosenDesc = empty ? undefined : chosen?.desc || chosen?.short_desc;
-      const renderFullValue = (): React.ReactNode => {
-        if (hidden || empty) {
-          return <span className='options-readfirst-read-unset'>Not set</span>;
-        }
-        if (showStructuredPreview) {
-          // Uncapped. The collapsed row shows the first rows of a hash under
-          // a "Show more"; the open one is where the rest was promised.
-          return (
-            <div className='options-readfirst-structured'>
-              {previewWithSchema ?
-                <SchemaDataView
-                  value={optionField?.value}
-                  schema={previewArgSchema!}
-                  showTypes={showFieldTypes}
-                  colors={{
-                    key: cKey,
-                    muted: cMuted,
-                    border: `${cMuted}66`,
-                    accent:
-                      (theme?.intents as Record<string, string> | undefined)?.custom1 || cInfo,
-                  }}
-                />
-              : <StructuredDataView
-                  value={optionField?.value}
-                  collapsibleRoot={false}
-                  showTypes={showFieldTypes}
-                  defaultExpandDepth={6}
-                />
-              }
-            </div>
-          );
-        }
-        if (showCodePreview) {
-          return codePreviewRenderer ?
-              codePreviewRenderer({
-                value: optionField.value as string,
-                name: optionName,
-                schema,
-                options,
-                values: availableOptions,
-              })
-            : <StyledCodePreview
-                className='options-readfirst-code'
-                $bg={cHover}
-                $border={`${cDivider}88`}
-                $fg={cKey}
-              >
-                {optionField.value as string}
-              </StyledCodePreview>;
-        }
-        if (
-          markdownRenderer &&
-          (schema as { ui_type?: string } | undefined)?.ui_type === 'markdown' &&
-          typeof optionField?.value === 'string'
-        ) {
-          return (
-            <div className='options-readfirst-markdown'>
-              {markdownRenderer({ value: optionField.value, compact: true })}
-            </div>
-          );
-        }
-        return (
-          <span className='options-readfirst-read-full'>
-            {renderReadFirstValue(optionField, schema, formatted, true)}
-          </span>
-        );
-      };
-      return (
-        <StyledColumn
-          key={optionName}
-          data-field={optionName}
-          className={clusterBlockClass || undefined}
-        >
-          <div
-            data-field={optionName}
-            className='readfirst-row readfirst-row-editing readfirst-row-reading options-readfirst-reading options-readfirst-value'
-            style={
-              readRowHeights.current[optionName] ?
-                { minHeight: readRowHeights.current[optionName] }
-              : undefined
-            }
-            {...clusterHoverProps}
-          >
-            <StyledLabelBlock className='options-readfirst-label-block'>
-              <StyledRowLabel
-                role='button'
-                tabIndex={0}
-                aria-label={`Collapse ${label}`}
-                title={schema?.short_desc || undefined}
-                $color={cKey}
-                $pointer
-                onClick={collapse}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault();
-                    collapse();
-                  }
-                }}
-              >
-                {rowChromeIcon}
-                <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
-                  {label}
-                  {helpIcon}
-                </span>
-                {typeLabel ?
-                  <ReqoreTag
-                    size='tiny'
-                    minimal
-                    label={typeLabel}
-                    labelEffect={{ opacity: 0.55 }}
-                  />
-                : null}
-              </StyledRowLabel>
-              {labelShortDesc ?
-                <StyledLabelDesc
-                  className='options-readfirst-label-desc'
-                  size='small'
-                  effect={{ opacity: 0.55 }}
-                >
-                  {labelShortDesc}
-                </StyledLabelDesc>
-              : null}
-              {codeSizeNode}
-              {lineCountNote ?
-                <ReqoreP
-                  className='options-readfirst-label-lines'
-                  size='tiny'
-                  effect={{ opacity: 0.45, textAlign: 'left' }}
-                  style={{ fontFamily: 'monospace' }}
-                >
-                  {lineCountNote}
-                </ReqoreP>
-              : null}
-            </StyledLabelBlock>
-            <StyledRowValue
-              className='options-readfirst-read-value'
-              $color={empty || hidden ? `${cMuted}66` : cKey}
-              $empty={empty || hidden}
-            >
-              <div className='options-readfirst-read-body'>{renderFullValue()}</div>
-              {/* A choice reads as the option AND what the option means:
-                  "Authenticated users — callers must present a token". The
-                  picker showed that description while choosing; the reader
-                  gets it without a picker. */}
-              {chosenDesc ?
-                <ReqoreP
-                  className='options-readfirst-read-choice-desc'
-                  size='small'
-                  effect={{ opacity: 0.6 }}
-                >
-                  {chosenDesc}
-                </ReqoreP>
-              : null}
-              {valueReasons.map((m, i) => (
-                <span
-                  key={`${m.content}-${i}`}
-                  className='options-readfirst-reason'
-                  style={{ color: reasonColor(m.intent) }}
-                >
-                  {m.content}
-                </span>
-              ))}
-              {panelMessages.length ?
-                <ReqoreControlGroup
-                  className='options-readfirst-info-panel'
-                  vertical
-                  fluid
-                  gapSize='normal'
-                >
-                  {panelMessages.map(renderInfoStrip)}
-                </ReqoreControlGroup>
-              : null}
-              {/* The long description, inline. The `?` still opens it in a
-                  dialog, but the reader opened THIS row to learn about this
-                  field, and the explanation belongs where they are looking. */}
-              {schema?.desc && schema.desc !== schema.short_desc ?
-                <div className='options-readfirst-read-desc'>
-                  <Description
-                    longDescription={schema.desc}
-                    longDescriptionOnly
-                    longDescriptionShownByDefault
-                    compact
-                    margin='none'
-                  />
-                </div>
-              : null}
-            </StyledRowValue>
-            <StyledRowActions>
-              {inlineOptionActions.map((action, index) =>
-                renderInjectedOptionAction(action, index)
-              )}
-              {injectedOptionActionMenuItems.length ?
-                <ReqoreDropdown
-                  className='options-injected-actions-menu'
-                  icon='MoreFill'
-                  flat
-                  minimal
-                  fixed
-                  size='small'
-                  tooltip='Field actions'
-                  items={injectedOptionActionMenuItems}
-                />
-              : null}
-              {closeExpandedFieldButton}
-            </StyledRowActions>
-            {clusterNode}
-          </div>
-        </StyledColumn>
-      );
-    }
-
     const row = (
       <div
         key={optionName}
         data-field={optionName}
-        role='button'
-        tabIndex={0}
-        aria-label={label}
-        className={`readfirst-row options-readfirst-value${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        role={readOnly ? undefined : 'button'}
+        tabIndex={readOnly ? undefined : 0}
+        aria-label={readOnly ? undefined : label}
+        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
         style={stripeStyle}
-        onClick={activate}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            activate(event);
-          }
-        }}
+        onClick={readOnly ? undefined : activate}
+        onKeyDown={
+          readOnly ? undefined : (
+            (event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                activate(event);
+              }
+            }
+          )
+        }
         {...clusterHoverProps}
       >
         {clusterNode}
@@ -2146,6 +1955,8 @@ export const CompactRow = memo(
             (
               !empty &&
               !hidden &&
+              // A read row wraps its value, so a hover has nothing to add.
+              !readOnly &&
               !showCodePreview &&
               !showMarkdownPreview &&
               !showsTemplateChips &&
@@ -2188,13 +1999,18 @@ export const CompactRow = memo(
               then dropped its summary in favour of a preview that never came
               and rendered nothing at all: a test with cases read as a bare
               "Cases" and looked unset until it was opened. */}
-          {showMarkdownPreview || (previewWithSchema && showStructuredPreview) ? null : (
-            <span className='options-readfirst-valuetext'>
+          {(
+            showMarkdownPreview || showLongTextInset || (previewWithSchema && showStructuredPreview)
+          ) ?
+            null
+          : <span className='options-readfirst-valuetext'>
               {hidden || empty ?
                 formattedDefault || '—'
-              : renderReadFirstValue(optionField, schema, formatted)}
-            </span>
-          )}
+              : renderReadFirstValue(optionField, schema, formatted, readOnly)}
+            </span>}
+          {readOnlyChoiceDesc ?
+            <span className='options-readfirst-choice-desc'>{readOnlyChoiceDesc}</span>
+          : null}
           {valueReasons.map((m, i) => (
             <span
               key={`${m.content}-${i}`}
@@ -2338,6 +2154,18 @@ export const CompactRow = memo(
                 <div className='options-readfirst-markdown'>
                   {markdownRenderer!({ value: optionField.value as string, compact: true })}
                 </div>
+              </ReqoreCollapsibleContent>
+            </StyledRowInset>
+          : null}
+          {/* Read-only long text: see `showLongTextInset`. No click guard —
+              the read row has no click to guard against. */}
+          {showLongTextInset ?
+            <StyledRowInset className='options-readfirst-inset options-readfirst-text-inset'>
+              <ReqoreCollapsibleContent
+                maxCollapsedHeight={96}
+                buttonProps={{ className: 'options-readfirst-viewmore' }}
+              >
+                <div className='options-readfirst-text'>{optionField.value as string}</div>
               </ReqoreCollapsibleContent>
             </StyledRowInset>
           : null}

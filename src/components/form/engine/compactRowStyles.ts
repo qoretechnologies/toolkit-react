@@ -354,26 +354,21 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     gap: 4px;
     margin-top: 4px;
   }
-  /* The OPEN read-only row: the whole value, wrapped, instead of one line cut
-     with an ellipsis. Its companions (the chosen option's description, the
-     field's long description) take the full width under it. */
-  .options-readfirst-read-body,
-  .options-readfirst-read-choice-desc,
-  .options-readfirst-read-desc {
+  /* Read-only companions of the value: what a chosen option means, on its own
+     line under it; and a long text drawn in full in the inset. */
+  .options-readfirst-choice-desc {
     flex-basis: 100%;
     width: 100%;
     min-width: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    opacity: 0.6;
   }
-  .options-readfirst-read-full {
-    display: block;
+  .options-readfirst-text {
     color: ${({ $color }) => $color};
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     line-height: 1.5;
-  }
-  .options-readfirst-read-unset {
-    color: ${({ $color }) => $color};
-    font-style: italic;
   }
 `;
 
@@ -655,12 +650,21 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row-editing > div:nth-child(3) {
     padding-top: 3px;
   }
-  /* The open READ-ONLY row shares the editing row's open look (the tint, the
-     top-anchored cells) but its value cell holds text, not a 32px control, so
-     it takes the label's own offset: the value's first line sits on the
-     label's line. */
-  .readfirst-row-reading > div:nth-child(2) {
-    padding-top: 10px;
+  /* A read-only row is not a control. No pointer and no hover tint, because a
+     click does nothing; and its value wraps in full — the row is the only
+     rendering the value gets, so a line cut with an ellipsis would be the
+     reader's whole answer. */
+  .readfirst-row-read {
+    cursor: default;
+  }
+  .readfirst-row-read:hover {
+    background: transparent;
+  }
+  .readfirst-row-read .options-readfirst-valuetext {
+    white-space: pre-wrap;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
   }
   .readfirst-row-editing:hover {
     background: ${({ $hover }) => $hover};

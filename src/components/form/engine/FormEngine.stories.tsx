@@ -2450,7 +2450,7 @@ export const CompactReadOnly: Story = {
     docs: {
       description: {
         story:
-          'Renders the Compact fixture with readOnly enabled — no completion meter, no Needs attention / Set / Optional boxes and no required asterisks; every set field is one flat list, and opening a row shows its value in a read presentation with Close as the only control.',
+          'Renders the Compact fixture with readOnly enabled — no completion meter, no Needs attention / Set / Optional boxes and no required asterisks; every set field is one flat list of inert rows: nothing is a button, a click opens nothing, and a value that does not fit its line wraps instead of being cut.',
       },
     },
     chromatic: { disable: true },
@@ -2474,27 +2474,22 @@ export const CompactReadOnly: Story = {
         '.readfirst-row[data-field="description"] .options-readfirst-statusdot-slot > *'
       )
     ).toBeNull();
-    // Opening a row shows the value — not an input holding it.
+    // Rows are not controls: no button role, and a click opens nothing — not
+    // an editor, not a view.
+    expect(document.querySelector('.readfirst-row[role="button"]')).toBeNull();
     await _testsClickText('order-fulfilment');
-    let reading: Element | null = null;
-    await waitFor(() => {
-      reading = document.querySelector('.options-readfirst-reading[data-field="name"]');
-      expect(reading).toBeTruthy();
-    });
-    expect(reading!.querySelector('input, textarea, select, [contenteditable]')).toBeNull();
-    expect(reading!.textContent).toContain('order-fulfilment');
-    // Close is the only way out, and it closes.
-    expect(reading!.querySelector('.options-readfirst-more')).toBeNull();
-    await _testsClickButton({ selector: '.options-readfirst-done' });
-    await waitFor(() => expect(document.querySelector('.options-readfirst-reading')).toBeNull());
-    // A choice opens as the chosen option, not as a select that still works.
     await _testsClickText('Python');
-    await waitFor(() => {
-      reading = document.querySelector('.options-readfirst-reading[data-field="lang"]');
-      expect(reading).toBeTruthy();
-    });
-    expect(reading!.querySelector('input, textarea, select, [contenteditable]')).toBeNull();
-    expect(reading!.textContent).toContain('Python');
+    await sleep(400);
+    expect(
+      document.querySelector(
+        '.options-readfirst-inline, .options-readfirst-card, .options-readfirst-done'
+      )
+    ).toBeNull();
+    expect(
+      document.querySelector(
+        '.options-readfirst-read input, .options-readfirst-read textarea, .options-readfirst-read select, .options-readfirst-read [contenteditable]'
+      )
+    ).toBeNull();
   },
 };
 
@@ -2677,19 +2672,18 @@ export const CompactBasic: Story = {
   },
 };
 
-// Read-only richtext + template. Opening a field in a read-only form must not
-// yield an editing surface of any kind: a richtext value reads as its text with
-// its template chips (no Slate instance at all — the earlier fix had left one
-// mounted with contenteditable="false", which is still an editor wearing a
-// lock), and a field whose value is a template ($local:…) reads as the
-// resolved-name chip. Regression cover for the review note "this should show
-// as a readonly richtext or a readonly template picker".
+// Read-only richtext + template. A read-only form mounts no editing surface at
+// all: a richtext value reads as its text with its template chips (an earlier
+// fix had left a Slate instance mounted with contenteditable="false", which is
+// still an editor wearing a lock), and a field whose value is a template
+// ($local:…) reads as the resolved-name chip. Regression cover for the review
+// note "this should show as a readonly richtext or a readonly template picker".
 export const CompactReadOnlyRichText: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the CompactBasic fixture with readOnly enabled — opening the Rich Text row shows the text with its template chip and mounts no editor, and the Template row reads as a chip showing the resolved template name (never the raw $local reference).',
+          'Renders the CompactBasic fixture with readOnly enabled — the Rich Text row reads as its text with its template chip and mounts no editor, the Template row reads as a chip showing the resolved template name (never the raw $local reference), and clicking either opens nothing.',
       },
     },
     chromatic: { disable: true },
@@ -2697,7 +2691,6 @@ export const CompactReadOnlyRichText: Story = {
   args: {
     ...CompactBasic.args,
     readOnly: true,
-    expandMode: 'multi' as const,
   },
   play: async () => {
     await _testsWaitForText('Rich Text option');
@@ -2706,51 +2699,40 @@ export const CompactReadOnlyRichText: Story = {
     await _testsWaitForTextToNotExist('Text value is empty');
     await _testsWaitForTextToNotExist('dependencies are not fulfilled');
 
-    // Read-only rows open as a VIEW. The richtext field used to mount its
-    // Slate surface with contenteditable="false" — a read view mounts no
-    // editing surface at all, and the text with its chip is what shows.
-    await _testsClickText('Rich Text option');
-    await waitFor(
-      () => {
-        const reading = document.querySelector(
-          '.options-readfirst-reading[data-field="richTextOption"]'
-        );
-        expect(reading).toBeTruthy();
-        expect(reading?.querySelector('[contenteditable], input, textarea')).toBeNull();
-        expect(reading?.textContent).toContain('This is a rich text option');
-        expect(reading?.querySelector('.reqore-tag')?.textContent).toContain('Richtext Template');
-      },
-      { timeout: 10000 }
+    const row = (name: string) => document.querySelector(`.readfirst-row[data-field="${name}"]`);
+    // Richtext: the text and its chip, no Slate.
+    expect(row('richTextOption')?.textContent).toContain('This is a rich text option');
+    expect(row('richTextOption')?.querySelector('.reqore-tag')?.textContent).toContain(
+      'Richtext Template'
     );
+    // Template: the resolved-name chip. The raw value is tooltip-only
+    // (portalled, not in the tag), so the visible label is the resolved name.
+    const tag = row('templateOption')?.querySelector('.reqore-tag');
+    expect(tag?.textContent).toContain('Test (local)');
+    expect(tag?.textContent).not.toContain('$local:test');
 
-    // A template-valued field reads as the resolved-name chip — never an
-    // editable input.
+    // Clicking either opens nothing.
+    await _testsClickText('Rich Text option');
     await _testsClickText('Template option');
-    await waitFor(
-      () => {
-        const reading = document.querySelector(
-          '.options-readfirst-reading[data-field="templateOption"]'
-        );
-        expect(reading).toBeTruthy();
-        const tag = reading?.querySelector('.reqore-tag');
-        expect(tag).toBeTruthy();
-        // The chip resolves the catalogue display name ('$local:test' →
-        // 'Test (local)'). The raw value is tooltip-only (portalled, not in
-        // the tag), so the visible label must be the resolved name.
-        expect(tag?.textContent).toContain('Test (local)');
-        expect(tag?.textContent).not.toContain('$local:test');
-        expect(reading?.querySelector('input, textarea, [contenteditable]')).toBeNull();
-      },
-      { timeout: 10000 }
-    );
+    await sleep(400);
+    expect(
+      document.querySelector(
+        '.options-readfirst-card, .options-readfirst-inline, .options-readfirst-done'
+      )
+    ).toBeNull();
+    expect(
+      document.querySelector(
+        '.options-readfirst-read [contenteditable], .options-readfirst-read input, .options-readfirst-read textarea'
+      )
+    ).toBeNull();
   },
 };
 
 // Read mode as a fact sheet. Every kind of value the engine can hold, set,
 // plus one optional field nobody set (`notes`) and one required field nobody
 // set (`owner`): the first must not appear at all, the second appears unset
-// with no amber. Opening a row shows the WHOLE value in a read presentation —
-// there is no control anywhere on the page.
+// with no amber. Every value is drawn in full in the row itself; nothing on
+// the page is a control.
 const ReadModeSchema: Record<string, TCompactField> = {
   id: {
     type: 'string',
@@ -2857,7 +2839,7 @@ const ReadModeValue: IOptions = {
   summary: {
     type: 'string',
     value:
-      'Customer master data for the storefront.\n\nEvery operation is idempotent; clients retry freely. Responses are cached at the edge for sixty seconds, so a write is visible to readers within a minute — the "eventually" in eventually consistent is short here, but it is not zero.',
+      'Customer master data for the storefront: the record of who a customer is, where they are billed and where they are shipped, kept once and read by every channel.\n\nEvery operation is idempotent; clients retry freely. A write carries the revision it was based on, and a stale revision is refused rather than merged, so two channels editing the same customer cannot silently overwrite each other.\n\nResponses are cached at the edge for sixty seconds, so a write is visible to readers within a minute — the "eventually" in eventually consistent is short here, but it is not zero.',
   },
   handler: {
     type: 'string',
@@ -2869,12 +2851,12 @@ const ReadModeValue: IOptions = {
   enabled: { type: 'bool', value: true },
 };
 
-export const CompactReadOnlyExpanded: Story = {
+export const CompactReadOnlyValues: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          "Read-only as a view, not a disabled editor: no completion meter, no Needs attention / Set / Optional boxes, no required asterisks; an optional field nobody set is not listed, a required one nobody set reads as unset without the amber; and opening a row shows the whole value — wrapped text, the full code block, every field of the hash, the chosen option with its description, the field's long description — with Close as the only control.",
+          'Read-only as a fact sheet, not a disabled editor: no completion meter, no Needs attention / Set / Optional boxes, no required asterisks; an optional field nobody set is not listed, a required one nobody set reads as unset without the amber; every value is drawn in full in its row — long text wrapped under a Show more cap, the whole code block, every field of the hash, the chosen option with its description — and no row is a control: nothing is a button, and a click opens nothing.',
       },
     },
     chromatic: { disable: true },
@@ -2889,7 +2871,6 @@ export const CompactReadOnlyExpanded: Story = {
       behaviour: { icon: 'FlashlightLine', sort: 1 },
     },
     readOnly: true,
-    expandMode: 'multi' as const,
   },
   play: async () => {
     await _testsWaitForText('api-schema-7f3c');
@@ -2908,48 +2889,45 @@ export const CompactReadOnlyExpanded: Story = {
       )
     ).toBeNull();
 
-    const reading = (name: string) =>
-      document.querySelector(`.options-readfirst-reading[data-field="${name}"]`);
-    const open = async (text: string, name: string) => {
-      await _testsClickText(text);
-      await waitFor(() => expect(reading(name)).toBeTruthy(), { timeout: 10000 });
-      // The one invariant of read mode: nothing to type into.
-      expect(reading(name)!.querySelector('input, textarea, select, [contenteditable]')).toBeNull();
-      return reading(name)!;
-    };
-
-    // A choice opens as the option and what it means — not a select.
-    const audience = await open('Authenticated users', 'audience');
-    expect(audience.textContent).toContain('Callers must present a valid token');
-    // A server-set id opens as the value and its explanation — not a
-    // disabled input.
-    const id = await open('api-schema-7f3c', 'id');
-    expect(id.textContent).toContain('api-schema-7f3c');
-    expect(id.textContent).toContain('It never changes, even when the schema is renamed.');
-    // Long text opens in full: the last sentence is on the page.
-    const summary = await open('Summary', 'summary');
-    expect(summary.textContent).toContain('but it is not zero.');
-    // Code opens as the whole block.
-    const handler = await open('Handler', 'handler');
-    expect(handler.querySelector('.options-readfirst-code')?.textContent).toContain(
+    const row = (name: string) =>
+      document.querySelector(`.readfirst-row[data-field="${name}"]`) as HTMLElement;
+    // A choice reads as the option and what it means — not a select.
+    expect(row('audience').textContent).toContain('Authenticated users');
+    expect(row('audience').textContent).toContain('Callers must present a valid token');
+    // A server-set id reads as the value — no lock, no disabled input.
+    expect(row('id').textContent).toContain('api-schema-7f3c');
+    expect(row('id').querySelector('.options-readfirst-locked')).toBeNull();
+    // Long text is drawn in full under the row, capped by Show more.
+    expect(row('summary').querySelector('.options-readfirst-text')?.textContent).toContain(
+      'but it is not zero.'
+    );
+    await waitFor(() =>
+      expect(row('summary').querySelector('.options-readfirst-viewmore')).toBeTruthy()
+    );
+    // Code is the whole block.
+    expect(row('handler').querySelector('.options-readfirst-code')?.textContent).toContain(
       'return { status: 200, body: customer };'
     );
-    // A hash opens as every field, by name.
-    const retry = await open('Retry policy', 'retry');
-    expect(retry.textContent).toMatch(/Attempts/);
-    expect(retry.textContent).toMatch(/Exponential|exponential/);
+    // A hash is every field, by name.
+    expect(row('retry').textContent).toMatch(/Attempts/);
+    expect(row('retry').textContent).toMatch(/Exponential|exponential/);
 
-    // Close is the only action on an open row — no More menu, no Clear — and
-    // it closes.
+    // Nothing is a control: no row is a button, a click opens nothing, and
+    // there is no editor anywhere in the list.
+    expect(document.querySelector('.readfirst-row[role="button"]')).toBeNull();
+    await _testsClickText('Who can call this');
+    await _testsClickText('Handler');
+    await sleep(400);
     expect(
-      document.querySelectorAll('.options-readfirst-reading .options-readfirst-done')
-    ).toHaveLength(5);
-    expect(document.querySelector('.options-readfirst-reading .options-readfirst-more')).toBeNull();
-    expect(
-      document.querySelector('.options-readfirst-reading .options-readfirst-clear')
+      document.querySelector(
+        '.options-readfirst-inline, .options-readfirst-card, .options-readfirst-done'
+      )
     ).toBeNull();
-    await fireEvent.click(retry.querySelector('.options-readfirst-done') as HTMLElement);
-    await waitFor(() => expect(reading('retry')).toBeNull());
+    expect(
+      document.querySelector(
+        '.options-readfirst-read input, .options-readfirst-read textarea, .options-readfirst-read select, .options-readfirst-read [contenteditable]'
+      )
+    ).toBeNull();
   },
 };
 
