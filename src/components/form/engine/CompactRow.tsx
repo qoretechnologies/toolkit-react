@@ -32,7 +32,7 @@ import {
   splitTemplateTokens,
   TTemplateMeta,
 } from '../../../helpers/templates';
-import { richtextToSegments, richtextToString } from '../../../helpers/common';
+import { getDefaultValue, richtextToSegments, richtextToString } from '../../../helpers/common';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
 import { describeCodeSize, formatCodeChars, formatCodeLines } from '../../codeSize';
 import { Description } from '../../Description';
@@ -1524,6 +1524,26 @@ export const CompactRow = memo(
 
     const formatted = formatOptionValue(optionField, schema);
     const empty = formatted === '';
+    // A field with no value of its own but a declared default is not simply
+    // unanswered: the default is what the server will use, and an em-dash says
+    // the opposite. Render the default in its place, through the same formatter
+    // so a list or an enum reads the way a real value would.
+    //
+    // This does NOT make the field count as answered. `empty` stays true, so the
+    // row keeps the dimmed italic treatment that distinguishes a default from an
+    // answer, and bucketing — which reads the field's own value, not this — still
+    // files it under Optional and leaves it behind the collapse.
+    //
+    // `hidden` is included deliberately: it marks a field the form has not added
+    // yet, which is the case that benefits most — the row is the author's first
+    // sight of the field, and the default is what it will contribute if left
+    // alone. Both flags only ever route to the em-dash below, so there is no
+    // real value being displaced.
+    const defaultValue = hidden || empty ? getDefaultValue(schema) : undefined;
+    const formattedDefault =
+      defaultValue === undefined || defaultValue === null ?
+        ''
+      : formatOptionValue({ ...optionField, value: defaultValue }, schema);
     // Inline reasons shown on the value line: validation / dependency / one-of /
     // default-value hints, plus a read-only covered-by note (editable covered rows
     // carry that in their chip instead).
@@ -1894,7 +1914,9 @@ export const CompactRow = memo(
               "Cases" and looked unset until it was opened. */}
           {showMarkdownPreview || (previewWithSchema && showStructuredPreview) ? null : (
             <span className='options-readfirst-valuetext'>
-              {hidden || empty ? '—' : renderReadFirstValue(optionField, schema, formatted)}
+              {hidden || empty ?
+                formattedDefault || '—'
+              : renderReadFirstValue(optionField, schema, formatted)}
             </span>
           )}
           {valueReasons.map((m, i) => (
