@@ -965,3 +965,78 @@ export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
     await _testsWaitForText('Attachment Body');
   },
 };
+
+/**
+ * An EMPTY `any` field opens on the template selector, not the type picker.
+ *
+ * An `any` field has no editor of its own until a concrete type is chosen, so it
+ * used to open on the type picker — making the author answer a question about
+ * storage ("Text or Number?") before they could say what they meant, and often a
+ * question they cannot answer, because the value they want is a reference to
+ * something else whose type is not theirs to pick.
+ *
+ * The literal is still one menu item away: "Set Custom Value" in the ⋮ menu.
+ * That is the right way round — picking a template is choosing from a list,
+ * picking a literal is a decision.
+ */
+export const EmptyAnyOpensOnTemplates: StoryObj<typeof meta> = {
+  args: {
+    component: auto,
+    type: 'any',
+    allowTemplates: true,
+    allowCustomValues: true,
+    value: undefined,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'An untyped, empty field that accepts templates opens showing the template selector rather than a data-type picker.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.template-selector')).toBeTruthy()
+    );
+  },
+};
+
+/**
+ * An `any` field that ALREADY HOLDS A LITERAL opens on that literal.
+ *
+ * The other half of the same choice, and the one that keeps it safe: defaulting
+ * to the template view unconditionally would hide a value the author had already
+ * typed, which reads as the value having been lost.
+ */
+export const AnyWithLiteralOpensOnTheValue: StoryObj<typeof meta> = {
+  args: {
+    component: auto,
+    type: 'any',
+    allowTemplates: true,
+    allowCustomValues: true,
+    value: 'already-typed',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'An untyped field holding a literal keeps showing that literal — only an empty one defaults to the template selector.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // The property that matters is that the VALUE is still on screen. Asserting
+    // the absence of `.template-selector` would be wrong: that class is also on
+    // a control that renders either way, so it says nothing about which view is
+    // active.
+    await waitFor(() => {
+      const held = [
+        ...canvasElement.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+          'input, textarea'
+        ),
+      ].some((el) => el.value === 'already-typed');
+      expect(held).toBe(true);
+    });
+  },
+};

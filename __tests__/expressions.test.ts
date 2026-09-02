@@ -102,3 +102,43 @@ describe('helpers/expressions', () => {
     });
   });
 });
+
+describe('auto is the other spelling of any', () => {
+  /**
+   * `auto` and `any` are synonyms across the codebase — `Field.tsx` maps both to
+   * one renderer, and FormEngine tests `=== 'any' || === 'auto'` in several
+   * places — but the TYPES LIST only carries `any`.
+   *
+   * An unknown main type falls into the "not found" branch and answers FALSE for
+   * every check, so an `auto`-typed field was judged incompatible with
+   * everything. The visible cost was in the template picker:
+   * `filterTemplatesByType()` removed every template from such a field, and the
+   * author was offered a group header with nothing under it — a field that
+   * looked like it had no templates, when in fact its templates had been
+   * filtered away by a name mismatch.
+   */
+  it.each(['string', 'int', 'bool', 'hash', 'list', 'date'])(
+    'treats an auto-typed field as compatible with %s, exactly as any is',
+    (checkType) => {
+      expect(areQorusTypesCompatible('auto', checkType)).toBe(
+        areQorusTypesCompatible('any', checkType)
+      );
+      expect(areQorusTypesCompatible('auto', checkType)).toBe(true);
+    }
+  );
+
+  it('normalizes auto on the CHECKED side too', () => {
+    // The mismatch is symmetric: a template badged `auto` was being compared
+    // against a typed field and losing for the same reason.
+    expect(areQorusTypesCompatible('string', 'auto')).toBe(
+      areQorusTypesCompatible('string', 'any')
+    );
+  });
+
+  it('still rejects a genuinely unknown type', () => {
+    // The not-found branch is not being weakened - only `auto` is folded into
+    // `any`. A misspelled or unsupported type must still answer false, or the
+    // filter would stop filtering anything at all.
+    expect(areQorusTypesCompatible('not-a-type', 'string')).toBe(false);
+  });
+});

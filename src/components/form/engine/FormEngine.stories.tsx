@@ -7071,3 +7071,118 @@ export const CompactNoSearchCollapseIsFinal: Story = {
     await _testsWaitForTextToNotExist('order-fulfilment');
   },
 };
+
+/**
+ * A field that opens as a CARD can be cancelled.
+ *
+ * Which shape an open field takes is decided by its type: `COMPACT_COMPLEX_TYPES`
+ * includes `any`, so an `any`-typed option — a test assertion's Expected Value, a
+ * Qog action state option — never edits inline and always opens the card below.
+ *
+ * The card's action strip had no Cancel and no Revert, and the Escape handler
+ * lives on the inline row's editor, so a card ignored it. Every way out of a
+ * card therefore COMMITTED: Done, clicking away, and Escape. There was no way to
+ * abandon an edit and get the original value back.
+ */
+export const CompactCardCancelDiscardsTheEdit: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opens an `any`-typed option (which always opens as a card), edits it, then cancels — the original value comes back. Cancel appears only once there is something to discard.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      expected_value: {
+        type: 'any',
+        display_name: 'Expected Value',
+        short_desc: 'What the checked value should be',
+      },
+    } as never,
+    value: {
+      expected_value: { type: 'string', value: 'original' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsClickText('Expected Value');
+    // the card, not the inline row - this is the shape the bug lived in
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.options-readfirst-card')).toBeTruthy()
+    );
+
+    // Nothing typed yet: Cancel would do exactly what Done does, so it is not
+    // offered. Two buttons differing in name but not in effect are worse than one.
+    expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeNull();
+
+    await _testsChangeStringField({
+      selector: '.options-readfirst-card .reqore-textarea',
+      value: 'edited',
+    });
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeTruthy()
+    );
+
+    await _testsClickButton({ selector: '.options-readfirst-cancel' });
+    await _testsWaitForText('original');
+    await _testsWaitForTextToNotExist('edited');
+  },
+};
+
+/**
+ * Escape discards from a card, exactly as it does from the inline row.
+ *
+ * Escape is the one keystroke every editor treats as "get me out of this without
+ * saving". The card ignored it entirely, which made the keystroke a silent
+ * commit — the quietest possible way to keep something the author was trying to
+ * throw away.
+ */
+export const CompactCardEscapeDiscardsTheEdit: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Edits an `any`-typed option in its card and presses Escape — the edit is discarded rather than kept, matching the inline row.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      expected_value: {
+        type: 'any',
+        display_name: 'Expected Value',
+        short_desc: 'What the checked value should be',
+      },
+    } as never,
+    value: {
+      expected_value: { type: 'string', value: 'original' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsClickText('Expected Value');
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.options-readfirst-card')).toBeTruthy()
+    );
+
+    await _testsChangeStringField({
+      selector: '.options-readfirst-card .reqore-textarea',
+      value: 'edited',
+    });
+    await _testsWaitForText('edited');
+
+    // Fired on the editor itself, which is where the key actually lands: the
+    // handler sits on a wrapper around the editor, and events bubble UP.
+    const editor = canvasElement.querySelector(
+      '.options-readfirst-card .reqore-textarea'
+    ) as HTMLElement;
+    fireEvent.keyDown(editor, { key: 'Escape' });
+
+    await _testsWaitForText('original');
+    await _testsWaitForTextToNotExist('edited');
+  },
+};

@@ -1478,6 +1478,18 @@ export const CompactRow = memo(
               {inlineOptionActions.map((action, index) =>
                 renderInjectedOptionAction(action, index)
               )}
+              {/* Revert and Cancel, in the same order and with the same meaning
+                  as the inline row's strip.
+
+                  They were absent here, and which shape a field opens into is
+                  decided by its TYPE — so an `any`-typed option (a test
+                  assertion's Expected Value, a Qog action state option) opened
+                  into this card and had no way out that discarded: Done
+                  committed, clicking away committed, and Escape did nothing at
+                  all because the handler is on the inline row's editor. The
+                  only exit from a card kept whatever had been typed. */}
+              {editRowRevertButton}
+              {cancelEditButton}
               {/* Clear-value sits before the More menu — the card analog of the
                   inline row's Clear. Empties the value (keeps the field). */}
               {hasValue && !readOnly ?
@@ -1502,6 +1514,20 @@ export const CompactRow = memo(
               not only the inline row — which shape a field opens into depends
               on its type, and absorbing must not depend on that. */}
           {absorbedNodes}
+          {/* Escape discards here for the same reason it does on the inline
+              row: it is the one keystroke every editor treats as "get me out
+              of this without saving", and a card that ignored it made the
+              keystroke a silent commit. Same handler, same `cancelEdit()`, so
+              the two shapes cannot diverge. */}
+          <div
+            style={{ display: 'contents' }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.stopPropagation();
+                cancelEdit();
+              }
+            }}
+          >
           {/* Same fullscreen focused-editing affordance as the classic cards —
               the modal mounts when this option is focused. */}
           <FocusedEditing
@@ -1518,6 +1544,7 @@ export const CompactRow = memo(
             : null}
             {renderOption(optionName, optionField)}
           </FocusedEditing>
+          </div>
         </StyledEditCard>
       );
     }

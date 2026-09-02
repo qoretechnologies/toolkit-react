@@ -46,14 +46,28 @@ export const argumentMatchesType = (
   );
 };
 
+/**
+ * `auto` is the codebase's other spelling of `any` — `Field.tsx` maps both to
+ * one renderer, and FormEngine tests `type === 'any' || type === 'auto'` in
+ * several places — but the TYPES LIST only carries `any`.
+ *
+ * That mattered here because an unknown main type falls into the "not found"
+ * branch below and answers FALSE for every check. So an `auto`-typed field was
+ * judged incompatible with everything: `filterTemplatesByType()` removed every
+ * template from it, and the picker offered a group header with nothing under
+ * it. The field was not "a field with no templates" — it was a field whose
+ * templates had all been filtered away by a name mismatch.
+ */
+const normalizeAnyLikeTypeName = (name: string): string => (name === 'auto' ? 'any' : name);
+
 export const areQorusTypesCompatible = (
   mainType: string | string[],
   checkType: string | string[],
   fallbackTypes?: IQorusTypeObject[]
 ): boolean => {
   const types = getQorusTypes() || fallbackTypes || defaultQorusTypes;
-  const mainTypes = isArray(mainType) ? mainType : [mainType];
-  const checkTypes = isArray(checkType) ? checkType : [checkType];
+  const mainTypes = (isArray(mainType) ? mainType : [mainType]).map(normalizeAnyLikeTypeName);
+  const checkTypes = (isArray(checkType) ? checkType : [checkType]).map(normalizeAnyLikeTypeName);
   // Get each of the main types from the types list
   for (const main of mainTypes) {
     // Get the type object from the types
