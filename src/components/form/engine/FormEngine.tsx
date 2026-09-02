@@ -6,7 +6,6 @@ import {
   ReqoreIcon,
   ReqoreMessage,
   ReqoreP,
-  ReqorePanel,
   ReqoreSkeleton,
   ReqoreTag,
   ReqoreTagGroup,
@@ -836,6 +835,24 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * (non-compact) mode.
    */
   initialExpandedOptions?: string[];
+
+  /**
+   * Cap how many rows a status box shows before the rest fold behind a
+   * "N more fields" control. Applies to every box — Needs attention, Set and
+   * Optional alike — so a long form stays scannable instead of making the
+   * reader page past one box to reach the next.
+   *
+   * Optional keeps its own rule on top of this: a box that would have
+   * collapsed but holds preselected rows shows those rows rather than an
+   * arbitrary first-N. The cap then applies to that set, so
+   * `maxFieldsShown: 5` over 10 preselected fields shows 5 — and opening the
+   * control reveals EVERY row in the box, not just the other 5 preselected
+   * ones, because once the reader has asked to see more, hiding the rest is
+   * the same defect one level down.
+   *
+   * Unset (the default) leaves every box uncapped.
+   */
+  maxFieldsShown?: number;
 }
 
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
@@ -888,6 +905,7 @@ const FormEngineImpl = ({
   autoFocusFirstRequired,
   expandFirstRequired,
   initialExpandedOptions,
+  maxFieldsShown,
   ...rest
 }: IFormEngineProps) => {
   // Built-ins + whatever the consumer declared for its own injected editors.
@@ -935,6 +953,9 @@ const FormEngineImpl = ({
   const [showInvalidOptionsOnly, setShowInvalidOptionsOnly] = useState<boolean>(false);
   // Which options are expanded into their editor (several can be open at once).
   const [expandedOptions, setExpandedOptions] = useState<string[]>([]);
+  /** Status boxes whose "N more fields" control the reader has opened. Keyed by
+      box so opening Optional does not also unfold Set. */
+  const [expandedMoreBoxes, setExpandedMoreBoxes] = useState<TFormEngineBoxKey[]>([]);
 
   // --- Reveal a status box's content when it is opened ----------------------
   //
@@ -2491,6 +2512,9 @@ const FormEngineImpl = ({
   const cBg = (theme as { main?: string } | undefined)?.main || '#181818';
   const cRowBg = changeDarkness(getMainBackgroundColor(theme), 0.01);
   const cGroupLine = `${cText}1f`;
+  // The "N more fields" row's dashed edge. Well above the divider tint: this
+  // one is an affordance the reader has to notice, not a hairline between rows.
+  const cMoreBorder = `${cText}4d`;
 
   // The closure surface the extracted CompactRow reads through context. Refs and
   // setters are stable; the state/memo/handler fields change identity as they do
@@ -2976,8 +3000,22 @@ const FormEngineImpl = ({
     // subtitle, then its rows. Factored out of the box body so the SAME markup
     // renders both the groups a box shows directly and the ones it defers
     // behind the inner collapse.
-    const renderBoxGroup = (boxKey: TFormEngineBoxKey, groupName: string) => {
+    /** @param only when given, render just these rows of the group — the group
+        can be split across the shown and folded halves of a capped box, and its
+        label must appear above whichever half holds its first row. */
+    const renderBoxGroup = (
+      boxKey: TFormEngineBoxKey,
+      groupName: string,
+      only?: Set<string>
+    ) => {
       const groupConfig = groups?.[groupName];
+      const rows =
+        only ?
+          (buckets[boxKey][groupName] || []).filter((entry) => only.has(entry.name))
+        : buckets[boxKey][groupName];
+      if (only && !rows.length) {
+        return null;
+      }
       return (
         <React.Fragment key={groupName}>
           {showGroupSubLabel(groupName) ?
@@ -2999,7 +3037,7 @@ const FormEngineImpl = ({
               {groupConfig.subtitle}
             </ReqoreP>
           : null}
-          {renderGroupRows(buckets[boxKey][groupName])}
+          {renderGroupRows(rows)}
         </React.Fragment>
       );
     };
@@ -3074,22 +3112,45 @@ const FormEngineImpl = ({
                     // row splits its body; a box that renders open anyway shows
                     // all of its groups as before.
                     const splitForPreselected = wouldCollapse && hasPreselectedRows;
-                    const shownGroups =
-                      splitForPreselected ?
-                        groupsInBox.filter((groupName) =>
-                          groupHasPreselectedRow(box.key, groupName)
-                        )
-                      : groupsInBox;
-                    const deferredGroups =
-                      splitForPreselected ?
-                        groupsInBox.filter(
-                          (groupName) => !groupHasPreselectedRow(box.key, groupName)
-                        )
-                      : [];
-                    const deferredCount = deferredGroups.reduce(
-                      (n, groupName) => n + (buckets[box.key][groupName] || []).length,
-                      0
+
+                    // Which rows this box shows, and which fold away, decided at
+                    // ROW level because `maxFieldsShown` counts fields — a
+                    // group-level split can only ever cut at a group boundary.
+                    // Group order is preserved so the visible rows read in the
+                    // same order they would if nothing were folded.
+                    const orderedRows: TRowEntry[] = groupsInBox.flatMap(
+                      (groupName) => buckets[box.key][groupName] || []
                     );
+                    // Optional's own rule first: a box opened solely to reveal
+                    // preselected rows offers those, not an arbitrary first-N.
+                    const candidateRows =
+                      splitForPreselected ? orderedRows.filter(isPreselectedRow) : orderedRows;
+                    // …then the cap applies to whatever that left.
+                    const capped =
+                      maxFieldsShown !== undefined && candidateRows.length > maxFieldsShown;
+                    const shownRows = capped ? candidateRows.slice(0, maxFieldsShown) : candidateRows;
+                    const shownRowSet = new Set(shownRows.map((entry) => entry.name));
+                    // Everything the box holds that is not on show. Once the
+                    // reader asks for more they get the whole box — withholding
+                    // the non-preselected remainder behind a second control is
+                    // the same defect one level down.
+                    const deferredRowSet = new Set(
+                      orderedRows
+                        .filter((entry) => !shownRowSet.has(entry.name))
+                        .map((entry) => entry.name)
+                    );
+                    const deferredCount = deferredRowSet.size;
+                    const shownGroups = groupsInBox.filter((groupName) =>
+                      (buckets[box.key][groupName] || []).some((entry) =>
+                        shownRowSet.has(entry.name)
+                      )
+                    );
+                    const deferredGroups = groupsInBox.filter((groupName) =>
+                      (buckets[box.key][groupName] || []).some(
+                        (entry) => !shownRowSet.has(entry.name)
+                      )
+                    );
+                    const moreOpen = Boolean(query) || expandedMoreBoxes.includes(box.key);
                     const accent =
                       box.key === 'attention' ? cWarning
                       : box.key === 'set' ? cSuccess
@@ -3175,52 +3236,52 @@ const FormEngineImpl = ({
                           $success={cSuccess}
                           $rowBg={cRowBg}
                           $lineColor={cGroupLine}
+                          $moreBorder={cMoreBorder}
                           className={compactNarrow ? 'readfirst-narrow' : undefined}
                         >
-                          {shownGroups.map((groupName) => renderBoxGroup(box.key, groupName))}
-                        </StyledGroupBody>
-                        {/* The rest of a box that only opened to reveal a
-                            preselected row. ReqorePanel owns its own open state,
-                            so this needs no hook inside the map — which is just
-                            as well, because the box body maps GROUPS. A search
-                            forces it open for the same reason the boxes open: a
-                            collapsed panel unmounts its content, so a match in
-                            here would otherwise be unreachable. It gets its own
-                            StyledGroupBody so the rows inside keep the same gaps,
-                            dividers and label column as the ones above. */}
-                        {deferredGroups.length ?
-                          <ReqorePanel
-                            flat
-                            minimal
-                            transparent
-                            collapsible
-                            isCollapsed={!query}
-                            padded={false}
-                            className='options-readfirst-more'
-                            collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
-                            contentStyle={{ padding: 0 }}
-                            label={
-                              <ReqoreP
-                                size='small'
-                                effect={{ opacity: 0.6 }}
-                              >{`${deferredCount} more optional field${deferredCount === 1 ? '' : 's'}`}</ReqoreP>
-                            }
-                          >
-                            <StyledGroupBody
-                              $divider={cDivider}
-                              $hover={cHover}
-                              $focus={cWarning}
-                              $success={cSuccess}
-                              $rowBg={cRowBg}
-                              $lineColor={cGroupLine}
-                              className={compactNarrow ? 'readfirst-narrow' : undefined}
+                          {shownGroups.map((groupName) =>
+                            renderBoxGroup(box.key, groupName, shownRowSet)
+                          )}
+                          {/* The control lives INSIDE the group body, as the last
+                              row, so it inherits the rows' grid, padding and
+                              hover and lines up with them. Outside it was a bare
+                              line of text in the box's corner, which is what the
+                              build #154 review rejected. */}
+                          {deferredCount ?
+                            <button
+                              type='button'
+                              className='readfirst-row readfirst-more-row options-readfirst-more'
+                              aria-expanded={moreOpen}
+                              onClick={() =>
+                                setExpandedMoreBoxes((prev) =>
+                                  prev.includes(box.key) ?
+                                    prev.filter((k) => k !== box.key)
+                                  : [...prev, box.key]
+                                )
+                              }
                             >
-                              {deferredGroups.map((groupName) =>
-                                renderBoxGroup(box.key, groupName)
-                              )}
-                            </StyledGroupBody>
-                          </ReqorePanel>
-                        : null}
+                              <ReqoreP size='small' effect={{ opacity: 0.8 }}>
+                                {moreOpen ?
+                                  'Show fewer'
+                                : `${deferredCount} more ${box.key === 'optional' ? 'optional ' : ''}field${deferredCount === 1 ? '' : 's'}`
+                                }
+                              </ReqoreP>
+                              <ReqoreIcon
+                                icon='ArrowDownSLine'
+                                size='small'
+                                className='readfirst-more-chevron'
+                                effect={{ opacity: 0.8 }}
+                              />
+                            </button>
+                          : null}
+                          {/* A search forces the fold open for the same reason
+                              the boxes open: an unmounted row cannot be found. */}
+                          {deferredCount && moreOpen ?
+                            deferredGroups.map((groupName) =>
+                              renderBoxGroup(box.key, groupName, deferredRowSet)
+                            )
+                          : null}
+                        </StyledGroupBody>
                       </StyledStatusBox>
                     );
                   })}

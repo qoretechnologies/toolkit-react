@@ -7271,3 +7271,103 @@ export const CompactUnsetFieldShowsItsDefault: Story = {
     expect(authorBox?.textContent).toContain('Optional');
   },
 };
+
+/**
+ * A capped box folds its remainder behind a row, not a scrap of text.
+ *
+ * `maxFieldsShown` caps how many rows any status box shows — Needs attention,
+ * Set and Optional alike — so a long form stays scannable instead of making the
+ * reader page past one box to reach the next.
+ *
+ * The control that reveals the rest IS a field row: same grid, same padding,
+ * same hover, so it lines up with the rows above rather than floating in the
+ * box's corner. A dashed edge and a chevron are what say it is not itself a
+ * field — nothing on it can be set.
+ */
+export const CompactMaxFieldsShown: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with `maxFieldsShown: 3`, so each status box shows three rows and folds the rest behind a dashed "N more fields" row. Clicking that row reveals the remainder and the label becomes "Show fewer".',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    compactCollapsedGroups: [],
+    maxFieldsShown: 3,
+    options: {
+      alpha: { type: 'string', display_name: 'Alpha' },
+      bravo: { type: 'string', display_name: 'Bravo' },
+      charlie: { type: 'string', display_name: 'Charlie' },
+      delta: { type: 'string', display_name: 'Delta' },
+      echo: { type: 'string', display_name: 'Echo' },
+      foxtrot: { type: 'string', display_name: 'Foxtrot' },
+    } as never,
+    value: {} as never,
+  },
+  play: async ({ canvasElement }) => {
+    // Three shown, three folded — the control counts what is not on screen
+    await _testsWaitForText('3 more optional fields');
+    await _testsWaitForText('Alpha');
+    await _testsWaitForTextToNotExist('Foxtrot');
+
+    // It is a ROW, not a bare line of text: it carries the row class, so it
+    // inherits the grid and padding the fields above it use
+    const more = canvasElement.querySelector('.readfirst-more-row') as HTMLElement;
+    expect(more).toBeTruthy();
+    expect(more.classList.contains('readfirst-row')).toBe(true);
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+
+    // The dashed edge is the thing that says "not a field". Asserting the
+    // COMPUTED style, because the first cut of this took its colour from the
+    // inter-row divider tint (~8% of the text colour) and rendered an invisible
+    // border — the rule was there, the affordance was not.
+    const edge = getComputedStyle(more);
+    expect(edge.borderStyle).toBe('dashed');
+    expect(edge.borderTopWidth).toBe('1px');
+    // …and it inherits the rows' geometry rather than inventing its own
+    expect(edge.paddingLeft).toBe(getComputedStyle(
+      canvasElement.querySelector('.readfirst-row:not(.readfirst-more-row)') as HTMLElement
+    ).paddingLeft);
+
+    fireEvent.click(more);
+
+    await _testsWaitForText('Foxtrot');
+    await _testsWaitForText('Show fewer');
+    expect(
+      (canvasElement.querySelector('.readfirst-more-row') as HTMLElement).getAttribute(
+        'aria-expanded'
+      )
+    ).toBe('true');
+  },
+};
+
+/**
+ * An uncapped form is unchanged.
+ *
+ * `maxFieldsShown` is opt-in: without it every box shows every row it holds and
+ * no control renders at all. The story exists so that stays true — a default
+ * that quietly started folding rows would hide fields from every consumer that
+ * never asked for it.
+ */
+export const CompactNoMaxFieldsShown: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same form with no `maxFieldsShown` — every row shows and no "more fields" control appears.',
+      },
+    },
+  },
+  args: {
+    ...CompactMaxFieldsShown.args,
+    maxFieldsShown: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('Foxtrot');
+    expect(canvasElement.querySelector('.readfirst-more-row')).toBeNull();
+  },
+};
