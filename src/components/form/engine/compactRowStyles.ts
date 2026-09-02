@@ -450,6 +450,10 @@ export const StyledGroupBody = styled.div<{
   $success: string;
   $rowBg: string;
   $lineColor: string;
+  /** Edge colour for the "N more fields" row. Its own value because the row
+      HAS to be seen — the divider tint that separates two fields is ~8% of the
+      text colour, which disappears entirely as a 1px dashed border. */
+  $moreBorder: string;
 }>`
   display: flex;
   flex-flow: column;
@@ -528,6 +532,43 @@ export const StyledGroupBody = styled.div<{
   /* A hidden (not-yet-added) field surfaced by the search is dimmed. */
   .readfirst-row-hidden {
     opacity: 0.65;
+  }
+  /* The "N more fields" control IS a field row — same grid, same padding, same
+     hover — so it lines up with the rows above instead of floating as a scrap
+     of text in the box's corner. A dashed edge and a lower-contrast label are
+     what say it is not itself a field: nothing here can be set.
+
+     It spans both content columns because it has no label/value split, and it
+     drops the inter-row hairline (the ::after rule) since it always sits last. */
+  .readfirst-more-row {
+    grid-template-columns: 1fr auto;
+    border: 1px dashed ${({ $moreBorder }) => $moreBorder};
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    /* The dashed edge replaces the hairline; two lines would read as a divider
+       AND a border stacked. */
+    margin-top: 2px;
+  }
+  .readfirst-more-row::after {
+    display: none;
+  }
+  .readfirst-more-row:hover {
+    background: ${({ $hover }) => $hover};
+    border-style: solid;
+  }
+  .readfirst-more-row:focus-visible {
+    outline: 2px solid ${({ $focus }) => $focus};
+    outline-offset: -2px;
+  }
+  /* The chevron points the way the click goes: down to reveal, up to fold. */
+  .readfirst-more-row .readfirst-more-chevron {
+    transition: transform 0.15s ease;
+  }
+  .readfirst-more-row[aria-expanded='true'] .readfirst-more-chevron {
+    transform: rotate(180deg);
   }
   /* A disabled field (schema disabled flag or unmet dependencies) is not a
      click target — no hover invite, not-allowed cursor; a lock replaces the

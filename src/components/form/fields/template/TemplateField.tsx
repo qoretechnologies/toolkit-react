@@ -320,8 +320,60 @@ export const TemplateField = memo(
     });
     const type = rest.ui_type || rest.type || rest.defaultType;
 
+    const filteredTemplates = useMemo<IReqoreFormTemplates>(():
+      | IReqoreFormTemplates
+      | undefined => {
+      if (!allowTemplates) {
+        return undefined;
+      }
+
+      let result: IReqoreFormTemplates = templates;
+
+      if (filterTemplatesByType) {
+        result = templatesFilterFunc(templates, type, !!rest.arg_schema);
+      }
+
+      if (filterTemplatesFunc) {
+        result = filterTemplatesFunc(result);
+      }
+
+      return result;
+    }, [
+      JSON.stringify(templates),
+      type,
+      allowTemplates,
+      filterTemplatesByType,
+      JSON.stringify(rest.arg_schema),
+      filterTemplatesFunc,
+    ]);
+
+    // An `any`-typed field has no editor of its own until a concrete type is
+    // chosen, so it opened on the TYPE PICKER: before an author could say what
+    // they meant, they had to answer a question about storage — "is this a Text
+    // or a Number?" — that they often cannot answer, because the value they
+    // want is a reference to something else whose type is not theirs to pick.
+    //
+    // So an untyped field that accepts templates now opens on the template
+    // selector, which is the answer most of them want, and "Set Custom Value"
+    // in the ⋮ menu is the way to a literal of a chosen type. That is the
+    // reverse of the old default, and it is the right way round: choosing a
+    // template is picking from a list, choosing a literal is a decision.
+    //
+    // Only while the field is EMPTY. A field already holding a literal must
+    // open showing that literal — flipping to the template view would hide a
+    // value the author put there and make it look lost.
+    // ...and only when there is actually something to pick. A field with no
+    // templates on offer would otherwise open on an EMPTY picker, which is a
+    // worse place to start than the type picker it replaced.
+    const typeIsAnyLike = type === 'any' || type === 'auto';
+    const isEmptyValue = value === undefined || value === null || value === '';
+    const hasTemplatesOnOffer = !!size(filteredTemplates?.items);
     const [isTemplate, setIsTemplate] = useState<boolean>(
-      (isDefaultTemplate || isValueTemplate(value) || !allowCustomValues) && allowTemplates
+      (isDefaultTemplate ||
+        isValueTemplate(value) ||
+        !allowCustomValues ||
+        (typeIsAnyLike && isEmptyValue && hasTemplatesOnOffer)) &&
+        allowTemplates
     );
     const [internalIsFunction, setInternalIsFunction] = useState<boolean>(
       !!isDefaultFunction && !!allowFunctions
@@ -413,32 +465,6 @@ export const TemplateField = memo(
     const componentTypeProp = componentFromType ? { type } : {};
     const fieldAriaLabel = rest['aria-label'] ?? label ?? rest.display_name ?? name;
 
-    const filteredTemplates = useMemo<IReqoreFormTemplates>(():
-      | IReqoreFormTemplates
-      | undefined => {
-      if (!allowTemplates) {
-        return undefined;
-      }
-
-      let result: IReqoreFormTemplates = templates;
-
-      if (filterTemplatesByType) {
-        result = templatesFilterFunc(templates, type, !!rest.arg_schema);
-      }
-
-      if (filterTemplatesFunc) {
-        result = filterTemplatesFunc(result);
-      }
-
-      return result;
-    }, [
-      JSON.stringify(templates),
-      type,
-      allowTemplates,
-      filterTemplatesByType,
-      JSON.stringify(rest.arg_schema),
-      filterTemplatesFunc,
-    ]);
 
     const handleTemplateFieldChange = useCallback(
       (_name: string, val: string) => {

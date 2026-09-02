@@ -7071,3 +7071,303 @@ export const CompactNoSearchCollapseIsFinal: Story = {
     await _testsWaitForTextToNotExist('order-fulfilment');
   },
 };
+
+/**
+ * A field that opens as a CARD can be cancelled.
+ *
+ * Which shape an open field takes is decided by its type: `COMPACT_COMPLEX_TYPES`
+ * includes `any`, so an `any`-typed option — a test assertion's Expected Value, a
+ * Qog action state option — never edits inline and always opens the card below.
+ *
+ * The card's action strip had no Cancel and no Revert, and the Escape handler
+ * lives on the inline row's editor, so a card ignored it. Every way out of a
+ * card therefore COMMITTED: Done, clicking away, and Escape. There was no way to
+ * abandon an edit and get the original value back.
+ */
+export const CompactCardCancelDiscardsTheEdit: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opens an `any`-typed option (which always opens as a card), edits it, then cancels — the original value comes back. Cancel appears only once there is something to discard.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      expected_value: {
+        type: 'any',
+        display_name: 'Expected Value',
+        short_desc: 'What the checked value should be',
+      },
+    } as never,
+    value: {
+      expected_value: { type: 'string', value: 'original' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsClickText('Expected Value');
+    // the card, not the inline row - this is the shape the bug lived in
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.options-readfirst-card')).toBeTruthy()
+    );
+
+    // Nothing typed yet: Cancel would do exactly what Done does, so it is not
+    // offered. Two buttons differing in name but not in effect are worse than one.
+    expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeNull();
+
+    await _testsChangeStringField({
+      selector: '.options-readfirst-card .reqore-textarea',
+      value: 'edited',
+    });
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeTruthy()
+    );
+
+    await _testsClickButton({ selector: '.options-readfirst-cancel' });
+    await _testsWaitForText('original');
+    await _testsWaitForTextToNotExist('edited');
+  },
+};
+
+/**
+ * Escape discards from a card, exactly as it does from the inline row.
+ *
+ * Escape is the one keystroke every editor treats as "get me out of this without
+ * saving". The card ignored it entirely, which made the keystroke a silent
+ * commit — the quietest possible way to keep something the author was trying to
+ * throw away.
+ */
+export const CompactCardEscapeDiscardsTheEdit: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Edits an `any`-typed option in its card and presses Escape — the edit is discarded rather than kept, matching the inline row.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      expected_value: {
+        type: 'any',
+        display_name: 'Expected Value',
+        short_desc: 'What the checked value should be',
+      },
+    } as never,
+    value: {
+      expected_value: { type: 'string', value: 'original' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsClickText('Expected Value');
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.options-readfirst-card')).toBeTruthy()
+    );
+
+    await _testsChangeStringField({
+      selector: '.options-readfirst-card .reqore-textarea',
+      value: 'edited',
+    });
+    await _testsWaitForText('edited');
+
+    // Fired on the editor itself, which is where the key actually lands: the
+    // handler sits on a wrapper around the editor, and events bubble UP.
+    const editor = canvasElement.querySelector(
+      '.options-readfirst-card .reqore-textarea'
+    ) as HTMLElement;
+    fireEvent.keyDown(editor, { key: 'Escape' });
+
+    await _testsWaitForText('original');
+    await _testsWaitForTextToNotExist('edited');
+  },
+};
+
+/**
+ * An unset field shows the default the server will use, not an em-dash.
+ *
+ * A field with no value of its own but a declared `default_value` is not
+ * unanswered — the default is what the server will apply if the field is left
+ * alone. The row used to say the opposite, rendering the same em-dash as a
+ * field with no default at all, so the only place a default surfaced was a
+ * `Default: …` line behind the info toggle, and only when the schema also
+ * supplied `default_value_desc`.
+ *
+ * Both halves have to hold together, which is why they share one frame here:
+ * the default is VISIBLE, and the field is still NOT SET. Author keeps the
+ * dimmed italic treatment of an unanswered row and stays in the Optional box —
+ * if it ever moved to Set, the change would have achieved nothing.
+ *
+ * The motivating case is Qorus's `author` field, which every create form
+ * carries. It was served the current username as its VALUE, so Author occupied
+ * a row in the Set box of every create form to say only what the server was
+ * going to do anyway. Serving it as a default fixes the bucketing; without this
+ * change it would have made the information disappear instead.
+ */
+export const CompactUnsetFieldShowsItsDefault: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form holding the three value treatments side by side: Author and Mode are unset but declare a default, so each row shows the default it will contribute; Notes has no default and keeps the em-dash; Name carries a real value. The defaulted rows stay dimmed and stay in the Optional box — showing a default does not make a field count as answered.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    // This story is about what a rendered row SAYS, so every box is open.
+    // `compactCollapsedGroups` is a default parameter, so passing a value
+    // REPLACES the ['optional'] default rather than adding to it.
+    compactCollapsedGroups: [],
+    options: {
+      name: { type: 'string', display_name: 'Name', required: true },
+      // the shape the server sends: `default_value` UI-wrapped as {type, value}
+      author: {
+        type: 'string',
+        display_name: 'Author',
+        short_desc: 'Who the object will be attributed to',
+        default_value: { type: 'string', value: 'dnichols' },
+      },
+      // a bare default, with no envelope, is equally valid
+      mode: {
+        type: 'string',
+        display_name: 'Mode',
+        short_desc: 'How the run treats side effects',
+        default_value: 'simulate',
+      },
+      // no default at all — the em-dash is the honest answer for this one
+      notes: { type: 'string', display_name: 'Notes' },
+    } as never,
+    value: {
+      name: { type: 'string', value: 'my-test' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const rowText = (field: string) =>
+      canvasElement
+        .querySelector(`[data-field="${field}"] .options-readfirst-valuetext`)
+        ?.textContent?.trim();
+
+    await waitFor(() => expect(canvasElement.querySelector('[data-field="author"]')).toBeTruthy());
+
+    // The default is what the row shows, through the same formatter a real
+    // value goes through
+    await waitFor(() => expect(rowText('author')).toBe('dnichols'));
+    expect(rowText('mode')).toBe('simulate');
+
+    // …and a field with nothing to fall back on still says so
+    expect(rowText('notes')).toBe('—');
+
+    // The other half of the fix: visible, but still NOT answered. Author must
+    // stay in Optional — landing in Set is the regression this guards.
+    const authorBox = canvasElement
+      .querySelector('[data-field="author"]')
+      ?.closest('.options-readfirst-group');
+    expect(authorBox?.textContent).toContain('Optional');
+  },
+};
+
+/**
+ * A capped box folds its remainder behind a row, not a scrap of text.
+ *
+ * `maxFieldsShown` caps how many rows any status box shows — Needs attention,
+ * Set and Optional alike — so a long form stays scannable instead of making the
+ * reader page past one box to reach the next.
+ *
+ * The control that reveals the rest IS a field row: same grid, same padding,
+ * same hover, so it lines up with the rows above rather than floating in the
+ * box's corner. A dashed edge and a chevron are what say it is not itself a
+ * field — nothing on it can be set.
+ */
+export const CompactMaxFieldsShown: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with `maxFieldsShown: 3`, so each status box shows three rows and folds the rest behind a dashed "N more fields" row. Clicking that row reveals the remainder and the label becomes "Show fewer".',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    compactCollapsedGroups: [],
+    maxFieldsShown: 3,
+    options: {
+      alpha: { type: 'string', display_name: 'Alpha' },
+      bravo: { type: 'string', display_name: 'Bravo' },
+      charlie: { type: 'string', display_name: 'Charlie' },
+      delta: { type: 'string', display_name: 'Delta' },
+      echo: { type: 'string', display_name: 'Echo' },
+      foxtrot: { type: 'string', display_name: 'Foxtrot' },
+    } as never,
+    value: {} as never,
+  },
+  play: async ({ canvasElement }) => {
+    // Three shown, three folded — the control counts what is not on screen
+    await _testsWaitForText('3 more optional fields');
+    await _testsWaitForText('Alpha');
+    await _testsWaitForTextToNotExist('Foxtrot');
+
+    // It is a ROW, not a bare line of text: it carries the row class, so it
+    // inherits the grid and padding the fields above it use
+    const more = canvasElement.querySelector('.readfirst-more-row') as HTMLElement;
+    expect(more).toBeTruthy();
+    expect(more.classList.contains('readfirst-row')).toBe(true);
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+
+    // The dashed edge is the thing that says "not a field". Asserting the
+    // COMPUTED style, because the first cut of this took its colour from the
+    // inter-row divider tint (~8% of the text colour) and rendered an invisible
+    // border — the rule was there, the affordance was not.
+    const edge = getComputedStyle(more);
+    expect(edge.borderStyle).toBe('dashed');
+    expect(edge.borderTopWidth).toBe('1px');
+    // …and it inherits the rows' geometry rather than inventing its own
+    expect(edge.paddingLeft).toBe(getComputedStyle(
+      canvasElement.querySelector('.readfirst-row:not(.readfirst-more-row)') as HTMLElement
+    ).paddingLeft);
+
+    fireEvent.click(more);
+
+    await _testsWaitForText('Foxtrot');
+    await _testsWaitForText('Show fewer');
+    expect(
+      (canvasElement.querySelector('.readfirst-more-row') as HTMLElement).getAttribute(
+        'aria-expanded'
+      )
+    ).toBe('true');
+  },
+};
+
+/**
+ * An uncapped form is unchanged.
+ *
+ * `maxFieldsShown` is opt-in: without it every box shows every row it holds and
+ * no control renders at all. The story exists so that stays true — a default
+ * that quietly started folding rows would hide fields from every consumer that
+ * never asked for it.
+ */
+export const CompactNoMaxFieldsShown: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same form with no `maxFieldsShown` — every row shows and no "more fields" control appears.',
+      },
+    },
+  },
+  args: {
+    ...CompactMaxFieldsShown.args,
+    maxFieldsShown: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('Foxtrot');
+    expect(canvasElement.querySelector('.readfirst-more-row')).toBeNull();
+  },
+};
