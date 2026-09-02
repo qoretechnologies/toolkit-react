@@ -7186,3 +7186,88 @@ export const CompactCardEscapeDiscardsTheEdit: Story = {
     await _testsWaitForTextToNotExist('edited');
   },
 };
+
+/**
+ * An unset field shows the default the server will use, not an em-dash.
+ *
+ * A field with no value of its own but a declared `default_value` is not
+ * unanswered — the default is what the server will apply if the field is left
+ * alone. The row used to say the opposite, rendering the same em-dash as a
+ * field with no default at all, so the only place a default surfaced was a
+ * `Default: …` line behind the info toggle, and only when the schema also
+ * supplied `default_value_desc`.
+ *
+ * Both halves have to hold together, which is why they share one frame here:
+ * the default is VISIBLE, and the field is still NOT SET. Author keeps the
+ * dimmed italic treatment of an unanswered row and stays in the Optional box —
+ * if it ever moved to Set, the change would have achieved nothing.
+ *
+ * The motivating case is Qorus's `author` field, which every create form
+ * carries. It was served the current username as its VALUE, so Author occupied
+ * a row in the Set box of every create form to say only what the server was
+ * going to do anyway. Serving it as a default fixes the bucketing; without this
+ * change it would have made the information disappear instead.
+ */
+export const CompactUnsetFieldShowsItsDefault: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form holding the three value treatments side by side: Author and Mode are unset but declare a default, so each row shows the default it will contribute; Notes has no default and keeps the em-dash; Name carries a real value. The defaulted rows stay dimmed and stay in the Optional box — showing a default does not make a field count as answered.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    // This story is about what a rendered row SAYS, so every box is open.
+    // `compactCollapsedGroups` is a default parameter, so passing a value
+    // REPLACES the ['optional'] default rather than adding to it.
+    compactCollapsedGroups: [],
+    options: {
+      name: { type: 'string', display_name: 'Name', required: true },
+      // the shape the server sends: `default_value` UI-wrapped as {type, value}
+      author: {
+        type: 'string',
+        display_name: 'Author',
+        short_desc: 'Who the object will be attributed to',
+        default_value: { type: 'string', value: 'dnichols' },
+      },
+      // a bare default, with no envelope, is equally valid
+      mode: {
+        type: 'string',
+        display_name: 'Mode',
+        short_desc: 'How the run treats side effects',
+        default_value: 'simulate',
+      },
+      // no default at all — the em-dash is the honest answer for this one
+      notes: { type: 'string', display_name: 'Notes' },
+    } as never,
+    value: {
+      name: { type: 'string', value: 'my-test' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const rowText = (field: string) =>
+      canvasElement
+        .querySelector(`[data-field="${field}"] .options-readfirst-valuetext`)
+        ?.textContent?.trim();
+
+    await waitFor(() => expect(canvasElement.querySelector('[data-field="author"]')).toBeTruthy());
+
+    // The default is what the row shows, through the same formatter a real
+    // value goes through
+    await waitFor(() => expect(rowText('author')).toBe('dnichols'));
+    expect(rowText('mode')).toBe('simulate');
+
+    // …and a field with nothing to fall back on still says so
+    expect(rowText('notes')).toBe('—');
+
+    // The other half of the fix: visible, but still NOT answered. Author must
+    // stay in Optional — landing in Set is the regression this guards.
+    const authorBox = canvasElement
+      .querySelector('[data-field="author"]')
+      ?.closest('.options-readfirst-group');
+    expect(authorBox?.textContent).toContain('Optional');
+  },
+};
