@@ -964,9 +964,7 @@ export const CompactRowCancelEdit: Story = {
     const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
     expect(row).toBeTruthy();
     fireEvent.click(row!);
-    await waitFor(() =>
-      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy()
-    );
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy());
 
     // An untouched field offers no Cancel — it would do exactly what Done does.
     expect(canvasElement.querySelector('.options-readfirst-cancel')).toBeNull();
@@ -1051,9 +1049,7 @@ export const CompactRowAbsorbsLanguage: Story = {
 
     // Opening the host renders the language control inside its container.
     fireEvent.click(sourceRow as HTMLElement);
-    await waitFor(() =>
-      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy()
-    );
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy());
     await waitFor(() =>
       expect(canvasElement.querySelector('.options-readfirst-absorbed')).toBeTruthy()
     );
@@ -1078,9 +1074,7 @@ export const CompactRowCancelEditAffordance: Story = {
     const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
     expect(row).toBeTruthy();
     fireEvent.click(row!);
-    await waitFor(() =>
-      expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy()
-    );
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy());
 
     const input = canvasElement.querySelector<HTMLInputElement>(
       '[data-field="cookie_name"] input, [data-field="cookie_name"] textarea'
@@ -1169,7 +1163,7 @@ export const CompactRowCodeEditorMessage: Story = {
     docs: {
       description: {
         story:
-          "A schema `messages` entry on a code-editor field. Every other field surfaces its messages on the collapsed row; a code field draws a preview in the same cell, and the message has to survive beside it — a diagnostic the reader only finds by opening the field is not reported. Qorus puts source-validation results here, so an invalid service is called out on the row rather than at save time.",
+          'A schema `messages` entry on a code-editor field. Every other field surfaces its messages on the collapsed row; a code field draws a preview in the same cell, and the message has to survive beside it — a diagnostic the reader only finds by opening the field is not reported. Qorus puts source-validation results here, so an invalid service is called out on the row rather than at save time.',
       },
     },
   },
@@ -1268,7 +1262,7 @@ export const CompactRowMessageWhileEditing: Story = {
     docs: {
       description: {
         story:
-          "The same message, with the row OPEN. A schema message is guidance about the value, so the moment it matters most is while the value is being edited — and a validation diagnostic is useless anywhere else: it names a line the author can only fix with the editor in front of them. Qorus opens the Source Code row on arrival, so a message that only survives on the collapsed row was never seen at all.",
+          'The same message, with the row OPEN. A schema message is guidance about the value, so the moment it matters most is while the value is being edited — and a validation diagnostic is useless anywhere else: it names a line the author can only fix with the editor in front of them. Qorus opens the Source Code row on arrival, so a message that only survives on the collapsed row was never seen at all.',
       },
     },
   },
@@ -1474,7 +1468,7 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
     docs: {
       description: {
         story:
-          "Renders the NestedOptionInheritsRenderPropFromAncestor schema with compact=true — the compact renderer previews the list-of-hash rows through their arg_schema, naming each method, rather than printing [object Object].",
+          'Renders the NestedOptionInheritsRenderPropFromAncestor schema with compact=true — the compact renderer previews the list-of-hash rows through their arg_schema, naming each method, rather than printing [object Object].',
       },
     },
   },
@@ -1774,7 +1768,7 @@ export const CompactWithholdsFieldsWithUnmetDependencies: Story = {
     docs: {
       description: {
         story:
-          "A field whose `depends_on` is not fulfilled is not offered as an addable one. The scheme here is Permissive, so the two cookie-only fields are absent from the Optional box entirely — only the field that depends on nothing is offered. Setting the scheme to Cookie brings them back (and flashes them). Before this, they were listed, and clicking one opened a row that said it was disabled: an affordance leading nowhere.",
+          'A field whose `depends_on` is not fulfilled is not offered as an addable one. The scheme here is Permissive, so the two cookie-only fields are absent from the Optional box entirely — only the field that depends on nothing is offered. Setting the scheme to Cookie brings them back (and flashes them). Before this, they were listed, and clicking one opened a row that said it was disabled: an affordance leading nowhere.',
       },
     },
   },
@@ -1821,10 +1815,9 @@ export const CompactWithholdsFieldsWithUnmetDependencies: Story = {
     // The independent field IS offered — without this the two absences below
     // would also be explained by an Optional box that never opened.
     await _testsWaitForText('Note');
-    await waitFor(
-      () => expect(document.querySelector('[data-field="note"]')).toBeTruthy(),
-      { timeout: 10000 }
-    );
+    await waitFor(() => expect(document.querySelector('[data-field="note"]')).toBeTruthy(), {
+      timeout: 10000,
+    });
 
     await waitFor(
       () => {
@@ -2457,7 +2450,7 @@ export const CompactReadOnly: Story = {
     docs: {
       description: {
         story:
-          'Renders the Compact fixture with readOnly enabled — the Draft/Ready progress badge is hidden and rows open in view (non-editable) mode.',
+          'Renders the Compact fixture with readOnly enabled — no completion meter, no Needs attention / Set / Optional boxes and no required asterisks; every set field is one flat list, and opening a row shows its value in a read presentation with Close as the only control.',
       },
     },
     chromatic: { disable: true },
@@ -2468,14 +2461,40 @@ export const CompactReadOnly: Story = {
   },
   play: async () => {
     await _testsWaitForText('order-fulfilment');
-    // Read-only hides the Draft/Ready badge (the meter itself stays)…
+    // Nothing that reports progress: no meter, no Draft/Ready, no boxes.
+    expect(document.querySelector('.options-readfirst-completion')).toBeNull();
+    expect(document.querySelector('.options-readfirst-group')).toBeNull();
     await _testsWaitForTextToNotExist('Draft');
-    // …and rows open in view mode: the card's done (✓/close) button collapses
-    // back. The button is icon-only now, so assert it by class, not text.
+    await _testsWaitForTextToNotExist('Needs attention');
+    await _testsWaitForTextToNotExist('Optional');
+    // A required field nobody set is listed, unset, with no amber dot.
+    await _testsWaitForText('Description');
+    expect(
+      document.querySelector(
+        '.readfirst-row[data-field="description"] .options-readfirst-statusdot-slot > *'
+      )
+    ).toBeNull();
+    // Opening a row shows the value — not an input holding it.
     await _testsClickText('order-fulfilment');
-    await waitFor(() => expect(document.querySelector('.options-readfirst-done')).toBeTruthy());
+    let reading: Element | null = null;
+    await waitFor(() => {
+      reading = document.querySelector('.options-readfirst-reading[data-field="name"]');
+      expect(reading).toBeTruthy();
+    });
+    expect(reading!.querySelector('input, textarea, select, [contenteditable]')).toBeNull();
+    expect(reading!.textContent).toContain('order-fulfilment');
+    // Close is the only way out, and it closes.
+    expect(reading!.querySelector('.options-readfirst-more')).toBeNull();
     await _testsClickButton({ selector: '.options-readfirst-done' });
-    await waitFor(() => expect(document.querySelector('.options-readfirst-done')).toBeNull());
+    await waitFor(() => expect(document.querySelector('.options-readfirst-reading')).toBeNull());
+    // A choice opens as the chosen option, not as a select that still works.
+    await _testsClickText('Python');
+    await waitFor(() => {
+      reading = document.querySelector('.options-readfirst-reading[data-field="lang"]');
+      expect(reading).toBeTruthy();
+    });
+    expect(reading!.querySelector('input, textarea, select, [contenteditable]')).toBeNull();
+    expect(reading!.textContent).toContain('Python');
   },
 };
 
@@ -2658,18 +2677,19 @@ export const CompactBasic: Story = {
   },
 };
 
-// Read-only richtext + template picker. Opening a field in a read-only form
-// must not yield an editable surface: a richtext value renders as a NON-editable
-// rich-text view (formatted content, contenteditable=false, no toolbar), and a
-// field whose value is a template ($local:…) as a read-only template-picker chip
-// ($-token + resolved name). Regression cover for the review note "this should
-// show as a readonly richtext or a readonly template picker".
+// Read-only richtext + template. Opening a field in a read-only form must not
+// yield an editing surface of any kind: a richtext value reads as its text with
+// its template chips (no Slate instance at all — the earlier fix had left one
+// mounted with contenteditable="false", which is still an editor wearing a
+// lock), and a field whose value is a template ($local:…) reads as the
+// resolved-name chip. Regression cover for the review note "this should show
+// as a readonly richtext or a readonly template picker".
 export const CompactReadOnlyRichText: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the CompactBasic fixture with readOnly enabled — opening the Rich Text row shows a non-editable Slate surface, and the Template row renders as a read-only template-picker chip showing the resolved template name (never the raw $local reference).',
+          'Renders the CompactBasic fixture with readOnly enabled — opening the Rich Text row shows the text with its template chip and mounts no editor, and the Template row reads as a chip showing the resolved template name (never the raw $local reference).',
       },
     },
     chromatic: { disable: true },
@@ -2681,41 +2701,255 @@ export const CompactReadOnlyRichText: Story = {
   },
   play: async () => {
     await _testsWaitForText('Rich Text option');
+    // Editor verdicts stay in the editor: the fixture's invalid value and its
+    // dependency-locked field print no "fix this" hint in a read view.
+    await _testsWaitForTextToNotExist('Text value is empty');
+    await _testsWaitForTextToNotExist('dependencies are not fulfilled');
 
-    // Read-only rows open in view mode (not edit mode). The richtext field's
-    // Slate surface must be non-editable — the bug was it stayed
-    // contenteditable="true", so a read-only form was fully editable.
+    // Read-only rows open as a VIEW. The richtext field used to mount its
+    // Slate surface with contenteditable="false" — a read view mounts no
+    // editing surface at all, and the text with its chip is what shows.
     await _testsClickText('Rich Text option');
     await waitFor(
       () => {
-        const editable = document.querySelector(
-          '.options-readfirst-card[data-field="richTextOption"] [contenteditable]'
+        const reading = document.querySelector(
+          '.options-readfirst-reading[data-field="richTextOption"]'
         );
-        expect(editable).toBeTruthy();
-        expect(editable?.getAttribute('contenteditable')).toBe('false');
+        expect(reading).toBeTruthy();
+        expect(reading?.querySelector('[contenteditable], input, textarea')).toBeNull();
+        expect(reading?.textContent).toContain('This is a rich text option');
+        expect(reading?.querySelector('.reqore-tag')?.textContent).toContain('Richtext Template');
       },
       { timeout: 10000 }
     );
 
-    // A template-valued field renders the read-only template-picker chip — a
-    // $-token tag with the resolved name — never an editable input.
+    // A template-valued field reads as the resolved-name chip — never an
+    // editable input.
     await _testsClickText('Template option');
     await waitFor(
       () => {
-        const card = document.querySelector('.options-readfirst-card[data-field="templateOption"]');
-        expect(card).toBeTruthy();
-        const tag = card?.querySelector('.reqore-tag');
+        const reading = document.querySelector(
+          '.options-readfirst-reading[data-field="templateOption"]'
+        );
+        expect(reading).toBeTruthy();
+        const tag = reading?.querySelector('.reqore-tag');
         expect(tag).toBeTruthy();
         // The chip resolves the catalogue display name ('$local:test' →
-        // 'Test (local)') — the whole point of the read-only picker. The raw
-        // value is tooltip-only (portalled, not in the tag), so the visible
-        // label must be the resolved name, never the raw reference.
+        // 'Test (local)'). The raw value is tooltip-only (portalled, not in
+        // the tag), so the visible label must be the resolved name.
         expect(tag?.textContent).toContain('Test (local)');
         expect(tag?.textContent).not.toContain('$local:test');
-        expect(card?.querySelector('input, textarea, [contenteditable="true"]')).toBeFalsy();
+        expect(reading?.querySelector('input, textarea, [contenteditable]')).toBeNull();
       },
       { timeout: 10000 }
     );
+  },
+};
+
+// Read mode as a fact sheet. Every kind of value the engine can hold, set,
+// plus one optional field nobody set (`notes`) and one required field nobody
+// set (`owner`): the first must not appear at all, the second appears unset
+// with no amber. Opening a row shows the WHOLE value in a read presentation —
+// there is no control anywhere on the page.
+const ReadModeSchema: Record<string, TCompactField> = {
+  id: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'ID',
+    short_desc: 'Assigned by Qorus when the schema is created',
+    desc: 'The identifier is allocated by the server and is what every reference to this schema uses. It never changes, even when the schema is renamed.',
+    required: true,
+    preselected: true,
+    readonly: true,
+    group: 'identity',
+  },
+  audience: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Who can call this',
+    short_desc: 'Which callers the gateway admits',
+    required: true,
+    preselected: true,
+    group: 'identity',
+    allowed_values: [
+      {
+        value: { type: 'string', value: 'anyone' },
+        display_name: 'Anyone',
+        short_desc: 'No credentials are checked.',
+      },
+      {
+        value: { type: 'string', value: 'authenticated' },
+        display_name: 'Authenticated users',
+        desc: 'Callers must present a valid token; the gateway rejects anonymous requests before they reach the handler.',
+      },
+    ],
+  },
+  summary: {
+    type: 'string',
+    ui_type: 'long-string',
+    display_name: 'Summary',
+    short_desc: 'What this API is for',
+    preselected: true,
+    group: 'identity',
+  },
+  owner: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Owner',
+    short_desc: 'The team that answers for this API',
+    required: true,
+    preselected: true,
+    group: 'identity',
+  },
+  handler: {
+    type: 'string',
+    ui_type: 'code-editor',
+    display_name: 'Handler',
+    short_desc: 'Runs on every call',
+    preselected: true,
+    group: 'behaviour',
+  },
+  retry: {
+    type: 'hash',
+    ui_type: 'hash',
+    display_name: 'Retry policy',
+    preselected: true,
+    group: 'behaviour',
+    arg_schema: {
+      attempts: { type: 'number', ui_type: 'number', display_name: 'Attempts' },
+      backoff: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Backoff',
+        allowed_values: [
+          { value: { type: 'string', value: 'exponential' }, display_name: 'Exponential' },
+          { value: { type: 'string', value: 'fixed' }, display_name: 'Fixed' },
+        ],
+      },
+    },
+  },
+  tags: {
+    type: 'list',
+    ui_type: 'list',
+    display_name: 'Tags',
+    preselected: true,
+    group: 'behaviour',
+  },
+  enabled: {
+    type: 'bool',
+    ui_type: 'bool',
+    display_name: 'Enabled',
+    preselected: true,
+    group: 'behaviour',
+  },
+  notes: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Notes',
+    short_desc: 'Free-form notes',
+    group: 'behaviour',
+  },
+};
+
+const ReadModeValue: IOptions = {
+  id: { type: 'string', value: 'api-schema-7f3c' },
+  audience: { type: 'string', value: 'authenticated' },
+  summary: {
+    type: 'string',
+    value:
+      'Customer master data for the storefront.\n\nEvery operation is idempotent; clients retry freely. Responses are cached at the edge for sixty seconds, so a write is visible to readers within a minute — the "eventually" in eventually consistent is short here, but it is not zero.',
+  },
+  handler: {
+    type: 'string',
+    value:
+      '# Reject calls without a tenant header before they reach the service.\nif (!ctx.headers["x-tenant"]) {\n  return { status: 400, body: { error: "tenant required" } };\n}\n\nconst customer = await store.get(ctx.params.id);\nif (!customer) {\n  return { status: 404 };\n}\n\nreturn { status: 200, body: customer };',
+  },
+  retry: { type: 'hash', value: { attempts: 3, backoff: 'exponential' } },
+  tags: { type: 'list', value: ['customers', 'public'] },
+  enabled: { type: 'bool', value: true },
+};
+
+export const CompactReadOnlyExpanded: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Read-only as a view, not a disabled editor: no completion meter, no Needs attention / Set / Optional boxes, no required asterisks; an optional field nobody set is not listed, a required one nobody set reads as unset without the amber; and opening a row shows the whole value — wrapped text, the full code block, every field of the hash, the chosen option with its description, the field's long description — with Close as the only control.",
+      },
+    },
+    chromatic: { disable: true },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: ReadModeSchema,
+    value: ReadModeValue,
+    groups: {
+      identity: { icon: 'IdCardLine', subtitle: 'What this is and who may use it', sort: 0 },
+      behaviour: { icon: 'FlashlightLine', sort: 1 },
+    },
+    readOnly: true,
+    expandMode: 'multi' as const,
+  },
+  play: async () => {
+    await _testsWaitForText('api-schema-7f3c');
+    // No progress, no boxes, no offers.
+    expect(document.querySelector('.options-readfirst-completion')).toBeNull();
+    expect(document.querySelector('.options-readfirst-group')).toBeNull();
+    await _testsWaitForTextToNotExist('Needs attention');
+    await _testsWaitForTextToNotExist('Optional');
+    // An optional field nobody set is not listed at all…
+    await _testsWaitForTextToNotExist('Notes');
+    // …a required one nobody set is, as unset, with no amber dot.
+    await _testsWaitForText('Owner');
+    expect(
+      document.querySelector(
+        '.readfirst-row[data-field="owner"] .options-readfirst-statusdot-slot > *'
+      )
+    ).toBeNull();
+
+    const reading = (name: string) =>
+      document.querySelector(`.options-readfirst-reading[data-field="${name}"]`);
+    const open = async (text: string, name: string) => {
+      await _testsClickText(text);
+      await waitFor(() => expect(reading(name)).toBeTruthy(), { timeout: 10000 });
+      // The one invariant of read mode: nothing to type into.
+      expect(reading(name)!.querySelector('input, textarea, select, [contenteditable]')).toBeNull();
+      return reading(name)!;
+    };
+
+    // A choice opens as the option and what it means — not a select.
+    const audience = await open('Authenticated users', 'audience');
+    expect(audience.textContent).toContain('Callers must present a valid token');
+    // A server-set id opens as the value and its explanation — not a
+    // disabled input.
+    const id = await open('api-schema-7f3c', 'id');
+    expect(id.textContent).toContain('api-schema-7f3c');
+    expect(id.textContent).toContain('It never changes, even when the schema is renamed.');
+    // Long text opens in full: the last sentence is on the page.
+    const summary = await open('Summary', 'summary');
+    expect(summary.textContent).toContain('but it is not zero.');
+    // Code opens as the whole block.
+    const handler = await open('Handler', 'handler');
+    expect(handler.querySelector('.options-readfirst-code')?.textContent).toContain(
+      'return { status: 200, body: customer };'
+    );
+    // A hash opens as every field, by name.
+    const retry = await open('Retry policy', 'retry');
+    expect(retry.textContent).toMatch(/Attempts/);
+    expect(retry.textContent).toMatch(/Exponential|exponential/);
+
+    // Close is the only action on an open row — no More menu, no Clear — and
+    // it closes.
+    expect(
+      document.querySelectorAll('.options-readfirst-reading .options-readfirst-done')
+    ).toHaveLength(5);
+    expect(document.querySelector('.options-readfirst-reading .options-readfirst-more')).toBeNull();
+    expect(
+      document.querySelector('.options-readfirst-reading .options-readfirst-clear')
+    ).toBeNull();
+    await fireEvent.click(retry.querySelector('.options-readfirst-done') as HTMLElement);
+    await waitFor(() => expect(reading('retry')).toBeNull());
   },
 };
 
@@ -6297,11 +6531,21 @@ const RichtextMultilineTemplateValue: IOptions = {
         type: 'paragraph',
         children: [
           { text: 'Alert: ' },
-          { type: 'tag', value: '$fsminput:alert_code', label: 'alert_code', children: [{ text: '' }] },
+          {
+            type: 'tag',
+            value: '$fsminput:alert_code',
+            label: 'alert_code',
+            children: [{ text: '' }],
+          },
           { text: '\nSeverity: ' },
           { type: 'tag', value: '$fsminput:severity', label: 'severity', children: [{ text: '' }] },
           { text: '\nRule: ' },
-          { type: 'tag', value: '$fsminput:rule_name', label: 'rule_name', children: [{ text: '' }] },
+          {
+            type: 'tag',
+            value: '$fsminput:rule_name',
+            label: 'rule_name',
+            children: [{ text: '' }],
+          },
         ],
       },
     ],
@@ -6329,7 +6573,8 @@ export const CompactReadFirstRichtextMultilineTemplate: Story = {
     const proseSpans = Array.from(canvasElement.querySelectorAll('span')).filter(
       // the collapsed newline leaves the segment with a leading space
       (element) =>
-        element.children.length === 0 && /^\s*(Alert|Severity|Rule):/.test(element.textContent || '')
+        element.children.length === 0 &&
+        /^\s*(Alert|Severity|Rule):/.test(element.textContent || '')
     ) as HTMLElement[];
     await expect(proseSpans.length).toBe(3);
 
@@ -6701,9 +6946,7 @@ export const CompactListOfHashReadsInSchemaWordsMobile: Story = {
 
     // The narrow branch is actually engaged — otherwise this is the desktop
     // story with a border round it, and it would pass while proving nothing.
-    await waitFor(() =>
-      expect(canvasElement.querySelector('.readfirst-narrow')).toBeTruthy()
-    );
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-narrow')).toBeTruthy());
 
     const preview = await waitFor(() => {
       const element = canvasElement.querySelector('.schema-data-view');
@@ -6908,7 +7151,7 @@ export const CompactChosenCollapsedBoxes: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with `compactCollapsedGroups={[\'set\', \'optional\']}` — the Set and Optional boxes start collapsed while Needs attention stays open, and typing a search query forces every box open (a collapsed panel unmounts its content, so a match inside one would be unreachable); clearing the query collapses them again.',
+          "Renders a compact form with `compactCollapsedGroups={['set', 'optional']}` — the Set and Optional boxes start collapsed while Needs attention stays open, and typing a search query forces every box open (a collapsed panel unmounts its content, so a match inside one would be unreachable); clearing the query collapses them again.",
       },
     },
   },
