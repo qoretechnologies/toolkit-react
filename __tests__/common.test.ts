@@ -7,7 +7,7 @@
  * (a string from a YAML round-trip) crashed `typedToPlain`'s unguarded `.map`.
  * Each test calls the real production `typedToYaml`.
  */
-import { richtextToSegments, typedToYaml } from '../src/helpers/common';
+import { getDefaultValue, richtextToSegments, typedToYaml } from '../src/helpers/common';
 
 describe('typedToYaml', () => {
   it('renders a list of typed { type, value } items', () => {
@@ -84,5 +84,34 @@ describe('richtextToSegments', () => {
 
   it('returns no segments for an empty value', () => {
     expect(richtextToSegments(undefined as any)).toEqual([]);
+  });
+});
+
+describe('getDefaultValue', () => {
+  /* The crash this guards: every call site reaches the schema as
+     `options?.[optionName]`, and that lookup MISSES whenever a value is held
+     under a name the schema does not describe — ordinary for a form carrying a
+     value for a field the server no longer sends. The body then ran
+     `'default_value' in undefined`, and `in` throws rather than returning
+     false. It threw during render, so React unmounted the tree and a whole page
+     went blank with `Cannot use 'in' operator to search for 'default_value' in
+     undefined` as the only trace. */
+  it('returns undefined for a field with no schema, instead of throwing', () => {
+    expect(() => getDefaultValue(undefined)).not.toThrow();
+    expect(getDefaultValue(undefined)).toBeUndefined();
+  });
+
+  it('still returns undefined when the schema declares no default', () => {
+    expect(getDefaultValue({ type: 'string' } as any)).toBeUndefined();
+  });
+
+  it('reads a plain default', () => {
+    expect(getDefaultValue({ type: 'string', default_value: 'x' } as any)).toBe('x');
+  });
+
+  it('unwraps a typed default', () => {
+    expect(
+      getDefaultValue({ type: 'string', default_value: { type: 'string', value: 'x' } } as any)
+    ).toBe('x');
   });
 });

@@ -68,8 +68,24 @@ export const typedToYaml = (typed: MaybeTyped): string => {
   }
 };
 
-export const getDefaultValue = (schema: TQorusFormFieldSchema): unknown | undefined => {
-  if ('default_value' in schema) {
+/**
+ * The default a field will fall back to, or `undefined` when it declares none.
+ *
+ * The schema is optional because every call site reaches it the same way --
+ * `getDefaultValue(options?.[optionName])` -- and that lookup misses whenever a
+ * VALUE is held under a name the schema does not describe. A form carrying a
+ * value for a field the server no longer sends is ordinary, not exceptional.
+ *
+ * The signature said the argument was always there, so the body used
+ * `'default_value' in schema` and `in` THROWS on undefined rather than
+ * returning false. That threw during render, so the error left the tree
+ * unmounted: a whole page went blank on a value whose only crime was not being
+ * in the schema, with `Cannot use 'in' operator to search for 'default_value'
+ * in undefined` as the only trace. A field with no schema has no declared
+ * default, which is exactly what `undefined` already means here.
+ */
+export const getDefaultValue = (schema?: TQorusFormFieldSchema): unknown | undefined => {
+  if (schema && 'default_value' in schema) {
     if (schema.default_value != null && typeof schema.default_value === 'object') {
       return schema.default_value.value;
     }
