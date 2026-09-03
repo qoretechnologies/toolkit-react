@@ -145,24 +145,26 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
 
   return (
     <ReqoreControlGroup {...reqoreProps} vertical fluid fixed={false} gapSize='big'>
-      {parts.completion && completion.total ?
+      {/* No completion in a read-only form. The meter answers "how much is
+          left to do", and a reader can do none of it: "4/6 set · 67%" over a
+          form nobody can fill in is a progress report on somebody else's
+          work. The read view lists what is set, and that is the whole
+          answer. */}
+      {parts.completion && completion.total && !readOnly ?
         <StyledCompletion className='options-readfirst-completion'>
           <StyledCompletionLine>
-            {!readOnly ?
-              <StyledSummary
-                className='options-readfirst-status'
-                $color={invalidCount ? cWarning : cSuccess}
-                style={{ fontWeight: 600 }}
-              >
-                {invalidCount ? 'Draft' : 'Ready'}
-              </StyledSummary>
-            : null}
-            <StyledSummary style={{ opacity: 0.5 }}>
-              {!readOnly ? '· ' : ''}
-              {completion.set}/{completion.total} set
-              {!readOnly && attentionCount ? ' ·' : ''}
+            <StyledSummary
+              className='options-readfirst-status'
+              $color={invalidCount ? cWarning : cSuccess}
+              style={{ fontWeight: 600 }}
+            >
+              {invalidCount ? 'Draft' : 'Ready'}
             </StyledSummary>
-            {!readOnly && attentionCount ?
+            <StyledSummary style={{ opacity: 0.5 }}>
+              · {completion.set}/{completion.total} set
+              {attentionCount ? ' ·' : ''}
+            </StyledSummary>
+            {attentionCount ?
               <StyledAttentionLink
                 $color={cWarning}
                 className='options-readfirst-attention-link'

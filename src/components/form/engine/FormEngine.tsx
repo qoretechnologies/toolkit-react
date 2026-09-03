@@ -2734,7 +2734,11 @@ const FormEngineImpl = ({
     const absorbedBy: Record<string, string> = {};
     forEach(options, (option, optionName) => {
       const absorb = (option as { absorb_fields?: string[] } | undefined)?.absorb_fields;
-      if (!absorb?.length) return;
+      // A read-only form absorbs nothing. A host row shows an absorbed
+      // sibling only inside its EDITOR, and a read view never opens one — so
+      // the language a code field had absorbed would be nowhere on the page.
+      // Every set field gets a row of its own instead.
+      if (!absorb?.length || readOnly) return;
       absorb.forEach((absorbedName) => {
         // Only absorb a sibling that exists and is not already spoken for; a
         // schema naming a missing field must not make the field disappear.
@@ -2769,11 +2773,15 @@ const FormEngineImpl = ({
     // only). availableOptions (listed) and filteredOptions (these) are disjoint —
     // the former is built from fixedValue keys, the latter excludes them — so a
     // field is never both a listed and a hidden row.
-    forEach(filteredOptions, (_schema, optionName) => {
-      if (matchesFilters(optionName)) {
-        pushRow(optionName, true);
-      }
-    });
+    // Not in a read-only form: a not-yet-added field is an offer to add it,
+    // and a reader cannot take it up.
+    if (!readOnly) {
+      forEach(filteredOptions, (_schema, optionName) => {
+        if (matchesFilters(optionName)) {
+          pushRow(optionName, true);
+        }
+      });
+    }
 
     // User sort (Fields menu → "Sort by"), applied WITHIN each group so the
     // group sections and the required-group rails are preserved. Schema order is
@@ -2859,9 +2867,20 @@ const FormEngineImpl = ({
       settledBucket.current[entry.name] = fresh;
       return fresh;
     };
+    // Read-only: one list, not three boxes. "Needs attention" is an
+    // instruction, and a reader has nothing to do with it — a required field
+    // nobody filled in is shown unset, without the amber. "Optional" holds
+    // the fields nobody set, which in a read view is a list of things that
+    // are not there, so it is left out altogether.
+    const readBucketOf = (entry: TRowEntry): TFormEngineBoxKey | undefined => {
+      const fresh = stableBucketOf(entry);
+      if (!readOnly) return fresh;
+      return fresh === 'optional' ? undefined : 'set';
+    };
     groupKeys.forEach((groupName) => {
       grouped[groupName].forEach((entry) => {
-        const b = stableBucketOf(entry);
+        const b = readBucketOf(entry);
+        if (!b) return;
         if (!buckets[b][groupName]) {
           buckets[b][groupName] = [];
           bucketGroups[b].push(groupName);
@@ -3003,11 +3022,7 @@ const FormEngineImpl = ({
     /** @param only when given, render just these rows of the group — the group
         can be split across the shown and folded halves of a capped box, and its
         label must appear above whichever half holds its first row. */
-    const renderBoxGroup = (
-      boxKey: TFormEngineBoxKey,
-      groupName: string,
-      only?: Set<string>
-    ) => {
+    const renderBoxGroup = (boxKey: TFormEngineBoxKey, groupName: string, only?: Set<string>) => {
       const groupConfig = groups?.[groupName];
       const rows =
         only ?
@@ -3093,142 +3108,23 @@ const FormEngineImpl = ({
                     ...compactPanelProps?.contentStyle,
                   }}
                 >
-                  {size(groupKeys) === 0 ?
+                  {size(groupKeys) === 0 || (readOnly && !bucketCount('set')) ?
                     <ReqoreMessage flat opaque={false} size='small'>
-                      No fields match the current filters.
+                      {readOnly && !query ?
+                        'Nothing is set.'
+                      : 'No fields match the current filters.'}
                     </ReqoreMessage>
                   : null}
 
-                  {STATUS_BOXES.map((box) => {
-                    const groupsInBox = bucketGroups[box.key];
-                    const count = bucketCount(box.key);
-                    if (!count) return null;
-                    const hasPreselectedRows = boxHasPreselectedRows(box.key);
-                    const wouldCollapse =
-                      compactCollapsedGroups.includes(box.key) &&
-                      !query &&
-                      !(box.key === 'optional' && onlyOptionalRows);
-                    // Only a box that was opened SOLELY to reveal a preselected
-                    // row splits its body; a box that renders open anyway shows
-                    // all of its groups as before.
-                    const splitForPreselected = wouldCollapse && hasPreselectedRows;
-
-                    // Which rows this box shows, and which fold away, decided at
-                    // ROW level because `maxFieldsShown` counts fields — a
-                    // group-level split can only ever cut at a group boundary.
-                    // Group order is preserved so the visible rows read in the
-                    // same order they would if nothing were folded.
-                    const orderedRows: TRowEntry[] = groupsInBox.flatMap(
-                      (groupName) => buckets[box.key][groupName] || []
-                    );
-                    // Optional's own rule first: a box opened solely to reveal
-                    // preselected rows offers those, not an arbitrary first-N.
-                    const candidateRows =
-                      splitForPreselected ? orderedRows.filter(isPreselectedRow) : orderedRows;
-                    // …then the cap applies to whatever that left.
-                    const capped =
-                      maxFieldsShown !== undefined && candidateRows.length > maxFieldsShown;
-                    const shownRows = capped ? candidateRows.slice(0, maxFieldsShown) : candidateRows;
-                    const shownRowSet = new Set(shownRows.map((entry) => entry.name));
-                    // Everything the box holds that is not on show. Once the
-                    // reader asks for more they get the whole box — withholding
-                    // the non-preselected remainder behind a second control is
-                    // the same defect one level down.
-                    const deferredRowSet = new Set(
-                      orderedRows
-                        .filter((entry) => !shownRowSet.has(entry.name))
-                        .map((entry) => entry.name)
-                    );
-                    const deferredCount = deferredRowSet.size;
-                    const shownGroups = groupsInBox.filter((groupName) =>
-                      (buckets[box.key][groupName] || []).some((entry) =>
-                        shownRowSet.has(entry.name)
-                      )
-                    );
-                    const deferredGroups = groupsInBox.filter((groupName) =>
-                      (buckets[box.key][groupName] || []).some(
-                        (entry) => !shownRowSet.has(entry.name)
-                      )
-                    );
-                    const moreOpen = Boolean(query) || expandedMoreBoxes.includes(box.key);
-                    const accent =
-                      box.key === 'attention' ? cWarning
-                      : box.key === 'set' ? cSuccess
-                      : cMuted;
-                    // The muted "Optional" box reads as a quieter, recessed
-                    // surface — a touch darker than the page rather than the
-                    // faint grey tint the accent would give.
-                    const boxBg =
-                      box.key === 'optional' ?
-                        changeDarkness(getMainBackgroundColor(theme), 0.06)
-                      : undefined;
-                    return (
-                      <StyledStatusBox
-                        $accent={accent}
-                        $bg={boxBg}
-                        key={box.key}
-                        ref={(node: HTMLDivElement | null) => {
-                          statusBoxRefs.current[box.key] = node;
-                        }}
-                        // Opening arms the reveal; collapsing disarms it, so a
-                        // close never scrolls.
-                        onCollapseChange={(collapsed) =>
-                          setOpenedStatusBox(collapsed ? undefined : box.key)
-                        }
-                        flat
-                        minimal
-                        collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
-                        collapsible
-                        // Which boxes start closed is the consumer's call
-                        // (`compactCollapsedGroups`, default `['optional']`: the
-                        // Optional box holds every not-yet-added field, so a form
-                        // opens on what is in use). Two rules override it:
-                        //
-                        // A SEARCH forces every box open — ReqorePanel unmounts
-                        // collapsed content, so a match inside a closed box would
-                        // be unreachable. (isCollapsed is the panel's controllable
-                        // state; manual toggling still works with no query set.)
-                        //
-                        // The Optional box stays open when it is the ONLY box,
-                        // because collapsing it renders a card that looks empty and
-                        // broken: an auth profile's Authorization block, whose nine
-                        // requirement fields are all optional, showed as a titled
-                        // card containing one collapsed "Optional 9" strip and
-                        // nothing else. This does not generalise to the other two —
-                        // a lone Set box collapsed is a deliberate ask, and its
-                        // header still reports what is in there.
-                        //
-                        // A PRESELECTED row overrides it too: the schema asked
-                        // for that field to be visible on a new form, so the
-                        // box it lands in opens. The groups it does NOT appear
-                        // in stay behind an inner collapse below, so opening
-                        // the box reveals the preselected fields without also
-                        // dumping every not-yet-added optional field on the
-                        // author.
-                        isCollapsed={wouldCollapse && !hasPreselectedRows}
-                        label={
-                          <StyledGroupHeader>
-                            <ReqoreP effect={{ weight: 'bold' }} size='normal'>
-                              {box.label}
-                            </ReqoreP>
-                            <ReqoreTag
-                              size='small'
-                              minimal
-                              compact
-                              intent={box.intent}
-                              label={String(count)}
-                            />
-                          </StyledGroupHeader>
-                        }
-                        icon={box.icon}
-                        className='options-readfirst-group'
-                        padded={false}
-                        contentStyle={{ padding: '4px 4px 6px' }}
-                      >
-                        {/* ONE group body per box: every field block (and the
-                            thin schema sub-labels) is a direct flex child, so the
-                            inter-field gap is identical everywhere — including
-                            across schema-group boundaries. */}
+                  {/* A read-only form is one flat list of what is set: no
+                      "Set" heading with a count over it (there is nothing else
+                      it could be), no green tint (a colour that means "done"
+                      on a form nobody is doing), nothing to collapse — and no
+                      `maxFieldsShown` fold: "12 more fields" behind a click is
+                      the reader's record withheld, and a page scrolls. */}
+                  {readOnly ?
+                    bucketCount('set') ?
+                      <div className='options-readfirst-read' style={{ padding: '4px 4px 6px' }}>
                         <StyledGroupBody
                           $divider={cDivider}
                           $hover={cHover}
@@ -3239,52 +3135,198 @@ const FormEngineImpl = ({
                           $moreBorder={cMoreBorder}
                           className={compactNarrow ? 'readfirst-narrow' : undefined}
                         >
-                          {shownGroups.map((groupName) =>
-                            renderBoxGroup(box.key, groupName, shownRowSet)
-                          )}
-                          {/* The control lives INSIDE the group body, as the last
+                          {bucketGroups.set.map((groupName) => renderBoxGroup('set', groupName))}
+                        </StyledGroupBody>
+                      </div>
+                    : null
+                  : STATUS_BOXES.map((box) => {
+                      const groupsInBox = bucketGroups[box.key];
+                      const count = bucketCount(box.key);
+                      if (!count) return null;
+                      const hasPreselectedRows = boxHasPreselectedRows(box.key);
+                      const wouldCollapse =
+                        compactCollapsedGroups.includes(box.key) &&
+                        !query &&
+                        !(box.key === 'optional' && onlyOptionalRows);
+                      // Only a box that was opened SOLELY to reveal a preselected
+                      // row splits its body; a box that renders open anyway shows
+                      // all of its groups as before.
+                      const splitForPreselected = wouldCollapse && hasPreselectedRows;
+
+                      // Which rows this box shows, and which fold away, decided at
+                      // ROW level because `maxFieldsShown` counts fields — a
+                      // group-level split can only ever cut at a group boundary.
+                      // Group order is preserved so the visible rows read in the
+                      // same order they would if nothing were folded.
+                      const orderedRows: TRowEntry[] = groupsInBox.flatMap(
+                        (groupName) => buckets[box.key][groupName] || []
+                      );
+                      // Optional's own rule first: a box opened solely to reveal
+                      // preselected rows offers those, not an arbitrary first-N.
+                      const candidateRows =
+                        splitForPreselected ? orderedRows.filter(isPreselectedRow) : orderedRows;
+                      // …then the cap applies to whatever that left.
+                      const capped =
+                        maxFieldsShown !== undefined && candidateRows.length > maxFieldsShown;
+                      const shownRows =
+                        capped ? candidateRows.slice(0, maxFieldsShown) : candidateRows;
+                      const shownRowSet = new Set(shownRows.map((entry) => entry.name));
+                      // Everything the box holds that is not on show. Once the
+                      // reader asks for more they get the whole box — withholding
+                      // the non-preselected remainder behind a second control is
+                      // the same defect one level down.
+                      const deferredRowSet = new Set(
+                        orderedRows
+                          .filter((entry) => !shownRowSet.has(entry.name))
+                          .map((entry) => entry.name)
+                      );
+                      const deferredCount = deferredRowSet.size;
+                      const shownGroups = groupsInBox.filter((groupName) =>
+                        (buckets[box.key][groupName] || []).some((entry) =>
+                          shownRowSet.has(entry.name)
+                        )
+                      );
+                      const deferredGroups = groupsInBox.filter((groupName) =>
+                        (buckets[box.key][groupName] || []).some(
+                          (entry) => !shownRowSet.has(entry.name)
+                        )
+                      );
+                      const moreOpen = Boolean(query) || expandedMoreBoxes.includes(box.key);
+                      const accent =
+                        box.key === 'attention' ? cWarning
+                        : box.key === 'set' ? cSuccess
+                        : cMuted;
+                      // The muted "Optional" box reads as a quieter, recessed
+                      // surface — a touch darker than the page rather than the
+                      // faint grey tint the accent would give.
+                      const boxBg =
+                        box.key === 'optional' ?
+                          changeDarkness(getMainBackgroundColor(theme), 0.06)
+                        : undefined;
+                      return (
+                        <StyledStatusBox
+                          $accent={accent}
+                          $bg={boxBg}
+                          key={box.key}
+                          ref={(node: HTMLDivElement | null) => {
+                            statusBoxRefs.current[box.key] = node;
+                          }}
+                          // Opening arms the reveal; collapsing disarms it, so a
+                          // close never scrolls.
+                          onCollapseChange={(collapsed) =>
+                            setOpenedStatusBox(collapsed ? undefined : box.key)
+                          }
+                          flat
+                          minimal
+                          collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
+                          collapsible
+                          // Which boxes start closed is the consumer's call
+                          // (`compactCollapsedGroups`, default `['optional']`: the
+                          // Optional box holds every not-yet-added field, so a form
+                          // opens on what is in use). Two rules override it:
+                          //
+                          // A SEARCH forces every box open — ReqorePanel unmounts
+                          // collapsed content, so a match inside a closed box would
+                          // be unreachable. (isCollapsed is the panel's controllable
+                          // state; manual toggling still works with no query set.)
+                          //
+                          // The Optional box stays open when it is the ONLY box,
+                          // because collapsing it renders a card that looks empty and
+                          // broken: an auth profile's Authorization block, whose nine
+                          // requirement fields are all optional, showed as a titled
+                          // card containing one collapsed "Optional 9" strip and
+                          // nothing else. This does not generalise to the other two —
+                          // a lone Set box collapsed is a deliberate ask, and its
+                          // header still reports what is in there.
+                          //
+                          // A PRESELECTED row overrides it too: the schema asked
+                          // for that field to be visible on a new form, so the
+                          // box it lands in opens. The groups it does NOT appear
+                          // in stay behind an inner collapse below, so opening
+                          // the box reveals the preselected fields without also
+                          // dumping every not-yet-added optional field on the
+                          // author.
+                          isCollapsed={wouldCollapse && !hasPreselectedRows}
+                          label={
+                            <StyledGroupHeader>
+                              <ReqoreP effect={{ weight: 'bold' }} size='normal'>
+                                {box.label}
+                              </ReqoreP>
+                              <ReqoreTag
+                                size='small'
+                                minimal
+                                compact
+                                intent={box.intent}
+                                label={String(count)}
+                              />
+                            </StyledGroupHeader>
+                          }
+                          icon={box.icon}
+                          className='options-readfirst-group'
+                          padded={false}
+                          contentStyle={{ padding: '4px 4px 6px' }}
+                        >
+                          {/* ONE group body per box: every field block (and the
+                            thin schema sub-labels) is a direct flex child, so the
+                            inter-field gap is identical everywhere — including
+                            across schema-group boundaries. */}
+                          <StyledGroupBody
+                            $divider={cDivider}
+                            $hover={cHover}
+                            $focus={cWarning}
+                            $success={cSuccess}
+                            $rowBg={cRowBg}
+                            $lineColor={cGroupLine}
+                            $moreBorder={cMoreBorder}
+                            className={compactNarrow ? 'readfirst-narrow' : undefined}
+                          >
+                            {shownGroups.map((groupName) =>
+                              renderBoxGroup(box.key, groupName, shownRowSet)
+                            )}
+                            {/* The control lives INSIDE the group body, as the last
                               row, so it inherits the rows' grid, padding and
                               hover and lines up with them. Outside it was a bare
                               line of text in the box's corner, which is what the
                               build #154 review rejected. */}
-                          {deferredCount ?
-                            <button
-                              type='button'
-                              className='readfirst-row readfirst-more-row options-readfirst-more'
-                              aria-expanded={moreOpen}
-                              onClick={() =>
-                                setExpandedMoreBoxes((prev) =>
-                                  prev.includes(box.key) ?
-                                    prev.filter((k) => k !== box.key)
-                                  : [...prev, box.key]
-                                )
-                              }
-                            >
-                              <ReqoreP size='small' effect={{ opacity: 0.8 }}>
-                                {moreOpen ?
-                                  'Show fewer'
-                                : `${deferredCount} more ${box.key === 'optional' ? 'optional ' : ''}field${deferredCount === 1 ? '' : 's'}`
+                            {deferredCount ?
+                              <button
+                                type='button'
+                                className='readfirst-row readfirst-more-row options-readfirst-more'
+                                aria-expanded={moreOpen}
+                                onClick={() =>
+                                  setExpandedMoreBoxes((prev) =>
+                                    prev.includes(box.key) ?
+                                      prev.filter((k) => k !== box.key)
+                                    : [...prev, box.key]
+                                  )
                                 }
-                              </ReqoreP>
-                              <ReqoreIcon
-                                icon='ArrowDownSLine'
-                                size='small'
-                                className='readfirst-more-chevron'
-                                effect={{ opacity: 0.8 }}
-                              />
-                            </button>
-                          : null}
-                          {/* A search forces the fold open for the same reason
+                              >
+                                <ReqoreP size='small' effect={{ opacity: 0.8 }}>
+                                  {moreOpen ?
+                                    'Show fewer'
+                                  : `${deferredCount} more ${box.key === 'optional' ? 'optional ' : ''}field${deferredCount === 1 ? '' : 's'}`
+                                  }
+                                </ReqoreP>
+                                <ReqoreIcon
+                                  icon='ArrowDownSLine'
+                                  size='small'
+                                  className='readfirst-more-chevron'
+                                  effect={{ opacity: 0.8 }}
+                                />
+                              </button>
+                            : null}
+                            {/* A search forces the fold open for the same reason
                               the boxes open: an unmounted row cannot be found. */}
-                          {deferredCount && moreOpen ?
-                            deferredGroups.map((groupName) =>
-                              renderBoxGroup(box.key, groupName, deferredRowSet)
-                            )
-                          : null}
-                        </StyledGroupBody>
-                      </StyledStatusBox>
-                    );
-                  })}
+                            {deferredCount && moreOpen ?
+                              deferredGroups.map((groupName) =>
+                                renderBoxGroup(box.key, groupName, deferredRowSet)
+                              )
+                            : null}
+                          </StyledGroupBody>
+                        </StyledStatusBox>
+                      );
+                    })
+                  }
                 </StyledCompactPanel>
 
                 {/* Batched commit: the Save/Discard bar docks bottom-right, floating
