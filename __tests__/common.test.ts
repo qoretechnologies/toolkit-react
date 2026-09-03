@@ -7,7 +7,7 @@
  * (a string from a YAML round-trip) crashed `typedToPlain`'s unguarded `.map`.
  * Each test calls the real production `typedToYaml`.
  */
-import { richtextToSegments, typedToYaml } from '../src/helpers/common';
+import { getDefaultValue, richtextToSegments, typedToYaml } from '../src/helpers/common';
 
 describe('typedToYaml', () => {
   it('renders a list of typed { type, value } items', () => {
@@ -60,7 +60,12 @@ describe('richtextToSegments', () => {
         type: 'paragraph',
         children: [
           { text: 'This is a rich text option ' },
-          { type: 'tag', label: 'Richtext Template', value: '$local:some-richtext', children: [{ text: '' }] },
+          {
+            type: 'tag',
+            label: 'Richtext Template',
+            value: '$local:some-richtext',
+            children: [{ text: '' }],
+          },
           { text: '' },
         ],
       },
@@ -73,7 +78,10 @@ describe('richtextToSegments', () => {
 
   it('falls back to the tag value when it has no label', () => {
     const segments = richtextToSegments([
-      { type: 'paragraph', children: [{ type: 'tag', value: '$config:url', children: [{ text: '' }] }] },
+      {
+        type: 'paragraph',
+        children: [{ type: 'tag', value: '$config:url', children: [{ text: '' }] }],
+      },
     ] as any);
     expect(segments).toEqual([{ kind: 'tag', value: '$config:url', text: '$config:url' }]);
   });
@@ -84,5 +92,24 @@ describe('richtextToSegments', () => {
 
   it('returns no segments for an empty value', () => {
     expect(richtextToSegments(undefined as any)).toEqual([]);
+  });
+});
+
+describe('getDefaultValue', () => {
+  it('answers "none" for a missing schema instead of throwing', () => {
+    // A form can hold a value key its schema does not describe — a host that
+    // recomputes schema and value in separate memos renders once in between —
+    // and the compact row asks for the default of every empty row. This used
+    // to be `'default_value' in undefined`, a TypeError that took the whole
+    // form to the error boundary.
+    expect(getDefaultValue(undefined)).toBeUndefined();
+  });
+
+  it('reads a bare default and unwraps an envelope', () => {
+    expect(getDefaultValue({ type: 'string', default_value: 'x' } as any)).toBe('x');
+    expect(
+      getDefaultValue({ type: 'number', default_value: { type: 'number', value: 3 } } as any)
+    ).toBe(3);
+    expect(getDefaultValue({ type: 'string' } as any)).toBeUndefined();
   });
 });

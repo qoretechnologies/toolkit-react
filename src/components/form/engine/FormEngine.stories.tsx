@@ -2,7 +2,7 @@ import { ReqoreInput } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react-vite';
-import { ChangeEvent, useEffect, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
 import { defaultQorusTypes } from '../../../hooks/useQorusTypes';
@@ -2490,6 +2490,68 @@ export const CompactReadOnly: Story = {
         '.options-readfirst-read input, .options-readfirst-read textarea, .options-readfirst-read select, .options-readfirst-read [contenteditable]'
       )
     ).toBeNull();
+  },
+};
+
+/**
+ * The schema SHRINKS under a mounted form: a field the form has a value for
+ * stops existing. A host does this whenever one choice decides which other
+ * fields exist — qorus-ide's model editor drops `composedOf` when the
+ * composition kind goes back to "none" — and for a render the form still
+ * holds the value while the schema no longer describes it. The row for it
+ * used to throw from the default-value lookup and take the whole form to the
+ * error boundary.
+ */
+const SchemaShrinksHarness = (args: IFormEngineProps) => {
+  const [shrunk, setShrunk] = useState(false);
+  const options = useMemo<IOptionsSchema>(
+    () =>
+      shrunk ? CompactSchema : (
+        {
+          ...CompactSchema,
+          composedOf: {
+            type: 'list',
+            ui_type: 'list',
+            display_name: 'Composed of',
+            short_desc: 'Only exists while the composition kind says so',
+            preselected: true,
+            group: 'info',
+          },
+        }
+      ),
+    [shrunk]
+  );
+  return (
+    <div>
+      <button type='button' onClick={() => setShrunk(true)}>
+        Shrink the schema
+      </button>
+      <FormEngine {...args} options={options} />
+    </div>
+  );
+};
+
+export const SchemaShrinksWhileMounted: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Compact fixture with one extra list field that holds an empty value, then removes that field from the schema while mounted — what a host does when one choice decides which other fields exist. The form keeps rendering: the orphaned value has no schema and therefore no default, and the row it briefly still has draws an em-dash instead of throwing.',
+      },
+    },
+    chromatic: { disable: true },
+  },
+  args: {
+    ...Compact.args,
+    value: { ...CompactValue, composedOf: { type: 'list', value: [] } },
+  },
+  render: (args) => <SchemaShrinksHarness {...args} />,
+  play: async () => {
+    await _testsWaitForText('Composed of');
+    await _testsClickText('Shrink the schema');
+    await _testsWaitForTextToNotExist('Composed of');
+    await _testsWaitForText('order-fulfilment');
+    await _testsWaitForTextToNotExist('Something went wrong');
   },
 };
 
@@ -7550,9 +7612,11 @@ export const CompactMaxFieldsShown: Story = {
     expect(edge.borderStyle).toBe('dashed');
     expect(edge.borderTopWidth).toBe('1px');
     // …and it inherits the rows' geometry rather than inventing its own
-    expect(edge.paddingLeft).toBe(getComputedStyle(
-      canvasElement.querySelector('.readfirst-row:not(.readfirst-more-row)') as HTMLElement
-    ).paddingLeft);
+    expect(edge.paddingLeft).toBe(
+      getComputedStyle(
+        canvasElement.querySelector('.readfirst-row:not(.readfirst-more-row)') as HTMLElement
+      ).paddingLeft
+    );
 
     fireEvent.click(more);
 
