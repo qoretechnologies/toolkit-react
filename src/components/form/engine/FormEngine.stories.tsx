@@ -3989,7 +3989,7 @@ export const CompactOverflowAndStickyHeader: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form tall enough to scroll — the group headers stick to the top of the panel as the form scrolls under them.',
+          'Renders a compact form with `compactScroll="own"` — the form caps at the host height and scrolls its own body, and its toolbar stays pinned to the top of that body.',
       },
     },
     chromatic: { disable: true },
@@ -4005,6 +4005,9 @@ export const CompactOverflowAndStickyHeader: Story = {
   ],
   args: {
     compact: true,
+    // The opt-in branch: this story is about the form owning its scroll, so it
+    // asks for it. The default is `'host'` — see CompactHostOwnedScroll.
+    compactScroll: 'own' as const,
     minColumnWidth: '300px',
     options: CompactScrollableSchema,
     groups: CompactGroups,
@@ -4040,6 +4043,71 @@ export const CompactOverflowAndStickyHeader: Story = {
       const scrollerTop = scroller.getBoundingClientRect().top;
       expect(search.getBoundingClientRect().top).toBeGreaterThanOrEqual(scrollerTop - 1);
       expect(search.getBoundingClientRect().top).toBeLessThan(scrollerTop + 150);
+    });
+  },
+};
+
+// The default branch of `compactScroll`. Two compact forms inside one scrolling
+// host is the shape that exposed this: each form used to cap at the host height
+// and scroll its own body, so a page with two of them showed three scrollbars in
+// two styles and the reader could not tell which moved what.
+export const CompactHostOwnedScroll: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders two compact forms inside one scrolling host. With the default `compactScroll="host"` neither form scrolls itself — the host owns the only scrollbar — and each form\'s toolbar still pins to the top of the host as it scrolls.',
+      },
+    },
+    chromatic: { disable: true },
+  },
+  decorators: [
+    (StoryComponent: React.ComponentType) => (
+      <div style={{ height: 400, overflow: 'auto' }} data-testid='compact-scroll-host'>
+        <StoryComponent />
+        <StoryComponent />
+      </div>
+    ),
+  ],
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactScrollableSchema,
+    groups: CompactGroups,
+    value: CompactValue,
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+    const host = document.querySelector('[data-testid="compact-scroll-host"]') as HTMLElement;
+    const wraps = Array.from(
+      document.querySelectorAll('.options-readfirst-scroll')
+    ) as HTMLElement[];
+    await expect(wraps.length).toBe(2);
+
+    // (a) No form owns a scroll context — `overflow-x: clip` rather than
+    // `hidden` matters here: `hidden` would coerce `overflow-y: visible` back
+    // to `auto`, leaving each form a scroll container whose sticky toolbar
+    // silently stops pinning to the host.
+    for (const wrap of wraps) {
+      await expect(getComputedStyle(wrap).overflowY).toBe('visible');
+      await expect(wrap.scrollHeight).toBeLessThanOrEqual(wrap.clientHeight + 1);
+    }
+
+    // (b) Exactly one element on the page scrolls, and it is the host.
+    const scrollers = (Array.from(document.querySelectorAll('*')) as HTMLElement[]).filter(
+      (el) =>
+        /(auto|scroll)/.test(getComputedStyle(el).overflowY) &&
+        el.scrollHeight > el.clientHeight + 4 &&
+        el.clientHeight > 80
+    );
+    await expect(scrollers).toEqual([host]);
+
+    // (c) The toolbar still pins — the guarantee the self-scroll existed for.
+    host.scrollTop = 300;
+    await waitFor(() => {
+      const search = document.querySelector('input[placeholder="Filter fields..."]') as HTMLElement;
+      const hostTop = host.getBoundingClientRect().top;
+      expect(search.getBoundingClientRect().top).toBeGreaterThanOrEqual(hostTop - 1);
     });
   },
 };
