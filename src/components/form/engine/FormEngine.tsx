@@ -242,7 +242,6 @@ const StyledCompactWrap = styled.div<{ $ownScroll?: boolean }>`
      engage instead of overflowing the container horizontally. */
   min-width: 0;
   max-width: 100%;
-  min-height: 0;
 
   /* Scroll ownership — see \`compactScroll\`.
 
@@ -265,12 +264,22 @@ const StyledCompactWrap = styled.div<{ $ownScroll?: boolean }>`
              resolve sticky \`top: 0\` against its padding box and leave an
              unblurred strip above the toolbar. Scrolling in this unpadded box
              pins it flush. Cap at the host's available height, but do not grow
-             to fill it — short forms still hug their content. */
+             to fill it — short forms still hug their content.
+
+             \`min-height: 0\` is what lets a flex item shrink below its content
+             so there is something to scroll; it belongs to this branch only. */
+          min-height: 0;
           max-height: 100%;
           overflow-y: auto;
           overflow-x: hidden;
         `
       : css`
+          /* \`min-height: auto\` is load-bearing, not a default: inside a column
+             flex parent the shrink allowance above collapses this box to zero
+             height while its rows paint outside it, so the form looks right but
+             contributes nothing to layout — the host cannot size or scroll to
+             it and anything below it stacks against nothing. */
+          min-height: auto;
           max-height: none;
           overflow-y: visible;
           overflow-x: clip;

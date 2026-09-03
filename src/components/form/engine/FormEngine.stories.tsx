@@ -4061,9 +4061,16 @@ export const CompactHostOwnedScroll: Story = {
     },
     chromatic: { disable: true },
   },
+  // A COLUMN FLEX host with a definite height — the shape real consumers use
+  // (qorus-ide's ContentWrapper is exactly this). It matters: a plain block
+  // host does not exercise the flex shrink allowance, so the zero-height
+  // collapse assertion below cannot fail there and the test would be worthless.
   decorators: [
     (StoryComponent: React.ComponentType) => (
-      <div style={{ height: 400, overflow: 'auto' }} data-testid='compact-scroll-host'>
+      <div
+        style={{ height: 400, overflow: 'auto', display: 'flex', flexFlow: 'column' }}
+        data-testid='compact-scroll-host'
+      >
         <StoryComponent />
         <StoryComponent />
       </div>
@@ -4093,7 +4100,20 @@ export const CompactHostOwnedScroll: Story = {
       await expect(wrap.scrollHeight).toBeLessThanOrEqual(wrap.clientHeight + 1);
     }
 
-    // (b) Exactly one element on the page scrolls, and it is the host.
+    // (b) Each form still OCCUPIES its content. Releasing the scroll without
+    // also releasing the flex shrink allowance collapses the wrap to zero
+    // height: the rows paint outside it, so it looks correct while the host
+    // sizes and scrolls to nothing. Assert the box, not just the pixels.
+    for (const wrap of wraps) {
+      const child = wrap.firstElementChild as HTMLElement;
+      await expect(wrap.getBoundingClientRect().height).toBeGreaterThan(0);
+      await expect(wrap.getBoundingClientRect().height).toBeCloseTo(
+        child.getBoundingClientRect().height,
+        0
+      );
+    }
+
+    // (c) Exactly one element on the page scrolls, and it is the host.
     const scrollers = (Array.from(document.querySelectorAll('*')) as HTMLElement[]).filter(
       (el) =>
         /(auto|scroll)/.test(getComputedStyle(el).overflowY) &&
@@ -4102,7 +4122,7 @@ export const CompactHostOwnedScroll: Story = {
     );
     await expect(scrollers).toEqual([host]);
 
-    // (c) The toolbar still pins — the guarantee the self-scroll existed for.
+    // (d) The toolbar still pins — the guarantee the self-scroll existed for.
     host.scrollTop = 300;
     await waitFor(() => {
       const search = document.querySelector('input[placeholder="Filter fields..."]') as HTMLElement;
