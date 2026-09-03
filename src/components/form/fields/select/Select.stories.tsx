@@ -389,3 +389,92 @@ export const ItemValuesAreObjectsAndCanBeSelected: Story = {
     await waitFor(() => expect(canvas.getByText('Item 2')).toBeInTheDocument(), { timeout: 1000 });
   },
 };
+
+const PATH_ITEMS = [
+  {
+    display_name: 'status from create',
+    short_desc: '$.create.status (int)',
+    value: '$.create.status',
+  },
+  {
+    display_name: 'body from create',
+    short_desc: '$.create.body (auto)',
+    value: '$.create.body',
+  },
+  {
+    display_name: 'headers from create',
+    short_desc: '$.create.headers (hash)',
+    value: '$.create.headers',
+  },
+];
+
+export const Creatable: Story = {
+  args: {
+    canCreateItems: true,
+    items: PATH_ITEMS,
+    value: '$.create.status',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Select field as a chip plus a searchable list. The chosen value reads as the label its producer gave it, and a value the list does not offer can be typed and created — the case a reference path lands in once it goes deeper than the candidates reach.',
+      },
+    },
+  },
+};
+
+export const CreatableWithValueOutsideTheList: Story = {
+  args: {
+    canCreateItems: true,
+    items: PATH_ITEMS,
+    value: '$.create.body.items[0].sku',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a creatable Select holding a value no item offers. The chip is drawn from the value itself, so a hand-entered path still reads as a chosen value rather than as an empty field.',
+      },
+    },
+  },
+};
+
+export const CreatableEmpty: Story = {
+  args: {
+    canCreateItems: true,
+    items: PATH_ITEMS,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a creatable Select with nothing chosen yet — the empty state says so rather than showing a blank text box.',
+      },
+    },
+  },
+};
+
+export const CreatableOffersToCreate: Story = {
+  args: {
+    canCreateItems: true,
+    items: PATH_ITEMS,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Typing a value no candidate matches offers to create it, above the candidates that do match. This is the affordance a single-value field had no way to express before: the list stays a list, and the value outside it is still reachable.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole('textbox');
+    await fireEvent.change(input, { target: { value: '$.create.body.items[0].sku' } });
+    await waitFor(
+      () => expect(document.querySelector('.reqore-popover-content')).toBeInTheDocument(),
+      { timeout: 2000 }
+    );
+  },
+};

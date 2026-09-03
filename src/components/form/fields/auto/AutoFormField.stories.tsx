@@ -470,6 +470,62 @@ export const ListWithAllowedValues: Story = {
   },
 };
 
+export const StringWithCreatableAllowedValues: Story = {
+  args: {
+    defaultType: 'string',
+    value: '$.create.status',
+    allowed_values_creatable: true,
+    allowed_values: [
+      {
+        display_name: 'status from create',
+        short_desc: '$.create.status (int)',
+        value: { type: 'string', value: '$.create.status' },
+      },
+      {
+        display_name: 'body from create',
+        short_desc: '$.create.body (auto)',
+        value: { type: 'string', value: '$.create.body' },
+      },
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField for a creatable string field: ONE control holds the value as a chip and offers the candidates, rather than a text box with a suggestion picker beside it. The chip reads as the label the producer gave the value, and a value the list cannot enumerate is still typeable.',
+      },
+    },
+  },
+};
+
+export const StringWithCreatableAllowedValuesOutsideTheList: Story = {
+  args: {
+    defaultType: 'string',
+    value: '$.create.body.items[0].sku',
+    allowed_values_creatable: true,
+    allowed_values: [
+      {
+        display_name: 'status from create',
+        short_desc: '$.create.status (int)',
+        value: { type: 'string', value: '$.create.status' },
+      },
+      {
+        display_name: 'body from create',
+        short_desc: '$.create.body (auto)',
+        value: { type: 'string', value: '$.create.body' },
+      },
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The ordinary state of a creatable field once the value goes deeper than the candidates reach — `body` is `auto`, so nothing under it can be enumerated. The chip is drawn from the value itself.',
+      },
+    },
+  },
+};
+
 export const ListWithCreatableAllowedValues: Story = {
   args: {
     defaultType: 'list',

@@ -3,10 +3,12 @@ import {
   ReqoreDropdown,
   ReqoreMenu,
   ReqoreMenuItem,
+  ReqoreSelect,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps, TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
+import { TReqoreSelectItem } from '@qoretechnologies/reqore/dist/components/Select';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { isEqual, size } from 'lodash';
@@ -31,6 +33,14 @@ export interface ISelectFormFieldProps {
   asMenu?: boolean;
   icon?: IReqoreIconName;
   showDescription?: 'tooltip' | boolean;
+  /**
+   * Renders the picker as a chip plus a searchable list, and lets a value that
+   * no item offers be entered. The value the caller gets back is one of the
+   * offered values, unchanged, whenever it matches one; a value created by the
+   * author comes back as the string they typed, so only call this for a field
+   * whose value is a string.
+   */
+  canCreateItems?: boolean;
   /** Label for the CLOSED trigger in place of the selected item's
    * `display_name` — the open list keeps the item labels (e.g. a unit symbol
    * on the trigger, full names in the picker). Ignored while nothing is
@@ -74,6 +84,7 @@ export const SelectFormField = memo(
     icon,
     filters,
     showDescription = true,
+    canCreateItems,
     valueLabel,
     showPlaceholder = true,
     showRightIcon = true,
@@ -243,10 +254,40 @@ export const SelectFormField = memo(
 
     const autoSelectedItem = useMemo(
       () =>
-        autoSelect && filteredItems.length === 1 && !filteredItems[0].disabled
+        // Not when a value can be created: committing the sole offered item
+        // takes the field straight past the one thing the author came to do.
+        autoSelect && !canCreateItems && filteredItems.length === 1 && !filteredItems[0].disabled
           ? filteredItems[0]
           : undefined,
-      [autoSelect, filteredItems]
+      [autoSelect, canCreateItems, filteredItems]
+    );
+
+    const creatableItems = useMemo<TReqoreSelectItem[]>(
+      () =>
+        filteredItems.map((item) => ({
+          value: valueToShow(item.value) as string,
+          label: item.display_name || (valueToShow(item.value) as string),
+          description: getItemDescription(item.value) as string,
+          disabled: item.disabled,
+          intent: item.intent,
+          wrap: true,
+        })),
+      [filteredItems, getItemDescription]
+    );
+
+    const handleCreatableChange = useCallback(
+      (next?: string) => {
+        if (next === undefined) {
+          onChange?.(undefined);
+          return;
+        }
+        // The control deals in strings, so an OFFERED value goes back out as
+        // the value the caller gave us — its own shape intact. Only a value
+        // the author created is a string of their own making.
+        const offered = filteredItems.find((item) => valueToShow(item.value) === next);
+        onChange?.(offered ? offered.value : next);
+      },
+      [filteredItems, onChange]
     );
 
     // Selecting during render causes a parent-controlled field to synchronously
@@ -266,6 +307,32 @@ export const SelectFormField = memo(
         handleSelectClick(autoSelectedItem);
       }
     }, [autoSelectedItem, disabled, handleSelectClick, value]);
+
+    if (canCreateItems) {
+      return (
+        <ReqoreSelect
+          items={creatableItems}
+          value={
+            value === undefined || value === null ? undefined : (valueToShow(value) as string)
+          }
+          onValueChange={handleCreatableChange}
+          canCreateItems
+          enterKeySelects
+          disabled={disabled}
+          size={componentSize}
+          selectedItemSize={componentSize}
+          flat={flat}
+          minimal={(rest as { minimal?: boolean }).minimal}
+          // Only override reqore's own placeholder when the caller gave one:
+          // `selectorProps` is spread over the default, so passing `undefined`
+          // here would erase it and leave the search box unlabelled.
+          selectorProps={{
+            useTargetWidth: false,
+            ...(placeholder ? { placeholder } : {}),
+          }}
+        />
+      );
+    }
 
     if (autoSelectedItem) {
       const itemHasError = hasError(items, autoSelectedItem.value);
