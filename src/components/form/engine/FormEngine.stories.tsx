@@ -5265,7 +5265,15 @@ export const CompactFieldTypesEditing: Story = {
     chromatic: { disable: true },
   },
   // multi: this story expands every row at once (single-open would collapse them).
-  args: { ...CompactFieldTypes.args, expandMode: 'multi' as const },
+  //
+  // `compactScroll: 'own'` bounds the form's height. With every editor open the
+  // document is long, and the play clicks its way down all of them — each click
+  // scrolling and hit-testing a taller page. Measured at ~8.5s bounded against
+  // ~12.5s unbounded, and this story already spent 17.2s of its 30s budget in
+  // CI, so the unbounded cost times it out. Nothing here is about scroll
+  // ownership, so bounding it loses no coverage; the default is exercised by
+  // CompactHostOwnedScroll.
+  args: { ...CompactFieldTypes.args, expandMode: 'multi' as const, compactScroll: 'own' as const },
   play: async () => {
     await _testsWaitForText('hello');
     await _compactExpandAllRows();
