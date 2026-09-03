@@ -10,7 +10,8 @@ type MaybeTyped = TTypedValue | undefined;
 const inferTypedValue = (raw: unknown): MaybeTyped => {
   if (raw === null || raw === undefined) return undefined;
   if (typeof raw === 'boolean') return { type: 'bool', value: raw };
-  if (typeof raw === 'number') return Number.isInteger(raw) ? { type: 'int', value: raw } : { type: 'float', value: raw };
+  if (typeof raw === 'number')
+    return Number.isInteger(raw) ? { type: 'int', value: raw } : { type: 'float', value: raw };
   if (typeof raw === 'string') return { type: 'string', value: raw };
   if (Array.isArray(raw)) {
     const items = raw.map(inferTypedValue).filter(Boolean);
@@ -68,7 +69,15 @@ export const typedToYaml = (typed: MaybeTyped): string => {
   }
 };
 
-export const getDefaultValue = (schema: TQorusFormFieldSchema): unknown | undefined => {
+export const getDefaultValue = (schema?: TQorusFormFieldSchema): unknown | undefined => {
+  // No schema, no default. A form can hold a value key its schema does not
+  // (yet) describe — a host that recomputes schema and value in separate
+  // memos renders once in between — and the compact row asks for the default
+  // of every empty row. `'default_value' in undefined` is a TypeError that
+  // takes the whole form to the error boundary; the answer is simply "none".
+  if (!schema) {
+    return undefined;
+  }
   if ('default_value' in schema) {
     if (schema.default_value != null && typeof schema.default_value === 'object') {
       return schema.default_value.value;
