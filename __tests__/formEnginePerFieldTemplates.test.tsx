@@ -104,4 +104,28 @@ describe('a field may declare templates of its own', () => {
     // still ask it. This is what stops the fix from being read as "never ask".
     expect(container.textContent).not.toContain('Select Template');
   });
+
+  it('reads a value from the field\'s own list as its display name, not the raw reference', async () => {
+    // The read-first row decided "is this a template?" with `isValueTemplate`, a
+    // guess at the shape of the built-in `$name:key` grammar. A host's own
+    // grammar fails it, so a chosen reference printed as a raw path on the
+    // collapsed row while the editor showed a chip - the same value reading two
+    // different ways depending on whether the row was open.
+    const { findByText, queryByText } = renderForm(
+      {
+        path: {
+          type: 'string',
+          display_name: 'Path',
+          supports_templates: true,
+          templates: FIELD_TEMPLATES,
+        },
+      },
+      { value: { path: { type: 'string', value: '$.order.id' } }, stringTemplates: undefined }
+    );
+
+    // the label the reference was CHOSEN by, not the path it resolves to
+    expect(await findByText('order id')).toBeTruthy();
+    // the raw path stays available as the chip's tooltip, not as the line itself
+    expect(queryByText('$.order.id')).toBeNull();
+  });
 });

@@ -74,6 +74,7 @@ import {
   optionHasImages,
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
+import { TFieldWithOwnTemplates } from './rendererTypes';
 
 /**
  * Does this markdown value have more document in it than one row can show?
@@ -421,12 +422,22 @@ export const CompactRow = memo(
       // Template value ($local:…): the read-only template picker — the SAME chip
       // TemplateField renders when disabled, so a template reads identically here
       // and in the editor (qorus-ide intent scheme: info / qorus purple).
+      //
+      // A field may also declare templates OF ITS OWN, and a value drawn from
+      // that list is just as much a template even when it does not look like
+      // `$name:key` — `isValueTemplate` is a guess at the shape of the built-in
+      // grammar, and a host's own grammar (a Qorus test's `$.order.id`) fails it.
+      // Asking the field's list whether it CONTAINS the value settles it without
+      // guessing at syntax, and hands back the entry whose label the chip prints,
+      // so a reference reads as the name it was chosen by here as well as in the
+      // editor rather than as a raw path.
+      const ownTemplates = (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates;
       if (
         typeof field?.value === 'string' &&
         !(field as { is_expression?: boolean }).is_expression &&
-        isValueTemplate(field.value)
+        (isValueTemplate(field.value) || !!findTemplate(ownTemplates ?? {}, field.value))
       ) {
-        return <ReadOnlyTemplateTag value={field.value} templates={templates} size='small' />;
+        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} size='small' />;
       }
 
       // A LIST whose elements are rich-text envelopes is a list of strings, so it

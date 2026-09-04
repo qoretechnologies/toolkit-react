@@ -17,6 +17,7 @@ import { IReqoreCollectionProps } from '@qoretechnologies/reqore/dist/components
 import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/components/Collection/item';
 import { IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { TFieldWithOwnTemplates } from './rendererTypes';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import {
   changeDarkness,
@@ -578,17 +579,6 @@ export interface IFormEngineGroup {
   subtitle?: string;
   sort?: number;
 }
-
-/**
- * A field schema that carries a template list of its own.
- *
- * `templates` is deliberately NOT added to `TQorusFormFieldSchema`: that type is
- * owned by ts-toolkit and shared with consumers that have no notion of a form
- * engine, so the capability is read through this narrow view instead of widening
- * the shared type from here. A schema that sets it is offering a list scoped to
- * one field rather than to the whole form.
- */
-type TFieldWithOwnTemplates = { templates?: IReqoreFormTemplates };
 
 export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange'> {
   name: string;
