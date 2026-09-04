@@ -579,6 +579,17 @@ export interface IFormEngineGroup {
   sort?: number;
 }
 
+/**
+ * A field schema that carries a template list of its own.
+ *
+ * `templates` is deliberately NOT added to `TQorusFormFieldSchema`: that type is
+ * owned by ts-toolkit and shared with consumers that have no notion of a form
+ * engine, so the capability is read through this narrow view instead of widening
+ * the shared type from here. A schema that sets it is offering a list scoped to
+ * one field rather than to the whole form.
+ */
+type TFieldWithOwnTemplates = { templates?: IReqoreFormTemplates };
+
 export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange'> {
   name: string;
   uniqueName?: string;
@@ -626,6 +637,13 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   recordRequiresSearchOptions?: boolean;
   readOnly?: boolean;
   allowTemplates?: boolean;
+  /**
+   * The form's SHARED template vocabulary — config items, system properties —
+   * offered to every field that supports templates.
+   *
+   * A field may also declare `templates` of its own in the schema, and that
+   * narrower list wins for that field: see {@link TFieldWithOwnTemplates}.
+   */
   stringTemplates?: IReqoreFormTemplates;
   /** Opt-in: fetch global templates from `system/getContextData` for this context. */
   interfaceContext?: string;
@@ -2383,7 +2401,23 @@ const FormEngineImpl = ({
               isFixedCompactAllowedValueOption(optionSchema) ||
               (options?.[optionName]?.supports_custom_values !== false && resolvedType !== 'any')
             }
-            templates={templates.value}
+            // A field may declare a template list OF ITS OWN, and when it does
+            // that list is the one to offer. The engine-wide `stringTemplates`
+            // are the form's shared vocabulary - config items, system properties
+            // - and every field draws on the same set. A per-field list answers a
+            // question only that field asks: a test assertion's `$.` references
+            // are the values ITS case captured, and no other field in the form
+            // should be offering them.
+            //
+            // Passing the engine's list unconditionally overwrote the schema's,
+            // so a field that declared templates had none by the time it
+            // rendered. On a typed field that only cost the picker; on an
+            // ANY-LIKE one it changed the question, because `TemplateField`
+            // opens on the template selector only when there is something to
+            // pick and otherwise falls back to the type picker. An untyped field
+            // therefore asked the author to choose `string`/`int`/`hash` before
+            // it would let them name a value they had already captured.
+            templates={(optionSchema as TFieldWithOwnTemplates | undefined)?.templates ?? templates.value}
             {...getTypeAndCanBeNull(
               // The RENDERER type picks the editor — the storage type lives on
               // the value envelope. Passing storage here rendered a `richtext`
