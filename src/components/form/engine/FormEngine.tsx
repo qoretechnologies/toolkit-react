@@ -531,6 +531,85 @@ const normalizeEmptyFieldValues = (fields: TQorusForm | TQorusFlatForm | undefin
     {} as TQorusForm
   );
 
+/**
+ * Does this rebuild say anything the parent does not already hold?
+ *
+ * `false` means the rebuild is a MIRROR: `fixOptions` found no default to
+ * materialise, so the result repeats the `value` the parent handed down. The
+ * compare is empty-normalized because `fixOptions` round-trips a required-empty
+ * field between `{ value: '' }` and no `value` key, and that cosmetic
+ * difference would otherwise read as new information forever.
+ */
+export const isMirrorOfValue = (
+  fixedValue: TQorusForm | TQorusFlatForm | undefined,
+  value: TQorusForm | TQorusFlatForm | undefined
+): boolean => isEqual(normalizeEmptyFieldValues(fixedValue), normalizeEmptyFieldValues(value));
+
+/**
+ * What this rebuild lets the form agree with the parent on, if anything.
+ *
+ * Returns the rebuild when it mirrors `value`, and `undefined` when it
+ * contributed something the parent has yet to learn.
+ *
+ * Adopting the parent's value IS agreement, and saying so matters as much as
+ * staying quiet about it. The sync-down skips only when the parent echoed what
+ * this form last sent; if adopting a value never updates that record, it points
+ * at an older state forever, the skip can never fire again, and the form
+ * rebuilds on every single change. Holding the mirror back WITHOUT recording
+ * the agreement was measured making the starvation worse, not better — 8 s
+ * became a 45 s timeout — which is why the two belong together.
+ */
+export const agreementFromRebuild = (
+  fixedValue: TQorusForm | TQorusFlatForm | undefined,
+  value: TQorusForm | TQorusFlatForm | undefined
+): TQorusForm | TQorusFlatForm | undefined =>
+  isMirrorOfValue(fixedValue, value) ? fixedValue : undefined;
+
+/** The state the emit decision is made against. */
+export interface IEmitDecision {
+  /** The form's own copy of the value, as it stands now. */
+  localValue: TQorusForm | TQorusFlatForm | undefined;
+  /** The `value` prop, read at the moment the decision is made. */
+  value: TQorusForm | TQorusFlatForm | undefined;
+  /**
+   * The last rebuild that mirrored `value` without adding anything, if the most
+   * recent one did. `undefined` when the last rebuild contributed something.
+   */
+  mirroredValue: TQorusForm | TQorusFlatForm | undefined;
+}
+
+/**
+ * Should the form report `localValue` to its parent as an answer?
+ *
+ * Extracted and pure because the situation it exists for cannot be reproduced
+ * through a rendered form: it needs the emit to be decided against a `value`
+ * NEWER than the `localValue` built from it, which only happens when two
+ * components' effects land in one React commit — and a test renderer flushes
+ * effects between updates, so the two never fall out of step. The states below
+ * were recorded from a live instrumented run instead, and this is what makes
+ * them assertable.
+ *
+ * Two ways the answer is no:
+ *
+ * 1. `localValue` is a mirror — a rebuild of the parent's own value that added
+ *    nothing. Repeating it back is not an answer. **Checked first**, because
+ *    the comparison in (2) reads whatever `value` has become by now, which,
+ *    when a nested engine shares the parent value, is already that engine's
+ *    newer write; comparing against it would find a difference this form never
+ *    made and emit the older mirror over the newer write. That is the loop.
+ * 2. `localValue` already equals `value` — there is nothing to report.
+ */
+export const shouldEmitLocalValue = ({
+  localValue,
+  value,
+  mirroredValue,
+}: IEmitDecision): boolean => {
+  if (mirroredValue !== undefined && isEqual(localValue, mirroredValue)) {
+    return false;
+  }
+  return !isEqual(localValue, value);
+};
+
 export const flattenOptions = (options: TQorusForm): TQorusFlatForm => {
   return reduce(
     options,
@@ -1148,6 +1227,32 @@ const FormEngineImpl = ({
   // Track the last value we emitted via onChange so we can skip re-applying fixOptions
   // when the parent echoes it back as the new value prop (controlled component loop prevention)
   const lastEmittedValue = useRef<TQorusForm | TQorusFlatForm | undefined>(value);
+  /**
+   * A `localValue` that is only a MIRROR of the incoming `value`, and so must
+   * never be emitted back as though this form had answered something.
+   *
+   * `localValue` is derived state: the sync-down effect below rebuilds it from
+   * the `value` prop. When that rebuild adds nothing (`fixOptions` had no
+   * default to materialise), the result says exactly what the parent already
+   * holds, and emitting it is not a change — it is this form repeating the
+   * parent's own words back at it.
+   *
+   * That repetition is harmless in a form that owns its state outright and
+   * fatal in one that shares a parent with a NESTED engine. The two write to
+   * the same parent value, so each sees the other's write arrive as an external
+   * change; `lastEmittedValue` is then always one step behind and its guard
+   * never fires. The engines alternate between two states forever, several
+   * times a second, and the newer write is repeatedly overwritten by the older
+   * one. Measured in the test editor: the row's summary flipped between two
+   * readings indefinitely and `setTimeout` was starved past a 45-second
+   * deadline.
+   *
+   * Only a mirror that CHANGES nothing is held back. A rebuild that restores a
+   * required or preselected field's default still emits, because that default
+   * is genuinely new information the parent has to be told about — which is the
+   * whole reason the sync-down runs `fixOptions` at all.
+   */
+  const mirroredValue = useRef<TQorusForm | TQorusFlatForm | undefined>(undefined);
 
   if (originalValue.current === undefined && size(value)) {
     originalValue.current = localValue.fields;
@@ -1158,7 +1263,13 @@ const FormEngineImpl = ({
   const templates = useTemplates(allowTemplates, rest.stringTemplates, interfaceContext);
 
   useEffect(() => {
-    if (isEqual(localValue.fields, value)) {
+    if (
+      !shouldEmitLocalValue({
+        localValue: localValue.fields,
+        value,
+        mirroredValue: mirroredValue.current,
+      })
+    ) {
       return;
     }
 
@@ -1321,15 +1432,26 @@ const FormEngineImpl = ({
     // Note: compare fixedValue against value, not localValue.fields — localValue may have been
     // updated by nested FormEngine emissions, so comparing against it would never skip.
     const normalizedValue = normalizeEmptyFieldValues(value);
+    /* What this rebuild lets us agree with the parent on — `undefined` when it
+       contributed something the parent has yet to learn. */
+    const agreed = agreementFromRebuild(fixedValue, value);
     if (
       isEqual(normalizedValue, normalizeEmptyFieldValues(lastEmittedValue.current)) &&
-      isEqual(normalizeEmptyFieldValues(fixedValue), normalizedValue)
+      agreed !== undefined
     ) {
       return;
     }
 
     if (!originalValue.current && size(fixedValue)) {
       originalValue.current = fixedValue;
+    }
+
+    /* Remember a mirror so the emit effect can tell one from an answer, and
+       record the agreement it represents. A rebuild that DID add something
+       leaves both alone — the parent has to learn about it. */
+    mirroredValue.current = agreed;
+    if (agreed !== undefined) {
+      lastEmittedValue.current = agreed;
     }
 
     setLocalValue?.({ fields: fixedValue, meta: undefined });
