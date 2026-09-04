@@ -12,6 +12,7 @@ import {
   formatColorValue,
   formatFileValue,
   formatOptionValue,
+  getAllowedValueIcon,
   getAllowedValueImage,
   getFirstAttentionOptionName,
   getHashEntries,
@@ -744,5 +745,46 @@ describe('formatOptionValue for a multi-select', () => {
         element_type: 'string',
       } as never)
     ).toBe('one, two');
+  });
+});
+
+describe('the mark beside a chosen option', () => {
+  const kinds = {
+    allowed_values: [
+      { value: { type: 'string', value: 'service' }, display_name: 'Service', icon: 'ServerLine' },
+      {
+        value: { type: 'string', value: 'fsm' },
+        display_name: 'Qog',
+        icon: 'FlowChart',
+        image: '/Qog.svg',
+      },
+      { value: { type: 'string', value: 'plain' }, display_name: 'Plain' },
+    ],
+  };
+
+  /* A picker whose entries are told apart by their ICON showed the mark while
+     choosing and lost it the moment the row went read-only — and read-only is
+     the surface a reader spends the most time on. */
+  it('reads the icon of an option that has one', () => {
+    expect(getAllowedValueIcon('service', kinds as never)).toBe('ServerLine');
+  });
+
+  /* A logo is the more specific mark and the icon behind it is a fallback, not
+     a second thing to draw — so the image path keeps the option and the icon
+     path stands down. */
+  it('stands down for an option that carries a logo', () => {
+    expect(getAllowedValueImage('fsm', kinds as never)).toBe('/Qog.svg');
+    expect(getAllowedValueIcon('fsm', kinds as never)).toBeUndefined();
+  });
+
+  it('reads nothing for an option with no mark, and for no match at all', () => {
+    expect(getAllowedValueIcon('plain', kinds as never)).toBeUndefined();
+    expect(getAllowedValueIcon('nope', kinds as never)).toBeUndefined();
+    expect(getAllowedValueIcon('service', undefined)).toBeUndefined();
+  });
+
+  it('resolves an enum item the same way it resolves an allowed value', () => {
+    const enumSchema = { items: [{ value: 'qore', title: 'Qore', icon: 'CodeLine' }] };
+    expect(getAllowedValueIcon('qore', enumSchema as never)).toBe('CodeLine');
   });
 });

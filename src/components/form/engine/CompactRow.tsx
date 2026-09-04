@@ -64,6 +64,7 @@ import {
   findAllowedValueOption,
   formatBytes,
   formatOptionValue,
+  getAllowedValueIcon,
   getAllowedValueImage,
   getFileSize,
   getHashEntries,
@@ -414,6 +415,21 @@ export const CompactRow = memo(
         return (
           <span style={wrapStyle}>
             <ReqoreIcon image={allowedImage} size='16px' style={{ flexShrink: 0 }} />
+            <span style={textStyle}>{formatted}</span>
+          </span>
+        );
+      }
+
+      // The same, for an option whose mark is an ICON rather than a logo. Only
+      // images were drawn here, so a list whose entries are told apart by their
+      // icon — every interface kind is a bare word, `Service`, `Job`, `Qog` —
+      // showed the mark while choosing and lost it the moment the row went
+      // read-only, which is where a reader spends most of their time.
+      const allowedIcon = getAllowedValueIcon(field?.value, schema);
+      if (allowedIcon) {
+        return (
+          <span style={wrapStyle}>
+            <ReqoreIcon icon={allowedIcon as any} size='16px' style={{ flexShrink: 0 }} />
             <span style={textStyle}>{formatted}</span>
           </span>
         );
