@@ -7817,3 +7817,66 @@ export const ClearValueOnlyWhenThereIsAValue: Story = {
     expect(emptied?.querySelectorAll('.options-readfirst-clear').length).toBe(0);
   },
 };
+
+/**
+ * A creatable picker is ONE control, not two.
+ *
+ * `rendersCreatableValueSelect` exists so that exactly one of the two renderers
+ * draws the value: the chip picker holds it and offers the candidates, and the
+ * raw editor stands down. It asked for `type === 'string'` — but a picker field
+ * declares a storage type (`*string`) AND a `ui_type` (`select-string`), and by
+ * the time the schema arrives the two are flattened to `type: 'select-string'`.
+ * So neither renderer stood down: the picker drew the value, and the
+ * saved-and-suggested list drew the same candidates again beneath it.
+ *
+ * It showed on a test's service-method step, where Service and Method offered
+ * 183 and 7 values twice over in two controls that set one value each.
+ */
+export const CreatablePickerIsOneControl: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A creatable select-string with candidates renders a single picker that both holds the value and offers the list — not a picker plus a second "Saved & Suggested Values" control listing the same items.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['method'],
+    value: { method: { type: 'select-string', value: 'init' } },
+    options: {
+      method: {
+        type: 'select-string',
+        ui_type: 'select-string',
+        display_name: 'Method',
+        required: true,
+        allowed_values_creatable: true,
+        allowed_values: [
+          { display_name: 'init', value: { type: 'string', value: 'init' } },
+          { display_name: 'start', value: { type: 'string', value: 'start' } },
+          { display_name: 'stop', value: { type: 'string', value: 'stop' } },
+        ],
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="method"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // The value is still shown and still editable — one control, not none.
+    expect(row.textContent).toContain('init');
+
+    // …and the second way to set the same field is gone. Asserting the label
+    // rather than a count: it is what the duplicate control announces itself as,
+    // and what a reader saw twice.
+    expect(row.textContent).not.toContain('Saved & Suggested Values');
+  },
+};
