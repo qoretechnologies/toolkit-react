@@ -353,6 +353,52 @@ export const CompactRow = memo(
         );
       }
 
+      // A test's cases read as CHIPS here, the same as the names in the table
+      // this row opens (`CasesTable`, qorus-ide). `test-cases` is a
+      // renderer-only ui_type, so it reached none of the branches above and
+      // fell through to the generic summary, which flattens the array of case
+      // hashes to a comma-joined string — "case_1, resolved_expected_values".
+      // A case name is an identifier the author types into `$.` references and
+      // skip conditions, and a chip is how the rest of the product writes an
+      // identifier down; the table already agreed, so the collapsed row was the
+      // only surface still printing them as prose.
+      //
+      // `intent` is a FILL, which is what a tag is — the hazard the other
+      // branches warn about is only ever using an intent as a TEXT colour.
+      //
+      // Falls through to the plain summary unless EVERY entry yields a name: a
+      // partly-chipped row would read as though the unnamed cases were missing.
+      if (valueType === 'test-cases' && Array.isArray(field?.value)) {
+        const caseNames = (field.value as unknown[]).map((item) => {
+          const name = (item as { name?: unknown } | null | undefined)?.name;
+          return typeof name === 'string' ? name.trim() : '';
+        });
+        if (caseNames.length > 0 && caseNames.every((name) => name !== '')) {
+          return (
+            <ReqoreControlGroup
+              gapSize='tiny'
+              verticalAlign='center'
+              // An editable row is ONE line: further chips clip with the row
+              // instead of growing it. A read-only row is the only rendering
+              // the value gets, so it wraps and shows every case.
+              wrap={full}
+              style={full ? undefined : { minWidth: 0, overflow: 'hidden' }}
+            >
+              {caseNames.map((name, index) => (
+                <ReqoreTag
+                  key={`${name}-${index}`}
+                  className='options-readfirst-case-tag'
+                  size='small'
+                  minimal
+                  intent='info'
+                  label={name}
+                />
+              ))}
+            </ReqoreControlGroup>
+          );
+        }
+      }
+
       // Code-editor read summary: replace the truncated string with a chip
       // showing line count + character count. The actual code renders below
       // the row as a monospace `<pre>` inside a `ReqoreCollapsibleContent` —

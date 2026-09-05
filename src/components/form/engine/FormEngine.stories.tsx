@@ -7656,3 +7656,91 @@ export const CompactNoMaxFieldsShown: Story = {
     expect(canvasElement.querySelector('.readfirst-more-row')).toBeNull();
   },
 };
+
+/**
+ * A test's cases read as chips on the collapsed row.
+ *
+ * `test-cases` is a renderer-only `ui_type`, so it reached none of the typed
+ * branches in `renderReadFirstValue` and fell through to the generic summary,
+ * which flattens the array of case hashes to `"case_1, resolved_expected_values"`.
+ * The table the row opens already draws each name as a chip, so the collapsed
+ * row was the only surface still printing an identifier as prose.
+ *
+ * The fall-throughs are the point of the other two fields: chips are all-or-
+ * nothing, because a partly-chipped row reads as though the unnamed cases were
+ * missing entirely.
+ */
+export const CompactRowTestCaseChips: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a collapsed `test-cases` row: every case name is a chip, matching the cases table the row opens. A value whose entries are not all named, and an empty value, keep the plain summary instead — chips are all-or-nothing.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {
+      cases: {
+        type: 'list',
+        value: [
+          { name: 'case_1', desc: 'the happy path' },
+          { name: 'resolved_expected_values', desc: 'reference resolution' },
+        ],
+      },
+      mixed: {
+        type: 'list',
+        value: [{ name: 'case_1' }, { desc: 'a case that has no name yet' }],
+      },
+      none: { type: 'list', value: [] },
+    },
+    // Cast for the same reason the markdown/cron/dpql stories need one: a
+    // renderer-only `ui_type` names an EDITOR, and ts-toolkit's `TQorusType`
+    // enumerates STORAGE types, so it has no member for one.
+    options: {
+      cases: { type: 'list', ui_type: 'test-cases', display_name: 'Cases' },
+      mixed: { type: 'list', ui_type: 'test-cases', display_name: 'Mixed' },
+      none: { type: 'list', ui_type: 'test-cases', display_name: 'None' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    // (a) Every case name is a chip, in order.
+    await waitFor(
+      () => {
+        const chips = canvasElement.querySelectorAll(
+          '[data-field="cases"] .options-readfirst-case-tag'
+        );
+        expect(chips.length).toBe(2);
+        expect(Array.from(chips).map((chip) => chip.textContent?.trim())).toEqual([
+          'case_1',
+          'resolved_expected_values',
+        ]);
+      },
+      { timeout: 5000 }
+    );
+
+    // (b) …and the comma-joined prose they replace is gone. Asserting the text
+    //     rather than only the chip count: the first cut rendered the chips
+    //     BESIDE the summary, which is the same identifiers twice.
+    const casesText =
+      canvasElement
+        .querySelector('[data-field="cases"] .options-readfirst-valuetext')
+        ?.textContent?.trim() ?? '';
+    expect(casesText).not.toContain('case_1,');
+
+    // (c) NEGATIVE: one entry has no name, so no entry is chipped — a
+    //     half-chipped row would read as though that case were missing.
+    const mixedRow = canvasElement.querySelector('[data-field="mixed"]');
+    expect(mixedRow?.querySelectorAll('.options-readfirst-case-tag').length).toBe(0);
+
+    // (d) NEGATIVE: an empty value is not a SET value, so it never reaches
+    //     this branch at all — its row sits in the collapsed optional group and
+    //     is not in the DOM. Counting canvas-wide says the same thing more
+    //     strongly than probing for a row that does not exist: the only chips
+    //     on the whole form are the two named cases, so neither the unnamed nor
+    //     the empty field contributed one.
+    expect(canvasElement.querySelectorAll('.options-readfirst-case-tag').length).toBe(2);
+  },
+};
