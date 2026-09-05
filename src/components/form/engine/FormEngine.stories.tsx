@@ -7880,3 +7880,75 @@ export const CreatablePickerIsOneControl: Story = {
     expect(row.textContent).not.toContain('Saved & Suggested Values');
   },
 };
+
+/**
+ * A chosen template hovers ONCE, and says what the value is.
+ *
+ * Two defects met on the same row. The chip carries its own popover and the row
+ * carried a native `title` as well, so hovering fired both — in two places, and
+ * only the popover appears in a screenshot, which is what makes the pair hard to
+ * report. `showsTemplateChips` had already closed this for prose with templates
+ * embedded in it; a value that IS one template was left open.
+ *
+ * And both of them showed the reference — `$._case.title` — which is the
+ * grammar's business, not the author's. The catalogue already carries what they
+ * want: the entry's name and the prose describing it. The reference stays in the
+ * field's own help and in the picker, where it is genuinely needed.
+ */
+export const TemplateValueHoversOnceAndDescribesItself: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A row whose value is a chosen template shows one hover — the chip’s own — carrying the value’s name and description rather than the raw reference, and the row adds no second browser tooltip.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: { expected: { type: 'string', value: '$._case.title' } },
+    options: {
+      expected: {
+        type: 'string',
+        display_name: 'Expected Value',
+        supports_templates: true,
+        templates: {
+          items: [
+            {
+              label: 'Values this case captures',
+              items: [
+                {
+                  value: '$._case.title',
+                  label: 'title (this case)',
+                  description: 'A short line naming what this case verifies. (string)',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="expected"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // (a) The row draws the friendly name, not the reference.
+    expect(row.textContent).toContain('title (this case)');
+
+    // (b) ONE hover on the value. The row must not add a native `title`
+    //     alongside the chip's own popover — the label keeps its own, which is
+    //     a different element and a different thing to say.
+    const nativeTitles = Array.from(row.querySelectorAll('[title]')).map((el) =>
+      el.getAttribute('title')
+    );
+    expect(nativeTitles).not.toContain('$._case.title');
+  },
+};

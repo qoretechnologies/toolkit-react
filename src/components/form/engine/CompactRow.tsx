@@ -30,6 +30,7 @@ import {
   isValueTemplate,
   describeTemplateReference,
   splitTemplateTokens,
+  templateTooltip,
   TTemplateMeta,
 } from '../../../helpers/templates';
 import { getDefaultValue, richtextToSegments, richtextToString } from '../../../helpers/common';
@@ -538,7 +539,9 @@ export const CompactRow = memo(
                     style={{ fontSize: 'inherit' }}
                     icon='ExchangeDollarLine'
                     label={segment.text || segment.value}
-                    tooltip={segment.value}
+                    // The same card the chosen-template chip shows: what the
+                    // value IS, not the reference that names it.
+                    tooltip={templateTooltip(templates, segment.value)}
                     {...getTemplateTagStyle(
                       (templates ? findTemplate(templates, segment.value || '') : undefined)
                         ?.metadata as TTemplateMeta | undefined
@@ -1735,6 +1738,22 @@ export const CompactRow = memo(
       valueType === 'richtext' &&
       Array.isArray(optionField?.value) &&
       richtextToSegments(optionField.value as never).some((segment) => segment.kind === 'tag');
+    /* The same pair, for a value that IS one template rather than prose with
+       templates embedded in it. `showsTemplateChips` above closed the richtext
+       case and left this one open: a chosen reference renders as
+       `ReadOnlyTemplateTag`, which carries its own popover, while the row went
+       on setting a native `title` holding the raw reference. Hovering fired
+       both — two tooltips in two places, and the one that says something useful
+       is not the one a screenshot captures. */
+    const showsTemplateTag =
+      !hidden &&
+      typeof optionField?.value === 'string' &&
+      !(optionField as { is_expression?: boolean } | undefined)?.is_expression &&
+      (isValueTemplate(optionField.value) ||
+        !!findTemplate(
+          (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates ?? {},
+          optionField.value
+        ));
     // Markdown reads the same way for the same reason: the row itself can only
     // show a line of text, and for markdown that line is the SOURCE — the reader
     // gets `## ` and `**` where the point of the value is what it looks like
@@ -2048,6 +2067,7 @@ export const CompactRow = memo(
               !showCodePreview &&
               !showMarkdownPreview &&
               !showsTemplateChips &&
+              !showsTemplateTag &&
               typeof formatted === 'string'
             ) ?
               formatted
