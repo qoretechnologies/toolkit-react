@@ -7744,3 +7744,76 @@ export const CompactRowTestCaseChips: Story = {
     expect(canvasElement.querySelectorAll('.options-readfirst-case-tag').length).toBe(2);
   },
 };
+
+/**
+ * Clear-value is offered only when there is something to clear.
+ *
+ * `[]` is neither `undefined`, `null` nor `''`, so a list field whose last item
+ * had just been removed went on showing the red clear button, and confirming it
+ * cleared nothing. It is visible wherever a list field stays open — a test's
+ * cases table sits above exactly such a button once its last case is deleted.
+ *
+ * Both fields here are lists with the same schema; only the value differs, so
+ * the button's presence is decided by the value alone.
+ */
+export const ClearValueOnlyWhenThereIsAValue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A list field with items offers Clear value; the same field with an empty list does not, because there is nothing to clear.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    /* Both rows OPEN, because that is where this button lives. A collapsed list
+       row shows no clear at all — the inline one is only for editors with no
+       clear of their own (bools, fixed-choice pickers) — so the button under
+       test is the expanded card's, which is what a consumer that opens a field
+       by default puts permanently on screen. */
+    initialExpandedOptions: ['filled', 'emptied'],
+    value: {
+      filled: { type: 'list', value: ['alpha', 'beta'] },
+      emptied: { type: 'list', value: [] },
+    },
+    options: {
+      /* Both REQUIRED, like a test's `cases`. An unset optional field folds
+         into the collapsed Optional box and is not in the DOM at all, so an
+         empty list only stays on screen — where this button can be misclicked —
+         when the field is one the form insists on. */
+      filled: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'string',
+        display_name: 'Filled',
+        required: true,
+      },
+      emptied: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'string',
+        display_name: 'Emptied',
+        required: true,
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () => {
+        expect(canvasElement.querySelector('[data-field="filled"]')).toBeTruthy();
+      },
+      { timeout: 5000 }
+    );
+
+    // (a) items present -> the clear button is offered
+    const filled = canvasElement.querySelector('[data-field="filled"]');
+    expect(filled?.querySelectorAll('.options-readfirst-clear').length).toBe(1);
+
+    // (b) empty list -> nothing to clear, so no button and no dialog to reach
+    const emptied = canvasElement.querySelector('[data-field="emptied"]');
+    expect(emptied).toBeTruthy();
+    expect(emptied?.querySelectorAll('.options-readfirst-clear').length).toBe(0);
+  },
+};

@@ -700,8 +700,23 @@ export const CompactRow = memo(
     const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
     // "Has a value" = set to anything non-empty. Drives the edit-row Clear
     // button and the cluster node's filled state (see `memberSet`).
+    /* "Is there anything to clear?" — this predicate has exactly one job, and
+       both of its uses are the Clear-value button.
+    
+       An empty list is not a value. `[]` is neither `undefined`, `null` nor `''`,
+       so a field whose last item had just been removed went on offering to clear
+       it, and the confirmation asked whether to clear nothing. A test's cases
+       table is where this shows: delete the last case and a red clear-all sat
+       above an empty table, guarding a no-op.
+    
+       Deliberately arrays only. An empty hash is arguable — "present but empty"
+       can be a real state for a hash — and nothing has demonstrated the same
+       defect there, so widening this predicate would be a guess. */
     const hasValue =
-      optionField?.value !== undefined && optionField?.value !== null && optionField?.value !== '';
+      optionField?.value !== undefined &&
+      optionField?.value !== null &&
+      optionField?.value !== '' &&
+      !(Array.isArray(optionField.value) && optionField.value.length === 0);
     // Required-group membership shows a PERSISTENT chip on every member: amber
     // "One of" while the group is unmet (tap → flash siblings), then a muted-green
     // resolution once satisfied — "Covers" on the field that satisfied it,
