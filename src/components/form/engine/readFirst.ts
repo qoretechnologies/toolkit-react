@@ -316,6 +316,31 @@ export const getAllowedValueImage = (
   return (match?.image as string) || undefined;
 };
 
+/**
+ * The selected option's ICON, when it carries one and no logo — for the value
+ * cell.
+ *
+ * The same idea as {@link getAllowedValueImage} and read for the same reason:
+ * an option's mark belongs beside the value it names. Only images were rendered,
+ * so a picker whose entries are distinguished by ICON — an interface-kind list
+ * where every entry is a bare word, `Service`, `Job`, `Qog` — showed each mark
+ * while choosing and then dropped it the moment the row went read-only, which is
+ * the surface a reader spends the most time on.
+ *
+ * The image wins where an option has both: a logo is the more specific mark, and
+ * an icon standing behind it is a fallback rather than a second thing to draw.
+ */
+export const getAllowedValueIcon = (
+  value: unknown,
+  schema?: TQorusFormFieldSchema
+): string | undefined => {
+  const match = findAllowedOption(value, schema);
+  if (!match || match.image) {
+    return undefined;
+  }
+  return (match.icon as string) || undefined;
+};
+
 /** Clamp an RGB channel to a 0–255 integer. */
 const clampChannel = (n: number): number => Math.max(0, Math.min(255, Math.round(n)));
 const toHexPart = (n: number): string => clampChannel(n).toString(16).padStart(2, '0');

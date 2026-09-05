@@ -7656,3 +7656,299 @@ export const CompactNoMaxFieldsShown: Story = {
     expect(canvasElement.querySelector('.readfirst-more-row')).toBeNull();
   },
 };
+
+/**
+ * A test's cases read as chips on the collapsed row.
+ *
+ * `test-cases` is a renderer-only `ui_type`, so it reached none of the typed
+ * branches in `renderReadFirstValue` and fell through to the generic summary,
+ * which flattens the array of case hashes to `"case_1, resolved_expected_values"`.
+ * The table the row opens already draws each name as a chip, so the collapsed
+ * row was the only surface still printing an identifier as prose.
+ *
+ * The fall-throughs are the point of the other two fields: chips are all-or-
+ * nothing, because a partly-chipped row reads as though the unnamed cases were
+ * missing entirely.
+ */
+export const CompactRowTestCaseChips: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a collapsed `test-cases` row: every case name is a chip, matching the cases table the row opens. A value whose entries are not all named, and an empty value, keep the plain summary instead — chips are all-or-nothing.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {
+      cases: {
+        type: 'list',
+        value: [
+          { name: 'case_1', desc: 'the happy path' },
+          { name: 'resolved_expected_values', desc: 'reference resolution' },
+        ],
+      },
+      mixed: {
+        type: 'list',
+        value: [{ name: 'case_1' }, { desc: 'a case that has no name yet' }],
+      },
+      none: { type: 'list', value: [] },
+    },
+    // Cast for the same reason the markdown/cron/dpql stories need one: a
+    // renderer-only `ui_type` names an EDITOR, and ts-toolkit's `TQorusType`
+    // enumerates STORAGE types, so it has no member for one.
+    options: {
+      cases: { type: 'list', ui_type: 'test-cases', display_name: 'Cases' },
+      mixed: { type: 'list', ui_type: 'test-cases', display_name: 'Mixed' },
+      none: { type: 'list', ui_type: 'test-cases', display_name: 'None' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    // (a) Every case name is a chip, in order.
+    await waitFor(
+      () => {
+        const chips = canvasElement.querySelectorAll(
+          '[data-field="cases"] .options-readfirst-case-tag'
+        );
+        expect(chips.length).toBe(2);
+        expect(Array.from(chips).map((chip) => chip.textContent?.trim())).toEqual([
+          'case_1',
+          'resolved_expected_values',
+        ]);
+      },
+      { timeout: 5000 }
+    );
+
+    // (b) …and the comma-joined prose they replace is gone. Asserting the text
+    //     rather than only the chip count: the first cut rendered the chips
+    //     BESIDE the summary, which is the same identifiers twice.
+    const casesText =
+      canvasElement
+        .querySelector('[data-field="cases"] .options-readfirst-valuetext')
+        ?.textContent?.trim() ?? '';
+    expect(casesText).not.toContain('case_1,');
+
+    // (c) NEGATIVE: one entry has no name, so no entry is chipped — a
+    //     half-chipped row would read as though that case were missing.
+    const mixedRow = canvasElement.querySelector('[data-field="mixed"]');
+    expect(mixedRow?.querySelectorAll('.options-readfirst-case-tag').length).toBe(0);
+
+    // (d) NEGATIVE: an empty value is not a SET value, so it never reaches
+    //     this branch at all — its row sits in the collapsed optional group and
+    //     is not in the DOM. Counting canvas-wide says the same thing more
+    //     strongly than probing for a row that does not exist: the only chips
+    //     on the whole form are the two named cases, so neither the unnamed nor
+    //     the empty field contributed one.
+    expect(canvasElement.querySelectorAll('.options-readfirst-case-tag').length).toBe(2);
+  },
+};
+
+/**
+ * Clear-value is offered only when there is something to clear.
+ *
+ * `[]` is neither `undefined`, `null` nor `''`, so a list field whose last item
+ * had just been removed went on showing the red clear button, and confirming it
+ * cleared nothing. It is visible wherever a list field stays open — a test's
+ * cases table sits above exactly such a button once its last case is deleted.
+ *
+ * Both fields here are lists with the same schema; only the value differs, so
+ * the button's presence is decided by the value alone.
+ */
+export const ClearValueOnlyWhenThereIsAValue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A list field with items offers Clear value; the same field with an empty list does not, because there is nothing to clear.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    /* Both rows OPEN, because that is where this button lives. A collapsed list
+       row shows no clear at all — the inline one is only for editors with no
+       clear of their own (bools, fixed-choice pickers) — so the button under
+       test is the expanded card's, which is what a consumer that opens a field
+       by default puts permanently on screen. */
+    initialExpandedOptions: ['filled', 'emptied'],
+    value: {
+      filled: { type: 'list', value: ['alpha', 'beta'] },
+      emptied: { type: 'list', value: [] },
+    },
+    options: {
+      /* Both REQUIRED, like a test's `cases`. An unset optional field folds
+         into the collapsed Optional box and is not in the DOM at all, so an
+         empty list only stays on screen — where this button can be misclicked —
+         when the field is one the form insists on. */
+      filled: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'string',
+        display_name: 'Filled',
+        required: true,
+      },
+      emptied: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'string',
+        display_name: 'Emptied',
+        required: true,
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () => {
+        expect(canvasElement.querySelector('[data-field="filled"]')).toBeTruthy();
+      },
+      { timeout: 5000 }
+    );
+
+    // (a) items present -> the clear button is offered
+    const filled = canvasElement.querySelector('[data-field="filled"]');
+    expect(filled?.querySelectorAll('.options-readfirst-clear').length).toBe(1);
+
+    // (b) empty list -> nothing to clear, so no button and no dialog to reach
+    const emptied = canvasElement.querySelector('[data-field="emptied"]');
+    expect(emptied).toBeTruthy();
+    expect(emptied?.querySelectorAll('.options-readfirst-clear').length).toBe(0);
+  },
+};
+
+/**
+ * A creatable picker is ONE control, not two.
+ *
+ * `rendersCreatableValueSelect` exists so that exactly one of the two renderers
+ * draws the value: the chip picker holds it and offers the candidates, and the
+ * raw editor stands down. It asked for `type === 'string'` — but a picker field
+ * declares a storage type (`*string`) AND a `ui_type` (`select-string`), and by
+ * the time the schema arrives the two are flattened to `type: 'select-string'`.
+ * So neither renderer stood down: the picker drew the value, and the
+ * saved-and-suggested list drew the same candidates again beneath it.
+ *
+ * It showed on a test's service-method step, where Service and Method offered
+ * 183 and 7 values twice over in two controls that set one value each.
+ */
+export const CreatablePickerIsOneControl: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A creatable select-string with candidates renders a single picker that both holds the value and offers the list — not a picker plus a second "Saved & Suggested Values" control listing the same items.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['method'],
+    value: { method: { type: 'select-string', value: 'init' } },
+    options: {
+      method: {
+        type: 'select-string',
+        ui_type: 'select-string',
+        display_name: 'Method',
+        required: true,
+        allowed_values_creatable: true,
+        allowed_values: [
+          { display_name: 'init', value: { type: 'string', value: 'init' } },
+          { display_name: 'start', value: { type: 'string', value: 'start' } },
+          { display_name: 'stop', value: { type: 'string', value: 'stop' } },
+        ],
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="method"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // The value is still shown and still editable — one control, not none.
+    expect(row.textContent).toContain('init');
+
+    // …and the second way to set the same field is gone. Asserting the label
+    // rather than a count: it is what the duplicate control announces itself as,
+    // and what a reader saw twice.
+    expect(row.textContent).not.toContain('Saved & Suggested Values');
+  },
+};
+
+/**
+ * A chosen template hovers ONCE, and says what the value is.
+ *
+ * Two defects met on the same row. The chip carries its own popover and the row
+ * carried a native `title` as well, so hovering fired both — in two places, and
+ * only the popover appears in a screenshot, which is what makes the pair hard to
+ * report. `showsTemplateChips` had already closed this for prose with templates
+ * embedded in it; a value that IS one template was left open.
+ *
+ * And both of them showed the reference — `$._case.title` — which is the
+ * grammar's business, not the author's. The catalogue already carries what they
+ * want: the entry's name and the prose describing it. The reference stays in the
+ * field's own help and in the picker, where it is genuinely needed.
+ */
+export const TemplateValueHoversOnceAndDescribesItself: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A row whose value is a chosen template shows one hover — the chip’s own — carrying the value’s name and description rather than the raw reference, and the row adds no second browser tooltip.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: { expected: { type: 'string', value: '$._case.title' } },
+    options: {
+      expected: {
+        type: 'string',
+        display_name: 'Expected Value',
+        supports_templates: true,
+        templates: {
+          items: [
+            {
+              label: 'Values this case captures',
+              items: [
+                {
+                  value: '$._case.title',
+                  label: 'title (this case)',
+                  description: 'A short line naming what this case verifies. (string)',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="expected"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // (a) The row draws the friendly name, not the reference.
+    expect(row.textContent).toContain('title (this case)');
+
+    // (b) ONE hover on the value. The row must not add a native `title`
+    //     alongside the chip's own popover — the label keeps its own, which is
+    //     a different element and a different thing to say.
+    const nativeTitles = Array.from(row.querySelectorAll('[title]')).map((el) =>
+      el.getAttribute('title')
+    );
+    expect(nativeTitles).not.toContain('$._case.title');
+  },
+};
