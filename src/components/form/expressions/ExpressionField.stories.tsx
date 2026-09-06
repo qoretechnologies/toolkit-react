@@ -324,6 +324,92 @@ export const ViaFormEngineTextTyping: Story = {
 };
 
 /**
+ * A field's declared type travels with every parse, and the answer is shown
+ * only where there is something to decide.
+ *
+ * The mock returns type analysis ONLY when the request carried a
+ * `target_type`, exactly as the server does - so these stories fail if the
+ * field stops sending it, rather than passing on a fixture.
+ */
+const typedExpressionStory = (
+  fieldType: string,
+  expectation: (canvasElement: HTMLElement) => Promise<void>
+): Story => ({
+  render: () => {
+    const [value, setValue] = useState<any>({
+      amount: { type: fieldType, value: { args: [] }, is_expression: true },
+    });
+    return (
+      <FormEngine
+        name='typedExprForm'
+        options={
+          {
+            amount: {
+              type: fieldType,
+              ui_type: fieldType,
+              display_name: 'Amount',
+              preselected: true,
+              supports_expressions: true,
+              expressions: mockExpressions,
+            },
+          } as any
+        }
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+      />
+    );
+  },
+  async beforeEach() {
+    const stop = startDpqlMockLsp();
+    return () => stop();
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByText('Text'));
+    const editable = (await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[contenteditable="true"]');
+        if (!el) throw new Error('editor not ready');
+        return el as HTMLElement;
+      },
+      { timeout: 10000 }
+    )) as HTMLElement;
+    await userEvent.click(editable);
+    await userEvent.type(editable, 'total');
+    await expectation(canvasElement);
+    await waitForLspIdle(canvasElement);
+  },
+});
+
+/**
+ * Text used as a number: the conversion is attempted, not guaranteed, so the
+ * field says so and offers the conversion. The value itself is checked again
+ * server-side when the expression actually runs.
+ */
+export const TextModeTypeMayNotFit: Story = typedExpressionStory('int', async (canvasElement) => {
+  const canvas = within(canvasElement);
+  await waitFor(() => expect(canvas.getByText('This may not fit')).toBeInTheDocument(), {
+    timeout: 10000,
+  });
+  await expect(canvas.getByTestId('expression-type-fix')).toHaveTextContent('toInt(');
+});
+
+/**
+ * Text used as text needs no conversion at all, so nothing is said. A warning
+ * here would be noise, and noise is what teaches people to ignore the
+ * warnings that matter.
+ */
+export const TextModeTypeFits: Story = typedExpressionStory('string', async (canvasElement) => {
+  const canvas = within(canvasElement);
+  await waitFor(
+    () => expect(canvas.getByTestId('expression-preview')).toBeInTheDocument(),
+    { timeout: 10000 }
+  );
+  await expect(canvas.queryByText('This may not fit')).toBeNull();
+  await expect(canvas.queryByText('This does not fit')).toBeNull();
+});
+
+/**
  * Text (DPQL) mode, backed by a mock-socket LSP. Typing DPQL parses to the
  * AST (`dpql/parse`); the "Parsed" preview reflects it. (Slate typing is
  * driven live; the play test asserts the editor mounted + connected.)

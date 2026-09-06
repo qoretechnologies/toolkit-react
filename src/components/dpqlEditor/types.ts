@@ -13,6 +13,24 @@ export type {
 export interface IDpqlParseResult {
   success: boolean;
   expression: Record<string, any> | null;
+  /** The type the server inferred for the expression's result. */
+  inferred_type?: string;
+  /** Echo of the `target_type` the request asked about, when one was sent. */
+  target_type?: string;
+  /** `true` when the inferred type already satisfies the target. */
+  type_compatible?: boolean;
+  /** `true` when a conversion to the target exists at all. */
+  auto_coercible?: boolean;
+  /**
+   * `true` when that conversion is only ATTEMPTED, not guaranteed — text used
+   * as a number, whose outcome depends on what the text turns out to hold.
+   * A total conversion (a number used as text) reports `false`, and the server
+   * emits no diagnostic for it: warning about something that cannot fail
+   * teaches authors to ignore the warnings that can.
+   */
+  coercion_may_fail?: boolean;
+  /** The conversion that would make the expression fit, when one would. */
+  suggested_fix?: { text: string; description?: string };
   diagnostics: Array<{
     range: {
       start: { line: number; character: number };
@@ -150,8 +168,14 @@ export interface IDpqlEditorRef {
    * when the document has no diagnostics, otherwise an array of errors.
    */
   validate: () => Promise<{ valid: boolean; errors?: Array<{ message: string }> }>;
-  /** Parse DPQL text into an expression AST via `dpql/parse`. */
-  parse: (text: string) => Promise<IDpqlParseResult>;
+  /**
+   * Parse DPQL text into an expression AST via `dpql/parse`.
+   *
+   * `targetType` asks the server, in the same round trip, whether the
+   * expression's result can satisfy that type — see `coercion_may_fail` on
+   * the result. Omit it to ask only whether the text parses.
+   */
+  parse: (text: string, targetType?: string) => Promise<IDpqlParseResult>;
   /** Serialize an expression AST back to DPQL text via `dpql/serialize`. */
   serialize: (expression: Record<string, any>) => Promise<string>;
 }

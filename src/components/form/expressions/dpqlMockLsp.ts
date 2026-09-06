@@ -39,6 +39,29 @@ export const startDpqlMockLsp = (): (() => void) => {
       // deterministic and verifiable.
       'dpql/parse': (msg) => {
         const text = (msg.params?.text ?? '').trim();
+        // Type analysis is returned ONLY when the request carried a
+        // `target_type`, exactly as the server behaves. That makes it a real
+        // check rather than a fixture: a front end that stops sending the
+        // target gets no analysis, and the stories asserting the message go
+        // red instead of quietly passing.
+        const target = msg.params?.target_type as string | undefined;
+        const inferred = 'string';
+        const analysis =
+          target ?
+            {
+              inferred_type: inferred,
+              target_type: target,
+              type_compatible: target === inferred || target === 'auto',
+              auto_coercible: true,
+              // "text used as a number" is the attempted-but-not-guaranteed
+              // conversion; "text used as text" needs no conversion at all.
+              coercion_may_fail: target === 'int' || target === 'float',
+              suggested_fix:
+                target === inferred || target === 'auto' ?
+                  undefined
+                : { text: `to${target[0].toUpperCase()}${target.slice(1)}(${text})` },
+            }
+          : {};
         return {
           success: true,
           expression: {
@@ -51,6 +74,7 @@ export const startDpqlMockLsp = (): (() => void) => {
               ],
             },
           },
+          ...analysis,
           diagnostics: [],
         };
       },

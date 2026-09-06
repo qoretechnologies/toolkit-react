@@ -194,6 +194,46 @@ whether it is the right type — a mismatch is something to show the author
 inside the editor, never a reason to refuse to open it. A probe never
 throws; an unreachable instance simply leaves the typed text alone.
 
+## Return-type checking
+
+*Added 2026-09-06. As-built.*
+
+`dpql/parse` has always been able to answer "can this expression's result
+satisfy type X?" — it takes a `target_type` and returns `inferred_type`,
+`type_compatible`, `auto_coercible` and a `suggested_fix`. Nothing in the
+front end ever sent one, so it never answered.
+
+`ExpressionField` now sends the field's own type with every parse, and
+shows what comes back. Three outcomes, not two:
+
+| the expression | shown |
+|---|---|
+| already fits | nothing |
+| converts, and the conversion is TOTAL (a number used as text) | nothing |
+| converts, but the conversion may FAIL (text used as a number) | a warning, with the conversion offered |
+| cannot convert at all | a danger message, with the conversion offered |
+
+The middle row is why the server grew `coercion_may_fail`: `canAutoCoerce()`
+admits both kinds, and reporting a conversion that cannot fail is what
+teaches authors to ignore the reports that matter.
+
+`auto` and `any` are never sent as a target — they accept anything, so the
+answer would always be "compatible" and the round trip would buy nothing. A
+field offering a CHOICE of return types sends nothing either, rather than
+asking about one of them arbitrarily.
+
+**What the field cannot decide.** Whether text really denotes a number
+depends on the text, which does not exist until the expression runs. So the
+warning is a warning, not a refusal, and the value is checked again
+server-side at run time — see `design/test-interface-object.md` in the qorus
+repo. For that to be possible the FormEngine's stored envelope carries the
+field's `type` beside `is_expression` and the AST, which is the type the
+author was shown.
+
+The same analysis lives in two server handlers (the LSP's `dpql/parse` and
+the Creator WS equivalent); both were changed together. Deduplicating them
+is a separate cleanup.
+
 ## Out of scope
 
 - `server_expression_handling` server-function-vs-qorus-function
