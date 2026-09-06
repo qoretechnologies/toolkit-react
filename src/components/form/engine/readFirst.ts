@@ -817,7 +817,10 @@ export const getOptionGroupLabel = (
 /** Completion summary for the read-first progress meter. */
 export interface IReadFirstCompletion {
   total: number;
+  /** Fields holding a value, whether or not anything is wrong with it. */
   set: number;
+  /** Fields holding a value that nothing is flagging — what the meter fills. */
+  done: number;
   pct: number;
 }
 
@@ -856,14 +859,33 @@ export const getReadFirstBucket = (status: TReadFirstStatus): 'attention' | 'set
 
 /** Count how many of the shown options have a value set, for the progress meter. */
 export const getReadFirstCompletion = (
-  shownOptions: Record<string, IQorusFormField | undefined> = {}
+  shownOptions: Record<string, IQorusFormField | undefined> = {},
+  /**
+   * Whether the form flags this field as needing attention. Optional: without
+   * it the meter falls back to counting values alone, which is what a caller
+   * with no bucketing of its own can honestly say.
+   */
+  needsAttention?: (name: string) => boolean
 ): IReadFirstCompletion => {
   const names = Object.keys(shownOptions);
   const total = names.length;
-  const set = names.filter((name) => !isOptionValueEmpty(shownOptions[name]?.value)).length;
-  const pct = total ? Math.round((set / total) * 100) : 0;
+  const hasValue = (name: string) => !isOptionValueEmpty(shownOptions[name]?.value);
+  const set = names.filter(hasValue).length;
+  /* "Set" and "needs attention" are not opposites. A field can hold a value and
+     still be wrong — one that fails validation, or one the host has flagged
+     because something INSIDE it is unfinished — and counting those as progress
+     is how a form comes to report 100% while the box beneath it says a field
+     needs attention.
 
-  return { total, set, pct };
+     It also cost the meter its amber run: the bar draws attention from `set%`
+     onward, so a field counted in both pushed that run past the right edge,
+     where `overflow: hidden` swallowed it. The one visual signal that something
+     was outstanding was the one thing the double-count hid. */
+  const done =
+    needsAttention ? names.filter((name) => hasValue(name) && !needsAttention(name)).length : set;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+
+  return { total, set, done, pct };
 };
 
 /** What the "first field to fix" selector needs to know about one field.

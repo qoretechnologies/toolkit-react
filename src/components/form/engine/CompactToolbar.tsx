@@ -140,7 +140,10 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
   const cWarning = intents.warning || '#d17c29';
   const cText = (theme.text?.color as string) || '#e8e8e8';
   const cTrack = `${cText}1f`;
-  const setPct = completion.total ? (completion.set / completion.total) * 100 : 0;
+  // The GREEN run is what is done, not merely what has a value: a field that is
+  // set but flagged belongs to the amber run, and counting it twice pushed that
+  // run off the end of the track.
+  const setPct = completion.total ? (completion.done / completion.total) * 100 : 0;
   const attentionPct = completion.total ? (attentionCount / completion.total) * 100 : 0;
 
   return (
@@ -155,10 +158,14 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
           <StyledCompletionLine>
             <StyledSummary
               className='options-readfirst-status'
-              $color={invalidCount ? cWarning : cSuccess}
+              $color={invalidCount || attentionCount ? cWarning : cSuccess}
               style={{ fontWeight: 600 }}
             >
-              {invalidCount ? 'Draft' : 'Ready'}
+              {/* "Ready" is a claim about the whole form, so anything the form
+                  is asking for withdraws it — a value that fails validation and
+                  a field the host has flagged alike. Saying Ready beside
+                  "1 need attention" made the word mean nothing. */}
+              {invalidCount || attentionCount ? 'Draft' : 'Ready'}
             </StyledSummary>
             <StyledSummary style={{ opacity: 0.5 }}>
               · {completion.set}/{completion.total} set

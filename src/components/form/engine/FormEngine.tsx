@@ -2286,8 +2286,12 @@ const FormEngineImpl = ({
   // Read-first completion summary (how many shown options have a value set),
   // surfaced as a progress meter at the top of the compact form.
   const readFirstCompletion = useMemo(
-    () => getReadFirstCompletion(availableOptions as Record<string, IQorusFormField | undefined>),
-    [JSON.stringify(availableOptions)]
+    () =>
+      getReadFirstCompletion(
+        availableOptions as Record<string, IQorusFormField | undefined>,
+        (name) => getOptionBucket(name) === 'attention'
+      ),
+    [JSON.stringify(availableOptions), getOptionBucket]
   );
 
   const optionalFields = useMemo(
