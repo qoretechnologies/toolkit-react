@@ -1462,8 +1462,28 @@ const FormEngineImpl = ({
     setLocalValue?.({ fields: fixedValue, meta: undefined });
   }, [JSON.stringify(options), JSON.stringify(value), isRendererOnly]);
 
+  /**
+   * Fields the reader has actually edited in this instance.
+   *
+   * "This field is required" is an ERROR message, and an error is a report that
+   * something went wrong. Under a field nobody has been in yet it reports
+   * nothing — the form is empty because it is new — while the requirement is
+   * already stated by the asterisk, by the Needs-attention box the row sits in,
+   * and by the completion meter. A form whose first act is to accuse the reader
+   * of a mistake they have not made teaches them to discount its warnings.
+   *
+   * So the message waits for a touch. Being IN the field and leaving it empty
+   * is a real gap, and that one shows. A ref, not state: every edit re-renders
+   * anyway, so the following render reads the current set with no second pass.
+   */
+  const touchedOptionsRef = useRef<Set<string>>(new Set());
+
   const handleValueChange = useCallback(
     (optionName: string, val?: any, _type?: string, isFunction?: boolean) => {
+      // Every route into this handler is a person acting: typing, picking from a
+      // menu, clearing the value, adding an optional field. Marked here rather
+      // than inside the updater below, which React may invoke twice.
+      touchedOptionsRef.current.add(optionName);
       setLocalValue(({ fields = {} }) => {
         const schemaType = getOptionSchemaStorageType(options?.[optionName], isRendererOnly);
         const isAnyLike = schemaType === 'any' || schemaType === 'auto';
@@ -2605,6 +2625,7 @@ const FormEngineImpl = ({
             name={optionName}
             option={{ type: resolvedType, ...other }}
             getType={getTypeForOption}
+            untouched={!touchedOptionsRef.current.has(optionName)}
           />
           {operators && size(operators) && size(other.op) ?
             <>

@@ -510,11 +510,11 @@ export const OptionDependsOnOptionOrAnotherOption: Story = {
     });
 
     await _testsWaitForText(
-      'This field is disabled because some dependencies are not fulfilled: "Required Option 2", "Required Option 5"'
+      'This field is disabled because some dependencies are not fulfilled: ("Required Option 2" or "Required Option 5")'
     );
     await _testsChangeRichText('I have value', 5);
     await _testsWaitForTextToNotExist(
-      'This field is disabled because some dependencies are not fulfilled: "Required Option 2", "Required Option 5"'
+      'This field is disabled because some dependencies are not fulfilled: ("Required Option 2" or "Required Option 5")'
     );
   },
 };

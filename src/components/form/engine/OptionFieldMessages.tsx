@@ -1,11 +1,12 @@
 import { ReqoreControlGroup, ReqoreTag, ReqoreVerticalSpacer } from '@qoretechnologies/reqore';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IQorusFormField, IQorusFormSchema, TQorusForm } from '@qoretechnologies/ts-toolkit';
-import { flatten, size } from 'lodash';
+import { isArray, size } from 'lodash';
 import { useMemo } from 'react';
 import { getRequiredOptionMessage } from '../../../helpers/options';
 import {
   hasAllDependenciesFullfilled,
+  parseDependency,
   validateFieldWithResult,
   validateOptionWithRequiredGroups,
 } from '../../../helpers/validations';
@@ -52,7 +53,10 @@ export const isConditionalMessageShown = (
   if (message.when && !hasAllDependenciesFullfilled(message.when as never, values, optionsSchema)) {
     return false;
   }
-  if (message.unless && hasAllDependenciesFullfilled(message.unless as never, values, optionsSchema)) {
+  if (
+    message.unless &&
+    hasAllDependenciesFullfilled(message.unless as never, values, optionsSchema)
+  ) {
     return false;
   }
   return true;
@@ -65,12 +69,82 @@ export const getShownSchemaMessages = <T extends IConditionalFieldMessage>(
   optionsSchema?: IQorusFormSchema
 ): T[] => (messages || []).filter((m) => isConditionalMessageShown(m, allOptions, optionsSchema));
 
+/**
+ * Name one `depends_on` entry so the reader can act on it.
+ *
+ * The list used to be built by looking each entry up as a whole field name,
+ * which is only ever true of the bare-name form. A COMPARISON entry
+ * (`kind=type`, `kind!=type`) matched no field, was dropped, and a field whose
+ * dependencies are all comparisons — the shape every subject field of a test
+ * uses — rendered "…are not fulfilled:" with nothing after the colon. The
+ * reader was told a dependency was unmet and not which one, by a sentence that
+ * stopped mid-way.
+ *
+ * One parser for both halves, the same one the evaluator uses, so the sentence
+ * and the lock cannot disagree about what an entry means.
+ */
+const describeDependency = (dependency: string, schema: IQorusFormSchema): string | undefined => {
+  const { name, op, value } = parseDependency(dependency);
+  const dependencySchema = schema[name];
+
+  if (!dependencySchema) {
+    return undefined;
+  }
+
+  const label = `"${dependencySchema.display_name || name}"`;
+
+  return op ? `${label} must ${op === '!=' ? 'not ' : ''}be "${value}"` : label;
+};
+
+/**
+ * The whole `depends_on` list as one phrase.
+ *
+ * A nested entry is an OR — only one of its members has to hold. It used to be
+ * flattened into the same comma-separated list as the top-level entries, which
+ * are an AND, so an either/or was shown to the reader as a set of things all
+ * required. The alternatives now stay grouped and joined by "or".
+ */
+const describeDependencies = (
+  dependencies: (string | string[])[] | string[][],
+  schema: IQorusFormSchema
+): string =>
+  (dependencies as (string | string[])[])
+    .map((entry) => {
+      if (!isArray(entry)) {
+        return describeDependency(entry as string, schema);
+      }
+      const alternatives = (entry as string[])
+        .map((dep) => describeDependency(dep, schema))
+        .filter((dep): dep is string => !!dep);
+      if (!alternatives.length) {
+        return undefined;
+      }
+      return alternatives.length > 1 ? `(${alternatives.join(' or ')})` : alternatives[0];
+    })
+    .filter((entry): entry is string => !!entry)
+    .join(', ');
+
 export interface IOptionFieldMessagesProps {
   schema: IQorusFormSchema;
   option: IQorusFormField;
   allOptions?: TQorusForm;
   name: string;
   getType: (type: string) => string;
+  /**
+   * The reader has not edited this field in this session.
+   *
+   * An error is a report that something went WRONG. "This field is required"
+   * under a field nobody has been in yet reports nothing: the form is empty
+   * because it is new. The requirement is already carried three other ways —
+   * the asterisk on the label, the Needs-attention box the row sits in, and the
+   * completion meter — so the message waits until the reader has been in the
+   * field and left it empty, which IS a thing that went wrong.
+   *
+   * Only the plain required message is held back. A value that fails
+   * validation, an unmet required GROUP and a locked dependency are all facts
+   * about what the form currently holds, and they show immediately.
+   */
+  untouched?: boolean;
 }
 
 /**
@@ -84,6 +158,7 @@ export const getOptionFieldMessages = ({
   name,
   allOptions,
   getType,
+  untouched,
 }: IOptionFieldMessagesProps): IReqoreTagProps[] => {
   const optionSchema = schema[name];
   const result: IReqoreTagProps[] = [];
@@ -109,7 +184,7 @@ export const getOptionFieldMessages = ({
       });
     }
   } else {
-    if (optionSchema?.required) {
+    if (optionSchema?.required && !untouched) {
       result.push({ label: 'This field is required', intent: 'danger' });
     }
 
@@ -134,14 +209,16 @@ export const getOptionFieldMessages = ({
     optionSchema?.depends_on &&
     !hasAllDependenciesFullfilled(optionSchema.depends_on, allOptions, schema)
   ) {
-    const dependsOn = flatten(optionSchema.depends_on)
-      .filter((dep: string) => !!schema[dep])
-      .map((dep: string) => schema[dep].display_name || dep)
-      .map((dep: string) => `"${dep}"`)
-      .join(', ');
+    const dependsOn = describeDependencies(optionSchema.depends_on, schema);
 
     result.push({
-      label: `This field is disabled because some dependencies are not fulfilled: ${dependsOn}`,
+      label:
+        dependsOn ?
+          `This field is disabled because some dependencies are not fulfilled: ${dependsOn}`
+          // Nothing nameable: every entry pointed at a field this schema does
+          // not contain. A sentence that ends in a colon and then stops reads
+          // as a rendering fault rather than as a fact about the form.
+        : 'This field is disabled because some dependencies are not fulfilled',
       intent: 'warning',
     });
   }
@@ -155,10 +232,11 @@ export const OptionFieldMessages = ({
   name,
   allOptions,
   getType,
+  untouched,
 }: IOptionFieldMessagesProps) => {
   const messages: IReqoreTagProps[] = useMemo(
-    () => getOptionFieldMessages({ schema, option, name, allOptions, getType }),
-    [JSON.stringify(schema), JSON.stringify(option), JSON.stringify(allOptions), name]
+    () => getOptionFieldMessages({ schema, option, name, allOptions, getType, untouched }),
+    [JSON.stringify(schema), JSON.stringify(option), JSON.stringify(allOptions), name, untouched]
   );
 
   if (!size(messages)) {
