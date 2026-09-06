@@ -124,6 +124,76 @@ templates/return-type, and bind a provider only when the field supplies
 one. Worst case, text mode still parses/serializes correctly with no
 provider; only completions are reduced.
 
+## Detecting an expression typed as plain text
+
+*Added 2026-09-06. As-built.*
+
+An author who never opens the expression view still types DPQL into the
+ordinary editor. `TemplateField` notices, and what it does next depends on
+the field's own type.
+
+**A successful parse means nothing.** This is the finding the whole design
+rests on, and it is counter-intuitive enough to be worth stating plainly.
+Verified against the live LSP: `dpql/parse` returns `success: true` for
+`hello`, for `42`, for `2026-09-06` and for `@a`. A bare literal is a valid
+DPQL program, so "does it parse?" cannot separate an expression from a
+value. What separates them is the shape of the AST that comes back:
+
+| typed text | `exp` | verdict |
+|---|---|---|
+| `hello`, `42`, `2026-09-06`, `@a` | `value` | a literal |
+| `$local:count` | `template` | a template |
+| `@a > 5`, `"a" + "b"`, `toInt("5")`, `@n LIKE "a%"` | `>`, `+`, `toInt`, `like` | an expression |
+
+Text that is not DPQL at all is safe on its own: `hello world`, `x@y.com`,
+`a - b test` and `{"a":1}` all fail to parse outright.
+
+**Three stages, in `helpers/dpqlDetection.ts`:**
+
+1. `mightBeDpqlExpression` — a cheap lexical pass whose ONLY job is to keep
+   a server round-trip off every keystroke. It decides nothing. `-` and `/`
+   require surrounding spaces so a date or a path never triggers a probe.
+2. `dpql/parse` on the shared probe document (below), debounced 400 ms.
+3. `classifyTypedText` — `switch` when the text could not be a literal of
+   the field's declared type (the form's own `validateField` answers that),
+   `offer` when it could, `none` otherwise.
+
+**Why the asymmetry.** Rewriting the string `a + b` into a concatenation on
+a `string` field would destroy a value the author meant, so a type that
+accepts any text is only ever OFFERED the switch. Text that could not be a
+literal there was already an error the moment it was typed, so switching
+costs nothing and explains the error. Every switch carries an Undo that
+restores the exact text, and a declined text is never asked about again.
+
+**Reachability.** The auto-switch only applies where the editor accepts free
+text — a constrained `string` (identifier / `validation_regex`), `binary`,
+`hash`. `int` and `float` render `input[type=number]`, which drops `@`, `>`
+and spaces before any handler runs, so detection there is unreachable by
+design of the editor and the ⋮ menu remains the way in. Pinned by a test.
+
+**Template precedence.** `isValueTemplate` is deliberately loose (starts
+with `$`, contains `:`), so `$local:count + 1` was being swallowed into
+template mode with its arithmetic as dead text. A value that is not one
+complete template token and carries an operator now stays in the plain
+editor, where detection can reach it. A token standing alone
+(`$local:count`, `$data:{1.field}`) still flips, unchanged.
+
+**The probe document** (`components/dpqlEditor/dpqlProbe.ts`). One shared,
+lazily-opened DPQL document for the whole app, reference-counted by
+`useDpqlProbe` and closed when the last field using it unmounts. It is
+cheap: `ReqraftLspClient` multiplexes every document over ONE socket per
+endpoint and `initialize` runs once for it, so a probe is one extra
+`didOpen` plus one server-side session — not a connection. It is still
+shared rather than per-field, because a form with forty expression-capable
+options would otherwise open forty sessions to ask the same question.
+
+The document binds NO provider context; verified live, a context-less
+`didOpen` still builds a session that `dpql/parse` answers on. It sends no
+`target_type` either: detection asks whether the text is an expression, not
+whether it is the right type — a mismatch is something to show the author
+inside the editor, never a reason to refuse to open it. A probe never
+throws; an unreachable instance simply leaves the typed text alone.
+
 ## Out of scope
 
 - `server_expression_handling` server-function-vs-qorus-function

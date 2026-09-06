@@ -26,7 +26,7 @@ import {
 } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IQorusFormFieldSchemaBase, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size } from 'lodash';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
   filterTemplatesByType as templatesFilterFunc,
@@ -37,7 +37,12 @@ import {
   describeTemplateReference,
   isValueTemplate,
 } from '../../../../helpers/templates';
+import {
+  classifyTypedText,
+  mightBeDpqlExpression,
+} from '../../../../helpers/dpqlDetection';
 import { getTypeFromValue } from '../../../../helpers/validations';
+import { useDpqlProbe } from '../../../dpqlEditor/useDpqlProbe';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 import { ExpressionBuilder } from '../../expressions/builder';
@@ -58,6 +63,14 @@ import { RichTextFormField } from '../rich-text/RichText';
 // Re-export template utilities for consumers
 export { getTemplateKey, getTemplateValue, isValueTemplate };
 export type { IQorusFormType as IQorusType };
+
+/**
+ * How long the author must pause before typed text is sent to the DPQL
+ * probe. Long enough that a probe is not sent for every prefix of what is
+ * being typed, short enough that the offer appears while they are still
+ * looking at the field.
+ */
+const DPQL_DETECT_DEBOUNCE_MS = 400;
 
 export const TemplatesListProps: IReqoreDropdownProps = {
   useTargetWidth: true,
@@ -380,6 +393,19 @@ export const TemplateField = memo(
     );
     const [templateValue, setTemplateValue] = useState<string | null>(value);
 
+    // Typed text that turned out to be an expression the author may accept.
+    const [dpqlOffer, setDpqlOffer] = useState<{ text: string; expression: any } | null>(null);
+    // The literal this field held before typed text switched it into
+    // expression mode — kept so the switch is undoable, and so the editor
+    // opens on the Text view the author was already writing in.
+    const [expressionFromText, setExpressionFromText] = useState<string | null>(null);
+    // Texts the author has said no to. Without this, dismissing an offer (or
+    // undoing a switch) would re-detect the same text on the next render and
+    // ask again forever.
+    const declinedTexts = useRef<Set<string>>(new Set());
+    const detectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const probeDpql = useDpqlProbe();
+
     const effectiveIsFunction = isFunction || internalIsFunction;
 
     useWhyDidYouUpdate(`Template field ${name}`, {
@@ -412,6 +438,17 @@ export const TemplateField = memo(
           getTypeFromValue(value) === 'string' &&
           !isCompleteTemplateToken(value)
         ) {
+          return;
+        }
+
+        // A template reference with an OPERATOR on it (`$local:count + 1`) is
+        // an expression, not a template. The loose check above passes it —
+        // it starts with `$` and has a colon — so without this every such
+        // string was swallowed into template mode, where the arithmetic is
+        // dead text and no affordance can reach it. A token standing alone
+        // (`$local:count`, `$data:{1.field}`) has no operator and still
+        // flips, which is the case template mode is for.
+        if (!isCompleteTemplateToken(value) && mightBeDpqlExpression(value)) {
           return;
         }
 
@@ -561,11 +598,164 @@ export const TemplateField = memo(
       (expressionValue: IExpression | undefined, remove: boolean) => {
         if (remove) {
           setInternalIsFunction(false);
+          // The expression is gone, so there is no longer a switch to undo.
+          setExpressionFromText(null);
         }
         onChange(name, expressionValue?.value, type as TQorusType, !remove);
       },
       [name, onChange, type, value]
     );
+
+    // ─── Text typed into a plain field that is really a DPQL expression ───
+    //
+    // A field that accepts expressions still gets DPQL TYPED into it, in the
+    // ordinary editor, by an author who never opened the expression view.
+    // What happens then depends on the field's own type, and the asymmetry is
+    // deliberate: text that could stand as a literal here is only ever
+    // OFFERED, because silently rewriting the string `a + b` into a
+    // concatenation would destroy a value the author meant. Text that could
+    // NOT be a literal here was already an error the moment it was typed, so
+    // switching costs nothing and explains the error.
+    //
+    // The server decides whether the text is an expression at all — see
+    // `helpers/dpqlDetection` for why a successful parse alone means nothing.
+    const validationField = useMemo(
+      () => ({
+        validation_regex: rest.validation_regex,
+        has_to_be_valid_identifier: rest.has_to_be_valid_identifier,
+        has_to_have_value: rest.has_to_have_value,
+        rules: rest.rules,
+        arg_schema: rest.arg_schema,
+      }),
+      [
+        rest.validation_regex,
+        rest.has_to_be_valid_identifier,
+        rest.has_to_have_value,
+        JSON.stringify(rest.rules),
+        JSON.stringify(rest.arg_schema),
+      ]
+    );
+
+    const enterExpressionFromText = useCallback(
+      (text: string, expression: any) => {
+        setDpqlOffer(null);
+        setExpressionFromText(text);
+        setInternalIsFunction(true);
+        setIsTemplate(false);
+        setTemplateValue(null);
+        // `dpql/parse` answers with the field-ready envelope
+        // (`{is_expression, value}`); this field stores the inner AST and
+        // signals the flag through `onChange`'s fourth argument, exactly as
+        // `handleExpressionChange` does.
+        onChange?.(name, expression?.value ?? expression, type as TQorusType, true);
+      },
+      [name, onChange, type]
+    );
+
+    const undoExpressionFromText = useCallback(() => {
+      if (expressionFromText === null) {
+        return;
+      }
+
+      declinedTexts.current.add(expressionFromText);
+      setInternalIsFunction(false);
+      setExpressionFromText(null);
+      onChange?.(name, expressionFromText, type as TQorusType, false);
+    }, [expressionFromText, name, onChange, type]);
+
+    const declineDpqlOffer = useCallback(() => {
+      if (dpqlOffer) {
+        declinedTexts.current.add(dpqlOffer.text);
+      }
+
+      setDpqlOffer(null);
+    }, [dpqlOffer]);
+
+    const acceptDpqlOffer = useCallback(() => {
+      if (dpqlOffer) {
+        enterExpressionFromText(dpqlOffer.text, dpqlOffer.expression);
+      }
+    }, [dpqlOffer, enterExpressionFromText]);
+
+    // Held in a ref so the debounce below does not depend on it. `onChange`
+    // comes from the host form and can be a fresh function on any render;
+    // with the callback in the effect's deps, a re-render caused by a
+    // DIFFERENT field would restart this field's timer, and a form the
+    // author is typing in re-renders constantly.
+    const enterExpressionRef = useRef(enterExpressionFromText);
+    useEffect(() => {
+      enterExpressionRef.current = enterExpressionFromText;
+    }, [enterExpressionFromText]);
+
+    // Detection only runs on a field that could hold an expression and is
+    // currently showing a plain editor — never on a read-only field, a
+    // fixed-value list, or one already in template or expression mode.
+    const canDetectDpql =
+      !!allowFunctions &&
+      !!allowTextExpressions &&
+      !effectiveIsFunction &&
+      !isTemplate &&
+      !hasOnlyAllowedValues &&
+      !rest.readonly &&
+      !rest.readOnly &&
+      !rest.disabled;
+
+    useEffect(() => {
+      if (detectTimer.current) {
+        clearTimeout(detectTimer.current);
+        detectTimer.current = null;
+      }
+
+      const text = typeof value === 'string' ? value : undefined;
+
+      if (
+        !canDetectDpql ||
+        !text ||
+        declinedTexts.current.has(text) ||
+        !mightBeDpqlExpression(text)
+      ) {
+        setDpqlOffer(null);
+        return undefined;
+      }
+
+      let cancelled = false;
+
+      detectTimer.current = setTimeout(() => {
+        detectTimer.current = null;
+
+        void probeDpql(text).then((parsed) => {
+          if (cancelled) {
+            return;
+          }
+
+          const outcome = classifyTypedText({ text, type, field: validationField, parsed });
+
+          if (outcome === 'switch') {
+            enterExpressionRef.current(text, parsed.expression);
+          } else if (outcome === 'offer') {
+            setDpqlOffer({ text, expression: parsed.expression });
+          } else {
+            setDpqlOffer(null);
+          }
+        }).catch(() => {
+          // Detection is an offer of help, never a reason for a field to
+          // break: an unreachable instance or a classifier that threw leaves
+          // the author's text exactly where they put it.
+          if (!cancelled) {
+            setDpqlOffer(null);
+          }
+        });
+      }, DPQL_DETECT_DEBOUNCE_MS);
+
+      return () => {
+        cancelled = true;
+
+        if (detectTimer.current) {
+          clearTimeout(detectTimer.current);
+          detectTimer.current = null;
+        }
+      };
+    }, [value, canDetectDpql, type, validationField, probeDpql]);
 
     const renderControls = useCallback(() => {
       const showFunctionsDropdown =
@@ -749,8 +939,28 @@ export const TemplateField = memo(
                 expressionsUrl={rest.expressions_url}
                 serverHandled={rest.server_expression_handling}
                 size={rest.size}
+                // An author who typed the expression as text is already
+                // writing in that language — dropping them into the visual
+                // builder would make them find their own sentence again.
+                defaultMode={expressionFromText !== null ? 'text' : 'visual'}
               />
             </ReqoreErrorBoundary>
+            {expressionFromText !== null ? (
+              <ReqoreButton
+                fixed
+                compact
+                minimal
+                icon='ArrowGoBackLine'
+                // No `intent` with `minimal`: a Reqore intent is a FILL, and
+                // `muted` as TEXT is 1.3:1 on the app surface.
+                size={rest.size}
+                className='dpql-detected-undo'
+                tooltip={`Keep "${expressionFromText}" as plain text instead`}
+                onClick={undoExpressionFromText}
+              >
+                Undo
+              </ReqoreButton>
+            ) : null}
             {renderControls()}
           </ReqoreControlGroup>
         );
@@ -831,6 +1041,29 @@ export const TemplateField = memo(
             {...rest}
             aria-label={fieldAriaLabel}
           />
+        ) : null}
+
+        {dpqlOffer ? (
+          <ReqoreControlGroup fixed stack size={rest.size}>
+            <ReqoreButton
+              compact
+              icon='Functions'
+              intent='info'
+              className='dpql-detected-offer'
+              tooltip={`"${dpqlOffer.text}" reads as an expression. It is also valid text here, so nothing has been changed — use it as an expression?`}
+              onClick={acceptDpqlOffer}
+            >
+              Use as expression
+            </ReqoreButton>
+            <ReqoreButton
+              compact
+              icon='CloseLine'
+              intent='info'
+              className='dpql-detected-dismiss'
+              tooltip='Keep it as plain text'
+              onClick={declineDpqlOffer}
+            />
+          </ReqoreControlGroup>
         ) : null}
 
         {showTemplatesDropdown ||
