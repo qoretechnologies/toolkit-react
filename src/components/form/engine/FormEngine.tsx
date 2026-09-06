@@ -914,12 +914,17 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * for the pane to exist at all — so a pasted or reloaded link lands on a
    * collapsed form.
    *
-   * Applied once, on the first render where the schema has rows, so an
-   * async-loaded schema is covered. It never re-expands a row the user has
-   * since collapsed, and it does not participate in `expandMode: 'single'`
-   * accordion collapsing — the caller is naming a starting point, not
-   * driving the state. Only a remount re-arms it. No-op in classic
-   * (non-compact) mode.
+   * Applied once, on the first render that actually CONTAINS one of the named
+   * rows — not merely the first render with any rows — so a schema arriving in
+   * pieces still gets its address applied rather than spending the one shot on
+   * a form the field had not reached yet.
+   *
+   * It never re-expands a row the user has since collapsed, and it does not
+   * participate in `expandMode: 'single'` accordion collapsing — the caller is
+   * naming a starting point, not driving the state. That holds against the
+   * engine's own openers too: `expandFirstRequired` / `autoFocusFirstRequired`
+   * open their target ALONGSIDE these rows in single mode instead of replacing
+   * them. Only a remount re-arms it. No-op in classic (non-compact) mode.
    */
   initialExpandedOptions?: string[];
 
@@ -2136,11 +2141,16 @@ const FormEngineImpl = ({
     if (!names.length) {
       return;
     }
-    hasAppliedInitialExpansionRef.current = true;
     const toExpand = initialExpandedOptions.filter((name) => names.includes(name));
     if (!toExpand.length) {
+      // Not "there is no such row" — "not YET". A server-driven schema arrives
+      // in pieces, and the row the caller named can be in a later one (a test's
+      // `cases` field materialises once its step-kind catalogue lands). Latching
+      // here would spend the one shot on a form that did not yet contain the
+      // field, and the address would never be applied at all.
       return;
     }
+    hasAppliedInitialExpansionRef.current = true;
     setExpandedOptions((prev) => [...prev, ...toExpand.filter((name) => !prev.includes(name))]);
   }, [initialExpandedOptions, compact, availableOptions]);
 
@@ -2231,7 +2241,13 @@ const FormEngineImpl = ({
       setExpandedOptions((prev) =>
         prev.includes(target) ? prev
         : expandMode === 'multi' ? [...prev, target]
-        : [target]
+          // `expandMode: 'single'` is a rule about what a CLICK does: opening a
+          // row closes the one the reader last opened. It is not a licence to
+          // close a row the HOST named through `initialExpandedOptions`. That
+          // is an address — a statement about what the page is FOR, made before
+          // the reader did anything — and this scan is a convenience layered on
+          // top of it. Keep the named rows; replace only what a click could.
+        : [...prev.filter((name) => initialExpandedOptions?.includes(name)), target]
       );
     }
   }, [
@@ -2244,6 +2260,7 @@ const FormEngineImpl = ({
     dependencyLockedNames,
     getOptionBucket,
     expandMode,
+    initialExpandedOptions,
   ]);
 
   // Read-first completion summary (how many shown options have a value set),
