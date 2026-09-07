@@ -1,6 +1,6 @@
 # TASK — ExpressionField seams: carry `extraActions` through the shell and into operand rows
 
-**Status:** done pending user verify (uncommitted, branch `bugfix/116_expression-field-seams`) — `build:test:prod` / `lint` / unit 919/919 / ExpressionField stories 8/8 green; new story's qlip PNG read (both cards carry the injected action), capture deleted
+**Status:** committed `f5fb2ee`, pushed to `origin/bugfix/116_expression-field-seams` (user-verified in the browser 2026-09-07) — no PR yet; CI here runs on pull requests only
 
 Issue: [toolkit-react#116](https://github.com/qoretechnologies/toolkit-react/issues/116).
 Design: [`design/IDE_INTEGRATION.md`](../design/IDE_INTEGRATION.md) (seam table; revised 2026-09-07 in this task).
@@ -48,9 +48,10 @@ hands the merged catalogue down (an earlier draft of #116 claimed otherwise; cor
 - [x] `VERIFY.local.md` written for the click-through
 
 ### 4 — gate
-- [ ] **STOP — user verifies in the browser (storybook :6008) before commit**
-- [ ] `/audit` (skill not installed on this machine — resolve before commit)
-- [ ] commit (no attribution trailer), push, `ci-monitor`, qlip review
+- [x] **STOP — user verified in the browser** (2026-09-07, on :6009)
+- [x] `/audit` — run by following `instruction-files/skills/audit-frontend/SKILL.md` directly (the skill is not linked into `~/.claude/skills/` on this machine); re-run after the last story edit; clean
+- [x] commit `f5fb2ee` (no attribution trailer), pushed
+- [ ] open the PR (CI + qlip build only run on a pull request), `ci-monitor`, qlip review
 
 ## Out of scope (no designed seam yet — needs a design decision first)
 
