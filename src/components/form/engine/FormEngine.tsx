@@ -47,7 +47,7 @@ import reduce from 'lodash/reduce';
 import size from 'lodash/size';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import { createContext } from 'use-context-selector';
 import {
   fixOperatorValue,
@@ -233,7 +233,7 @@ const PositiveColorEffect: any = {
 // Compact (read-first) layout: flat label | value | action rows in collapsible
 // group panels; colours come in as props so the layout follows the Reqore theme.
 
-const StyledCompactWrap = styled.div<{ $flush?: boolean }>`
+const StyledCompactWrap = styled.div<{ $ownScroll?: boolean }>`
   display: flex;
   flex-flow: column;
   gap: 10px;
@@ -242,21 +242,48 @@ const StyledCompactWrap = styled.div<{ $flush?: boolean }>`
      engage instead of overflowing the container horizontally. */
   min-width: 0;
   max-width: 100%;
-  /* Own our scroll context instead of borrowing the host's. The sticky toolbar
-     pins to whatever scrolls; if that scroller carries top padding (e.g. a
-     ReqorePanel/ReqoreContent body), sticky \`top: 0\` resolves against its
-     padding box and leaves an unblurred strip above the toolbar. By scrolling
-     here — an UNPADDED box — the toolbar always pins flush and content ghosts
-     cleanly beneath it, regardless of host padding (mirrors how the IDE
-     dashboard keeps its StyledScrollBody scroller unpadded).
-     We cap at the host's available height and scroll past it, but do NOT grow
-     to fill it — short forms still hug their content. When the host height is
-     indefinite, \`max-height: 100%\` resolves to none and the box grows so the
-     host scrolls as before (graceful fallback). */
-  min-height: 0;
-  max-height: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
+
+  /* Scroll ownership — see \`compactScroll\`.
+
+     'host' (the default): the page or panel around us already scrolls, so we
+     must not cap our height and scroll our own body, or the reader gets two
+     scrollbars in two styles and cannot tell which moves what.
+
+     \`overflow-x: clip\`, NOT \`hidden\`: CSS coerces an \`overflow-y: visible\`
+     to \`auto\` whenever the other axis is neither visible nor clip, which would
+     leave this box a scroll container — the element stops scrolling only
+     because \`max-height: none\` means nothing overflows, while \`position:
+     sticky\` inside it still resolves against US instead of the host, so the
+     toolbar silently stops pinning. \`clip\` keeps the horizontal guard without
+     that coercion. */
+  ${({ $ownScroll }) =>
+    $ownScroll
+      ? css`
+          /* 'own': we are the scroller. The sticky toolbar pins to whatever
+             scrolls, so a host whose scrollport carries top padding would
+             resolve sticky \`top: 0\` against its padding box and leave an
+             unblurred strip above the toolbar. Scrolling in this unpadded box
+             pins it flush. Cap at the host's available height, but do not grow
+             to fill it — short forms still hug their content.
+
+             \`min-height: 0\` is what lets a flex item shrink below its content
+             so there is something to scroll; it belongs to this branch only. */
+          min-height: 0;
+          max-height: 100%;
+          overflow-y: auto;
+          overflow-x: hidden;
+        `
+      : css`
+          /* \`min-height: auto\` is load-bearing, not a default: inside a column
+             flex parent the shrink allowance above collapses this box to zero
+             height while its rows paint outside it, so the form looks right but
+             contributes nothing to layout — the host cannot size or scroll to
+             it and anything below it stacks against nothing. */
+          min-height: auto;
+          max-height: none;
+          overflow-y: visible;
+          overflow-x: clip;
+        `}
 
   /* Option logos (e.g. language images) render as <img> inside ReqoreIcon's
      square box; constrain them so portrait PNGs don't overflow the row. */
@@ -646,6 +673,11 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * breathing room) so the form sits flush to its container's edges. For embeds
    * that own their own gutters — e.g. the SchemaDefinition tab body, where the
    * form should line up with the section description above it. Default `false`.
+   *
+   * @deprecated No-op. The wrap has never had the gutter this prop claims to
+   * drop — the value reached a styled template with no interpolation slot — so
+   * every form already renders flush. Kept so existing call sites keep
+   * compiling; do not add new ones.
    */
   compactFlush?: boolean;
   /**
@@ -654,8 +686,27 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * scroll context, so the toolbar isn't sticky and its header drops the dark
    * blurred backdrop (and the stacking context that goes with it) — it sits
    * transparently inside the parent's edit card. Default `false`.
+   *
+   * Implies `compactScroll: 'host'` — a nested sub-form never owns a scroller.
    */
   compactNested?: boolean;
+  /**
+   * Compact mode only: who owns the form's vertical scroll.
+   *
+   * - `'host'` (default) — the surrounding page, panel or drawer scrolls, and
+   *   the form grows to its content. This is right almost everywhere: a form
+   *   inside something that already scrolls must not cap its own height, or the
+   *   reader gets two scrollbars side by side in two different styles and no
+   *   way to tell which one moves what.
+   * - `'own'` — the form caps at the host's available height and scrolls its
+   *   own body. Reach for this only when the host has a definite height and is
+   *   NOT itself a scroll container (it would clip the form instead of
+   *   scrolling it), or when the host's scrollport is padded and the sticky
+   *   toolbar must pin flush against an unpadded box.
+   *
+   * Default `'host'`.
+   */
+  compactScroll?: 'own' | 'host';
   /**
    * Compact mode only: props forwarded to the read-first form's outer
    * `ReqorePanel` — the panel that carries the sticky toolbar header and holds
@@ -880,8 +931,15 @@ const FormEngineImpl = ({
   forceDropdown,
   showTypeToggle = true,
   compact,
+  // Destructured only to keep it out of `rest` (and so off the DOM). The gutter
+  // this prop documents was never implemented: it was passed to the wrap as
+  // `$flush`, whose styled template had no interpolation slot, so it has always
+  // been a no-op. Removing it from the API is a separate, breaking change —
+  // every consumer passing it today already gets the flush layout by default.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   compactFlush = false,
   compactNested = false,
+  compactScroll = 'host',
   compactPanelProps,
   compactCollapsedGroups = ['optional'],
   compactToolbar = true,
@@ -3071,9 +3129,9 @@ const FormEngineImpl = ({
               <StyledCompactWrap
                 ref={setCompactWrap}
                 className='options-readfirst-scroll'
-                // A nested sub-form sits flush inside the parent's card — no outer
-                // gutter (the card already provides the breathing room).
-                $flush={compactFlush || compactNested}
+                // A nested sub-form is never the scroller — it sits inside the
+                // parent form's card, which is inside whatever actually scrolls.
+                $ownScroll={compactScroll === 'own' && !compactNested}
               >
                 <StyledCompactPanel
                   // Mirrors the toolbar's own search-row gate: when no search
