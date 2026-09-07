@@ -86,10 +86,9 @@ export const Default: Story = {
 
     // Visual mode renders the ported builder (with its own Explain); the shell
     // adds only the Visual/Text toggle.
-    await waitFor(
-      () => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(),
-      { timeout: 6000 }
-    );
+    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
+      timeout: 6000,
+    });
     await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
   },
 };
@@ -167,10 +166,9 @@ export const ViaFormEngine: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     // The ported builder rendered inside the engine-driven form.
-    await waitFor(
-      () => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(),
-      { timeout: 6000 }
-    );
+    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
+      timeout: 6000,
+    });
     await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
     // The ExpressionField shell wraps it: the Visual/Text toggle is present.
     await expect(await canvas.findByText('Visual')).toBeInTheDocument();
@@ -205,10 +203,9 @@ export const ViaFormEngineTextMode: Story = {
     const canvas = within(canvasElement);
 
     // Visual (the builder) renders first.
-    await waitFor(
-      () => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(),
-      { timeout: 6000 }
-    );
+    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
+      timeout: 6000,
+    });
 
     // Switch to Text — the DPQL editor mounts and seeds from the AST
     // (`dpql/serialize` over the mock LSP).
@@ -251,7 +248,7 @@ export const ViaFormEngineTextTyping: Story = {
     docs: {
       description: {
         story:
-          'Renders the FormEngine expression field with an empty AST in Text mode. Typing DPQL text triggers the mock LSP\'s dpql/parse and the parsed expression lands in the form value with is_expression set.',
+          "Renders the FormEngine expression field with an empty AST in Text mode. Typing DPQL text triggers the mock LSP's dpql/parse and the parsed expression lands in the form value with is_expression set.",
       },
     },
   },
@@ -315,10 +312,9 @@ export const ViaFormEngineTextTyping: Story = {
       },
       { timeout: 10000 }
     );
-    await waitFor(
-      () => expect(canvas.getByTestId('expression-preview')).toBeInTheDocument(),
-      { timeout: 10000 }
-    );
+    await waitFor(() => expect(canvas.getByTestId('expression-preview')).toBeInTheDocument(), {
+      timeout: 10000,
+    });
     await waitForLspIdle(canvasElement);
   },
 };
@@ -331,8 +327,17 @@ export const ViaFormEngineTextTyping: Story = {
  * `target_type`, exactly as the server does - so these stories fail if the
  * field stops sending it, rather than passing on a fixture.
  */
+/* `text` is per-story, and that is not cosmetic. `DpqlProbe` caches parse
+   results in a session-wide singleton keyed by the TEXT ALONE, so two stories
+   typing the same string share one answer: the second gets a cache HIT, sends
+   no request at all, and is handed the answer computed for the OTHER field's
+   type. That is order-dependent, so it passed locally and failed on CI, where
+   the two ran the other way round — and the instrumentation proved it by
+   reporting `parses=[]` for a field that was nonetheless showing a parsed
+   value. Distinct text per story keeps them independent. */
 const typedExpressionStory = (
   fieldType: string,
+  text: string,
   expectation: (canvasElement: HTMLElement) => Promise<void>
 ): Story => ({
   render: () => {
@@ -386,7 +391,7 @@ const typedExpressionStory = (
        same race. */
     await waitForLspIdle(canvasElement);
     await userEvent.click(editable);
-    await userEvent.type(editable, 'total');
+    await userEvent.type(editable, text);
     await expectation(canvasElement);
     await waitForLspIdle(canvasElement);
   },
@@ -397,8 +402,11 @@ const typedExpressionStory = (
  * field says so and offers the conversion. The value itself is checked again
  * server-side when the expression actually runs.
  */
-export const TextModeTypeMayNotFit: Story = typedExpressionStory('int', async (canvasElement) => {
-  /* Matched against the rendered TEXT, not with `getByText`. `ReqoreMessage`
+export const TextModeTypeMayNotFit: Story = typedExpressionStory(
+  'int',
+  'total_may_not_fit',
+  async (canvasElement) => {
+    /* Matched against the rendered TEXT, not with `getByText`. `ReqoreMessage`
      renders its title through nested nodes, so an exact single-element match
      reports "unable to find" for a message that is demonstrably on screen —
      the very failure testing-library's own error describes ("the text is
@@ -408,47 +416,52 @@ export const TextModeTypeMayNotFit: Story = typedExpressionStory('int', async (c
 
      The assertion stays meaningful: the title has to be present AND the
      suggested conversion has to be the one for this field's type. */
-  /* The assertion carries the diagnosis with it. A DOM dump is truncated by
+    /* The assertion carries the diagnosis with it. A DOM dump is truncated by
      testing-library and a `console.log` does not reliably reach a CI log, but
      a custom matcher message always does — and the one thing worth knowing
      here is whether the front end SENT `target_type` at all, because the mock
      answers with analysis only when it did. Without this the failure looks
      identical whether the request lacked a target or the answer went
      unrendered. */
-  const why = () =>
-    `parses=${JSON.stringify(dpqlMockParseCalls)} text=${JSON.stringify(
-      (canvasElement.textContent || '').slice(0, 400)
-    )}`;
-  await waitFor(
-    () => {
-      expect(canvasElement.textContent, why()).toContain('This may not fit');
-      expect(
-        canvasElement.querySelector('[data-testid="expression-type-fix"]')?.textContent,
-        why()
-      ).toContain('toInt(');
-    },
-    { timeout: 10000 }
-  );
-});
+    const why = () =>
+      `parses=${JSON.stringify(dpqlMockParseCalls)} text=${JSON.stringify(
+        (canvasElement.textContent || '').slice(0, 400)
+      )}`;
+    await waitFor(
+      () => {
+        expect(canvasElement.textContent, why()).toContain('This may not fit');
+        expect(
+          canvasElement.querySelector('[data-testid="expression-type-fix"]')?.textContent,
+          why()
+        ).toContain('toInt(');
+      },
+      { timeout: 10000 }
+    );
+  }
+);
 
 /**
  * Text used as text needs no conversion at all, so nothing is said. A warning
  * here would be noise, and noise is what teaches people to ignore the
  * warnings that matter.
  */
-export const TextModeTypeFits: Story = typedExpressionStory('string', async (canvasElement) => {
-  const canvas = within(canvasElement);
-  await waitFor(() => expect(canvas.getByTestId('expression-preview')).toBeInTheDocument(), {
-    timeout: 10000,
-  });
-  /* Absence, checked against the rendered text for the same reason its sibling
+export const TextModeTypeFits: Story = typedExpressionStory(
+  'string',
+  'total_type_fits',
+  async (canvasElement) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByTestId('expression-preview')).toBeInTheDocument(), {
+      timeout: 10000,
+    });
+    /* Absence, checked against the rendered text for the same reason its sibling
      checks presence that way: `queryByText` returns null for a message that IS
      on screen but split across nodes, so it would report "no warning" whether
      or not one was drawn — passing for the wrong reason is worse here than
      failing, because absence is the whole claim. */
-  expect(canvasElement.textContent).not.toContain('This may not fit');
-  expect(canvasElement.textContent).not.toContain('This does not fit');
-});
+    expect(canvasElement.textContent).not.toContain('This may not fit');
+    expect(canvasElement.textContent).not.toContain('This does not fit');
+  }
+);
 
 /**
  * Text (DPQL) mode, backed by a mock-socket LSP. Typing DPQL parses to the
