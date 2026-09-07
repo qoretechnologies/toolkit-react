@@ -158,19 +158,44 @@ export const ExpressionField = memo(
     }, [ast]);
 
     // Text mode: parse the DPQL into the AST (debounced).
+    /* The session may not be attached when the debounce fires — the editor
+       mounts on the render that flips the mode, and its LSP session comes up
+       after that. `dpqlRef.current?.parse?.()` is optional all the way down, so
+       an early call resolves `undefined`, `readTypeCheck` CLEARS the analysis,
+       and nothing asks again: the author types once into a fresh Text field and
+       is told nothing about the type until they happen to type another
+       character.
+
+       The seeding effect below already retries for this exact reason
+       ("`serialize` resolves '' until the editor's LSP session is ready"); the
+       parse path needed the same care and did not have it. Same budget as
+       seeding, so a session that never arrives gives up rather than spinning.
+
+       Found by CI, not locally: the session is up before the debounce on a
+       fast machine, so the story asserting the type message passed here every
+       time and failed on the runner. */
     const handleDpqlChange = useCallback(
       (next: string) => {
         userTypedRef.current = true;
         setText(next);
         if (parseTimer.current) clearTimeout(parseTimer.current);
-        parseTimer.current = setTimeout(async () => {
-          const result = await dpqlRef.current?.parse?.(next, targetType);
+        let tries = 0;
+        const runParse = async (): Promise<void> => {
+          const parse = dpqlRef.current?.parse;
+          if (!parse) {
+            if (++tries < SEED_MAX_TRIES) {
+              parseTimer.current = setTimeout(runParse, SEED_RETRY_MS);
+            }
+            return;
+          }
+          const result = await parse(next, targetType);
           readTypeCheck(result);
           if (result?.success && result.expression) {
             // `dpql/parse` returns the field-ready `{ is_expression, value }`.
             onChange(result.expression as IExpression);
           }
-        }, PARSE_DEBOUNCE_MS);
+        };
+        parseTimer.current = setTimeout(runParse, PARSE_DEBOUNCE_MS);
       },
       [onChange, targetType, readTypeCheck]
     );
