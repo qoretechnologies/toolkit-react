@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 import { StoryMeta } from '../../../types';
 import { FormEngine } from '../engine/FormEngine';
-import { startDpqlMockLsp } from './dpqlMockLsp';
+import { dpqlMockParseCalls, startDpqlMockLsp } from './dpqlMockLsp';
 import { ExpressionField } from './ExpressionField';
 import { mockExpressions } from './mockExpressions';
 import { IExpression } from './types';
@@ -408,11 +408,23 @@ export const TextModeTypeMayNotFit: Story = typedExpressionStory('int', async (c
 
      The assertion stays meaningful: the title has to be present AND the
      suggested conversion has to be the one for this field's type. */
+  /* The assertion carries the diagnosis with it. A DOM dump is truncated by
+     testing-library and a `console.log` does not reliably reach a CI log, but
+     a custom matcher message always does — and the one thing worth knowing
+     here is whether the front end SENT `target_type` at all, because the mock
+     answers with analysis only when it did. Without this the failure looks
+     identical whether the request lacked a target or the answer went
+     unrendered. */
+  const why = () =>
+    `parses=${JSON.stringify(dpqlMockParseCalls)} text=${JSON.stringify(
+      (canvasElement.textContent || '').slice(0, 400)
+    )}`;
   await waitFor(
     () => {
-      expect(canvasElement.textContent).toContain('This may not fit');
+      expect(canvasElement.textContent, why()).toContain('This may not fit');
       expect(
-        canvasElement.querySelector('[data-testid="expression-type-fix"]')?.textContent
+        canvasElement.querySelector('[data-testid="expression-type-fix"]')?.textContent,
+        why()
       ).toContain('toInt(');
     },
     { timeout: 10000 }

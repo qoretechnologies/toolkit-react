@@ -19,8 +19,27 @@ interface IMockExprNode {
   is_expression?: boolean;
 }
 
+/**
+ * Every `dpql/parse` the mock answered, in order, for diagnosis.
+ *
+ * The type-analysis stories depend on the front end SENDING `target_type` —
+ * the mock returns analysis only when it is present, exactly as the server
+ * behaves. When one of those stories fails there are two very different
+ * causes, and the rendered DOM cannot tell them apart: the request never
+ * carried a target, or it did and the answer was not rendered. This records
+ * which, and the story reports it in its assertion message so the answer
+ * survives into a CI log.
+ */
+export interface IDpqlMockParseCall {
+  text: string;
+  target?: string;
+  analysed: boolean;
+}
+export const dpqlMockParseCalls: IDpqlMockParseCall[] = [];
+
 /** Start the mock LSP; returns a teardown function. */
 export const startDpqlMockLsp = (): (() => void) => {
+  dpqlMockParseCalls.length = 0;
   const lsp = createMockLspServer(MOCK_LSP_URL, {
     capabilities: {
       textDocumentSync: { openClose: true, change: 2 },
@@ -62,6 +81,11 @@ export const startDpqlMockLsp = (): (() => void) => {
                 : { text: `to${target[0].toUpperCase()}${target.slice(1)}(${text})` },
             }
           : {};
+        dpqlMockParseCalls.push({
+          text,
+          target,
+          analysed: !!target,
+        });
         return {
           success: true,
           expression: {
