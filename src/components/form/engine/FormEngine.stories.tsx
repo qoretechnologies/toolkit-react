@@ -4132,6 +4132,87 @@ export const CompactHostOwnedScroll: Story = {
   },
 };
 
+// The PADDED twin of CompactHostOwnedScroll. It is a separate story because the
+// unpadded one cannot fail for this: `position: sticky; top: 0` resolves against
+// a scrollport's CONTENT box, so only a host WITH padding can reveal a toolbar
+// pinning below it. Needs reqore >= 0.74.1, which measures that padding and
+// compensates the sticky line (reqore#648).
+export const CompactHostOwnedScrollPaddedHost: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same two compact forms in one scrolling host, but the host carries its own 24px padding. The host still owns the only scrollbar, and each form\'s toolbar still pins flush to the host\'s visible top edge rather than below its padding.',
+      },
+    },
+    chromatic: { disable: true },
+  },
+  decorators: [
+    (StoryComponent: React.ComponentType) => (
+      <div
+        style={{
+          height: 400,
+          overflow: 'auto',
+          display: 'flex',
+          flexFlow: 'column',
+          padding: 24,
+        }}
+        data-testid='compact-scroll-host'
+      >
+        <StoryComponent />
+        <StoryComponent />
+      </div>
+    ),
+  ],
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactScrollableSchema,
+    groups: CompactGroups,
+    value: CompactValue,
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+    const host = document.querySelector('[data-testid="compact-scroll-host"]') as HTMLElement;
+    const wraps = Array.from(
+      document.querySelectorAll('.options-readfirst-scroll')
+    ) as HTMLElement[];
+    await expect(wraps.length).toBe(2);
+
+    // Still exactly one scroller, and no form owns one — the padding must not
+    // buy a flush toolbar back by handing the scroll to the form.
+    for (const wrap of wraps) {
+      await expect(getComputedStyle(wrap).overflowY).toBe('visible');
+      await expect(wrap.getBoundingClientRect().height).toBeGreaterThan(0);
+    }
+    const scrollers = (Array.from(document.querySelectorAll('*')) as HTMLElement[]).filter(
+      (el) =>
+        /(auto|scroll)/.test(getComputedStyle(el).overflowY) &&
+        el.scrollHeight > el.clientHeight + 4 &&
+        el.clientHeight > 80
+    );
+    await expect(scrollers).toEqual([host]);
+
+    // The toolbar pins to the host's VISIBLE top edge, not to its padding box.
+    // Measure the STICKY ELEMENT — the panel title. The "Filter fields..." input
+    // lives inside that header below the completion meter, so it sits ~69px
+    // lower by design; asserting on it measures the header's own internals and
+    // says nothing about where the header pinned.
+    const stickyHeader = wraps[0].firstElementChild!.querySelector(
+      '.reqore-panel-title'
+    ) as HTMLElement;
+    host.scrollTop = 300;
+    await waitFor(() => {
+      const line =
+        host.getBoundingClientRect().top +
+        (parseFloat(getComputedStyle(host).borderTopWidth) || 0);
+      // Two-sided: a `>=` bound passes at +24, which is exactly the bug.
+      expect(Math.abs(stickyHeader.getBoundingClientRect().top - line)).toBeLessThanOrEqual(2);
+    });
+  },
+};
+
+
 // on_change/refetch + has_dependents flow through the same handleValueChange
 // as classic — the read-first editor must fire and reset the same way.
 export const CompactOnChangeAndDependents: Story = {
