@@ -7294,12 +7294,39 @@ export const CompactToolbarTrimmed: Story = {
   },
 };
 
-export const CompactCollapseListLeavesLoneOptionalOpen: Story = {
+export const CompactLoneOptionalStaysOpenByDefault: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          "Renders an all-optional compact form with an explicit `compactCollapsedGroups={['optional']}` — the Optional box stays open anyway, because it is the whole form and collapsing it would render a titled card containing one collapsed strip and nothing else. The invariant outranks the consumer's collapse list.",
+          'Renders an all-optional compact form with NO `compactCollapsedGroups` — the Optional box is the whole form, so it stays open. Collapsing the only box would render a titled card containing one collapsed strip and nothing else, which reads as broken rather than as tidy. This is the default half of the contract; its pair below is what an explicit collapse list changes.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      alpha: { type: 'string', ui_type: 'string', display_name: 'Alpha' },
+      beta: { type: 'string', ui_type: 'string', display_name: 'Beta' },
+    } as unknown as IOptionsSchema,
+    value: {} as IOptions,
+  },
+  play: async () => {
+    // No collapse list was passed, so the invariant holds and the rows are on
+    // screen with no click.
+    await expectBoxOpen('Optional');
+    await _testsWaitForText('Alpha');
+    await _testsWaitForText('Beta');
+  },
+};
+
+export const CompactCollapseListCollapsesLoneOptional: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the same all-optional form with an explicit `compactCollapsedGroups={['optional']}` — and this time the Optional box IS collapsed. Passing the prop waives the \"never collapse the sole box\" invariant: it is a default, not a law. A host that supplies its own heading and explanation around the form — a run-options panel headed \"Change a setting for this run\", say — has already told the reader what the card is, and has asked for the settings to start folded away. The default (the story above) is unchanged for every caller that says nothing.",
       },
     },
   },
@@ -7314,10 +7341,9 @@ export const CompactCollapseListLeavesLoneOptionalOpen: Story = {
     compactCollapsedGroups: ['optional'],
   },
   play: async () => {
-    // The lone Optional box is open — its rows are on screen with no click.
-    await expectBoxOpen('Optional');
-    await _testsWaitForText('Alpha');
-    await _testsWaitForText('Beta');
+    // The caller asked for it folded, so it is folded even though it is the
+    // only box: `ReqorePanel` unmounts collapsed content, so the rows are gone.
+    await expectBoxCollapsed('Optional');
   },
 };
 

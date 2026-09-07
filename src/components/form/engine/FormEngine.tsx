@@ -763,13 +763,29 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * the reader is choosing WHICH to open rather than reading this one, e.g. a
    * template's per-action option forms stacked in a drawer.
    *
-   * Two escapes override this and are not negotiable: a box always opens while
-   * a search query is running (`ReqorePanel` unmounts collapsed content, so a
-   * match inside a closed box would be unreachable), and the Optional box stays
-   * open when every row is optional, because collapsing it would render a card
-   * that looks empty and broken.
+   * One escape is not negotiable: a box always opens while a search query is
+   * running (`ReqorePanel` unmounts collapsed content, so a match inside a
+   * closed box would be unreachable).
+   *
+   * A second applies only by DEFAULT: the Optional box stays open when every
+   * row is optional, because a form that collapsed its only box would render a
+   * card that looks empty and broken. Passing this prop explicitly waives it —
+   * a host that supplies its own heading and explanation around the form (a
+   * run-options panel, say) has already told the reader what the card is, and
+   * asked for the settings to start folded away.
    */
   compactCollapsedGroups?: TFormEngineBoxKey[];
+  /**
+   * Compact mode only: rename the status boxes.
+   *
+   * The three are `Needs attention`, `Set` and `Optional`, which read correctly
+   * when the form is the page's subject. Inside a host that already named the
+   * subject — a panel headed "Change a setting for this run" — a bare
+   * `Optional` names a category rather than the things in it, and
+   * `Optional settings` is what the reader is looking at. Only the labels
+   * change; bucketing, icons and intents are untouched.
+   */
+  compactBoxLabels?: Partial<Record<TFormEngineBoxKey, string>>;
   /**
    * Compact mode only: which parts of the form's toolbar to show. `true`
    * (default) shows all of it; `false` hides the whole thing.
@@ -975,7 +991,8 @@ const FormEngineImpl = ({
   compactFlush = false,
   compactNested = false,
   compactPanelProps,
-  compactCollapsedGroups = ['optional'],
+  compactCollapsedGroups: compactCollapsedGroupsProp,
+  compactBoxLabels,
   compactToolbar = true,
   commitMode = 'immediate',
   expandMode = 'single',
@@ -3079,6 +3096,13 @@ const FormEngineImpl = ({
     const bucketCount = (b: TFormEngineBoxKey) =>
       bucketGroups[b].reduce((n, g) => n + buckets[b][g].length, 0);
 
+    /* The default is to collapse the Optional box, and an explicit pass is
+       what waives the "never collapse the sole box" escape below. Resolving it
+       here rather than in the parameter list is what makes the two
+       distinguishable — `['optional']` as a default and `['optional']` from a
+       caller mean different things. */
+    const compactCollapsedGroups = compactCollapsedGroupsProp ?? ['optional'];
+    const collapsedGroupsRequested = compactCollapsedGroupsProp !== undefined;
     // "Is the Optional box the whole form?" — when nothing needs attention and
     // nothing is set, collapsing it leaves a card with no visible content at all.
     const onlyOptionalRows =
@@ -3121,9 +3145,18 @@ const FormEngineImpl = ({
       intent?: 'warning' | 'success';
       icon: IReqoreIconName;
     }> = [
-      { key: 'attention', label: 'Needs attention', intent: 'warning', icon: 'ErrorWarningLine' },
-      { key: 'set', label: 'Set', intent: 'success', icon: 'CheckLine' },
-      { key: 'optional', label: 'Optional', icon: 'CheckboxBlankCircleLine' },
+      {
+        key: 'attention',
+        label: compactBoxLabels?.attention ?? 'Needs attention',
+        intent: 'warning',
+        icon: 'ErrorWarningLine',
+      },
+      { key: 'set', label: compactBoxLabels?.set ?? 'Set', intent: 'success', icon: 'CheckLine' },
+      {
+        key: 'optional',
+        label: compactBoxLabels?.optional ?? 'Optional',
+        icon: 'CheckboxBlankCircleLine',
+      },
     ];
 
     // Build the rows for one group: contiguous required-group members are pulled
@@ -3335,7 +3368,11 @@ const FormEngineImpl = ({
                       const wouldCollapse =
                         compactCollapsedGroups.includes(box.key) &&
                         !query &&
-                        !(box.key === 'optional' && onlyOptionalRows);
+                        !(
+                          box.key === 'optional' &&
+                          onlyOptionalRows &&
+                          !collapsedGroupsRequested
+                        );
                       // Only a box that was opened SOLELY to reveal a preselected
                       // row splits its body; a box that renders open anyway shows
                       // all of its groups as before.
