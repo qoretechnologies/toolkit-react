@@ -2588,7 +2588,7 @@ export const CompactBasic: Story = {
     docs: {
       description: {
         story:
-          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colours as hex, hashes as field-count summaries), disabled and dependency-locked rows stay non-interactive, and the dependency lock's popover navigates to blockers.",
+          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colours as hex, hashes as field-count summaries), disabled and dependency-locked rows stay non-interactive, and the dependency lock's popover navigates to blockers. The play scrolls the richtext editor into view to type into it, so the captured frame sits mid-form.",
       },
     },
     chromatic: { disable: true },
@@ -4142,7 +4142,7 @@ export const CompactHostOwnedScrollPaddedHost: Story = {
     docs: {
       description: {
         story:
-          'The same two compact forms in one scrolling host, but the host carries its own 24px padding. The host still owns the only scrollbar, and each form\'s toolbar still pins flush to the host\'s visible top edge rather than below its padding.',
+          "The same two compact forms in one scrolling host, but the host carries its own 24px padding. The host still owns the only scrollbar, and each form's toolbar still pins flush to the host's visible top edge rather than below its padding.",
       },
     },
     chromatic: { disable: true },
@@ -4204,14 +4204,12 @@ export const CompactHostOwnedScrollPaddedHost: Story = {
     host.scrollTop = 300;
     await waitFor(() => {
       const line =
-        host.getBoundingClientRect().top +
-        (parseFloat(getComputedStyle(host).borderTopWidth) || 0);
+        host.getBoundingClientRect().top + (parseFloat(getComputedStyle(host).borderTopWidth) || 0);
       // Two-sided: a `>=` bound passes at +24, which is exactly the bug.
       expect(Math.abs(stickyHeader.getBoundingClientRect().top - line)).toBeLessThanOrEqual(2);
     });
   },
 };
-
 
 // on_change/refetch + has_dependents flow through the same handleValueChange
 // as classic — the read-first editor must fire and reset the same way.
@@ -4785,7 +4783,7 @@ export const CompactFieldTypes: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form that exercises the full catalogue of ui_type renderers — every type (string, richtext, hash, list, file, colour, byte-size, cron, connection, enum, etc.) is present with a representative value.',
+          "Renders a compact form that exercises the full catalogue of ui_type renderers — every type (string, richtext, hash, list, file, colour, byte-size, cron, connection, enum, etc.) is present with a representative value. The play leaves the `String` row expanded with its editor focused; the form leaves scrolling to its host (`compactScroll` defaults to `'host'`), so that focus scrolls the page — the captured frame sits mid-form with the toolbar pinned over the rows, not at the top of the form.",
       },
     },
   },
