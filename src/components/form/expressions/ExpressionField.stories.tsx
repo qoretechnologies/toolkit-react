@@ -374,6 +374,17 @@ const typedExpressionStory = (
       },
       { timeout: 10000 }
     )) as HTMLElement;
+    /* The editor mounting is NOT the same as the language server being ready,
+       and typing into it before the socket is up loses the parse: no request is
+       sent, so no `target_type` answer ever comes back and the fit message is
+       never rendered. That is a race, not a slow response — raising the
+       expectation's timeout would not have helped.
+
+       It cost a red CI run that was green locally, where the mock connects
+       immediately. Worse, it is silent in the sibling story: one that asserts
+       the ABSENCE of the message passes for the wrong reason under exactly the
+       same race. */
+    await waitForLspIdle(canvasElement);
     await userEvent.click(editable);
     await userEvent.type(editable, 'total');
     await expectation(canvasElement);
