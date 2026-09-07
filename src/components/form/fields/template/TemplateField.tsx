@@ -18,6 +18,7 @@ import {
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
 import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/Menu/item';
+import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import ReqoreMenuDivider, {
   IReqoreMenuDividerProps,
 } from '@qoretechnologies/reqore/dist/components/Menu/divider';
@@ -46,8 +47,7 @@ import { ExpressionBuilder, IExpressionBuilderProps } from '../../expressions/bu
 // Direct import — the cycle (TemplateField → ExpressionField → builder →
 // TemplateField) is render-time only, safe like the other Field cycles.
 import { ExpressionField } from '../../expressions/ExpressionField';
-import { TExpressionReorder } from '../../expressions/types';
-import { IExpression } from '../../expressions/types';
+import { IExpression, TExpressionReorder } from '../../expressions/types';
 import { useExpressions } from '../../expressions/useExpressions';
 import { AutoFormField as Auto, IQorusType as IQorusFormType } from '../auto/AutoFormField';
 import BooleanFormField from '../boolean/Boolean';
@@ -138,11 +138,11 @@ export interface ITemplateFieldProps extends Partial<
   isDefaultTemplate?: boolean;
   menuItems?: TCustomTemplateItems;
   /**
-   * SEAM (reqraft, additive): plain rows in the field's `⋮` menu, rendered
-   * before the "Set Custom Value" section; a row click closes the menu. The
+   * SEAM (reqraft, additive): a collapsed section in the field's `⋮` menu,
+   * rendered before "Set Custom Value"; a row click closes the menu. The
    * expression builder puts its operand reorder actions here.
    */
-  menuActions?: TTemplateMenuActions;
+  menuActions?: ITemplateMenuActions;
   /** SEAM (reqraft, additive): forwarded to a nested expression builder. */
   reorder?: TExpressionReorder;
   /**
@@ -195,11 +195,50 @@ export type TCustomTemplateItems = (
   | (IReqoreMenuDividerProps & { isDivider?: true })
 )[];
 
-/** Rows for the `menuActions` seam: menu items, or dividers. */
-export type TTemplateMenuActions = (
-  | IReqoreMenuItemProps
-  | (IReqoreMenuDividerProps & { isDivider: true })
-)[];
+/** The `menuActions` seam: a collapsed section of menu items (or dividers). */
+export interface ITemplateMenuActions {
+  label: string;
+  icon?: IReqoreIconName;
+  items: (IReqoreMenuItemProps | (IReqoreMenuDividerProps & { isDivider: true }))[];
+}
+
+// A direct child of `ReqoreMenu`, like `CustomMenuItems`, so the menu hands it
+// the popover's `closePopover` — a section does not pass it on to its rows.
+const MenuActionsSection = memo(
+  ({
+    actions,
+    closePopover,
+    ...rest
+  }: {
+    actions: ITemplateMenuActions;
+    closePopover?: () => void;
+    size?: IReqoreButtonProps['size'];
+  }) => (
+    <ReqoreMenuSection
+      label={actions.label}
+      icon={actions.icon}
+      isCollapsed
+      transparent
+      className='template-menu-actions'
+      {...rest}
+    >
+      {actions.items.map((item, index) =>
+        'isDivider' in item ? (
+          <ReqoreMenuDivider key={index} {...item} />
+        ) : (
+          <ReqoreMenuItem
+            {...item}
+            key={index}
+            onClick={(event, itemId) => {
+              item.onClick?.(event, itemId, closePopover);
+              closePopover?.();
+            }}
+          />
+        )
+      )}
+    </ReqoreMenuSection>
+  )
+);
 
 export const CustomMenuItems = memo(
   ({
@@ -630,7 +669,7 @@ export const TemplateField = memo(
         ) : null;
       }
 
-      if (hasValueRows || size(menuActions) > 0) {
+      if (hasValueRows || size(menuActions?.items) > 0) {
         return (
           <ReqorePopover
             component={ReqoreButton}
@@ -708,21 +747,9 @@ export const TemplateField = memo(
                   </ReqoreButton>
                 ) : null}
 
-                {menuActions?.map((item, index) =>
-                  'isDivider' in item ? (
-                    <ReqoreMenuDivider key={index} {...item} />
-                  ) : (
-                    <ReqoreMenuItem
-                      size={rest.size}
-                      {...item}
-                      key={index}
-                      onClick={(event, itemId, closePopover) => {
-                        item.onClick?.(event, itemId, closePopover);
-                        closePopover?.();
-                      }}
-                    />
-                  )
-                )}
+                {size(menuActions?.items) > 0 ? (
+                  <MenuActionsSection actions={menuActions} size={rest.size} />
+                ) : null}
 
                 {size(menuItems) > 0 ? (
                   <CustomMenuItems

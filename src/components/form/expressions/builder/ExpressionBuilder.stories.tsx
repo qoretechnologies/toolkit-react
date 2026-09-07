@@ -622,6 +622,14 @@ const operandValues = () =>
 
 const count = (selector: string) => document.querySelectorAll(selector).length;
 
+/** Open the `⋮` menu of the nth operand field and expand its "Move Argument" section. */
+const openMoveMenu = async (nth: number) => {
+  await clickSelector('.template-more', nth);
+  await waitForText('Move Argument');
+  // The section's className lands on its toggle button.
+  await clickSelector('.template-menu-actions');
+};
+
 /** Open the `⋮` menu of the nth operand field. */
 const openFieldMenu = (nth: number) => clickSelector('.template-more', nth);
 
@@ -657,7 +665,7 @@ export const ConcatExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"). The default reorder surface is each operand\'s ⋮ menu — opened here on the second operand to show its "Move earlier / later / to start / to end" rows.',
+          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"). The default reorder surface is a "Move Argument" section in each operand\'s ⋮ menu — opened and expanded here on the second operand to show its "Move earlier / later / to start / to end" rows.',
       },
     },
   },
@@ -668,7 +676,7 @@ export const ConcatExpression: Story = {
     expect(count('.expression-arg-drag-handle')).toBe(0);
     expect(count('.expression-arg-position')).toBe(0);
 
-    await openFieldMenu(1);
+    await openMoveMenu(1);
     await waitForText('Move earlier');
     expect(count('.expression-arg-move-later')).toBe(1);
     expect(count('.expression-arg-move-start')).toBe(1);
@@ -684,7 +692,7 @@ export const ReorderViaOverflowMenu: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression and reorders it through the ⋮ menus: "Move to start" on the third operand, then "Move later" on the operand that is now second — the order goes first/second/third → third/first/second → third/second/first, each move closes its menu, and onChange reports the reordered args.',
+          'Renders the "concat" expression and reorders it through the ⋮ menus\' "Move Argument" section: "Move to start" on the third operand, then "Move later" on the operand that is now second — the order goes first/second/third → third/first/second → third/second/first, each move closes its menu, and onChange reports the reordered args.',
       },
     },
   },
@@ -692,14 +700,14 @@ export const ReorderViaOverflowMenu: Story = {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     await waitForOrder(CONCAT_OPERANDS);
 
-    await openFieldMenu(2);
+    await openMoveMenu(2);
     await waitForText('Move to start');
     await clickSelector('.expression-arg-move-start');
     await waitForOrder(['third', 'first', 'second']);
     // A move closes the menu it came from.
     await waitFor(() => expect(count('.expression-arg-move-start')).toBe(0), { timeout: 10000 });
 
-    await openFieldMenu(1);
+    await openMoveMenu(1);
     await waitForText('Move later');
     await clickSelector('.expression-arg-move-later');
     await waitForOrder(['third', 'second', 'first']);
@@ -715,7 +723,7 @@ export const ReorderViaDragHandle: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with a drag grip before each operand and no move rows in the ⋮ menu. Dragging the third operand onto the first puts it first — the order becomes third/first/second.',
+          'Renders the "concat" expression with a drag grip before each operand and no "Move Argument" section in the ⋮ menu. Dragging the third operand onto the first puts it first — the order becomes third/first/second.',
       },
     },
   },
@@ -727,7 +735,7 @@ export const ReorderViaDragHandle: Story = {
 
     await openFieldMenu(1);
     await waitForText('Use Template');
-    expect(count('.expression-arg-move-earlier')).toBe(0);
+    expect(count('.template-menu-actions')).toBe(0);
 
     const handles = document.querySelectorAll('.expression-arg-drag-handle');
     const target = handles[0].closest('.expression-arg')!;
@@ -769,7 +777,7 @@ export const ReorderKeepsTemplateOperand: Story = {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     await waitForOrder(['$local:some-richtext', 'plain']);
 
-    await openFieldMenu(0);
+    await openMoveMenu(0);
     await waitForText('Move to end');
     await clickSelector('.expression-arg-move-end');
 
@@ -827,7 +835,7 @@ export const ReorderAllSurfaces: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with every reorder surface at once — a drag grip and a position dropdown before each operand, plus the move rows in the ⋮ menu, opened on the second operand.',
+          'Renders the "concat" expression with every reorder surface at once — a drag grip and a position dropdown before each operand, plus the "Move Argument" section in the ⋮ menu, opened and expanded on the second operand.',
       },
     },
   },
@@ -837,7 +845,7 @@ export const ReorderAllSurfaces: Story = {
     expect(count('.expression-arg-drag-handle')).toBe(3);
     expect(count('.expression-arg-position')).toBe(3);
 
-    await openFieldMenu(1);
+    await openMoveMenu(1);
     await waitForText('Move earlier');
   },
 };
@@ -849,7 +857,7 @@ export const ReorderDisabled: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with reordering turned off — no grip, no position dropdown, and the ⋮ menu (opened on the second operand) has no move rows; only the remove buttons remain.',
+          'Renders the "concat" expression with reordering turned off — no grip, no position dropdown, and the ⋮ menu (opened on the second operand) has no "Move Argument" section; only the remove buttons remain.',
       },
     },
   },
@@ -862,7 +870,7 @@ export const ReorderDisabled: Story = {
 
     await openFieldMenu(1);
     await waitForText('Use Template');
-    expect(count('.expression-arg-move-earlier')).toBe(0);
+    expect(count('.template-menu-actions')).toBe(0);
   },
 };
 
@@ -874,7 +882,7 @@ export const ReorderOnPhone: Story = {
     docs: {
       description: {
         story:
-          'Renders the phone presentation of the "concat" expression with every reorder surface — the operands stack into a column, each keeps its grip and position dropdown, and the ⋮ menu (opened on the second operand) still carries the move rows, so reordering needs no hover or drag.',
+          'Renders the phone presentation of the "concat" expression with every reorder surface — the operands stack into a column, each keeps its grip and position dropdown, and the ⋮ menu (opened and expanded on the second operand) still carries the "Move Argument" section, so reordering needs no hover or drag.',
       },
     },
   },

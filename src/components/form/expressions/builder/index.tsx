@@ -32,9 +32,9 @@ import { useTemplates } from '../../../../hooks/useTemplates';
 import { AutoFormField as auto } from '../../fields/auto/AutoFormField';
 import { SelectFormField as Select } from '../../fields/select/Select';
 import {
+  ITemplateMenuActions,
   TCustomTemplateItems,
   TemplateField,
-  TTemplateMenuActions,
 } from '../../fields/template/TemplateField';
 import {
   ExpressionDefaultValue,
@@ -552,9 +552,9 @@ export const Expression = ({
   const isDragOverArg = (index: number) =>
     dragOverArg === index && dragArg.current !== null && dragArg.current !== index;
 
-  // The `⋮` menu rows, one array per operand. The wording is axis-free on
-  // purpose — the operands wrap into a column on narrow screens.
-  const argMenuActions = useMemo((): TTemplateMenuActions[] | undefined => {
+  // The `⋮` menu's "Move Argument" section, one per operand. The wording is
+  // axis-free on purpose — the operands wrap into a column on narrow screens.
+  const argMenuActions = useMemo((): ITemplateMenuActions[] | undefined => {
     if (!canReorderArgs || !reorderSurfaces.includes('overflowMenu')) {
       return undefined;
     }
@@ -566,8 +566,10 @@ export const Expression = ({
       ['end', 'Move to end', 'SkipForwardLine', () => argCount - 1],
     ];
 
-    return Array.from({ length: argCount }, (_, index) =>
-      moves.map(([key, label, icon, target]) => {
+    return Array.from({ length: argCount }, (_, index) => ({
+      label: 'Move Argument',
+      icon: 'ArrowLeftRightLine',
+      items: moves.map(([key, label, icon, target]) => {
         const to = target(index);
 
         return {
@@ -577,8 +579,8 @@ export const Expression = ({
           disabled: to === index || to < 0 || to >= argCount,
           onClick: () => moveVarArg(index, to),
         };
-      })
-    );
+      }),
+    }));
   }, [canReorderArgs, reorderSurfaces, argCount, moveVarArg]);
 
   if (selectedExpression?.varargs) {
