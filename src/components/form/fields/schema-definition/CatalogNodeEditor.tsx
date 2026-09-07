@@ -45,8 +45,8 @@ import {
   CatalogLeafForm,
   ICatalogLeafFormNameField,
 } from './CatalogLeafForm';
+import { moveItem } from '../../../../helpers/common';
 import {
-  moveItem,
   removeKey,
   renameKey,
   SECTION_ICONS,

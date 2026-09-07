@@ -15,12 +15,14 @@ import {
   TReqoreHexColor,
 } from '@qoretechnologies/reqore/dist/components/Effect';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
+import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TQorusType } from '@qoretechnologies/ts-toolkit';
 import { clone, cloneDeep, get, isArray, set, size, unset } from 'lodash';
 import { darken, rgba } from 'polished';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { moveItem } from '../../../../helpers/common';
 import { areQorusTypesCompatible, getArgumentType } from '../../../../helpers/expressions';
 import { findTemplate } from '../../../../helpers/templates';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
@@ -29,12 +31,18 @@ import { useReqraftStorage } from '../../../../hooks/useStorage/useStorage';
 import { useTemplates } from '../../../../hooks/useTemplates';
 import { AutoFormField as auto } from '../../fields/auto/AutoFormField';
 import { SelectFormField as Select } from '../../fields/select/Select';
-import { TCustomTemplateItems, TemplateField } from '../../fields/template/TemplateField';
+import {
+  TCustomTemplateItems,
+  TemplateField,
+  TTemplateMenuActions,
+} from '../../fields/template/TemplateField';
 import {
   ExpressionDefaultValue,
   IExpression,
   IExpressionSchema,
   IExpressionSchemaArg,
+  TExpressionReorder,
+  TExpressionReorderSurface,
 } from '../types';
 import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
@@ -60,6 +68,8 @@ export interface IExpressionBuilderProps {
   group?: '&&' | '||';
   onChange?: (value: IExpression, remove?: boolean) => void;
   onValueChange?: (value: IExpression, path: string, remove?: boolean) => void;
+  /** Operand reordering for varargs expressions — see `TExpressionReorder`. Default `true`. */
+  reorder?: TExpressionReorder;
   readOnly?: boolean;
   id?: string;
   expressions?: IExpressionSchema[];
@@ -416,6 +426,63 @@ export const Expression = ({
     [onValueChange, JSON.stringify(value), path]
   );
 
+  const reorderSurfaces = useMemo((): TExpressionReorderSurface[] => {
+    const reorder = props.reorder ?? true;
+
+    if (reorder === false) {
+      return [];
+    }
+
+    return reorder === true ? ['overflowMenu'] : reorder;
+  }, [props.reorder]);
+  // Bumped on every move and folded into the operand keys: the operands are
+  // keyed by slot, and a slot's TemplateField keeps template / text-mode
+  // state that only resyncs one way — remounting hands every slot a field
+  // seeded from the operand that now lives there.
+  const [argsGeneration, setArgsGeneration] = useState(0);
+  const dragArg = useRef<number | null>(null);
+  const [dragOverArg, setDragOverArg] = useState<number | null>(null);
+
+  const moveVarArg = useCallback(
+    (from: number, to: number) => {
+      setArgsGeneration((generation) => generation + 1);
+      onValueChange(
+        {
+          ...value,
+          value: {
+            ...value.value,
+            args: moveItem(value.value.args, from, to),
+          },
+        },
+        path
+      );
+    },
+    [onValueChange, JSON.stringify(value), path]
+  );
+
+  const handleArgDragStart = useCallback((index: number) => {
+    dragArg.current = index;
+  }, []);
+  const handleArgDragOver = useCallback((index: number) => {
+    setDragOverArg((current) => (current === index ? current : index));
+  }, []);
+  const handleArgDragEnd = useCallback(() => {
+    dragArg.current = null;
+    setDragOverArg(null);
+  }, []);
+  const handleArgDrop = useCallback(
+    (index: number) => {
+      const from = dragArg.current;
+
+      if (from !== null && from !== index) {
+        moveVarArg(from, index);
+      }
+
+      handleArgDragEnd();
+    },
+    [moveVarArg, handleArgDragEnd]
+  );
+
   const updateMultipleArgs = useCallback(
     (args: IExpression[]) => {
       onValueChange(
@@ -478,6 +545,41 @@ export const Expression = ({
     ? firstArgSchema?.ui_type
     : firstArgument?.type || type || 'context';
   let restOfArgs = selectedExpression?.args.slice(1);
+  const argCount = size(value.value?.args);
+  const canReorderArgs =
+    !!selectedExpression?.varargs && argCount > 1 && !readOnly && size(reorderSurfaces) > 0;
+  const argReorderSurfaces = canReorderArgs ? reorderSurfaces : undefined;
+  const isDragOverArg = (index: number) =>
+    dragOverArg === index && dragArg.current !== null && dragArg.current !== index;
+
+  // The `⋮` menu rows, one array per operand. The wording is axis-free on
+  // purpose — the operands wrap into a column on narrow screens.
+  const argMenuActions = useMemo((): TTemplateMenuActions[] | undefined => {
+    if (!canReorderArgs || !reorderSurfaces.includes('overflowMenu')) {
+      return undefined;
+    }
+
+    const moves: [string, string, IReqoreIconName, (index: number) => number][] = [
+      ['earlier', 'Move earlier', 'ArrowGoBackLine', (index) => index - 1],
+      ['later', 'Move later', 'ArrowGoForwardLine', (index) => index + 1],
+      ['start', 'Move to start', 'SkipBackLine', () => 0],
+      ['end', 'Move to end', 'SkipForwardLine', () => argCount - 1],
+    ];
+
+    return Array.from({ length: argCount }, (_, index) =>
+      moves.map(([key, label, icon, target]) => {
+        const to = target(index);
+
+        return {
+          label,
+          icon,
+          className: `expression-arg-move-${key}`,
+          disabled: to === index || to < 0 || to >= argCount,
+          onClick: () => moveVarArg(index, to),
+        };
+      })
+    );
+  }, [canReorderArgs, reorderSurfaces, argCount, moveVarArg]);
 
   if (selectedExpression?.varargs) {
     restOfArgs = [
@@ -880,6 +982,15 @@ export const Expression = ({
             schema={firstArgSchema}
             onTypeChange={handleUpdateTypeChange}
             readOnly={readOnly}
+            reorder={argReorderSurfaces}
+            argIndex={0}
+            argCount={argCount}
+            dragOver={isDragOverArg(0)}
+            onMoveArg={moveVarArg}
+            onArgDragStart={handleArgDragStart}
+            onArgDragOver={handleArgDragOver}
+            onArgDrop={handleArgDrop}
+            onArgDragEnd={handleArgDragEnd}
           >
             <TemplateField
               component={auto}
@@ -905,7 +1016,7 @@ export const Expression = ({
                 !firstArgSchema?.element_allowed_values
               }
               level={level + 1}
-              key={`${firstParamType}${selectedExpression?.name}`}
+              key={`${argsGeneration}-${firstParamType}${selectedExpression?.name}`}
               type={firstParamType}
               defaultType={
                 firstArgument?.allowed_values || firstArgument?.element_allowed_values
@@ -955,6 +1066,8 @@ export const Expression = ({
                       );
                     })
               }
+              menuActions={argMenuActions?.[0]}
+              reorder={props.reorder}
               expressions={props.expressions as any}
               expressions_url={expressionsUrl}
             />
@@ -964,7 +1077,9 @@ export const Expression = ({
           )}
           {selectedExpression
             ? restOfArgs?.map((arg, index) => (
-                <React.Fragment key={`${index}-${arg.ui_type}-${arg.display_name}`}>
+                <React.Fragment
+                  key={`${argsGeneration}-${index}-${arg.ui_type}-${arg.display_name}`}
+                >
                   {arg?.label_before && <ExpressionArgumentDetail label={arg.label_before} />}
                   <ExpressionBuilderArgumentWrapper
                     readOnly={readOnly}
@@ -985,6 +1100,15 @@ export const Expression = ({
                       removeVarArg(index + 1);
                     }}
                     hasMultipleArgs={selectedExpression.varargs && size(rest) > 1}
+                    reorder={argReorderSurfaces}
+                    argIndex={index + 1}
+                    argCount={argCount}
+                    dragOver={isDragOverArg(index + 1)}
+                    onMoveArg={moveVarArg}
+                    onArgDragStart={handleArgDragStart}
+                    onArgDragOver={handleArgDragOver}
+                    onArgDrop={handleArgDrop}
+                    onArgDragEnd={handleArgDragEnd}
                   >
                     <TemplateField
                       minimal
@@ -995,7 +1119,7 @@ export const Expression = ({
                       level={level + 1}
                       allowFunctions={!arg?.allowed_values && !arg?.element_allowed_values}
                       isFunction={rest[index]?.is_expression}
-                      key={`${index}-${arg.ui_type}-${arg.display_name}-${level + 1}`}
+                      key={`${argsGeneration}-${index}-${arg.ui_type}-${arg.display_name}-${level + 1}`}
                       // An empty argument has no value to take a type from; fall
                       // back to the type the catalogue declares for it, as the
                       // first-argument mount already does. Without this an
@@ -1043,6 +1167,8 @@ export const Expression = ({
                           type.name === 'context' ? undefined : (type.name as string)
                         );
                       })}
+                      menuActions={argMenuActions?.[index + 1]}
+                      reorder={props.reorder}
                       expressions={props.expressions as any}
                       expressions_url={expressionsUrl}
                       allowed_values={arg?.allowed_values}
@@ -1103,6 +1229,7 @@ export const ExpressionBuilder = ({
   expressionsUrl,
   serverHandled,
   extraActions,
+  reorder,
 }: IExpressionBuilderProps) => {
   const templates = useTemplates(!isChild, localTemplates);
   const theme = useReqoreTheme();
@@ -1248,6 +1375,7 @@ export const ExpressionBuilder = ({
                   expressionsUrl={expressionsUrl}
                   serverHandled={serverHandled}
                   extraActions={extraActions}
+                  reorder={reorder}
                 />
                 {index < size(value.value.args) - 1 && (
                   <ExpressionArgumentDetail
@@ -1285,6 +1413,7 @@ export const ExpressionBuilder = ({
         id={level === 0 && index === 0 ? 'expression-builder' : undefined}
         serverHandled={serverHandled}
         extraActions={extraActions}
+        reorder={reorder}
       />
     </ReqoreErrorBoundary>
   );

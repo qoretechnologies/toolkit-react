@@ -83,3 +83,12 @@ export interface IExpressionSchema {
   return_type_first_arg?: boolean;
   return_type_arg_priority?: string[];
 }
+
+/** Where a varargs expression offers operand reordering. */
+export type TExpressionReorderSurface = 'overflowMenu' | 'dragHandle' | 'positionPicker';
+
+/**
+ * `true` (the default) renders the default surface — the field's `⋮` menu;
+ * `false` turns reordering off; a list renders those surfaces together.
+ */
+export type TExpressionReorder = boolean | TExpressionReorderSurface[];

@@ -9,6 +9,7 @@ import {
   ReqoreDropdown,
   ReqoreErrorBoundary,
   ReqoreMenu,
+  ReqoreMenuItem,
   ReqoreMenuSection,
   ReqoreMessage,
   ReqorePopover,
@@ -16,6 +17,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
+import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/Menu/item';
 import ReqoreMenuDivider, {
   IReqoreMenuDividerProps,
 } from '@qoretechnologies/reqore/dist/components/Menu/divider';
@@ -44,6 +46,7 @@ import { ExpressionBuilder, IExpressionBuilderProps } from '../../expressions/bu
 // Direct import — the cycle (TemplateField → ExpressionField → builder →
 // TemplateField) is render-time only, safe like the other Field cycles.
 import { ExpressionField } from '../../expressions/ExpressionField';
+import { TExpressionReorder } from '../../expressions/types';
 import { IExpression } from '../../expressions/types';
 import { useExpressions } from '../../expressions/useExpressions';
 import { AutoFormField as Auto, IQorusType as IQorusFormType } from '../auto/AutoFormField';
@@ -135,6 +138,14 @@ export interface ITemplateFieldProps extends Partial<
   isDefaultTemplate?: boolean;
   menuItems?: TCustomTemplateItems;
   /**
+   * SEAM (reqraft, additive): plain rows in the field's `⋮` menu, rendered
+   * before the "Set Custom Value" section; a row click closes the menu. The
+   * expression builder puts its operand reorder actions here.
+   */
+  menuActions?: TTemplateMenuActions;
+  /** SEAM (reqraft, additive): forwarded to a nested expression builder. */
+  reorder?: TExpressionReorder;
+  /**
    * SEAM (reqraft, additive): render expression mode through the
    * `ExpressionField` shell — Visual (the ported builder) + Text (the
    * net-new DPQL editor) — instead of the IDE's bare builder. FormEngine
@@ -182,6 +193,12 @@ export type TCustomTemplateItems = (
       onClick?: (e?: React.MouseEvent<HTMLButtonElement>, removeTemplate?: () => void) => void;
     })
   | (IReqoreMenuDividerProps & { isDivider?: true })
+)[];
+
+/** Rows for the `menuActions` seam: menu items, or dividers. */
+export type TTemplateMenuActions = (
+  | IReqoreMenuItemProps
+  | (IReqoreMenuDividerProps & { isDivider: true })
 )[];
 
 export const CustomMenuItems = memo(
@@ -317,6 +334,8 @@ export const TemplateField = memo(
     level,
     className,
     menuItems,
+    menuActions,
+    reorder,
     label,
     ...rest
   }: ITemplateFieldProps) => {
@@ -579,6 +598,8 @@ export const TemplateField = memo(
       const showFunctionsDropdown =
         allowFunctions && !hasOnlyAllowedValues && !rest.readonly && !internalIsFunction;
       const showTemplatesButton = showTemplateToggle && !isTemplate;
+      // The "Set value" label promises a way to set one — reorder rows alone don't.
+      const hasValueRows = showFunctionsDropdown || showTemplatesButton || size(menuItems) > 0;
 
       if (hasOnlyExpressions) {
         return showFunctionsDropdown ? (
@@ -609,7 +630,7 @@ export const TemplateField = memo(
         ) : null;
       }
 
-      if (showFunctionsDropdown || showTemplatesButton || size(menuItems) > 0) {
+      if (hasValueRows || size(menuActions) > 0) {
         return (
           <ReqorePopover
             component={ReqoreButton}
@@ -631,7 +652,7 @@ export const TemplateField = memo(
                 // sibling action buttons (reqore alignSelf; replaces a reqraft
                 // `align-self !important` override of this button).
                 alignSelf: 'center',
-                label: hasInputAffordance ? undefined : 'Set value',
+                label: hasInputAffordance || !hasValueRows ? undefined : 'Set value',
                 style:
                   hasInputAffordance ?
                     {
@@ -687,6 +708,22 @@ export const TemplateField = memo(
                   </ReqoreButton>
                 ) : null}
 
+                {menuActions?.map((item, index) =>
+                  'isDivider' in item ? (
+                    <ReqoreMenuDivider key={index} {...item} />
+                  ) : (
+                    <ReqoreMenuItem
+                      size={rest.size}
+                      {...item}
+                      key={index}
+                      onClick={(event, itemId, closePopover) => {
+                        item.onClick?.(event, itemId, closePopover);
+                        closePopover?.();
+                      }}
+                    />
+                  )
+                )}
+
                 {size(menuItems) > 0 ? (
                   <CustomMenuItems
                     items={menuItems}
@@ -715,6 +752,7 @@ export const TemplateField = memo(
       type,
       value,
       menuItems,
+      menuActions,
       internalIsFunction,
       hasInputAffordance,
     ]);
@@ -758,6 +796,7 @@ export const TemplateField = memo(
                 serverHandled={rest.server_expression_handling}
                 extraActions={extraActions}
                 size={rest.size}
+                reorder={reorder}
               />
             </ReqoreErrorBoundary>
             {renderControls()}
@@ -783,6 +822,7 @@ export const TemplateField = memo(
               expressionsUrl={rest.expressions_url}
               serverHandled={rest.server_expression_handling}
               extraActions={extraActions}
+              reorder={reorder}
             />
           </ReqoreErrorBoundary>
           {renderControls()}
