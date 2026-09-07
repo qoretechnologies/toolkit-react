@@ -883,6 +883,11 @@ export const Expression = ({
           >
             <TemplateField
               component={auto}
+              // SEAM (reqraft): an operand that becomes an expression mounts
+              // its own builder through this TemplateField — hand the host's
+              // actions on, or nesting silently drops them (the group
+              // recursion below already forwards them).
+              extraActions={extraActions}
               minimal
               label={
                 serverAndQorusExpression
@@ -984,6 +989,8 @@ export const Expression = ({
                     <TemplateField
                       minimal
                       component={auto}
+                      // SEAM (reqraft): same as the first operand above.
+                      extraActions={extraActions}
                       noSoft
                       level={level + 1}
                       allowFunctions={!arg?.allowed_values && !arg?.element_allowed_values}

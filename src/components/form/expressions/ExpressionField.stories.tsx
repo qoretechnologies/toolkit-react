@@ -1,3 +1,5 @@
+import { ReqoreButton } from '@qoretechnologies/reqore';
+import type { IReqoreEffect } from '@qoretechnologies/reqore/dist/components/Effect';
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
@@ -8,6 +10,19 @@ import { startDpqlMockLsp } from './dpqlMockLsp';
 import { ExpressionField } from './ExpressionField';
 import { mockExpressions } from './mockExpressions';
 import { IExpression } from './types';
+
+/** The IDE's AI-assist button, as it renders on every expression card there
+ *  (qorus-ide `src/components/AiButton` + `src/constants/effects.ts`
+ *  `SynthColorEffect`, resolved): a `ReqoreButton` carrying the Qorus AI
+ *  gradient. Only the click is stubbed — the real one opens a Qonsole session,
+ *  which is the IDE's to own and the reason the seam exists. */
+const IDE_AI_BUTTON_EFFECT: IReqoreEffect = {
+  gradient: {
+    colors: { 0: '#13163a', 100: '#5c1976' },
+    animate: 'hover',
+    animationSpeed: 5,
+  },
+};
 
 const SAMPLE: IExpression = {
   is_expression: true,
@@ -131,6 +146,79 @@ export const Empty: Story = {
  * `allowTextExpressions` on TemplateField) — Visual mode shows the ported
  * builder, and the Visual/Text toggle is present.
  */
+/**
+ * The seam a host actually reaches. The builder's own `WithInjectedExtraActions`
+ * story proves the `extraActions` slot on `&&` / `||` group children, which the
+ * group recursion forwards; this one proves the two hops that used to drop it —
+ * the shell hosts mount, and an operand that is itself an expression (rendered
+ * through an operand `TemplateField`, not the group recursion).
+ */
+export const NestedOperandKeepsInjectedActions: Story = {
+  args: {
+    value: {
+      is_expression: true,
+      value: {
+        exp: 'contains',
+        args: [
+          { type: 'string', value: '$local:input' },
+          {
+            is_expression: true,
+            value: {
+              exp: 'contains',
+              args: [
+                { type: 'string', value: '$local:other' },
+                { type: 'string', value: 'es' },
+              ],
+            },
+          },
+        ],
+      },
+    },
+    extraActions: () => [
+      {
+        as: ReqoreButton,
+        props: {
+          icon: 'ChatAiFill',
+          fixed: true,
+          compact: true,
+          minimal: true,
+          transparent: true,
+          effect: IDE_AI_BUTTON_EFFECT,
+          className: 'expression-ai-assist',
+          onClick: fn(),
+        },
+        // Always visible here, unlike the IDE's hover-revealed original: the
+        // point of this story is to count which cards received the seam, and
+        // hovering a nested card bubbles to the outer one, which would make a
+        // hover-gated count ambiguous (and put a hover popover in the snapshot).
+        show: true,
+        size: 'tiny',
+      },
+    ],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField holding a String Contains expression whose second operand is itself a String Contains expression, with an extraActions factory that injects an AI-assist button per card. Both cards show the injected action, the nested operand\'s included.',
+      },
+    },
+  },
+  play: async () => {
+    const cards = () => document.querySelectorAll('.expression');
+    // Outer card plus the nested operand's card. The nested builder fetches
+    // the (mocked) catalogue on its own, so it mounts a beat after the outer.
+    await waitFor(() => expect(cards().length).toBe(2), { timeout: 10000 });
+
+    // Scoped to the NESTED card, so the outer card's action cannot satisfy it.
+    await waitFor(() =>
+      expect(cards()[1].querySelector('.expression-ai-assist')).toBeInTheDocument()
+    );
+    // And the seam reached every card, not just one.
+    expect(document.querySelectorAll('.expression-ai-assist').length).toBe(2);
+  },
+};
+
 export const ViaFormEngine: Story = {
   parameters: {
     docs: {
