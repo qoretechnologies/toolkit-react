@@ -398,11 +398,25 @@ const typedExpressionStory = (
  * server-side when the expression actually runs.
  */
 export const TextModeTypeMayNotFit: Story = typedExpressionStory('int', async (canvasElement) => {
-  const canvas = within(canvasElement);
-  await waitFor(() => expect(canvas.getByText('This may not fit')).toBeInTheDocument(), {
-    timeout: 10000,
-  });
-  await expect(canvas.getByTestId('expression-type-fix')).toHaveTextContent('toInt(');
+  /* Matched against the rendered TEXT, not with `getByText`. `ReqoreMessage`
+     renders its title through nested nodes, so an exact single-element match
+     reports "unable to find" for a message that is demonstrably on screen —
+     the very failure testing-library's own error describes ("the text is
+     broken up by multiple elements"). A unit test against this component
+     reproduced that directly: the container held the title, the message and
+     the fix chip, and `getByText` still could not find it.
+
+     The assertion stays meaningful: the title has to be present AND the
+     suggested conversion has to be the one for this field's type. */
+  await waitFor(
+    () => {
+      expect(canvasElement.textContent).toContain('This may not fit');
+      expect(
+        canvasElement.querySelector('[data-testid="expression-type-fix"]')?.textContent
+      ).toContain('toInt(');
+    },
+    { timeout: 10000 }
+  );
 });
 
 /**
@@ -412,12 +426,16 @@ export const TextModeTypeMayNotFit: Story = typedExpressionStory('int', async (c
  */
 export const TextModeTypeFits: Story = typedExpressionStory('string', async (canvasElement) => {
   const canvas = within(canvasElement);
-  await waitFor(
-    () => expect(canvas.getByTestId('expression-preview')).toBeInTheDocument(),
-    { timeout: 10000 }
-  );
-  await expect(canvas.queryByText('This may not fit')).toBeNull();
-  await expect(canvas.queryByText('This does not fit')).toBeNull();
+  await waitFor(() => expect(canvas.getByTestId('expression-preview')).toBeInTheDocument(), {
+    timeout: 10000,
+  });
+  /* Absence, checked against the rendered text for the same reason its sibling
+     checks presence that way: `queryByText` returns null for a message that IS
+     on screen but split across nodes, so it would report "no warning" whether
+     or not one was drawn — passing for the wrong reason is worse here than
+     failing, because absence is the whole claim. */
+  expect(canvasElement.textContent).not.toContain('This may not fit');
+  expect(canvasElement.textContent).not.toContain('This does not fit');
 });
 
 /**
