@@ -2588,7 +2588,7 @@ export const CompactBasic: Story = {
     docs: {
       description: {
         story:
-          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colours as hex, hashes as field-count summaries), disabled and dependency-locked rows stay non-interactive, and the dependency lock's popover navigates to blockers.",
+          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colours as hex, hashes as field-count summaries), disabled and dependency-locked rows stay non-interactive, and the dependency lock's popover navigates to blockers. The play scrolls the richtext editor into view to type into it, so the captured frame sits mid-form.",
       },
     },
     chromatic: { disable: true },
@@ -3989,7 +3989,7 @@ export const CompactOverflowAndStickyHeader: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form tall enough to scroll — the group headers stick to the top of the panel as the form scrolls under them.',
+          'Renders a compact form with `compactScroll="own"` — the form caps at the host height and scrolls its own body, and its toolbar stays pinned to the top of that body.',
       },
     },
     chromatic: { disable: true },
@@ -4005,6 +4005,9 @@ export const CompactOverflowAndStickyHeader: Story = {
   ],
   args: {
     compact: true,
+    // The opt-in branch: this story is about the form owning its scroll, so it
+    // asks for it. The default is `'host'` — see CompactHostOwnedScroll.
+    compactScroll: 'own' as const,
     minColumnWidth: '300px',
     options: CompactScrollableSchema,
     groups: CompactGroups,
@@ -4040,6 +4043,170 @@ export const CompactOverflowAndStickyHeader: Story = {
       const scrollerTop = scroller.getBoundingClientRect().top;
       expect(search.getBoundingClientRect().top).toBeGreaterThanOrEqual(scrollerTop - 1);
       expect(search.getBoundingClientRect().top).toBeLessThan(scrollerTop + 150);
+    });
+  },
+};
+
+// The default branch of `compactScroll`. Two compact forms inside one scrolling
+// host is the shape that exposed this: each form used to cap at the host height
+// and scroll its own body, so a page with two of them showed three scrollbars in
+// two styles and the reader could not tell which moved what.
+export const CompactHostOwnedScroll: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders two compact forms inside one scrolling host. With the default `compactScroll="host"` neither form scrolls itself — the host owns the only scrollbar — and each form\'s toolbar still pins to the top of the host as it scrolls.',
+      },
+    },
+    chromatic: { disable: true },
+  },
+  // A COLUMN FLEX host with a definite height — the shape real consumers use
+  // (qorus-ide's ContentWrapper is exactly this). It matters: a plain block
+  // host does not exercise the flex shrink allowance, so the zero-height
+  // collapse assertion below cannot fail there and the test would be worthless.
+  decorators: [
+    (StoryComponent: React.ComponentType) => (
+      <div
+        style={{ height: 400, overflow: 'auto', display: 'flex', flexFlow: 'column' }}
+        data-testid='compact-scroll-host'
+      >
+        <StoryComponent />
+        <StoryComponent />
+      </div>
+    ),
+  ],
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactScrollableSchema,
+    groups: CompactGroups,
+    value: CompactValue,
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+    const host = document.querySelector('[data-testid="compact-scroll-host"]') as HTMLElement;
+    const wraps = Array.from(
+      document.querySelectorAll('.options-readfirst-scroll')
+    ) as HTMLElement[];
+    await expect(wraps.length).toBe(2);
+
+    // (a) No form owns a scroll context — `overflow-x: clip` rather than
+    // `hidden` matters here: `hidden` would coerce `overflow-y: visible` back
+    // to `auto`, leaving each form a scroll container whose sticky toolbar
+    // silently stops pinning to the host.
+    for (const wrap of wraps) {
+      await expect(getComputedStyle(wrap).overflowY).toBe('visible');
+      await expect(wrap.scrollHeight).toBeLessThanOrEqual(wrap.clientHeight + 1);
+    }
+
+    // (b) Each form still OCCUPIES its content. Releasing the scroll without
+    // also releasing the flex shrink allowance collapses the wrap to zero
+    // height: the rows paint outside it, so it looks correct while the host
+    // sizes and scrolls to nothing. Assert the box, not just the pixels.
+    for (const wrap of wraps) {
+      const child = wrap.firstElementChild as HTMLElement;
+      await expect(wrap.getBoundingClientRect().height).toBeGreaterThan(0);
+      await expect(wrap.getBoundingClientRect().height).toBeCloseTo(
+        child.getBoundingClientRect().height,
+        0
+      );
+    }
+
+    // (c) Exactly one element on the page scrolls, and it is the host.
+    const scrollers = (Array.from(document.querySelectorAll('*')) as HTMLElement[]).filter(
+      (el) =>
+        /(auto|scroll)/.test(getComputedStyle(el).overflowY) &&
+        el.scrollHeight > el.clientHeight + 4 &&
+        el.clientHeight > 80
+    );
+    await expect(scrollers).toEqual([host]);
+
+    // (d) The toolbar still pins — the guarantee the self-scroll existed for.
+    host.scrollTop = 300;
+    await waitFor(() => {
+      const search = document.querySelector('input[placeholder="Filter fields..."]') as HTMLElement;
+      const hostTop = host.getBoundingClientRect().top;
+      expect(search.getBoundingClientRect().top).toBeGreaterThanOrEqual(hostTop - 1);
+    });
+  },
+};
+
+// The PADDED twin of CompactHostOwnedScroll. It is a separate story because the
+// unpadded one cannot fail for this: `position: sticky; top: 0` resolves against
+// a scrollport's CONTENT box, so only a host WITH padding can reveal a toolbar
+// pinning below it. Needs reqore >= 0.74.1, which measures that padding and
+// compensates the sticky line (reqore#648).
+export const CompactHostOwnedScrollPaddedHost: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "The same two compact forms in one scrolling host, but the host carries its own 24px padding. The host still owns the only scrollbar, and each form's toolbar still pins flush to the host's visible top edge rather than below its padding.",
+      },
+    },
+    chromatic: { disable: true },
+  },
+  decorators: [
+    (StoryComponent: React.ComponentType) => (
+      <div
+        style={{
+          height: 400,
+          overflow: 'auto',
+          display: 'flex',
+          flexFlow: 'column',
+          padding: 24,
+        }}
+        data-testid='compact-scroll-host'
+      >
+        <StoryComponent />
+        <StoryComponent />
+      </div>
+    ),
+  ],
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactScrollableSchema,
+    groups: CompactGroups,
+    value: CompactValue,
+  },
+  play: async () => {
+    await _testsWaitForText('order-fulfilment');
+    const host = document.querySelector('[data-testid="compact-scroll-host"]') as HTMLElement;
+    const wraps = Array.from(
+      document.querySelectorAll('.options-readfirst-scroll')
+    ) as HTMLElement[];
+    await expect(wraps.length).toBe(2);
+
+    // Still exactly one scroller, and no form owns one — the padding must not
+    // buy a flush toolbar back by handing the scroll to the form.
+    for (const wrap of wraps) {
+      await expect(getComputedStyle(wrap).overflowY).toBe('visible');
+      await expect(wrap.getBoundingClientRect().height).toBeGreaterThan(0);
+    }
+    const scrollers = (Array.from(document.querySelectorAll('*')) as HTMLElement[]).filter(
+      (el) =>
+        /(auto|scroll)/.test(getComputedStyle(el).overflowY) &&
+        el.scrollHeight > el.clientHeight + 4 &&
+        el.clientHeight > 80
+    );
+    await expect(scrollers).toEqual([host]);
+
+    // The toolbar pins to the host's VISIBLE top edge, not to its padding box.
+    // Measure the STICKY ELEMENT — the panel title. The "Filter fields..." input
+    // lives inside that header below the completion meter, so it sits ~69px
+    // lower by design; asserting on it measures the header's own internals and
+    // says nothing about where the header pinned.
+    const stickyHeader = wraps[0].firstElementChild!.querySelector(
+      '.reqore-panel-title'
+    ) as HTMLElement;
+    host.scrollTop = 300;
+    await waitFor(() => {
+      const line =
+        host.getBoundingClientRect().top + (parseFloat(getComputedStyle(host).borderTopWidth) || 0);
+      // Two-sided: a `>=` bound passes at +24, which is exactly the bug.
+      expect(Math.abs(stickyHeader.getBoundingClientRect().top - line)).toBeLessThanOrEqual(2);
     });
   },
 };
@@ -4616,7 +4783,7 @@ export const CompactFieldTypes: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form that exercises the full catalogue of ui_type renderers — every type (string, richtext, hash, list, file, colour, byte-size, cron, connection, enum, etc.) is present with a representative value.',
+          "Renders a compact form that exercises the full catalogue of ui_type renderers — every type (string, richtext, hash, list, file, colour, byte-size, cron, connection, enum, etc.) is present with a representative value. The play leaves the `String` row expanded with its editor focused; the form leaves scrolling to its host (`compactScroll` defaults to `'host'`), so that focus scrolls the page — the captured frame sits mid-form with the toolbar pinned over the rows, not at the top of the form.",
       },
     },
   },
@@ -5197,7 +5364,15 @@ export const CompactFieldTypesEditing: Story = {
     chromatic: { disable: true },
   },
   // multi: this story expands every row at once (single-open would collapse them).
-  args: { ...CompactFieldTypes.args, expandMode: 'multi' as const },
+  //
+  // `compactScroll: 'own'` bounds the form's height. With every editor open the
+  // document is long, and the play clicks its way down all of them — each click
+  // scrolling and hit-testing a taller page. Measured at ~8.5s bounded against
+  // ~12.5s unbounded, and this story already spent 17.2s of its 30s budget in
+  // CI, so the unbounded cost times it out. Nothing here is about scroll
+  // ownership, so bounding it loses no coverage; the default is exercised by
+  // CompactHostOwnedScroll.
+  args: { ...CompactFieldTypes.args, expandMode: 'multi' as const, compactScroll: 'own' as const },
   play: async () => {
     await _testsWaitForText('hello');
     await _compactExpandAllRows();
