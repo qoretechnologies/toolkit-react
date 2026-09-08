@@ -1090,6 +1090,74 @@ export const TextViewSurvivesALateHostChange: Story = {
 };
 
 /**
+ * The Text editor seeds from an AST that arrives AFTER the mode flips.
+ *
+ * `TemplateField` passes the shell its OWN `value` prop, and on the render
+ * that flips the field into expression mode that prop is still the STRING the
+ * author typed — the parsed AST only comes back through the host form one
+ * render later. So the shell mounts in Text mode with nothing to serialize,
+ * and an effect that runs on the mode alone has already had its only turn: the
+ * author gets an empty editor with a Preview of an expression sitting beside
+ * it, which reads as the text having been thrown away.
+ *
+ * Modelled here rather than live because it is a pure ordering problem — no
+ * instance, no offer, no host form. The late arrival is the whole test.
+ */
+export const TextModeSeedsWhenAstArrivesLate: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Mounts the shell in Text mode with a value that is not yet an AST, then delivers the AST a moment later — the DPQL editor must seed from it rather than stay empty.",
+      },
+    },
+  },
+  render: () => {
+    const [value, setValue] = useState<IExpression>({
+      is_expression: true,
+      // What `TemplateField` actually holds at that moment: the typed text.
+      value: '1 + 2' as unknown as IExpression['value'],
+    });
+    useEffect(() => {
+      const timer = setTimeout(() => setValue(SAMPLE), 100);
+      return () => clearTimeout(timer);
+    }, []);
+    return (
+      <ExpressionField
+        value={value}
+        onChange={noopChange}
+        defaultMode='text'
+        expressions={mockExpressions}
+      />
+    );
+  },
+  async beforeEach() {
+    const stop = startDpqlMockLsp();
+    return () => stop();
+  },
+  async play({ canvasElement }) {
+    const editable = (await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[contenteditable="true"]');
+        if (!el) throw new Error('editor not ready');
+        return el as HTMLElement;
+      },
+      { timeout: 10000 }
+    )) as HTMLElement;
+
+    // The AST arrives late; the editor must catch up with it.
+    await waitFor(
+      () => {
+        expect(editable.textContent).toMatch(/local:?\s*name/);
+        expect(editable.textContent).toContain('John');
+      },
+      { timeout: 10000 }
+    );
+    await waitForLspIdle(canvasElement);
+  },
+};
+
+/**
  * LIVE — fetches the real expression catalogue from the configured Qorus
  * instance (no `expressions` override). This is the true apples-to-apples
  * with qorus-ide: the picker shows the full ~121-function catalogue and

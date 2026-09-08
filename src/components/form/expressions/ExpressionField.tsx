@@ -196,7 +196,6 @@ export const ExpressionField = memo(
     // Tracks whether the user has typed since entering Text mode, so a
     // slow seed response can't clobber their input.
     const userTypedRef = useRef(false);
-    const astRef = useRef(ast);
 
     /* A cleared value must clear the editor with it.
      *
@@ -233,10 +232,6 @@ export const ExpressionField = memo(
         userTypedRef.current = false;
         setText('');
       }
-    }, [ast]);
-
-    useEffect(() => {
-      astRef.current = ast;
     }, [ast]);
 
     // Text mode: parse the DPQL into the AST (debounced).
@@ -283,17 +278,40 @@ export const ExpressionField = memo(
       [onChange, targetType, readTypeCheck]
     );
 
-    // Seed the Text editor from the AST whenever Text mode becomes active
-    // (including a `defaultMode='text'` mount). This must run as an
-    // effect: the editor only mounts on the same render that flips the
-    // mode (so `dpqlRef` is null inside the click handler), and
-    // `serialize` resolves '' until the editor's LSP session is ready —
-    // hence the brief retry loop.
+    /** Whether this visit to Text mode has already put the AST in the editor. */
+    const seededRef = useRef(false);
+
+    /* Seed the Text editor from the AST whenever Text mode becomes active
+     * (including a `defaultMode='text'` mount). This must run as an effect: the
+     * editor only mounts on the same render that flips the mode (so `dpqlRef`
+     * is null inside the click handler), and `serialize` resolves '' until the
+     * editor's LSP session is ready — hence the brief retry loop.
+     *
+     * It waits for an AST, because the AST can arrive AFTER the mode does. A
+     * host flips this shell into Text mode on the very render that accepts an
+     * expression, and the value it passes on that render is still the TEXT the
+     * author typed — the parsed AST only comes back through the form one render
+     * later. Keyed on the mode alone, the effect had already had its only turn
+     * by then: it found nothing to serialize, returned, and nothing asked
+     * again. The author landed in an empty editor with a Preview of their own
+     * expression sitting beside it, which reads as the text having been thrown
+     * away.
+     *
+     * Seeding happens at most ONCE per visit, and that is what makes watching
+     * the AST safe: `userTypedRef` guards what is being typed, but the AST
+     * MOVES as the author types — every successful parse replaces it — so an
+     * effect that re-seeded on each new AST would fight them for the editor. */
     useEffect(() => {
-      if (mode !== 'text') return undefined;
-      const seedAst = astRef.current;
-      if (!seedAst?.exp) return undefined;
-      userTypedRef.current = false;
+      if (mode !== 'text') {
+        // Leaving Text asks the question again on the next visit; the typing
+        // flag goes with it, or a stale one would suppress that visit's seed.
+        seededRef.current = false;
+        userTypedRef.current = false;
+        return undefined;
+      }
+      if (seededRef.current || userTypedRef.current) return undefined;
+      if (!ast?.exp) return undefined;
+      const seedAst = ast;
       let cancelled = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
       let tries = 0;
@@ -301,6 +319,7 @@ export const ExpressionField = memo(
         const t = await dpqlRef.current?.serialize?.(seedAst);
         if (cancelled || userTypedRef.current) return;
         if (t) {
+          seededRef.current = true;
           setText(t);
           setAstText(t);
         } else if (++tries < SEED_MAX_TRIES) {
@@ -312,7 +331,7 @@ export const ExpressionField = memo(
         cancelled = true;
         if (timer) clearTimeout(timer);
       };
-    }, [mode]);
+    }, [mode, ast]);
 
     // Switch to Text: the seeding effect above serializes the AST once
     // the editor's session is up.
