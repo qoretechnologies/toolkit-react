@@ -1,6 +1,6 @@
 # TASK — export the bare `ExpressionBuilder` from the form barrel
 
-**Status:** done pending user verify (uncommitted, branch `feature/119_export-expression-builder`)
+**Status:** committed `0eea9e7`, pushed (branch `feature/119_export-expression-builder`), PR open — awaiting CI + review
 
 Issue: [toolkit-react#119](https://github.com/qoretechnologies/toolkit-react/issues/119).
 Design: [`design/IDE_INTEGRATION.md`](../design/IDE_INTEGRATION.md) (the shell-at-root / bare-builder-nested rule;
