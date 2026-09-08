@@ -65,6 +65,12 @@ const argumentContext = (exp: string, argn: number): number => {
   return !argn || ASSOCIATIVE.has(exp) ? prec : prec - 1;
 };
 
+/** An argument reaches this as a bare value or as a `{type, value}` envelope. */
+const readArgValue = (arg: unknown): unknown =>
+  arg !== null && typeof arg === 'object' && 'value' in (arg as object)
+    ? (arg as { value: unknown }).value
+    : arg;
+
 const renderLiteral = (value: unknown): string => {
   if (value === undefined || value === null) return 'null';
   if (typeof value === 'string') return JSON.stringify(value);
@@ -79,6 +85,20 @@ const renderInContext = (
   contextPrec: number
 ): string => {
   if (!value?.exp) return '';
+  /* A `value` expression IS its literal.
+  
+     It is the wrapper the parser puts around a bare literal — typing `null`,
+     or `42`, into the text editor produces one — and it carries no symbol, so
+     rendering it through the generic paths printed the wrapper instead of the
+     value: `value(42)` with a catalogue that names it, `(42)` with one that
+     supplies its empty symbol. The server renders the literal alone, and a
+     summary that disagrees with the preview beside it is worse than either. */
+  if (value.exp === 'value' && (value.args ?? []).length === 1) {
+    const only = (value.args ?? [])[0] as IExpression;
+    if (!only?.is_expression) {
+      return renderLiteral(readArgValue(only));
+    }
+  }
   const schema = expressions.find((e) => e.name === value.exp);
   const symbol = schema?.symbol ?? value.exp;
   const args = value.args ?? [];

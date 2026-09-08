@@ -1519,6 +1519,31 @@ export const _validateField = (
         const argDefinition = expressionDefinition.varargs
           ? expressionDefinition.args[0]
           : expressionDefinition.args[index];
+        /* The argument's name for the message.
+        
+           `display_name` is what a catalogue MAY carry; the served one carries
+           `name`, so every message about an argument read "argument 1
+           ("undefined") is invalid" and named a field that does not exist. */
+        const argLabel =
+          argDefinition?.display_name ?? argDefinition?.name ?? `argument ${index + 1}`;
+
+        /* An explicit null is a VALUE, and DPQL says so: `null` is a literal
+           that parses, serializes and round-trips like any other.
+        
+           Treated as a missing one, it made "this returns no value"
+           unsayable. Typing `null` into the text editor produces the literal
+           expression `{exp: "value", args: [null]}`; the visual view then
+           called it invalid and refused to render a summary, and a raw null
+           argument crashed the validator outright on `argValue.type`. Reported
+           from the live IDE by an author with no other way to assert that a
+           service method returns nothing.
+        
+           Only an EXPLICIT null counts. An argument that is simply absent, or
+           an envelope holding `undefined`, is still missing — which is the
+           distinction the author is making when they write it. */
+        if (argValue === null || (isObject(argValue) && (argValue as any).value === null)) {
+          continue;
+        }
 
         if (!argValue?.value && !argDefinition?.required) {
           continue;
@@ -1533,14 +1558,14 @@ export const _validateField = (
           if (!result.isValid) {
             return withContext(
               result,
-              `Sub-expression for argument ${index + 1} ("${argDefinition?.display_name}") is invalid`
+              `Sub-expression for argument ${index + 1} ("${argLabel}") is invalid`
             );
           }
 
           continue;
         }
 
-        const result = validateFieldWithResult(argValue.type, argValue.value, {
+        const result = validateFieldWithResult(argValue?.type, argValue?.value, {
           expressions,
           allowed_values: argDefinition?.allowed_values,
           element_allowed_values: argDefinition?.element_allowed_values,
@@ -1550,7 +1575,7 @@ export const _validateField = (
         if (!result.isValid) {
           return withContext(
             result,
-            `Value for argument ${index + 1} ("${argDefinition?.display_name}") is invalid`
+            `Value for argument ${index + 1} ("${argLabel}") is invalid`
           );
         }
       }
