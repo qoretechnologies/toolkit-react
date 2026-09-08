@@ -170,6 +170,33 @@ export const ExpressionField = memo(
     // slow seed response can't clobber their input.
     const userTypedRef = useRef(false);
     const astRef = useRef(ast);
+
+    /* A cleared value must clear the editor with it.
+     *
+     * "Clear value" empties the option (`handleValueChange(name, undefined)`),
+     * but the DPQL text is local state seeded once on entering Text mode, and
+     * the seeding effect returns early for an empty AST — it exists to fill the
+     * editor, not to empty it. So the value went and the text stayed: the row
+     * reported "This field is required" while still showing `1 + 2`, which
+     * reads as the clear having silently failed.
+     *
+     * Only an AST that HAD content and lost it clears the box. A field that
+     * simply starts empty is left alone, so this cannot wipe what an author is
+     * part-way through typing before their first parse lands.
+     */
+    const hadExpression = useRef(false);
+    useEffect(() => {
+      if (ast?.exp) {
+        hadExpression.current = true;
+        return;
+      }
+      if (hadExpression.current) {
+        hadExpression.current = false;
+        userTypedRef.current = false;
+        setText('');
+      }
+    }, [ast]);
+
     useEffect(() => {
       astRef.current = ast;
     }, [ast]);
