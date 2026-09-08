@@ -2522,6 +2522,35 @@ const FormEngineImpl = ({
          `getOptionFieldStorageType`, so guarding that one alone left this
          untouched. */
       const storedRowType = optionHoldsExpression(other) ? undefined : type;
+
+      /* A RELOADED expression is handed to the editor in the shape the editor
+         was written against.
+
+         An expression is written as `{ type, is_expression: true, value: ast }`
+         and saved as `{ type, value: { is_expression: true, value: ast } }` —
+         the flag moves ONTO the value. The editor was only ever given
+         `other.is_expression`, which is absent in the saved shape, so a
+         reloaded expression was not recognised as one: an `auto` field then
+         resolved its type from the value it could see, decided the envelope was
+         a `hash`, and rendered `1 + 2` as a raw tree of `is_expression` /
+         `exp` / `args` for the author to edit by hand.
+
+         Both halves have to move together. Flipping the flag alone would put
+         the editor into expression mode and then hand it the ENVELOPE where it
+         expects the expression, so the value is unwrapped here too — after
+         which a saved expression is indistinguishable from one just typed,
+         which is what every component downstream already assumes.
+
+         Reported as "after Run assertion the value shows as raw data", but the
+         run is incidental: the field beside it, which no run touched, was
+         equally raw. The trigger is a RELOAD, which is the only thing that puts
+         an expression into its saved shape. */
+      const nestedExpression = !!(other as { value?: { is_expression?: unknown } })?.value
+        ?.is_expression;
+      const expressionAwareValue =
+        nestedExpression ?
+          (other as unknown as { value: { value: unknown } }).value.value
+        : other.value;
       const resolvedType =
         (isFixedCompactAllowedValueOption(optionSchema) ?
           getOptionSchemaStorageType(optionSchema, isRendererOnly)
@@ -2727,8 +2756,8 @@ const FormEngineImpl = ({
             key={optionName}
             arg_schema={options?.[optionName]?.arg_schema}
             noSoft={!!rest?.options}
-            value={other.value}
-            isFunction={(other as { is_expression?: boolean }).is_expression}
+            value={expressionAwareValue}
+            isFunction={optionHoldsExpression(other)}
             isDefaultFunction={options?.[optionName]?.default_view === 'expression'}
             sensitive={options?.[optionName]?.sensitive}
             default_value={getDefaultValue(options?.[optionName])}
