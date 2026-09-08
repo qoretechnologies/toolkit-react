@@ -96,6 +96,15 @@ export const ExpressionField = memo(
     // Text mode state. `text` is the DPQL string the editor shows; the AST
     // (`value`) stays the source of truth, kept in sync via parse-on-edit.
     const [text, setText] = useState('');
+    /* The text the current AST was parsed FROM.
+     *
+     * The preview renders the AST, and the AST only moves on a SUCCESSFUL
+     * parse — so while an edit is mid-flight or simply invalid, the AST still
+     * describes the last thing that parsed. Showing it then states something
+     * the editor does not contain: deleting the `2` from `1 + 2` left
+     * "Unexpected end of input" sitting directly above a Preview confidently
+     * reading `1 + 2`. */
+    const [astText, setAstText] = useState('');
     /**
      * The server's answer to "can this expression's result satisfy the type
      * this field declares?". `null` when nothing has been asked, or when the
@@ -186,7 +195,18 @@ export const ExpressionField = memo(
      */
     const hadExpression = useRef(false);
     useEffect(() => {
-      if (ast?.exp) {
+      /* GONE, not merely incomplete.
+       *
+       * The first cut asked whether the AST still had an `exp`, and that is a
+       * state the value passes THROUGH while the author types: a half-written
+       * expression parses to something without one. So typing `1 + 2` cleared
+       * the editor mid-keystroke and the text vanished under the cursor.
+       *
+       * A clear removes the value itself, so that is what to watch: `value`
+       * empty, not an AST that is between shapes. Typing never produces that —
+       * `handleDpqlChange` only emits on a SUCCESSFUL parse, so an incomplete
+       * expression leaves the previous value in place. */
+      if (ast) {
         hadExpression.current = true;
         return;
       }
@@ -235,6 +255,7 @@ export const ExpressionField = memo(
           const result = await parse(next, targetType);
           readTypeCheck(result);
           if (result?.success && result.expression) {
+            setAstText(next);
             // `dpql/parse` returns the field-ready `{ is_expression, value }`.
             onChange(result.expression as IExpression);
           }
@@ -263,6 +284,7 @@ export const ExpressionField = memo(
         if (cancelled || userTypedRef.current) return;
         if (t) {
           setText(t);
+          setAstText(t);
         } else if (++tries < SEED_MAX_TRIES) {
           timer = setTimeout(seed, SEED_RETRY_MS);
         }
@@ -375,7 +397,9 @@ export const ExpressionField = memo(
 
                 An empty query has nothing to render either, so the box appears
                 once there is a result rather than holding a placeholder. */}
-            {preview.text && preview.text.trim() !== text.trim() ? (
+            {preview.text &&
+            astText.trim() === text.trim() &&
+            preview.text.trim() !== text.trim() ? (
               <ReqoreMessage intent='info' size='small' title='Preview' flat opaque={false}>
                 {preview.server ? (
                   // Server rendering shown through a read-only DpqlEditor:

@@ -597,11 +597,27 @@ export const formatOptionValue = (
     return '••••••';
   }
 
-  if (option?.is_expression) {
+  /* An expression arrives in TWO shapes, and only the flat one was checked.
+   *
+   * At runtime the editor writes the flag onto the option
+   * (`{ is_expression: true, value: ast }`); a value read back from a saved
+   * draft carries the envelope NESTED (`{ value: { is_expression: true,
+   * value: ast } }`) with no flag on the option at all. Missing the nested
+   * shape sent a reloaded expression to the generic formatter, which printed
+   * the AST — the row showed `is_expression true / value / exp + / args 1 2`
+   * where the expression should be. */
+  const expressionAst: IExpressionValue | undefined =
+    option?.is_expression ? (option?.value as IExpressionValue | undefined)
+    : (option?.value as { is_expression?: boolean; value?: IExpressionValue } | undefined)
+        ?.is_expression ?
+      (option?.value as { value?: IExpressionValue }).value
+    : undefined;
+
+  if (expressionAst !== undefined) {
     // Offline summary of the {exp,args} AST already in the form value — the
     // same client-side renderer the editor's "Explain" seam falls back to when
     // the LSP is unreachable. The drill-in editor shows the canonical DPQL.
-    return renderExpressionToText(option?.value as IExpressionValue | undefined) || 'Expression';
+    return renderExpressionToText(expressionAst) || 'Expression';
   }
 
   // schema-definition is stored as a hash envelope; summarise it as the schema
