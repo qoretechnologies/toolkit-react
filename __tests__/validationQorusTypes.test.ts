@@ -880,3 +880,37 @@ describe('option ui type vocabulary', () => {
     expect(isOptionUiType('array-of-pairs')).toBe(false);
   });
 });
+
+describe('an `auto` field validates what it parsed', () => {
+  /* The type is detected from the PARSED value, so the validation has to run
+     against that same parse. Against the raw value the two disagreed the
+     moment parsing changed the shape: typing `1` parsed to the number 1,
+     detected `int`, then validated the STRING "1" against it and reported
+     "Value must be an integer" — on a value that is one. The author's field
+     went invalid on the first character they typed. */
+  it('accepts a number typed as text', () => {
+    expect(validateField('auto', '1')).toBe(true);
+    expect(validateField('auto', '42')).toBe(true);
+  });
+
+  it('accepts a float typed as text', () => {
+    expect(validateField('auto', '1.5')).toBe(true);
+  });
+
+  it('accepts a bool typed as text', () => {
+    expect(validateField('auto', 'true')).toBe(true);
+  });
+
+  it('still accepts ordinary strings', () => {
+    expect(validateField('auto', 'hello')).toBe(true);
+  });
+
+  it('still accepts a hash and a list handed over unparsed', () => {
+    expect(validateField('auto', { a: 1 })).toBe(true);
+    expect(validateField('auto', [1, 2])).toBe(true);
+  });
+
+  it('still rejects an empty value', () => {
+    expect(validateField('auto', '')).toBe(false);
+  });
+});

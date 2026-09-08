@@ -1065,8 +1065,15 @@ export const _validateField = (
       }
 
       if (parsedData) {
+        /* Validate what was PARSED, against the type detected from the same
+           parse. Validating the raw `value` instead made the two disagree
+           whenever parsing changed the shape: typing `1` into an `auto` field
+           parsed to the number 1, detected `int`, and then validated the STRING
+           "1" against it — "Value must be an integer", on a value that is one.
+           The author saw their field go invalid on the first character they
+           typed. */
         return withContext(
-          validateFieldWithResult(getTypeFromValue(parsedData), value),
+          validateFieldWithResult(getTypeFromValue(parsedData), parsedData),
           'Auto-detected type is invalid'
         );
       }
