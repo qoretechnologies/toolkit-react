@@ -65,6 +65,18 @@ export interface IExpressionBuilderProps {
   expressions?: IExpressionSchema[];
   expressionsUrl?: string;
   serverHandled?: boolean;
+  /**
+   * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the operand
+   * fields below.
+   *
+   * Without them an operand whose type is one of the CONSUMER's own ui_types
+   * falls through `AutoFormField`'s switch to the literal "Unknown type!" tag.
+   * That is what an assertion's `Value` did the moment it was turned into an
+   * expression: the field is `test-reference`, an IDE ui_type whose editor the
+   * IDE registers through `componentOverrides`, and the builder rendered its
+   * operands without them.
+   */
+  componentOverrides?: Record<string, React.FC<any>>;
   size?: string;
   /**
    * SEAM (reqraft): extra hover actions prepended to each expression card —
@@ -118,6 +130,7 @@ export const Expression = ({
   expressionsUrl,
   serverHandled,
   extraActions,
+  componentOverrides,
   ...props
 }: IExpressionProps) => {
   const types = useQorusTypes();
@@ -883,6 +896,7 @@ export const Expression = ({
           >
             <TemplateField
               component={auto}
+              componentOverrides={componentOverrides}
               minimal
               label={
                 serverAndQorusExpression
@@ -984,6 +998,7 @@ export const Expression = ({
                     <TemplateField
                       minimal
                       component={auto}
+                      componentOverrides={componentOverrides}
                       noSoft
                       level={level + 1}
                       allowFunctions={!arg?.allowed_values && !arg?.element_allowed_values}
@@ -1088,6 +1103,7 @@ export const ExpressionBuilder = ({
   expressionsUrl,
   serverHandled,
   extraActions,
+  componentOverrides,
 }: IExpressionBuilderProps) => {
   const templates = useTemplates(!isChild, localTemplates);
   const theme = useReqoreTheme();
@@ -1270,6 +1286,7 @@ export const ExpressionBuilder = ({
         id={level === 0 && index === 0 ? 'expression-builder' : undefined}
         serverHandled={serverHandled}
         extraActions={extraActions}
+        componentOverrides={componentOverrides}
       />
     </ReqoreErrorBoundary>
   );

@@ -997,6 +997,11 @@ export const TemplateField = memo(
                   is_expression: true,
                   value,
                 }}
+                // The host's per-ui_type editors reach this field through the
+                // rest-spread; the expression shell needs them explicitly or the
+                // builder's operands render "Unknown type!" for any consumer
+                // ui_type (an assertion's `test-reference` Value, for one).
+                componentOverrides={(rest as any).componentOverrides}
                 localTemplates={templates}
                 type={type as string}
                 returnType={(returnType || type) as any}
@@ -1041,6 +1046,7 @@ export const TemplateField = memo(
                 is_expression: true,
                 value,
               }}
+              componentOverrides={(rest as any).componentOverrides}
               localTemplates={templates}
               level={level}
               type={type as string}

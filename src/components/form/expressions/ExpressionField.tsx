@@ -62,6 +62,12 @@ export interface IExpressionFieldProps {
   recordType?: string;
   /** Initial editor mode (default `visual`). */
   defaultMode?: TExpressionMode;
+  /**
+   * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the
+   * builder's operand fields. Without them an operand typed with one of the
+   * CONSUMER's ui_types renders "Unknown type!".
+   */
+  componentOverrides?: Record<string, React.FC<any>>;
   size?: string;
 }
 
@@ -80,6 +86,7 @@ export const ExpressionField = memo(
     recordType,
     defaultMode = 'visual',
     size,
+    componentOverrides,
   }: IExpressionFieldProps) => {
     const { expressions } = useExpressions({
       override: expressionsOverride,
@@ -432,6 +439,7 @@ export const ExpressionField = memo(
             readOnly={readOnly}
             localTemplates={localTemplates ?? { items: [] }}
             serverHandled={serverHandled}
+            componentOverrides={componentOverrides}
             size={size}
           />
         )}
