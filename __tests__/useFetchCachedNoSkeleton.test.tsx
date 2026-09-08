@@ -8,16 +8,23 @@
  * form appearing on an IDE page flashed a skeleton whether or not anything was
  * actually being fetched.
  *
- * Measured in the live IDE on a fully warm SECOND visit to one page:
+ * Measured in the live IDE on a fully warm SECOND visit to one alert-rule page:
  * three skeleton waves against two requests, the last wave with no request
  * anywhere near it — the reader watches the page go ready, un-ready, ready,
- * un-ready.
+ * un-ready. After the fix, zero waves on the same page.
+ *
+ * These render WITHOUT a `QueryClientProvider`, seeding the module-level client
+ * that `query` itself defaults to. That is deliberate twice over: it is the
+ * path most consumers take (a form mounted with only a `FetchContext`), and
+ * mounting a provider registers window listeners that outlived the jsdom
+ * teardown and failed CI with `ReferenceError: window is not defined` while
+ * passing locally.
  */
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FetchContext } from '../src/contexts/FetchContext';
 import { useFetch } from '../src/hooks/useFetch/useFetch';
+import { ReqraftQueryClient } from '../src/providers/ReqraftProvider';
 import { reqraftCacheKey } from '../src/utils/fetch';
 
 const CATALOGUE = [{ name: 'string' }, { name: 'int' }];
@@ -36,38 +43,35 @@ const Probe = ({
   return <div data-loading={String(loading)} />;
 };
 
-const renderWith = (queryClient: QueryClient, url: string, get: ReturnType<typeof vi.fn>) => {
+const renderProbe = (url: string, get: ReturnType<typeof vi.fn>) => {
   const seen = { loading: [] as boolean[], data: [] as unknown[] };
   const fetchContext = { get, post: vi.fn(), put: vi.fn(), del: vi.fn() };
 
   render(
-    <QueryClientProvider client={queryClient}>
-      <FetchContext.Provider value={fetchContext as never}>
-        <Probe url={url} seen={seen} />
-      </FetchContext.Provider>
-    </QueryClientProvider>
+    <FetchContext.Provider value={fetchContext as never}>
+      <Probe url={url} seen={seen} />
+    </FetchContext.Provider>
   );
 
   return seen;
 };
 
-describe('useFetch with a warm cache', () => {
-  let queryClient: QueryClient;
+/** Exactly what `query` stores for a resolved GET. */
+const seedCache = (url: string, data: unknown) =>
+  ReqraftQueryClient.setQueryData([reqraftCacheKey({ url })], { data, ok: true, status: 200 });
 
+describe('useFetch with a warm cache', () => {
   beforeEach(() => {
-    queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    // `__tests__/setup.ts` clears the shared client between tests; this is the
+    // per-test seed on top of that.
+    ReqraftQueryClient.clear();
   });
 
   it('never reports loading for a resource already in the cache', async () => {
-    // Exactly what `query` stores for a resolved GET.
-    queryClient.setQueryData([reqraftCacheKey({ url: '/system/qorus-type-info' })], {
-      data: CATALOGUE,
-      ok: true,
-      status: 200,
-    });
+    seedCache('/system/qorus-type-info', CATALOGUE);
 
     const get = vi.fn(async () => ({ ok: true, data: CATALOGUE }));
-    const seen = renderWith(queryClient, '/system/qorus-type-info', get);
+    const seen = renderProbe('/system/qorus-type-info', get);
 
     // The flash is a single render with loading true — assert across ALL of
     // them, not just the last, or the flash passes unnoticed.
@@ -76,14 +80,10 @@ describe('useFetch with a warm cache', () => {
   });
 
   it('hands back the cached data on the very first render', async () => {
-    queryClient.setQueryData([reqraftCacheKey({ url: '/system/qorus-type-info' })], {
-      data: CATALOGUE,
-      ok: true,
-      status: 200,
-    });
+    seedCache('/system/qorus-type-info', CATALOGUE);
 
     const get = vi.fn(async () => ({ ok: true, data: CATALOGUE }));
-    const seen = renderWith(queryClient, '/system/qorus-type-info', get);
+    const seen = renderProbe('/system/qorus-type-info', get);
 
     expect(seen.data[0]).toEqual(CATALOGUE);
   });
@@ -92,39 +92,37 @@ describe('useFetch with a warm cache', () => {
     // The skeleton is right when a request really is in flight; this is the
     // control that stops the fix from simply never reporting loading.
     const get = vi.fn(
-      async () => new Promise((resolve) => setTimeout(() => resolve({ ok: true, data: CATALOGUE }), 5))
+      async () =>
+        new Promise((resolve) => setTimeout(() => resolve({ ok: true, data: CATALOGUE }), 5))
     );
-    const seen = renderWith(queryClient, '/system/uncached-thing', get as never);
+    const seen = renderProbe('/system/uncached-thing', get as never);
 
     expect(seen.loading.some((l) => l === true)).toBe(true);
   });
 
   it('still revalidates a cached resource', async () => {
     // Silent, but not skipped: the entry is refreshed behind the rendered data.
-    queryClient.setQueryData([reqraftCacheKey({ url: '/system/qorus-type-info' })], {
-      data: CATALOGUE,
-      ok: true,
-      status: 200,
-    });
+    seedCache('/system/qorus-type-info', CATALOGUE);
 
     const get = vi.fn(async () => ({ ok: true, data: CATALOGUE }));
-    renderWith(queryClient, '/system/qorus-type-info', get);
+    renderProbe('/system/qorus-type-info', get);
 
     await waitFor(() => expect(get).toHaveBeenCalled());
   });
 
   it('does not treat a cached FAILURE as an answer', async () => {
     // A remembered error must not be rendered as though it were data.
-    queryClient.setQueryData([reqraftCacheKey({ url: '/system/broken' })], {
+    ReqraftQueryClient.setQueryData([reqraftCacheKey({ url: '/system/broken' })], {
       data: undefined,
       ok: false,
       status: 500,
     });
 
     const get = vi.fn(
-      async () => new Promise((resolve) => setTimeout(() => resolve({ ok: true, data: CATALOGUE }), 5))
+      async () =>
+        new Promise((resolve) => setTimeout(() => resolve({ ok: true, data: CATALOGUE }), 5))
     );
-    const seen = renderWith(queryClient, '/system/broken', get as never);
+    const seen = renderProbe('/system/broken', get as never);
 
     expect(seen.loading.some((l) => l === true)).toBe(true);
   });
