@@ -632,7 +632,16 @@ export const TemplateField = memo(
             ? ([
                 {
                   type: 'paragraph',
+                  /* The empty text nodes on either side are load-bearing. A
+                     chip is an inline VOID: it holds no text of its own, so the
+                     only places a cursor can go are the text nodes AROUND it.
+                     Slate treats that as an invariant and repairs it during
+                     normalisation, which runs on edits but NOT on a document
+                     handed in whole as a controlled value — which is what this
+                     is. Without them the picked template renders as a chip that
+                     cannot be typed after, so it can never be extended by hand. */
                   children: [
+                    { text: '' },
                     {
                       children: [{ text: '' }],
                       label: item.label,
@@ -640,6 +649,7 @@ export const TemplateField = memo(
                       value: item.value,
                       metadata: item.metadata,
                     },
+                    { text: '' },
                   ],
                 },
               ] as IReqoreRichTextEditorProps['value'])
