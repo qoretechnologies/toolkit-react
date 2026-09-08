@@ -37,6 +37,20 @@ export interface IDpqlMockParseCall {
 }
 export const dpqlMockParseCalls: IDpqlMockParseCall[] = [];
 
+/** The template namespaces the server offers after a `$`. */
+const DPQL_MOCK_TEMPLATE_ITEMS = [
+  { label: '$data:', insertText: '$data:', kind: 1, detail: 'template' },
+  { label: '$config:', insertText: '$config:', kind: 1, detail: 'template' },
+  { label: '$static:', insertText: '$static:', kind: 1, detail: 'template' },
+  { label: '$timestamp:', insertText: '$timestamp:', kind: 1, detail: 'template' },
+];
+
+/** The record fields the server offers after an `@`. */
+const DPQL_MOCK_FIELD_ITEMS = [
+  { label: '@name', insertText: '@name', kind: 5, detail: 'string' },
+  { label: '@status', insertText: '@status', kind: 5, detail: 'string' },
+];
+
 /** Start the mock LSP; returns a teardown function. */
 export const startDpqlMockLsp = (): (() => void) => {
   dpqlMockParseCalls.length = 0;
@@ -48,7 +62,25 @@ export const startDpqlMockLsp = (): (() => void) => {
     // Unknown requests get an empty success so nothing hangs.
     defaultResult: {},
     handlers: {
-      'textDocument/completion': () => ({ isIncomplete: false, items: [] }),
+      /* Position-aware, as the real server is: `$` opens the template
+         namespaces, `@` the record fields. Answering the same list whatever
+         precedes the cursor would make a story asserting the `$` menu pass
+         for a shell that asked in the wrong context — which is the only thing
+         such a story is there to catch. (`DpqlEditor`'s own stories carry the
+         full catalogue; this is the minimal subset.) */
+      'textDocument/completion': (msg, server) => {
+        const position = msg.params?.position ?? { line: 0, character: 0 };
+        const line = server.documentText.split('\n')[position.line] ?? '';
+        const head = line.slice(0, position.character);
+        const sigil = head.match(/[@$][\w:.{}]*$/)?.[0]?.[0] ?? '';
+        if (sigil === '$') {
+          return { isIncomplete: false, items: DPQL_MOCK_TEMPLATE_ITEMS };
+        }
+        if (sigil === '@') {
+          return { isIncomplete: false, items: DPQL_MOCK_FIELD_ITEMS };
+        }
+        return { isIncomplete: false, items: [] };
+      },
 
       'textDocument/semanticTokens/full': () => ({ data: [] }),
 

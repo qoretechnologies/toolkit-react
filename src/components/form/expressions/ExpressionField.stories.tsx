@@ -1158,6 +1158,69 @@ export const TextModeSeedsWhenAstArrivesLate: Story = {
 };
 
 /**
+ * The Text view offers template completions.
+ *
+ * Templates are how an author names a value the surrounding interface already
+ * has, and the Text view is a DPQL editor like any other: typing `$` asks the
+ * language server, in position, and shows what it answers. Nothing about
+ * mounting that editor inside the expression shell changes it — the shell
+ * passes no template list of its own, because there is none to pass.
+ *
+ * Asserted here because it had never been asserted anywhere: the shell's Text
+ * view had only ever been exercised for parse, serialize and type analysis, so
+ * "does `$` still work in there?" was an open question with no cost to
+ * answering. What this covers is the CLIENT half — that the shell surfaces
+ * what the server offers. Which contexts the live Qorus server offers is its
+ * own question, and this cannot answer it.
+ */
+export const TextModeOffersTemplateCompletions: Story = {
+  args: {
+    value: { is_expression: true, value: { args: [] } },
+    defaultMode: 'text',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$` into the shell\'s Text view — the DPQL editor asks the language server in position and the template namespaces ($data:, $config:, …) open in the completion dropdown.',
+      },
+    },
+  },
+  async beforeEach() {
+    const stop = startDpqlMockLsp();
+    return () => stop();
+  },
+  async play({ canvasElement }) {
+    const editable = (await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[contenteditable="true"]');
+        if (!el) throw new Error('editor not ready');
+        return el as HTMLElement;
+      },
+      { timeout: 10000 }
+    )) as HTMLElement;
+
+    // The editor mounting is not the language server being ready, and a `$`
+    // typed before the socket is up asks nothing at all.
+    await waitForLspIdle(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.type(editable, '$');
+
+    // The dropdown is portalled, so it is looked for in the document rather
+    // than in the canvas.
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.reqore-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('$data:');
+        expect(dropdown!.textContent).toContain('$config:');
+      },
+      { timeout: 20000 }
+    );
+  },
+};
+
+/**
  * LIVE — fetches the real expression catalogue from the configured Qorus
  * instance (no `expressions` override). This is the true apples-to-apples
  * with qorus-ide: the picker shows the full ~121-function catalogue and
