@@ -1090,6 +1090,99 @@ export const TextViewSurvivesALateHostChange: Story = {
 };
 
 /**
+ * The field's own menu stays in the toolbar row.
+ *
+ * `TemplateField` renders its controls — the More menu that offers "Use
+ * Template", and the undo for an accepted offer — as SIBLINGS of the expression
+ * shell. Beside an ordinary one-line editor, centring that menu in the flex
+ * line is what lines it up with the row's other buttons.
+ *
+ * The shell is not one line. It is a toolbar with an editor, a type message and
+ * a preview stacked under it, so centring put the menu somewhere down the side
+ * of that block — level with nothing, overlapping the editor, and a long way
+ * from the Undo it belongs beside.
+ *
+ * Only reachable with templates ON OFFER, which is why the stories above miss
+ * it: with nothing to offer the menu is not rendered at all.
+ */
+export const FieldMenuStaysInTheToolbar: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Accepts the offer on a compact row whose field also has templates, so TemplateField renders its More menu beside the expression shell — the menu must sit in the shell's toolbar row, level with Undo, not part-way down the editor.",
+      },
+    },
+  },
+  render: () => {
+    const [value, setValue] = useState<any>({});
+    return (
+      <FormEngine
+        name='dpqlOfferToolbarForm'
+        compact
+        flat
+        transparent
+        padded={false}
+        showTypeToggle={false}
+        size='small'
+        options={
+          {
+            expected: {
+              type: 'string',
+              ui_type: 'string',
+              display_name: 'Value',
+              preselected: true,
+              supports_expressions: true,
+              supports_templates: true,
+              expressions: mockExpressions,
+              templates: {
+                items: [
+                  {
+                    label: 'Values this case captures',
+                    items: [{ label: 'Order status', value: '$.order.status', badge: 'string' }],
+                  },
+                ],
+              },
+            },
+          } as any
+        }
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+      />
+    );
+  },
+  async beforeEach() {
+    const stop = startDpqlMockLsp();
+    return () => stop();
+  },
+  async play({ canvasElement }) {
+    await openCompactRow(canvasElement);
+    await acceptTypedExpression(canvasElement);
+
+    const menu = canvasElement.querySelector('.template-more') as HTMLElement | null;
+    expect(menu).toBeInTheDocument();
+
+    // The toolbar row is the shell's first line — the Visual/Text toggle.
+    const toggle = within(canvasElement).getByText('Text').closest('button') as HTMLElement;
+    const toolbar = toggle.getBoundingClientRect();
+    const control = menu!.getBoundingClientRect();
+
+    /* Reported as numbers: "the menu is in the wrong place" is not something a
+       CI log can show, and the two rectangles are the whole story. */
+    const where = `toolbar ${Math.round(toolbar.top)}–${Math.round(
+      toolbar.bottom
+    )}, menu ${Math.round(control.top)}–${Math.round(control.bottom)}`;
+
+    // Level with the toolbar: the menu's own centre falls inside that row.
+    const centre = control.top + control.height / 2;
+    expect(
+      centre >= toolbar.top && centre <= toolbar.bottom,
+      `the field's More menu should sit in the toolbar row — ${where}`
+    ).toBe(true);
+  },
+};
+
+/**
  * The Text editor seeds from an AST that arrives AFTER the mode flips.
  *
  * `TemplateField` passes the shell its OWN `value` prop, and on the render

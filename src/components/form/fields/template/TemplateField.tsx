@@ -937,10 +937,18 @@ export const TemplateField = memo(
                 transparent: true,
                 size: rest.size,
                 fixed: true,
-                // Centre the trailing menu in its flex line so it lines up with
-                // sibling action buttons (reqore alignSelf; replaces a reqraft
-                // `align-self !important` override of this button).
-                alignSelf: 'center',
+                /* Centre the trailing menu in its flex line so it lines up
+                   with sibling action buttons (reqore alignSelf; replaces a
+                   reqraft `align-self !important` override of this button).
+                
+                   Centring is only right beside a ONE-LINE editor. The
+                   expression shell is a toolbar with an editor, a type message
+                   and a preview stacked under it, so centring put this menu
+                   somewhere down the side of that block — level with nothing,
+                   over the editor, and a long way from the Undo it belongs
+                   beside. There it goes to the top, which is where the shell's
+                   own toolbar is. */
+                alignSelf: effectiveIsFunction ? 'flex-start' : 'center',
                 label: hasInputAffordance ? undefined : 'Set value',
                 style:
                   hasInputAffordance ?
@@ -1026,6 +1034,7 @@ export const TemplateField = memo(
       value,
       menuItems,
       internalIsFunction,
+      effectiveIsFunction,
       hasInputAffordance,
     ]);
 
