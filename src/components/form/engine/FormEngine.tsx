@@ -960,6 +960,15 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * consumer's new editor no longer needs a reqraft release to be handled.
    */
   rendererOnlyUiTypes?: string[];
+  /**
+   * The `ui_type` names whose own editor renders templates as chips INLINE.
+   *
+   * For these the template selector is suppressed and the field's editor is
+   * shown instead — the selector would replace a control the author can type in
+   * with one they can only pick from. Merged with reqraft's built-in list
+   * (`richtext`), the same way `rendererOnlyUiTypes` is.
+   */
+  templateAwareUiTypes?: string[];
 
   /**
    * Bag of values forwarded from an outer FormEngine scope, used as a
@@ -1108,6 +1117,7 @@ const FormEngineImpl = ({
   // onto a DOM node
   markdownRenderer: _markdownRenderer, // eslint-disable-line @typescript-eslint/no-unused-vars
   rendererOnlyUiTypes,
+  templateAwareUiTypes,
   inheritedFromParent,
   autoFocusFirstRequired,
   expandFirstRequired,
@@ -2703,6 +2713,7 @@ const FormEngineImpl = ({
             // SEAM: forwarded through TemplateField's rest-spread to AutoFormField,
             // which renders consumer-injected editors by field type/ui_type.
             componentOverrides={componentOverrides}
+            templateAwareUiTypes={templateAwareUiTypes}
             allowTemplates={!!(allowTemplates && options?.[optionName]?.supports_templates)}
             allowFunctions={!!options?.[optionName]?.supports_expressions}
             // reqraft: form-level expression fields get the Visual/Text shell

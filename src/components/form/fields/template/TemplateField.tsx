@@ -300,6 +300,26 @@ export const TemplateDropdownSelector = memo(
   }
 );
 
+/**
+ * `ui_type`s whose OWN editor renders templates as chips inline.
+ *
+ * For these the template SELECTOR must not take over: it replaces a control the
+ * author can type in with one they can only pick from. A Qorus test assertion's
+ * `Value` is the case this was written for — the IDE's own `auto.tsx` already
+ * renders it as template rich text (type freely, references become chips), and
+ * the same field reached through this form engine offered a dropdown and no way
+ * to type at all.
+ *
+ * `richtext` is reqraft's own; a consumer adds its types through the
+ * `templateAwareUiTypes` prop, exactly as it adds `rendererOnlyUiTypes`.
+ */
+export const BuiltInTemplateAwareUiTypes = ['richtext'];
+
+export const isTemplateAwareUiType = (
+  uiType?: string,
+  extra?: string[]
+): boolean => !!uiType && [...BuiltInTemplateAwareUiTypes, ...(extra ?? [])].includes(uiType);
+
 export const TemplateField = memo(
   ({
     value,
@@ -381,13 +401,24 @@ export const TemplateField = memo(
     const typeIsAnyLike = type === 'any' || type === 'auto';
     const isEmptyValue = value === undefined || value === null || value === '';
     const hasTemplatesOnOffer = !!size(filteredTemplates?.items);
-    const [isTemplate, setIsTemplate] = useState<boolean>(
+    /* The field's own editor already renders templates inline, so the selector
+       is not merely unnecessary here — it is a downgrade, swapping a typable
+       control for a pick-only one. Derived rather than folded into the state
+       below so every `setIsTemplate` path keeps working untouched; they simply
+       stop having anything to say for these fields. */
+    const editorHandlesTemplates =
+      !!allowTemplates &&
+      isTemplateAwareUiType(type as string, (rest as any).templateAwareUiTypes);
+
+    const [isTemplateState, setIsTemplate] = useState<boolean>(
       (isDefaultTemplate ||
         isValueTemplate(value) ||
         !allowCustomValues ||
         (typeIsAnyLike && isEmptyValue && hasTemplatesOnOffer)) &&
         allowTemplates
     );
+
+    const isTemplate = editorHandlesTemplates ? false : isTemplateState;
     const [internalIsFunction, setInternalIsFunction] = useState<boolean>(
       !!isDefaultFunction && !!allowFunctions
     );
