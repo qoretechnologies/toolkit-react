@@ -11,7 +11,7 @@
  * "Values this case captures".
  */
 import { describe, expect, it } from 'vitest';
-import { templateItemsToShow } from '../src/components/form/fields/template/TemplateField';
+import { templateItemsToShow } from '../src/helpers/templateItems';
 
 const VALUES = [
   { label: 'result', value: '$.result' },

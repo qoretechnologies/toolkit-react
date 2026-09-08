@@ -7,6 +7,7 @@ import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { isEqual, size } from 'lodash';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useDebounce } from 'react-use';
+import { templateItemsToShow } from '../../../../helpers/templateItems';
 import { getTemplateTagStyle } from '../../../../helpers/templates';
 
 export interface IRichTextFormFieldProps extends Omit<
@@ -129,7 +130,10 @@ export const RichTextFormField = memo(({
         label: 'Templates',
         flat: false,
         description: 'Universal values that can be used in multiple places',
-        items: templates?.items,
+        /* The in-editor list already nests everything under "Templates", so a
+           lone category makes the author drill through TWO headers to reach
+           the only values on offer. Hoist it. */
+        items: templateItemsToShow(templates?.items),
       };
     }
 
