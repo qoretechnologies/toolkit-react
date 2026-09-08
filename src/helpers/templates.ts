@@ -1,4 +1,5 @@
 import { modalStore } from '@qoretechnologies/reqore';
+import { TReqoreTooltipProp } from '@qoretechnologies/reqore/dist/types/global';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import {
   TReqoreDropdownItem,
@@ -256,6 +257,36 @@ export const describeTemplateReference = (
 ): { label: string; item?: TReqoreDropdownItem } => {
   const resolved = resolveTemplateLabel(templates, value);
   return resolved.item ? resolved : { label: getTemplateReferencePath(value) };
+};
+
+/**
+ * What a chosen template's hover should say.
+ *
+ * The reference itself — `$._case.title`, `$data:{dc_ai_reply.choices[0]…}` —
+ * is an implementation detail of the grammar, and it was what every template
+ * chip put in its tooltip. An author hovering a chip wants to know WHAT VALUE
+ * this is, and the catalogue already carries that: the entry's `description`
+ * is the prose the picker lists it under, written from the schema that declares
+ * it, with its type appended.
+ *
+ * So the hover reads as a small card — the value's name as the title, its
+ * description as the body — and the path stays where it is genuinely needed:
+ * the field's own help, which teaches the grammar with a worked example, and
+ * the picker, for the walks no list can hold.
+ *
+ * Falls back to the resolved label (itself the stripped path when the catalogue
+ * explains nothing), because a surface with no catalogue must still say what
+ * the value is rather than nothing at all.
+ */
+export const templateTooltip = (
+  templates: IReqoreFormTemplates | undefined,
+  value: string
+): TReqoreTooltipProp => {
+  const { label, item } = describeTemplateReference(templates, value);
+  const description = (item as { description?: unknown } | undefined)?.description;
+  return typeof description === 'string' && description.trim() ?
+      { title: label, content: description, maxWidth: '360px' }
+    : label || value;
 };
 
 const EMBEDDED_TEMPLATE_TOKEN = new RegExp(TEMPLATE_TOKEN_SOURCE, 'g');

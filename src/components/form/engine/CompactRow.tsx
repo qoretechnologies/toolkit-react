@@ -30,6 +30,7 @@ import {
   isValueTemplate,
   describeTemplateReference,
   splitTemplateTokens,
+  templateTooltip,
   TTemplateMeta,
 } from '../../../helpers/templates';
 import { getDefaultValue, richtextToSegments, richtextToString } from '../../../helpers/common';
@@ -64,6 +65,7 @@ import {
   findAllowedValueOption,
   formatBytes,
   formatOptionValue,
+  getAllowedValueIcon,
   getAllowedValueImage,
   getFileSize,
   getHashEntries,
@@ -74,6 +76,7 @@ import {
   optionHasImages,
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
+import { TFieldWithOwnTemplates } from './rendererTypes';
 
 /**
  * Does this markdown value have more document in it than one row can show?
@@ -351,6 +354,52 @@ export const CompactRow = memo(
         );
       }
 
+      // A test's cases read as CHIPS here, the same as the names in the table
+      // this row opens (`CasesTable`, qorus-ide). `test-cases` is a
+      // renderer-only ui_type, so it reached none of the branches above and
+      // fell through to the generic summary, which flattens the array of case
+      // hashes to a comma-joined string — "case_1, resolved_expected_values".
+      // A case name is an identifier the author types into `$.` references and
+      // skip conditions, and a chip is how the rest of the product writes an
+      // identifier down; the table already agreed, so the collapsed row was the
+      // only surface still printing them as prose.
+      //
+      // `intent` is a FILL, which is what a tag is — the hazard the other
+      // branches warn about is only ever using an intent as a TEXT colour.
+      //
+      // Falls through to the plain summary unless EVERY entry yields a name: a
+      // partly-chipped row would read as though the unnamed cases were missing.
+      if (valueType === 'test-cases' && Array.isArray(field?.value)) {
+        const caseNames = (field.value as unknown[]).map((item) => {
+          const name = (item as { name?: unknown } | null | undefined)?.name;
+          return typeof name === 'string' ? name.trim() : '';
+        });
+        if (caseNames.length > 0 && caseNames.every((name) => name !== '')) {
+          return (
+            <ReqoreControlGroup
+              gapSize='tiny'
+              verticalAlign='center'
+              // An editable row is ONE line: further chips clip with the row
+              // instead of growing it. A read-only row is the only rendering
+              // the value gets, so it wraps and shows every case.
+              wrap={full}
+              style={full ? undefined : { minWidth: 0, overflow: 'hidden' }}
+            >
+              {caseNames.map((name, index) => (
+                <ReqoreTag
+                  key={`${name}-${index}`}
+                  className='options-readfirst-case-tag'
+                  size='small'
+                  minimal
+                  intent='info'
+                  label={name}
+                />
+              ))}
+            </ReqoreControlGroup>
+          );
+        }
+      }
+
       // Code-editor read summary: replace the truncated string with a chip
       // showing line count + character count. The actual code renders below
       // the row as a monospace `<pre>` inside a `ReqoreCollapsibleContent` —
@@ -418,15 +467,40 @@ export const CompactRow = memo(
         );
       }
 
+      // The same, for an option whose mark is an ICON rather than a logo. Only
+      // images were drawn here, so a list whose entries are told apart by their
+      // icon — every interface kind is a bare word, `Service`, `Job`, `Qog` —
+      // showed the mark while choosing and lost it the moment the row went
+      // read-only, which is where a reader spends most of their time.
+      const allowedIcon = getAllowedValueIcon(field?.value, schema);
+      if (allowedIcon) {
+        return (
+          <span style={wrapStyle}>
+            <ReqoreIcon icon={allowedIcon as any} size='16px' style={{ flexShrink: 0 }} />
+            <span style={textStyle}>{formatted}</span>
+          </span>
+        );
+      }
+
       // Template value ($local:…): the read-only template picker — the SAME chip
       // TemplateField renders when disabled, so a template reads identically here
       // and in the editor (qorus-ide intent scheme: info / qorus purple).
+      //
+      // A field may also declare templates OF ITS OWN, and a value drawn from
+      // that list is just as much a template even when it does not look like
+      // `$name:key` — `isValueTemplate` is a guess at the shape of the built-in
+      // grammar, and a host's own grammar (a Qorus test's `$.order.id`) fails it.
+      // Asking the field's list whether it CONTAINS the value settles it without
+      // guessing at syntax, and hands back the entry whose label the chip prints,
+      // so a reference reads as the name it was chosen by here as well as in the
+      // editor rather than as a raw path.
+      const ownTemplates = (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates;
       if (
         typeof field?.value === 'string' &&
         !(field as { is_expression?: boolean }).is_expression &&
-        isValueTemplate(field.value)
+        (isValueTemplate(field.value) || !!findTemplate(ownTemplates ?? {}, field.value))
       ) {
-        return <ReadOnlyTemplateTag value={field.value} templates={templates} size='small' />;
+        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} size='small' />;
       }
 
       // A LIST whose elements are rich-text envelopes is a list of strings, so it
@@ -465,7 +539,9 @@ export const CompactRow = memo(
                     style={{ fontSize: 'inherit' }}
                     icon='ExchangeDollarLine'
                     label={segment.text || segment.value}
-                    tooltip={segment.value}
+                    // The same card the chosen-template chip shows: what the
+                    // value IS, not the reference that names it.
+                    tooltip={templateTooltip(templates, segment.value)}
                     {...getTemplateTagStyle(
                       (templates ? findTemplate(templates, segment.value || '') : undefined)
                         ?.metadata as TTemplateMeta | undefined
@@ -627,8 +703,23 @@ export const CompactRow = memo(
     const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
     // "Has a value" = set to anything non-empty. Drives the edit-row Clear
     // button and the cluster node's filled state (see `memberSet`).
+    /* "Is there anything to clear?" — this predicate has exactly one job, and
+       both of its uses are the Clear-value button.
+    
+       An empty list is not a value. `[]` is neither `undefined`, `null` nor `''`,
+       so a field whose last item had just been removed went on offering to clear
+       it, and the confirmation asked whether to clear nothing. A test's cases
+       table is where this shows: delete the last case and a red clear-all sat
+       above an empty table, guarding a no-op.
+    
+       Deliberately arrays only. An empty hash is arguable — "present but empty"
+       can be a real state for a hash — and nothing has demonstrated the same
+       defect there, so widening this predicate would be a guess. */
     const hasValue =
-      optionField?.value !== undefined && optionField?.value !== null && optionField?.value !== '';
+      optionField?.value !== undefined &&
+      optionField?.value !== null &&
+      optionField?.value !== '' &&
+      !(Array.isArray(optionField.value) && optionField.value.length === 0);
     // Required-group membership shows a PERSISTENT chip on every member: amber
     // "One of" while the group is unmet (tap → flash siblings), then a muted-green
     // resolution once satisfied — "Covers" on the field that satisfied it,
@@ -1647,6 +1738,22 @@ export const CompactRow = memo(
       valueType === 'richtext' &&
       Array.isArray(optionField?.value) &&
       richtextToSegments(optionField.value as never).some((segment) => segment.kind === 'tag');
+    /* The same pair, for a value that IS one template rather than prose with
+       templates embedded in it. `showsTemplateChips` above closed the richtext
+       case and left this one open: a chosen reference renders as
+       `ReadOnlyTemplateTag`, which carries its own popover, while the row went
+       on setting a native `title` holding the raw reference. Hovering fired
+       both — two tooltips in two places, and the one that says something useful
+       is not the one a screenshot captures. */
+    const showsTemplateTag =
+      !hidden &&
+      typeof optionField?.value === 'string' &&
+      !(optionField as { is_expression?: boolean } | undefined)?.is_expression &&
+      (isValueTemplate(optionField.value) ||
+        !!findTemplate(
+          (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates ?? {},
+          optionField.value
+        ));
     // Markdown reads the same way for the same reason: the row itself can only
     // show a line of text, and for markdown that line is the SOURCE — the reader
     // gets `## ` and `**` where the point of the value is what it looks like
@@ -1960,6 +2067,7 @@ export const CompactRow = memo(
               !showCodePreview &&
               !showMarkdownPreview &&
               !showsTemplateChips &&
+              !showsTemplateTag &&
               typeof formatted === 'string'
             ) ?
               formatted

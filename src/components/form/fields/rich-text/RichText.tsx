@@ -19,6 +19,34 @@ export interface IRichTextFormFieldProps extends Omit<
   templates?: IReqoreFormTemplates;
 }
 
+/**
+ * What each offered template value is FOR, keyed by the value itself.
+ *
+ * Built from the templates a field was already given rather than from the
+ * chip's metadata, which carries only `image` / `displayName` / style flags —
+ * putting a description there would mean threading one through every producer
+ * of a template list.
+ *
+ * Exported so the mapping is assertable without rendering a Slate editor.
+ */
+export const getChipTooltipDescriptions = (
+  templates?: IReqoreFormTemplates
+): Record<string, string> => {
+  const out: Record<string, string> = {};
+
+  (templates as any)?.items?.forEach((group: any) => {
+    group?.items?.forEach((item: any) => {
+      const value = typeof item?.value === 'object' ? item?.value?.value : item?.value;
+      const description = item?.description ?? item?.short_desc;
+      if (typeof value === 'string' && typeof description === 'string' && description) {
+        out[value] = description;
+      }
+    });
+  });
+
+  return out;
+};
+
 export const RichTextFormField = memo(({
   value,
   onChange,
@@ -57,26 +85,40 @@ export const RichTextFormField = memo(({
     setLocalValue(val);
   };
 
-  const handleGetTagProps = useCallback((tag: any): IReqoreTagProps => {
-    const tagValue = tag.value?.toString();
+  const descriptionByValue = useMemo(() => getChipTooltipDescriptions(templates), [
+    JSON.stringify(templates),
+  ]);
 
-    if (!tagValue) {
+  const handleGetTagProps = useCallback(
+    (tag: any): IReqoreTagProps => {
+      const tagValue = tag.value?.toString();
+
+      if (!tagValue) {
+        return {};
+      }
+
+      if (tagValue.startsWith('$')) {
+        return {
+          icon: 'ExchangeDollarLine',
+          leftIconProps: {
+            image: tag.metadata?.image,
+          },
+          labelKey: tag.metadata?.displayName,
+          /* Hovering a chip says what the value IS, not how it is spelled.
+             Reqore otherwise falls back to the tag's own value, so a chip
+             reading "result" reported `$.result` on hover — the reference the
+             author already chose, restating the label in engine syntax instead
+             of telling them anything. The path stays discoverable in the
+             field's help and in the picker row for an unlabelled value. */
+          tooltip: descriptionByValue[tagValue] || undefined,
+          ...getTemplateTagStyle(tag.metadata),
+        };
+      }
+
       return {};
-    }
-
-    if (tagValue.startsWith('$')) {
-      return {
-        icon: 'ExchangeDollarLine',
-        leftIconProps: {
-          image: tag.metadata?.image,
-        },
-        labelKey: tag.metadata?.displayName,
-        ...getTemplateTagStyle(tag.metadata),
-      };
-    }
-
-    return {};
-  }, []);
+    },
+    [descriptionByValue]
+  );
 
   const tags = useMemo<IReqoreRichTextEditorProps['tags']>((): IReqoreRichTextEditorProps['tags'] => {
     const _tags: IReqoreRichTextEditorProps['tags'] = {};

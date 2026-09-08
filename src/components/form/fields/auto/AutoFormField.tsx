@@ -395,6 +395,13 @@ function AutoField<T = any>({
         arg_schema={arg_schema}
         element_type={element_type}
         ui_element_type={ui_element_type}
+        // Same reason as the three above: it is destructured out of `rest` so the
+        // primitive renderers do not spread it onto a DOM node, which also took
+        // it away from host editors — and a host editor is exactly what
+        // `inherit_props` exists to feed. A field declaring it got the values
+        // resolved and then had nowhere to send them, so every consumer
+        // downstream saw `undefined` and silently did nothing.
+        inheritedFromParent={inheritedFromParent}
         name={name}
         value={value}
         onChange={(val: any, emittedType?: IQorusType, emittedIsFunction?: boolean) => {

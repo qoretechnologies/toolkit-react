@@ -36,7 +36,20 @@ export type {
   ICurrentUser,
   ICurrentUserStore,
 } from './stores/currentUser/currentUser';
-export { fetchConfig, query } from './utils/fetch';
+export {
+  fetchConfig,
+  query,
+  queryRaw,
+  reqraftApiPath,
+  reqraftCacheKey,
+  setupFetch,
+} from './utils/fetch';
+export type {
+  IReqraftFetchConfig,
+  IReqraftFetchResponse,
+  IReqraftQueryConfig,
+  IReqraftRawResponse,
+} from './utils/fetch';
 export * from './utils/websocket';
 export { ReqraftLspClient } from './utils/lspClient';
 export type { IReqraftLspClientOptions } from './utils/lspClient';

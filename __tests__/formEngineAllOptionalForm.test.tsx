@@ -28,11 +28,22 @@ const ALL_OPTIONAL = {
   allow_anonymous: { type: 'bool', display_name: 'Allow Anonymous Callers' },
 } as never;
 
-const renderForm = (options: never, value: never = {} as never) =>
+const renderForm = (
+  options: never,
+  value: never = {} as never,
+  extra: Record<string, unknown> = {}
+) =>
   render(
     <ReqoreUIProvider>
       <FetchContext.Provider value={fetchContext}>
-        <FormEngine compact name='auth' value={value} options={options} onChange={vi.fn()} />
+        <FormEngine
+          compact
+          name='auth'
+          value={value}
+          options={options}
+          onChange={vi.fn()}
+          {...extra}
+        />
       </FetchContext.Provider>
     </ReqoreUIProvider>
   );
@@ -70,6 +81,36 @@ describe('a form whose fields are ALL optional shows them', () => {
     await waitFor(() => expect(container.querySelector('[data-field="name"]')).toBeTruthy());
     expect(optionalBox(container)).toBeTruthy();
     expect(container.querySelector('[data-field="permissions"]')).toBeNull();
+  });
+
+  it('lets a host that asks explicitly collapse it anyway', async () => {
+    /* The "never collapse the sole box" rule is a DEFAULT, not a law.  A host
+       that wraps the form in its own heading and explanation — a run-options
+       panel headed "Change a setting for this run" — has already told the
+       reader what the card is, and asked for the settings to start folded.
+       Passing `compactCollapsedGroups` is how it says so.
+
+       Pinned here rather than only in a story because `precheck` does not run
+       the story project: this exact contract change went green on lint, 993
+       unit tests and the production typecheck while the story that covered it
+       was failing. */
+    const { container } = renderForm(ALL_OPTIONAL, {} as never, {
+      compactCollapsedGroups: ['optional'],
+    });
+
+    await waitFor(() => expect(optionalBox(container)).toBeTruthy());
+    expect(container.querySelector('[data-field="permissions"]')).toBeNull();
+    expect(container.querySelector('[data-field="allow_anonymous"]')).toBeNull();
+  });
+
+  it('still opens it when the host passes a list that does not name it', async () => {
+    // The list REPLACES the default rather than adding to it, so a list without
+    // `optional` leaves the box open — and the sole-box invariant is untouched.
+    const { container } = renderForm(ALL_OPTIONAL, {} as never, {
+      compactCollapsedGroups: ['set'],
+    });
+
+    await waitFor(() => expect(container.querySelector('[data-field="permissions"]')).toBeTruthy());
   });
 });
 

@@ -2,6 +2,7 @@
 // (heartbeat, initialize, document tracking, request dispatch); story files
 // register only their language-specific handlers.
 import { Client, Server } from 'mock-socket';
+import { _resetSharedLspConnectionsForTests } from '../../../utils/lspClient';
 
 export const MOCK_LSP_URL = `wss://hq.qoretechnologies.com:8092/lsp?token=${process.env.REACT_APP_QORUS_TOKEN}`;
 
@@ -87,6 +88,24 @@ export const createMockLspServer = (
   url: string,
   options: IMockLspServerOptions = {}
 ): IMockLspServer => {
+  /* `LspSharedConnection` keeps ONE connection per URL in a module-global
+     registry, and every fixture connects to the same mock URL. A previous
+     case's connection therefore outlives the server it was talking to: the
+     next `createMockLspServer` installs a fresh server, the client reuses the
+     dead registry entry, and requests go nowhere at all — no error, no
+     response, just silence.
+
+     That is not hypothetical. It cost five CI runs on a story whose mock
+     recorded ZERO `dpql/parse` requests for text it had never seen, while the
+     same story passed in isolation, where nothing had torn a connection down
+     before it. Order-dependent, so a single file could never show it.
+
+     `_resetSharedLspConnectionsForTests` existed for exactly this and was
+     called from nowhere. Resetting at BOTH ends: on close so an orderly
+     teardown leaves nothing behind, and on create so a case that failed
+     without tearing down cannot poison the next one. */
+  _resetSharedLspConnectionsForTests();
+
   const server = new Server(url);
   const sockets: Client[] = [];
   const lsp: IMockLspServer = {
@@ -99,7 +118,12 @@ export const createMockLspServer = (
       sockets.forEach((socket) =>
         socket.send(JSON.stringify({ jsonrpc: '2.0', method, params }))
       ),
-    close: () => server.close(),
+    close: () => {
+      server.close();
+      // The client side goes too — a live connection to a closed server is
+      // what the next case would otherwise inherit.
+      _resetSharedLspConnectionsForTests();
+    },
   };
 
   server.on('connection', (socket) => {

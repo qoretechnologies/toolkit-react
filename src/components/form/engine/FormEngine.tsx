@@ -17,6 +17,7 @@ import { IReqoreCollectionProps } from '@qoretechnologies/reqore/dist/components
 import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/components/Collection/item';
 import { IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { TFieldWithOwnTemplates } from './rendererTypes';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import {
   changeDarkness,
@@ -355,17 +356,57 @@ const getOptionSchemaStorageType = (
   : isRendererOnly(option?.ui_type) ? option?.type || option?.ui_type
   : option?.ui_type || option?.type) || 'any') as TQorusType;
 
-const getOptionFieldStorageType = (
+/**
+ * Whether an option currently holds an expression, in EITHER shape it comes in.
+ *
+ * At runtime the editor writes the flag onto the option itself
+ * (`{ type, is_expression: true, value }`), but a value loaded from a saved
+ * draft carries the envelope NESTED (`{ type, value: { is_expression: true,
+ * value } }`). Same thing, two shapes, and only the flat one was ever checked —
+ * so a freshly typed expression behaved while a reloaded one did not, which is
+ * exactly how this survived several fixes: every test used the runtime shape.
+ */
+const optionHoldsExpression = (option: unknown): boolean => {
+  const o = option as { is_expression?: unknown; value?: { is_expression?: unknown } } | undefined;
+  return !!(o?.is_expression || o?.value?.is_expression);
+};
+
+/**
+ * Which type an option resolves to — the schema's, or the one stored on the
+ * value.
+ *
+ * Exported because this single decision is what every option field is rendered
+ * with, and what an expression's return type is checked against. It deserves
+ * to be assertable without standing up a form.
+ */
+export const getOptionFieldStorageType = (
   optionName: string,
   fieldType: TQorusType | TQorusType[] | undefined,
   schema?: IQorusFormSchema,
   operators?: IOperatorsSchema,
   operatorData?: TOperatorValue,
-  isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
+  isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType,
+  /** Whether the stored value is an expression — see below. */
+  isExpression?: boolean
 ): TQorusType => {
   const schemaOption = schema?.[optionName];
+  /* A STORED type does not describe an expression.
+
+     An expression value is `{ is_expression: true, value: {...} }`, so the type
+     recorded beside it describes that envelope — `hash` — and not what the
+     field holds. Letting it win means the SCHEMA's declared type is ignored and
+     the wrong answer is handed to the expression editor as the return type to
+     check against: `1 + 2` on a field declared `"type": "auto"` came back
+     "The expression returns int, and this field holds hash". A literal `1` was
+     fine, because a literal is stored as a plain value whose type matches.
+
+     `auto`/`any` accept anything, which is exactly why nothing should be
+     checked against them; a concrete declared type still is. The schema is the
+     only party that knows what the field accepts. */
   const storedType =
-    fieldType && !(fieldType === schemaOption?.ui_type && isRendererOnly(fieldType)) ?
+    !isExpression &&
+    fieldType &&
+    !(fieldType === schemaOption?.ui_type && isRendererOnly(fieldType)) ?
       fieldType
     : getOptionSchemaStorageType(schemaOption, isRendererOnly);
 
@@ -557,6 +598,85 @@ const normalizeEmptyFieldValues = (fields: TQorusForm | TQorusFlatForm | undefin
     {} as TQorusForm
   );
 
+/**
+ * Does this rebuild say anything the parent does not already hold?
+ *
+ * `false` means the rebuild is a MIRROR: `fixOptions` found no default to
+ * materialise, so the result repeats the `value` the parent handed down. The
+ * compare is empty-normalized because `fixOptions` round-trips a required-empty
+ * field between `{ value: '' }` and no `value` key, and that cosmetic
+ * difference would otherwise read as new information forever.
+ */
+export const isMirrorOfValue = (
+  fixedValue: TQorusForm | TQorusFlatForm | undefined,
+  value: TQorusForm | TQorusFlatForm | undefined
+): boolean => isEqual(normalizeEmptyFieldValues(fixedValue), normalizeEmptyFieldValues(value));
+
+/**
+ * What this rebuild lets the form agree with the parent on, if anything.
+ *
+ * Returns the rebuild when it mirrors `value`, and `undefined` when it
+ * contributed something the parent has yet to learn.
+ *
+ * Adopting the parent's value IS agreement, and saying so matters as much as
+ * staying quiet about it. The sync-down skips only when the parent echoed what
+ * this form last sent; if adopting a value never updates that record, it points
+ * at an older state forever, the skip can never fire again, and the form
+ * rebuilds on every single change. Holding the mirror back WITHOUT recording
+ * the agreement was measured making the starvation worse, not better — 8 s
+ * became a 45 s timeout — which is why the two belong together.
+ */
+export const agreementFromRebuild = (
+  fixedValue: TQorusForm | TQorusFlatForm | undefined,
+  value: TQorusForm | TQorusFlatForm | undefined
+): TQorusForm | TQorusFlatForm | undefined =>
+  isMirrorOfValue(fixedValue, value) ? fixedValue : undefined;
+
+/** The state the emit decision is made against. */
+export interface IEmitDecision {
+  /** The form's own copy of the value, as it stands now. */
+  localValue: TQorusForm | TQorusFlatForm | undefined;
+  /** The `value` prop, read at the moment the decision is made. */
+  value: TQorusForm | TQorusFlatForm | undefined;
+  /**
+   * The last rebuild that mirrored `value` without adding anything, if the most
+   * recent one did. `undefined` when the last rebuild contributed something.
+   */
+  mirroredValue: TQorusForm | TQorusFlatForm | undefined;
+}
+
+/**
+ * Should the form report `localValue` to its parent as an answer?
+ *
+ * Extracted and pure because the situation it exists for cannot be reproduced
+ * through a rendered form: it needs the emit to be decided against a `value`
+ * NEWER than the `localValue` built from it, which only happens when two
+ * components' effects land in one React commit — and a test renderer flushes
+ * effects between updates, so the two never fall out of step. The states below
+ * were recorded from a live instrumented run instead, and this is what makes
+ * them assertable.
+ *
+ * Two ways the answer is no:
+ *
+ * 1. `localValue` is a mirror — a rebuild of the parent's own value that added
+ *    nothing. Repeating it back is not an answer. **Checked first**, because
+ *    the comparison in (2) reads whatever `value` has become by now, which,
+ *    when a nested engine shares the parent value, is already that engine's
+ *    newer write; comparing against it would find a difference this form never
+ *    made and emit the older mirror over the newer write. That is the loop.
+ * 2. `localValue` already equals `value` — there is nothing to report.
+ */
+export const shouldEmitLocalValue = ({
+  localValue,
+  value,
+  mirroredValue,
+}: IEmitDecision): boolean => {
+  if (mirroredValue !== undefined && isEqual(localValue, mirroredValue)) {
+    return false;
+  }
+  return !isEqual(localValue, value);
+};
+
 export const flattenOptions = (options: TQorusForm): TQorusFlatForm => {
   return reduce(
     options,
@@ -653,6 +773,13 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   recordRequiresSearchOptions?: boolean;
   readOnly?: boolean;
   allowTemplates?: boolean;
+  /**
+   * The form's SHARED template vocabulary — config items, system properties —
+   * offered to every field that supports templates.
+   *
+   * A field may also declare `templates` of its own in the schema, and that
+   * narrower list wins for that field: see {@link TFieldWithOwnTemplates}.
+   */
   stringTemplates?: IReqoreFormTemplates;
   /** Opt-in: fetch global templates from `system/getContextData` for this context. */
   interfaceContext?: string;
@@ -727,13 +854,29 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * the reader is choosing WHICH to open rather than reading this one, e.g. a
    * template's per-action option forms stacked in a drawer.
    *
-   * Two escapes override this and are not negotiable: a box always opens while
-   * a search query is running (`ReqorePanel` unmounts collapsed content, so a
-   * match inside a closed box would be unreachable), and the Optional box stays
-   * open when every row is optional, because collapsing it would render a card
-   * that looks empty and broken.
+   * One escape is not negotiable: a box always opens while a search query is
+   * running (`ReqorePanel` unmounts collapsed content, so a match inside a
+   * closed box would be unreachable).
+   *
+   * A second applies only by DEFAULT: the Optional box stays open when every
+   * row is optional, because a form that collapsed its only box would render a
+   * card that looks empty and broken. Passing this prop explicitly waives it —
+   * a host that supplies its own heading and explanation around the form (a
+   * run-options panel, say) has already told the reader what the card is, and
+   * asked for the settings to start folded away.
    */
   compactCollapsedGroups?: TFormEngineBoxKey[];
+  /**
+   * Compact mode only: rename the status boxes.
+   *
+   * The three are `Needs attention`, `Set` and `Optional`, which read correctly
+   * when the form is the page's subject. Inside a host that already named the
+   * subject — a panel headed "Change a setting for this run" — a bare
+   * `Optional` names a category rather than the things in it, and
+   * `Optional settings` is what the reader is looking at. Only the labels
+   * change; bucketing, icons and intents are untouched.
+   */
+  compactBoxLabels?: Partial<Record<TFormEngineBoxKey, string>>;
   /**
    * Compact mode only: which parts of the form's toolbar to show. `true`
    * (default) shows all of it; `false` hides the whole thing.
@@ -817,6 +960,15 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * consumer's new editor no longer needs a reqraft release to be handled.
    */
   rendererOnlyUiTypes?: string[];
+  /**
+   * The `ui_type` names whose own editor renders templates as chips INLINE.
+   *
+   * For these the template selector is suppressed and the field's editor is
+   * shown instead — the selector would replace a control the author can type in
+   * with one they can only pick from. Merged with reqraft's built-in list
+   * (`richtext`), the same way `rendererOnlyUiTypes` is.
+   */
+  templateAwareUiTypes?: string[];
 
   /**
    * Bag of values forwarded from an outer FormEngine scope, used as a
@@ -878,12 +1030,17 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * for the pane to exist at all — so a pasted or reloaded link lands on a
    * collapsed form.
    *
-   * Applied once, on the first render where the schema has rows, so an
-   * async-loaded schema is covered. It never re-expands a row the user has
-   * since collapsed, and it does not participate in `expandMode: 'single'`
-   * accordion collapsing — the caller is naming a starting point, not
-   * driving the state. Only a remount re-arms it. No-op in classic
-   * (non-compact) mode.
+   * Applied once, on the first render that actually CONTAINS one of the named
+   * rows — not merely the first render with any rows — so a schema arriving in
+   * pieces still gets its address applied rather than spending the one shot on
+   * a form the field had not reached yet.
+   *
+   * It never re-expands a row the user has since collapsed, and it does not
+   * participate in `expandMode: 'single'` accordion collapsing — the caller is
+   * naming a starting point, not driving the state. That holds against the
+   * engine's own openers too: `expandFirstRequired` / `autoFocusFirstRequired`
+   * open their target ALONGSIDE these rows in single mode instead of replacing
+   * them. Only a remount re-arms it. No-op in classic (non-compact) mode.
    */
   initialExpandedOptions?: string[];
 
@@ -941,7 +1098,8 @@ const FormEngineImpl = ({
   compactNested = false,
   compactScroll = 'host',
   compactPanelProps,
-  compactCollapsedGroups = ['optional'],
+  compactCollapsedGroups: compactCollapsedGroupsProp,
+  compactBoxLabels,
   compactToolbar = true,
   commitMode = 'immediate',
   expandMode = 'single',
@@ -959,6 +1117,7 @@ const FormEngineImpl = ({
   // onto a DOM node
   markdownRenderer: _markdownRenderer, // eslint-disable-line @typescript-eslint/no-unused-vars
   rendererOnlyUiTypes,
+  templateAwareUiTypes,
   inheritedFromParent,
   autoFocusFirstRequired,
   expandFirstRequired,
@@ -1198,6 +1357,32 @@ const FormEngineImpl = ({
   // Track the last value we emitted via onChange so we can skip re-applying fixOptions
   // when the parent echoes it back as the new value prop (controlled component loop prevention)
   const lastEmittedValue = useRef<TQorusForm | TQorusFlatForm | undefined>(value);
+  /**
+   * A `localValue` that is only a MIRROR of the incoming `value`, and so must
+   * never be emitted back as though this form had answered something.
+   *
+   * `localValue` is derived state: the sync-down effect below rebuilds it from
+   * the `value` prop. When that rebuild adds nothing (`fixOptions` had no
+   * default to materialise), the result says exactly what the parent already
+   * holds, and emitting it is not a change — it is this form repeating the
+   * parent's own words back at it.
+   *
+   * That repetition is harmless in a form that owns its state outright and
+   * fatal in one that shares a parent with a NESTED engine. The two write to
+   * the same parent value, so each sees the other's write arrive as an external
+   * change; `lastEmittedValue` is then always one step behind and its guard
+   * never fires. The engines alternate between two states forever, several
+   * times a second, and the newer write is repeatedly overwritten by the older
+   * one. Measured in the test editor: the row's summary flipped between two
+   * readings indefinitely and `setTimeout` was starved past a 45-second
+   * deadline.
+   *
+   * Only a mirror that CHANGES nothing is held back. A rebuild that restores a
+   * required or preselected field's default still emits, because that default
+   * is genuinely new information the parent has to be told about — which is the
+   * whole reason the sync-down runs `fixOptions` at all.
+   */
+  const mirroredValue = useRef<TQorusForm | TQorusFlatForm | undefined>(undefined);
 
   if (originalValue.current === undefined && size(value)) {
     originalValue.current = localValue.fields;
@@ -1208,7 +1393,13 @@ const FormEngineImpl = ({
   const templates = useTemplates(allowTemplates, rest.stringTemplates, interfaceContext);
 
   useEffect(() => {
-    if (isEqual(localValue.fields, value)) {
+    if (
+      !shouldEmitLocalValue({
+        localValue: localValue.fields,
+        value,
+        mirroredValue: mirroredValue.current,
+      })
+    ) {
       return;
     }
 
@@ -1371,9 +1562,12 @@ const FormEngineImpl = ({
     // Note: compare fixedValue against value, not localValue.fields — localValue may have been
     // updated by nested FormEngine emissions, so comparing against it would never skip.
     const normalizedValue = normalizeEmptyFieldValues(value);
+    /* What this rebuild lets us agree with the parent on — `undefined` when it
+       contributed something the parent has yet to learn. */
+    const agreed = agreementFromRebuild(fixedValue, value);
     if (
       isEqual(normalizedValue, normalizeEmptyFieldValues(lastEmittedValue.current)) &&
-      isEqual(normalizeEmptyFieldValues(fixedValue), normalizedValue)
+      agreed !== undefined
     ) {
       return;
     }
@@ -1382,11 +1576,39 @@ const FormEngineImpl = ({
       originalValue.current = fixedValue;
     }
 
+    /* Remember a mirror so the emit effect can tell one from an answer, and
+       record the agreement it represents. A rebuild that DID add something
+       leaves both alone — the parent has to learn about it. */
+    mirroredValue.current = agreed;
+    if (agreed !== undefined) {
+      lastEmittedValue.current = agreed;
+    }
+
     setLocalValue?.({ fields: fixedValue, meta: undefined });
   }, [JSON.stringify(options), JSON.stringify(value), isRendererOnly]);
 
+  /**
+   * Fields the reader has actually edited in this instance.
+   *
+   * "This field is required" is an ERROR message, and an error is a report that
+   * something went wrong. Under a field nobody has been in yet it reports
+   * nothing — the form is empty because it is new — while the requirement is
+   * already stated by the asterisk, by the Needs-attention box the row sits in,
+   * and by the completion meter. A form whose first act is to accuse the reader
+   * of a mistake they have not made teaches them to discount its warnings.
+   *
+   * So the message waits for a touch. Being IN the field and leaving it empty
+   * is a real gap, and that one shows. A ref, not state: every edit re-renders
+   * anyway, so the following render reads the current set with no second pass.
+   */
+  const touchedOptionsRef = useRef<Set<string>>(new Set());
+
   const handleValueChange = useCallback(
     (optionName: string, val?: any, _type?: string, isFunction?: boolean) => {
+      // Every route into this handler is a person acting: typing, picking from a
+      // menu, clearing the value, adding an optional field. Marked here rather
+      // than inside the updater below, which React may invoke twice.
+      touchedOptionsRef.current.add(optionName);
       setLocalValue(({ fields = {} }) => {
         const schemaType = getOptionSchemaStorageType(options?.[optionName], isRendererOnly);
         const isAnyLike = schemaType === 'any' || schemaType === 'auto';
@@ -1648,7 +1870,8 @@ const FormEngineImpl = ({
           options,
           operators,
           (option as IQorusFormField)?.op,
-          isRendererOnly
+          isRendererOnly,
+          optionHoldsExpression(option)
         );
 
         if (!isPlainObject(option)) {
@@ -1793,7 +2016,8 @@ const FormEngineImpl = ({
           options,
           operators,
           (option as IQorusFormField).op,
-          isRendererOnly
+          isRendererOnly,
+          optionHoldsExpression(option)
         );
         const optionValue = (option as IQorusFormField).value;
 
@@ -1864,8 +2088,9 @@ const FormEngineImpl = ({
               options,
               operators,
               (option as IQorusFormField).op,
-              isRendererOnly
-            ),
+              isRendererOnly,
+          optionHoldsExpression(option)
+        ),
             (option as IQorusFormField).value
           )
         ) {
@@ -1913,8 +2138,9 @@ const FormEngineImpl = ({
         options,
         operators,
         (availableOptions as TQorusForm)?.[name]?.op,
-        isRendererOnly
-      );
+        isRendererOnly,
+          optionHoldsExpression((availableOptions as TQorusForm)?.[name])
+        );
       const value = (availableOptions as TQorusForm)?.[name]?.value;
       // A schema-declared hash whose every entry is a materialised-but-unset
       // field holds nothing, so it is not "set" — without this the row showed a
@@ -2064,11 +2290,16 @@ const FormEngineImpl = ({
     if (!names.length) {
       return;
     }
-    hasAppliedInitialExpansionRef.current = true;
     const toExpand = initialExpandedOptions.filter((name) => names.includes(name));
     if (!toExpand.length) {
+      // Not "there is no such row" — "not YET". A server-driven schema arrives
+      // in pieces, and the row the caller named can be in a later one (a test's
+      // `cases` field materialises once its step-kind catalogue lands). Latching
+      // here would spend the one shot on a form that did not yet contain the
+      // field, and the address would never be applied at all.
       return;
     }
+    hasAppliedInitialExpansionRef.current = true;
     setExpandedOptions((prev) => [...prev, ...toExpand.filter((name) => !prev.includes(name))]);
   }, [initialExpandedOptions, compact, availableOptions]);
 
@@ -2159,7 +2390,13 @@ const FormEngineImpl = ({
       setExpandedOptions((prev) =>
         prev.includes(target) ? prev
         : expandMode === 'multi' ? [...prev, target]
-        : [target]
+          // `expandMode: 'single'` is a rule about what a CLICK does: opening a
+          // row closes the one the reader last opened. It is not a licence to
+          // close a row the HOST named through `initialExpandedOptions`. That
+          // is an address — a statement about what the page is FOR, made before
+          // the reader did anything — and this scan is a convenience layered on
+          // top of it. Keep the named rows; replace only what a click could.
+        : [...prev.filter((name) => initialExpandedOptions?.includes(name)), target]
       );
     }
   }, [
@@ -2172,13 +2409,18 @@ const FormEngineImpl = ({
     dependencyLockedNames,
     getOptionBucket,
     expandMode,
+    initialExpandedOptions,
   ]);
 
   // Read-first completion summary (how many shown options have a value set),
   // surfaced as a progress meter at the top of the compact form.
   const readFirstCompletion = useMemo(
-    () => getReadFirstCompletion(availableOptions as Record<string, IQorusFormField | undefined>),
-    [JSON.stringify(availableOptions)]
+    () =>
+      getReadFirstCompletion(
+        availableOptions as Record<string, IQorusFormField | undefined>,
+        (name) => getOptionBucket(name) === 'attention'
+      ),
+    [JSON.stringify(availableOptions), getOptionBucket]
   );
 
   const optionalFields = useMemo(
@@ -2273,12 +2515,58 @@ const FormEngineImpl = ({
       const optionSchema = options?.[optionName];
       const schemaUiType = optionSchema?.ui_type as TQorusType;
       const uiTypeIsAnyLike = schemaUiType === 'any' || schemaUiType === 'auto';
+      /* An EXPRESSION's stored type is skipped in this chain.
+
+         The value is `{ is_expression: true, value: {...} }`, so the type saved
+         beside it describes that envelope — `hash` — not what the field holds.
+         With no `ui_type` to win first, that `hash` beat the schema's `auto`
+         and was handed to the expression editor as the return type to check
+         against: `1 + 2` on a field declared `auto` came back "This does not
+         fit. The expression returns int, and this field holds hash". A literal
+         `1` was fine, because a literal is stored as a plain value whose type
+         matches.
+
+         Dropping the stored type here lets the schema decide, which is the
+         only party that knows what the field accepts. This is the row
+         renderer's OWN resolution and does not go through
+         `getOptionFieldStorageType`, so guarding that one alone left this
+         untouched. */
+      const storedRowType = optionHoldsExpression(other) ? undefined : type;
+
+      /* A RELOADED expression is handed to the editor in the shape the editor
+         was written against.
+
+         An expression is written as `{ type, is_expression: true, value: ast }`
+         and saved as `{ type, value: { is_expression: true, value: ast } }` —
+         the flag moves ONTO the value. The editor was only ever given
+         `other.is_expression`, which is absent in the saved shape, so a
+         reloaded expression was not recognised as one: an `auto` field then
+         resolved its type from the value it could see, decided the envelope was
+         a `hash`, and rendered `1 + 2` as a raw tree of `is_expression` /
+         `exp` / `args` for the author to edit by hand.
+
+         Both halves have to move together. Flipping the flag alone would put
+         the editor into expression mode and then hand it the ENVELOPE where it
+         expects the expression, so the value is unwrapped here too — after
+         which a saved expression is indistinguishable from one just typed,
+         which is what every component downstream already assumes.
+
+         Reported as "after Run assertion the value shows as raw data", but the
+         run is incidental: the field beside it, which no run touched, was
+         equally raw. The trigger is a RELOAD, which is the only thing that puts
+         an expression into its saved shape. */
+      const nestedExpression = !!(other as { value?: { is_expression?: unknown } })?.value
+        ?.is_expression;
+      const expressionAwareValue =
+        nestedExpression ?
+          (other as unknown as { value: { value: unknown } }).value.value
+        : other.value;
       const resolvedType =
         (isFixedCompactAllowedValueOption(optionSchema) ?
           getOptionSchemaStorageType(optionSchema, isRendererOnly)
         : schemaUiType && !uiTypeIsAnyLike ? schemaUiType
         : undefined) ||
-        type ||
+        storedRowType ||
         schemaUiType ||
         (optionSchema?.type as TQorusType) ||
         'any';
@@ -2425,6 +2713,7 @@ const FormEngineImpl = ({
             // SEAM: forwarded through TemplateField's rest-spread to AutoFormField,
             // which renders consumer-injected editors by field type/ui_type.
             componentOverrides={componentOverrides}
+            templateAwareUiTypes={templateAwareUiTypes}
             allowTemplates={!!(allowTemplates && options?.[optionName]?.supports_templates)}
             allowFunctions={!!options?.[optionName]?.supports_expressions}
             // reqraft: form-level expression fields get the Visual/Text shell
@@ -2441,7 +2730,23 @@ const FormEngineImpl = ({
               isFixedCompactAllowedValueOption(optionSchema) ||
               (options?.[optionName]?.supports_custom_values !== false && resolvedType !== 'any')
             }
-            templates={templates.value}
+            // A field may declare a template list OF ITS OWN, and when it does
+            // that list is the one to offer. The engine-wide `stringTemplates`
+            // are the form's shared vocabulary - config items, system properties
+            // - and every field draws on the same set. A per-field list answers a
+            // question only that field asks: a test assertion's `$.` references
+            // are the values ITS case captured, and no other field in the form
+            // should be offering them.
+            //
+            // Passing the engine's list unconditionally overwrote the schema's,
+            // so a field that declared templates had none by the time it
+            // rendered. On a typed field that only cost the picker; on an
+            // ANY-LIKE one it changed the question, because `TemplateField`
+            // opens on the template selector only when there is something to
+            // pick and otherwise falls back to the type picker. An untyped field
+            // therefore asked the author to choose `string`/`int`/`hash` before
+            // it would let them name a value they had already captured.
+            templates={(optionSchema as TFieldWithOwnTemplates | undefined)?.templates ?? templates.value}
             {...getTypeAndCanBeNull(
               // The RENDERER type picks the editor — the storage type lives on
               // the value envelope. Passing storage here rendered a `richtext`
@@ -2462,8 +2767,8 @@ const FormEngineImpl = ({
             key={optionName}
             arg_schema={options?.[optionName]?.arg_schema}
             noSoft={!!rest?.options}
-            value={other.value}
-            isFunction={(other as { is_expression?: boolean }).is_expression}
+            value={expressionAwareValue}
+            isFunction={optionHoldsExpression(other)}
             isDefaultFunction={options?.[optionName]?.default_view === 'expression'}
             sensitive={options?.[optionName]?.sensitive}
             default_value={getDefaultValue(options?.[optionName])}
@@ -2500,6 +2805,7 @@ const FormEngineImpl = ({
             name={optionName}
             option={{ type: resolvedType, ...other }}
             getType={getTypeForOption}
+            untouched={!touchedOptionsRef.current.has(optionName)}
           />
           {operators && size(operators) && size(other.op) ?
             <>
@@ -2949,6 +3255,13 @@ const FormEngineImpl = ({
     const bucketCount = (b: TFormEngineBoxKey) =>
       bucketGroups[b].reduce((n, g) => n + buckets[b][g].length, 0);
 
+    /* The default is to collapse the Optional box, and an explicit pass is
+       what waives the "never collapse the sole box" escape below. Resolving it
+       here rather than in the parameter list is what makes the two
+       distinguishable — `['optional']` as a default and `['optional']` from a
+       caller mean different things. */
+    const compactCollapsedGroups = compactCollapsedGroupsProp ?? ['optional'];
+    const collapsedGroupsRequested = compactCollapsedGroupsProp !== undefined;
     // "Is the Optional box the whole form?" — when nothing needs attention and
     // nothing is set, collapsing it leaves a card with no visible content at all.
     const onlyOptionalRows =
@@ -2991,9 +3304,18 @@ const FormEngineImpl = ({
       intent?: 'warning' | 'success';
       icon: IReqoreIconName;
     }> = [
-      { key: 'attention', label: 'Needs attention', intent: 'warning', icon: 'ErrorWarningLine' },
-      { key: 'set', label: 'Set', intent: 'success', icon: 'CheckLine' },
-      { key: 'optional', label: 'Optional', icon: 'CheckboxBlankCircleLine' },
+      {
+        key: 'attention',
+        label: compactBoxLabels?.attention ?? 'Needs attention',
+        intent: 'warning',
+        icon: 'ErrorWarningLine',
+      },
+      { key: 'set', label: compactBoxLabels?.set ?? 'Set', intent: 'success', icon: 'CheckLine' },
+      {
+        key: 'optional',
+        label: compactBoxLabels?.optional ?? 'Optional',
+        icon: 'CheckboxBlankCircleLine',
+      },
     ];
 
     // Build the rows for one group: contiguous required-group members are pulled
@@ -3205,7 +3527,11 @@ const FormEngineImpl = ({
                       const wouldCollapse =
                         compactCollapsedGroups.includes(box.key) &&
                         !query &&
-                        !(box.key === 'optional' && onlyOptionalRows);
+                        !(
+                          box.key === 'optional' &&
+                          onlyOptionalRows &&
+                          !collapsedGroupsRequested
+                        );
                       // Only a box that was opened SOLELY to reveal a preselected
                       // row splits its body; a box that renders open anyway shows
                       // all of its groups as before.
