@@ -40,7 +40,7 @@ import {
 import { getTypeFromValue } from '../../../../helpers/validations';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
-import { ExpressionBuilder } from '../../expressions/builder';
+import { ExpressionBuilder, IExpressionBuilderProps } from '../../expressions/builder';
 // Direct import — the cycle (TemplateField → ExpressionField → builder →
 // TemplateField) is render-time only, safe like the other Field cycles.
 import { ExpressionField } from '../../expressions/ExpressionField';
@@ -142,6 +142,13 @@ export interface ITemplateFieldProps extends Partial<
    * arguments, array items) never receive it and stay IDE-verbatim.
    */
   allowTextExpressions?: boolean;
+  /**
+   * SEAM (reqraft): host-injected per-card actions for the expression editor
+   * this field renders in expression mode (the IDE's AI-assist button).
+   * Declared here — not left to the index signature — so it is destructured
+   * out of `rest` and never spread onto a leaf input.
+   */
+  extraActions?: IExpressionBuilderProps['extraActions'];
   [key: string]: any;
   default_value?: unknown;
 }
@@ -298,6 +305,7 @@ export const TemplateField = memo(
     allowTemplates = true,
     allowFunctions,
     allowTextExpressions,
+    extraActions,
     allowCustomValues = true,
     filterTemplatesByType = true,
     filterTemplatesFunc,
@@ -748,6 +756,7 @@ export const TemplateField = memo(
                 expressions={rest.expressions}
                 expressionsUrl={rest.expressions_url}
                 serverHandled={rest.server_expression_handling}
+                extraActions={extraActions}
                 size={rest.size}
               />
             </ReqoreErrorBoundary>
@@ -773,6 +782,7 @@ export const TemplateField = memo(
               expressions={rest.expressions}
               expressionsUrl={rest.expressions_url}
               serverHandled={rest.server_expression_handling}
+              extraActions={extraActions}
             />
           </ReqoreErrorBoundary>
           {renderControls()}
