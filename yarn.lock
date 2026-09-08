@@ -1391,10 +1391,10 @@
   resolved "https://registry.npmjs.org/@popperjs/core/-/core-2.11.8.tgz"
   integrity sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==
 
-"@qoretechnologies/qlip@0.1.3-pr.29.g497a7aa":
-  version "0.1.3-pr.29.g497a7aa"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/qlip/-/qlip-0.1.3-pr.29.g497a7aa.tgz#b278f5136e6ca524ef87e51e9d0931d7e208a1e1"
-  integrity sha512-ZcNiDIKQviRexWq9ynfBcycAWwITnv0eetzNzGIDwUvgLCyOyAE1PwxCb24SFpJx56dXTvUVN1sRhoXd8RwJVA==
+"@qoretechnologies/qlip@^0.1.3-beta.20260908110821":
+  version "0.1.3-beta.20260908110821"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/qlip/-/qlip-0.1.3-beta.20260908110821.tgz#d3218009d1abe5e1b168f50d1215dcc9f2f87460"
+  integrity sha512-6xDo1saO6pBakS2gvgbLtADobPrsU/k8+YUWVSypTFofEQU3UkEejpEFHzVEFEF5HZEWrSviXx2t3cpiAiqOww==
 
 "@qoretechnologies/reqore@^0.74.1":
   version "0.74.1"
