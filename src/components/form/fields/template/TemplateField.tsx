@@ -29,7 +29,7 @@ import {
 } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IQorusFormFieldSchemaBase, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size } from 'lodash';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
   filterTemplatesByType as templatesFilterFunc,
@@ -195,12 +195,64 @@ export type TCustomTemplateItems = (
   | (IReqoreMenuDividerProps & { isDivider?: true })
 )[];
 
-/** The `menuActions` seam: a collapsed section of menu items (or dividers). */
+/**
+ * The `menuActions` seam: a collapsed section of menu items, dividers, nested
+ * sections, or custom content — rendered with the popover's close callback so
+ * an inline control can shut the menu after acting.
+ */
 export interface ITemplateMenuActions {
   label: string;
   icon?: IReqoreIconName;
-  items: (IReqoreMenuItemProps | (IReqoreMenuDividerProps & { isDivider: true }))[];
+  className?: string;
+  items: (
+    | IReqoreMenuItemProps
+    | (IReqoreMenuDividerProps & { isDivider: true })
+    | (ITemplateMenuActions & { isSection: true })
+    | { isCustom: true; content: (closePopover?: () => void) => React.ReactNode }
+  )[];
 }
+
+const renderMenuActionRows = (
+  actions: ITemplateMenuActions,
+  closePopover: (() => void) | undefined,
+  size: IReqoreButtonProps['size']
+): React.ReactNode =>
+  actions.items.map((item, index) => {
+    if ('isDivider' in item) {
+      return <ReqoreMenuDivider key={index} {...item} />;
+    }
+
+    if ('isCustom' in item) {
+      return <React.Fragment key={index}>{item.content(closePopover)}</React.Fragment>;
+    }
+
+    if ('isSection' in item) {
+      return (
+        <ReqoreMenuSection
+          key={index}
+          label={item.label}
+          icon={item.icon}
+          className={item.className}
+          isCollapsed
+          transparent
+          size={size}
+        >
+          {renderMenuActionRows(item, closePopover, size)}
+        </ReqoreMenuSection>
+      );
+    }
+
+    return (
+      <ReqoreMenuItem
+        {...item}
+        key={index}
+        onClick={(event, itemId) => {
+          item.onClick?.(event, itemId, closePopover);
+          closePopover?.();
+        }}
+      />
+    );
+  });
 
 // A direct child of `ReqoreMenu`, like `CustomMenuItems`, so the menu hands it
 // the popover's `closePopover` — a section does not pass it on to its rows.
@@ -208,6 +260,7 @@ const MenuActionsSection = memo(
   ({
     actions,
     closePopover,
+    size,
     ...rest
   }: {
     actions: ITemplateMenuActions;
@@ -220,22 +273,10 @@ const MenuActionsSection = memo(
       isCollapsed
       transparent
       className='template-menu-actions'
+      size={size}
       {...rest}
     >
-      {actions.items.map((item, index) =>
-        'isDivider' in item ? (
-          <ReqoreMenuDivider key={index} {...item} />
-        ) : (
-          <ReqoreMenuItem
-            {...item}
-            key={index}
-            onClick={(event, itemId) => {
-              item.onClick?.(event, itemId, closePopover);
-              closePopover?.();
-            }}
-          />
-        )
-      )}
+      {renderMenuActionRows(actions, closePopover, size)}
     </ReqoreMenuSection>
   )
 );

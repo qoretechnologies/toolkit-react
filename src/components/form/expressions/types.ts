@@ -88,7 +88,8 @@ export interface IExpressionSchema {
 export type TExpressionReorderSurface = 'overflowMenu' | 'dragHandle' | 'positionPicker';
 
 /**
- * `true` (the default) renders the default surface — the field's `⋮` menu;
- * `false` turns reordering off; a list renders those surfaces together.
+ * `true` (the default) renders the drag grip together with the "Move Argument"
+ * section in the field's `⋮` menu; `false` turns reordering off; a list
+ * renders exactly those surfaces.
  */
 export type TExpressionReorder = boolean | TExpressionReorderSurface[];

@@ -102,7 +102,8 @@ export const ExpressionBuilderArgumentWrapper = memo(
             className='expression-arg-drag-handle'
             icon='Draggable'
             tooltip='Drag to reorder'
-            style={{ cursor: 'grab' }}
+            // As tight as the field's `⋮` button next to it.
+            style={{ cursor: 'grab', paddingLeft: 0, paddingRight: 0, minWidth: '10px' }}
             draggable
             onDragStart={(event) => {
               event.stopPropagation();

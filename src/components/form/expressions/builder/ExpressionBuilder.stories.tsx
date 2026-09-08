@@ -658,14 +658,14 @@ const concatArgs: Story['args'] = {
   },
 };
 
-/** Base: a `concat` varargs expression with three string operands, default reorder surface. */
+/** Base: a `concat` varargs expression with three string operands, default reorder surfaces. */
 export const ConcatExpression: Story = {
   args: concatArgs,
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"). The default reorder surface is a "Move Argument" section in each operand\'s ⋮ menu — opened and expanded here on the second operand to show its "Move earlier / later / to start / to end" rows.',
+          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"). By default each operand gets a drag grip and a "Move Argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
       },
     },
   },
@@ -673,32 +673,123 @@ export const ConcatExpression: Story = {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     await waitForOrder(CONCAT_OPERANDS);
     expect(removeArgCount()).toBe(2);
-    expect(count('.expression-arg-drag-handle')).toBe(0);
+    expect(count('.expression-arg-drag-handle')).toBe(3);
     expect(count('.expression-arg-position')).toBe(0);
 
     await openMoveMenu(1);
-    await waitForText('Move earlier');
-    expect(count('.expression-arg-move-later')).toBe(1);
+    await waitForText('Move before');
+    expect(count('.expression-arg-move-after')).toBe(1);
     expect(count('.expression-arg-move-start')).toBe(1);
     expect(count('.expression-arg-move-end')).toBe(1);
+    expect(count('.expression-arg-move-to')).toBe(1);
+    // Three operands: one position dropdown — no segments, no typed field, no "More".
+    expect(count('.expression-arg-move-to-picker')).toBe(1);
+    expect(count('.expression-arg-move-to-input')).toBe(0);
+    expect(count('.expression-arg-move-to-more')).toBe(0);
+    // Open the picker so the capture shows its three positions.
+    await clickSelector('.expression-arg-move-to-picker');
+    await waitForText('3rd');
   },
 };
 
-/** Reorder through the ⋮ menu — "Move to start" then "Move later". */
-export const ReorderViaOverflowMenu: Story = {
-  ...ConcatExpression,
+const LONG_OPERANDS = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh'];
+
+/** Seven operands: the strip grows a typed field and a "More" list past the four segments. */
+export const ReorderLongConcat: Story = {
+  args: {
+    ...concatArgs,
+    value: {
+      value: {
+        exp: 'concat',
+        args: LONG_OPERANDS.map((value) => ({ type: 'string', value })),
+      },
+      is_expression: true,
+    },
+  },
   parameters: {
-    ...ConcatExpression.parameters,
     docs: {
       description: {
         story:
-          'Renders the "concat" expression and reorders it through the ⋮ menus\' "Move Argument" section: "Move to start" on the third operand, then "Move later" on the operand that is now second — the order goes first/second/third → third/first/second → third/second/first, each move closes its menu, and onChange reports the reordered args.',
+          'Renders a seven-operand "concat": typing 6 and Enter into the second operand\'s "Move to position" field moves it to sixth, "More → 7th" moves it last, and the menu is then reopened on that operand with "Move Argument" expanded and "More" open — the strip shows the segments 1–4, the number field for 5–7 with its arrow, and the list 5th / 6th / 7th with 7th (the current position) disabled.',
+      },
+    },
+  },
+  play: async (context) => {
+    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitFor(() => expect(count('.expression-arg-drag-handle')).toBe(7), { timeout: 10000 });
+
+    await openMoveMenu(1);
+    await waitForText('Move to position');
+    expect(count('.expression-arg-move-to-4')).toBe(1);
+    expect(count('.expression-arg-move-to-input')).toBe(1);
+    expect(count('.expression-arg-move-to-more')).toBe(1);
+
+    // change + keyDown rather than `userEvent.type`: the typing helper also
+    // emits hover events, which React bubbles through the popover's portal to
+    // the panel and raises its floating "Wrap" layer over the capture.
+    const field = document.querySelector<HTMLInputElement>('.expression-arg-move-to-input')!;
+    await fireEvent.change(field, { target: { value: '6' } });
+    await fireEvent.keyDown(field, { key: 'Enter' });
+    await waitFor(
+      () =>
+        expect(
+          Array.from(
+            document.querySelectorAll<HTMLTextAreaElement>('.expression textarea')
+          ).map((t) => t.value)
+        ).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'second', 'seventh']),
+      { timeout: 10000 }
+    );
+
+    await openMoveMenu(5);
+    await waitForText('Move to position');
+    await clickSelector('.expression-arg-move-to-more');
+    await waitForText('7th');
+    await clickSelector('.expression-arg-move-to-7');
+    await waitFor(
+      () =>
+        expect(
+          Array.from(
+            document.querySelectorAll<HTMLTextAreaElement>('.expression textarea')
+          ).map((t) => t.value)
+        ).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'second']),
+      { timeout: 10000 }
+    );
+    expect(context.args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        value: expect.objectContaining({
+          args: ['first', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'second'].map(
+            (value) => ({ type: 'string', value })
+          ),
+        }),
+      })
+    );
+
+    // Leave the strip and its "More" list on screen for the capture.
+    await openMoveMenu(6);
+    await waitForText('Move to position');
+    await clickSelector('.expression-arg-move-to-more');
+    await waitForText('5th');
+    // A remounted operand refetches the expression catalogue; the "Use
+    // Expression" row is a skeleton until that settles, so wait it out.
+    await waitFor(() => expect(count('.reqore-skeleton')).toBe(0), { timeout: 30000 });
+  },
+};
+
+/** `reorder: ['overflowMenu']` — "Move to start", "Move after", then "Move to position". */
+export const ReorderViaOverflowMenu: Story = {
+  args: { ...concatArgs, reorder: ['overflowMenu'] },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "concat" expression with only the ⋮ menu surface (no grip) and reorders it through the "Move Argument" section: "Move to start" on the third operand, "Move after" on the operand that is now second, then "3rd" from the "Move to position" dropdown on the first — the order goes first/second/third → third/first/second → third/second/first → second/first/third, each move closes its menu, and onChange reports the reordered args.',
       },
     },
   },
   play: async (context) => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     await waitForOrder(CONCAT_OPERANDS);
+    expect(count('.expression-arg-drag-handle')).toBe(0);
 
     await openMoveMenu(2);
     await waitForText('Move to start');
@@ -708,11 +799,18 @@ export const ReorderViaOverflowMenu: Story = {
     await waitFor(() => expect(count('.expression-arg-move-start')).toBe(0), { timeout: 10000 });
 
     await openMoveMenu(1);
-    await waitForText('Move later');
-    await clickSelector('.expression-arg-move-later');
+    await waitForText('Move after');
+    await clickSelector('.expression-arg-move-after');
     await waitForOrder(['third', 'second', 'first']);
 
-    expectReportedOrder(context, ['third', 'second', 'first']);
+    await openMoveMenu(0);
+    await waitForText('Move to position');
+    await clickSelector('.expression-arg-move-to-picker');
+    await waitForText('3rd');
+    await clickSelector('.expression-arg-move-to-3');
+    await waitForOrder(['second', 'first', 'third']);
+
+    expectReportedOrder(context, ['second', 'first', 'third']);
   },
 };
 
@@ -769,7 +867,7 @@ export const ReorderKeepsTemplateOperand: Story = {
     docs: {
       description: {
         story:
-          'Renders a "concat" whose first operand is the template reference "$local:some-richtext" and whose second is the literal "plain". "Move to end" on the template operand swaps them — the literal now sits first and the reference second, each in its own field, and nothing shows the reference twice.',
+          'Renders a "concat" (default surfaces: grip and ⋮ menu) whose first operand is the template reference "$local:some-richtext" and whose second is the literal "plain". "Move to end" on the template operand swaps them — the literal now sits first and the reference second, each in its own field, and nothing shows the reference twice.',
       },
     },
   },
@@ -846,7 +944,7 @@ export const ReorderAllSurfaces: Story = {
     expect(count('.expression-arg-position')).toBe(3);
 
     await openMoveMenu(1);
-    await waitForText('Move earlier');
+    await waitForText('Move before');
   },
 };
 

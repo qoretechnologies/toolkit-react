@@ -50,6 +50,7 @@ import { ExpressionBuilderArgumentWrapper } from './argumentWrapper';
 import { ConfirmMismatchedTypesModal } from './confirmMismatchedTypesModal';
 import { ConfirmUnsupportedTypeModal } from './confirmUnsupportedTypeModal';
 import { ExpressionItem } from './item';
+import { ExpressionMoveToPositionStrip } from './moveToPositionStrip';
 import { ExpressionRenderTemplate } from './renderTemplate';
 
 const noopUseRegisterHintView = (...args: unknown[]): void => {
@@ -433,7 +434,7 @@ export const Expression = ({
       return [];
     }
 
-    return reorder === true ? ['overflowMenu'] : reorder;
+    return reorder === true ? ['dragHandle', 'overflowMenu'] : reorder;
   }, [props.reorder]);
   // Bumped on every move and folded into the operand keys: the operands are
   // keyed by slot, and a slot's TemplateField keeps template / text-mode
@@ -560,8 +561,8 @@ export const Expression = ({
     }
 
     const moves: [string, string, IReqoreIconName, (index: number) => number][] = [
-      ['earlier', 'Move earlier', 'ArrowGoBackLine', (index) => index - 1],
-      ['later', 'Move later', 'ArrowGoForwardLine', (index) => index + 1],
+      ['before', 'Move before', 'ArrowGoBackLine', (index) => index - 1],
+      ['after', 'Move after', 'ArrowGoForwardLine', (index) => index + 1],
       ['start', 'Move to start', 'SkipBackLine', () => 0],
       ['end', 'Move to end', 'SkipForwardLine', () => argCount - 1],
     ];
@@ -569,17 +570,33 @@ export const Expression = ({
     return Array.from({ length: argCount }, (_, index) => ({
       label: 'Move Argument',
       icon: 'ArrowLeftRightLine',
-      items: moves.map(([key, label, icon, target]) => {
-        const to = target(index);
+      items: [
+        ...moves.map(([key, label, icon, target]) => {
+          const to = target(index);
 
-        return {
-          label,
-          icon,
-          className: `expression-arg-move-${key}`,
-          disabled: to === index || to < 0 || to >= argCount,
-          onClick: () => moveVarArg(index, to),
-        };
-      }),
+          return {
+            label,
+            icon,
+            className: `expression-arg-move-${key}`,
+            disabled: to === index || to < 0 || to >= argCount,
+            onClick: () => moveVarArg(index, to),
+          };
+        }),
+        // Any position in one pick — what a ten-part concat needs.
+        {
+          isCustom: true as const,
+          content: (closePopover) => (
+            <ExpressionMoveToPositionStrip
+              index={index}
+              count={argCount}
+              onMoveTo={(to) => {
+                moveVarArg(index, to);
+                closePopover?.();
+              }}
+            />
+          ),
+        },
+      ],
     }));
   }, [canReorderArgs, reorderSurfaces, argCount, moveVarArg]);
 
