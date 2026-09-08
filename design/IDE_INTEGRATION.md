@@ -40,6 +40,9 @@ checklist the IDE-integration PR ticks off so that can't happen.
   expression mounts its own builder. A seam that stops one hop short reads
   as wired and is not — which is the silent-regression class this checklist
   exists to prevent.
+  *Revised 2026-09-08:* a host that mirrors this rule needs the bare builder
+  from the barrel; it is exported next to the shell as of 0.10.53 (#119) — no
+  deep import of `dist/…/expressions/builder` required.
 - **Open product call (B4):** whether reqraft should ALSO ship a *native*
   saved-values (so non-IDE consumers get it without wiring the seam). The
   storage primitive exists (`useReqraftStorage` mirrors the IDE's
