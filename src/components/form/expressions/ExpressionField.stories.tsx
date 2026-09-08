@@ -94,7 +94,7 @@ export const Default: Story = {
 };
 
 /**
- * Empty expression — an empty AST renders no "Parsed" box at all (nothing to
+ * Empty expression — an empty AST renders no "Preview" box at all (nothing to
  * parse), just the bare editor waiting for input.
  */
 export const Empty: Story = {
@@ -106,7 +106,7 @@ export const Empty: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField in Text mode with an empty expression AST — only the DPQL editor shows; the "Parsed" preview box stays hidden until there is a query to parse.',
+          'Renders ExpressionField in Text mode with an empty expression AST — only the DPQL editor shows; the "Preview" box stays hidden until there is something to show.',
       },
     },
   },
@@ -117,9 +117,12 @@ export const Empty: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await waitForLspIdle(canvasElement);
-    // An empty query has nothing to parse — no Parsed box.
+    /* An empty query has nothing to render — no Preview box.
+       The testid is the assertion that matters: after the rename a
+       `queryByText('Parsed')` would be null whatever the box did, and an
+       assertion that cannot fail is worse than no assertion. */
     await expect(canvas.queryByTestId('expression-preview')).toBeNull();
-    await expect(canvas.queryByText('Parsed')).toBeNull();
+    await expect(canvas.queryByText('Preview')).toBeNull();
   },
 };
 
@@ -182,7 +185,7 @@ export const ViaFormEngine: Story = {
 /**
  * FormEngine → Text mode, the serialize direction: switching the
  * engine-driven expression field to Text seeds the DPQL editor from the
- * stored AST (`dpql/serialize` over the mock LSP) and the "Parsed" preview
+ * stored AST (`dpql/serialize` over the mock LSP) and the "Preview" box
  * renders the same AST.
  */
 export const ViaFormEngineTextMode: Story = {
@@ -190,7 +193,7 @@ export const ViaFormEngineTextMode: Story = {
     docs: {
       description: {
         story:
-          'Renders the FormEngine expression field, then switches to Text mode — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call and the "Parsed" preview mirrors it.',
+          'Renders the FormEngine expression field, then switches to Text mode — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call and the "Preview" box mirrors it.',
       },
     },
   },
@@ -509,7 +512,7 @@ export const TextModeAutoAsksNothing: Story = typedExpressionStory(
 
 /**
  * Text (DPQL) mode, backed by a mock-socket LSP. Typing DPQL parses to the
- * AST (`dpql/parse`); the "Parsed" preview reflects it. (Slate typing is
+ * AST (`dpql/parse`); the "Preview" box reflects it. (Slate typing is
  * driven live; the play test asserts the editor mounted + connected.)
  */
 export const TextMode: Story = {
@@ -521,7 +524,7 @@ export const TextMode: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField in Text (DPQL) mode over a mock-socket LSP. Typing DPQL text triggers dpql/parse and the "Parsed" preview reflects the resulting AST.',
+          'Renders ExpressionField in Text (DPQL) mode over a mock-socket LSP. Typing DPQL text triggers dpql/parse and the "Preview" box reflects the resulting AST.',
       },
     },
   },
@@ -540,7 +543,7 @@ export const TextMode: Story = {
       { timeout: 6000 }
     )) as HTMLElement;
 
-    // Type DPQL → debounced `dpql/parse` → AST → the "Parsed" preview
+    // Type DPQL → debounced `dpql/parse` → AST → the "Preview" box
     // reflects it (the mock echoes the typed text into an `==` expression).
     await userEvent.click(editable);
     await userEvent.type(editable, 'name');
@@ -679,7 +682,7 @@ export const Live: Story = {
 
 /**
  * LIVE — server-side rendering over the LSP (`dpql/renderExpression`). Text
- * mode against the real instance: the live "Parsed" line should show the
+ * mode against the real instance: the live "Preview" box should show the
  * server rendering — `"test".startsWith("t", true)` — not the DPQL form
  * (`"test" startsWith "t"`) or the client-side approximation. Compare with
  * qorus-ide's Explain (storybook :6007) for the same AST. Prereq: same as
@@ -693,7 +696,7 @@ export const LiveExplain: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField in Text mode against a live Qorus instance — the "Parsed" preview uses the server-rendered form via dpql/renderExpression rather than the client-side approximation.',
+          'Renders ExpressionField in Text mode against a live Qorus instance — the "Preview" box uses the server-rendered form via dpql/renderExpression rather than the client-side approximation.',
       },
     },
   },

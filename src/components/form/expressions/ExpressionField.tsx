@@ -3,8 +3,9 @@
 // Owns the `IExpression` value and offers two views of the same AST —
 // Visual (the builder, Phase 3) and Text (DPQL, this phase). The DPQL text
 // editor bridges to the AST via the LSP `dpql/parse` (text → AST on edit)
-// and `dpql/serialize` (AST → text on entering Text mode); a live "Parsed"
-// line renders the current AST (`dpql/renderExpression`).
+// and `dpql/serialize` (AST → text on entering Text mode); a debounced
+// "Preview" box renders the current AST (`dpql/renderExpression`) when that
+// rendering differs from the text the author typed.
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -21,6 +22,15 @@ import { useRenderExpression } from './useRenderExpression';
 export type TExpressionMode = 'visual' | 'text';
 
 const PARSE_DEBOUNCE_MS = 300;
+/**
+ * How long the Preview waits before catching up with the editor.
+ *
+ * It mirrors the AST, so without this it re-renders on every keystroke — a box
+ * appearing, changing and vanishing under the line being typed. Slightly
+ * SLOWER than the parse it follows, so the preview settles once after the text
+ * has stopped moving rather than twitching on the way there.
+ */
+const PREVIEW_DEBOUNCE_MS = 400;
 /** Retry cadence for seeding the Text editor while its LSP session opens. */
 const SEED_RETRY_MS = 400;
 const SEED_MAX_TRIES = 20;
@@ -139,13 +149,20 @@ export const ExpressionField = memo(
     // Keep a readable rendering of the current expression in sync — the
     // single live mirror of the AST (server `dpql/renderExpression` when
     // reachable, the client-side approximation otherwise).
+    //
+    // Debounced: it follows the AST, which follows the text, so rendering it
+    // eagerly put a box under the cursor that appeared, changed and vanished
+    // while the author was still typing.
     useEffect(() => {
       let live = true;
-      renderRich(ast ?? {}, expressions).then((r) => {
-        if (live) setPreview({ text: r.text, server: r.server });
-      });
+      const timer = setTimeout(() => {
+        renderRich(ast ?? {}, expressions).then((r) => {
+          if (live) setPreview({ text: r.text, server: r.server });
+        });
+      }, PREVIEW_DEBOUNCE_MS);
       return () => {
         live = false;
+        clearTimeout(timer);
       };
     }, [renderRich, ast, expressions]);
 
@@ -320,11 +337,19 @@ export const ExpressionField = memo(
               </ReqoreMessage>
             )}
 
-            {/* An empty query has nothing to parse — the box appears once a
-                parse result exists rather than sitting there holding a
-                placeholder token. */}
-            {preview.text ? (
-              <ReqoreMessage intent='info' size='small' title='Parsed' flat opaque={false}>
+            {/* Shown only when it ADDS something.
+
+                It is a rendering of the AST, so for most text it repeats the
+                line directly above it — `1 + 2` previewing as `1 + 2` is a
+                second copy that flickers as you type. It earns the space when
+                the rendering DIFFERS: a template reference resolved to a chip,
+                or a normalised form. Comparison ignores surrounding whitespace,
+                which the renderer does not preserve.
+
+                An empty query has nothing to render either, so the box appears
+                once there is a result rather than holding a placeholder. */}
+            {preview.text && preview.text.trim() !== text.trim() ? (
+              <ReqoreMessage intent='info' size='small' title='Preview' flat opaque={false}>
                 {preview.server ? (
                   // Server rendering shown through a read-only DpqlEditor:
                   // template-ref chips + LSP token colours; diagnostics off
