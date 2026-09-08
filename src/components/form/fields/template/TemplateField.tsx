@@ -9,6 +9,7 @@ import {
   ReqoreDropdown,
   ReqoreErrorBoundary,
   ReqoreMenu,
+  ReqoreMenuItem,
   ReqoreMenuSection,
   ReqoreMessage,
   ReqorePopover,
@@ -16,6 +17,8 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
+import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/Menu/item';
+import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import ReqoreMenuDivider, {
   IReqoreMenuDividerProps,
 } from '@qoretechnologies/reqore/dist/components/Menu/divider';
@@ -26,7 +29,7 @@ import {
 } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IQorusFormFieldSchemaBase, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size } from 'lodash';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
   filterTemplatesByType as templatesFilterFunc,
@@ -44,7 +47,7 @@ import { ExpressionBuilder, IExpressionBuilderProps } from '../../expressions/bu
 // Direct import — the cycle (TemplateField → ExpressionField → builder →
 // TemplateField) is render-time only, safe like the other Field cycles.
 import { ExpressionField } from '../../expressions/ExpressionField';
-import { IExpression } from '../../expressions/types';
+import { IExpression, TExpressionReorder } from '../../expressions/types';
 import { useExpressions } from '../../expressions/useExpressions';
 import { AutoFormField as Auto, IQorusType as IQorusFormType } from '../auto/AutoFormField';
 import BooleanFormField from '../boolean/Boolean';
@@ -135,6 +138,14 @@ export interface ITemplateFieldProps extends Partial<
   isDefaultTemplate?: boolean;
   menuItems?: TCustomTemplateItems;
   /**
+   * SEAM (reqraft, additive): a collapsed section in the field's `⋮` menu,
+   * rendered before "Set Custom Value"; a row click closes the menu. The
+   * expression builder puts its operand reorder actions here.
+   */
+  menuActions?: ITemplateMenuActions;
+  /** SEAM (reqraft, additive): forwarded to a nested expression builder. */
+  reorder?: TExpressionReorder;
+  /**
    * SEAM (reqraft, additive): render expression mode through the
    * `ExpressionField` shell — Visual (the ported builder) + Text (the
    * net-new DPQL editor) — instead of the IDE's bare builder. FormEngine
@@ -183,6 +194,92 @@ export type TCustomTemplateItems = (
     })
   | (IReqoreMenuDividerProps & { isDivider?: true })
 )[];
+
+/**
+ * The `menuActions` seam: a collapsed section of menu items, dividers, nested
+ * sections, or custom content — rendered with the popover's close callback so
+ * an inline control can shut the menu after acting.
+ */
+export interface ITemplateMenuActions {
+  label: string;
+  icon?: IReqoreIconName;
+  className?: string;
+  items: (
+    | IReqoreMenuItemProps
+    | (IReqoreMenuDividerProps & { isDivider: true })
+    | (ITemplateMenuActions & { isSection: true })
+    | { isCustom: true; content: (closePopover?: () => void) => React.ReactNode }
+  )[];
+}
+
+const renderMenuActionRows = (
+  actions: ITemplateMenuActions,
+  closePopover: (() => void) | undefined,
+  size: IReqoreButtonProps['size']
+): React.ReactNode =>
+  actions.items.map((item, index) => {
+    if ('isDivider' in item) {
+      return <ReqoreMenuDivider key={index} {...item} />;
+    }
+
+    if ('isCustom' in item) {
+      return <React.Fragment key={index}>{item.content(closePopover)}</React.Fragment>;
+    }
+
+    if ('isSection' in item) {
+      return (
+        <ReqoreMenuSection
+          key={index}
+          label={item.label}
+          icon={item.icon}
+          className={item.className}
+          isCollapsed
+          transparent
+          size={size}
+        >
+          {renderMenuActionRows(item, closePopover, size)}
+        </ReqoreMenuSection>
+      );
+    }
+
+    return (
+      <ReqoreMenuItem
+        {...item}
+        key={index}
+        onClick={(event, itemId) => {
+          item.onClick?.(event, itemId, closePopover);
+          closePopover?.();
+        }}
+      />
+    );
+  });
+
+// A direct child of `ReqoreMenu`, like `CustomMenuItems`, so the menu hands it
+// the popover's `closePopover` — a section does not pass it on to its rows.
+const MenuActionsSection = memo(
+  ({
+    actions,
+    closePopover,
+    size,
+    ...rest
+  }: {
+    actions: ITemplateMenuActions;
+    closePopover?: () => void;
+    size?: IReqoreButtonProps['size'];
+  }) => (
+    <ReqoreMenuSection
+      label={actions.label}
+      icon={actions.icon}
+      isCollapsed
+      transparent
+      className='template-menu-actions'
+      size={size}
+      {...rest}
+    >
+      {renderMenuActionRows(actions, closePopover, size)}
+    </ReqoreMenuSection>
+  )
+);
 
 export const CustomMenuItems = memo(
   ({
@@ -317,6 +414,8 @@ export const TemplateField = memo(
     level,
     className,
     menuItems,
+    menuActions,
+    reorder,
     label,
     ...rest
   }: ITemplateFieldProps) => {
@@ -579,6 +678,8 @@ export const TemplateField = memo(
       const showFunctionsDropdown =
         allowFunctions && !hasOnlyAllowedValues && !rest.readonly && !internalIsFunction;
       const showTemplatesButton = showTemplateToggle && !isTemplate;
+      // The "Set value" label promises a way to set one — reorder rows alone don't.
+      const hasValueRows = showFunctionsDropdown || showTemplatesButton || size(menuItems) > 0;
 
       if (hasOnlyExpressions) {
         return showFunctionsDropdown ? (
@@ -609,7 +710,7 @@ export const TemplateField = memo(
         ) : null;
       }
 
-      if (showFunctionsDropdown || showTemplatesButton || size(menuItems) > 0) {
+      if (hasValueRows || size(menuActions?.items) > 0) {
         return (
           <ReqorePopover
             component={ReqoreButton}
@@ -631,7 +732,7 @@ export const TemplateField = memo(
                 // sibling action buttons (reqore alignSelf; replaces a reqraft
                 // `align-self !important` override of this button).
                 alignSelf: 'center',
-                label: hasInputAffordance ? undefined : 'Set value',
+                label: hasInputAffordance || !hasValueRows ? undefined : 'Set value',
                 style:
                   hasInputAffordance ?
                     {
@@ -687,6 +788,10 @@ export const TemplateField = memo(
                   </ReqoreButton>
                 ) : null}
 
+                {size(menuActions?.items) > 0 ? (
+                  <MenuActionsSection actions={menuActions} size={rest.size} />
+                ) : null}
+
                 {size(menuItems) > 0 ? (
                   <CustomMenuItems
                     items={menuItems}
@@ -715,6 +820,7 @@ export const TemplateField = memo(
       type,
       value,
       menuItems,
+      menuActions,
       internalIsFunction,
       hasInputAffordance,
     ]);
@@ -758,6 +864,7 @@ export const TemplateField = memo(
                 serverHandled={rest.server_expression_handling}
                 extraActions={extraActions}
                 size={rest.size}
+                reorder={reorder}
               />
             </ReqoreErrorBoundary>
             {renderControls()}
@@ -783,6 +890,7 @@ export const TemplateField = memo(
               expressionsUrl={rest.expressions_url}
               serverHandled={rest.server_expression_handling}
               extraActions={extraActions}
+              reorder={reorder}
             />
           </ReqoreErrorBoundary>
           {renderControls()}

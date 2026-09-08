@@ -38,15 +38,6 @@ export const renameKey = <T>(
   return next;
 };
 
-/** Immutably moves a list element from `from` to `to`. */
-export const moveItem = <T>(list: T[], from: number, to: number): T[] => {
-  if (from === to || from < 0 || to < 0 || from >= list.length) return list;
-  const next = [...list];
-  const [item] = next.splice(from, 1);
-  next.splice(Math.min(to, next.length), 0, item);
-  return next;
-};
-
 /**
  * Picks a unique key for a new map entry — `base`, then `base_2`,
  * `base_3`, … — so "Add" never silently overwrites an existing entry.

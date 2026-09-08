@@ -275,3 +275,34 @@ export const getAddress = (v?: string): string => {
   // We need to join back the rest of the address in case there were :// in it
   return valueList.slice(1).join('://');
 };
+
+// ─── List helpers ─────────────────────────────────────────────────────────────
+
+/** Immutably moves a list element from `from` to `to`. */
+export const moveItem = <T>(list: T[], from: number, to: number): T[] => {
+  if (from === to || from < 0 || to < 0 || from >= list.length) return list;
+  const next = [...list];
+  const [item] = next.splice(from, 1);
+  next.splice(Math.min(to, next.length), 0, item);
+  return next;
+};
+
+/** `1` → `1st`, `2` → `2nd`, `11` → `11th`. */
+export const ordinal = (n: number): string => {
+  const mod100 = n % 100;
+
+  if (mod100 >= 11 && mod100 <= 13) {
+    return `${n}th`;
+  }
+
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+};

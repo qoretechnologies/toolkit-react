@@ -1,4 +1,7 @@
 module.exports = {
+  // Stop the cascade: a worktree under `.claude/worktrees/` sits inside the
+  // main checkout, and its `.eslintrc.js` would otherwise be found twice.
+  root: true,
   env: {
     browser: true,
     es2021: true,

@@ -14,7 +14,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef } from '../../dpqlEditor';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
-import { IExpression, IExpressionSchema, IExpressionValue } from './types';
+import { IExpression, IExpressionSchema, IExpressionValue, TExpressionReorder } from './types';
 import { useExpressions } from './useExpressions';
 import { useRenderExpression } from './useRenderExpression';
 
@@ -63,6 +63,8 @@ export interface IExpressionFieldProps {
   /** Initial editor mode (default `visual`). */
   defaultMode?: TExpressionMode;
   size?: string;
+  /** Forwarded to the builder — operand reordering for varargs expressions. */
+  reorder?: TExpressionReorder;
 }
 
 export const ExpressionField = memo(
@@ -81,6 +83,7 @@ export const ExpressionField = memo(
     recordType,
     defaultMode = 'visual',
     size,
+    reorder,
   }: IExpressionFieldProps) => {
     const { expressions } = useExpressions({
       override: expressionsOverride,
@@ -267,6 +270,7 @@ export const ExpressionField = memo(
             serverHandled={serverHandled}
             extraActions={extraActions}
             size={size}
+            reorder={reorder}
           />
         )}
       </ReqoreControlGroup>

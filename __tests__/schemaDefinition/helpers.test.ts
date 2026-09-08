@@ -1,11 +1,11 @@
 import {
-  moveItem,
   removeKey,
   renameKey,
   sectionCount,
   setKey,
   uniqueKey,
 } from '../../src/components/form/fields/schema-definition/helpers';
+import { moveItem } from '../../src/helpers/common';
 
 describe('schemaDefinition/helpers', () => {
   describe('renameKey', () => {
