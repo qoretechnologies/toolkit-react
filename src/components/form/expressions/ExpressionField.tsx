@@ -14,7 +14,7 @@ import {
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef } from '../../dpqlEditor';
-import { ExpressionBuilder } from './builder';
+import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
 import { IExpression, IExpressionSchema, IExpressionValue } from './types';
 import { useExpressions } from './useExpressions';
 import { useRenderExpression } from './useRenderExpression';
@@ -57,6 +57,16 @@ export interface IExpressionFieldProps {
   localTemplates?: IReqoreFormTemplates;
   /** Forwarded to the builder — server-handled expression evaluation. */
   serverHandled?: boolean;
+  /**
+   * SEAM (reqraft): the builder's `extraActions` slot, forwarded. Hosts mount
+   * this shell, not the builder, so a seam that stops at the builder is
+   * unreachable from the component they actually use — which is how the
+   * IDE's AI-assist button vanished the moment it adopted the shell. Same
+   * contract as `IExpressionBuilderProps['extraActions']`: a panel-action
+   * array, or a factory that receives each card's `selectedExpression` and
+   * `value`.
+   */
+  extraActions?: IExpressionBuilderProps['extraActions'];
   /** Optional data-provider context for DPQL `@field` completions in Text mode. */
   provider?: string;
   recordType?: string;
@@ -82,6 +92,7 @@ export const ExpressionField = memo(
     expressionsUrl,
     localTemplates,
     serverHandled,
+    extraActions,
     provider,
     recordType,
     defaultMode = 'visual',
@@ -440,6 +451,7 @@ export const ExpressionField = memo(
             localTemplates={localTemplates ?? { items: [] }}
             serverHandled={serverHandled}
             componentOverrides={componentOverrides}
+            extraActions={extraActions}
             size={size}
           />
         )}

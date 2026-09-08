@@ -45,7 +45,7 @@ import { getTypeFromValue } from '../../../../helpers/validations';
 import { useDpqlProbe } from '../../../dpqlEditor/useDpqlProbe';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
-import { ExpressionBuilder } from '../../expressions/builder';
+import { ExpressionBuilder, IExpressionBuilderProps } from '../../expressions/builder';
 // Direct import — the cycle (TemplateField → ExpressionField → builder →
 // TemplateField) is render-time only, safe like the other Field cycles.
 import { ExpressionField } from '../../expressions/ExpressionField';
@@ -155,6 +155,21 @@ export interface ITemplateFieldProps extends Partial<
    * arguments, array items) never receive it and stay IDE-verbatim.
    */
   allowTextExpressions?: boolean;
+  /**
+   * SEAM (reqraft): host-injected per-card actions for the expression editor
+   * this field renders in expression mode (the IDE's AI-assist button).
+   * Declared here — not left to the index signature — so it is destructured
+   * out of `rest` and never spread onto a leaf input.
+   */
+  extraActions?: IExpressionBuilderProps['extraActions'];
+  /**
+   * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the field
+   * component and to the expression editor's operand rows. Declared here — not
+   * left to the index signature — for the same reason as `extraActions` above:
+   * so it is destructured out of `rest` and never spread onto a leaf input or a
+   * Reqore layout component, both of which pass unknown props to the DOM.
+   */
+  componentOverrides?: Record<string, React.FC<any>>;
   [key: string]: any;
   default_value?: unknown;
 }
@@ -331,6 +346,8 @@ export const TemplateField = memo(
     allowTemplates = true,
     allowFunctions,
     allowTextExpressions,
+    extraActions,
+    componentOverrides,
     allowCustomValues = true,
     filterTemplatesByType = true,
     filterTemplatesFunc,
@@ -1032,7 +1049,7 @@ export const TemplateField = memo(
                 // rest-spread; the expression shell needs them explicitly or the
                 // builder's operands render "Unknown type!" for any consumer
                 // ui_type (an assertion's `test-reference` Value, for one).
-                componentOverrides={(rest as any).componentOverrides}
+                componentOverrides={componentOverrides}
                 localTemplates={templates}
                 type={type as string}
                 returnType={(returnType || type) as any}
@@ -1041,6 +1058,7 @@ export const TemplateField = memo(
                 expressions={rest.expressions}
                 expressionsUrl={rest.expressions_url}
                 serverHandled={rest.server_expression_handling}
+                extraActions={extraActions}
                 size={rest.size}
                 // An author who typed the expression as text is already
                 // writing in that language — dropping them into the visual
@@ -1077,7 +1095,7 @@ export const TemplateField = memo(
                 is_expression: true,
                 value,
               }}
-              componentOverrides={(rest as any).componentOverrides}
+              componentOverrides={componentOverrides}
               localTemplates={templates}
               level={level}
               type={type as string}
@@ -1087,6 +1105,7 @@ export const TemplateField = memo(
               expressions={rest.expressions}
               expressionsUrl={rest.expressions_url}
               serverHandled={rest.server_expression_handling}
+              extraActions={extraActions}
             />
           </ReqoreErrorBoundary>
           {renderControls()}
@@ -1103,7 +1122,15 @@ export const TemplateField = memo(
         return <ReadOnlyTemplateTag value={templateValue} templates={templates} size={rest.size} />;
       }
 
-      return <Comp value={value} onChange={onChange} name={name} {...rest} />;
+      return (
+        <Comp
+          value={value}
+          onChange={onChange}
+          name={name}
+          {...rest}
+          componentOverrides={componentOverrides}
+        />
+      );
     }
 
     return (
@@ -1123,6 +1150,7 @@ export const TemplateField = memo(
             name={name}
             level={level}
             {...rest}
+            componentOverrides={componentOverrides}
             {...componentTypeProp}
             aria-label={fieldAriaLabel}
             className={`${className} template-selector`}

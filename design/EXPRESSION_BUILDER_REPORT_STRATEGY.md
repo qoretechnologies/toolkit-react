@@ -56,6 +56,17 @@ builder.** Decision (user, 2026-06-10): **re-port (option 1)**, not augment.
 2. Two expression-on-field models collide (IDE `allowFunctions`/`isFunction`
    vs the Phase-1 toggle); the IDE model wins.
 3. Never truly verbatim — AI dropped, Explain → `onExplain`/LSP seam.
+
+   *Revised 2026-09-08 — one deliberate departure from the IDE source, in the
+   rest-argument operand mount.* The IDE derives an empty rest argument's `type`
+   and `defaultType` from the value (undefined when empty), so an empty `bool`
+   argument rendered as an untyped `auto` field — a type picker under a label that
+   already said "true or false" — and an empty `any` argument never qualified for
+   `TemplateField`'s template-selector default, which reads `type`. reqraft now
+   falls back to the catalogue's declared `ui_type`, as the first-argument mount
+   and the allowed-values branch already did. Flagged by Foxhoundn on the #118
+   qlip review; matches the read-only-types direction in qorus-ide#178. The IDE
+   inherits it, since it renders reqraft's builder.
 4. Brings the deferred machinery (type-mismatch modals, type-compat) — more
    surface to own.
 5. Follow-on: the IDE must then *consume* reqraft's builder or they drift again.

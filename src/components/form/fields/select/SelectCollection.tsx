@@ -133,6 +133,10 @@ export const SelectFieldCollection = ({
   return (
     <ReqoreModal
       isOpen
+      // A library-owned hook for hosts and their tests to target the picker
+      // (qorus-ide's helpers looked for its own `.q-select-dialog`, which
+      // this modal never carried).
+      className='reqraft-select-dialog'
       icon='ListOrdered'
       onClose={onClose}
       label='Select from items'
