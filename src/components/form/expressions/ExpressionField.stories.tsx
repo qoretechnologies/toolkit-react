@@ -464,6 +464,50 @@ export const TextModeTypeFits: Story = typedExpressionStory(
 );
 
 /**
+ * An `auto` field accepts anything, so there is nothing to check the
+ * expression's return type against and no target is sent at all.
+ *
+ * This is not a hypothetical. An expression VALUE is
+ * `{ is_expression: true, value: {...} }` — a hash whatever the expression
+ * computes — and the auto field used to infer its type from that envelope, so
+ * writing an expression made the field decide it held a `hash`. That inferred
+ * type was then handed back as the return type to check against, and `1 + 2`
+ * was rejected on a test assertion's Value with "The expression returns int,
+ * and this field holds hash": the field disagreeing with itself about a value
+ * the author had just written.
+ */
+export const TextModeAutoAsksNothing: Story = typedExpressionStory(
+  'auto',
+  'total_auto_field',
+  async (canvasElement) => {
+    await waitFor(
+      () => {
+        expect(canvasElement.querySelector('[contenteditable="true"]')).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
+    /* The contract, not just the symptom: the mock answers with analysis only
+       when a target was sent, so asserting the MESSAGE is absent would also
+       pass if the request simply never happened. Assert what was asked. */
+    await waitFor(
+      () => {
+        expect(
+          dpqlMockParseCalls.length,
+          `parses=${JSON.stringify(dpqlMockParseCalls)}`
+        ).toBeGreaterThan(0);
+      },
+      { timeout: 10000 }
+    );
+    expect(
+      dpqlMockParseCalls.every((call) => !call.target),
+      `an auto field must send no target_type: ${JSON.stringify(dpqlMockParseCalls)}`
+    ).toBe(true);
+    expect(canvasElement.textContent).not.toContain('This does not fit');
+    expect(canvasElement.textContent).not.toContain('This may not fit');
+  }
+);
+
+/**
  * Text (DPQL) mode, backed by a mock-socket LSP. Typing DPQL parses to the
  * AST (`dpql/parse`); the "Parsed" preview reflects it. (Slate typing is
  * driven live; the play test asserts the editor mounted + connected.)

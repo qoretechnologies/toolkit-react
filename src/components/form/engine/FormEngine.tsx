@@ -356,17 +356,42 @@ const getOptionSchemaStorageType = (
   : isRendererOnly(option?.ui_type) ? option?.type || option?.ui_type
   : option?.ui_type || option?.type) || 'any') as TQorusType;
 
-const getOptionFieldStorageType = (
+/**
+ * Which type an option resolves to — the schema's, or the one stored on the
+ * value.
+ *
+ * Exported because this single decision is what every option field is rendered
+ * with, and what an expression's return type is checked against. It deserves
+ * to be assertable without standing up a form.
+ */
+export const getOptionFieldStorageType = (
   optionName: string,
   fieldType: TQorusType | TQorusType[] | undefined,
   schema?: IQorusFormSchema,
   operators?: IOperatorsSchema,
   operatorData?: TOperatorValue,
-  isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType
+  isRendererOnly: TRendererOnlyCheck = isRendererOnlyUiType,
+  /** Whether the stored value is an expression — see below. */
+  isExpression?: boolean
 ): TQorusType => {
   const schemaOption = schema?.[optionName];
+  /* A STORED type does not describe an expression.
+
+     An expression value is `{ is_expression: true, value: {...} }`, so the type
+     recorded beside it describes that envelope — `hash` — and not what the
+     field holds. Letting it win means the SCHEMA's declared type is ignored and
+     the wrong answer is handed to the expression editor as the return type to
+     check against: `1 + 2` on a field declared `"type": "auto"` came back
+     "The expression returns int, and this field holds hash". A literal `1` was
+     fine, because a literal is stored as a plain value whose type matches.
+
+     `auto`/`any` accept anything, which is exactly why nothing should be
+     checked against them; a concrete declared type still is. The schema is the
+     only party that knows what the field accepts. */
   const storedType =
-    fieldType && !(fieldType === schemaOption?.ui_type && isRendererOnly(fieldType)) ?
+    !isExpression &&
+    fieldType &&
+    !(fieldType === schemaOption?.ui_type && isRendererOnly(fieldType)) ?
       fieldType
     : getOptionSchemaStorageType(schemaOption, isRendererOnly);
 
@@ -1820,7 +1845,8 @@ const FormEngineImpl = ({
           options,
           operators,
           (option as IQorusFormField)?.op,
-          isRendererOnly
+          isRendererOnly,
+          !!(option as IQorusFormField)?.is_expression
         );
 
         if (!isPlainObject(option)) {
@@ -1965,7 +1991,8 @@ const FormEngineImpl = ({
           options,
           operators,
           (option as IQorusFormField).op,
-          isRendererOnly
+          isRendererOnly,
+          !!(option as IQorusFormField)?.is_expression
         );
         const optionValue = (option as IQorusFormField).value;
 
@@ -2036,8 +2063,9 @@ const FormEngineImpl = ({
               options,
               operators,
               (option as IQorusFormField).op,
-              isRendererOnly
-            ),
+              isRendererOnly,
+          !!(option as IQorusFormField)?.is_expression
+        ),
             (option as IQorusFormField).value
           )
         ) {
@@ -2085,8 +2113,9 @@ const FormEngineImpl = ({
         options,
         operators,
         (availableOptions as TQorusForm)?.[name]?.op,
-        isRendererOnly
-      );
+        isRendererOnly,
+          !!(availableOptions as TQorusForm)?.[name]?.is_expression
+        );
       const value = (availableOptions as TQorusForm)?.[name]?.value;
       // A schema-declared hash whose every entry is a materialised-but-unset
       // field holds nothing, so it is not "set" — without this the row showed a
