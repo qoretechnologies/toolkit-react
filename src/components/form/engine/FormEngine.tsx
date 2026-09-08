@@ -357,6 +357,21 @@ const getOptionSchemaStorageType = (
   : option?.ui_type || option?.type) || 'any') as TQorusType;
 
 /**
+ * Whether an option currently holds an expression, in EITHER shape it comes in.
+ *
+ * At runtime the editor writes the flag onto the option itself
+ * (`{ type, is_expression: true, value }`), but a value loaded from a saved
+ * draft carries the envelope NESTED (`{ type, value: { is_expression: true,
+ * value } }`). Same thing, two shapes, and only the flat one was ever checked —
+ * so a freshly typed expression behaved while a reloaded one did not, which is
+ * exactly how this survived several fixes: every test used the runtime shape.
+ */
+const optionHoldsExpression = (option: unknown): boolean => {
+  const o = option as { is_expression?: unknown; value?: { is_expression?: unknown } } | undefined;
+  return !!(o?.is_expression || o?.value?.is_expression);
+};
+
+/**
  * Which type an option resolves to — the schema's, or the one stored on the
  * value.
  *
@@ -1846,7 +1861,7 @@ const FormEngineImpl = ({
           operators,
           (option as IQorusFormField)?.op,
           isRendererOnly,
-          !!(option as IQorusFormField)?.is_expression
+          optionHoldsExpression(option)
         );
 
         if (!isPlainObject(option)) {
@@ -1992,7 +2007,7 @@ const FormEngineImpl = ({
           operators,
           (option as IQorusFormField).op,
           isRendererOnly,
-          !!(option as IQorusFormField)?.is_expression
+          optionHoldsExpression(option)
         );
         const optionValue = (option as IQorusFormField).value;
 
@@ -2064,7 +2079,7 @@ const FormEngineImpl = ({
               operators,
               (option as IQorusFormField).op,
               isRendererOnly,
-          !!(option as IQorusFormField)?.is_expression
+          optionHoldsExpression(option)
         ),
             (option as IQorusFormField).value
           )
@@ -2114,7 +2129,7 @@ const FormEngineImpl = ({
         operators,
         (availableOptions as TQorusForm)?.[name]?.op,
         isRendererOnly,
-          !!(availableOptions as TQorusForm)?.[name]?.is_expression
+          optionHoldsExpression((availableOptions as TQorusForm)?.[name])
         );
       const value = (availableOptions as TQorusForm)?.[name]?.value;
       // A schema-declared hash whose every entry is a materialised-but-unset
@@ -2506,7 +2521,7 @@ const FormEngineImpl = ({
          renderer's OWN resolution and does not go through
          `getOptionFieldStorageType`, so guarding that one alone left this
          untouched. */
-      const storedRowType = other.is_expression ? undefined : type;
+      const storedRowType = optionHoldsExpression(other) ? undefined : type;
       const resolvedType =
         (isFixedCompactAllowedValueOption(optionSchema) ?
           getOptionSchemaStorageType(optionSchema, isRendererOnly)

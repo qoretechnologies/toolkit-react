@@ -40,11 +40,24 @@ const OPTIONS = {
   checked_value: { type: 'auto', display_name: 'Value', supports_expressions: true },
 } as never;
 
-const STORED_EXPRESSION = {
+/* The RUNTIME shape: the editor writes the flag onto the option itself. */
+const LIVE_EXPRESSION = {
   checked_value: {
     type: 'hash',
     is_expression: true,
     value: { exp: '+', args: [1, 2] },
+  },
+} as never;
+
+/* The PERSISTED shape, read back from a saved draft — the envelope is NESTED
+   and there is no flag on the option at all. Confirmed from the running IDE:
+   on load the row saw `otherKeys: ["value"]` and resolved `hash`; after an
+   edit it saw `["value","is_expression"]` and resolved `auto`. Testing only
+   the runtime shape is why several fixes passed while the bug survived. */
+const STORED_EXPRESSION = {
+  checked_value: {
+    type: 'hash',
+    value: { is_expression: true, value: { exp: '+', args: [1, 2] } },
   },
 } as never;
 
@@ -67,15 +80,7 @@ describe('the type the form hands the expression editor', () => {
                 },
               } as never
             }
-            value={
-              {
-                checked_value: {
-                  type: 'hash',
-                  is_expression: true,
-                  value: { exp: '+', args: [1, 2] },
-                },
-              } as never
-            }
+            value={LIVE_EXPRESSION}
           />
         </FetchContext.Provider>
       </ReqoreUIProvider>
@@ -102,6 +107,33 @@ describe('the type the form hands the expression editor', () => {
             /* The row renders read-first and mounts its editor only when open,
                so without this the field never renders and the test passes by
                never looking at anything. */
+            initialExpandedOptions={['checked_value']}
+            name='assertion'
+            onChange={vi.fn()}
+            options={OPTIONS}
+            value={STORED_EXPRESSION}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+
+    await waitFor(() => expect(typesSeen.length).toBeGreaterThan(0));
+    const seen = typesSeen.flatMap((t) => [t.type, t.returnType]);
+    expect(seen, `types handed to the field: ${JSON.stringify(typesSeen)}`).not.toContain('hash');
+  });
+
+  it('is the schema type for a RELOADED expression, whose envelope is nested', async () => {
+    /* The shape a saved draft comes back in. This is the case that was broken
+       in the running IDE while every test passed: the option carries no
+       `is_expression` of its own, so a check for the flat flag never fired and
+       the stored `hash` won. */
+    typesSeen.length = 0;
+
+    render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
             initialExpandedOptions={['checked_value']}
             name='assertion'
             onChange={vi.fn()}
