@@ -56,7 +56,10 @@ import {
   insertAtIndex,
   richtextToString,
 } from '../../../helpers/common';
-import { getRequiredOptionMessage } from '../../../helpers/options';
+import {
+  getRequiredOptionMessage,
+  resolveDegenerateRequiredGroups,
+} from '../../../helpers/options';
 import {
   IValidationResult,
   hasAllDependenciesFullfilled,
@@ -258,9 +261,9 @@ const StyledCompactWrap = styled.div<{ $ownScroll?: boolean }>`
      toolbar silently stops pinning. \`clip\` keeps the horizontal guard without
      that coercion. */
   ${({ $ownScroll }) =>
-    $ownScroll
-      ? css`
-          /* 'own': we are the scroller. The sticky toolbar pins to whatever
+    $ownScroll ?
+      css`
+        /* 'own': we are the scroller. The sticky toolbar pins to whatever
              scrolls, so a host whose scrollport carries top padding would
              resolve sticky \`top: 0\` against its padding box and leave an
              unblurred strip above the toolbar. Scrolling in this unpadded box
@@ -269,22 +272,22 @@ const StyledCompactWrap = styled.div<{ $ownScroll?: boolean }>`
 
              \`min-height: 0\` is what lets a flex item shrink below its content
              so there is something to scroll; it belongs to this branch only. */
-          min-height: 0;
-          max-height: 100%;
-          overflow-y: auto;
-          overflow-x: hidden;
-        `
-      : css`
-          /* \`min-height: auto\` is load-bearing, not a default: inside a column
+        min-height: 0;
+        max-height: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+      `
+    : css`
+        /* \`min-height: auto\` is load-bearing, not a default: inside a column
              flex parent the shrink allowance above collapses this box to zero
              height while its rows paint outside it, so the form looks right but
              contributes nothing to layout — the host cannot size or scroll to
              it and anything below it stacks against nothing. */
-          min-height: auto;
-          max-height: none;
-          overflow-y: visible;
-          overflow-x: clip;
-        `}
+        min-height: auto;
+        max-height: none;
+        overflow-y: visible;
+        overflow-x: clip;
+      `}
 
   /* Option logos (e.g. language images) render as <img> inside ReqoreIcon's
      square box; constrain them so portrait PNGs don't overflow the row. */
@@ -404,9 +407,11 @@ export const getOptionFieldStorageType = (
      checked against them; a concrete declared type still is. The schema is the
      only party that knows what the field accepts. */
   const storedType =
-    !isExpression &&
-    fieldType &&
-    !(fieldType === schemaOption?.ui_type && isRendererOnly(fieldType)) ?
+    (
+      !isExpression &&
+      fieldType &&
+      !(fieldType === schemaOption?.ui_type && isRendererOnly(fieldType))
+    ) ?
       fieldType
     : getOptionSchemaStorageType(schemaOption, isRendererOnly);
 
@@ -1146,7 +1151,17 @@ const FormEngineImpl = ({
     optionActionsCollapse === 'always' ? true
     : optionActionsCollapse === 'never' ? false
     : !isHoverCapable || !!isMobile;
-  const [options, setOptions] = useState<IQorusFormSchema | undefined>(rest?.options || undefined);
+  /* The schema, as the form should ASK it — not always as it was served.
+     `resolveDegenerateRequiredGroups` turns a one-of group that has a single
+     member in this schema back into a plain required field, because a choice
+     with one option is not a choice. Applied here, at the one place the schema
+     enters the component, so the header, the chips, the messages, the meter and
+     the read-first summary cannot disagree about it: every one of them reads
+     `options`, and none of them has to know the rule. */
+  const [servedOptions, setOptions] = useState<IQorusFormSchema | undefined>(
+    rest?.options || undefined
+  );
+  const options = useMemo(() => resolveDegenerateRequiredGroups(servedOptions), [servedOptions]);
   // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
   const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
   const [optionsError, setOptionsError] = useState<string | undefined>();
@@ -2089,8 +2104,8 @@ const FormEngineImpl = ({
               operators,
               (option as IQorusFormField).op,
               isRendererOnly,
-          optionHoldsExpression(option)
-        ),
+              optionHoldsExpression(option)
+            ),
             (option as IQorusFormField).value
           )
         ) {
@@ -2139,8 +2154,8 @@ const FormEngineImpl = ({
         operators,
         (availableOptions as TQorusForm)?.[name]?.op,
         isRendererOnly,
-          optionHoldsExpression((availableOptions as TQorusForm)?.[name])
-        );
+        optionHoldsExpression((availableOptions as TQorusForm)?.[name])
+      );
       const value = (availableOptions as TQorusForm)?.[name]?.value;
       // A schema-declared hash whose every entry is a materialised-but-unset
       // field holds nothing, so it is not "set" — without this the row showed a
@@ -2746,7 +2761,9 @@ const FormEngineImpl = ({
             // pick and otherwise falls back to the type picker. An untyped field
             // therefore asked the author to choose `string`/`int`/`hash` before
             // it would let them name a value they had already captured.
-            templates={(optionSchema as TFieldWithOwnTemplates | undefined)?.templates ?? templates.value}
+            templates={
+              (optionSchema as TFieldWithOwnTemplates | undefined)?.templates ?? templates.value
+            }
             {...getTypeAndCanBeNull(
               // The RENDERER type picks the editor — the storage type lives on
               // the value envelope. Passing storage here rendered a `richtext`
@@ -3527,11 +3544,7 @@ const FormEngineImpl = ({
                       const wouldCollapse =
                         compactCollapsedGroups.includes(box.key) &&
                         !query &&
-                        !(
-                          box.key === 'optional' &&
-                          onlyOptionalRows &&
-                          !collapsedGroupsRequested
-                        );
+                        !(box.key === 'optional' && onlyOptionalRows && !collapsedGroupsRequested);
                       // Only a box that was opened SOLELY to reveal a preselected
                       // row splits its body; a box that renders open anyway shows
                       // all of its groups as before.

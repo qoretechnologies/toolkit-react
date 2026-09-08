@@ -52,3 +52,73 @@ export const getListElementValue = (element: unknown): unknown =>
   element && typeof element === 'object' && !Array.isArray(element) && 'value' in element ?
     (element as { value: unknown }).value
   : element;
+
+/**
+ * The schema with every one-of group that offers no choice turned back into a
+ * plain required field.
+ *
+ * A `required_groups` group says *"at least one of these"*, and the whole
+ * affordance built on it — the ONE OF header, the `Covers` / `Covered by “X”`
+ * chips, the *"this field or X is required"* message — exists to tell an author
+ * that they have a CHOICE and which way they have answered it. When the group
+ * has a single member in the schema in hand, there is no choice: that field
+ * must be set, which is exactly what `required` already means. Saying it in the
+ * one-of grammar instead is worse than saying nothing, because a green tick
+ * beside a value reads as confirmation of the VALUE — a Qorus test author read
+ * `✓ COVERS` beside their service as "yes, this is the service your test is
+ * about", which the form never said and cannot know.
+ *
+ * This is not a hypothetical: a server may legitimately declare a group over an
+ * API-only alternative it then hides from the form (Qorus test steps put
+ * `target` in a group with `service`, and hide `target`), so the form is handed
+ * one member of a two-member group. The group is still real for the API and
+ * must stay in the schema the server serves; it is only this form that has
+ * nothing to offer.
+ *
+ * The rewrite is exact rather than cosmetic: a one-of over one option and a
+ * required option are the same constraint, so validation, the completion meter
+ * and the required-only filter all keep saying what they said — in the grammar
+ * that fits.
+ *
+ * A field in a degenerate group is required by that group ALONE, so it is
+ * marked required even when it also belongs to a group that does offer a
+ * choice; that other group keeps its affordance and is satisfied by this field
+ * either way. The key is deleted rather than emptied because `[]` is truthy,
+ * and every consumer tests `option.required_groups` for existence.
+ *
+ * Returns the schema unchanged — the same object — when no group degenerates,
+ * so it can sit on a memo without giving every render a new schema identity.
+ */
+export const resolveDegenerateRequiredGroups = <T extends IQorusFormSchema | undefined>(
+  schema: T
+): T => {
+  if (!schema) return schema;
+
+  const membersPerGroup: Record<string, number> = {};
+  Object.values(schema).forEach((option) => {
+    (option as TQorusFormFieldSchema)?.required_groups?.forEach((group) => {
+      membersPerGroup[group] = (membersPerGroup[group] ?? 0) + 1;
+    });
+  });
+
+  const degenerate = (group: string): boolean => membersPerGroup[group] < 2;
+  if (!Object.keys(membersPerGroup).some(degenerate)) return schema;
+
+  const resolved: IQorusFormSchema = {};
+  Object.entries(schema).forEach(([name, option]) => {
+    const groups = (option as TQorusFormFieldSchema)?.required_groups;
+    if (!groups?.some(degenerate)) {
+      resolved[name] = option;
+      return;
+    }
+    const kept = groups.filter((group) => !degenerate(group));
+    const rest = { ...(option as TQorusFormFieldSchema) };
+    delete rest.required_groups;
+    resolved[name] = {
+      ...rest,
+      required: true,
+      ...(kept.length ? { required_groups: kept } : {}),
+    } as TQorusFormFieldSchema;
+  });
+  return resolved as T;
+};
