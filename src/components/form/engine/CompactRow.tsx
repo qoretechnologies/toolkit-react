@@ -796,7 +796,7 @@ export const CompactRow = memo(
       : (schema?.ui_type as string) || (schema?.type as string)) ?? '';
     // Scalars edit in place inside the row; complex fields (tall or nested
     // editors) still open the expanded card below.
-    const inlineEditable =
+    const inlineEditableNow =
       !readOnly &&
       !schema?.arg_schema &&
       !(operators && size(operators)) &&
@@ -805,6 +805,43 @@ export const CompactRow = memo(
       // A choice with per-option logos (e.g. language) reads better collapsed.
       !optionHasImages(schema) &&
       !COMPACT_COMPLEX_TYPES.has(editType);
+
+    /* Which of the two editors a row gets is settled when the row OPENS.
+     *
+     * Every term above reads the VALUE or a schema derived from it, so the
+     * answer can change while the author is inside the control — and the two
+     * branches are different subtrees, so a changed answer does not restyle
+     * the editor, it unmounts one and mounts the other. Everything the old one
+     * held goes with it: what was typed, the caret, and any state the editor
+     * keeps about how it was entered.
+     *
+     * `is_expression` is the term that actually fires, and it fires on the one
+     * interaction that exists to keep the author where they are: accepting
+     * "Use as expression" is the moment the value becomes an expression, and
+     * the expression shell opens on its Text view precisely because the author
+     * has just written the expression as text. The remount discarded that and
+     * dropped them into the visual builder, so the sentence they had typed was
+     * nowhere on screen. Clicking Text then appeared to work and bounced back,
+     * because the next value change remounted the row again.
+     *
+     * So the row keeps the editor it opened with for as long as it is open,
+     * and asks the question again when it is next opened — the same trade
+     * `editEntryValue` above makes for a different reason, and the one
+     * qorus-ide's `referenceEditorLatch` makes for this exact one. A field that
+     * already holds an expression when it is opened still gets the card; it is
+     * only a field that BECOMES one under the author that stays put.
+     *
+     * Held in a ref and settled during render rather than in an effect: an
+     * effect lands one render late, and one render late is a visible flash of
+     * the wrong editor — which is the thing being fixed.
+     */
+    const inlineEditableLatch = React.useRef<boolean | undefined>(undefined);
+    if (!isExpanded) {
+      inlineEditableLatch.current = undefined;
+    } else if (inlineEditableLatch.current === undefined) {
+      inlineEditableLatch.current = inlineEditableNow;
+    }
+    const inlineEditable = isExpanded ? !!inlineEditableLatch.current : inlineEditableNow;
 
     // Auto-focus the editor's first input when a field is opened, so you can type
     // straight away (matches the prototype's tap-to-edit feel).

@@ -2,7 +2,7 @@ import { ReqoreButton } from '@qoretechnologies/reqore';
 import type { IReqoreEffect } from '@qoretechnologies/reqore/dist/components/Effect';
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { StoryMeta } from '../../../types';
 import { FormEngine } from '../engine/FormEngine';
@@ -23,6 +23,9 @@ const IDE_AI_BUTTON_EFFECT: IReqoreEffect = {
     animationSpeed: 5,
   },
 };
+
+/** A stable `onChange` for stories that own their value themselves. */
+const noopChange = (): void => undefined;
 
 const SAMPLE: IExpression = {
   is_expression: true,
@@ -708,6 +711,381 @@ export const ToggleInFormEngine: Story = {
       { timeout: 6000 }
     );
     await expect(await canvas.findByText('Visual')).toBeInTheDocument();
+  },
+};
+
+/**
+ * Wait for the DOM to stop changing.
+ *
+ * Both stories below assert a NEGATIVE — that the view the author was put in
+ * is not swapped out from under them — and a swap lands a render or two after
+ * the interaction that causes it. `waitFor` is therefore no help at all: it
+ * passes on the transient state BEFORE the swap and proves nothing. Settling
+ * on the DOM going quiet is what makes the assertion mean something.
+ */
+const settle = (root: HTMLElement, quietMs = 400): Promise<void> =>
+  new Promise<void>((resolve) => {
+    let quiet: ReturnType<typeof setTimeout>;
+    const stop = (): void => {
+      observer.disconnect();
+      resolve();
+    };
+    const observer = new MutationObserver(() => {
+      clearTimeout(quiet);
+      quiet = setTimeout(stop, quietMs);
+    });
+    observer.observe(root, {
+      attributes: true,
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    quiet = setTimeout(stop, quietMs);
+  });
+
+/** Open a compact row — a read-first row shows its label, not its editor. */
+const openCompactRow = async (canvasElement: HTMLElement): Promise<void> => {
+  const label = (await waitFor(
+    () => {
+      const el = within(canvasElement).queryByText('Value');
+      if (!el) throw new Error('row not rendered');
+      return el as HTMLElement;
+    },
+    { timeout: 10000 }
+  )) as HTMLElement;
+  if (!canvasElement.querySelector('input[type="text"], textarea, [contenteditable="true"]')) {
+    await userEvent.click(label);
+  }
+};
+
+/**
+ * Type an expression into a plain field, accept the offer, and assert the
+ * shell opens on TEXT and stays there.
+ *
+ * Shared so that each story below differs only in the FORM around the field —
+ * which is the variable under test, the plain engine being healthy and the
+ * arrangements a real consumer builds being the ones that break it.
+ */
+const acceptTypedExpression = async (canvasElement: HTMLElement): Promise<void> => {
+  const input = (await waitFor(
+    () => {
+      const el = canvasElement.querySelector(
+        'input[type="text"], textarea, [contenteditable="true"]'
+      );
+      if (!el) throw new Error('field not ready');
+      return el as HTMLElement;
+    },
+    { timeout: 10000 }
+  )) as HTMLElement;
+
+  await userEvent.click(input);
+  await userEvent.type(input, '1 + 2');
+
+  // The offer appears only after the server (here the mock) has said the text
+  // really is an expression — a successful parse alone means nothing.
+  const offer = (await waitFor(
+    () => {
+      const el = canvasElement.querySelector('.dpql-detected-offer');
+      if (!el) throw new Error('offer not made');
+      return el as HTMLElement;
+    },
+    { timeout: 10000 }
+  )) as HTMLElement;
+
+  await userEvent.click(offer);
+
+  await waitFor(() => expect(canvasElement.querySelector('.expression-field')).toBeInTheDocument(), {
+    timeout: 10000,
+  });
+
+  await settle(canvasElement);
+
+  // Text, not Visual: the DPQL editor is mounted and the builder is not.
+  const editable = canvasElement.querySelector(
+    '.expression-field [contenteditable="true"]'
+  ) as HTMLElement | null;
+  expect(editable).toBeInTheDocument();
+  expect(canvasElement.querySelector('.expression-field .expression')).not.toBeInTheDocument();
+
+  /* And it holds the author's own sentence.
+   *
+   * Landing in Text mode with an EMPTY editor is barely better than landing in
+   * the builder: what the author typed is not on screen either way, and a
+   * Preview of it sitting beside an empty box reads as the text having been
+   * thrown away. The AST reaches this shell one render after the mode does, so
+   * this is exactly the assertion that fails when seeding only ever gets one
+   * turn. */
+  await waitFor(() => expect(editable?.textContent).toContain('1 + 2'), { timeout: 10000 });
+};
+
+/**
+ * Accepting "Use as expression" lands in TEXT mode, and STAYS there.
+ *
+ * An author who typed `1 + 2` into a plain field and accepted the offer is
+ * already writing in that language: `TemplateField` hands the shell
+ * `defaultMode='text'` for exactly that reason. Landing them in the visual
+ * builder instead makes them find their own sentence again — and the sentence
+ * they typed is not shown anywhere, because the builder renders operands, not
+ * text.
+ *
+ * The whole path is covered deliberately: the offer is the ONLY entry that
+ * asks for Text mode, so a story that enters expression mode through the More
+ * menu (`ToggleInFormEngine`) cannot guard it — that route never sets
+ * `expressionFromText` and correctly lands on Visual.
+ */
+export const OfferAcceptedOpensTextMode: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types DPQL into a plain string field, accepts the "Use as expression" offer, and asserts the expression shell opens on Text (the DPQL editor seeded with the typed text) rather than on the visual builder — and stays there once the DOM settles.',
+      },
+    },
+  },
+  render: () => {
+    const [value, setValue] = useState<any>({});
+    return (
+      <FormEngine
+        name='dpqlOfferForm'
+        options={
+          {
+            expected: {
+              type: 'string',
+              ui_type: 'string',
+              display_name: 'Value',
+              preselected: true,
+              supports_expressions: true,
+              expressions: mockExpressions,
+            },
+          } as any
+        }
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+      />
+    );
+  },
+  async beforeEach() {
+    const stop = startDpqlMockLsp();
+    return () => stop();
+  },
+  async play({ canvasElement }) {
+    await acceptTypedExpression(canvasElement);
+  },
+};
+
+/**
+ * The accepted offer survives a host that rebuilds the field's schema.
+ *
+ * A consumer form does not hand the engine one frozen schema. qorus-ide's test
+ * step drawer derives the schema it passes FROM the current value — a path that
+ * holds a reference is given the reference editor, a compared value is typed by
+ * the path it is compared against — so the engine is handed a brand-new options
+ * object on every change, including the one the accepted offer itself causes.
+ *
+ * The offer's whole promise is that the author keeps writing where they were
+ * writing. If a re-derived schema takes that away, the promise is only kept on
+ * forms simple enough not to have one, which is not the form this feature was
+ * built for.
+ */
+export const OfferSurvivesARederivedSchema: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Repeats the accepted-offer flow against a host that rebuilds the options schema from the value on every change (as qorus-ide's step drawer does) — the Text view the offer opened must survive the churn.",
+      },
+    },
+  },
+  render: () => {
+    const [value, setValue] = useState<any>({});
+    // Rebuilt from the value, so its identity changes on every edit — the
+    // host behaviour being modelled.
+    const options = useMemo(
+      () =>
+        ({
+          expected: {
+            type: 'string',
+            ui_type: 'string',
+            display_name: 'Value',
+            preselected: true,
+            supports_expressions: true,
+            expressions: mockExpressions,
+          },
+        }) as any,
+      [value]
+    );
+    return (
+      <FormEngine
+        name='dpqlOfferChurnForm'
+        options={options}
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+      />
+    );
+  },
+  async beforeEach() {
+    const stop = startDpqlMockLsp();
+    return () => stop();
+  },
+  async play({ canvasElement }) {
+    await acceptTypedExpression(canvasElement);
+  },
+};
+
+/**
+ * The accepted offer survives the COMPACT read-first row.
+ *
+ * The forms this feature was built for are compact ones — qorus-ide's test step
+ * drawer renders every option as a read-first row that shows a summary of what
+ * the field holds and opens onto the editor. Accepting the offer is the moment
+ * a field that held nothing starts holding something, so it is exactly the
+ * moment that treatment changes, and the author is inside the control while it
+ * does.
+ */
+export const OfferSurvivesACompactRow: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Repeats the accepted-offer flow in a compact (read-first) form whose schema is rebuilt from the value — the arrangement qorus-ide uses — and asserts the Text view survives it.',
+      },
+    },
+  },
+  render: () => {
+    const [value, setValue] = useState<any>({});
+    const options = useMemo(
+      () =>
+        ({
+          expected: {
+            type: 'string',
+            ui_type: 'string',
+            display_name: 'Value',
+            preselected: true,
+            supports_expressions: true,
+            expressions: mockExpressions,
+          },
+        }) as any,
+      [value]
+    );
+    return (
+      <FormEngine
+        name='dpqlOfferCompactForm'
+        compact
+        flat
+        transparent
+        padded={false}
+        showTypeToggle={false}
+        size='small'
+        options={options}
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+      />
+    );
+  },
+  async beforeEach() {
+    const stop = startDpqlMockLsp();
+    return () => stop();
+  },
+  async play({ canvasElement }) {
+    await openCompactRow(canvasElement);
+    await acceptTypedExpression(canvasElement);
+  },
+};
+
+/**
+ * The Text view survives the host answering LATE about the field.
+ *
+ * A consumer does not settle a row's schema the moment it is drawn. qorus-ide
+ * re-derives these rows from catalogues it is still fetching — the type a
+ * compared value gets is read off the reference it is compared against — so the
+ * type a row was OPENED with is not always the type it ends up with, and the
+ * change can land a second or two after the author has already acted.
+ *
+ * That is the reported symptom this covers, and it is the one that made the bug
+ * look intermittent rather than reproducible: clicking Text appeared to work,
+ * and then a moment later the control was back on Visual with nothing on screen
+ * to say why.
+ */
+export const TextViewSurvivesALateHostChange: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Accepts the offer in a compact row, then has the host re-type the field a moment later (as qorus-ide does when its reference catalogue answers) — the Text view must not be swapped out from under the author.",
+      },
+    },
+  },
+  render: () => {
+    const [value, setValue] = useState<any>({});
+    const [retyped, setRetyped] = useState(false);
+    // Fires once the field is holding an expression: the host's answer lands
+    // after the author has already accepted the offer.
+    const isExpression = !!value?.expected?.is_expression;
+    useEffect(() => {
+      if (!isExpression) return undefined;
+      const timer = setTimeout(() => setRetyped(true), 500);
+      return () => clearTimeout(timer);
+    }, [isExpression]);
+    const options = useMemo(
+      () =>
+        ({
+          expected: {
+            // `auto` is one of the types a compact row opens as a CARD rather
+            // than in place, so this is a re-type that moves the editor — the
+            // whole point of the exercise.
+            type: retyped ? 'auto' : 'string',
+            ui_type: retyped ? 'auto' : 'string',
+            display_name: 'Value',
+            preselected: true,
+            supports_expressions: true,
+            expressions: mockExpressions,
+          },
+        }) as any,
+      [retyped]
+    );
+    return (
+      <>
+        <FormEngine
+          name='dpqlOfferLateForm'
+          compact
+          flat
+          transparent
+          padded={false}
+          showTypeToggle={false}
+          size='small'
+          options={options}
+          value={value}
+          onChange={(_n, v) => setValue(v)}
+        />
+        {/* The host's answer is not otherwise visible, and the assertion has to
+            wait for it rather than for a duration. */}
+        <span data-testid='host-retyped'>{String(retyped)}</span>
+      </>
+    );
+  },
+  async beforeEach() {
+    const stop = startDpqlMockLsp();
+    return () => stop();
+  },
+  async play({ canvasElement }) {
+    await openCompactRow(canvasElement);
+    await acceptTypedExpression(canvasElement);
+
+    // Wait for the host's late answer to actually land — a timeout here would
+    // make the assertion a race.
+    await waitFor(
+      () =>
+        expect(canvasElement.querySelector('[data-testid="host-retyped"]')?.textContent).toBe(
+          'true'
+        ),
+      { timeout: 10000 }
+    );
+    await settle(canvasElement);
+
+    expect(
+      canvasElement.querySelector('.expression-field [contenteditable="true"]')
+    ).toBeInTheDocument();
+    expect(canvasElement.querySelector('.expression-field .expression')).not.toBeInTheDocument();
   },
 };
 
