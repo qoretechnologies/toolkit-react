@@ -2490,12 +2490,29 @@ const FormEngineImpl = ({
       const optionSchema = options?.[optionName];
       const schemaUiType = optionSchema?.ui_type as TQorusType;
       const uiTypeIsAnyLike = schemaUiType === 'any' || schemaUiType === 'auto';
+      /* An EXPRESSION's stored type is skipped in this chain.
+
+         The value is `{ is_expression: true, value: {...} }`, so the type saved
+         beside it describes that envelope — `hash` — not what the field holds.
+         With no `ui_type` to win first, that `hash` beat the schema's `auto`
+         and was handed to the expression editor as the return type to check
+         against: `1 + 2` on a field declared `auto` came back "This does not
+         fit. The expression returns int, and this field holds hash". A literal
+         `1` was fine, because a literal is stored as a plain value whose type
+         matches.
+
+         Dropping the stored type here lets the schema decide, which is the
+         only party that knows what the field accepts. This is the row
+         renderer's OWN resolution and does not go through
+         `getOptionFieldStorageType`, so guarding that one alone left this
+         untouched. */
+      const storedRowType = other.is_expression ? undefined : type;
       const resolvedType =
         (isFixedCompactAllowedValueOption(optionSchema) ?
           getOptionSchemaStorageType(optionSchema, isRendererOnly)
         : schemaUiType && !uiTypeIsAnyLike ? schemaUiType
         : undefined) ||
-        type ||
+        storedRowType ||
         schemaUiType ||
         (optionSchema?.type as TQorusType) ||
         'any';
