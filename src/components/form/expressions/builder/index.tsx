@@ -996,11 +996,19 @@ export const Expression = ({
                       allowFunctions={!arg?.allowed_values && !arg?.element_allowed_values}
                       isFunction={rest[index]?.is_expression}
                       key={`${index}-${arg.ui_type}-${arg.display_name}-${level + 1}`}
-                      type={rest[index]?.type}
+                      // An empty argument has no value to take a type from; fall
+                      // back to the type the catalogue declares for it, as the
+                      // first-argument mount already does. Without this an
+                      // empty bool argument rendered as an untyped `auto` field
+                      // — a type picker under a label that already said
+                      // "true or false" — and an empty `any` argument never
+                      // qualified for the template-selector default, because
+                      // that rule reads `type`, and `type` was undefined.
+                      type={rest[index]?.type ?? arg.ui_type}
                       defaultType={
                         arg.allowed_values || arg.element_allowed_values
                           ? arg.ui_type
-                          : rest[index]?.type
+                          : (rest[index]?.type ?? arg.ui_type)
                       }
                       returnType={types.getAcceptedTypes(arg.ui_type) as any}
                       canBeNull={false}
