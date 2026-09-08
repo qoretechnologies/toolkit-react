@@ -421,6 +421,65 @@ export const TemplateField = memo(
       }
     }, [JSON.stringify(value)]);
 
+    /* Clearing an untyped field returns it to the template selector, which is
+       where mounting it empty already lands.
+
+       The rule above that opens an `any`-like field on the template selector is
+       a `useState` INITIALISER, so it only ever ran on mount. Clearing a value
+       in place does not remount anything, so the field fell through to the TYPE
+       picker and demanded `string`/`int`/`hash` before it would let the author
+       name a value they had already captured -- the very question that rule
+       exists to stop asking. Reloading the page fixed it, which is the tell:
+       same field, same empty value, different landing, because only one of the
+       two paths ran the rule.
+
+       Watched as a TRANSITION from a value to no value, not as "the value is
+       empty": an author who picks `Set Custom Value` on an empty field is
+       asking for the type picker, and re-asserting the template view on every
+       render while the field sat empty would take it away again immediately. */
+    const hadValue = useRef(!isEmptyValue);
+    /* A clear is REMEMBERED rather than acted on in the same render.
+
+       While the field holds a value its resolved type is that VALUE's type — a
+       reference reads as `test-reference`, not `auto` — and clearing reverts it
+       to the schema's `auto` one render LATER than the value empties. Acting
+       only on the transition therefore ran while `typeIsAnyLike` was still
+       false and did nothing, and by the time the type settled the transition
+       had passed. Measured in the live IDE at the moment of the clear:
+       `{ wasCleared: true, typeIsAnyLike: false, type: "test-reference",
+       hasTemplatesOnOffer: true }`, then `typeIsAnyLike: true` on the very next
+       render with `wasCleared` already false. */
+    const restoreSelectorWhenSettled = useRef(false);
+    /** Set by the template control's own `×`, which is an author saying "not a
+     *  template" — that clear must not be answered with the selector again. */
+    const suppressSelectorRestore = useRef(false);
+
+    useEffect(() => {
+      if (hadValue.current && isEmptyValue) {
+        restoreSelectorWhenSettled.current = !suppressSelectorRestore.current;
+        suppressSelectorRestore.current = false;
+      }
+      if (!isEmptyValue) {
+        // A value arrived: whatever the author did, they are not sitting on an
+        // empty field waiting to be offered the list.
+        restoreSelectorWhenSettled.current = false;
+      }
+      hadValue.current = !isEmptyValue;
+
+      if (
+        restoreSelectorWhenSettled.current &&
+        isEmptyValue &&
+        typeIsAnyLike &&
+        hasTemplatesOnOffer &&
+        allowTemplates &&
+        !effectiveIsFunction
+      ) {
+        restoreSelectorWhenSettled.current = false;
+        setTemplateValue(null);
+        setIsTemplate(true);
+      }
+    }, [isEmptyValue, typeIsAnyLike, hasTemplatesOnOffer, allowTemplates, effectiveIsFunction]);
+
     useEffect(() => {
       if (allowCustomValues && isTemplate && value && !isValueTemplate(value)) {
         setIsTemplate(false);
@@ -548,7 +607,15 @@ export const TemplateField = memo(
     // IDE-only, so the menu item is dropped (`allowSaving` is inert).
 
     const handleRemoveTemplateClick = useCallback(() => {
+      /* This is the `×` ON the template control, and it means "I do not want a
+         template here" — on a field whose menu offers no `Set Custom Value` it
+         is the ONLY way to reach a literal. So it still drops to the custom
+         value editor, and it tells the empty-field rule below to keep its hands
+         off this particular clear: that rule watches the value going away, and
+         this handler clears the value too, so without the flag it would send
+         the author straight back to the selector they just dismissed. */
       if (allowCustomValues) {
+        suppressSelectorRestore.current = true;
         setIsTemplate(false);
       }
 
