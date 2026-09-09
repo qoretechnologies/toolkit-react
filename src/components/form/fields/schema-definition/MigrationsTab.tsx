@@ -18,7 +18,7 @@ import {
 import { memo, useCallback } from 'react';
 import { Hint } from './Hint';
 import { CatalogGroupBody } from './CatalogNodeEditor';
-import { moveItem } from './helpers';
+import { moveItem } from '../../../../helpers/common';
 import { ICatalogList } from './types';
 
 export interface IMigrationsTabProps {

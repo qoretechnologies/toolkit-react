@@ -169,6 +169,24 @@ export const mockExpressions: IExpressionSchema[] = [
     groups: ['Math'],
     args: [{ name: 'int', display_name: 'Value', ui_type: 'int', required: true }],
   },
+  // --- Varargs (string) ----------------------------------------------------
+  // String twin of `+` — the reorder stories seed this one because "first",
+  // "second", "third" read as an order where int operands don't.
+  {
+    name: 'concat',
+    display_name: 'Concatenate Strings',
+    short_desc: 'Returns all arguments joined into one string',
+    desc: 'Returns all arguments joined into one string, in argument order. Accepts a variable number of string operands.',
+    symbol: 'concat',
+    type: 2,
+    subtype: 1,
+    return_type: 'string',
+    ui_return_type: 'string',
+    varargs: true,
+    min_args: 1,
+    groups: ['String'],
+    args: [{ name: 'softstring', display_name: 'Value', ui_type: 'string', required: true }],
+  },
   // --- Function expressions ------------------------------------------------
   // Single-arg type-conversion function. Used as the wrap/unwrap base: a
   // boolean-returning op with one operand ("Value To Convert").
