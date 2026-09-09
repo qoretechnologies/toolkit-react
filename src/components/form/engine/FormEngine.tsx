@@ -6,7 +6,6 @@ import {
   ReqoreIcon,
   ReqoreMessage,
   ReqoreP,
-  ReqoreSkeleton,
   ReqoreTag,
   ReqoreTagGroup,
   ReqoreVerticalSpacer,
@@ -79,6 +78,7 @@ import {
   isValueTemplate,
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
+import { FormFieldsSkeleton } from './FormFieldsSkeleton';
 import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer } from './compactRowContext';
 import {
   GROUP_INDENT,
@@ -3795,27 +3795,11 @@ const FormEngineImpl = ({
     (operatorsUrl && !operators) ||
     ((url || customUrl) && !options)
   ) {
-    return (
-      <ReqoreControlGroup
-        className='options-loading-skeleton'
-        vertical
-        fill
-        fluid
-        style={{ flexGrow: 1 }}
-        gapSize='big'
-      >
-        <ReqoreControlGroup fixed fill={false}>
-          <ReqoreSkeleton />
-          <ReqoreSkeleton />
-          <ReqoreSkeleton width='100%' />
-        </ReqoreControlGroup>
-        <ReqoreControlGroup vertical fill={false}>
-          <ReqoreSkeleton width='100%' height='150px' />
-          <ReqoreSkeleton width='100%' height='150px' />
-          <ReqoreSkeleton width='100%' height='150px' />
-        </ReqoreControlGroup>
-      </ReqoreControlGroup>
-    );
+    /* The shape of the FORM, not a generic block arrangement. This used to be
+       three bars over three big panels, which resembles nothing this gate is
+       waiting for and shared no vocabulary with the other waits on the same
+       page — see `FormFieldsSkeleton`. */
+    return <FormFieldsSkeleton className='options-loading-skeleton' />;
   }
 
   // A loader that rejected (and produced no usable schema) surfaces its error

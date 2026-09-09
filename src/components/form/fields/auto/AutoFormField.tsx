@@ -7,7 +7,6 @@ import {
   ReqoreControlGroup,
   ReqoreErrorBoundary,
   ReqoreMessage,
-  ReqoreSpinner,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
@@ -53,6 +52,7 @@ import { IDataSchemaDefinition } from '../schema-definition/types';
 import { ISelectFormFieldItem, SelectFormField } from '../select/Select';
 import { StringFormField } from '../string/String';
 import { UrlFormField } from '../url/Url';
+import { FormFieldsSkeleton } from '../../engine/FormFieldsSkeleton';
 
 /** UI superset of `TQorusType` — the IDE's `Field/systemOptions` `IQorusType`. */
 export type IQorusType = TQorusType | string;
@@ -464,7 +464,10 @@ function AutoField<T = any>({
   }
 
   if (arg_schema && !finalArgSchema) {
-    return <ReqoreSpinner size='small'>Loading field data...</ReqoreSpinner>;
+    /* One ROW, because this stands in for one field. It was a spinner reading
+       "Loading field data…", which is a different picture from every other
+       wait on the page and announces a delay the reader cannot act on. */
+    return <FormFieldsSkeleton rows={1} />;
   }
 
   const renderAllowedValues = (currentType: IQorusType) => {
