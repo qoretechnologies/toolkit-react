@@ -63,6 +63,33 @@ describe('template chip tooltips', () => {
     expect(map['$.typed']).toBe('Typed one');
   });
 
+  /* The shape a field with ONE category hands down. `templateItemsToShow` opens
+     a lone category onto its values where the templates are resolved, so this
+     is not an edge case — it is what the common field looks like by the time
+     the editor sees it, and reading only the grouped shape lost every tooltip
+     on exactly those fields. */
+  it('reads a flat list, which is what a lone category resolves to', () => {
+    const map = getChipTooltipDescriptions({
+      items: TEMPLATES.items[0].items,
+    } as never);
+
+    expect(map['$.result']).toBe('The value "call the service under test" stored (string)');
+    expect(map['$.name']).toBe('The name for this case');
+    expect(map['$.bare']).toBeUndefined();
+  });
+
+  it('reads a mixed list, where one category was hoisted and others were not', () => {
+    const map = getChipTooltipDescriptions({
+      items: [
+        { value: '$.loose', description: 'A hoisted leaf' },
+        { label: 'g', items: [{ value: '$.nested', description: 'Still in a group' }] },
+      ],
+    } as never);
+
+    expect(map['$.loose']).toBe('A hoisted leaf');
+    expect(map['$.nested']).toBe('Still in a group');
+  });
+
   it('survives a list with no items at all', () => {
     expect(getChipTooltipDescriptions(undefined as never)).toEqual({});
     expect(getChipTooltipDescriptions({ items: [] } as never)).toEqual({});

@@ -35,15 +35,27 @@ export const getChipTooltipDescriptions = (
 ): Record<string, string> => {
   const out: Record<string, string> = {};
 
-  (templates as any)?.items?.forEach((group: any) => {
-    group?.items?.forEach((item: any) => {
+  /* BOTH shapes, because this list arrives in either one. A picker's items are
+     normally grouped by category, but a LONE category is opened onto its values
+     where the templates are resolved (`templateItemsToShow`), so a field with
+     one category hands down a FLAT list of leaves. Walking only groups made
+     that the common case and silently lost every tooltip on it — one category
+     is the ordinary shape for a field, not the exception.
+
+     Recursive rather than two-level: a leaf is recognised by carrying a value
+     rather than by its depth, so a deeper catalogue works too. */
+  const collect = (items: any[] | undefined): void => {
+    items?.forEach((item: any) => {
       const value = typeof item?.value === 'object' ? item?.value?.value : item?.value;
       const description = item?.description ?? item?.short_desc;
       if (typeof value === 'string' && typeof description === 'string' && description) {
         out[value] = description;
       }
+      collect(item?.items);
     });
-  });
+  };
+
+  collect((templates as any)?.items);
 
   return out;
 };
