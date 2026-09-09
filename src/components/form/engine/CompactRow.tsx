@@ -1190,6 +1190,19 @@ export const CompactRow = memo(
     // stacks children flush, and the class rule that used to carry a 4px gap
     // never reached this element at all — which is why two messages read as one
     // two-tone block with no space between them.
+    /* A message is PROSE, so it is drawn by the host's prose renderer.
+    
+       `markdownRendererContext` says this package renders markdown "in exactly
+       one place — a field's description". That was one place short: a schema
+       message is written by the same author, in the same dialect, and it landed
+       here as a raw string. A Qorus warning reading "Give that step a **Fixture
+       Output**" showed the asterisks, and every reference inside it stayed a raw
+       `$.` path where the editor two lines above renders it as a named chip.
+    
+       `compact` for the same reason the row inset asks for it: this is a strip
+       inside a row, never a page, and markdown authored as a document opens with
+       a heading that would outgrow the field label above it. Without a host
+       renderer the string is drawn as it always was. */
     const renderInfoStrip = (m: TInfoMsg, index: number) => (
       <ReqoreMessage
         key={`${m.content}-${index}`}
@@ -1200,7 +1213,9 @@ export const CompactRow = memo(
         title={m.title}
         style={{ marginBottom: 8 }}
       >
-        {m.content}
+        {markdownRenderer && typeof m.content === 'string' ?
+          markdownRenderer({ value: m.content, compact: true })
+        : m.content}
       </ReqoreMessage>
     );
     const reasonColor = (intent?: string) =>
