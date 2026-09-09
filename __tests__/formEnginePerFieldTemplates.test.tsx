@@ -75,12 +75,19 @@ describe('a field may declare templates of its own', () => {
     // Wait on the field's own label so the assertion below is about a rendered
     // form and not an empty one.
     expect(await findByText('Actual')).toBeTruthy();
-    // The discriminator is which QUESTION the row asks. With the field's own
-    // list reaching the picker it offers the references ("Select Template");
-    // without it the row renders the type picker instead - an `any` pill over
-    // the nine types - which is the reported symptom.
-    expect(container.textContent).toContain('Select Template');
+    /* The discriminator is which QUESTION the row asks. With the field's own
+       list reaching it, the row offers the value; without it the row renders
+       the type picker instead — an `any` pill over the nine types — which is
+       the reported symptom.
+    
+       Asserted as the ABSENCE of the type question rather than the presence of
+       "Select Template": an untyped field is typable now, so its templates
+       arrive in an editor that offers them on focus rather than in a pick-only
+       dropdown. The negative case — no templates anywhere, so the type picker
+       IS the right question — is the test just below, which is what keeps this
+       from meaning "never ask for a type". */
     expect(queryByText('Please select data type')).toBeNull();
+    expect(container.querySelector('textarea, input:not([type="checkbox"])')).toBeTruthy();
   });
 
   it('still asks for a type when the field has no templates of its own and the shared list is empty', async () => {

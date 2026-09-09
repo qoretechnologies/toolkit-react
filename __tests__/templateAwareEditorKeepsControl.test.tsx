@@ -118,10 +118,21 @@ describe('a template-aware editor is not taken over by the selector', () => {
     expect(showsSelector(container)).toBe(false);
   });
 
-  it('still uses the selector for a type whose editor does NOT do templates', () => {
-    // The control: the selector is right for an ordinary any-like field, so the
-    // fix must not suppress it everywhere.
-    const { container } = renderField({ type: 'auto', isDefaultTemplate: true, value: undefined });
+  it('still uses the selector where there is nothing to type into', () => {
+    /* The control: this fix must not suppress the selector everywhere.
+    
+       It used to read "an ordinary any-like field keeps the selector", and that
+       premise is gone — an untyped field is typable now, and template mode
+       gives it an editor that offers the same list on focus. What is left, and
+       what this guards, is the field that may not hold a custom value: there is
+       nothing to type into it, so the picker is the whole control and removing
+       it would leave the row with none. */
+    const { container } = renderField({
+      type: 'auto',
+      isDefaultTemplate: true,
+      value: undefined,
+      allowCustomValues: false,
+    });
 
     expect(showsSelector(container)).toBe(true);
   });

@@ -704,8 +704,23 @@ export const TemplateField = memo(
     // the rich-text string mode.
     const templateValueIsBracedToken = isBracedTemplateToken(templateValue);
 
+    /* An UNTYPED field can be typed into as well as picked from.
+    
+       Template mode has a typable editor whenever the field's type can hold
+       arbitrary text, and `any`/`auto` can — it is the type that has not been
+       narrowed yet, not a type that excludes text. Restricting this to
+       `string` meant an empty untyped field opened on template mode with no
+       editor to offer, so it fell through to the pick-only "Select Template"
+       dropdown: a control that can only choose from a list, on exactly the
+       fields where an author most often needs to write something the list
+       cannot hold — a deeper walk, a literal, or an expression.
+    
+       Reported against a Qorus assertion's Expected Value, and it was never
+       specific to that field: every empty untyped field with templates on
+       offer got the same downgrade. The editor still offers the same templates
+       on focus, so nothing is lost by being able to type as well. */
     const templateSupportsCustomValues =
-      allowCustomValues && type === 'string' && !hasOnlyAllowedValues;
+      allowCustomValues && (type === 'string' || typeIsAnyLike) && !hasOnlyAllowedValues;
     const showTemplatesDropdown =
       allowTemplates && (!allowCustomValues || (isTemplate && !templateSupportsCustomValues));
     const hasOnlyExpressions = !allowCustomValues && !allowTemplates && allowFunctions;

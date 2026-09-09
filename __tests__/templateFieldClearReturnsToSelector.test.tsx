@@ -1,5 +1,11 @@
 /**
- * Clearing an untyped field returns it to the TEMPLATE selector.
+ * Clearing an untyped field never demands a data type.
+ *
+ * The landing changed once the untyped field became typable: it used to be the
+ * pick-only template SELECTOR, and it is now the editor that offers the same
+ * templates on focus. What these guard is the thing that was actually wrong,
+ * and still would be — the row asking "is this a Text or a Number?" about a
+ * value the author has already captured.
  *
  * `TemplateField` opens an `any`-like field on the template selector when there
  * is something to pick, and falls back to the TYPE picker only when there is
@@ -55,15 +61,22 @@ const renderField = (props: Record<string, unknown> = {}) =>
     </ReqoreUIProvider>
   );
 
-/** The discriminator: the template selector vs the type picker. */
+/** The discriminator: does the row ask for a data type, or offer the value? */
+const asksForDataType = (container: HTMLElement) =>
+  (container.textContent || '').includes('Please select data type');
+/** Anything that takes a keystroke. */
+const isTypable = (container: HTMLElement) =>
+  !!container.querySelector('textarea, input:not([type="checkbox"])');
 const showsTemplateSelector = (container: HTMLElement) =>
   (container.textContent || '').includes('Select Template');
 
 describe('clearing an untyped field with templates on offer', () => {
-  it('opens on the template selector when it mounts empty', async () => {
-    // The behaviour that already worked, and the reason a reload "fixed" it.
+  it('opens on a typable control when it mounts empty', async () => {
+    // The behaviour that already worked, and the reason a reload "fixed" it —
+    // the templates reach the field rather than the type question.
     const { container } = renderField({ value: undefined });
-    expect(showsTemplateSelector(container)).toBe(true);
+    expect(asksForDataType(container)).toBe(false);
+    expect(isTypable(container)).toBe(true);
   });
 
   it('shows the value, not the selector, when it mounts holding one', async () => {
@@ -73,7 +86,7 @@ describe('clearing an untyped field with templates on offer', () => {
     expect(showsTemplateSelector(container)).toBe(false);
   });
 
-  it('returns to the template selector when the value is cleared', async () => {
+  it('does not demand a type when the value is cleared', async () => {
     // The regression: mount with a value, then clear it in place.
     const { container, rerender } = renderField({ value: 'happy-path' });
     expect(showsTemplateSelector(container)).toBe(false);
@@ -94,10 +107,11 @@ describe('clearing an untyped field with templates on offer', () => {
       </ReqoreUIProvider>
     );
 
-    expect(showsTemplateSelector(container)).toBe(true);
+    expect(asksForDataType(container)).toBe(false);
+    expect(isTypable(container)).toBe(true);
   });
 
-  it('returns to the selector when the type settles a render AFTER the clear', async () => {
+  it('survives the type settling a render AFTER the clear', async () => {
     /* The shape the live IDE actually produces, and the reason an earlier fix
        did nothing. While the field holds a value its resolved type is that
        VALUE's type — a captured reference reads as `test-reference` — and the
@@ -132,7 +146,8 @@ describe('clearing an untyped field with templates on offer', () => {
     // the type settles back to the schema's `auto`
     rerender(props(undefined, 'auto'));
 
-    expect(showsTemplateSelector(container)).toBe(true);
+    expect(asksForDataType(container)).toBe(false);
+    expect(isTypable(container)).toBe(true);
   });
 
   it('leaves a typed field on its own editor when cleared', async () => {
