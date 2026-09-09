@@ -36,3 +36,8 @@ export type {
   IUseRenderExpressionResult,
 } from './expressions/useRenderExpression';
 export * from './expressions/ExpressionField';
+// The bare builder is public too: the library's own rule renders the shell at a
+// root field and the bare builder for nested operands, and a host that follows
+// it must be able to reach the builder without a deep import (#119).
+export { ExpressionBuilder } from './expressions/builder';
+export type { IExpressionBuilderProps } from './expressions/builder';
