@@ -581,6 +581,36 @@ export const summariseMarkdown = (value: unknown): string => {
   return capSummary(prose);
 };
 
+/**
+ * The expression AST a field holds, whichever shape it arrived in.
+ *
+ * An expression arrives in TWO shapes, and only the flat one used to be
+ * checked. At runtime the editor writes the flag onto the option
+ * (`{ is_expression: true, value: ast }`); a value read back from a saved draft
+ * carries the envelope NESTED (`{ value: { is_expression: true, value: ast } }`)
+ * with no flag on the option at all. Missing the nested shape sent a reloaded
+ * expression to the generic formatter, which printed the AST — the row showed
+ * `is_expression true / value / exp + / args 1 2` where the expression should
+ * be.
+ *
+ * Exported because the SUMMARY is not the only place that has to know. The AST
+ * is how an expression is stored, not what it is, so nothing may draw it as
+ * data: `CompactRow` asks this before deciding a hash-shaped value has earned a
+ * structured inset. Answering it in one place is what keeps the row's two
+ * halves — the line and the inset under it — talking about the same value.
+ */
+export const getExpressionAst = (option?: {
+  is_expression?: boolean;
+  value?: unknown;
+}): IExpressionValue | undefined =>
+  option?.is_expression ? (option?.value as IExpressionValue | undefined)
+  : (
+    (option?.value as { is_expression?: boolean; value?: IExpressionValue } | undefined)
+      ?.is_expression
+  ) ?
+    (option?.value as { value?: IExpressionValue }).value
+  : undefined;
+
 export const formatOptionValue = (
   option?: IQorusFormField,
   schema?: TQorusFormFieldSchema
@@ -597,21 +627,7 @@ export const formatOptionValue = (
     return '••••••';
   }
 
-  /* An expression arrives in TWO shapes, and only the flat one was checked.
-   *
-   * At runtime the editor writes the flag onto the option
-   * (`{ is_expression: true, value: ast }`); a value read back from a saved
-   * draft carries the envelope NESTED (`{ value: { is_expression: true,
-   * value: ast } }`) with no flag on the option at all. Missing the nested
-   * shape sent a reloaded expression to the generic formatter, which printed
-   * the AST — the row showed `is_expression true / value / exp + / args 1 2`
-   * where the expression should be. */
-  const expressionAst: IExpressionValue | undefined =
-    option?.is_expression ? (option?.value as IExpressionValue | undefined)
-    : (option?.value as { is_expression?: boolean; value?: IExpressionValue } | undefined)
-        ?.is_expression ?
-      (option?.value as { value?: IExpressionValue }).value
-    : undefined;
+  const expressionAst = getExpressionAst(option);
 
   if (expressionAst !== undefined) {
     // Offline summary of the {exp,args} AST already in the form value — the

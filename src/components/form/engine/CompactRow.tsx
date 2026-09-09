@@ -74,6 +74,7 @@ import {
   isFixedCompactAllowedValueOption,
   isOptionValueEmpty,
   optionHasImages,
+  getExpressionAst,
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
 import { TFieldWithOwnTemplates } from './rendererTypes';
@@ -1724,11 +1725,21 @@ export const CompactRow = memo(
     ];
     // A hash row reveals its sub-fields as read-only sub-rows under a "view
     // more" disclosure; the row itself still expands the real editor on click.
+    /* An EXPRESSION is not a hash, whatever shape it is stored in.
+    
+       `{is_expression: true, value: {exp, args}}` is hash-shaped, so a field
+       holding one earned the structured inset and the row printed the syntax
+       tree — `is_expression true / value / exp + / args 1 2` — directly under a
+       summary line that already read `1 + 2`. The AST is how an expression is
+       STORED, not what it is; the row's line is the whole value, and the
+       expression editor is where its parts are looked at. Same exclusion, and
+       for the same reason, as `schema-definition` beside it. */
     const hashEntries =
       (
         !hidden &&
         (valueType === 'hash' || valueType === 'free-hash') &&
-        (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition'
+        (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition' &&
+        getExpressionAst(optionField) === undefined
       ) ?
         getHashEntries(optionField, schema)
       : [];
