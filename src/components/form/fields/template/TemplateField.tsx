@@ -37,10 +37,7 @@ import {
   describeTemplateReference,
   isValueTemplate,
 } from '../../../../helpers/templates';
-import {
-  classifyTypedText,
-  mightBeDpqlExpression,
-} from '../../../../helpers/dpqlDetection';
+import { classifyTypedText, mightBeDpqlExpression } from '../../../../helpers/dpqlDetection';
 import { templateItemsToShow } from '../../../../helpers/templateItems';
 import { getTypeFromValue } from '../../../../helpers/validations';
 import { useDpqlProbe } from '../../../dpqlEditor/useDpqlProbe';
@@ -222,10 +219,9 @@ export const CustomMenuItems = memo(
     return (
       <ReqoreMenuSection label='Set Custom Value' isCollapsed transparent icon='Text' {...rest}>
         {items.map((menuItem, index) =>
-          'isDivider' in menuItem ? (
+          'isDivider' in menuItem ?
             <ReqoreMenuDivider key={index} {...menuItem} />
-          ) : (
-            <ReqoreButton
+          : <ReqoreButton
               {...(rest as any)}
               {...menuItem}
               key={index}
@@ -237,7 +233,6 @@ export const CustomMenuItems = memo(
                 });
               }}
             />
-          )
         )}
       </ReqoreMenuSection>
     );
@@ -299,7 +294,7 @@ export const TemplateDropdownSelector = memo(
             size={size}
             {...TemplatesListProps}
           />
-          {allowCustomValues || value ? (
+          {allowCustomValues || value ?
             <ReqoreButton
               customTheme={TemplatesListProps.listCustomTheme}
               fixed
@@ -311,7 +306,7 @@ export const TemplateDropdownSelector = memo(
               size={size}
               onClick={onRemoveClick}
             />
-          ) : null}
+          : null}
         </ReqoreControlGroup>
       </ReqoreControlGroup>
     );
@@ -333,10 +328,8 @@ export const TemplateDropdownSelector = memo(
  */
 export const BuiltInTemplateAwareUiTypes = ['richtext'];
 
-export const isTemplateAwareUiType = (
-  uiType?: string,
-  extra?: string[]
-): boolean => !!uiType && [...BuiltInTemplateAwareUiTypes, ...(extra ?? [])].includes(uiType);
+export const isTemplateAwareUiType = (uiType?: string, extra?: string[]): boolean =>
+  !!uiType && [...BuiltInTemplateAwareUiTypes, ...(extra ?? [])].includes(uiType);
 
 export const TemplateField = memo(
   ({
@@ -374,8 +367,7 @@ export const TemplateField = memo(
     const type = rest.ui_type || rest.type || rest.defaultType;
 
     const filteredTemplates = useMemo<IReqoreFormTemplates>(():
-      | IReqoreFormTemplates
-      | undefined => {
+      IReqoreFormTemplates | undefined => {
       if (!allowTemplates) {
         return undefined;
       }
@@ -390,7 +382,20 @@ export const TemplateField = memo(
         result = filterTemplatesFunc(result);
       }
 
-      return result;
+      /* A lone category is opened, once, HERE — where this control resolves the
+         templates every one of its pickers then reads: the "Select Template"
+         dropdown, the in-editor `$` list, the numeric field's focus dropdown and
+         the expression builder's argument picker. Applying it per picker meant
+         each new one had to remember, and the ones that forgot made the author
+         click through a header naming the only category on offer to reach the
+         only values on offer.
+
+         LAST, after both filters. `filterTemplatesFunc` is given the grouped
+         shape on purpose — the Qog expression builder filters top-level items by
+         `metadata.dataRole`, which is a property of the CATEGORY — so flattening
+         before it would hand it values and quietly change what it keeps. This
+         only changes what is finally shown. */
+      return { ...result, items: templateItemsToShow(result?.items) };
     }, [
       JSON.stringify(templates),
       type,
@@ -427,8 +432,7 @@ export const TemplateField = memo(
        below so every `setIsTemplate` path keeps working untouched; they simply
        stop having anything to say for these fields. */
     const editorHandlesTemplates =
-      !!allowTemplates &&
-      isTemplateAwareUiType(type as string, (rest as any).templateAwareUiTypes);
+      !!allowTemplates && isTemplateAwareUiType(type as string, (rest as any).templateAwareUiTypes);
 
     const [isTemplateState, setIsTemplate] = useState<boolean>(
       (isDefaultTemplate ||
@@ -612,7 +616,6 @@ export const TemplateField = memo(
     const componentTypeProp = componentFromType ? { type } : {};
     const fieldAriaLabel = rest['aria-label'] ?? label ?? rest.display_name ?? name;
 
-
     const handleTemplateFieldChange = useCallback(
       (_name: string, val: string) => {
         if (!val) {
@@ -631,11 +634,11 @@ export const TemplateField = memo(
       (item) => {
         // If the template type is richtext, we need to wrap the template value in the richtext template format
         const value =
-          item.badge === 'richtext'
-            ? ([
-                {
-                  type: 'paragraph',
-                  /* The empty text nodes on either side are load-bearing. A
+          item.badge === 'richtext' ?
+            ([
+              {
+                type: 'paragraph',
+                /* The empty text nodes on either side are load-bearing. A
                      chip is an inline VOID: it holds no text of its own, so the
                      only places a cursor can go are the text nodes AROUND it.
                      Slate treats that as an invariant and repairs it during
@@ -643,22 +646,26 @@ export const TemplateField = memo(
                      handed in whole as a controlled value — which is what this
                      is. Without them the picked template renders as a chip that
                      cannot be typed after, so it can never be extended by hand. */
-                  children: [
-                    { text: '' },
-                    {
-                      children: [{ text: '' }],
-                      label: item.label,
-                      type: 'tag',
-                      value: item.value,
-                      metadata: item.metadata,
-                    },
-                    { text: '' },
-                  ],
-                },
-              ] as IReqoreRichTextEditorProps['value'])
-            : item.value;
+                children: [
+                  { text: '' },
+                  {
+                    children: [{ text: '' }],
+                    label: item.label,
+                    type: 'tag',
+                    value: item.value,
+                    metadata: item.metadata,
+                  },
+                  { text: '' },
+                ],
+              },
+            ] as IReqoreRichTextEditorProps['value'])
+          : item.value;
 
-        onChange(name, value, hasOnlyAllowedValues ? (type as TQorusType) : (item.badge as TQorusType));
+        onChange(
+          name,
+          value,
+          hasOnlyAllowedValues ? (type as TQorusType) : (item.badge as TQorusType)
+        );
       },
       [name, onChange]
     );
@@ -851,28 +858,30 @@ export const TemplateField = memo(
       detectTimer.current = setTimeout(() => {
         detectTimer.current = null;
 
-        void probeDpql(text).then((parsed) => {
-          if (cancelled) {
-            return;
-          }
+        void probeDpql(text)
+          .then((parsed) => {
+            if (cancelled) {
+              return;
+            }
 
-          const outcome = classifyTypedText({ text, type, field: validationField, parsed });
+            const outcome = classifyTypedText({ text, type, field: validationField, parsed });
 
-          if (outcome === 'switch') {
-            enterExpressionRef.current(text, parsed.expression);
-          } else if (outcome === 'offer') {
-            setDpqlOffer({ text, expression: parsed.expression });
-          } else {
-            setDpqlOffer(null);
-          }
-        }).catch(() => {
-          // Detection is an offer of help, never a reason for a field to
-          // break: an unreachable instance or a classifier that threw leaves
-          // the author's text exactly where they put it.
-          if (!cancelled) {
-            setDpqlOffer(null);
-          }
-        });
+            if (outcome === 'switch') {
+              enterExpressionRef.current(text, parsed.expression);
+            } else if (outcome === 'offer') {
+              setDpqlOffer({ text, expression: parsed.expression });
+            } else {
+              setDpqlOffer(null);
+            }
+          })
+          .catch(() => {
+            // Detection is an offer of help, never a reason for a field to
+            // break: an unreachable instance or a classifier that threw leaves
+            // the author's text exactly where they put it.
+            if (!cancelled) {
+              setDpqlOffer(null);
+            }
+          });
       }, DPQL_DETECT_DEBOUNCE_MS);
 
       return () => {
@@ -891,32 +900,32 @@ export const TemplateField = memo(
       const showTemplatesButton = showTemplateToggle && !isTemplate;
 
       if (hasOnlyExpressions) {
-        return showFunctionsDropdown ? (
-          functions.loading ? (
-            <ReqoreSkeleton size={rest.size} />
-          ) : (
-            <ReqoreButton
-              compact
-              minimal
-              label='Create New Expression'
-              className='function-selector'
-              icon='Functions'
-              tooltip='This field only accepts expressions'
-              onClick={() => {
-                setIsTemplate(false);
-                setTemplateValue(null);
-                onChange?.(
-                  name,
-                  {
-                    args: [],
-                  },
-                  undefined,
-                  true
-                );
-              }}
-            />
-          )
-        ) : null;
+        return (
+          showFunctionsDropdown ?
+            functions.loading ?
+              <ReqoreSkeleton size={rest.size} />
+            : <ReqoreButton
+                compact
+                minimal
+                label='Create New Expression'
+                className='function-selector'
+                icon='Functions'
+                tooltip='This field only accepts expressions'
+                onClick={() => {
+                  setIsTemplate(false);
+                  setTemplateValue(null);
+                  onChange?.(
+                    name,
+                    {
+                      args: [],
+                    },
+                    undefined,
+                    true
+                  );
+                }}
+              />
+          : null
+        );
       }
 
       if (showFunctionsDropdown || showTemplatesButton || size(menuItems) > 0) {
@@ -974,11 +983,10 @@ export const TemplateField = memo(
             handler='click'
             content={
               <ReqoreMenu size={rest.size} maxHeight='400px' style={{ overflow: 'auto' }}>
-                {showFunctionsDropdown ? (
-                  functions.loading ? (
+                {showFunctionsDropdown ?
+                  functions.loading ?
                     <ReqoreSkeleton size={rest.size} />
-                  ) : (
-                    <ReqoreButton
+                  : <ReqoreButton
                       compact
                       transparent
                       label='Use Expression'
@@ -987,10 +995,10 @@ export const TemplateField = memo(
                       tooltip='Run a function on this value'
                       onClick={handleSelectFunctionChange}
                     />
-                  )
-                ) : null}
 
-                {showTemplatesButton ? (
+                : null}
+
+                {showTemplatesButton ?
                   <ReqoreButton
                     transparent
                     icon='MoneyDollarCircleLine'
@@ -1003,15 +1011,15 @@ export const TemplateField = memo(
                     {' '}
                     Use Template{' '}
                   </ReqoreButton>
-                ) : null}
+                : null}
 
-                {size(menuItems) > 0 ? (
+                {size(menuItems) > 0 ?
                   <CustomMenuItems
                     items={menuItems}
                     setIsTemplate={setIsTemplate}
                     setTemplateValue={setTemplateValue}
                   />
-                ) : null}
+                : null}
               </ReqoreMenu>
             }
           />
@@ -1044,12 +1052,12 @@ export const TemplateField = memo(
     // This is a special case only for lists with element types
     const componentTemplates = useMemo(
       () =>
-        type === 'list' && (rest.ui_element_type || rest.element_type)
-          ? templates
-          : {
-              ...filteredTemplates,
-              ...TemplatesListProps,
-            },
+        type === 'list' && (rest.ui_element_type || rest.element_type) ?
+          templates
+        : {
+            ...filteredTemplates,
+            ...TemplatesListProps,
+          },
       [JSON.stringify(filteredTemplates), rest.ui_element_type, rest.element_type, type]
     );
 
@@ -1088,7 +1096,7 @@ export const TemplateField = memo(
                 defaultMode={expressionFromText !== null ? 'text' : 'visual'}
               />
             </ReqoreErrorBoundary>
-            {expressionFromText !== null ? (
+            {expressionFromText !== null ?
               <ReqoreButton
                 fixed
                 compact
@@ -1103,7 +1111,7 @@ export const TemplateField = memo(
               >
                 Undo
               </ReqoreButton>
-            ) : null}
+            : null}
             {renderControls()}
           </ReqoreControlGroup>
         );
@@ -1164,7 +1172,7 @@ export const TemplateField = memo(
         stack={false}
         verticalAlign='flex-start'
       >
-        {!isTemplate && allowCustomValues ? (
+        {!isTemplate && allowCustomValues ?
           <Component
             value={value}
             allowTemplates={allowTemplates}
@@ -1178,9 +1186,9 @@ export const TemplateField = memo(
             className={`${className} template-selector`}
             templates={componentTemplates}
           />
-        ) : null}
+        : null}
 
-        {isTemplate && templateSupportsCustomValues && !templateValueIsBracedToken ? (
+        {isTemplate && templateSupportsCustomValues && !templateValueIsBracedToken ?
           <LongStringField
             className='template-selector'
             type='string'
@@ -1195,9 +1203,9 @@ export const TemplateField = memo(
             {...rest}
             aria-label={fieldAriaLabel}
           />
-        ) : null}
+        : null}
 
-        {dpqlOffer ? (
+        {dpqlOffer ?
           <ReqoreControlGroup fixed stack size={rest.size}>
             <ReqoreButton
               compact
@@ -1218,10 +1226,12 @@ export const TemplateField = memo(
               onClick={declineDpqlOffer}
             />
           </ReqoreControlGroup>
-        ) : null}
+        : null}
 
-        {showTemplatesDropdown ||
-        (isTemplate && templateSupportsCustomValues && templateValueIsBracedToken) ? (
+        {(
+          showTemplatesDropdown ||
+          (isTemplate && templateSupportsCustomValues && templateValueIsBracedToken)
+        ) ?
           <TemplateDropdownSelector
             allowCustomValues={allowCustomValues}
             templates={templates}
@@ -1233,7 +1243,7 @@ export const TemplateField = memo(
             label={label}
             hasOnlyAllowedValues={hasOnlyAllowedValues}
           />
-        ) : null}
+        : null}
 
         {renderControls()}
       </ReqoreControlGroup>

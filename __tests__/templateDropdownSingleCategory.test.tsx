@@ -52,3 +52,45 @@ describe('templateItemsToShow', () => {
     expect(templateItemsToShow(none)).toBe(none);
   });
 });
+
+/**
+ * Where the rule is applied, and why it is applied THERE.
+ *
+ * Every picker this control offers reads the same resolved template list — the
+ * "Select Template" dropdown, the in-editor `$` list, the numeric field's focus
+ * dropdown, the expression builder's argument picker. Applying the rule per
+ * picker meant each new one had to remember; the ones that forgot made the
+ * author click through a header naming the only category on offer to reach the
+ * only values on offer, which is what was reported against a Qorus assertion's
+ * Expected Value.
+ */
+describe('a lone category, wherever the templates are read', () => {
+  const grouped = {
+    items: [
+      {
+        label: 'Values this case captures',
+        items: [
+          { label: 'result', value: '$.result' },
+          { label: 'mode', value: '$._case.mode' },
+        ],
+      },
+    ],
+  };
+
+  it('is opened once, on the resolved list every picker shares', () => {
+    // The shape `TemplateField` hands down as `componentTemplates`.
+    const resolved = { ...grouped, items: templateItemsToShow(grouped.items) };
+
+    expect(resolved.items).toEqual([
+      { label: 'result', value: '$.result' },
+      { label: 'mode', value: '$._case.mode' },
+    ]);
+  });
+
+  it('is idempotent, so a picker that applies it again changes nothing', () => {
+    // Both pickers still call it for their own sake — one may be used directly,
+    // without this field around it.
+    const once = templateItemsToShow(grouped.items);
+    expect(templateItemsToShow(once)).toBe(once);
+  });
+});
