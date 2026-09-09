@@ -38,7 +38,11 @@ import {
   isValueTemplate,
 } from '../../../../helpers/templates';
 import { classifyTypedText, mightBeDpqlExpression } from '../../../../helpers/dpqlDetection';
-import { templateItemsToShow } from '../../../../helpers/templateItems';
+import {
+  renderTemplateItemDescriptions,
+  templateItemsToShow,
+} from '../../../../helpers/templateItems';
+import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 import { getTypeFromValue } from '../../../../helpers/validations';
 import { useDpqlProbe } from '../../../dpqlEditor/useDpqlProbe';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
@@ -251,7 +255,14 @@ export const TemplateDropdownSelector = memo(
     size,
     ...rest
   }: ITemplateDropdownSelectorProps) => {
-    const shownItems = useMemo(() => templateItemsToShow(items), [items]);
+    /* The LAST hop before Reqore, which is the only place a drawn description
+       may be made: `filteredTemplates` upstream is a `JSON.stringify` memo key,
+       and an element in it throws on its own circular owner. */
+    const renderMarkdown = useMarkdownRenderer();
+    const shownItems = useMemo(
+      () => renderTemplateItemDescriptions(templateItemsToShow(items), renderMarkdown),
+      [items, renderMarkdown]
+    );
 
     // One resolver for every surface that names a reference — the picker chip
     // here, the read-only tag, and the compact row's expression summary. The

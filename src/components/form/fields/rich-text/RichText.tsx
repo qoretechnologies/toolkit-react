@@ -4,11 +4,16 @@ import {
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
+import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import { isEqual, size } from 'lodash';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useDebounce } from 'react-use';
-import { templateItemsToShow } from '../../../../helpers/templateItems';
+import {
+  renderTemplateItemDescriptions,
+  templateItemsToShow,
+} from '../../../../helpers/templateItems';
 import { getTemplateTagStyle } from '../../../../helpers/templates';
+import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 
 export interface IRichTextFormFieldProps extends Omit<
   IReqoreRichTextEditorProps,
@@ -98,6 +103,10 @@ export const RichTextFormField = memo(({
     setLocalValue(val);
   };
 
+  // One renderer for both surfaces below — the chip's hover and the picker rows
+  // show the same strings, so they must be drawn the same way.
+  const renderMarkdown = useMarkdownRenderer();
+
   const descriptionByValue = useMemo(() => getChipTooltipDescriptions(templates), [
     JSON.stringify(templates),
   ]);
@@ -123,14 +132,35 @@ export const RichTextFormField = memo(({
              author already chose, restating the label in engine syntax instead
              of telling them anything. The path stays discoverable in the
              field's help and in the picker row for an unlabelled value. */
-          tooltip: descriptionByValue[tagValue] || undefined,
+          /* Drawn, for the same reason the picker row is: this description is
+             the SAME string the row shows, so leaving it raw here would print
+             the punctuation the row no longer prints. A tooltip's `content`
+             takes a node, and without a host renderer it stays the plain
+             string it always was. */
+          /* Drawn, for the same reason the picker row is: this is the SAME
+             string the row shows, so leaving it raw here would print the
+             punctuation the row no longer prints. A drawn description travels
+             as the tooltip's `content` — the prop itself is `string |
+             IReqoreTooltip`, and only the object form takes a node. Without a
+             host renderer it stays the plain string it always was. */
+          tooltip:
+            descriptionByValue[tagValue] ?
+              renderMarkdown ?
+                {
+                  content: renderMarkdown({
+                    value: descriptionByValue[tagValue],
+                    compact: true,
+                  }) as IReqoreTooltip['content'],
+                }
+              : descriptionByValue[tagValue]
+            : undefined,
           ...getTemplateTagStyle(tag.metadata),
         };
       }
 
       return {};
     },
-    [descriptionByValue]
+    [descriptionByValue, renderMarkdown]
   );
 
   const tags = useMemo<IReqoreRichTextEditorProps['tags']>((): IReqoreRichTextEditorProps['tags'] => {
@@ -145,12 +175,17 @@ export const RichTextFormField = memo(({
         /* The in-editor list already nests everything under "Templates", so a
            lone category makes the author drill through TWO headers to reach
            the only values on offer. Hoist it. */
-        items: templateItemsToShow(templates?.items),
+        /* Drawn here, at the hand-off to Reqore. A description is prose written
+           in the same markdown as every other description this package shows,
+           and printing its punctuation at the reader was the last surface still
+           doing that. Never made further up: the list is a `JSON.stringify`
+           memo key in `TemplateField`. */
+        items: renderTemplateItemDescriptions(templateItemsToShow(templates?.items), renderMarkdown),
       };
     }
 
     return _tags;
-  }, [allowTemplates, templates]);
+  }, [allowTemplates, templates, renderMarkdown]);
 
   const formattedValue: IReqoreRichTextEditorProps['value'] =
     typeof localValue !== 'object' ? [{ type: 'paragraph', children: [{ text: String(localValue ?? '') }] }]
