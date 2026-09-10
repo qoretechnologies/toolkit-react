@@ -3799,7 +3799,7 @@ const FormEngineImpl = ({
        three bars over three big panels, which resembles nothing this gate is
        waiting for and shared no vocabulary with the other waits on the same
        page — see `FormFieldsSkeleton`. */
-    return <FormFieldsSkeleton className='options-loading-skeleton' />;
+    return <FormFieldsSkeleton fill className='options-loading-skeleton' />;
   }
 
   // A loader that rejected (and produced no usable schema) surfaces its error

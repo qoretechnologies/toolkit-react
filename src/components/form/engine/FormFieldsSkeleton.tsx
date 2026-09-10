@@ -3,6 +3,20 @@ import { ReqoreControlGroup, ReqoreSkeleton } from '@qoretechnologies/reqore';
 export interface IFormFieldsSkeletonProps {
   /** How many field rows to stand in for. */
   rows?: number;
+  /**
+   * Fill the height of the slot instead of being as tall as its rows.
+   *
+   * For a wait that stands in for a WHOLE form. Sizing from the row count makes
+   * the placeholder a different height from the thing that replaces it, so the
+   * swap resizes the container and everything jumps — measured on the live IDE
+   * at 396px of skeleton in an 835px slot. Filling the slot keeps the geometry
+   * still across the swap.
+   *
+   * NOT the default: a wait that stands in for one field or a nested hash is
+   * meant to be the size of that field, and stretching it to fill a panel would
+   * be a bigger lie than the jump.
+   */
+  fill?: boolean;
   className?: string;
 }
 
@@ -21,13 +35,17 @@ export interface IFormFieldsSkeletonProps {
  * count is the only thing a caller varies: a nested field standing in for
  * itself asks for one, a whole form for several.
  */
-export const FormFieldsSkeleton = ({ rows = 6, className }: IFormFieldsSkeletonProps) => (
+export const FormFieldsSkeleton = ({ rows = 6, fill, className }: IFormFieldsSkeletonProps) => (
   <ReqoreControlGroup
     className={className}
     vertical
     fluid
     gapSize='big'
-    style={{ padding: '12px 6px', width: '100%' }}
+    style={{
+      padding: '12px 6px',
+      width: '100%',
+      ...(fill ? { flex: '1 1 auto', minHeight: 0 } : {}),
+    }}
   >
     {Array.from({ length: rows }).map((_, index) => (
       <ReqoreControlGroup key={index} vertical fluid gapSize='tiny'>
