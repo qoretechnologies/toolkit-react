@@ -930,6 +930,28 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   optionActionsCollapse?: 'auto' | 'always' | 'never';
   /**
+   * The HOST is still loading something this form needs.
+   *
+   * Declared because it was already read (`rest.skeleton`) and honoured by the
+   * loading gate, but undeclared props are invisible to the people who need
+   * them — and the reason to reach for this is not obvious.
+   *
+   * A host that resolves anything before it can render a form — an option list
+   * fetched by `get_message`, a schema id resolved over the wire — has a wait of
+   * its own that ends just as this component's begins. Drawing its own
+   * placeholder for that first half and then handing over produces TWO
+   * placeholders in series for one load, from two different components: the DOM
+   * node is replaced, the geometry can differ, and the page relayouts in the
+   * middle of waiting. Measured on the Qorus alert rule, whose three sections
+   * each did this — six placeholder mounts where three would do.
+   *
+   * Passing the host's own wait in here instead makes ONE component own the
+   * whole wait, from the host's first fetch to this form's last, with one
+   * placeholder and one DOM node.
+   */
+  skeleton?: boolean;
+
+  /**
    * SEAM (reqraft): consumer-injected field editors for types reqraft doesn't
    * ship (IDE domain fields). Keyed by field `type`/`ui_type`; forwarded through
    * `TemplateField` to the `AutoFormField` override seam.
