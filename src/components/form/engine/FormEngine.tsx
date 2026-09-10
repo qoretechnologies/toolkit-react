@@ -950,6 +950,15 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * placeholder and one DOM node.
    */
   skeleton?: boolean;
+  /**
+   * What the HOST is waiting for, when it hands its wait down via `skeleton`.
+   *
+   * Without it every host wait reads as the same word and the reading stops at
+   * the package boundary — measured on the live alert rule, three sections all
+   * reported `host` and the next step was guessing which of the host's own five
+   * conditions had fired. Surfaced as `data-wait` on the placeholder.
+   */
+  skeletonReason?: string;
 
   /**
    * SEAM (reqraft): consumer-injected field editors for types reqraft doesn't
@@ -3821,21 +3830,25 @@ const FormEngineImpl = ({
     );
   };
 
-  if (
-    rest.skeleton ||
-    templates.loading ||
-    typesLoading ||
-    optionsLoading ||
-    // Remote-fetch gates, mirroring IDE Options (systemOptions.tsx:1097-1102).
-    loading ||
-    (operatorsUrl && !operators) ||
-    ((url || customUrl) && !options)
-  ) {
+  /* Which of the seven waits is holding the form, in the order they are
+     tested. Rendered as `data-wait` on the placeholder so a page can be asked
+     what it is waiting FOR instead of only that it is waiting. */
+  const waitReason =
+    rest.skeleton ? (rest.skeletonReason ? `host:${rest.skeletonReason}` : 'host')
+    : templates.loading ? 'templates'
+    : typesLoading ? 'types'
+    : optionsLoading ? 'options'
+    : loading ? 'fetch'
+    : operatorsUrl && !operators ? 'operators'
+    : (url || customUrl) && !options ? 'schema'
+    : undefined;
+
+  if (waitReason) {
     /* The shape of the FORM, not a generic block arrangement. This used to be
        three bars over three big panels, which resembles nothing this gate is
        waiting for and shared no vocabulary with the other waits on the same
        page — see `FormFieldsSkeleton`. */
-    return <FormFieldsSkeleton fill className='options-loading-skeleton' />;
+    return <FormFieldsSkeleton fill className='options-loading-skeleton' reason={waitReason} />;
   }
 
   // A loader that rejected (and produced no usable schema) surfaces its error

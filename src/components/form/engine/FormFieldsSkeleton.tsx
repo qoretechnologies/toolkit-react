@@ -18,6 +18,17 @@ export interface IFormFieldsSkeletonProps {
    */
   fill?: boolean;
   className?: string;
+  /**
+   * Which wait this placeholder stands for, surfaced as `data-wait`.
+   *
+   * A form has seven independent reasons to be waiting and they all draw the
+   * same picture, so "the form is still a placeholder at 2039ms" says nothing
+   * about what to fix — measured on the live alert rule, three sections cleared
+   * in the same commit and neither of the two shared waits (`types`, 140ms;
+   * `templates`, 1500ms) explained it. Naming the reason in the DOM turns that
+   * from a guess into a reading.
+   */
+  reason?: string;
 }
 
 /**
@@ -35,9 +46,15 @@ export interface IFormFieldsSkeletonProps {
  * count is the only thing a caller varies: a nested field standing in for
  * itself asks for one, a whole form for several.
  */
-export const FormFieldsSkeleton = ({ rows = 6, fill, className }: IFormFieldsSkeletonProps) => (
+export const FormFieldsSkeleton = ({
+  rows = 6,
+  fill,
+  className,
+  reason,
+}: IFormFieldsSkeletonProps) => (
   <ReqoreControlGroup
     className={className}
+    data-wait={reason}
     vertical
     fluid
     gapSize='big'
