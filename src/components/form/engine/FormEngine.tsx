@@ -3043,7 +3043,21 @@ const FormEngineImpl = ({
         fields: false,
         help: false,
       },
-      hasMultipleOptions: size(availableOptions) > 1,
+      /* From the SCHEMA, not from the value.
+       *
+       * `availableOptions` is keyed off the form's VALUE, so it grows as data
+       * arrives — and the search row is rendered only when this is true
+       * (`CompactToolbar`). A form whose value lands after its first render
+       * therefore ADDED a 38px row to its header a beat later, and everything
+       * below it moved. Measured on the Qorus IDE's test editor, on the nested
+       * sub-form of a case: 33 elements jumped down 51px in one frame, on every
+       * cold load.
+       *
+       * How many fields a form has is a property of its schema. The two agree
+       * once the value has arrived — `fixOptions` materialises an entry per
+       * declared field — so this only changes the answer during the load, which
+       * is the whole point. */
+      hasMultipleOptions: size(options) > 1,
       compactQuery,
       setCompactQuery,
       requiredOnly,
@@ -3498,7 +3512,7 @@ const FormEngineImpl = ({
                   // Mirrors the toolbar's own search-row gate: when no search
                   // row renders, the header is a thin strip and sits tight to
                   // the first status box (see StyledCompactPanel).
-                  $tightHeader={!(compactToolbarParts?.search && size(availableOptions) > 1)}
+                  $tightHeader={!(compactToolbarParts?.search && size(options) > 1)}
                   // The top-level form scrolls, so its toolbar STICKS and carries a
                   // dark blurred backdrop so content ghosts cleanly beneath it. A
                   // nested (arg_schema) sub-form owns no scroll context — drop the
