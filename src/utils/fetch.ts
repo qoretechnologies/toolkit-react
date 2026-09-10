@@ -129,7 +129,8 @@ async function doFetchData(
     ...(headers ?? {}),
   };
 
-  const finalToken = token ?? (fetchConfig.instanceRbacDisabled ? undefined : fetchConfig.instanceToken);
+  const finalToken =
+    token ?? (fetchConfig.instanceRbacDisabled ? undefined : fetchConfig.instanceToken);
 
   if (finalToken && !finalHeaders['Authorization']) {
     finalHeaders['Authorization'] = `Bearer ${finalToken}`;
@@ -139,12 +140,15 @@ async function doFetchData(
   // another service, which is the only thing reqraft itself uses it for
   // (`useExpressions` sets it exactly when `expressionsUrl` is `http(s)://…`).
   // Prepending the instance there built `https://instance:8011/https://other/…`.
-  return fetch(`${noApiPrefix ? '' : `${instance}api/latest/`}${reqraftApiPath(url, noApiPrefix)}`, {
-    method,
-    headers: finalHeaders,
-    body: JSON.stringify(body),
-    credentials: 'include',
-  }).catch((error) => {
+  return fetch(
+    `${noApiPrefix ? '' : `${instance}api/latest/`}${reqraftApiPath(url, noApiPrefix)}`,
+    {
+      method,
+      headers: finalHeaders,
+      body: JSON.stringify(body),
+      credentials: 'include',
+    }
+  ).catch((error) => {
     return new Response(JSON.stringify({}), {
       status: 500,
       statusText: `Request failed ${error.message}`,
@@ -228,6 +232,53 @@ const readBody = async (response: Response): Promise<{ data: any; rawText?: stri
  * caches over one API cannot see each other's in-flight requests, so any
  * resource both libraries want is fetched twice by construction.
  */
+/**
+ * Put a resource the HOST already has into the cache `query` reads.
+ *
+ * The comment on `query` states the problem: two caches over one API cannot see
+ * each other's in-flight requests, so any resource both libraries want is
+ * fetched twice by construction. This is the seam that lets a host settle it
+ * without either side giving up its own loader.
+ *
+ * The case it was written for: the Qorus IDE warm-starts
+ * `/system/qorus-type-info` from `index.html`, before the bundle has even
+ * parsed, because its whole boot gates on it — and then reqraft's own
+ * `useQorusTypes` asked for it again on the first form's mount. Measured on the
+ * live IDE at 419ms and 2777ms, the same URL, the same answer.
+ *
+ * Seeding is enough to stop the second request: `query` goes through
+ * `fetchQuery` with a `staleTime`, and a fresh entry is returned without the
+ * query function ever running. `useFetch` reads the same cache directly, so it
+ * also skips its loading state and renders the answer on its first paint.
+ *
+ * Only for a resource the host has genuinely FETCHED. Seeding a guess would
+ * make every consumer believe a request had succeeded.
+ */
+export const seedQueryCache = <T>({
+  url,
+  method = 'GET',
+  body,
+  noApiPrefix,
+  instance,
+  token,
+  data,
+  queryClient = ReqraftQueryClient,
+}: Pick<
+  IReqraftQueryConfig,
+  'url' | 'method' | 'body' | 'noApiPrefix' | 'instance' | 'token' | 'queryClient'
+> & { data: T }): void => {
+  const key = reqraftCacheKey({ url, method, body, noApiPrefix, instance, token });
+
+  queryClient.setQueryData([key], {
+    data,
+    rawText: undefined,
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    response: undefined,
+  });
+};
+
 export async function query<T>({
   url,
   method = 'GET',
@@ -243,8 +294,7 @@ export async function query<T>({
   redirectOnUnauthorized = true,
 }: IReqraftQueryConfig): Promise<IReqraftFetchResponse<T>> {
   const shouldCache = method === 'DELETE' || method === 'POST' ? false : cache;
-  const key =
-    cacheKey ?? reqraftCacheKey({ url, method, body, noApiPrefix, instance, token });
+  const key = cacheKey ?? reqraftCacheKey({ url, method, body, noApiPrefix, instance, token });
 
   const requestData = await queryClient.fetchQuery({
     queryKey: [key],
@@ -335,10 +385,18 @@ export async function queryRaw({
   accept?: string;
 }): Promise<IReqraftRawResponse> {
   try {
-    const response = await doFetchData(url, method, body, noApiPrefix, instance, {
-      Accept: accept,
-      ...(headers ?? {}),
-    }, token);
+    const response = await doFetchData(
+      url,
+      method,
+      body,
+      noApiPrefix,
+      instance,
+      {
+        Accept: accept,
+        ...(headers ?? {}),
+      },
+      token
+    );
 
     if (response.status === 401 && redirectOnUnauthorized && fetchConfig.unauthorizedRedirect) {
       window.location.replace(fetchConfig.unauthorizedRedirect(window.location));
