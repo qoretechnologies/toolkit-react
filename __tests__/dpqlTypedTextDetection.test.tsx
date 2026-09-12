@@ -273,3 +273,76 @@ describe('DPQL typed into a plain field', () => {
     }));
   });
 });
+
+/**
+ * A rich-text field is still text, so detection still applies to it.
+ *
+ * Reported after a test assertion's **Value** became a rich-text editor: it
+ * hands its value back as a Slate DOCUMENT rather than a flattened string —
+ * deliberately, so a chosen reference cannot fuse with text typed beside it —
+ * and the detection effect read `typeof value === 'string'`. Every rich-text
+ * field therefore stopped offering *"Use as expression"* the moment it changed
+ * shape, with nothing in the UI to say why.
+ *
+ * The offer is about what the author TYPED, and a document's prose is what they
+ * typed.
+ */
+describe('a value that is a richtext document', () => {
+  beforeEach(() => {
+    probe.mockReset();
+  });
+
+  const document = (text: string) => [{ type: 'paragraph', children: [{ text }] }];
+
+  it('offers the expression for prose that reads as one', async () => {
+    probe.mockResolvedValue(expressionResult('+'));
+
+    render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext as any}>
+          <TemplateField
+            name='opt'
+            aria-label='Option'
+            value={document('1 + 2')}
+            type='string'
+            defaultType='string'
+            allowFunctions
+            allowTextExpressions
+            allowTemplates={false}
+            onChange={vi.fn()}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+
+    await waitFor(() => expect(probe).toHaveBeenCalledWith('1 + 2'));
+    await findOffer();
+  });
+
+  it('does not offer one for a document holding only a reference chip', async () => {
+    // A chosen reference flattens to `$.result`, which carries no operator, so
+    // the field must not even ask the server about it.
+    render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext as any}>
+          <TemplateField
+            name='opt'
+            aria-label='Option'
+            value={[
+              { type: 'paragraph', children: [{ type: 'tag', value: '$.result', children: [{ text: '' }] }] },
+            ]}
+            type='string'
+            defaultType='string'
+            allowFunctions
+            allowTextExpressions
+            allowTemplates={false}
+            onChange={vi.fn()}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+
+    await waitFor(() => expect(offer()).toBeNull());
+    expect(probe).not.toHaveBeenCalled();
+  });
+});

@@ -38,6 +38,8 @@ import {
   TQorusFormOperatorValue,
   TQorusType,
 } from '@qoretechnologies/ts-toolkit';
+import { shouldMarkAsExpression } from '../expressions/argumentPresence';
+import { offersTypeChoices } from './typeChoices';
 import { resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
 import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last } from 'lodash';
@@ -62,6 +64,7 @@ import {
 import {
   IValidationResult,
   hasAllDependenciesFullfilled,
+  parseDependency,
   validateField,
   validateFieldWithResult,
 } from '../../../helpers/validations';
@@ -1005,6 +1008,19 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * (`richtext`), the same way `rendererOnlyUiTypes` is.
    */
   templateAwareUiTypes?: string[];
+  /**
+   * Extra `ui_type` names that mean "a value of any type", for the purpose of
+   * offering the per-type choices in the row's menu.
+   *
+   * A field that pins no concrete type offers "enter a value of type X" for
+   * each type the form knows. That was gated on the schema saying
+   * `ui_type: 'any'` alone, which misses two cases: an option that declares its
+   * untypedness as `type: 'auto'` and carries no `ui_type` at all (the server
+   * spells an assertion's Expected Value exactly that way), and an option whose
+   * `ui_type` is a HOST's own untyped editor. Merged with reqraft's built-ins
+   * (`any`, `auto`), the same way `templateAwareUiTypes` is.
+   */
+  anyLikeUiTypes?: string[];
 
   /**
    * Bag of values forwarded from an outer FormEngine scope, used as a
@@ -1154,6 +1170,7 @@ const FormEngineImpl = ({
   markdownRenderer: _markdownRenderer, // eslint-disable-line @typescript-eslint/no-unused-vars
   rendererOnlyUiTypes,
   templateAwareUiTypes,
+  anyLikeUiTypes,
   inheritedFromParent,
   autoFocusFirstRequired,
   expandFirstRequired,
@@ -1709,7 +1726,19 @@ const FormEngineImpl = ({
           },
         };
 
-        if (isFunction) {
+        /* The flag belongs to the VALUE, so a change that said nothing about it
+           does not throw it away — `undefined` is no opinion, not a denial.
+           Deleting it unconditionally left the AST on the row with nothing
+           marking it as one: an assertion's Expected Value came back from a
+           saved draft drawn as a two-field hash of `exp` and `args`, because
+           merely opening the row and reverting had stripped the flag. */
+        if (
+          shouldMarkAsExpression(
+            isFunction,
+            val,
+            ((fields as TQorusForm)[optionName] as { is_expression?: boolean })?.is_expression
+          )
+        ) {
           (updatedValue[optionName] as { is_expression?: boolean }).is_expression = true;
         } else {
           delete updatedValue[optionName].is_expression;
@@ -1723,9 +1752,24 @@ const FormEngineImpl = ({
           val !== (fields as TQorusForm)[optionName]?.value
         ) {
           forEach(options, (option, depName) => {
+            /* A dependency is `name`, `name=value` or `name!=value`, so the
+               entry has to be PARSED to find which option it names. Compared as
+               a whole string, only the bare spelling ever matched — so a field
+               declared `depends_on: ['subject_iface_kind=workflow']` was never
+               cleared when that option changed.
+            
+               What that cost: a test whose subject was switched from a workflow
+               to a service kept the workflow's `Subject Interface Version`.
+               Services and jobs are versioned but only the latest is testable,
+               so the field no longer applied, yet it stayed on the form as a
+               locked control in front of a value the author could not clear —
+               the value being there is exactly what stops the field being
+               withheld outright. */
             if (
               option.depends_on &&
-              flatten(option.depends_on).includes(optionName) &&
+              flatten(option.depends_on).some(
+                (dependency) => parseDependency(dependency as string).name === optionName
+              ) &&
               updatedValue[depName]
             ) {
               updatedValue[depName].value = undefined;
@@ -1904,6 +1948,7 @@ const FormEngineImpl = ({
           removeSelectedOption(optionName);
           return newValue;
         }
+
 
         const rendererType = getType(
           (options[optionName].ui_type || options[optionName].type) as TQorusType,
@@ -2840,7 +2885,7 @@ const FormEngineImpl = ({
             readOnly={readOnly}
             size={editorSize || rest.size}
             menuItems={
-              (options?.[optionName] as any)?.ui_type === 'any' ?
+              offersTypeChoices(options?.[optionName], anyLikeUiTypes) ?
                 getCustomMenuTemplateItems(optionName)
               : undefined
             }

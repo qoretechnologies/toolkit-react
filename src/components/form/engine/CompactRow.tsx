@@ -10,6 +10,7 @@ import {
   ReqoreTagGroup,
 } from '@qoretechnologies/reqore';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
+import { RowMenuContext } from './rowMenuContext';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { resolveOptionActions } from './optionActions';
 import {
@@ -303,6 +304,39 @@ export const CompactRow = memo(
           { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
         : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
+      /* A row has to SAY when its value is an expression.
+      
+         Reported from the live IDE: an author accepted the *Use as expression*
+         offer on one field and not on the other, and the two rows read exactly
+         the same - `1 + 2` and `2 + 1`, both plain text - so there was no way
+         to tell which had been converted. The assertion then compared the
+         string `"1 + 2"` against the number `3` and the author had no way to
+         see why.
+      
+         The same Σ the expression editor uses, so the mark means the same thing
+         wherever it appears. */
+      const withExpressionMarker = (rendered: React.ReactNode): React.ReactNode => {
+        if (!(field as { is_expression?: boolean })?.is_expression) {
+          return rendered;
+        }
+
+        return (
+          <span style={{ ...wrapStyle, gap: 4 }}>
+            <ReqoreIcon
+              icon='Functions'
+              size='tiny'
+              /* A stable hook: reqore renders every icon as a bare
+                 `.reqore-icon`, so without this there is nothing to select the
+                 mark by — in a test or in a consumer's stylesheet. */
+              className='reqraft-expression-marker'
+              style={{ flexShrink: 0, opacity: 0.7 }}
+              tooltip='This value is an expression'
+            />
+            {rendered}
+          </span>
+        );
+      };
+
       if (valueType === 'rgbcolor') {
         const swatch = colorToCss(field?.value);
         return (
@@ -576,7 +610,7 @@ export const CompactRow = memo(
         );
 
         if (named.some((segment) => segment.kind === 'token')) {
-          return (
+          return withExpressionMarker(
             <span style={{ ...wrapStyle, gap: 4, overflow: 'hidden' }}>
               {named.map((segment, index) =>
                 segment.kind === 'token' ?
@@ -600,7 +634,7 @@ export const CompactRow = memo(
         }
       }
 
-      return full ? <span style={textStyle}>{formatted}</span> : formatted;
+      return withExpressionMarker(full ? <span style={textStyle}>{formatted}</span> : formatted);
     };
 
     const schema = options?.[optionName];
@@ -1252,6 +1286,20 @@ export const CompactRow = memo(
         }
       : {};
 
+    /* Items the EDITOR inside this row published — see `rowMenuContext`. Kept
+       keyed so a re-rendering editor cannot loop the row: the items themselves
+       are a fresh array every render (they carry handlers), the key is not. */
+    const [editorMenu, setEditorMenu] = React.useState<{
+      key: string;
+      items: IReqoreDropdownItem[];
+    }>({ key: '', items: [] });
+    const registerRowMenuItems = React.useCallback(
+      (key: string, items: IReqoreDropdownItem[]) =>
+        setEditorMenu((previous) => (previous.key === key ? previous : { key, items })),
+      []
+    );
+    const rowMenu = React.useMemo(() => ({ registerRowMenuItems }), [registerRowMenuItems]);
+
     // Secondary edit actions tuck into a "More" (⋮) menu so the card header stays
     // calm: Fullscreen always, plus Remove field for a removable option. Rendered
     // just before the Done ✓ in both expanded layouts.
@@ -1288,6 +1336,10 @@ export const CompactRow = memo(
           // wholesale on touch) land here — this row already has a menu, so they
           // reuse it rather than adding a second one beside it.
           ...injectedOptionActionMenuItems,
+          // ...and for the same reason, so do the editor's own actions. Without
+          // this an editor with affordances of its own had to draw a second ⋮
+          // inside the value cell, beside this one.
+          ...editorMenu.items,
         ]}
       />
     );
@@ -1460,7 +1512,13 @@ export const CompactRow = memo(
                   editor they belong to — the language you are writing in is
                   read before the code, not after it. */}
               {absorbedNodes}
-              {renderOption(optionName, optionField, 'small', true)}
+              {/* The editor may publish into THIS row's ⋮ — see `rowMenuContext`.
+                  Only the editors rendered in the row are given the channel: the
+                  fullscreen modal below has no row menu on screen, so an editor
+                  there keeps drawing its own control. */}
+              <RowMenuContext.Provider value={rowMenu}>
+                {renderOption(optionName, optionField, 'small', true)}
+              </RowMenuContext.Provider>
             </div>
             <StyledRowActions>
               {draftChip}
@@ -1700,7 +1758,9 @@ export const CompactRow = memo(
                   longDescriptionShownByDefault
                 />
               : null}
-              {renderOption(optionName, optionField)}
+              <RowMenuContext.Provider value={rowMenu}>
+                {renderOption(optionName, optionField)}
+              </RowMenuContext.Provider>
             </FocusedEditing>
           </div>
         </StyledEditCard>

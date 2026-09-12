@@ -335,8 +335,14 @@ describe('helpers/templates', () => {
       expect(group?.metadata?.dataRole).toBe('input');
     });
 
+    // Selected BY NAME, not by position: the picker orders its entries
+    // alphabetically, so an index here would assert the ordering rather than
+    // the mapping this test is about.
+    const leafNamed = (label: string) =>
+      buildTemplates(payload)?.items?.[0].items?.find((item) => item.label === label);
+
     it('maps leaves with type badge and example-value description', () => {
-      const leaf = buildTemplates(payload)?.items?.[0].items?.[0];
+      const leaf = leafNamed('Interface ID');
       expect(leaf?.label).toBe('Interface ID');
       expect(leaf?.value).toBe('$local:id');
       expect(leaf?.badge).toBe('string');
@@ -347,7 +353,7 @@ describe('helpers/templates', () => {
     });
 
     it('recurses into nested items and injects the select-this-item leftAction', () => {
-      const hashItem = buildTemplates(payload)?.items?.[0].items?.[1];
+      const hashItem = leafNamed('Hash item');
       expect(hashItem?.items).toHaveLength(1);
       expect(hashItem?.stackWithActions).toBe(false);
       expect(hashItem?.leftAction?.icon).toBe('AddCircleLine');

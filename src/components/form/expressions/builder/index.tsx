@@ -24,6 +24,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { moveItem } from '../../../../helpers/common';
 import { areQorusTypesCompatible, getArgumentType } from '../../../../helpers/expressions';
+import { addMissingExpressionArgs } from '../argumentPresence';
 import { findTemplate } from '../../../../helpers/templates';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
 import { IQorusTypeObject, useQorusTypes } from '../../../../hooks/useQorusTypes';
@@ -277,58 +278,8 @@ export const Expression = ({
   );
 
   const addMissingArgs = useCallback(
-    (expression: string, args: IExpression[] = []): IExpression[] => {
-      const newArgs = [...args];
-      // Check if this expression has variable arguments
-      const selectedExpression = expressions.value?.find((exp) => exp.name === expression);
-
-      if (selectedExpression.varargs) {
-        if (selectedExpression.subtype === 2) {
-          newArgs.push({
-            is_expression: true,
-            value: {
-              args: [],
-            },
-          });
-        } else {
-          // Add the number of arguments equal to min_args - 1
-          newArgs.push(
-            ...Array.from({ length: selectedExpression.min_args - 1 }, () => ({
-              type:
-                selectedExpression.args[0].ui_type === 'richtext' ||
-                selectedExpression.args[0].ui_type === 'number'
-                  ? selectedExpression.args[0].ui_type
-                  : undefined,
-            }))
-          );
-        }
-      } else {
-        // Check if any of the arguments have a default value
-        selectedExpression.args.forEach((arg, index) => {
-          if (
-            newArgs[index] === undefined ||
-            size(newArgs[index]) === 0 ||
-            (arg.default_value && 'value' in newArgs[index] === false)
-          ) {
-            if (arg.default_value) {
-              newArgs[index] = {
-                value: arg.default_value,
-                type: arg.ui_type,
-              };
-            } else {
-              newArgs[index] = {
-                type:
-                  arg.ui_type === 'richtext' || arg.ui_type === 'number' || arg.ui_type === 'bool'
-                    ? arg.ui_type
-                    : undefined,
-              };
-            }
-          }
-        });
-      }
-
-      return newArgs;
-    },
+    (expression: string, args: IExpression[] = []): IExpression[] =>
+      addMissingExpressionArgs(expressions.value as never, expression, args as never) as never,
     [JSON.stringify(expressions.value)]
   );
 
@@ -514,13 +465,7 @@ export const Expression = ({
   );
 
   const updateArg = useCallback(
-    (
-      val: any,
-      index: number = 0,
-      type?: string,
-      isFunction?: boolean,
-      isRequired?: boolean
-    ) => {
+    (val: any, index: number = 0, type?: string, isFunction?: boolean) => {
       const args = clone(value.value.args);
       const newVal = clone(val);
 
@@ -528,12 +473,18 @@ export const Expression = ({
         newVal.args = addMissingArgs(newVal.exp, newVal.args);
       }
 
+      /* `required` is NOT written here. It is a schema key — it describes the
+         catalogue's declaration of the argument, not the author's value, and
+         nothing reads it back off a stored argument (validation takes it from
+         the schema). Persisting it made a cleared argument indistinguishable
+         from real data: the value dropped out as `undefined`, `required: true`
+         stayed, and what was saved to the draft was `{type, required}` — an
+         argument DEFINITION sitting where its value should be. */
       args[index] = {
         ...args[index],
         value: newVal,
         type: !isFunction ? type || args[index]?.type : undefined,
         is_expression: isFunction,
-        required: isRequired,
       };
 
       onValueChange(
@@ -696,16 +647,10 @@ export const Expression = ({
   const handleFirstParamChange = useCallback(
     (_name, value, type, isFunction) => {
       if (isFunction || (type !== 'any' && type !== 'auto')) {
-        updateArg(
-          value,
-          0,
-          isFunction ? undefined : type,
-          isFunction,
-          selectedExpression?.args?.[0]?.required
-        );
+        updateArg(value, 0, isFunction ? undefined : type, isFunction);
       }
     },
-    [updateArg, JSON.stringify(selectedExpression)]
+    [updateArg]
   );
 
   const buildCustomTemplateItems = useCallback(
@@ -1181,13 +1126,7 @@ export const Expression = ({
                         !!arg.default_value
                       }
                       onChange={((_name, value, type, isFunction) => {
-                        updateArg(
-                          value,
-                          index + 1,
-                          isFunction ? undefined : type,
-                          isFunction,
-                          arg.required
-                        );
+                        updateArg(value, index + 1, isFunction ? undefined : type, isFunction);
                       }) as any}
                       fluid={false}
                       fixed={true}

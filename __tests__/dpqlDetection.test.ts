@@ -64,6 +64,33 @@ describe('mightBeDpqlExpression', () => {
     expect(mightBeDpqlExpression('well-known-name')).toBe(false);
   });
 
+  it('fires on `+` however it is spaced', () => {
+    /* Reported from the live IDE: `2 + 1` was offered as an expression while
+       `2+1` and `2+ 1` were not, so the feature looked like it worked only
+       sometimes. `+` is not ambiguous the way `-` and `/` are, so spacing
+       around it must not decide whether the text is probed at all. */
+    expect(mightBeDpqlExpression('2 + 1')).toBe(true);
+    expect(mightBeDpqlExpression('2+ 1')).toBe(true);
+    expect(mightBeDpqlExpression('2 +1')).toBe(true);
+    expect(mightBeDpqlExpression('2+1')).toBe(true);
+  });
+
+  it('fires on `-` and `/` with a space on either side, not just both', () => {
+    expect(mightBeDpqlExpression('@a -1')).toBe(true);
+    expect(mightBeDpqlExpression('@a- 1')).toBe(true);
+    expect(mightBeDpqlExpression('@a / 2')).toBe(true);
+    expect(mightBeDpqlExpression('@a /2')).toBe(true);
+  });
+
+  it('still keeps `-` and `/` off the values they legitimately appear in', () => {
+    // The whole reason those two keep a spacing rule at all.
+    expect(mightBeDpqlExpression('2026-09-06')).toBe(false);
+    expect(mightBeDpqlExpression('-5')).toBe(false);
+    expect(mightBeDpqlExpression('some/path/file.txt')).toBe(false);
+    expect(mightBeDpqlExpression('well-known-name')).toBe(false);
+    expect(mightBeDpqlExpression('a/b')).toBe(false);
+  });
+
   it('fires on word operators and function calls', () => {
     expect(mightBeDpqlExpression('@n LIKE "a%"')).toBe(true);
     expect(mightBeDpqlExpression('toInt("5")')).toBe(true);

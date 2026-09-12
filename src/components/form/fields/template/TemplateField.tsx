@@ -64,6 +64,8 @@ import LongStringFormField from '../long-string/LongString';
 import NumberFormField from '../number/Number';
 import { ReadOnlyTemplateTag } from './ReadOnlyTemplateTag';
 import { RichTextFormField } from '../rich-text/RichText';
+import { richtextToString } from '../../../../helpers/common';
+import { useRowMenu } from '../../engine/rowMenuContext';
 
 // Re-export template utilities for consumers
 export { getTemplateKey, getTemplateValue, isValueTemplate };
@@ -476,6 +478,20 @@ export const TemplateField = memo(
     });
     const type = rest.ui_type || rest.type || rest.defaultType;
 
+    /* The type an EXPRESSION must return, and is stored with, is a DATA type.
+       `type` above deliberately prefers `ui_type`, because that is what decides
+       which editor to render — but a ui_type says how a value is EDITED, not
+       what it is. The IDE's reference fields carry `ui_type: 'test-reference'`
+       (a rich-text editor that turns `$.` paths into chips), and feeding that
+       to the expression builder asked it for an expression RETURNING
+       `test-reference`: no expression returns one, so every choice was refused
+       with *"the expected return type is test-reference"*, and the ui_type was
+       then stored on the saved expression as its declared type.
+
+       The declared data type is the constraint; the ui_type is only a fallback
+       for a field that declares no type at all. */
+    const expressionDataType = rest.type || rest.defaultType || rest.ui_type;
+
     const filteredTemplates = useMemo<IReqoreFormTemplates>(():
       IReqoreFormTemplates | undefined => {
       if (!allowTemplates) {
@@ -534,7 +550,22 @@ export const TemplateField = memo(
     // templates on offer would otherwise open on an EMPTY picker, which is a
     // worse place to start than the type picker it replaced.
     const typeIsAnyLike = type === 'any' || type === 'auto';
-    const isEmptyValue = value === undefined || value === null || value === '';
+    /* An EMPTY field, for the purpose of offering the template selector.
+   
+       `null` is deliberately not empty. It is the DPQL null literal — a value
+       an author writes to say "this is nothing", and the only way to assert
+       that a call returned no value. Counted as emptiness here, an argument
+       holding it was treated as a field the author had just cleared: with a
+       type of `any` and templates on offer, the selector-restore effect below
+       flipped the field into template mode with a null template value, and
+       that reported the field as cleared — so writing `null` in the Text tab
+       and switching to Visual silently erased it, leaving `{type: "any"}` in
+       the draft and the message "Value for argument 1 ("any") is invalid:
+       Value is empty".
+   
+       `undefined` is the cleared state; `null` is a value. Same rule as
+       `expressions/argumentPresence`, which states it canonically. */
+    const isEmptyValue = value === undefined || value === '';
     const hasTemplatesOnOffer = !!size(filteredTemplates?.items);
     /* The field's own editor already renders templates inline, so the selector
        is not merely unnecessary here — it is a downgrade, swapping a typable
@@ -861,9 +892,9 @@ export const TemplateField = memo(
           // The expression is gone, so there is no longer a switch to undo.
           setExpressionFromText(null);
         }
-        onChange(name, expressionValue?.value, type as TQorusType, !remove);
+        onChange(name, expressionValue?.value, expressionDataType as TQorusType, !remove);
       },
-      [name, onChange, type, value]
+      [name, onChange, expressionDataType, value]
     );
 
     // ─── Text typed into a plain field that is really a DPQL expression ───
@@ -907,9 +938,9 @@ export const TemplateField = memo(
         // (`{is_expression, value}`); this field stores the inner AST and
         // signals the flag through `onChange`'s fourth argument, exactly as
         // `handleExpressionChange` does.
-        onChange?.(name, expression?.value ?? expression, type as TQorusType, true);
+        onChange?.(name, expression?.value ?? expression, expressionDataType as TQorusType, true);
       },
-      [name, onChange, type]
+      [name, onChange, expressionDataType]
     );
 
     const undoExpressionFromText = useCallback(() => {
@@ -966,7 +997,22 @@ export const TemplateField = memo(
         detectTimer.current = null;
       }
 
-      const text = typeof value === 'string' ? value : undefined;
+      /* A richtext field is still text. It hands its value back as a Slate
+         DOCUMENT rather than a flattened string — deliberately, so a chosen
+         reference cannot fuse with text typed beside it — and reading only
+         `typeof value === 'string'` here silently switched detection off for
+         every one of them the moment the field changed shape. A test
+         assertion's Value is exactly that field, and `1 + 2` typed into it
+         stopped being offered as an expression.
+
+         `richtextToString` flattens a tag to its raw value, so a document
+         holding only a chosen reference reads as `$.result` — no operator, so
+         `mightBeDpqlExpression` rejects it below and the server is never
+         asked. */
+      const text =
+        typeof value === 'string' ? value
+        : Array.isArray(value) ? richtextToString(value as never)
+        : undefined;
 
       if (
         !canDetectDpql ||
@@ -1019,12 +1065,93 @@ export const TemplateField = memo(
       };
     }, [value, canDetectDpql, type, validationField, probeDpql]);
 
+    /* The row this field is inside, when there is one — see `rowMenuContext`.
+       `undefined` in the classic form path and in a field rendered alone, and
+       there the field keeps drawing its own menu below. */
+    const rowMenu = useRowMenu();
+
+    const canOfferExpression =
+      allowFunctions && !hasOnlyAllowedValues && !rest.readonly && !internalIsFunction;
+    const canOfferTemplate = showTemplateToggle && !isTemplate;
+
+    const publishedItems = useMemo(
+      () => [
+        ...(canOfferExpression && !functions.loading
+          ? [
+              {
+                label: 'Use Expression',
+                icon: 'Functions' as const,
+                tooltip: 'Run a function on this value',
+                onClick: handleSelectFunctionChange,
+              },
+            ]
+          : []),
+        ...(canOfferTemplate
+          ? [
+              {
+                label: 'Use Template',
+                icon: 'MoneyDollarCircleLine' as const,
+                tooltip: 'Use a template',
+                onClick: handleTemplateToggleClick,
+              },
+            ]
+          : []),
+        /* The "set a value of this type" choices an untyped field offers.
+           Dividers are dropped: they grouped items in a menu this field drew
+           itself, and in the row's shared menu they would divide other
+           people's. */
+        ...((menuItems ?? []) as { label?: unknown; description?: unknown; isDivider?: boolean; onClick?: Function }[])
+          .filter((item) => !('isDivider' in item))
+          .map((item) => ({
+            label: item.label as string,
+            description: item.description as string | undefined,
+            onClick: () =>
+              item.onClick?.(undefined, () => {
+                setIsTemplate(false);
+                setTemplateValue(null);
+              }),
+          })),
+      ],
+      [
+        canOfferExpression,
+        functions.loading,
+        canOfferTemplate,
+        menuItems,
+        handleSelectFunctionChange,
+        handleTemplateToggleClick,
+      ]
+    );
+
+    /* Keyed on WHICH items are offered, never on the items: they carry
+       handlers, so they are a new array every render and a row comparing them
+       by value would loop. */
+    const publishedKey = [
+      canOfferExpression && !functions.loading ? 'expression' : '',
+      canOfferTemplate ? 'template' : '',
+      `custom:${((menuItems ?? []) as { label?: unknown }[]).map((item) => String(item.label ?? '')).join('|')}`,
+    ].join(',');
+
+    useEffect(() => {
+      rowMenu?.registerRowMenuItems(publishedKey, publishedItems as never);
+    }, [rowMenu, publishedKey, publishedItems]);
+
     const renderControls = useCallback(() => {
       const showFunctionsDropdown =
         allowFunctions && !hasOnlyAllowedValues && !rest.readonly && !internalIsFunction;
       const showTemplatesButton = showTemplateToggle && !isTemplate;
       // The "Set value" label promises a way to set one — reorder rows alone don't.
       const hasValueRows = showFunctionsDropdown || showTemplatesButton || size(menuItems) > 0;
+
+      /* ONE menu per control. Where this field sits in a form ROW, the row
+         already renders a ⋮ of its own, and drawing a second one beside it
+         put two menus of slightly different widths on the same control —
+         with the type choices an `any` field offers hidden in the narrower
+         one. The items are published to the row instead (see
+         `rowMenuContext`); outside a row there is nothing to publish into,
+         so the field goes on drawing its own. */
+      if (rowMenu) {
+        return null;
+      }
 
       if (hasOnlyExpressions) {
         return (
@@ -1176,6 +1303,8 @@ export const TemplateField = memo(
       internalIsFunction,
       effectiveIsFunction,
       hasInputAffordance,
+      // the row decides whether this field draws a menu at all
+      rowMenu,
     ]);
 
     // When the type is a list, and it has an element type - that element type is different
@@ -1214,7 +1343,7 @@ export const TemplateField = memo(
                 componentOverrides={componentOverrides}
                 localTemplates={templates}
                 type={type as string}
-                returnType={(returnType || type) as any}
+                returnType={(returnType || expressionDataType) as any}
                 onChange={handleExpressionChange}
                 readOnly={rest.readOnly || rest.disabled}
                 expressions={rest.expressions}
@@ -1262,7 +1391,7 @@ export const TemplateField = memo(
               localTemplates={templates}
               level={level}
               type={type as string}
-              returnType={(returnType || type) as any}
+              returnType={(returnType || expressionDataType) as any}
               onChange={handleExpressionChange}
               readOnly={rest.readOnly || rest.disabled}
               expressions={rest.expressions}

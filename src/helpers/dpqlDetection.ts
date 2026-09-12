@@ -53,16 +53,33 @@ const NON_EXPRESSION_OPS = new Set(['value', 'template']);
  * Operators and calls whose presence makes a server probe worth the trip.
  * Deliberately generous — a false positive costs one debounced request that
  * comes back `exp: 'value'`, while a false negative silently loses the whole
- * feature. `-` and `/` require surrounding spaces so that dates
- * (`2026-09-06`), negative numbers (`-5`) and paths (`a/b`) don't trigger a
- * probe on every keystroke.
+ * feature.
+ *
+ * ## Why the spacing rules differ per operator
+ *
+ * `-` and `/` are ambiguous: they appear inside values nobody means as
+ * arithmetic — dates (`2026-09-06`), negative numbers (`-5`), paths (`a/b`),
+ * hyphenated names (`well-known-name`). A space next to one is what separates
+ * `@a - 1` from those, so they keep a spacing requirement.
+ *
+ * `+` is NOT ambiguous in that way, and requiring spaces around it lost the
+ * feature for the most natural way to type arithmetic: `2 + 1` was offered as
+ * an expression while `2+1` and `2+ 1` were not, which reads as the detection
+ * working only sometimes. Reported from the live IDE. `+` now counts wherever
+ * it appears; if the text turns out to be an ordinary literal the server says
+ * so and the offer never appears.
+ *
+ * The `-`/`/` rule is also relaxed from "spaces on BOTH sides" to "a space on
+ * either side", so `@a -1` and `@a- 1` are probed too while every ambiguous
+ * value above still is not.
  */
 const DPQL_OPERATOR_PATTERN = new RegExp(
   [
     '(==|!=|<>|>=|<=)', // two-character comparisons
     '[<>*%]', // unambiguous single-character operators
     '(?<!=)=(?!=)', // a lone `=`, not part of `==`
-    '\\s[-+/]\\s', // arithmetic that is spaced (so `2026-09-06` is not)
+    '\\+', // `+` — unambiguous, so spacing is irrelevant
+    '(\\s[-/]|[-/]\\s)', // `-` and `/` need a space on at least one side
     '\\b(and|or|not|like|in|contains)\\b', // word operators
   ].join('|'),
   'i'

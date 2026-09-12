@@ -1064,21 +1064,39 @@ export const _validateField = (
         }
       }
 
-      if (parsedData) {
-        /* Validate what was PARSED, against the type detected from the same
-           parse. Validating the raw `value` instead made the two disagree
-           whenever parsing changed the shape: typing `1` into an `auto` field
-           parsed to the number 1, detected `int`, and then validated the STRING
-           "1" against it — "Value must be an integer", on a value that is one.
-           The author saw their field go invalid on the first character they
-           typed. */
-        return withContext(
-          validateFieldWithResult(getTypeFromValue(parsedData), parsedData),
-          'Auto-detected type is invalid'
-        );
+      /* A FALSY value is not an ABSENT one. `null`, `0`, `false` and `""` are
+         all values an author may hold in an `auto`/`any` field — a test
+         assertion expecting a count of zero, a flag that is off, or a blank
+         string — and the truthiness gate that used to stand here refused every
+         one of them as *"Value is empty"*. It surfaced on an assertion's
+         Expected Value holding `null`: opening it reported *"Value for argument
+         1 ("any") is invalid: Value is empty"* on the value the author had
+         deliberately chosen. Only `undefined` is actually empty.
+
+         `null` and `""` are answered here rather than delegated, for two
+         different reasons: `getTypeFromValue(null)` answers `auto`, which would
+         re-enter this very branch, and the `string` validator rejects `""`
+         because that is the rule for a REQUIRED text field — a different
+         question from whether an untyped field may hold a blank string. */
+      if (parsedData === undefined) {
+        return invalidResult('Value is empty');
       }
 
-      return invalidResult('Value is empty');
+      if (parsedData === null || parsedData === '') {
+        return validResult();
+      }
+
+      /* Validate what was PARSED, against the type detected from the same
+         parse. Validating the raw `value` instead made the two disagree
+         whenever parsing changed the shape: typing `1` into an `auto` field
+         parsed to the number 1, detected `int`, and then validated the STRING
+         "1" against it — "Value must be an integer", on a value that is one.
+         The author saw their field go invalid on the first character they
+         typed. */
+      return withContext(
+        validateFieldWithResult(getTypeFromValue(parsedData), parsedData),
+        'Auto-detected type is invalid'
+      );
     }
     case 'processor': {
       if (!value || !value['processor-input-type'] || !value['processor-output-type']) {

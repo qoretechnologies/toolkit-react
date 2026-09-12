@@ -49,9 +49,15 @@ export const ExpressionBuilderArgumentLabel = ({
     ...types.getExactMatches(schema.ui_type),
     ...types.getAcceptedTypes(schema.ui_type),
   ]);
-  const { isValid, reason } = arg.is_expression
-    ? validateFieldWithResult('expression', arg, { expressions })
-    : validateFieldWithResult(argumentType, arg.value, schema, !schema.required);
+  /* `arg` is optional — an operand the author has not filled in yet has no
+     entry at all, and a literal carried straight from a parse can be the null
+     literal itself. Both were dereferenced unguarded here, which took the whole
+     expression editor down to its error boundary rather than drawing an empty
+     argument. */
+  const { isValid, reason } =
+    arg?.is_expression ?
+      validateFieldWithResult('expression', arg, { expressions })
+    : validateFieldWithResult(argumentType, arg?.value, schema, !schema.required);
 
   return (
     <ReqoreP
@@ -94,7 +100,7 @@ export const ExpressionBuilderArgumentLabel = ({
       {!matchesType ? (
         <ReqoreIcon icon='ErrorWarningLine' color='warning' size='10px' margin='both' />
       ) : null}
-      {(argumentType || (arg.is_expression && arg.value?.exp)) &&
+      {(argumentType || (arg?.is_expression && arg.value?.exp)) &&
       types.getTypeDisplayName(argumentType) !== types.getTypeDisplayName(schema.ui_type) &&
       !matchesTypeExactly ? (
         <>

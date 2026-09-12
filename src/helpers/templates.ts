@@ -22,6 +22,24 @@ import { areQorusTypesCompatible } from './expressions';
 export const TEMPLATE_EXAMPLE_PREVIEW_LENGTH = 150;
 
 /**
+ * How template picker entries are ordered: by the label a reader actually sees.
+ *
+ * The server sends groups and their items in whatever order it assembled them —
+ * for the test vocabulary that is step order, for an app's actions it is the
+ * connector's own. Neither is an order a reader can predict, and a picker
+ * holding 29 items is navigated by looking for a NAME.
+ *
+ * `localeCompare` with `numeric` so `item2` sorts before `item10`, and
+ * `sensitivity: 'base'` so case and accents do not split otherwise-adjacent
+ * neighbours.
+ */
+const byLabel = (a: { label?: unknown }, b: { label?: unknown }): number =>
+  String(a?.label ?? '').localeCompare(String(b?.label ?? ''), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
+
+/**
  * Shared template string utilities.
  * Used by both validations and TemplateField.
  */
@@ -537,7 +555,7 @@ export const buildTemplates = (
 
         return item;
       }
-    );
+    ).sort(byLabel);
 
   return {
     items: Object.values(templates).map(
@@ -575,6 +593,6 @@ export const buildTemplates = (
           data_role
         ),
       })
-    ),
+    ).sort(byLabel),
   } as IReqoreFormTemplates;
 };
