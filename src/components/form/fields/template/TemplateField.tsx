@@ -441,6 +441,20 @@ export const BuiltInTemplateAwareUiTypes = ['richtext'];
 export const isTemplateAwareUiType = (uiType?: string, extra?: string[]): boolean =>
   !!uiType && [...BuiltInTemplateAwareUiTypes, ...(extra ?? [])].includes(uiType);
 
+/**
+ * One entry of the "set a value of this type" menu an untyped field offers.
+ *
+ * `onClick` is typed by what the caller actually invokes it with — the chosen
+ * value and a reset callback — rather than as `Function`, which accepts a class
+ * declaration as readily as a handler and gives no help at the call site.
+ */
+interface IUntypedFieldMenuItem {
+  label?: unknown;
+  description?: unknown;
+  isDivider?: boolean;
+  onClick?: (value: unknown, reset: () => void) => void;
+}
+
 export const TemplateField = memo(
   ({
     value,
@@ -1100,7 +1114,7 @@ export const TemplateField = memo(
            Dividers are dropped: they grouped items in a menu this field drew
            itself, and in the row's shared menu they would divide other
            people's. */
-        ...((menuItems ?? []) as { label?: unknown; description?: unknown; isDivider?: boolean; onClick?: Function }[])
+        ...((menuItems ?? []) as IUntypedFieldMenuItem[])
           .filter((item) => !('isDivider' in item))
           .map((item) => ({
             label: item.label as string,
