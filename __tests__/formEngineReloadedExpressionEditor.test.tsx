@@ -14,7 +14,7 @@
  * which no run touched, was equally raw. The trigger is a RELOAD, the only
  * thing that puts an expression into its saved shape.
  *
- * Three traps, each of which produced a green test against the broken code:
+ * Four traps, each of which produced a green test against the broken code:
  *
  *  - the form renders ASYNCHRONOUSLY, so reading `textContent` straight after
  *    `render` inspects an empty DOM and every "does not contain" assertion
@@ -23,11 +23,21 @@
  *    required — `expandFirstRequired` alone left the row collapsed, where both
  *    shapes correctly render `1 + 2` and the bug is invisible;
  *  - the runtime shape must be asserted alongside the saved one, or a fix that
- *    simply trades one shape for the other still passes.
+ *    simply trades one shape for the other still passes;
+ *  - `Visual` belongs to the expression field's SHELL, not to the builder. The
+ *    builder reads user storage, which this render has no provider for, so it
+ *    threw into its error boundary on every render while the shell's toggle
+ *    still said `Visual`. The builder's own `.expression` root is what proves
+ *    it opened.
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../src/hooks/useStorage/useStorage', () => ({
+  useReqraftStorage: (_k: string, d: unknown) => [d, vi.fn()],
+}));
+
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
 
@@ -101,6 +111,10 @@ const showsRawEnvelope = (container: HTMLElement) => {
   return text.includes('is_expression') || text.includes('Key/Value');
 };
 
+/* The builder itself drew — its root, not the shell around it. */
+const showsExpressionBuilder = (container: HTMLElement) =>
+  container.querySelector('.expression') !== null;
+
 describe('an expression loaded from a saved draft', () => {
   it('does not render the raw envelope for the author to edit', async () => {
     // THE REGRESSION — the saved shape, with the flag on the value.
@@ -118,6 +132,7 @@ describe('an expression loaded from a saved draft', () => {
     });
 
     expect(container.textContent || '').toContain('Visual');
+    expect(showsExpressionBuilder(container)).toBe(true);
   });
 
   it('still opens the expression editor for a freshly typed expression', async () => {
@@ -129,6 +144,7 @@ describe('an expression loaded from a saved draft', () => {
 
     expect(showsRawEnvelope(container)).toBe(false);
     expect(container.textContent || '').toContain('Visual');
+    expect(showsExpressionBuilder(container)).toBe(true);
   });
 
   it('still renders a value that really is a hash as data', async () => {
@@ -139,5 +155,6 @@ describe('an expression loaded from a saved draft', () => {
     });
 
     expect(container.textContent || '').toContain('not-an-expression');
+    expect(showsExpressionBuilder(container)).toBe(false);
   });
 });
