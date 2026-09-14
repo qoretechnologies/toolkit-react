@@ -1105,13 +1105,17 @@ export const TextViewSurvivesALateHostChange: Story = {
  *
  * Only reachable with templates ON OFFER, which is why the stories above miss
  * it: with nothing to offer the menu is not rendered at all.
+ *
+ * Inside a form row the field no longer draws that menu itself: it publishes
+ * its items into the row's own ⋮ (`rowMenuContext` — one menu per control), so
+ * the menu asserted here is the row's, and the field's own must be absent.
  */
 export const FieldMenuStaysInTheToolbar: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          "Accepts the offer on a compact row whose field also has templates, so TemplateField renders its More menu beside the expression shell — the menu must sit in the shell's toolbar row, level with Undo, not part-way down the editor.",
+          "Accepts the offer on a compact row whose field also has templates. The row shows ONE More menu — the field publishes its items into the row's ⋮ rather than drawing its own — and that menu sits in the shell's toolbar row, level with Undo, not part-way down the editor.",
       },
     },
   },
@@ -1160,13 +1164,16 @@ export const FieldMenuStaysInTheToolbar: Story = {
     await openCompactRow(canvasElement);
     await acceptTypedExpression(canvasElement);
 
-    const menu = canvasElement.querySelector('.template-more') as HTMLElement | null;
-    expect(menu).toBeInTheDocument();
+    // One menu per control: the row's ⋮, not a second one drawn by the field.
+    expect(canvasElement.querySelector('.template-more')).toBeNull();
+    const menus = canvasElement.querySelectorAll('.options-readfirst-more');
+    expect(menus).toHaveLength(1);
+    const menu = menus[0] as HTMLElement;
 
     // The toolbar row is the shell's first line — the Visual/Text toggle.
     const toggle = within(canvasElement).getByText('Text').closest('button') as HTMLElement;
     const toolbar = toggle.getBoundingClientRect();
-    const control = menu!.getBoundingClientRect();
+    const control = menu.getBoundingClientRect();
 
     /* Reported as numbers: "the menu is in the wrong place" is not something a
        CI log can show, and the two rectangles are the whole story. */
