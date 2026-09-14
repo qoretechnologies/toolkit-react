@@ -65,7 +65,12 @@ import NumberFormField from '../number/Number';
 import { ReadOnlyTemplateTag } from './ReadOnlyTemplateTag';
 import { RichTextFormField } from '../rich-text/RichText';
 import { richtextToString } from '../../../../helpers/common';
-import { useRowMenu } from '../../engine/rowMenuContext';
+import {
+  IRowMenuRegistration,
+  RowMenuContext,
+  useRowMenu,
+  useRowMenuPublisher,
+} from '../../engine/rowMenuContext';
 
 // Re-export template utilities for consumers
 export { getTemplateKey, getTemplateValue, isValueTemplate };
@@ -455,8 +460,9 @@ interface IUntypedFieldMenuItem {
   onClick?: (value: unknown, reset: () => void) => void;
 }
 
-export const TemplateField = memo(
+const TemplateFieldImpl = memo(
   ({
+    rowMenu,
     value,
     name,
     onChange,
@@ -483,7 +489,7 @@ export const TemplateField = memo(
     reorder,
     label,
     ...rest
-  }: ITemplateFieldProps) => {
+  }: ITemplateFieldProps & { rowMenu?: IRowMenuRegistration }) => {
     const qorusTypes = useQorusTypes();
     const functions = useExpressions({
       allow: !!allowFunctions,
@@ -1079,11 +1085,6 @@ export const TemplateField = memo(
       };
     }, [value, canDetectDpql, type, validationField, probeDpql]);
 
-    /* The row this field is inside, when there is one — see `rowMenuContext`.
-       `undefined` in the classic form path and in a field rendered alone, and
-       there the field keeps drawing its own menu below. */
-    const rowMenu = useRowMenu();
-
     const canOfferExpression =
       allowFunctions && !hasOnlyAllowedValues && !rest.readonly && !internalIsFunction;
     const canOfferTemplate = showTemplateToggle && !isTemplate;
@@ -1145,9 +1146,7 @@ export const TemplateField = memo(
       `custom:${((menuItems ?? []) as { label?: unknown }[]).map((item) => String(item.label ?? '')).join('|')}`,
     ].join(',');
 
-    useEffect(() => {
-      rowMenu?.registerRowMenuItems(publishedKey, publishedItems as never);
-    }, [rowMenu, publishedKey, publishedItems]);
+    useRowMenuPublisher(rowMenu, publishedKey, publishedItems as never);
 
     const renderControls = useCallback(() => {
       const showFunctionsDropdown =
@@ -1527,3 +1526,20 @@ export const TemplateField = memo(
     );
   }
 );
+
+/**
+ * The row channel belongs to the row's OWN editor: this field. It is read here
+ * and hidden from everything this field renders, so a field nested inside it —
+ * an expression operand, a list item — keeps drawing its own menu instead of
+ * publishing actions into a row menu that cannot say which value they act on.
+ * `undefined` outside a row, where this field draws its own menu too.
+ */
+export const TemplateField = memo((props: ITemplateFieldProps) => {
+  const rowMenu = useRowMenu();
+
+  return (
+    <RowMenuContext.Provider value={undefined}>
+      <TemplateFieldImpl {...props} rowMenu={rowMenu} />
+    </RowMenuContext.Provider>
+  );
+});

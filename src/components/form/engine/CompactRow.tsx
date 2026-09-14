@@ -10,7 +10,7 @@ import {
   ReqoreTagGroup,
 } from '@qoretechnologies/reqore';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
-import { RowMenuContext } from './rowMenuContext';
+import { RowMenuContext, useRowMenuRegistry } from './rowMenuContext';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { resolveOptionActions } from './optionActions';
 import {
@@ -1286,19 +1286,8 @@ export const CompactRow = memo(
         }
       : {};
 
-    /* Items the EDITOR inside this row published — see `rowMenuContext`. Kept
-       keyed so a re-rendering editor cannot loop the row: the items themselves
-       are a fresh array every render (they carry handlers), the key is not. */
-    const [editorMenu, setEditorMenu] = React.useState<{
-      key: string;
-      items: IReqoreDropdownItem[];
-    }>({ key: '', items: [] });
-    const registerRowMenuItems = React.useCallback(
-      (key: string, items: IReqoreDropdownItem[]) =>
-        setEditorMenu((previous) => (previous.key === key ? previous : { key, items })),
-      []
-    );
-    const rowMenu = React.useMemo(() => ({ registerRowMenuItems }), [registerRowMenuItems]);
+    // Items the EDITOR inside this row published — see `rowMenuContext`.
+    const { rowMenu, items: editorMenuItems } = useRowMenuRegistry();
 
     // Secondary edit actions tuck into a "More" (⋮) menu so the card header stays
     // calm: Fullscreen always, plus Remove field for a removable option. Rendered
@@ -1339,7 +1328,7 @@ export const CompactRow = memo(
           // ...and for the same reason, so do the editor's own actions. Without
           // this an editor with affordances of its own had to draw a second ⋮
           // inside the value cell, beside this one.
-          ...editorMenu.items,
+          ...editorMenuItems,
         ]}
       />
     );
