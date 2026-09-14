@@ -6,7 +6,10 @@ import {
   ReqoreUIProvider,
 } from '@qoretechnologies/reqore';
 import { initializeReqraft } from '../src';
+import { _resetRenderExpressionTransportForTests } from '../src/components/form/expressions/useRenderExpression';
+import { GLOBAL_STORY_MOCK_DATA, STORY_QORUS_INSTANCE } from '../src/stories/storyNetwork';
 import { fetchConfig } from '../src/utils/fetch';
+import { _resetSharedLspConnectionsForTests } from '../src/utils/lspClient';
 
 export const parameters = {
   // No `actions.argTypesRegex` (removed in SB10): stories that assert on
@@ -29,6 +32,23 @@ export const parameters = {
     pauseAnimationAtEnd: true,
     viewports: [1440],
   },
+  // Requests components make on their own (e.g. FormEngine's type catalogue),
+  // mocked for every story ahead of its own `mockData`.
+  mockAddonConfigs: {
+    globalMockData: GLOBAL_STORY_MOCK_DATA,
+  },
+};
+
+// Every story starts without a language-server connection. Connections are
+// shared per endpoint for the life of the page — the expression render client
+// holds one from the first expression it renders — so without this a story
+// inherits whatever socket an earlier story opened, and a mock LSP it starts
+// is never dialled: its editor waits on the earlier story's handshake. It is
+// order-dependent and silent — no error, no response — and every affected story
+// passes when run on its own, so a single-story run can never show it.
+export const beforeEach = () => {
+  _resetRenderExpressionTransportForTests();
+  _resetSharedLspConnectionsForTests();
 };
 
 export const argTypes = {
@@ -55,7 +75,7 @@ export const decorators = [
     //   REACT_APP_QORUS_TOKEN=<token> yarn storybook
     // (the instance must allow the storybook origin via CORS).
     const Reqraft = initializeReqraft({
-      instance: process.env.REACT_APP_QORUS_INSTANCE || 'https://hq.qoretechnologies.com:8092/',
+      instance: STORY_QORUS_INSTANCE,
       instanceToken: process.env.REACT_APP_QORUS_TOKEN,
     });
     // A live story hitting Qorus without a valid token gets a 401, which

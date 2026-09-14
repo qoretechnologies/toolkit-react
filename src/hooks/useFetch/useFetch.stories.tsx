@@ -1,6 +1,7 @@
 import { ReqoreSpinner, ReqoreTree } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react-vite';
 import { testsWaitForText } from '../../../__tests__/utils';
+import { storyApiUrl } from '../../stories/storyNetwork';
 import { StoryMeta } from '../../types';
 import { useFetch } from './useFetch';
 
@@ -44,7 +45,7 @@ export const Get: Story = {
     mockData: [
       {
         // An array of mock objects which will add in every story
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/public/info',
+        url: storyApiUrl('public/info'),
         method: 'GET',
         status: 200,
         delay: 200,
@@ -81,7 +82,7 @@ export const Put: Story = {
     mockData: [
       {
         // An array of mock objects which will add in every story
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/public/info',
+        url: storyApiUrl('public/info'),
         method: 'PUT',
         status: 200,
         response: {
@@ -109,7 +110,7 @@ export const Post: Story = {
     mockData: [
       {
         // An array of mock objects which will add in every story
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/public/info',
+        url: storyApiUrl('public/info'),
         method: 'POST',
         status: 200,
         response: {
@@ -137,7 +138,7 @@ export const Del: Story = {
     mockData: [
       {
         // An array of mock objects which will add in every story
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/public/info',
+        url: storyApiUrl('public/info'),
         method: 'DELETE',
         status: 200,
         response: {
@@ -165,7 +166,7 @@ export const Error409: Story = {
     mockData: [
       {
         // An array of mock objects which will add in every story
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/public/info',
+        url: storyApiUrl('public/info'),
         method: 'POST',
         status: 409,
         response: {

@@ -201,6 +201,26 @@ yarn build:test         # Type-check without emit
 - Stories are co-located alongside source: `src/hooks/useFetch/useFetch.stories.tsx`
 - Storybook port: **6008**
 - Story + interaction tests run on **Vitest browser mode** (Playwright/Chromium): `yarn test:stories [file-substring]`. Run `yarn install-playwright` once first.
+- **Story network — mocks must follow the instance, and stories must not share connections.**
+  - Build every mock URL with `storyApiUrl(path)` / `storySocketUrl(path)` from
+    `src/stories/storyNetwork.ts`, never a hard-coded `https://hq.qoretechnologies.com:8092/…`.
+    Both mock layers match on host (storybook-addon-mock keys on `host + pathname`,
+    mock-socket on the URL minus its query), so a hard-coded host silently stops matching
+    when `REACT_APP_QORUS_INSTANCE` is overridden and the request goes to the real network.
+  - Requests components make on their own (FormEngine's `system/qorus-type-info`, the
+    expression catalogue `useExpressions` fetches whenever functions are allowed, the
+    reconnect probe `system/pid`) are mocked for every story via `GLOBAL_STORY_MOCK_DATA`
+    (`parameters.mockAddonConfigs.globalMockData`). Add new ones there, not per story file.
+  - A mock `response` must be an object, array or function — a bare number or string fails
+    the addon's validation and the entry is silently never matched (`TStoryMockResponse`
+    enforces this at compile time). The addon compares query-parameter *keys* only, so
+    `system?action=a&context=x` also answers `system?action=b&context=y`.
+  - `.storybook/preview.tsx` resets the shared LSP connections and the expression render
+    client before every story. Do not add per-file `ReqraftWebSocketsManager.closeAll()`
+    calls for LSP isolation.
+  - CI reaches the live hq instance with a valid token, so a story that leaks a real
+    request can pass in CI and hang locally. When a story passes in CI but times out on
+    your machine, look for an unmocked request before anything else.
 - **Visual regression via Qlip** (not Chromatic): the story run captures snapshots through the `qlip` Vitest plugin. Upload is gated on `QLIP_UPLOAD_TOKEN` (`vitest.config.ts`), so **local runs capture but never upload** — PNGs land in `qlip/screenshots/<ts>/stories/auto/<StoryId>.png` (gitignored); read the PNG to verify a visual change. CI (`.github/workflows/tests.yml`) sets the token and uploads a build for dashboard review. The full visual-change flow + the `qlip` MCP review skill live in the imported `stacks/frontend/FRONTEND.md`.
 
 ## Code Patterns & Conventions
@@ -260,6 +280,9 @@ yarn build:test         # Type-check without emit
 | `query()` returning stale data | Pass `cache: false`; POST/DELETE bypass cache automatically |
 | Heartbeat noise in logs | Filter `ev.data === 'pong'` — already done inside `useReqraftWebSocket` |
 | Storage path collisions | Use `includeAppPrefix: true` in `useReqraftStorage` to namespace per app |
+| Story shows FormEngine's loading skeleton / "Connecting to language server…" forever | An unmocked request or a connection inherited from an earlier story — see "Story network" above |
+| "No Preview — Sorry, but you either have no stories…" in a story failure | Not a registration failure: addon-vitest injects Storybook's hidden preview body into every test page, and a failed query's DOM dump prints it. Read the assertion above the dump |
+| `yarn test:stories` hangs before any test runs (the port message is incidental) | Seen when the checkout path contains `+` — e.g. an auto-named `.claude/worktrees/fix+name` — while the same tree at a `+`-free path runs normally. Use a path without `+` |
 
 ## File Reference
 

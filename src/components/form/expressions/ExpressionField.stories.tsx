@@ -4,6 +4,7 @@ import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useEffect, useMemo, useState } from 'react';
 
+import { storyApiUrl } from '../../../stories/storyNetwork';
 import { StoryMeta } from '../../../types';
 import { FormEngine } from '../engine/FormEngine';
 import { dpqlMockParseCalls, startDpqlMockLsp } from './dpqlMockLsp';
@@ -44,7 +45,7 @@ const meta = {
   parameters: {
     mockData: [
       {
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/system?action=expressions&context=ui',
+        url: storyApiUrl('system?action=expressions&context=ui'),
         method: 'GET',
         status: 200,
         response: mockExpressions,

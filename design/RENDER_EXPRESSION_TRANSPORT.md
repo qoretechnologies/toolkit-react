@@ -88,3 +88,21 @@ errors: -32602 missing/invalid expression; -32803 render failure;
   and `serverRendering` reports `false`.
 - Consumers (`builder/renderTemplate.tsx`, `ExpressionField.tsx`) are
   untouched.
+
+## Lifetime of the shared render socket
+
+The module-level render client never releases its connection: the first
+expression rendered on a page holds the endpoint's `LspSharedConnection` for
+the rest of the page. Two consequences are designed for:
+
+- **A socket that gives up is forgotten.** When the socket exhausts its
+  reconnect attempts, the connection fails any handshake still waiting and
+  drops the socket; the next `connect()` from any client on that endpoint
+  dials afresh. Without this, a first handshake that never completed held
+  every later editor on "Connecting to language server…" for the life of the
+  page, and one that had completed kept reporting the dead socket as ready.
+- **Storybook resets it per story.** Stories run in one page, so the
+  connection an earlier story opened would otherwise serve a later story —
+  including one that starts its own mock LSP, which is then never dialled.
+  `.storybook/preview.tsx` runs `_resetRenderExpressionTransportForTests()`
+  and `_resetSharedLspConnectionsForTests()` in a project-level `beforeEach`.

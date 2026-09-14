@@ -113,6 +113,19 @@ export const reqraftCacheKey = ({
     instance && instance !== fetchConfig.instance ? `:@${instance}` : ''
   }${tokenMarker(token)}`;
 
+/**
+ * The URL `query()` requests for `url` on `instance` — the single definition.
+ * Story mocks build their URLs with it too, so they cannot drift from what the
+ * code actually dials.
+ *
+ * `noApiPrefix` means the caller owns the WHOLE url — an absolute address for
+ * another service, which is the only thing reqraft itself uses it for
+ * (`useExpressions` sets it exactly when `expressionsUrl` is `http(s)://…`).
+ * Prepending the instance there built `https://instance:8011/https://other/…`.
+ */
+export const buildReqraftApiUrl = (instance: string, url: string, noApiPrefix = false): string =>
+  noApiPrefix ? url : `${instance}api/latest/${reqraftApiPath(url)}`;
+
 async function doFetchData(
   url: string,
   method = 'GET',
@@ -136,19 +149,12 @@ async function doFetchData(
     finalHeaders['Authorization'] = `Bearer ${finalToken}`;
   }
 
-  // `noApiPrefix` means the caller owns the WHOLE url — an absolute address for
-  // another service, which is the only thing reqraft itself uses it for
-  // (`useExpressions` sets it exactly when `expressionsUrl` is `http(s)://…`).
-  // Prepending the instance there built `https://instance:8011/https://other/…`.
-  return fetch(
-    `${noApiPrefix ? '' : `${instance}api/latest/`}${reqraftApiPath(url, noApiPrefix)}`,
-    {
-      method,
-      headers: finalHeaders,
-      body: JSON.stringify(body),
-      credentials: 'include',
-    }
-  ).catch((error) => {
+  return fetch(buildReqraftApiUrl(instance, url, noApiPrefix), {
+    method,
+    headers: finalHeaders,
+    body: JSON.stringify(body),
+    credentials: 'include',
+  }).catch((error) => {
     return new Response(JSON.stringify({}), {
       status: 500,
       statusText: `Request failed ${error.message}`,

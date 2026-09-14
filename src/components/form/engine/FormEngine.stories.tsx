@@ -5,7 +5,6 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
-import { defaultQorusTypes } from '../../../hooks/useQorusTypes';
 import {
   _testsChangeRichText,
   _testsChangeStringField,
@@ -92,29 +91,9 @@ const meta: Meta<typeof FormEngine> = {
     chromatic: {
       viewports: [2560],
     },
-    // `useQorusTypes` resolves the type catalogue as `size(data) ? data : defaultQorusTypes`,
-    // so a reachable, authenticated instance *replaces* the built-in list rather than
-    // supplementing it. These stories never opt into live data (no `live: true`), but the
-    // request fires anyway — which made `Option With Any Type` pass locally (401 → built-in
-    // list, so "Boolean" exists) and fail in CI, where the token is valid and the server's
-    // list decides the labels. Pin the catalogue so the type names the plays click are ours.
-    mockData: [
-      {
-        // `query()` builds `${instance}api/latest/${url}`, and the hook's url is
-        // `/system/qorus-type-info` — hence the doubled slash. Both spellings are listed
-        // so the mock keeps matching if that leading slash is ever dropped.
-        url: 'https://hq.qoretechnologies.com:8092/api/latest//system/qorus-type-info',
-        method: 'GET',
-        status: 200,
-        response: defaultQorusTypes,
-      },
-      {
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/system/qorus-type-info',
-        method: 'GET',
-        status: 200,
-        response: defaultQorusTypes,
-      },
-    ],
+    // The type catalogue the plays click through (`Option With Any Type` picks
+    // "Boolean") is pinned for every story by the global mocks in
+    // `src/stories/storyNetwork.ts`.
   },
   render: ({ value, onChange, ...rest }: IFormEngineProps) => {
     const [val, setValue] = useState(value);

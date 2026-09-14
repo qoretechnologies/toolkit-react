@@ -6,6 +6,7 @@ import { Server } from 'mock-socket';
 import { useEffect, useState } from 'react';
 import { useMount } from 'react-use';
 import { sleep, testsClickButton, testsWaitForText } from '../../../__tests__/utils';
+import { storySocketUrl } from '../../stories/storyNetwork';
 import { StoryMeta } from '../../types';
 import { ReqraftWebSocketsManager } from '../../utils/websocket';
 import { IUseReqraftWebSocketOptions, useReqraftWebSocket } from './useWebSocket';
@@ -40,7 +41,7 @@ const CompWithHook = (args: IUseReqraftWebSocketOptions) => {
 const meta = {
   title: 'Hooks/useWebSocket',
   async beforeEach({ parameters }: { parameters: Record<string, any> }) {
-    const url = `wss://hq.qoretechnologies.com:8092/log-test?token=${process.env.REACT_APP_QORUS_TOKEN}`;
+    const url = storySocketUrl('log-test');
     let server = new Server(url);
     let killTimeout: NodeJS.Timeout;
     /** Set while the server is dead: every connection that lands is closed. */
