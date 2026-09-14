@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { storyApiUrl } from '../../../stories/storyNetwork';
 import { StoryMeta } from '../../../types';
 import { FormEngine } from '../engine/FormEngine';
-import { dpqlMockParseCalls, startDpqlMockLsp } from './dpqlMockLsp';
+import { dpqlMockParseCalls } from './dpqlMockLsp';
 import { ExpressionField } from './ExpressionField';
 import { mockExpressions } from './mockExpressions';
 import { IExpression } from './types';
@@ -128,10 +128,6 @@ export const Empty: Story = {
           'Renders ExpressionField in Text mode with an empty expression AST — only the DPQL editor shows; the "Preview" box stays hidden until there is something to show.',
       },
     },
-  },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -285,15 +281,11 @@ export const ViaFormEngineTextMode: Story = {
     docs: {
       description: {
         story:
-          'Renders the FormEngine expression field, then switches to Text mode — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call and the "Preview" box mirrors it.',
+          'Renders the FormEngine expression field, then switches to Text mode — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call, highlighted like typed text, and the "Preview" box mirrors it.',
       },
     },
   },
   render: ViaFormEngine.render,
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
-  },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
@@ -319,6 +311,17 @@ export const ViaFormEngineTextMode: Story = {
       () => {
         expect(editable.textContent).toMatch(/local:?\s*name/);
         expect(editable.textContent).toContain('John');
+      },
+      { timeout: 10000 }
+    );
+    // …and highlighted: the server colours its own copy of the text, which it
+    // only holds if a value SET after mount reaches it as well as typing does.
+    await waitFor(
+      () => {
+        const literal = Array.from(editable.querySelectorAll<HTMLElement>('span[style]')).find(
+          (span) => span.textContent === '"John"' && !!span.style.color
+        );
+        expect(literal, 'the seeded text is coloured by the server').toBeTruthy();
       },
       { timeout: 10000 }
     );
@@ -373,10 +376,6 @@ export const ViaFormEngineTextTyping: Story = {
         }}
       />
     );
-  },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
   },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
@@ -433,8 +432,12 @@ export const ViaFormEngineTextTyping: Story = {
 const typedExpressionStory = (
   fieldType: string,
   text: string,
+  description: string,
   expectation: (canvasElement: HTMLElement) => Promise<void>
 ): Story => ({
+  parameters: {
+    docs: { description: { story: description } },
+  },
   render: () => {
     const [value, setValue] = useState<any>({
       amount: { type: fieldType, value: { args: [] }, is_expression: true },
@@ -458,10 +461,6 @@ const typedExpressionStory = (
         onChange={(_n, v) => setValue(v)}
       />
     );
-  },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -499,7 +498,8 @@ const typedExpressionStory = (
  */
 export const TextModeTypeMayNotFit: Story = typedExpressionStory(
   'int',
-  'total_may_not_fit',
+  '"a" + 1',
+  'Types `"a" + 1` into the Text view of an int field. The expression returns text, so the field warns "This may not fit" and offers the `toInt(…)` conversion.',
   async (canvasElement) => {
     /* Matched against the rendered TEXT, not with `getByText`. `ReqoreMessage`
      renders its title through nested nodes, so an exact single-element match
@@ -542,12 +542,21 @@ export const TextModeTypeMayNotFit: Story = typedExpressionStory(
  */
 export const TextModeTypeFits: Story = typedExpressionStory(
   'string',
-  'total_type_fits',
+  '"a" + "b"',
+  'Types `"a" + "b"` into the Text view of a string field. The expression already returns text, so no fit message is shown.',
   async (canvasElement) => {
-    const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByTestId('expression-preview')).toBeInTheDocument(), {
-      timeout: 10000,
-    });
+    /* Settled when the server has analysed the WHOLE text against this field's
+       type — not when a Preview appears, which is shown only when the rendering
+       differs from what was typed and so says nothing about the analysis. */
+    await waitFor(
+      () =>
+        expect(
+          dpqlMockParseCalls.some((call) => call.text === '"a" + "b"' && call.target === 'string'),
+          `parses=${JSON.stringify(dpqlMockParseCalls)}`
+        ).toBe(true),
+      { timeout: 10000 }
+    );
+    await waitForLspIdle(canvasElement);
     /* Absence, checked against the rendered text for the same reason its sibling
      checks presence that way: `queryByText` returns null for a message that IS
      on screen but split across nodes, so it would report "no warning" whether
@@ -573,7 +582,8 @@ export const TextModeTypeFits: Story = typedExpressionStory(
  */
 export const TextModeAutoAsksNothing: Story = typedExpressionStory(
   'auto',
-  'total_auto_field',
+  '1 + 2',
+  'Types `1 + 2` into the Text view of an `auto` field. The field accepts any result, so no return type is sent to the server and no fit message is shown.',
   async (canvasElement) => {
     await waitFor(
       () => {
@@ -619,10 +629,6 @@ export const TextMode: Story = {
           'Renders ExpressionField in Text (DPQL) mode over a mock-socket LSP. Typing DPQL text triggers dpql/parse and the "Preview" box reflects the resulting AST.',
       },
     },
-  },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
@@ -865,10 +871,6 @@ export const OfferAcceptedOpensTextMode: Story = {
       />
     );
   },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
-  },
   async play({ canvasElement }) {
     await acceptTypedExpression(canvasElement);
   },
@@ -924,10 +926,6 @@ export const OfferSurvivesARederivedSchema: Story = {
       />
     );
   },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
-  },
   async play({ canvasElement }) {
     await acceptTypedExpression(canvasElement);
   },
@@ -982,10 +980,6 @@ export const OfferSurvivesACompactRow: Story = {
         onChange={(_n, v) => setValue(v)}
       />
     );
-  },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
   },
   async play({ canvasElement }) {
     await openCompactRow(canvasElement);
@@ -1045,7 +1039,10 @@ export const TextViewSurvivesALateHostChange: Story = {
       [retyped]
     );
     return (
-      <>
+      /* The host's answer is not otherwise visible, and the assertion has to
+         wait for it rather than for a duration. An attribute, not text: a
+         printed "true" ended up in the story's snapshot. */
+      <div data-host-retyped={String(retyped)}>
         <FormEngine
           name='dpqlOfferLateForm'
           compact
@@ -1058,15 +1055,8 @@ export const TextViewSurvivesALateHostChange: Story = {
           value={value}
           onChange={(_n, v) => setValue(v)}
         />
-        {/* The host's answer is not otherwise visible, and the assertion has to
-            wait for it rather than for a duration. */}
-        <span data-testid='host-retyped'>{String(retyped)}</span>
-      </>
+      </div>
     );
-  },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
   },
   async play({ canvasElement }) {
     await openCompactRow(canvasElement);
@@ -1075,10 +1065,7 @@ export const TextViewSurvivesALateHostChange: Story = {
     // Wait for the host's late answer to actually land — a timeout here would
     // make the assertion a race.
     await waitFor(
-      () =>
-        expect(canvasElement.querySelector('[data-testid="host-retyped"]')?.textContent).toBe(
-          'true'
-        ),
+      () => expect(canvasElement.querySelector('[data-host-retyped="true"]')).toBeTruthy(),
       { timeout: 10000 }
     );
     await settle(canvasElement);
@@ -1156,10 +1143,6 @@ export const FieldMenuStaysInTheToolbar: Story = {
       />
     );
   },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
-  },
   async play({ canvasElement }) {
     await openCompactRow(canvasElement);
     await acceptTypedExpression(canvasElement);
@@ -1232,10 +1215,6 @@ export const TextModeSeedsWhenAstArrivesLate: Story = {
       />
     );
   },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
-  },
   async play({ canvasElement }) {
     const editable = (await waitFor(
       () => {
@@ -1286,10 +1265,6 @@ export const TextModeOffersTemplateCompletions: Story = {
           'Types `$` into the shell\'s Text view — the DPQL editor asks the language server in position and the template namespaces ($data:, $config:, …) open in the completion dropdown.',
       },
     },
-  },
-  async beforeEach() {
-    const stop = startDpqlMockLsp();
-    return () => stop();
   },
   async play({ canvasElement }) {
     const editable = (await waitFor(
@@ -1382,7 +1357,7 @@ export const Live: Story = {
  * LIVE — server-side rendering over the LSP (`dpql/renderExpression`). Text
  * mode against the real instance: the live "Preview" box should show the
  * server rendering — `"test".startsWith("t", true)` — not the DPQL form
- * (`"test" startsWith "t"`) or the client-side approximation. Compare with
+ * (`"test" startsWith "t"`). Compare with
  * qorus-ide's Explain (storybook :6007) for the same AST. Prereq: same as
  * `Live`; note the LSP WebSocket is NOT CORS-blocked, unlike REST fetches
  * from storybook to localhost:8012.
@@ -1394,7 +1369,7 @@ export const LiveExplain: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField in Text mode against a live Qorus instance — the "Preview" box uses the server-rendered form via dpql/renderExpression rather than the client-side approximation.',
+          'Renders ExpressionField in Text mode against a live Qorus instance — the "Preview" box shows the server\'s readable rendering from dpql/renderExpression, `"test".startsWith("t", true)`, beside the DPQL it was written as, `"test" startsWith "t"`.',
       },
     },
   },

@@ -68,6 +68,13 @@ export interface IExpressionSchema {
   return_type: TQorusType;
   ui_return_type: string;
   symbol: string;
+  /**
+   * How the server's readable rendering (`dpql/renderExpression`) spells this
+   * expression, when not by its symbol: `$arg[n]` is an argument, `$symbol` the
+   * symbol, `$args` all arguments, and `${arg[n] ? set : unset}` reads the
+   * argument or its `default_value` — e.g. `$arg[0].startsWith($arg[1], $arg[2])`.
+   */
+  render_template?: string;
   /** Server type code (operator/function); not a reliable infix discriminator. */
   type: number;
   /** `1` normal, `2` logical group (AND/OR). */

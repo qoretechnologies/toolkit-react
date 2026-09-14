@@ -20,12 +20,12 @@ let parseSucceeds = true;
 
 vi.mock('../src/components/form/expressions/useRenderExpression', () => ({
   useRenderExpression: () => ({
-    renderRich: async () => ({ text: renderedText, server: false }),
+    renderRich: async () => ({ text: renderedText, richtext: null }),
   }),
 }));
 
 vi.mock('../src/components/dpqlEditor', () => ({
-  DpqlEditor: forwardRef<any, any>(({ value, onChange }, ref) => {
+  DpqlEditor: forwardRef<any, any>(({ value, onChange, readOnly }, ref) => {
     useImperativeHandle(
       ref,
       () => ({
@@ -37,6 +37,11 @@ vi.mock('../src/components/dpqlEditor', () => ({
       }),
       []
     );
+    /* A READ-ONLY instance is a rendering (`DpqlRendering`: the Preview, the
+       suggested conversion), not the editor under test — draw its text. */
+    if (readOnly) {
+      return <span data-testid='fake-dpql-rendering'>{value}</span>;
+    }
     return (
       <textarea
         data-testid='fake-dpql'

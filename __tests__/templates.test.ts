@@ -8,7 +8,6 @@ import {
   describeTemplateReference,
   getTemplateReferencePath,
   resolveTemplateLabel,
-  splitTemplateTokens,
   getTemplateValue,
   isBracedTemplateToken,
   isCompleteTemplateToken,
@@ -159,7 +158,7 @@ describe('helpers/templates', () => {
     });
   });
 
-  describe('resolveTemplateLabel / splitTemplateTokens', () => {
+  describe('resolveTemplateLabel / describeTemplateReference', () => {
     const templates: IReqoreFormTemplates = {
       items: [
         {
@@ -214,31 +213,6 @@ describe('helpers/templates', () => {
       expect(describeTemplateReference(templates, '$data:{3.choices}').label).toBe('Choices');
     });
 
-    it('splits an expression summary into its text and token parts', () => {
-      expect(splitTemplateTokens('trim("$data:{dc_ai_reply.choices[0].message.content}")')).toEqual([
-        { kind: 'text', text: 'trim("' },
-        { kind: 'token', text: '$data:{dc_ai_reply.choices[0].message.content}' },
-        { kind: 'text', text: '")' },
-      ]);
-    });
-
-    it('handles prose with no tokens, and several tokens in one line', () => {
-      expect(splitTemplateTokens('plain text')).toEqual([{ kind: 'text', text: 'plain text' }]);
-      expect(splitTemplateTokens('')).toEqual([]);
-      const many = splitTemplateTokens('$local:a == $data:{3.choices}');
-      expect(many.filter((s) => s.kind === 'token').map((s) => s.text)).toEqual([
-        '$local:a',
-        '$data:{3.choices}',
-      ]);
-    });
-
-    it('does not carry regex state between calls', () => {
-      // A shared /g regex would skip the token on the second call.
-      const first = splitTemplateTokens('$data:{3.choices}');
-      const second = splitTemplateTokens('$data:{3.choices}');
-      expect(second).toEqual(first);
-      expect(second.some((s) => s.kind === 'token')).toBe(true);
-    });
   });
 
   describe('filterTemplatesByType', () => {

@@ -29,8 +29,6 @@ import {
   findTemplate,
   getTemplateTagStyle,
   isValueTemplate,
-  describeTemplateReference,
-  splitTemplateTokens,
   templateTooltip,
   TTemplateMeta,
 } from '../../../helpers/templates';
@@ -78,6 +76,7 @@ import {
   getExpressionAst,
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
+import { DpqlRendering } from '../expressions/DpqlRendering';
 import { TFieldWithOwnTemplates } from './rendererTypes';
 
 /**
@@ -591,47 +590,17 @@ export const CompactRow = memo(
         }
       }
 
-      // An expression summarises to one line of text, and a template reference
-      // inside it printed as its own raw token — `$data:{…}` renders a value as
-      // code where a name belongs. Chip every reference here, on the richtext
-      // branch's pattern above, so the wrapper (`trim(`…`)`) still reads as the
-      // text it is while the reference reads as a name.
-      //
-      // Unconditionally: a surface with no catalogue (the Automation Hub
-      // template preview never fetches one) still shows the reference's own
-      // path, which is the point — a conditional chip is no chip at all
-      // exactly where the raw token looks worst.
+      // An expression reads as DPQL wherever it is shown without being edited:
+      // the same rendering its Explain panel and Preview use — monospace,
+      // coloured by the language server, template references as chips — so a
+      // collapsed row and the editor it opens never disagree about what the
+      // value looks like. See `DpqlRendering`.
       if ((field as { is_expression?: boolean })?.is_expression && formatted) {
-        const segments = splitTemplateTokens(formatted);
-        const named = segments.map((segment) =>
-          segment.kind === 'token' ?
-            { ...segment, ...describeTemplateReference(templates, segment.text) }
-          : segment
+        return withExpressionMarker(
+          <span style={{ minWidth: 0, flex: '1 1 auto', ...(full ? {} : { overflow: 'hidden' }) }}>
+            <DpqlRendering text={formatted} templates={ownTemplates} />
+          </span>
         );
-
-        if (named.some((segment) => segment.kind === 'token')) {
-          return withExpressionMarker(
-            <span style={{ ...wrapStyle, gap: 4, overflow: 'hidden' }}>
-              {named.map((segment, index) =>
-                segment.kind === 'token' ?
-                  <ReqoreTag
-                    key={index}
-                    size='tiny'
-                    // Inherit the row's font size so the chip shares a baseline
-                    // with the text around it — see the richtext branch above.
-                    style={{ fontSize: 'inherit' }}
-                    icon='ExchangeDollarLine'
-                    label={segment.label}
-                    tooltip={segment.text}
-                    {...getTemplateTagStyle(segment.item?.metadata as TTemplateMeta | undefined)}
-                  />
-                : <span key={index} style={{ whiteSpace: full ? 'pre-wrap' : 'pre' }}>
-                    {segment.text}
-                  </span>
-              )}
-            </span>
-          );
-        }
       }
 
       return withExpressionMarker(full ? <span style={textStyle}>{formatted}</span> : formatted);

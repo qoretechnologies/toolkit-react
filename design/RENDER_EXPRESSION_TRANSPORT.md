@@ -78,16 +78,50 @@ errors: -32602 missing/invalid expression; -32803 render failure;
         -32601 on servers predating the method
 ```
 
-## Fallback behaviour (reqraft)
+## Waiting, not approximating (reqraft)
 
-`useRenderExpression` keeps the public signature `{ render, serverRendering }`:
+`useRenderExpression()` returns `{ render, renderRich }`; both resolve the
+server's rendering or `null`:
 
-- Server-first; on LSP unreachable (bounded connection wait + cooldown) or
-  `-32601` (older server — remembered for the page lifetime), `render`
-  falls back to the client-side approximation (`renderExpressionToText`)
-  and `serverRendering` reports `false`.
-- Consumers (`builder/renderTemplate.tsx`, `ExpressionField.tsx`) are
-  untouched.
+- A render **waits for the connection** — there is no timer racing it. The
+  connection has its own reconnect schedule and rejects once it gives up
+  (see below), so a render never outlives a dead socket.
+- `null` means the server cannot render: the connection gave up, or the server
+  predates the method (`-32601`, remembered for the page lifetime).
+- There is **no client-side stand-in**. A Qorus form does not work without
+  Qorus, so the approximation only ever appeared while the page's first
+  connection was still opening, marked "Approximate" on the first Explain of
+  every page. `renderExpressionToText` survives only as the synchronous summary
+  a collapsed row prints (`readFirst.ts`), and is never shown in place of a
+  server rendering.
+
+## How an expression is shown when it is not being edited
+
+Every read-only expression surface draws through **`DpqlRendering`**
+(`src/components/form/expressions/DpqlRendering.tsx`): the Explain panel, the
+Text view's Preview, the conversion a type-fit message suggests, and a collapsed
+expression row. It is a read-only `DpqlEditor` with diagnostics and hover off,
+so every one of them reads the same — monospace, coloured by the language
+server's semantic tokens (the canonical tokenizer; there is no client-side
+highlighter), template references as chips.
+
+- `ExpressionRendering` renders an AST: it waits in the form's one waiting shape
+  (`FormFieldsSkeleton`, `data-wait="expression-rendering"`), then shows the
+  server's rendering, or says "This expression could not be rendered." when the
+  server cannot.
+- The Preview appears only once the server's rendering exists and differs from
+  the typed text; it has no waiting state of its own.
+- A surface with a template catalogue passes it (`templates`): a reference the
+  catalogue knows reads as the name it was chosen by, with the entry's
+  description as its hover — the Discord assistant's Save Reply row reads
+  `trim(Choices[0].message.content)`. One it does not know keeps its path
+  (`data: dc_ai_reply.choices[0].message.content`). A collapsed row passes its
+  field's own templates, else the form's; the builder's Explain passes its own.
+- A reference's path takes every dot except one that starts a method call, so
+  the server's `$local:str.endsWith($local:p, true)` chips `$local:str`, not
+  `str.endsWith`.
+- A new read-only expression surface uses `DpqlRendering`, never its own
+  `<code>`, rich-text field or chip splitter.
 
 ## Lifetime of the shared render socket
 
@@ -106,3 +140,17 @@ the rest of the page. Two consequences are designed for:
   including one that starts its own mock LSP, which is then never dialled.
   `.storybook/preview.tsx` runs `_resetRenderExpressionTransportForTests()`
   and `_resetSharedLspConnectionsForTests()` in a project-level `beforeEach`.
+- **Every story has a language server.** Because renderings wait rather than
+  approximate, the same `beforeEach` starts the mock DPQL server
+  (`dpqlMockLsp.ts`) for every story that is not `live`. Its answers follow the
+  real server's (`dpqlMockLanguage.ts`, pinned in
+  `__tests__/dpqlMockLanguage.test.ts`); a story that needs other answers starts
+  its own server on the URL, which replaces the default.
+- **The rendering is spelled by the catalogue.** The server renders a function
+  by name (`concat("a", $local:x)`), an expression with a `render_template` by
+  that template (`$arg[0].startsWith($arg[1], $arg[2])`, a missing argument
+  read as its `default_value`), and any other operator as its arguments joined
+  by its symbol. A two-argument word comparison serializes infix
+  (`"test" startsWith "t"`) and otherwise as a call by symbol. The story server
+  reads `mockExpressions` by the same rules, which is why that fixture carries
+  the live `render_template`s and groups.

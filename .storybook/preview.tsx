@@ -6,6 +6,7 @@ import {
   ReqoreUIProvider,
 } from '@qoretechnologies/reqore';
 import { initializeReqraft } from '../src';
+import { startDpqlMockLsp } from '../src/components/form/expressions/dpqlMockLsp';
 import { _resetRenderExpressionTransportForTests } from '../src/components/form/expressions/useRenderExpression';
 import { GLOBAL_STORY_MOCK_DATA, STORY_QORUS_INSTANCE } from '../src/stories/storyNetwork';
 import { fetchConfig } from '../src/utils/fetch';
@@ -46,9 +47,17 @@ export const parameters = {
 // is never dialled: its editor waits on the earlier story's handshake. It is
 // order-dependent and silent — no error, no response — and every affected story
 // passes when run on its own, so a single-story run can never show it.
-export const beforeEach = () => {
+//
+// ...and every story then finds a DPQL language server on the endpoint. An
+// expression Preview, an Explain panel or a collapsed expression row waits for
+// the server's rendering rather than approximating it, so a story that renders
+// one without a server would show only its loading state. A story that needs
+// different answers starts its own server on the URL, which replaces this one;
+// a `live` story reaches the real server instead.
+export const beforeEach = ({ parameters }: { parameters?: { live?: boolean } }) => {
   _resetRenderExpressionTransportForTests();
   _resetSharedLspConnectionsForTests();
+  return parameters?.live ? undefined : startDpqlMockLsp();
 };
 
 export const argTypes = {

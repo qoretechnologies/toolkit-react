@@ -71,6 +71,24 @@ describe('a compact row carrying an expression', () => {
     await waitFor(() => expect(expressionMarkers().length).toBeGreaterThan(0));
   });
 
+  it('shows the expression as DPQL, through the one read-only rendering', async () => {
+    /* Every read-only expression surface — Explain, Preview, a suggested
+       conversion, this row — draws through `DpqlRendering`, so the row and the
+       editor it opens read the same: monospace, server-coloured, references as
+       chips. Proportional text here was the one place that differed. */
+    renderRow({
+      type: 'auto',
+      is_expression: true,
+      value: { exp: '+', args: [{ type: 'int', value: 1 }, { type: 'int', value: 2 }] },
+    });
+
+    await waitFor(() => {
+      const rendering = document.querySelector('.dpql-rendering');
+      expect(rendering).toBeTruthy();
+      expect(rendering?.textContent).toContain('1 + 2');
+    });
+  });
+
   it('leaves a plain value unmarked', async () => {
     renderRow({ type: 'string', value: '1 + 2' });
 
@@ -78,5 +96,7 @@ describe('a compact row carrying an expression', () => {
     // two are distinguishable.
     await new Promise((resolve) => setTimeout(resolve, 600));
     expect(expressionMarkers().length).toBe(0);
+    // ...and a plain string is not dressed up as DPQL.
+    expect(document.querySelector('.dpql-rendering')).toBeNull();
   });
 });

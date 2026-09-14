@@ -119,7 +119,8 @@ export const mockExpressions: IExpressionSchema[] = [
     return_type: 'bool',
     ui_return_type: 'bool',
     varargs: false,
-    groups: ['String'],
+    groups: ['Comparison'],
+    render_template: '$arg[0] contains $arg[1]${arg[2] ? (ignore case):}',
     args: stringArgs('Substring', 'contains'),
   },
   {
@@ -133,7 +134,8 @@ export const mockExpressions: IExpressionSchema[] = [
     return_type: 'bool',
     ui_return_type: 'bool',
     varargs: false,
-    groups: ['String'],
+    groups: ['Comparison'],
+    render_template: '$arg[0].startsWith($arg[1], $arg[2])',
     args: stringArgs('Start String', 'starts with'),
   },
   {
@@ -147,7 +149,8 @@ export const mockExpressions: IExpressionSchema[] = [
     return_type: 'bool',
     ui_return_type: 'bool',
     varargs: false,
-    groups: ['String'],
+    groups: ['Comparison'],
+    render_template: '$arg[0].endsWith($arg[1], $arg[2])',
     args: stringArgs('End String', 'ends with'),
   },
   // --- Varargs (int) -------------------------------------------------------
@@ -242,7 +245,8 @@ export const mockExpressions: IExpressionSchema[] = [
     return_type: 'bool',
     ui_return_type: 'bool',
     varargs: false,
-    groups: ['String'],
+    groups: ['Comparison'],
+    render_template: '$arg[0] =~ /$arg[1]/$arg[2]',
     args: [
       { name: 'softstring', display_name: 'String Value', ui_type: 'richtext', required: true },
       { name: 'string', display_name: 'Regular Expression', ui_type: 'string', required: true },

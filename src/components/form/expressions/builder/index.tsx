@@ -936,7 +936,9 @@ export const Expression = ({
           {confirmDialogData.children}
         </ConfirmUnsupportedTypeModal>
       )}
-      {showSummary && <ExpressionRenderTemplate exp={value} expressions={expressions.value} />}
+      {showSummary && (
+        <ExpressionRenderTemplate exp={value} expressions={expressions.value} templates={localTemplates} />
+      )}
       {!selectedExpression && !serverExpression && !firstArgument?.value && level === 0 ? (
         <ReqoreMessage size='small' opaque={false} intent='info'>
           Select an operation to start building your expression
@@ -1324,7 +1326,11 @@ export const ExpressionBuilder = ({
         >
           <ReqoreControlGroup vertical fluid size='normal' style={{ position: 'relative' }} wrap>
             {showSummary && (
-              <ExpressionRenderTemplate exp={value} expressions={_expressions.expressions} />
+              <ExpressionRenderTemplate
+                exp={value}
+                expressions={_expressions.expressions}
+                templates={localTemplates}
+              />
             )}
             <StyledExpressionItemLabel
               as={ReqoreP}

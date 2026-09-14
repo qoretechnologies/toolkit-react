@@ -18,7 +18,6 @@ import {
   _testsWaitForTextToNotExist,
   sleep,
 } from '../../../stories/Tests/utils';
-import { startDpqlMockLsp } from '../expressions/dpqlMockLsp';
 import { mockExpressions } from '../expressions/mockExpressions';
 import { mockPopulatedDefinition } from '../fields/schema-definition/mockDefinition';
 import { defaultMarkdownRenderer } from '../fields/markdown/MarkdownView';
@@ -4343,7 +4342,7 @@ const FieldTypeCatalogGroups: Record<string, IFormEngineGroup> = {
  * summary of the `{exp,args}` AST (`renderExpressionToText`); drilling in opens
  * the full `ExpressionField` in the card — the Visual builder (catalogue offline
  * via `mockExpressions`) plus the Text/DPQL editor, whose seed + Explain are
- * served by the in-test `dpqlMockLsp`. No instance/LSP required.
+ * served by the story language server every story gets. No instance required.
  */
 export const CompactExpressions: Story = {
   // chromatic off: ends with the live ExpressionField editor (Text mode) open.
@@ -4383,65 +4382,61 @@ export const CompactExpressions: Story = {
     } as unknown as IOptions,
   },
   play: async () => {
-    const stop = startDpqlMockLsp();
-    try {
-      // Read-first: the offline DPQL summary of the AST — the literals read as
-      // the text they are, and the template reference reads as a chip rather
-      // than as its raw `$local:name` token inside the string.
-      await waitFor(() => {
-        const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
-          tag.textContent?.includes('$local:name')
-        );
-        expect(chip, 'the reference in the summary renders as a chip').toBeTruthy();
-      });
-      await _testsWaitForText('" == "John"');
+    // Read-first: the summary of the AST reads as DPQL, through the same
+    // rendering the Explain panel and Preview use — the template reference a
+    // chip rather than its raw `$local:name` token, the literal as the text it is.
+    await waitFor(() => {
+      const summary = document.querySelector(
+        '.readfirst-row[data-field="condition"] .dpql-rendering'
+      );
+      expect(summary, 'the collapsed row renders its summary as DPQL').toBeTruthy();
+      expect(summary?.textContent).toContain('local: name');
+      expect(summary?.textContent).toContain('== "John"');
+    });
 
-      // Drill in → the card hosts the ExpressionField (Visual builder).
-      await fireEvent.click(
-        document.querySelector('.readfirst-row[data-field="condition"]') as HTMLElement
-      );
-      await waitFor(
-        () =>
-          expect(
-            document.querySelector('.options-readfirst-card[data-field="condition"] .expression')
-          ).toBeInTheDocument(),
-        { timeout: 10000 }
-      );
-      // The builder resolves the operator from the offline catalogue.
-      await _testsWaitForText('Logical Equals');
+    // Drill in → the card hosts the ExpressionField (Visual builder).
+    await fireEvent.click(
+      document.querySelector('.readfirst-row[data-field="condition"]') as HTMLElement
+    );
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('.options-readfirst-card[data-field="condition"] .expression')
+        ).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
+    // The builder resolves the operator from the offline catalogue.
+    await _testsWaitForText('Logical Equals');
 
-      // Text/DPQL tab — seeded from the AST via the mock LSP (dpql/serialize).
-      const textBtn = Array.from(
-        document.querySelectorAll(
-          '.options-readfirst-card[data-field="condition"] .expression-field button'
-        )
-      ).find((b) => b.textContent?.trim() === 'Text') as HTMLElement;
-      await fireEvent.click(textBtn);
-      await waitFor(
-        () =>
-          expect(
-            document.querySelector(
-              '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
-            )
-          ).toBeInTheDocument(),
-        { timeout: 10000 }
-      );
+    // Text/DPQL tab — seeded from the AST via the mock LSP (dpql/serialize).
+    const textBtn = Array.from(
+      document.querySelectorAll(
+        '.options-readfirst-card[data-field="condition"] .expression-field button'
+      )
+    ).find((b) => b.textContent?.trim() === 'Text') as HTMLElement;
+    await fireEvent.click(textBtn);
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
+          )
+        ).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
 
-      // The "Parsed" line is the single live rendering of the AST (over the
-      // mock dpql/renderExpression) — it reflects the seeded expression. The
-      // separate Text-mode "Explain" button was dropped; Parsed is canonical.
-      await waitFor(
-        () =>
-          expect(
-            document.querySelector(
-              '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
-            )?.textContent
-          ).toContain('John'),
-        { timeout: 10000 }
-      );
-    } finally {
-      stop();
-    }
+    // The "Parsed" line is the single live rendering of the AST (over the
+    // mock dpql/renderExpression) — it reflects the seeded expression. The
+    // separate Text-mode "Explain" button was dropped; Parsed is canonical.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
+          )?.textContent
+        ).toContain('John'),
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -5221,15 +5216,18 @@ export const CompactFieldTypes: Story = {
     // than a raw hash key-count.
     await _testsWaitForText('512MiB');
     await _testsWaitForText(/example_customer_addresses/);
-    // Expression field → read-first shows the offline DPQL summary of the AST,
-    // with the template reference inside it chipped rather than printed raw.
+    // Expression field → read-first shows the offline DPQL summary of the AST
+    // as DPQL, with the template reference inside it chipped rather than
+    // printed raw.
     await waitFor(() => {
-      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
-        tag.textContent?.includes('$local:name')
+      const summary = document.querySelector('.readfirst-row[data-field="expr"] .dpql-rendering');
+      const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
+        tag.textContent?.includes('name')
       );
       expect(chip, 'the reference in the summary renders as a chip').toBeTruthy();
+      expect(summary?.textContent).toContain('== "John"');
+      expect(summary?.textContent).not.toContain('$local:name');
     });
-    await _testsWaitForText('" == "John"');
     await expect(document.querySelectorAll('.options-readfirst-card')).toHaveLength(0);
 
     // A hash renders its read-first preview (the structured tree by default)
@@ -7158,10 +7156,10 @@ export const CompactListOfHashReadsInSchemaWordsMobile: Story = {
 };
 
 /**
- * The read-first summary of an EXPRESSION: it renders to one line of text, and
- * a template reference inside it used to print as its own raw token — the same
- * reference the editor shows as a named chip. This is the Save Reply row of the
- * Discord assistant template, whose value is
+ * The read-first summary of an EXPRESSION: it reads as DPQL, and a template
+ * reference inside it used to print as its own raw token — the same reference
+ * the editor shows as a named chip. This is the Save Reply row of the Discord
+ * assistant template, whose value is
  * `trim($data:{dc_ai_reply.choices[0].message.content})`.
  */
 export const CompactExpressionTemplateChips: Story = {
@@ -7169,7 +7167,7 @@ export const CompactExpressionTemplateChips: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact read-first row whose value is an expression wrapping a template reference — the reference renders as a named chip inside the summary text (trim("Choices[0].message.content")) rather than as its raw $data token.',
+          'Renders a compact read-first row whose value is an expression wrapping a template reference — the summary reads as DPQL and the reference inside it is a chip named from the form\'s template catalogue, trim(Choices[0].message.content), rather than its raw $data token or its path.',
       },
     },
     chromatic: { disable: true },
@@ -7220,20 +7218,20 @@ export const CompactExpressionTemplateChips: Story = {
       onChange={fn()}
     />
   ),
-  play: async () => {
-    // The summary keeps its literal text…
-    await _testsWaitForText('trim("', undefined, 1);
-    // …and the reference inside it is a named chip, not the raw token.
+  play: async ({ canvasElement }) => {
     await waitFor(() => {
-      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
+      const summary = canvasElement.querySelector('.readfirst-row .dpql-rendering');
+      // The summary keeps its literal text…
+      expect(summary?.textContent, 'the row summarises the expression as DPQL').toContain('trim(');
+      // …and the reference inside it is a chip named from the catalogue.
+      const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
         tag.textContent?.includes('Choices[0].message.content')
       );
       expect(chip, 'the reference renders as a named chip in the summary').toBeTruthy();
+      // Named, so neither the raw token nor the path it resolves.
+      expect(summary?.textContent).not.toContain('$data:{');
+      expect(summary?.textContent).not.toContain('dc_ai_reply');
     });
-    const raw = Array.from(document.querySelectorAll('.readfirst-row')).filter((row) =>
-      row.textContent?.includes('$data:{')
-    );
-    expect(raw, 'the row prints no raw token').toHaveLength(0);
   },
 };
 
@@ -7248,7 +7246,7 @@ export const CompactExpressionWithoutCatalogue: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact read-first row whose value is an expression wrapping a template reference, with no templates supplied — the reference still renders as a chip carrying its own path (dc_ai_reply.choices[0].message.content) rather than the raw $data token.',
+          'Renders a compact read-first row whose value is an expression wrapping a template reference, with no templates supplied — the summary reads as DPQL and the reference still renders as a chip carrying its own path (data: dc_ai_reply.choices[0].message.content) rather than the raw $data token.',
       },
     },
     chromatic: { disable: true },
@@ -7283,18 +7281,16 @@ export const CompactExpressionWithoutCatalogue: Story = {
       onChange={fn()}
     />
   ),
-  play: async () => {
-    await _testsWaitForText('trim("', undefined, 1);
+  play: async ({ canvasElement }) => {
     await waitFor(() => {
-      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
+      const summary = canvasElement.querySelector('.readfirst-row .dpql-rendering');
+      expect(summary?.textContent, 'the row summarises the expression as DPQL').toContain('trim(');
+      const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
         tag.textContent?.includes('dc_ai_reply.choices[0].message.content')
       );
       expect(chip, 'the reference chips even with no catalogue').toBeTruthy();
+      expect(summary?.textContent, 'the row prints no raw token').not.toContain('$data:{');
     });
-    const raw = Array.from(document.querySelectorAll('.readfirst-row')).filter((row) =>
-      row.textContent?.includes('$data:{')
-    );
-    expect(raw, 'the row prints no raw token').toHaveLength(0);
   },
 };
 

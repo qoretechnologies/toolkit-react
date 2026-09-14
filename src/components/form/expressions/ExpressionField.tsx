@@ -15,6 +15,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef } from '../../dpqlEditor';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
+import { DpqlRendering } from './DpqlRendering';
 import { IExpression, IExpressionSchema, IExpressionValue, TExpressionReorder } from './types';
 import { useExpressions } from './useExpressions';
 import { useRenderExpression } from './useRenderExpression';
@@ -34,8 +35,6 @@ const PREVIEW_DEBOUNCE_MS = 400;
 /** Retry cadence for seeding the Text editor while its LSP session opens. */
 const SEED_RETRY_MS = 400;
 const SEED_MAX_TRIES = 20;
-
-const noop = (): void => undefined;
 
 export interface IExpressionFieldProps {
   /** The expression value: `{ is_expression:true, value:{ exp, args } }`. */
@@ -109,10 +108,9 @@ export const ExpressionField = memo(
     const { renderRich } = useRenderExpression();
 
     const [mode, setMode] = useState<TExpressionMode>(defaultMode);
-    const [preview, setPreview] = useState<{ text: string; server: boolean }>({
-      text: '',
-      server: false,
-    });
+    /* The server's rendering of the current AST; empty until it has one. There is
+       no client-side stand-in — see `useRenderExpression`. */
+    const [preview, setPreview] = useState('');
 
     // Text mode state. `text` is the DPQL string the editor shows; the AST
     // (`value`) stays the source of truth, kept in sync via parse-on-edit.
@@ -156,17 +154,25 @@ export const ExpressionField = memo(
       return declared && declared !== 'auto' && declared !== 'any' ? declared : undefined;
     }, [returnType, type]);
 
-    /** Read the type analysis off a parse result, or clear it. */
+    /**
+     * Read the type analysis off a parse result, or clear it.
+     *
+     * "Fits" is read from the whole answer, not `type_compatible` alone. A
+     * conversion that exists and cannot fail — a number used as text — is a
+     * fit as far as the author is concerned, and reporting it is exactly the
+     * noise the message below is written to avoid.
+     */
     const readTypeCheck = useCallback(
-      (result?: { type_compatible?: boolean; coercion_may_fail?: boolean;
-        inferred_type?: string; target_type?: string;
+      (result?: { type_compatible?: boolean; auto_coercible?: boolean;
+        coercion_may_fail?: boolean; inferred_type?: string; target_type?: string;
         suggested_fix?: { text: string } }): void => {
         if (!result || result.type_compatible === undefined) {
           setTypeCheck(null);
           return;
         }
+        const convertsSafely = !!result.auto_coercible && !result.coercion_may_fail;
         setTypeCheck({
-          compatible: !!result.type_compatible,
+          compatible: !!result.type_compatible || convertsSafely,
           mayFail: !!result.coercion_may_fail,
           inferred: result.inferred_type,
           target: result.target_type,
@@ -177,8 +183,7 @@ export const ExpressionField = memo(
     );
 
     // Keep a readable rendering of the current expression in sync — the
-    // single live mirror of the AST (server `dpql/renderExpression` when
-    // reachable, the client-side approximation otherwise).
+    // single live mirror of the AST (the server's `dpql/renderExpression`).
     //
     // Debounced: it follows the AST, which follows the text, so rendering it
     // eagerly put a box under the cursor that appeared, changed and vanished
@@ -186,15 +191,15 @@ export const ExpressionField = memo(
     useEffect(() => {
       let live = true;
       const timer = setTimeout(() => {
-        renderRich(ast ?? {}, expressions).then((r) => {
-          if (live) setPreview({ text: r.text, server: r.server });
+        renderRich(ast ?? {}).then((r) => {
+          if (live) setPreview(r?.text ?? '');
         });
       }, PREVIEW_DEBOUNCE_MS);
       return () => {
         live = false;
         clearTimeout(timer);
       };
-    }, [renderRich, ast, expressions]);
+    }, [renderRich, ast]);
 
     // Tracks whether the user has typed since entering Text mode, so a
     // slow seed response can't clobber their input.
@@ -420,7 +425,7 @@ export const ExpressionField = memo(
                 : ''}
                 {typeCheck.fix ? (
                   <div style={{ marginTop: '6px' }}>
-                    <code data-testid='expression-type-fix'>{typeCheck.fix}</code>
+                    <DpqlRendering text={typeCheck.fix} data-testid='expression-type-fix' />
                   </div>
                 ) : null}
               </ReqoreMessage>
@@ -437,26 +442,11 @@ export const ExpressionField = memo(
 
                 An empty query has nothing to render either, so the box appears
                 once there is a result rather than holding a placeholder. */}
-            {preview.text &&
+            {preview &&
             astText.trim() === text.trim() &&
-            preview.text.trim() !== text.trim() ? (
+            preview.trim() !== text.trim() ? (
               <ReqoreMessage intent='info' size='small' title='Preview' flat opaque={false}>
-                {preview.server ? (
-                  // Server rendering shown through a read-only DpqlEditor:
-                  // template-ref chips + LSP token colours; diagnostics off
-                  // (the rendering is readable text, not parseable DPQL).
-                  <div data-testid='expression-preview' style={{ width: '100%' }}>
-                    <DpqlEditor
-                      value={preview.text}
-                      onChange={noop}
-                      readOnly
-                      showDiagnostics={false}
-                      enableHover={false}
-                    />
-                  </div>
-                ) : (
-                  <code data-testid='expression-preview'>{preview.text}</code>
-                )}
+                <DpqlRendering text={preview} data-testid='expression-preview' />
               </ReqoreMessage>
             ) : null}
           </>

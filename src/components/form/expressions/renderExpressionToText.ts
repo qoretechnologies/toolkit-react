@@ -1,9 +1,9 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Client-side expression renderer — the offline approximation of an expression
-// AST. Used as the fallback when the LSP "Explain" path
-// (`DataProvider::renderExpression`) is unreachable, and by read-first
-// summaries that must render synchronously. Pure: no transport/socket import,
-// so it stays out of the LSP/nanoid dependency graph.
+// Client-side expression renderer — an approximation of an expression AST for
+// the read-first row summaries, which must render synchronously. Nothing that
+// can wait uses it: Explain and the Text view's Preview wait for the server's
+// `dpql/renderExpression` (see `useRenderExpression`). Pure: no
+// transport/socket import, so it stays out of the LSP/nanoid dependency graph.
 import { IExpression, IExpressionSchema, IExpressionValue } from './types';
 
 /** A symbol made only of non-word characters renders infix (`a == b`). */
@@ -15,9 +15,10 @@ const isOperatorSymbol = (symbol?: string): boolean =>
  *
  * Mirrors `DpqlOperatorPrecedence` in the Qore DataProvider module, which is
  * the source of truth — the server renders the same ASTs through
- * `DataProvider::renderExpression`, and an offline fallback that parenthesised
+ * `DataProvider::renderExpression`, and a row summary that parenthesised
  * differently would make the same expression read two ways depending on
- * whether the instance happened to be reachable.
+ * whether it was collapsed or open. (It does not model the catalogue's
+ * `render_template`s, so `contains` still reads as a call here.)
  */
 const PRECEDENCE: Record<string, number> = {
   '*': 1,
@@ -128,7 +129,7 @@ const renderInContext = (
 
 /**
  * Recursively render an expression AST to readable text — the client-side
- * approximation, used as the fallback when the LSP is unreachable.
+ * approximation a read-first row summary shows.
  */
 export const renderExpressionToText = (
   value: IExpressionValue | undefined,

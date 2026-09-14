@@ -307,45 +307,6 @@ export const templateTooltip = (
     : label || value;
 };
 
-const EMBEDDED_TEMPLATE_TOKEN = new RegExp(TEMPLATE_TOKEN_SOURCE, 'g');
-
-export type TTemplateTextSegment =
-  | { kind: 'text'; text: string }
-  | { kind: 'token'; text: string };
-
-/**
- * Splits prose that embeds template tokens into its literal and token parts —
- * `trim("$data:{…}")` becomes `trim("`, the token, `")`. Used to chip the
- * references inside a rendered expression instead of printing them raw.
- */
-export const splitTemplateTokens = (text?: string): TTemplateTextSegment[] => {
-  if (!text) {
-    return [];
-  }
-
-  const segments: TTemplateTextSegment[] = [];
-  let lastIndex = 0;
-
-  // A fresh regex per call: a shared /g instance carries `lastIndex` between
-  // calls and would skip tokens on the second string it is given.
-  const pattern = new RegExp(EMBEDDED_TEMPLATE_TOKEN.source, 'g');
-  let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      segments.push({ kind: 'text', text: text.slice(lastIndex, match.index) });
-    }
-    segments.push({ kind: 'token', text: match[0] });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length) {
-    segments.push({ kind: 'text', text: text.slice(lastIndex) });
-  }
-
-  return segments;
-};
-
 // Ported verbatim from qorus-ide `helpers/functions.tsx` (FIELD_STACK_REPORT
 // batch) — the previous reqraft version used naive badge equality; the IDE
 // routes compatibility through `areQorusTypesCompatible` (int↔string coercion

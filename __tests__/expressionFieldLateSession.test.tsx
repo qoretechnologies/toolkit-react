@@ -36,7 +36,7 @@ const mayNotFitResult = {
 };
 
 vi.mock('../src/components/dpqlEditor', () => ({
-  DpqlEditor: forwardRef<any, any>(({ onChange }, ref) => {
+  DpqlEditor: forwardRef<any, any>(({ onChange, readOnly, value }, ref) => {
     /* A GETTER, not a snapshot: the real ref gains `parse` when the session
        attaches, so the handle has to answer differently over time. Freezing it
        at mount (the obvious `[]`-dep version) models a session that never
@@ -55,6 +55,11 @@ vi.mock('../src/components/dpqlEditor', () => ({
       }),
       []
     );
+    /* A READ-ONLY instance is a rendering (`DpqlRendering`: the Preview, the
+       suggested conversion), not the editor under test — draw its text. */
+    if (readOnly) {
+      return <span data-testid='fake-dpql-rendering'>{value}</span>;
+    }
     return (
       <textarea
         data-testid='fake-dpql'

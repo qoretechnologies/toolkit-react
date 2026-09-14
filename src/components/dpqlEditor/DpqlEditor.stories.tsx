@@ -9,125 +9,11 @@ import {
   IMockLspServer,
   MOCK_LSP_URL,
 } from '../smartEditor/__fixtures__/mockLspServer';
+import { mockTokenizeDpql } from '../form/expressions/dpqlMockLanguage';
 import { DpqlEditor } from './DpqlEditor';
 import { TDpqlFsmContext } from './types';
 
 let lsp: IMockLspServer;
-
-// Mock tokenizer for the `semanticTokens/full` response; returns the
-// LSP-encoded delta-5-tuple int array. Type indices match the legend in
-// the mock's `initialize`.
-function mockTokenizeDpql(text: string): number[] {
-  const DPQL_KEYWORDS = new Set([
-    'in',
-    'not',
-    'between',
-    'and',
-    'like',
-    'true',
-    'false',
-    'null',
-  ]);
-  const DPQL_FUNCTIONS = new Set([
-    'abs',
-    'round',
-    'floor',
-    'ceil',
-    'trim',
-    'ltrim',
-    'rtrim',
-    'concat',
-    'split',
-    'substr',
-    'coalesce',
-    'nullif',
-    'now',
-    'days',
-    'hours',
-    'minutes',
-    'seconds',
-    'milliseconds',
-    'microseconds',
-    'years',
-    'months',
-    'weeks',
-    'get_year',
-    'get_month',
-    'get_day',
-    'get_hour',
-    'get_minute',
-    'get_second',
-    'format_date',
-    'format_number',
-    'map',
-    'hash_map',
-    'contains',
-  ]);
-  // Longer operators must come first so `==` isn't matched as two `=`.
-  const TOKEN_RE = new RegExp(
-    [
-      `("(?:\\\\.|[^"\\\\])*")`, // 1: double-quoted string
-      `('(?:\\\\.|[^'\\\\])*')`, // 2: single-quoted string
-      `(/(?:\\\\.|[^/\\\\])*/[gimsux]*)`, // 3: regex literal /…/flags
-      `(@"(?:\\\\.|[^"\\\\])*"|@[A-Za-z_][\\w.]*)`, // 4: @field
-      `(\\$[A-Za-z_-][\\w-]*:(?:\\{[^}]*\\}|[\\w.{}]+))`, // 5: $context:value
-      `(\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b)`, // 6: number
-      `(==|!=|<=|>=|&&|\\|\\||=~|!~|\\.\\.|[+\\-*/%<>!=,(){}\\[\\].])`, // 7: operator
-      `(\\b[A-Za-z_][\\w]*\\b)`, // 8: identifier (keyword check)
-    ].join('|'),
-    'g'
-  );
-
-  const lines = text.split('\n');
-  const tokens: Array<{
-    line: number;
-    char: number;
-    length: number;
-    type: number;
-  }> = [];
-
-  for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-    const line = lines[lineIdx];
-    TOKEN_RE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = TOKEN_RE.exec(line)) !== null) {
-      const length = match[0].length;
-      let type = -1;
-      if (match[1] || match[2]) type = 11; // string
-      else if (match[3]) type = 13; // regexp
-      else if (match[4]) type = 4; // variable
-      else if (match[5]) type = 2; // class (template)
-      else if (match[6]) type = 12; // number
-      else if (match[7]) type = 14; // operator
-      else if (match[8]) {
-        const word = match[8].toLowerCase();
-        if (DPQL_KEYWORDS.has(word)) {
-          type = 8; // keyword
-        } else if (DPQL_FUNCTIONS.has(word)) {
-          type = 6; // function
-        } else {
-          continue; // plain identifier — undecorated
-        }
-      }
-      if (type >= 0) {
-        tokens.push({ line: lineIdx, char: match.index, length, type });
-      }
-    }
-  }
-
-  // Delta-encode per LSP spec.
-  const data: number[] = [];
-  let prevLine = 0;
-  let prevChar = 0;
-  for (const t of tokens) {
-    const deltaLine = t.line - prevLine;
-    const deltaChar = deltaLine === 0 ? t.char - prevChar : t.char;
-    data.push(deltaLine, deltaChar, t.length, t.type, 0);
-    prevLine = t.line;
-    prevChar = t.char;
-  }
-  return data;
-}
 
 interface IDpqlEditorStoryArgs {
   value?: string;
@@ -182,8 +68,8 @@ const meta = {
         },
       },
       handlers: {
-        'textDocument/semanticTokens/full': (_msg, server) => ({
-          data: mockTokenizeDpql(server.documentText),
+        'textDocument/semanticTokens/full': (msg, server) => ({
+          data: mockTokenizeDpql(server.textOf(msg.params?.textDocument?.uri)),
         }),
 
         // Position-aware like the real `dpql-get-completions`: `$` →

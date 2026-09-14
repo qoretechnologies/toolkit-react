@@ -51,6 +51,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       showDiagnostics = true,
       enableHover = true,
       templateTagsUseIntent = false,
+      loadingIndicator,
+      templates,
       onBlur,
       useServerParse = false,
       alertPayloadContext = false,
@@ -171,8 +173,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
     }, [useServerParse, serverParsedFor, serverParsedNodes]);
 
     const tagRenderer = useMemo(
-      () => makeDpqlTagRenderer(dpql.fieldMeta, { templateTagsUseIntent }),
-      [dpql.fieldMeta, templateTagsUseIntent]
+      () => makeDpqlTagRenderer(dpql.fieldMeta, { templateTagsUseIntent, templates }),
+      [dpql.fieldMeta, templateTagsUseIntent, templates]
     );
 
     useImperativeHandle(
@@ -206,6 +208,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         enableHover={enableHover}
         onBlur={onBlur}
         isLoading={isParsing}
+        loadingIndicator={loadingIndicator}
       />
     );
   }

@@ -2,6 +2,7 @@
 // Type definitions for the DpqlEditor component. Slate node types
 // (`ISlateElement`, `ISlateText`, `TSlateNode`) live in the smartEditor
 // primitive's `types.ts` — re-export them here for backward compat.
+import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 
 export type {
   ISlateElement,
@@ -90,6 +91,17 @@ export interface IDpqlEditorProps {
    * palette, the editor's at-a-glance prefix coloring).
    */
   templateTagsUseIntent?: boolean;
+  /**
+   * The overlay shown while the language server connects. Forwarded to
+   * `SmartEditor`; pass `null` to show the text without one — a read-only
+   * rendering already has its text, and only its colours wait for the server.
+   */
+  loadingIndicator?: React.ReactNode;
+  /**
+   * The template catalogue the surface offers: a `$…` reference found in it
+   * is labelled by its catalogue name. See `IDpqlTagRendererOptions.templates`.
+   */
+  templates?: IReqoreFormTemplates;
   /** Called when the editor loses focus. */
   onBlur?: () => void;
   /**
