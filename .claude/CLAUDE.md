@@ -283,6 +283,7 @@ yarn build:test         # Type-check without emit
 | Storage path collisions | Use `includeAppPrefix: true` in `useReqraftStorage` to namespace per app |
 | Story shows FormEngine's loading skeleton / "Connecting to language server…" forever | An unmocked request or a connection inherited from an earlier story — see "Story network" above |
 | "No Preview — Sorry, but you either have no stories…" in a story failure | Not a registration failure: addon-vitest injects Storybook's hidden preview body into every test page, and a failed query's DOM dump prints it. Read the assertion above the dump |
+| A story run stops reporting and never times out (no failure, no output) | The page's main thread is blocked, so the in-page 30s test timer cannot fire — usually a synchronous render loop inside `act()`. Find the story with `--reporter=verbose` (the last ✓ is the one before it), then give Chromium `launchOptions: { args: ['--remote-debugging-port=9333'] }` in `vitest.config.ts` locally, enable `Debugger` over CDP BEFORE the freeze, and `Debugger.pause` once `Runtime.evaluate` stops answering to get the stack. Revert the config afterwards |
 | `yarn test:stories` hangs before any test runs (the port message is incidental) | Seen when the checkout path contains `+` — e.g. an auto-named `.claude/worktrees/fix+name` — while the same tree at a `+`-free path runs normally. Use a path without `+` |
 
 ## File Reference

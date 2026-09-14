@@ -1,8 +1,9 @@
 # Story network isolation — ExpressionField stories fail off-network
 
-**Status:** done pending user verify — branch `bugfix/expressionfield-stories`
-(LSP fix `4e49e2a`, story network in the commit after it), not yet pushed.
-Full story suite 479/479 and unit 930/930 locally, off-network.
+**Status:** done pending user verify — folded into `fix/per-field-templates`
+(PR #115) so every open reqraft fix ships in one PR; not yet pushed.
+Originally built and verified on `develop` (stories 479/479, unit 930/930,
+off-network), then re-verified on the combined branch.
 
 ## Symptom
 
@@ -46,6 +47,33 @@ useWebsocket 3, TemplateField 1.
   addon's global + story merge.
 - All mock URLs moved to the helpers; FormEngine's duplicate types mock and
   DpqlEditor's ad-hoc `closeAll()` removed.
+
+### Reconciled with `fix/per-field-templates`
+
+- That branch had already met the leak from the fixture side:
+  `createMockLspServer` reset the shared connections on create and close. The
+  project-level `beforeEach` covers the same ground plus stories that never
+  create a mock server (and the render client), so the fixture resets were
+  dropped in favour of the one mechanism.
+- Its `query()` strips a path's leading slash and uses a `noApiPrefix` url
+  verbatim; `buildReqraftApiUrl` follows those rules, so the doubled-slash mock
+  spellings are gone.
+- **A page-freezing render loop in the row menu** (from `a21640b`), reachable
+  only once FormEngine rendered offline: `FormEngine › Compact Expressions`
+  froze the tab and hung the whole suite with no output. The row kept ONE
+  `{key, items}` slot, and an expression's operands — separate TemplateFields
+  in the same row — published different keys into it, each overwrite
+  re-rendering the row and both operands. The same slot also kept an unmounted
+  editor's handlers when a reopened row offered the same key. Fixed in
+  `rowMenuContext.ts` (per-publisher registration via `useId`, withdrawn on
+  unmount, clicks delegated to the latest handler) and `TemplateField` (claims
+  the channel and hides it from what it renders, so operands keep their own
+  menu). Unit tests reproduce the loop and both stale-handler cases.
+- `ExpressionField › Field Menu Stays In The Toolbar` had gone stale on that
+  branch: `a21640b` moved a row field's menu into the row's ⋮ (one menu per
+  control) after the story was written. The story now asserts that single
+  menu — the row's `.options-readfirst-more`, with no `.template-more` beside
+  it — still sits level with the toolbar.
 
 ## Not causes (checked)
 
