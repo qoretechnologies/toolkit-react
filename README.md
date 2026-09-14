@@ -148,7 +148,7 @@ client.onNotification('qonsole/sessionStateChanged', (params) => { /* … */ });
 client.disconnect();
 ```
 
-Clients on the same LSP endpoint share ONE underlying WebSocket — each `ReqraftLspClient` is a per-document facade over the shared connection, multiplexed by document URI (the server keys language sessions per document), so N editors cost one socket. Auto-reconnect re-opens every document on the shared socket, 15s request timeout, request/response correlation by `id`, pending requests rejected on close. Document URIs should be opaque and client-generated — per the Qonsole LSP contract they must not contain session tokens, usernames, sandbox identifiers, or other secrets that end up in server logs.
+Clients on the same LSP endpoint share ONE underlying WebSocket — each `ReqraftLspClient` is a per-document facade over the shared connection, multiplexed by document URI (the server keys language sessions per document), so N editors cost one socket. Auto-reconnect re-opens every document on the shared socket, 15s request timeout, request/response correlation by `id`, pending requests rejected on close. A `connect()` never outlives its socket: once the socket exhausts `maxReconnectTries`, a handshake still waiting rejects, and the next `connect()` — from that client or any other — dials again, so an editor opened after an outage connects once the server is back, without a page reload. Document URIs should be opaque and client-generated — per the Qonsole LSP contract they must not contain session tokens, usernames, sandbox identifiers, or other secrets that end up in server logs.
 
 ## Community
 

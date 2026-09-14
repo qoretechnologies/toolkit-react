@@ -505,12 +505,11 @@ describe('ReqraftLspClient', () => {
   it('handles disconnect() called before connect() resolves', async () => {
     const client = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://test/dispose' });
     const connectP = client.connect();
-    // The in-flight handshake may reject when the socket is torn down
-    // mid-connect — swallow it so it doesn't surface as an unhandled
-    // rejection; the assertion is on the resulting state.
-    connectP.catch(() => undefined);
     client.disconnect();
 
+    // Releasing the last client tears the socket down mid-handshake; the
+    // handshake is failed with it rather than left pending forever.
+    await expect(connectP).rejects.toThrow('Client disconnected');
     expect(client.isConnected).toBe(false);
 
     // The shared connection was released cleanly — a fresh client connects.
@@ -518,5 +517,150 @@ describe('ReqraftLspClient', () => {
     await fresh.connect();
     expect(fresh.isConnected).toBe(true);
     fresh.disconnect();
+  });
+
+  it('a client released after a reset does not evict the connection that replaced its own', async () => {
+    const stale = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://reset/stale' });
+    await stale.connect();
+    expect(harness.connections).toBe(1);
+
+    // Storybook resets between stories; the old story's editor may still be
+    // unmounting while the next story's editor connects.
+    _resetSharedLspConnectionsForTests();
+    const current = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://reset/current' });
+    await current.connect();
+    expect(harness.connections).toBe(2);
+
+    stale.disconnect();
+
+    // A third client still joins `current`'s socket rather than dialling anew.
+    const joiner = new ReqraftLspClient({ languageId: 'dpql', uri: 'dpql://reset/joiner' });
+    await joiner.connect();
+    expect(harness.connections).toBe(2);
+    expect(current.isConnected).toBe(true);
+
+    joiner.disconnect();
+    current.disconnect();
+  });
+
+  // ── Giving up ───────────────────────────────────────────────────────
+  //
+  // The shared connection outlives any one client — `useRenderExpression`'s
+  // module-level render client holds it for the life of the page — so a
+  // connection whose socket has stopped trying must not linger as a dead
+  // handshake that every later client joins. Fake timers run the reconnect
+  // schedule to exhaustion deterministically.
+
+  describe('when the socket gives up', () => {
+    const GIVE_UP = { maxReconnectTries: 2, reconnectIntervalMs: 10 };
+    // Comfortably past every reconnect attempt plus mock-socket's own
+    // event-dispatch delays.
+    const runReconnectsOut = () => vi.advanceTimersByTimeAsync(1000);
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('rejects the first connect() instead of leaving it pending forever', async () => {
+      // Nothing is listening: every dial fails.
+      mockServer.close();
+      const client = new ReqraftLspClient({
+        languageId: 'dpql',
+        uri: 'dpql://giveup/first',
+        ...GIVE_UP,
+      });
+      let outcome: string | undefined;
+      client.connect().then(
+        () => (outcome = 'resolved'),
+        (err: Error) => (outcome = err.message)
+      );
+
+      await runReconnectsOut();
+
+      expect(outcome).toBe('LSP connection to lsp gave up after 2 reconnect attempts');
+      expect(client.isConnected).toBe(false);
+    });
+
+    it('a client joining once the endpoint is back dials afresh, and the failed client recovers on the same socket', async () => {
+      mockServer.close();
+      // Stands in for the render client: it acquired the connection first
+      // and never releases it.
+      const pinned = new ReqraftLspClient({
+        languageId: 'dpql',
+        uri: 'dpql://giveup/pinned',
+        ...GIVE_UP,
+      });
+      pinned.connect().catch(() => undefined);
+      await runReconnectsOut();
+
+      mockServer = new Server(WS_URL);
+      harness = new LspServerHarness(mockServer);
+
+      const late = new ReqraftLspClient({
+        languageId: 'dpql',
+        uri: 'dpql://giveup/late',
+        ...GIVE_UP,
+      });
+      let lateReady = false;
+      late.connect().then(() => (lateReady = true));
+      await vi.advanceTimersByTimeAsync(50);
+      expect(lateReady).toBe(true);
+      expect(late.isConnected).toBe(true);
+
+      let pinnedReady = false;
+      pinned.connect().then(() => (pinnedReady = true));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(pinnedReady).toBe(true);
+      expect(pinned.isConnected).toBe(true);
+      expect(harness.connections).toBe(1);
+      expect(harness.receivedAllFor('initialize')).toHaveLength(1);
+
+      late.disconnect();
+      pinned.disconnect();
+    });
+
+    it('once an established connection gives up, connect() dials again rather than reporting the dead socket as ready', async () => {
+      const first = new ReqraftLspClient({
+        languageId: 'dpql',
+        uri: 'dpql://giveup/established',
+        ...GIVE_UP,
+      });
+      let firstReady = false;
+      first.connect().then(() => (firstReady = true));
+      await vi.advanceTimersByTimeAsync(50);
+      expect(firstReady).toBe(true);
+
+      // Drop the socket with nothing to reconnect to.
+      mockServer.close();
+      await runReconnectsOut();
+      expect(first.isConnected).toBe(false);
+
+      mockServer = new Server(WS_URL);
+      harness = new LspServerHarness(mockServer);
+
+      let redialed = false;
+      first.connect().then(() => (redialed = true));
+      await vi.advanceTimersByTimeAsync(50);
+      expect(redialed).toBe(true);
+      expect(first.isConnected).toBe(true);
+      expect(harness.connections).toBe(1);
+
+      // A late client rides the new socket, not the dead one.
+      const late = new ReqraftLspClient({
+        languageId: 'dpql',
+        uri: 'dpql://giveup/established-late',
+        ...GIVE_UP,
+      });
+      await late.connect();
+      expect(late.isConnected).toBe(true);
+      expect(harness.connections).toBe(1);
+
+      late.disconnect();
+      first.disconnect();
+    });
   });
 });
