@@ -167,6 +167,7 @@ yarn build:test         # Type-check without emit
 
 - `yarn precheck` runs: lint → test → build:test:prod
 - `pre-push` hook enforces: `build:test:prod`, `lint`, `test`
+- CI (`.github/workflows/tests.yml`) runs precheck, build and the full story suite for PRs into `develop` **and** for every push to `develop`. GitHub skips `pull_request` workflows while a PR has merge conflicts, so a conflicting PR gets no test runs until it is rebased or merged up
 - Branch naming: always start with the issue number, e.g. `feature/49_pooled-connections`
 
 ### Versioning — every PR to `develop` MUST bump the version

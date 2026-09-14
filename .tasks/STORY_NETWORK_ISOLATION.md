@@ -64,5 +64,7 @@ useWebsocket 3, TemplateField 1.
 - `ReqraftWebSocketsManager.closeAll()` deletes entries by `socket.url` rather than
   the pool key, and closing a CONNECTING socket reports code 1006, which schedules
   a reconnect. Not exercised by this fix.
-- `tests.yml` runs only on `pull_request`: a conflicting PR stops getting runs and
-  `develop` pushes are never tested.
+- ~~`tests.yml` runs only on `pull_request`~~ — done on this branch: it now also
+  runs on pushes to `develop` (the push trigger had been dropped in 2021 with no
+  recorded reason). Conflicting PRs still get no `pull_request` runs until they
+  merge up.
