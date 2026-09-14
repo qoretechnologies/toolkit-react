@@ -77,7 +77,11 @@ export interface IUseLspSessionResult {
    * only fires when `capabilities?.signatureHelpProvider` exists).
    */
   capabilities: ILspServerCapabilities | null;
-  /** Forward content changes to the server via `didChange`. */
+  /**
+   * The editor now holds `text`: the server is sent it via `didChange`, or via
+   * `didOpen` if the document is not open yet. Text the server already holds
+   * is not resent, so it is safe to call for every value the editor shows.
+   */
   didChange: (text: string) => void;
   /**
    * Request `textDocument/completion` at a plain-text offset. Converts
@@ -96,6 +100,13 @@ export function useLspSession(
 
   const clientRef = useRef<ReqraftLspClient | null>(null);
   const versionRef = useRef(1);
+  /* The text the editor holds, and the text the server holds for this
+     document — `null` until the document is open. The server tokenises and
+     diagnoses ITS copy, so every text the editor shows has to reach it, however
+     it got there: typed, or set from outside after mount (a Text view seeded
+     once `dpql/serialize` answers, a Preview following the typing). */
+  const editorTextRef = useRef(initialText);
+  const serverTextRef = useRef<string | null>(null);
   const uriRef = useRef(uriProp ?? `${languageId}://session/${++lspUriCounter}`);
 
   const [client, setClient] = useState<ReqraftLspClient | null>(null);
@@ -129,8 +140,11 @@ export function useLspSession(
         // result.
         setSemanticTokensLegend(c.semanticTokensLegend);
         setCapabilities(c.capabilities);
+        // Opened with the text the editor holds NOW, which may have been set
+        // while the connection was opening.
+        serverTextRef.current = editorTextRef.current;
         c.didOpen(
-          initialText,
+          editorTextRef.current,
           initialMetadata && Object.keys(initialMetadata).length > 0
             ? initialMetadata
             : undefined
@@ -146,6 +160,7 @@ export function useLspSession(
     return () => {
       c.disconnect();
       clientRef.current = null;
+      serverTextRef.current = null;
       setClient(null);
       setIsReady(false);
       setSemanticTokensLegend(null);
@@ -158,8 +173,11 @@ export function useLspSession(
   }, []);
 
   const didChange = useCallback((text: string) => {
+    editorTextRef.current = text;
     const c = clientRef.current;
-    if (!c) return;
+    // Not open yet: `didOpen` will carry it. Already held: nothing to send.
+    if (!c || serverTextRef.current === null || serverTextRef.current === text) return;
+    serverTextRef.current = text;
     c.didChange(text, ++versionRef.current);
   }, []);
 
