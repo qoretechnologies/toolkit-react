@@ -566,9 +566,14 @@ const TemplateFieldImpl = memo(
     // Only while the field is EMPTY. A field already holding a literal must
     // open showing that literal — flipping to the template view would hide a
     // value the author put there and make it look lost.
-    // ...and only when there is actually something to pick. A field with no
-    // templates on offer would otherwise open on an EMPTY picker, which is a
-    // worse place to start than the type picker it replaced.
+    //
+    // A field that may hold a custom value opens there whether or not templates
+    // are on offer, and whether or not they have ARRIVED: template mode gives it
+    // a typable editor, which offers the list once there is one. Waiting for the
+    // list decided the landing from data that is async — on a cold load the
+    // type-filtered list did not exist at mount, so the field fell to the type
+    // picker and stayed there. A pick-only field (no custom values) is in
+    // template mode regardless, by the `!allowCustomValues` term.
     const typeIsAnyLike = type === 'any' || type === 'auto';
     /* An EMPTY field, for the purpose of offering the template selector.
    
@@ -595,11 +600,19 @@ const TemplateFieldImpl = memo(
     const editorHandlesTemplates =
       !!allowTemplates && isTemplateAwareUiType(type as string, (rest as any).templateAwareUiTypes);
 
+    const hasOnlyAllowedValues = useMemo(
+      () => !!size(rest.allowed_values) && !rest.allowed_values_creatable,
+      [rest.allowed_values, rest.allowed_values_creatable]
+    );
+
+    /** An empty untyped field opens in template mode — see above. */
+    const opensOnTemplates =
+      typeIsAnyLike &&
+      isEmptyValue &&
+      (hasTemplatesOnOffer || (!!allowCustomValues && !hasOnlyAllowedValues));
+
     const [isTemplateState, setIsTemplate] = useState<boolean>(
-      (isDefaultTemplate ||
-        isValueTemplate(value) ||
-        !allowCustomValues ||
-        (typeIsAnyLike && isEmptyValue && hasTemplatesOnOffer)) &&
+      (isDefaultTemplate || isValueTemplate(value) || !allowCustomValues || opensOnTemplates) &&
         allowTemplates
     );
 
@@ -684,9 +697,7 @@ const TemplateFieldImpl = memo(
 
       if (
         restoreSelectorWhenSettled.current &&
-        isEmptyValue &&
-        typeIsAnyLike &&
-        hasTemplatesOnOffer &&
+        opensOnTemplates &&
         allowTemplates &&
         !effectiveIsFunction
       ) {
@@ -694,7 +705,7 @@ const TemplateFieldImpl = memo(
         setTemplateValue(null);
         setIsTemplate(true);
       }
-    }, [isEmptyValue, typeIsAnyLike, hasTemplatesOnOffer, allowTemplates, effectiveIsFunction]);
+    }, [isEmptyValue, opensOnTemplates, allowTemplates, effectiveIsFunction]);
 
     useEffect(() => {
       if (allowCustomValues && isTemplate && value && !isValueTemplate(value)) {
@@ -738,11 +749,6 @@ const TemplateFieldImpl = memo(
         onChange?.(name, templateValue, type as TQorusType, effectiveIsFunction);
       }
     }, [JSON.stringify(templateValue)]);
-
-    const hasOnlyAllowedValues = useMemo(
-      () => !!size(rest.allowed_values) && !rest.allowed_values_creatable,
-      [rest.allowed_values, rest.allowed_values_creatable]
-    );
 
     const showTemplateToggle = allowCustomValues && allowTemplates && !rest.arg_schema;
 

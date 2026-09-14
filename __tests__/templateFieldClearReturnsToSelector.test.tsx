@@ -174,9 +174,9 @@ describe('clearing an untyped field with templates on offer', () => {
     expect(showsTemplateSelector(container)).toBe(false);
   });
 
-  it('does not send a cleared field to an EMPTY template selector', async () => {
-    // With nothing on offer the type picker is the right fallback — an empty
-    // picker is a worse place to start.
+  it('does not send a cleared field to an EMPTY template selector, or to a type question', async () => {
+    // With nothing on offer the field is still typed into: no empty picker, and
+    // never "Please select data type".
     const { container, rerender } = renderField({
       value: 'happy-path',
       templates: { items: [] } as never,
@@ -199,5 +199,7 @@ describe('clearing an untyped field with templates on offer', () => {
     );
 
     expect(showsTemplateSelector(container)).toBe(false);
+    expect(asksForDataType(container)).toBe(false);
+    expect(isTypable(container)).toBe(true);
   });
 });

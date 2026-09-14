@@ -951,15 +951,22 @@ function AutoField<T = any>({
             />
           );
         }
+        /* An UNTYPED field is typed into, never asked for a type.
+
+           It used to show a type picker and "Please select data type" — a
+           question about storage ("is this a Text or a Number?") that an author
+           writing a value often cannot answer, asked before they could write
+           anything. What is typed is stored untyped, exactly as template mode
+           stores it; a value of an explicit type is set from the field's ⋮ menu
+           (see `FormEngine`'s `getCustomMenuTemplateItems`). */
         case 'any':
-          return null;
         case 'auto':
           return (
-            <ReqoreTag
-              intent='warning'
-              minimal
-              icon='ErrorWarningLine'
-              label='Please select data type'
+            <LongStringFormField
+              {...rest}
+              type='string'
+              onChange={(value) => handleChange(name, value)}
+              value={value}
             />
           );
         default:
@@ -974,9 +981,16 @@ function AutoField<T = any>({
     );
   };
 
+  /* No picker while the type is unresolved: the field is typed into instead
+     (see the `auto` / `any` editor above). A field declaring several allowed
+     types still picks between THOSE — that is a choice the schema offers, not a
+     question about storage. */
+  const typeIsUnresolved =
+    !currentInternalType || currentInternalType === 'auto' || currentInternalType === 'any';
   const showPicker =
     size(allowedTypes) > 1 ||
-    ((!size(rest.allowed_values) ||
+    (!typeIsUnresolved &&
+    (!size(rest.allowed_values) ||
       (size(rest?.allowed_values) > 0 && !rest.allowed_values_creatable) ||
       !size(rest.element_allowed_values) ||
       (size(rest?.element_allowed_values) > 0 && !rest.element_allowed_values_creatable)) &&

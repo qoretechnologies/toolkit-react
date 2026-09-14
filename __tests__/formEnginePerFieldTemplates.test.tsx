@@ -83,17 +83,16 @@ describe('a field may declare templates of its own', () => {
        Asserted as the ABSENCE of the type question rather than the presence of
        "Select Template": an untyped field is typable now, so its templates
        arrive in an editor that offers them on focus rather than in a pick-only
-       dropdown. The negative case — no templates anywhere, so the type picker
-       IS the right question — is the test just below, which is what keeps this
-       from meaning "never ask for a type". */
+       dropdown. The case with no templates anywhere is the test just below:
+       an untyped field never asks for a data type, with or without a list. */
     expect(queryByText('Please select data type')).toBeNull();
     expect(container.querySelector('textarea, input:not([type="checkbox"])')).toBeTruthy();
   });
 
-  it('still asks for a type when the field has no templates of its own and the shared list is empty', async () => {
-    // The other half, so the fix cannot be mistaken for "never ask for a type".
-    // With nothing to pick the type picker IS the right question.
-    const { container, findByText } = renderForm(
+  it('does not ask for a type when the field has no templates of its own and the shared list is empty', async () => {
+    // With nothing to pick the field is still typed into — an untyped field never
+    // asks "Please select data type"; an explicit type is set from its ⋮ menu.
+    const { container, findByText, queryByText } = renderForm(
       {
         actual: {
           type: 'auto',
@@ -107,8 +106,10 @@ describe('a field may declare templates of its own', () => {
     );
 
     expect(await findByText('Actual')).toBeTruthy();
-    // Nothing to pick, so the type picker IS the right question and the row must
-    // still ask it. This is what stops the fix from being read as "never ask".
+    // Nothing to pick, and still no type question: an editor to type into, and
+    // no empty template picker either.
+    expect(queryByText('Please select data type')).toBeNull();
+    expect(container.querySelector('textarea, input:not([type="checkbox"])')).toBeTruthy();
     expect(container.textContent).not.toContain('Select Template');
   });
 

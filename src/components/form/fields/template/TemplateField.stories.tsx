@@ -264,9 +264,19 @@ export const AutoComponent: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField over an untyped (`auto`) field that accepts templates. While the field is empty it opens on the template selector rather than the data-type picker, so the author can say which value they mean before answering how it is stored.',
+          'Renders TemplateField over an untyped (`auto`) field that accepts templates. While the field is empty it opens on an editor to type into, which offers the templates — never on a data-type picker, so the author can write the value they mean without answering how it is stored.',
       },
     },
+  },
+  play: async ({ canvasElement }) => {
+    /* The editor itself, not a class: TemplateField puts `.template-selector`
+       on every control it draws, the data-type picker included, so asserting
+       the class passed while the story showed "Please select data type". */
+    await waitFor(() => expect(canvasElement.querySelector('textarea')).toBeTruthy(), {
+      timeout: 5000,
+    });
+    expect(canvasElement.textContent).not.toContain('Please select data type');
+    expect(canvasElement.textContent).not.toContain('Select Template');
   },
 };
 
@@ -991,14 +1001,19 @@ export const EmptyAnyOpensOnTemplates: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'An untyped, empty field that accepts templates opens showing the template selector rather than a data-type picker.',
+          'An untyped, empty field that accepts templates opens on an editor to type into, which offers the templates — never on a data-type picker.',
       },
     },
   },
   play: async ({ canvasElement }) => {
-    await waitFor(() =>
-      expect(canvasElement.querySelector('.template-selector')).toBeTruthy()
-    );
+    /* The editor itself, not a class: TemplateField puts `.template-selector`
+       on every control it draws, the data-type picker included, so asserting
+       the class passed while the story showed "Please select data type". */
+    await waitFor(() => expect(canvasElement.querySelector('textarea')).toBeTruthy(), {
+      timeout: 5000,
+    });
+    expect(canvasElement.textContent).not.toContain('Please select data type');
+    expect(canvasElement.textContent).not.toContain('Select Template');
   },
 };
 

@@ -129,6 +129,32 @@ Create `src/components/form/fields/auto/AutoFormField.tsx`:
   collapsing to `'long-string'`. **This is the one behaviour change for
   existing consumers** — see Migration impact.
 
+**Revised 2026-09-14 — an untyped field is typed into, never asked for a
+type.** No field shows the type picker's *"Please select data type"*
+anymore. It asked a question about storage ("is this Text or a Number?")
+that an author writing a value often cannot answer, before they could write
+anything, and it replaced a typable field with a pick-only one.
+
+- **`AutoFormField`**, for a type that is still `auto` / `any`, renders the
+  long-string editor and stores what is typed as untyped — exactly what
+  template mode stores. The picker appears only where there is a real
+  choice: the schema allows several concrete types (`allowed_types`), or
+  the field already holds a value of a concrete type.
+- **An explicit type** is chosen from the field's ⋮ menu — the per-type
+  entries under *Set Custom Value* (see `engine/typeChoices.ts`).
+- **`TemplateField`** opens an empty untyped field that may hold a custom
+  value in template mode, whose editor is typable and offers the templates.
+  It decides that from the field's props, not from whether the template list
+  has arrived: on a cold load the type-filtered list does not exist at
+  mount, and a landing chosen from it put every such field on the picker.
+- A field that may NOT hold a custom value (FormEngine passes
+  `allowCustomValues={false}` for `any`) still opens on its template menu —
+  a pick-only control because the schema made it one, not a type question.
+
+Guarded by `__tests__/untypedFieldNeverAsksForAType.test.tsx` and the
+`AutoFormField` / `TemplateField` stories (`Empty`, `ViaFormEngine`,
+`AutoComponent`, `EmptyAnyOpensOnTemplates`).
+
 ### Out of scope for phase 1
 
 - The `type-depends-on` / `requestFieldData` cross-field type
@@ -178,7 +204,9 @@ qorus-ide coupling and copies over near-verbatim. The real work is the
    in `CatalogLeafForm`. `catalogLeafToFieldSchema` already emits the
    right shape; the adapter wires `value`/`onChange`. This is where the
    phase-1 `auto` field pays off — leaves typed `auto` now render a
-   real type-picker instead of a textarea.
+   real type-picker instead of a textarea. (Revised 2026-09-14: an empty
+   `auto` leaf is a typable editor again, with the type on its ⋮ menu — see
+   phase 1.)
 3. Port `CatalogNodeEditor` (group/map/list dispatch + drawer editors),
    swapping qorus-ide's `QorusTable` for `ReqoreTable` (or a Reqraft
    table if one exists) and `Hint` for a Reqraft equivalent or nothing.
