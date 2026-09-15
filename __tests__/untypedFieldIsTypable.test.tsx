@@ -59,7 +59,7 @@ const renderField = (type: string, value?: unknown) =>
    query THROWS on that rather than reporting the control is there. */
 const hasPickOnlyDropdown = () => screen.queryAllByText('Select Template').length > 0;
 /** Anything that takes a keystroke. */
-const typableControl = () => document.querySelector('textarea, input:not([type="checkbox"])');
+const typableControl = () => document.querySelector('textarea, input:not([type="checkbox"]), [contenteditable="true"]');
 
 describe('an empty untyped field with templates on offer', () => {
   it.each(['auto', 'any'])('gives %s a control that can be typed into', (type) => {

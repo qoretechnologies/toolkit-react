@@ -66,7 +66,7 @@ const asksForDataType = (container: HTMLElement) =>
   (container.textContent || '').includes('Please select data type');
 /** Anything that takes a keystroke. */
 const isTypable = (container: HTMLElement) =>
-  !!container.querySelector('textarea, input:not([type="checkbox"])');
+  !!container.querySelector('textarea, input:not([type="checkbox"]), [contenteditable="true"]');
 const showsTemplateSelector = (container: HTMLElement) =>
   (container.textContent || '').includes('Select Template');
 

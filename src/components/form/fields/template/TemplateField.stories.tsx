@@ -272,7 +272,7 @@ export const AutoComponent: StoryObj<typeof meta> = {
     /* The editor itself, not a class: TemplateField puts `.template-selector`
        on every control it draws, the data-type picker included, so asserting
        the class passed while the story showed "Please select data type". */
-    await waitFor(() => expect(canvasElement.querySelector('textarea')).toBeTruthy(), {
+    await waitFor(() => expect(canvasElement.querySelector('[contenteditable="true"]')).toBeTruthy(), {
       timeout: 5000,
     });
     expect(canvasElement.textContent).not.toContain('Please select data type');
@@ -684,7 +684,7 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches to the $local:id template value inside the template-offering input (plain word tokens stay typeable; only braced context refs chip).',
+          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches to template mode, where the $local:id reference is a chip named Interface ID inside an editor that can still be typed into.',
       },
     },
   },
@@ -694,9 +694,16 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
     await ShowsTemplatesListForString.play({ canvasElement, ...rest });
     await _testsClickButton({ label: 'Interface ID' });
 
-    await sleep(100);
-
-    await expect(canvas.getByDisplayValue('$local:id')).toBeInTheDocument();
+    // The chosen reference reads as the name it was chosen by, in an editor
+    // that can still be typed into — not as its spelling.
+    await waitFor(
+      () => {
+        const chip = canvasElement.querySelector('.template-selector [contenteditable="true"] .reqore-tag');
+        expect(chip?.textContent).toContain('Interface ID');
+      },
+      { timeout: 5000 }
+    );
+    await expect(canvas.queryByDisplayValue('$local:id')).toBeNull();
   },
 };
 
@@ -1009,7 +1016,7 @@ export const EmptyAnyOpensOnTemplates: StoryObj<typeof meta> = {
     /* The editor itself, not a class: TemplateField puts `.template-selector`
        on every control it draws, the data-type picker included, so asserting
        the class passed while the story showed "Please select data type". */
-    await waitFor(() => expect(canvasElement.querySelector('textarea')).toBeTruthy(), {
+    await waitFor(() => expect(canvasElement.querySelector('[contenteditable="true"]')).toBeTruthy(), {
       timeout: 5000,
     });
     expect(canvasElement.textContent).not.toContain('Please select data type');

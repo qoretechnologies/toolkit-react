@@ -9,6 +9,7 @@ import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/tes
 import { useState } from 'react';
 import { sleep } from '../../../../../__tests__/utils';
 import { StoryMeta } from '../../../../types';
+import { templateChipLabel } from '../../../../helpers/templateText';
 import { mockExpressions } from '../mockExpressions';
 import { IExpression } from '../types';
 import { ExpressionBuilder } from './index';
@@ -610,14 +611,29 @@ export const VariableArgumentsCanBeAdded: Story = {
 const CONCAT_OPERANDS = ['first', 'second', 'third'];
 const OPERAND_LITERALS = [...CONCAT_OPERANDS, 'plain', '$local:some-richtext'];
 
-/** Seeded operand values in DOM order — only the seeded ones, so stray fields don't count. */
+/**
+ * Seeded operand values in DOM order — only the seeded ones, so stray fields
+ * don't count. A template operand is a chip in an editable field, which shows
+ * the reference by the name these stories' templates give it ("Richtext
+ * Template"), read back here as the reference it names.
+ */
 const operandValues = () =>
   Array.from(
-    document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-      '.expression textarea, .expression input'
+    document.querySelectorAll<HTMLElement>(
+      '.expression textarea, .expression input, .expression [contenteditable="true"]'
     )
   )
-    .map((field) => field.value)
+    .map((field) => {
+      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+        return field.value;
+      }
+      const shown = (field.textContent ?? '').replace(/\uFEFF/g, '').trim();
+      return (
+        OPERAND_LITERALS.find(
+          (literal) => literal === shown || templateChipLabel(localTemplates as never, literal) === shown
+        ) ?? shown
+      );
+    })
     .filter((value) => OPERAND_LITERALS.includes(value));
 
 const count = (selector: string) => document.querySelectorAll(selector).length;

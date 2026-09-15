@@ -150,10 +150,37 @@ anything, and it replaced a typable field with a pick-only one.
 - A field that may NOT hold a custom value (FormEngine passes
   `allowCustomValues={false}` for `any`) still opens on its template menu —
   a pick-only control because the schema made it one, not a type question.
+- Emptying that editor leaves the field in template mode, where an empty
+  field lands. Switching to custom mode mounted a different editor in place
+  of the one being typed in, so the last backspace lost the cursor.
 
 Guarded by `__tests__/untypedFieldNeverAsksForAType.test.tsx` and the
 `AutoFormField` / `TemplateField` stories (`Empty`, `ViaFormEngine`,
 `AutoComponent`, `EmptyAnyOpensOnTemplates`).
+
+**Revised 2026-09-15 — template mode draws references as named chips.**
+Template mode's typable editor (a string or untyped field that may also hold
+a custom value) is `RichTextFormField` with `valueFormat: 'text'`, not a
+textarea. The field still stores the plain string; each template reference in
+it (`TEMPLATE_TOKEN_SOURCE`) is drawn as a chip, so a chosen template reads as
+the name it was chosen by — in the Visual builder's operands and in every
+string field that takes templates. A textarea spelled it `$local:name`.
+
+- The chip's label is `templateChipLabel`: the catalogue's name for the
+  reference, else the reference as the DPQL Text view labels it
+  (`local: name`), so one reference reads alike in both views. Its hover and
+  colour are the collapsed row's (`ReadOnlyTemplateTag`).
+- The editor keeps its own document and rebuilds it only when the stored
+  string changes from outside: rebuilding from the echo of what was typed
+  would hand the editor a new tree per keystroke, which moves the cursor.
+- `string` holds one line: Enter adds none, and a pasted break is flattened.
+- A value that is exactly one braced reference (`$data:{…}`, machine-written)
+  keeps its pick-only chip selector, unchanged.
+
+This reverses the 2026-08-27 choice (`85ba6ec`) to keep plain tokens as raw
+text: that review rejected a *pick-only* chip because it could not be typed
+into, and this editor is both. Conversion lives in `helpers/templateText.ts`
+(`__tests__/templateText.test.ts`, `__tests__/richTextTextValue.test.tsx`).
 
 ### Out of scope for phase 1
 

@@ -6,13 +6,24 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import { isEqual, size } from 'lodash';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
+import { flattenToSingleLine, hasLineBreak } from '../../../../helpers/singleLineString';
 import {
   renderTemplateItemDescriptions,
   templateItemsToShow,
 } from '../../../../helpers/templateItems';
-import { getTemplateTagStyle } from '../../../../helpers/templates';
+import {
+  templateChipLabel,
+  templateNodesToText,
+  templateTextToNodes,
+} from '../../../../helpers/templateText';
+import {
+  describeTemplateReference,
+  getTemplateTagStyle,
+  templateTooltip,
+  TTemplateMeta,
+} from '../../../../helpers/templates';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 
 export interface IRichTextFormFieldProps extends Omit<
@@ -23,6 +34,15 @@ export interface IRichTextFormFieldProps extends Omit<
   onChange?: (value: string | IReqoreRichTextEditorProps['value']) => void;
   allowTemplates?: boolean;
   templates?: IReqoreFormTemplates;
+  /**
+   * What the value is. `richtext` (the default) stores the editor's document.
+   * `text` stores a plain string: each template reference in it is drawn as a
+   * chip named from `templates`, and what is emitted is the string again — for
+   * a string field whose value may hold references (`Dear $local:name`).
+   */
+  valueFormat?: 'richtext' | 'text';
+  /** With `valueFormat: 'text'`: the value holds one line, so Enter adds none. */
+  singleLine?: boolean;
 }
 
 /**
@@ -70,11 +90,29 @@ export const RichTextFormField = memo(({
   onChange,
   allowTemplates,
   templates,
+  valueFormat = 'richtext',
+  singleLine,
   ...rest
 }: IRichTextFormFieldProps) => {
-  const [localValue, setLocalValue] = useState<any>(value);
+  const isText = valueFormat === 'text';
+  const [localValue, setLocalValue] = useState<any>(() =>
+    isText ? templateTextToNodes(String(value ?? ''), templates) : value
+  );
+  /* In text mode, the string the editor's document stands for. The value that
+     comes back from the parent is usually that same string, and rebuilding the
+     document from it would hand the editor a new tree on every keystroke —
+     which it answers by replacing its content and moving the cursor to the end. */
+  const lastTextRef = useRef(isText ? String(value ?? '') : '');
 
   useEffect(() => {
+    if (isText) {
+      const text = String(value ?? '');
+      if (text !== lastTextRef.current) {
+        lastTextRef.current = text;
+        setLocalValue(templateTextToNodes(text, templates));
+      }
+      return;
+    }
     if (JSON.stringify(value) !== JSON.stringify(localValue)) {
       setLocalValue(value);
     }
@@ -82,6 +120,12 @@ export const RichTextFormField = memo(({
 
   useDebounce(
     () => {
+      if (isText) {
+        if (lastTextRef.current !== String(value ?? '')) {
+          onChange?.(lastTextRef.current);
+        }
+        return;
+      }
       if (!isEqual(localValue, value)) {
         onChange?.(localValue);
       }
@@ -96,6 +140,19 @@ export const RichTextFormField = memo(({
   );
 
   const handleChange = (val: any): void => {
+    if (isText) {
+      const text = templateNodesToText(val);
+      // A line break also arrives by paste and by drag-and-drop; Enter alone is
+      // stopped below. Flattened text is shown as the one line it now is.
+      if (singleLine && hasLineBreak(text)) {
+        lastTextRef.current = flattenToSingleLine(text);
+        setLocalValue(templateTextToNodes(lastTextRef.current, templates));
+        return;
+      }
+      lastTextRef.current = text;
+      setLocalValue(val);
+      return;
+    }
     if (JSON.stringify(val) === '[{"type":"paragraph","children":[{"text":""}]}]') {
       setLocalValue(undefined);
       return;
@@ -117,6 +174,22 @@ export const RichTextFormField = memo(({
 
       if (!tagValue) {
         return {};
+      }
+
+      /* A reference in a string is drawn exactly as the collapsed row draws the
+         same value (`ReadOnlyTemplateTag`): named from the catalogue, its
+         description on hover. Read at render, so a catalogue that arrives
+         after the value still names it. */
+      if (isText && tagValue.startsWith('$')) {
+        const { item } = describeTemplateReference(templates, tagValue);
+        const metadata = item?.metadata as TTemplateMeta | undefined;
+        return {
+          icon: 'ExchangeDollarLine',
+          leftIconProps: { image: metadata?.image },
+          label: templateChipLabel(templates, tagValue),
+          tooltip: templateTooltip(templates, tagValue),
+          ...getTemplateTagStyle(metadata),
+        };
       }
 
       if (tagValue.startsWith('$')) {
@@ -160,7 +233,17 @@ export const RichTextFormField = memo(({
 
       return {};
     },
-    [descriptionByValue, renderMarkdown]
+    [descriptionByValue, renderMarkdown, isText, templates]
+  );
+
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+      if (isText && singleLine && event.key === 'Enter') {
+        event.preventDefault();
+      }
+      (rest as { onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void }).onKeyDown?.(event);
+    },
+    [isText, singleLine, (rest as { onKeyDown?: unknown }).onKeyDown]
   );
 
   const tags = useMemo<IReqoreRichTextEditorProps['tags']>((): IReqoreRichTextEditorProps['tags'] => {
@@ -221,6 +304,7 @@ export const RichTextFormField = memo(({
       panelProps={{ fluid: true, style: { minWidth: '150px', ...rest.panelProps?.style } }}
       {...rest}
       readOnly={readOnly}
+      onKeyDown={handleKeyDown}
       actions={
         readOnly ?
           { undo: false, redo: false, styling: false }

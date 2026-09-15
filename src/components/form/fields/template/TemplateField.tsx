@@ -28,7 +28,7 @@ import {
   IReqoreTextareaProps,
 } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IQorusFormFieldSchemaBase, TQorusType } from '@qoretechnologies/ts-toolkit';
-import { size } from 'lodash';
+import { omit, size } from 'lodash';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
@@ -65,6 +65,7 @@ import NumberFormField from '../number/Number';
 import { ReadOnlyTemplateTag } from './ReadOnlyTemplateTag';
 import { RichTextFormField } from '../rich-text/RichText';
 import { richtextToString } from '../../../../helpers/common';
+import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import {
   IRowMenuRegistration,
   RowMenuContext,
@@ -816,6 +817,11 @@ const TemplateFieldImpl = memo(
       [name, onChange, emptyLandsOnTemplates, allowTemplates]
     );
 
+    const handleTemplateTextChange = useCallback(
+      (val: unknown) => handleTemplateFieldChange(name, typeof val === 'string' ? val : ''),
+      [handleTemplateFieldChange, name]
+    );
+
     const handleSelectTemplateFromList = useCallback(
       // If the field has allowed values and supports templates, we do not want to overwrite the field type with the template type
       (item) => {
@@ -1475,19 +1481,22 @@ const TemplateFieldImpl = memo(
           />
         : null}
 
+        {/* Template mode's editor for a value that can also be typed: each
+            reference in it is a chip named as the catalogue names it, while the
+            field still stores the plain string. A textarea spelled a chosen
+            template `$local:name` wherever it was edited — in the Visual
+            builder's operands, in every string field that takes templates. */}
         {isTemplate && templateSupportsCustomValues && !templateValueIsBracedToken ?
-          <LongStringField
+          <RichTextFormField
             className='template-selector'
-            type='string'
-            name='templateVal'
-            level={level}
-            value={templateValue}
-            templates={{
-              ...filteredTemplates,
-              ...TemplatesListProps,
-            }}
-            onChange={handleTemplateFieldChange}
-            {...rest}
+            valueFormat='text'
+            singleLine={isSingleLineStringType('string')}
+            value={typeof templateValue === 'string' ? templateValue : ''}
+            templates={filteredTemplates}
+            allowTemplates
+            onChange={handleTemplateTextChange}
+            // `tags` here are the field's own chips; the editor's `tags` are its template list.
+            {...omit(rest, 'tags')}
             aria-label={fieldAriaLabel}
           />
         : null}

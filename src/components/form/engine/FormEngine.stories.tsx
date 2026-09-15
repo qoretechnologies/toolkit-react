@@ -169,11 +169,17 @@ export const Basic: Story = {
     value: basicFormValue,
   },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-
-    await waitFor(() => expect(canvas.getAllByDisplayValue('$local:test')[0]).toBeInTheDocument(), {
-      timeout: 10000,
-    });
+    // The template option's `$local:test` reads as the name the form's
+    // templates give it, as a chip in its editor.
+    await waitFor(
+      () =>
+        expect(
+          Array.from(canvasElement.querySelectorAll('[contenteditable="true"] .reqore-tag')).some((chip) =>
+            chip.textContent?.includes('Test (local)')
+          )
+        ).toBe(true),
+      { timeout: 10000 }
+    );
     await waitFor(
       () =>
         expect(

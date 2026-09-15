@@ -12,14 +12,31 @@ import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-/** What the typable editor was last handed — the list it offers is a prop. */
+/** What each typable editor was last handed — the list it offers is a prop. */
 const longString = vi.hoisted(() => ({ props: undefined as Record<string, any> | undefined }));
+const templateEditor = vi.hoisted(() => ({ props: undefined as Record<string, any> | undefined }));
 
 vi.mock('../src/components/form/fields/long-string/LongString', () => ({
   default: (props: Record<string, any>) => {
     longString.props = props;
     return (
       <textarea
+        value={props.value ?? ''}
+        onChange={(e) => props.onChange?.((e.target as HTMLTextAreaElement).value)}
+      />
+    );
+  },
+}));
+
+/* Template mode's editor: a string whose references are drawn as chips. Drawn
+   here as a textarea with a marker, so the editor's identity and what it is
+   handed stay observable without a Slate document. */
+vi.mock('../src/components/form/fields/rich-text/RichText', () => ({
+  RichTextFormField: (props: Record<string, any>) => {
+    templateEditor.props = props;
+    return (
+      <textarea
+        data-template-editor
         value={props.value ?? ''}
         onChange={(e) => props.onChange?.((e.target as HTMLTextAreaElement).value)}
       />
@@ -76,7 +93,9 @@ describe('an empty untyped field', () => {
     /* ...and the typable editor is handed the templates that arrived, which is
        what it offers. A class would not show it: TemplateField puts
        `.template-selector` on every control it draws. */
-    await waitFor(() => expect(JSON.stringify(longString.props?.templates)).toContain('$.result'));
+    await waitFor(() => expect(JSON.stringify(templateEditor.props?.templates)).toContain('$.result'));
+    // It is template mode's editor, which draws the references as chips.
+    expect(templateEditor.props?.valueFormat).toBe('text');
   });
 
   it('keeps the same editor, and its focus, when the author deletes what they typed', async () => {
@@ -95,7 +114,7 @@ describe('an empty untyped field', () => {
     fireEvent.change(typableControl(container)!, { target: { value: '' } });
 
     expect(typableControl(container)).toBe(editor);
-    expect(JSON.stringify(longString.props?.templates)).toContain('$.result');
+    expect(JSON.stringify(templateEditor.props?.templates)).toContain('$.result');
     expect(asksForDataType(container)).toBe(false);
   });
 

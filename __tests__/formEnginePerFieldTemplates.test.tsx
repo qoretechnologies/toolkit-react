@@ -86,7 +86,7 @@ describe('a field may declare templates of its own', () => {
        dropdown. The case with no templates anywhere is the test just below:
        an untyped field never asks for a data type, with or without a list. */
     expect(queryByText('Please select data type')).toBeNull();
-    expect(container.querySelector('textarea, input:not([type="checkbox"])')).toBeTruthy();
+    expect(container.querySelector('textarea, input:not([type="checkbox"]), [contenteditable="true"]')).toBeTruthy();
   });
 
   it('does not ask for a type when the field has no templates of its own and the shared list is empty', async () => {
@@ -109,7 +109,7 @@ describe('a field may declare templates of its own', () => {
     // Nothing to pick, and still no type question: an editor to type into, and
     // no empty template picker either.
     expect(queryByText('Please select data type')).toBeNull();
-    expect(container.querySelector('textarea, input:not([type="checkbox"])')).toBeTruthy();
+    expect(container.querySelector('textarea, input:not([type="checkbox"]), [contenteditable="true"]')).toBeTruthy();
     expect(container.textContent).not.toContain('Select Template');
   });
 
