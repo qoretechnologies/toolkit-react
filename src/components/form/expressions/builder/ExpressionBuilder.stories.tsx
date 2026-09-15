@@ -1002,7 +1002,7 @@ export const AddValueSlotOnPhone: Story = {
     docs: {
       description: {
         story:
-          'Renders the phone presentation of the "concat" expression — the operands stack into a column and the "Add value" slot is the last row, on the same left edge as the fields, with no separate layout branch.',
+          'Renders the phone presentation of the "concat" expression — the operands stack into a column and the "Add value" slot becomes a full-width row under them, with the plus and label centred.',
       },
     },
   },
