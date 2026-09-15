@@ -6,12 +6,33 @@
 // not as their spelling. These convert between the stored string and the
 // editor's paragraphs, where each reference is a chip, so the editor can draw
 // chips while the field keeps storing exactly the string it always stored.
-import { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { getTagLabel } from '../components/dpqlEditor/dpqlHelpers';
 import { describeTemplateReference, TEMPLATE_TOKEN_SOURCE } from './templates';
 
-type TRichTextNodes = IReqoreRichTextEditorProps['value'];
+/* Stated here rather than borrowed from Reqore's editor props: those resolve
+   to Reqore's `CustomElement`, which it does not export, so the published
+   declarations could not name this module's types (TS4023 on `yarn build`). */
+
+/** A run of text. */
+export interface ITemplateTextLeaf {
+  text: string;
+}
+
+/** A template reference, drawn as a chip. */
+export interface ITemplateTextTag {
+  type: 'tag';
+  value: string;
+  label: string;
+  metadata?: unknown;
+  children: ITemplateTextLeaf[];
+}
+
+/** One line of the string. */
+export interface ITemplateTextParagraph {
+  type: 'paragraph';
+  children: Array<ITemplateTextLeaf | ITemplateTextTag>;
+}
 
 /**
  * What a reference chip says: the name the catalogue gives the reference, else
@@ -30,9 +51,12 @@ export const templateChipLabel = (templates: IReqoreFormTemplates | undefined, v
  * sit in the text nodes around it; one is kept on each side even when empty.
  * The chip's label is `templateChipLabel`.
  */
-export const templateTextToNodes = (text: string, templates?: IReqoreFormTemplates): TRichTextNodes =>
+export const templateTextToNodes = (
+  text: string,
+  templates?: IReqoreFormTemplates
+): ITemplateTextParagraph[] =>
   (text ?? '').split('\n').map((line) => {
-    const children: any[] = [];
+    const children: ITemplateTextParagraph['children'] = [];
     // A fresh expression per line: a shared /g instance carries `lastIndex`.
     const pattern = new RegExp(TEMPLATE_TOKEN_SOURCE, 'g');
     let last = 0;
@@ -50,11 +74,11 @@ export const templateTextToNodes = (text: string, templates?: IReqoreFormTemplat
       last = match.index + match[0].length;
     }
     children.push({ text: line.slice(last) });
-    return { type: 'paragraph', children };
-  }) as TRichTextNodes;
+    return { type: 'paragraph' as const, children };
+  });
 
 /** The string the paragraphs stand for: each chip written as its reference. */
-export const templateNodesToText = (nodes?: TRichTextNodes): string =>
+export const templateNodesToText = (nodes?: ReadonlyArray<{ children?: unknown[] }>): string =>
   (nodes ?? [])
     .map((paragraph: any) =>
       (paragraph?.children ?? [])
