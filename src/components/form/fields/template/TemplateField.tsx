@@ -605,11 +605,10 @@ const TemplateFieldImpl = memo(
       [rest.allowed_values, rest.allowed_values_creatable]
     );
 
-    /** An empty untyped field opens in template mode — see above. */
-    const opensOnTemplates =
-      typeIsAnyLike &&
-      isEmptyValue &&
-      (hasTemplatesOnOffer || (!!allowCustomValues && !hasOnlyAllowedValues));
+    /** Where this field lands when it is empty: an untyped one in template mode — see above. */
+    const emptyLandsOnTemplates =
+      typeIsAnyLike && (hasTemplatesOnOffer || (!!allowCustomValues && !hasOnlyAllowedValues));
+    const opensOnTemplates = isEmptyValue && emptyLandsOnTemplates;
 
     const [isTemplateState, setIsTemplate] = useState<boolean>(
       (isDefaultTemplate || isValueTemplate(value) || !allowCustomValues || opensOnTemplates) &&
@@ -801,14 +800,20 @@ const TemplateFieldImpl = memo(
     const handleTemplateFieldChange = useCallback(
       (_name: string, val: string) => {
         if (!val) {
-          setIsTemplate(false);
+          /* Emptying the text leaves the field where an empty field lands. For
+             an untyped field that is THIS editor: switching to custom mode here
+             mounted a different editor in its place, so deleting the last
+             character lost the cursor. */
+          if (!(emptyLandsOnTemplates && allowTemplates)) {
+            setIsTemplate(false);
+          }
           setTemplateValue(null);
           onChange(name, undefined);
         } else {
           setTemplateValue(val);
         }
       },
-      [name, onChange]
+      [name, onChange, emptyLandsOnTemplates, allowTemplates]
     );
 
     const handleSelectTemplateFromList = useCallback(

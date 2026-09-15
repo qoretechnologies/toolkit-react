@@ -79,6 +79,26 @@ describe('an empty untyped field', () => {
     await waitFor(() => expect(JSON.stringify(longString.props?.templates)).toContain('$.result'));
   });
 
+  it('keeps the same editor, and its focus, when the author deletes what they typed', async () => {
+    /* Template mode IS the editor an untyped field is typed into. Emptying it
+       used to switch the field to custom mode — a different editor, mounted in
+       place of the one the author was typing in — so the last backspace lost
+       the cursor. */
+    const { container } = render(untyped({ allowTemplates: true, templates: TEMPLATES }));
+    const editor = (await waitFor(() => {
+      const el = typableControl(container);
+      expect(el).toBeTruthy();
+      return el;
+    })) as HTMLTextAreaElement;
+
+    fireEvent.change(editor, { target: { value: 'a' } });
+    fireEvent.change(typableControl(container)!, { target: { value: '' } });
+
+    expect(typableControl(container)).toBe(editor);
+    expect(JSON.stringify(longString.props?.templates)).toContain('$.result');
+    expect(asksForDataType(container)).toBe(false);
+  });
+
   it('opens on a typable editor when no templates are on offer at all', async () => {
     const { container } = render(untyped({ allowTemplates: true, templates: { items: [] } }));
 
