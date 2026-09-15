@@ -12,12 +12,13 @@ import {
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
 import { TQorusFormFieldSchema, TQorusType } from '@qoretechnologies/ts-toolkit';
-import { isEqual, size } from 'lodash';
+import { isEqual, omit, size } from 'lodash';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import useMount from 'react-use/lib/useMount';
 import { typedToYaml, yamlToTyped } from '../../../../helpers/common';
 import { getListElementValue } from '../../../../helpers/options';
+import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import {
   getTypeFromValue,
   getValueOrDefaultValue,
@@ -500,6 +501,30 @@ function AutoField<T = any>({
     );
   };
 
+  /* Text that may hold template references is edited in the chip editor
+     whenever the field offers templates (`RichTextFormField`, `text` format):
+     each reference is drawn as the name it was chosen by and the value stays the
+     plain string. Text holding a reference anywhere but its start
+     (`Interface $local:id failed`) never enters template mode, so in a textarea
+     its references read as their spelling. */
+  const offersTemplates = rest.allowTemplates !== false && size(rest.templates?.items) > 0;
+  const renderTextEditor = (editorType: string) =>
+    offersTemplates ?
+      <RichTextFormField
+        {...omit(rest, 'tags')}
+        valueFormat='text'
+        singleLine={isSingleLineStringType(editorType)}
+        allowTemplates
+        value={typeof value === 'string' ? value : ''}
+        onChange={(next) => handleChange(name, typeof next === 'string' ? next : '')}
+      />
+    : <LongStringFormField
+        {...rest}
+        type={editorType}
+        onChange={(next) => handleChange(name, next)}
+        value={value}
+      />;
+
   const renderField = (currentType: IQorusType) => {
     // If this field is set to null
     if (isSetToNull) {
@@ -575,18 +600,20 @@ function AutoField<T = any>({
       // reqraft FormField vocabulary — the IDE calls it `string` (both render
       // the textarea field).
       switch (currentType) {
+        /* These four share an editor but not a shape: a `string` holds exactly
+           one line, while `data`, `binary` and `long-string` hold a document.
+           Without the type the field cannot tell them apart and treats them all
+           as documents, so an interface's Internal Name — which becomes a YAML
+           key — accepted Enter. Only text takes references; `data` and
+           `binary` are encoded content, where a chip would stand for nothing. */
         case 'string':
+        case 'long-string':
+          return renderTextEditor(currentType);
         case 'data':
         case 'binary':
-        case 'long-string':
           return (
             <LongStringFormField
               {...rest}
-              // These four share one editor but not one shape: a `string` holds
-              // exactly one line, while `data`, `binary` and `long-string` hold
-              // a document. Without the type the field cannot tell them apart
-              // and treats them all as documents, so an interface's Internal
-              // Name — which becomes a YAML key — accepted Enter.
               type={currentType}
               onChange={(value) => handleChange(name, value)}
               value={value}
@@ -961,14 +988,7 @@ function AutoField<T = any>({
            (see `FormEngine`'s `getCustomMenuTemplateItems`). */
         case 'any':
         case 'auto':
-          return (
-            <LongStringFormField
-              {...rest}
-              type='string'
-              onChange={(value) => handleChange(name, value)}
-              value={value}
-            />
-          );
+          return renderTextEditor('string');
         default:
           return <ReqoreTag intent='danger' icon='SpamLine' label='Unknown type!' />;
       }

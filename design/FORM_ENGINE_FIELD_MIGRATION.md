@@ -176,6 +176,13 @@ string field that takes templates. A textarea spelled it `$local:name`.
 - `string` holds one line: Enter adds none, and a pasted break is flattened.
 - A value that is exactly one braced reference (`$data:{…}`, machine-written)
   keeps its pick-only chip selector, unchanged.
+- Only a value that STARTS with a reference enters template mode, so
+  `AutoFormField`'s text editor — `string`, `long-string` and untyped — is the
+  same chip editor whenever the field offers templates: text like
+  `Interface $local:id failed` reads with its references named too. `data`
+  and `binary` keep the textarea (encoded content), as does a field with no
+  templates to offer. Guarded by `__tests__/textFieldDrawsTemplateChips.test.tsx`
+  and the `TemplateField` stories *Template References In Text* (+ *On Phone*).
 
 This reverses the 2026-08-27 choice (`85ba6ec`) to keep plain tokens as raw
 text: that review rejected a *pick-only* chip because it could not be typed

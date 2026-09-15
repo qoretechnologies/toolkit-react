@@ -1024,6 +1024,60 @@ export const EmptyAnyOpensOnTemplates: StoryObj<typeof meta> = {
   },
 };
 
+/** A string mixing text with template references, as template mode edits it. */
+const templateReferencesInText: StoryObj<typeof meta> = {
+  args: {
+    type: 'string',
+    defaultType: 'string',
+    defaultInternalType: 'string',
+    value: 'Interface $local:id failed at $timestamp:now',
+  },
+  play: async ({ canvasElement }) => {
+    const editor = await waitFor(
+      () => {
+        const element = canvasElement.querySelector<HTMLElement>('.template-selector [contenteditable="true"]');
+        expect(element).toBeTruthy();
+        return element!;
+      },
+      { timeout: 5000 }
+    );
+    // Each reference is its catalogue name; the text between them is untouched.
+    await waitFor(() =>
+      expect(Array.from(editor.querySelectorAll('.reqore-tag')).map((chip) => chip.textContent?.trim())).toEqual([
+        'Interface ID',
+        'Current Timestamp',
+      ])
+    );
+    expect(editor.textContent).toContain('failed at');
+    expect(editor.textContent).not.toContain('$local:id');
+  },
+};
+
+export const TemplateReferencesInText: StoryObj<typeof meta> = {
+  ...templateReferencesInText,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField holding the string "Interface $local:id failed at $timestamp:now". Template mode draws each reference as a chip named from the catalogue (Interface ID, Current Timestamp) inside an editor that can still be typed into; the text between them reads as typed.',
+      },
+    },
+  },
+};
+
+export const TemplateReferencesInTextOnPhone: StoryObj<typeof meta> = {
+  ...templateReferencesInText,
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Renders the same string with two template references at phone width (390px): the named chips and the text around them wrap inside the editor rather than overflowing it.',
+      },
+    },
+  },
+};
+
 /**
  * An `any` field that ALREADY HOLDS A LITERAL opens on that literal.
  *
@@ -1053,12 +1107,15 @@ export const AnyWithLiteralOpensOnTheValue: StoryObj<typeof meta> = {
     // a control that renders either way, so it says nothing about which view is
     // active.
     await waitFor(() => {
-      const held = [
-        ...canvasElement.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-          'input, textarea'
-        ),
-      ].some((el) => el.value === 'already-typed');
-      expect(held).toBe(true);
+      // Its editor may be a field or, where templates are offered, the chip editor.
+      const shown = [
+        ...canvasElement.querySelectorAll<HTMLElement>('input, textarea, [contenteditable="true"]'),
+      ].map((el) =>
+        el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ?
+          el.value
+        : (el.textContent ?? '').replace(/\uFEFF/g, '').trim()
+      );
+      expect(shown).toContain('already-typed');
     });
   },
 };

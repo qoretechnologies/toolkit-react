@@ -612,28 +612,37 @@ const CONCAT_OPERANDS = ['first', 'second', 'third'];
 const OPERAND_LITERALS = [...CONCAT_OPERANDS, 'plain', '$local:some-richtext'];
 
 /**
- * Seeded operand values in DOM order — only the seeded ones, so stray fields
- * don't count. A template operand is a chip in an editable field, which shows
- * the reference by the name these stories' templates give it ("Richtext
- * Template"), read back here as the reference it names.
+ * What an operand field holds. A text operand is edited in the chip editor
+ * (these stories offer templates), so it is read from the editable field; a
+ * template chip in it shows the name these stories' templates give the
+ * reference ("Richtext Template"), read back as the reference it names.
  */
+const readOperand = (field: HTMLElement): string => {
+  if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+    return field.value;
+  }
+  const shown = (field.textContent ?? '').replace(/\uFEFF/g, '').trim();
+  return (
+    OPERAND_LITERALS.find(
+      (literal) => literal === shown || templateChipLabel(localTemplates as never, literal) === shown
+    ) ?? shown
+  );
+};
+
+/** Every operand editor's text, in DOM order (no number or position inputs). */
+const operandTexts = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>('.expression textarea, .expression [contenteditable="true"]')
+  ).map(readOperand);
+
+/** Seeded operand values in DOM order — only the seeded ones, so stray fields don't count. */
 const operandValues = () =>
   Array.from(
     document.querySelectorAll<HTMLElement>(
       '.expression textarea, .expression input, .expression [contenteditable="true"]'
     )
   )
-    .map((field) => {
-      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
-        return field.value;
-      }
-      const shown = (field.textContent ?? '').replace(/\uFEFF/g, '').trim();
-      return (
-        OPERAND_LITERALS.find(
-          (literal) => literal === shown || templateChipLabel(localTemplates as never, literal) === shown
-        ) ?? shown
-      );
-    })
+    .map(readOperand)
     .filter((value) => OPERAND_LITERALS.includes(value));
 
 const count = (selector: string) => document.querySelectorAll(selector).length;
@@ -748,11 +757,7 @@ export const ReorderLongConcat: Story = {
     await fireEvent.keyDown(field, { key: 'Enter' });
     await waitFor(
       () =>
-        expect(
-          Array.from(
-            document.querySelectorAll<HTMLTextAreaElement>('.expression textarea')
-          ).map((t) => t.value)
-        ).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'second', 'seventh']),
+        expect(operandTexts()).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'second', 'seventh']),
       { timeout: 10000 }
     );
 
@@ -763,11 +768,7 @@ export const ReorderLongConcat: Story = {
     await clickSelector('.expression-arg-move-to-7');
     await waitFor(
       () =>
-        expect(
-          Array.from(
-            document.querySelectorAll<HTMLTextAreaElement>('.expression textarea')
-          ).map((t) => t.value)
-        ).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'second']),
+        expect(operandTexts()).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'second']),
       { timeout: 10000 }
     );
     expect(context.args.onChange).toHaveBeenLastCalledWith(
