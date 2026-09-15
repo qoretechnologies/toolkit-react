@@ -20,7 +20,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { TQorusType } from '@qoretechnologies/ts-toolkit';
 import { clone, cloneDeep, get, isArray, set, size, unset } from 'lodash';
 import { darken, rgba } from 'polished';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { moveItem } from '../../../../helpers/common';
 import { areQorusTypesCompatible, getArgumentType } from '../../../../helpers/expressions';
@@ -46,6 +46,7 @@ import {
 } from '../types';
 import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
+import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
 import { ExpressionBuilderArgumentWrapper } from './argumentWrapper';
 import { ConfirmMismatchedTypesModal } from './confirmMismatchedTypesModal';
 import { ConfirmUnsupportedTypeModal } from './confirmUnsupportedTypeModal';
@@ -654,9 +655,60 @@ export const Expression = ({
     [updateExp]
   );
 
-  const handleAddArgumentClick = useCallback(() => {
-    updateArg(undefined, size(value.value.args), undefined, false);
-  }, [updateArg, JSON.stringify(value)]);
+  // The panel whose slot was clicked, kept until the operand it adds has
+  // rendered: the new field then takes focus, so adding a value and typing
+  // it is one gesture. The slot sits inside this builder's own panel, and a
+  // nested builder's operands come before it in DOM order, so the last
+  // operand of the panel is the one just added.
+  const focusNewArgIn = useRef<HTMLElement | null>(null);
+
+  const handleAddArgumentClick = useCallback(
+    (event?: React.MouseEvent<HTMLElement>) => {
+      focusNewArgIn.current = event?.currentTarget?.closest<HTMLElement>('.expression') ?? null;
+      updateArg(undefined, size(value.value.args), undefined, false);
+    },
+    [updateArg, JSON.stringify(value)]
+  );
+
+  useEffect(() => {
+    const panel = focusNewArgIn.current;
+
+    if (!panel) {
+      return;
+    }
+
+    focusNewArgIn.current = null;
+    const operands = panel.querySelectorAll<HTMLElement>('.expression-arg');
+    const added = operands[operands.length - 1];
+
+    if (!added) {
+      return;
+    }
+
+    // A typed operand mounts a text field; an untyped one opens on its
+    // template picker, whose trigger is the field's first button that is not
+    // one of the operand's own controls (grip, position, ⋮, remove).
+    const field =
+      added.querySelector<HTMLElement>('textarea, input') ??
+      Array.from(added.querySelectorAll<HTMLElement>('button')).find(
+        (button) =>
+          !button.closest(
+            '.expression-arg-drag-handle, .expression-arg-position, .template-more, .expression-remove-arg'
+          )
+      );
+
+    field?.focus();
+  }, [argCount]);
+
+  const canAddArg = !!selectedExpression?.varargs && !readOnly;
+  const isSlotDropTarget = canReorderArgs && reorderSurfaces.includes('dragHandle');
+  // The slot is indexed one past the last operand, so its drag-over state
+  // never lights an operand and vice versa.
+  const handleSlotDragOver = useCallback(
+    () => handleArgDragOver(argCount),
+    [handleArgDragOver, argCount]
+  );
+  const handleSlotDrop = useCallback(() => handleArgDrop(argCount - 1), [handleArgDrop, argCount]);
 
   const handleWrapExpressionClick = useCallback(
     (value: unknown) => {
@@ -837,17 +889,8 @@ export const Expression = ({
         // SEAM (reqraft): the IDE renders `AiAssistanceAction` first here;
         // consumers inject it (or anything else) via `extraActions`.
         ...resolvedExtraActions,
-        {
-          className: 'expression-add-arg',
-          tooltip: 'Add argument',
-          icon: 'AddCircleLine',
-          fixed: true,
-          disabled: !validateField('expression', value, {
-            expressions: expressions.value,
-          }),
-          onClick: handleAddArgumentClick,
-          show: !!selectedExpression && selectedExpression.varargs === true && !readOnly,
-        },
+        // "Add value" is not up here: it is the slot after the last operand
+        // (`ExpressionBuilderAddArgumentSlot`), where the value will appear.
         {
           as: Select,
           show: readOnly ? false : 'hover',
@@ -1199,6 +1242,17 @@ export const Expression = ({
                 </React.Fragment>
               ))
             : null}
+          {canAddArg && (
+            <ExpressionBuilderAddArgumentSlot
+              argumentName={selectedExpression.args[0]?.display_name}
+              disabled={!validateField('expression', value, { expressions: expressions.value })}
+              droppable={isSlotDropTarget}
+              dragOver={isDragOverArg(argCount)}
+              onClick={handleAddArgumentClick}
+              onDragOver={handleSlotDragOver}
+              onDrop={handleSlotDrop}
+            />
+          )}
         </ReqoreControlGroup>
       )}
       {!isReturnTypeMatching && (
