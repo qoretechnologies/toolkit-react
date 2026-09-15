@@ -1243,3 +1243,31 @@ describe('list elements in either shape', () => {
     expect(validateField('list', [null], field)).toBe(false);
   });
 });
+
+// ─── expression: a slot with no operand ───────────────────────────────────────
+
+describe('expression with an empty operand slot', () => {
+  const addition = [
+    {
+      name: '+',
+      varargs: true,
+      min_args: 1,
+      args: [{ name: 'int', display_name: 'Value', ui_type: 'int', required: true }],
+    },
+  ] as any[];
+
+  it('judges a missing operand as a missing value rather than crashing', () => {
+    const value = { is_expression: true, value: { exp: '+', args: [undefined] } };
+
+    expect(() => validateField('expression', value, { expressions: addition })).not.toThrow();
+    const result = validateFieldWithResult('expression', value, { expressions: addition });
+    expect(result.isValid).toBe(false);
+    expect(result.reason).toContain('argument 1');
+  });
+
+  it('still accepts the same expression once the operand is filled', () => {
+    const value = { is_expression: true, value: { exp: '+', args: [{ type: 'int', value: 2 }] } };
+
+    expect(validateField('expression', value, { expressions: addition })).toBe(true);
+  });
+});

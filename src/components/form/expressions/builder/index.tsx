@@ -270,6 +270,25 @@ export const Expression = ({
       // Check if this expression has variable arguments
       const selectedExpression = expressions.value?.find((exp) => exp.name === expression);
 
+      // An operand slot with nothing in it yet: the schema's default value
+      // when it has one, otherwise an envelope typed after the schema for
+      // the editors that need a type to mount. `updateExp` leaves such a
+      // slot behind for every catalogue argument the previous value had no
+      // operand for (a fresh builder has none), so every branch below has
+      // to fill them — an `undefined` operand that reaches the validator or
+      // an operand editor is read for its `type` and crashes the builder.
+      const isEmptySlot = (slot: IExpression | undefined, arg: IExpressionSchemaArg) =>
+        slot === undefined || size(slot) === 0 || (arg.default_value && !('value' in slot));
+      const emptySlot = (arg: IExpressionSchemaArg): IExpression =>
+        arg.default_value
+          ? { value: arg.default_value, type: arg.ui_type }
+          : {
+              type:
+                arg.ui_type === 'richtext' || arg.ui_type === 'number' || arg.ui_type === 'bool'
+                  ? arg.ui_type
+                  : undefined,
+            };
+
       if (selectedExpression.varargs) {
         if (selectedExpression.subtype === 2) {
           newArgs.push({
@@ -279,38 +298,23 @@ export const Expression = ({
             },
           });
         } else {
-          // Add the number of arguments equal to min_args - 1
+          // Every operand follows the one schema argument; add slots up to
+          // min_args and fill the empty ones.
+          const [schema] = selectedExpression.args;
+
           newArgs.push(
-            ...Array.from({ length: selectedExpression.min_args - 1 }, () => ({
-              type:
-                selectedExpression.args[0].ui_type === 'richtext' ||
-                selectedExpression.args[0].ui_type === 'number'
-                  ? selectedExpression.args[0].ui_type
-                  : undefined,
-            }))
+            ...Array.from({ length: selectedExpression.min_args - 1 }, () => emptySlot(schema))
           );
+          newArgs.forEach((slot, index) => {
+            if (isEmptySlot(slot, schema)) {
+              newArgs[index] = emptySlot(schema);
+            }
+          });
         }
       } else {
-        // Check if any of the arguments have a default value
         selectedExpression.args.forEach((arg, index) => {
-          if (
-            newArgs[index] === undefined ||
-            size(newArgs[index]) === 0 ||
-            (arg.default_value && 'value' in newArgs[index] === false)
-          ) {
-            if (arg.default_value) {
-              newArgs[index] = {
-                value: arg.default_value,
-                type: arg.ui_type,
-              };
-            } else {
-              newArgs[index] = {
-                type:
-                  arg.ui_type === 'richtext' || arg.ui_type === 'number' || arg.ui_type === 'bool'
-                    ? arg.ui_type
-                    : undefined,
-              };
-            }
+          if (isEmptySlot(newArgs[index], arg)) {
+            newArgs[index] = emptySlot(arg);
           }
         });
       }

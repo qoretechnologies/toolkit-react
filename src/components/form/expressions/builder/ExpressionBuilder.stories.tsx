@@ -131,6 +131,38 @@ export const Default: Story = {
   },
 };
 
+/**
+ * Picking a varargs operation on a fresh builder. Used to crash: the fresh
+ * value has no operands, the operator change pushed `undefined` for the one
+ * catalogue argument, and the varargs branch of `addMissingArgs` never
+ * filled the hole, so the validator read `.type` of `undefined`.
+ */
+export const AdditionPickedFresh: Story = {
+  ...Default,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an empty ExpressionBuilder and picks "Addition" from the operation picker — the card shows one empty Value operand and the "Add value" slot, with no crash and no error boundary.',
+      },
+    },
+  },
+  play: async (context) => {
+    await Default.play!(context);
+    await selectOperation('Select operation', 'Addition');
+
+    await waitFor(() => expect(count('.expression-arg')).toBe(1), { timeout: 10000 });
+    expect(addSlot()).not.toBeNull();
+    expect(document.querySelector('.reqore-error-boundary')).toBeNull();
+    await waitForText('Value');
+    expect(context.args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        value: expect.objectContaining({ exp: '+', args: [{ type: undefined }] }),
+      })
+    );
+  },
+};
+
 export const DefaultBoolean: Story = {
   args: {
     returnType: ['boolean'],
