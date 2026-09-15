@@ -143,6 +143,12 @@ export interface ITemplateFieldProps extends Partial<
    * expression builder puts its operand reorder actions here.
    */
   menuActions?: ITemplateMenuActions;
+  /**
+   * SEAM (reqraft, additive): rows appended at the end of the `⋮` menu, after
+   * a divider — where an operand's destructive action goes on a phone, whose
+   * row has no room for it inline. Clicking a row closes the menu.
+   */
+  menuTrailingItems?: IReqoreMenuItemProps[];
   /** SEAM (reqraft, additive): forwarded to a nested expression builder. */
   reorder?: TExpressionReorder;
   /**
@@ -253,6 +259,32 @@ const renderMenuActionRows = (
       />
     );
   });
+
+// The `menuTrailingItems` rows: last in the menu, behind a divider. A direct
+// child of `ReqoreMenu` for the same reason as `MenuActionsSection` below.
+const MenuTrailingItems = memo(
+  ({
+    items,
+    closePopover,
+  }: {
+    items: IReqoreMenuItemProps[];
+    closePopover?: () => void;
+  }) => (
+    <>
+      <ReqoreMenuDivider />
+      {items.map((item, index) => (
+        <ReqoreMenuItem
+          {...item}
+          key={index}
+          onClick={(event, itemId) => {
+            item.onClick?.(event, itemId);
+            closePopover?.();
+          }}
+        />
+      ))}
+    </>
+  )
+);
 
 // A direct child of `ReqoreMenu`, like `CustomMenuItems`, so the menu hands it
 // the popover's `closePopover` — a section does not pass it on to its rows.
@@ -415,6 +447,7 @@ export const TemplateField = memo(
     className,
     menuItems,
     menuActions,
+    menuTrailingItems,
     reorder,
     label,
     ...rest
@@ -710,7 +743,7 @@ export const TemplateField = memo(
         ) : null;
       }
 
-      if (hasValueRows || size(menuActions?.items) > 0) {
+      if (hasValueRows || size(menuActions?.items) > 0 || size(menuTrailingItems) > 0) {
         return (
           <ReqorePopover
             component={ReqoreButton}
@@ -799,6 +832,10 @@ export const TemplateField = memo(
                     setTemplateValue={setTemplateValue}
                   />
                 ) : null}
+
+                {size(menuTrailingItems) > 0 ? (
+                  <MenuTrailingItems items={menuTrailingItems} />
+                ) : null}
               </ReqoreMenu>
             }
           />
@@ -821,6 +858,7 @@ export const TemplateField = memo(
       value,
       menuItems,
       menuActions,
+      menuTrailingItems,
       internalIsFunction,
       hasInputAffordance,
     ]);

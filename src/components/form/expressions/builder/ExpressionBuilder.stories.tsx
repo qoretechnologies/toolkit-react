@@ -1015,6 +1015,34 @@ export const AddValueSlotOnPhone: Story = {
   },
 };
 
+/**
+ * On a phone the remove action leaves the operand row for its ⋮ menu. The play
+ * runs at the runner's desktop viewport, where the inline buttons are the
+ * route, and leaves the second operand's menu open; the capture, taken at
+ * phone width, shows that menu with "Remove value" as its last row and no
+ * remove button beside any field.
+ */
+export const RemoveValueOnPhone: Story = {
+  args: concatArgs,
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Renders the phone presentation of the "concat" expression with the second operand\'s ⋮ menu open — the operand row has no remove button; "Remove value" is the last row of the menu, after a divider, and the "Add value" slot is the full-width row under the operands.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitForOrder(CONCAT_OPERANDS);
+    // Desktop viewport during play: the two rest operands remove inline.
+    expect(count('.expression-remove-arg')).toBe(2);
+    await openFieldMenu(1);
+    await waitForText('Use Template');
+  },
+};
+
 /** Read-only: no slot, nothing to add. */
 export const AddValueSlotReadOnly: Story = {
   args: { ...concatArgs, readOnly: true },

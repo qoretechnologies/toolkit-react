@@ -15,6 +15,7 @@ import {
   TReqoreHexColor,
 } from '@qoretechnologies/reqore/dist/components/Effect';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
+import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/Menu/item';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TQorusType } from '@qoretechnologies/ts-toolkit';
@@ -28,6 +29,7 @@ import { findTemplate } from '../../../../helpers/templates';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
 import { IQorusTypeObject, useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useReqraftStorage } from '../../../../hooks/useStorage/useStorage';
+import { usePhoneViewport } from '../../../../hooks/usePhoneViewport';
 import { useTemplates } from '../../../../hooks/useTemplates';
 import { AutoFormField as auto } from '../../fields/auto/AutoFormField';
 import { SelectFormField as Select } from '../../fields/select/Select';
@@ -705,6 +707,31 @@ export const Expression = ({
   }, [argCount]);
 
   const canAddArg = !!selectedExpression?.varargs && !readOnly;
+
+  // On a phone the operand row has no room for a remove button beside the
+  // field, the grip and the `⋮`; it wrapped onto a line of its own. The
+  // operand already has an always-visible menu, so the action goes there,
+  // as the last row. Same media query as the slot, for the same reason.
+  const phone = usePhoneViewport();
+  const canRemoveArgs = !!selectedExpression?.varargs && size(rest) > 1 && !readOnly;
+  const removeArgInline = canRemoveArgs && !phone;
+  const argRemoveMenuItems = useMemo((): IReqoreMenuItemProps[][] | undefined => {
+    if (!canRemoveArgs || !phone) {
+      return undefined;
+    }
+
+    const name = (selectedExpression.args[0]?.display_name || 'argument').toLowerCase();
+
+    return Array.from({ length: argCount }, (_, index) => [
+      {
+        label: `Remove ${name}`,
+        icon: 'DeleteBinLine',
+        intent: 'danger',
+        className: 'expression-remove-arg',
+        onClick: () => removeVarArg(index),
+      },
+    ]);
+  }, [canRemoveArgs, phone, argCount, removeVarArg, JSON.stringify(selectedExpression?.args[0])]);
   const isSlotDropTarget = canReorderArgs && reorderSurfaces.includes('dragHandle');
   // The slot is indexed one past the last operand, so its drag-over state
   // never lights an operand and vice versa.
@@ -1165,7 +1192,7 @@ export const Expression = ({
                     onRemoveArgClick={() => {
                       removeVarArg(index + 1);
                     }}
-                    hasMultipleArgs={selectedExpression.varargs && size(rest) > 1}
+                    hasMultipleArgs={removeArgInline}
                     reorder={argReorderSurfaces}
                     argIndex={index + 1}
                     argCount={argCount}
@@ -1234,6 +1261,7 @@ export const Expression = ({
                         );
                       })}
                       menuActions={argMenuActions?.[index + 1]}
+                      menuTrailingItems={argRemoveMenuItems?.[index + 1]}
                       reorder={props.reorder}
                       expressions={props.expressions as any}
                       expressions_url={expressionsUrl}
