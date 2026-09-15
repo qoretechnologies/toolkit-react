@@ -1,5 +1,6 @@
-import { ReqoreButton, useReqoreProperty, useReqoreTheme } from '@qoretechnologies/reqore';
+import { ReqoreButton, useReqoreTheme } from '@qoretechnologies/reqore';
 import { memo } from 'react';
+import { usePhoneViewport } from '../../../../hooks/usePhoneViewport';
 
 export interface IExpressionBuilderAddArgumentSlotProps {
   /**
@@ -27,7 +28,9 @@ export interface IExpressionBuilderAddArgumentSlotProps {
  *
  * On a phone the operands stack one per row, and the slot becomes a row of
  * its own: full width, label centred, so it reads as the next row rather
- * than a stray button under the last one.
+ * than a stray button under the last one. The width comes from the media
+ * query (`usePhoneViewport`), not reqore's `isMobile`, so the phone story
+ * captures the phone layout.
  *
  * It keeps the `expression-add-arg` class the header icon carried before it,
  * so consumers' stories and tests that click it keep working.
@@ -43,7 +46,7 @@ export const ExpressionBuilderAddArgumentSlot = memo(
     onDrop,
   }: IExpressionBuilderAddArgumentSlotProps) => {
     const theme = useReqoreTheme();
-    const isMobile = useReqoreProperty('isMobile');
+    const isMobile = usePhoneViewport();
     const name = (argumentName || 'argument').toLowerCase();
 
     return (
