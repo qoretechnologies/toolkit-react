@@ -470,13 +470,15 @@ const renderTemplate = (info: IExpressionSchema, args: IDpqlMockNode[]): string 
     .replace(/\$arg\[(\d+)\]/g, (_, n) => argument(Number(n)))
     .replace(
       /\$\{arg\[(\d+)\](?:\s*\?([^:}]*):([^}]*))?\}/g,
-      (_, n, whenSet = '', whenUnset = '') =>
-        /* Set when the argument's value OR its default is — as the server
-           decides it, so an explicit `false` on a default-true argument still
-           reads as set there too. */
-        argumentValue(args[Number(n)]) || info.args?.[Number(n)]?.default_value ?
-          whenSet
-        : whenUnset
+      (_, n, whenSet = '', whenUnset = '') => {
+        /* The argument decides when it was given, its default only when it was
+           not — as the expression evaluates. An explicit `false` on a
+           default-true argument reads as unset (Qore `5f3d9b491`). */
+        const given = args[Number(n)];
+        const isSet =
+          given !== undefined ? argumentValue(given) : info.args?.[Number(n)]?.default_value;
+        return isSet ? whenSet : whenUnset;
+      }
     );
 };
 

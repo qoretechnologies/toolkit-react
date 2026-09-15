@@ -281,7 +281,7 @@ export const ViaFormEngineTextMode: Story = {
     docs: {
       description: {
         story:
-          'Renders the FormEngine expression field, then switches to Text mode — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call, highlighted like typed text, and the "Preview" box mirrors it.',
+          'Renders the FormEngine expression field, then switches to Text mode — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call, highlighted like typed text. The server\'s rendering reads exactly as that text, so no "Preview" box repeats it.',
       },
     },
   },
@@ -325,10 +325,16 @@ export const ViaFormEngineTextMode: Story = {
       },
       { timeout: 10000 }
     );
+    /* The server renders `$local:name == "John"`, which reads exactly as the
+       text above it — the chip draws over the quotes — so there is no Preview. */
     await waitFor(
-      () => expect(canvas.getByTestId('expression-preview').textContent).toContain('John'),
+      () =>
+        expect(canvasElement.querySelector('.expression-field')?.getAttribute('data-preview')).toBe(
+          'repeats'
+        ),
       { timeout: 10000 }
     );
+    await expect(canvas.queryByTestId('expression-preview')).toBeNull();
     await waitForLspIdle(canvasElement);
   },
 };

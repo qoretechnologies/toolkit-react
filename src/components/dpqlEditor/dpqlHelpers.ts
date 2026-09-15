@@ -87,6 +87,21 @@ export function plainTextToSlate(text: string): ISlateElement[] {
   });
 }
 
+/**
+ * `text` as a DPQL editor draws it: a reference is its chip, so the quotes a
+ * chip is drawn over do not show. `"$local:name" == "John"` and
+ * `$local:name == "John"` read the same.
+ */
+export function dpqlDisplayedText(text: string): string {
+  return plainTextToSlate(text)
+    .map((paragraph) =>
+      paragraph.children
+        .map((node) => ('text' in node ? node.text : String((node as ISlateElement).value ?? '')))
+        .join('')
+    )
+    .join('\n');
+}
+
 function createTagElement(
   value: string,
   label: string,

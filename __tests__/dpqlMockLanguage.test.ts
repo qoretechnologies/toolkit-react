@@ -304,13 +304,16 @@ describe('expressions the catalogue spells', () => {
     ).toBe('"test".startsWith("t", false)');
   });
 
-  it('reads a conditional template part as the server does, default included', () => {
+  it('reads a conditional template part from the argument, and its default only when omitted', () => {
     const contains = (...extra: unknown[]) => e('contains', s('$local:input'), s('es'), ...extra).value;
 
     expect(mockRenderDpql(contains()).rendered).toBe('$local:input contains "es" (ignore case)');
-    // The server reads `false || default` as set: an explicit false still says "(ignore case)".
-    expect(mockRenderDpql(contains({ type: 'bool', value: false })).rendered).toBe(
+    expect(mockRenderDpql(contains({ type: 'bool', value: true })).rendered).toBe(
       '$local:input contains "es" (ignore case)'
+    );
+    // An explicit false compares case-sensitively, and says so (Qore `5f3d9b491`).
+    expect(mockRenderDpql(contains({ type: 'bool', value: false })).rendered).toBe(
+      '$local:input contains "es"'
     );
   });
 

@@ -14,6 +14,7 @@ import {
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef } from '../../dpqlEditor';
+import { dpqlDisplayedText } from '../../dpqlEditor/dpqlHelpers';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
 import { DpqlRendering } from './DpqlRendering';
 import { IExpression, IExpressionSchema, IExpressionValue, TExpressionReorder } from './types';
@@ -367,8 +368,23 @@ export const ExpressionField = memo(
       []
     );
 
+    /* What the Preview has to add: `none` until the server's rendering of the
+       text now showing exists, `repeats` when it reads exactly as that text does
+       (so it is not drawn — see below), `shown` otherwise. Exposed on the field,
+       because a Preview correctly left out leaves nothing else to observe. */
+    const previewState =
+      !preview || astText.trim() !== text.trim() ? 'none'
+      : dpqlDisplayedText(preview).trim() === dpqlDisplayedText(text).trim() ? 'repeats'
+      : 'shown';
+
     return (
-      <ReqoreControlGroup vertical fluid gapSize='small' className='expression-field'>
+      <ReqoreControlGroup
+        vertical
+        fluid
+        gapSize='small'
+        className='expression-field'
+        data-preview={mode === 'text' ? previewState : undefined}
+      >
         <ReqoreControlGroup gapSize='small' fluid>
           <ReqoreButton
             icon='NodeTree'
@@ -436,15 +452,15 @@ export const ExpressionField = memo(
                 It is a rendering of the AST, so for most text it repeats the
                 line directly above it — `1 + 2` previewing as `1 + 2` is a
                 second copy that flickers as you type. It earns the space when
-                the rendering DIFFERS: a template reference resolved to a chip,
-                or a normalised form. Comparison ignores surrounding whitespace,
-                which the renderer does not preserve.
+                the rendering DIFFERS: a normalised form, or wording the DPQL
+                does not have (`contains "es" (ignore case)`). Both are compared
+                as they are DRAWN — a reference is a chip in either, so the quotes
+                DPQL writes around one do not count — and ignoring surrounding
+                whitespace, which the renderer does not preserve.
 
                 An empty query has nothing to render either, so the box appears
                 once there is a result rather than holding a placeholder. */}
-            {preview &&
-            astText.trim() === text.trim() &&
-            preview.trim() !== text.trim() ? (
+            {previewState === 'shown' ? (
               <ReqoreMessage intent='info' size='small' title='Preview' flat opaque={false}>
                 <DpqlRendering text={preview} data-testid='expression-preview' />
               </ReqoreMessage>

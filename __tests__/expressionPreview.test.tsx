@@ -16,6 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *  - it must not come back afterwards with that stale value.
  */
 let renderedText = '';
+let serializedText = '1 + 2';
 let parseSucceeds = true;
 
 vi.mock('../src/components/form/expressions/useRenderExpression', () => ({
@@ -29,7 +30,7 @@ vi.mock('../src/components/dpqlEditor', () => ({
     useImperativeHandle(
       ref,
       () => ({
-        serialize: async () => '1 + 2',
+        serialize: async () => serializedText,
         parse: async (t: string) =>
           parseSucceeds ?
             { success: true, expression: { is_expression: true, value: { exp: '+', args: [t] } } }
@@ -89,6 +90,7 @@ const editor = () => screen.getByTestId('fake-dpql') as HTMLTextAreaElement;
 
 beforeEach(() => {
   renderedText = '';
+  serializedText = '1 + 2';
   parseSucceeds = true;
 });
 
@@ -110,6 +112,27 @@ describe('the Preview box', () => {
     // immediate check would pass before it had a chance to appear.
     await new Promise((r) => setTimeout(r, 1200));
     expect(previewShown()).toBe(false);
+  });
+
+  it('stays hidden when the two differ only by quotes a chip draws over', async () => {
+    // The DPQL writes a reference held in a string inside quotes; the rendering
+    // writes it bare. Both editors draw it as the same chip, so on screen the
+    // Preview would be a second copy of the line above it.
+    serializedText = '"$local:name" == "John"';
+    renderedText = '$local:name == "John"';
+    render(<Harness />);
+
+    await waitFor(() => expect(editor().value).toBe('"$local:name" == "John"'));
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(previewShown()).toBe(false);
+  });
+
+  it('still shows a rendering that reads differently around a reference', async () => {
+    serializedText = '"$local:name" contains "es"';
+    renderedText = '$local:name contains "es" (ignore case)';
+    render(<Harness />);
+
+    await waitFor(() => expect(previewShown()).toBe(true), { timeout: 4000 });
   });
 
   it('hides once the text no longer parses, and does not come back', async () => {
