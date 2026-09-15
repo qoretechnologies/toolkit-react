@@ -38,7 +38,10 @@ export const LongStringFormField = ({
 
   useDebounce(
     () => {
-      if (localValue !== value) {
+      // Against the value as this field shows it: an empty field's text is ''
+      // and its value `undefined`, and reporting that difference on mount marked
+      // every form holding an empty text field as changed before anyone typed.
+      if (localValue !== (value ?? '')) {
         onChange?.(localValue);
       }
     },

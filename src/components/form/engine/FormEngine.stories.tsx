@@ -1734,12 +1734,15 @@ export const DependantsResetWhenParentChanges: Story = {
 
     await sleep(500);
 
+    // The engine clears a dependant to `undefined`. This read `''` while an
+    // emptied text field reported '' on its own after the reset, which is not
+    // the engine's value and marked untouched forms as changed.
     await expect(args.onChange).toHaveBeenLastCalledWith(
       'test',
       expect.objectContaining({
         optionWithDependents: { type: 'long-string', value: 'My value changed' },
         anotherDependent: { type: 'long-string', value: 'My value will not change' },
-        dependent1: { type: 'long-string', value: '' },
+        dependent1: { type: 'long-string', value: undefined },
         dependent2: { type: 'hash', value: undefined },
       }),
       undefined
