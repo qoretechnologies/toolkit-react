@@ -205,6 +205,18 @@ from the stories:
   whenever the field is in template mode and accepts custom values; leaving
   clears the value only when it holds a reference (which would put the field
   straight back into template mode) and keeps anything the author typed.
+- **A lone group in the ⋮ opens itself.** Two of the menu's groups are
+  collapsed sections (`MenuActionsSection`, `CustomMenuItems`), so a menu
+  holding nothing but one of them asked for a click to reach the only thing on
+  offer — on an untyped field, "Set Custom Value" hiding the data types behind
+  it. It now starts expanded when it is the menu's only group; it keeps its
+  label, so the rows still say what they are, and can still be collapsed. Where
+  the menu holds more than one group the sections stay shut: there the click is
+  the choice. The same rule the template list follows for a lone category, and
+  the row menu already publishes these rows flat. Guarded by
+  `__tests__/loneMenuSectionOpensItself.test.tsx` (the section's own contract)
+  and the story *Auto · Via Form Engine Menu Opens Its Only Group* (the rule, in
+  a real browser — the menu lives in a popover jsdom never opens).
 - **No document toolbar on a form field.** `RichTextFormField` asked Reqore
   for undo and redo but not styling, and Reqore draws that bar as a panel as
   wide as the tag list: an empty 600px box under the field holding two greyed

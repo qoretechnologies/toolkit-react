@@ -274,6 +274,66 @@ export const ViaFormEngine: Story = {
   },
 };
 
+/**
+ * The ⋮ on that same field holds one group — "Set Custom Value" and the data
+ * types under it — and opens it, rather than asking for a click to reach the
+ * only thing on offer.
+ */
+export const ViaFormEngineMenuOpensItsOnlyGroup: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The untyped field\'s ⋮ holds nothing but the "Set Custom Value" section, so that section is already open: the data types are one click from the menu, not two. Where a menu holds more than one group the sections stay shut, because there the click is the choice.',
+      },
+    },
+  },
+  render: () => {
+    const [val, setVal] = useState<any>({});
+    return (
+      <FormEngine
+        name='autoFieldMenuDemo'
+        options={{
+          myAutoField: {
+            type: 'auto',
+            ui_type: 'auto',
+            display_name: 'My Auto Field',
+            preselected: true,
+          },
+        }}
+        value={val}
+        onChange={(_n, v) => setVal(v)}
+      />
+    );
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByText('My Auto Field', undefined, { timeout: 10000 })
+    ).toBeInTheDocument();
+
+    const menu = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('.template-more');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 10000 }
+    );
+    await userEvent.click(menu);
+
+    // The section still names its rows...
+    await waitFor(
+      () => expect(document.body.textContent).toContain('Set Custom Value'),
+      { timeout: 10000 }
+    );
+    // ...and the rows are there to click, with no header click in between.
+    await waitFor(() => expect(document.body.textContent).toContain('Ordered key-value pair'), {
+      timeout: 10000,
+    });
+  },
+};
+
 // --- ported IDE stories (qorus-ide stories/Fields/Auto.stories.tsx) ---------
 
 export const StringWithAllowedValues: Story = {

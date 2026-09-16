@@ -292,16 +292,19 @@ const MenuActionsSection = memo(
     actions,
     closePopover,
     size,
+    startExpanded,
     ...rest
   }: {
     actions: ITemplateMenuActions;
     closePopover?: () => void;
     size?: IReqoreButtonProps['size'];
+    /** @see `loneSectionStartsExpanded` — the menu's only group opens itself. */
+    startExpanded?: boolean;
   }) => (
     <ReqoreMenuSection
       label={actions.label}
       icon={actions.icon}
-      isCollapsed
+      isCollapsed={!startExpanded}
       transparent
       className='template-menu-actions'
       size={size}
@@ -318,15 +321,24 @@ export const CustomMenuItems = memo(
     closePopover,
     setIsTemplate,
     setTemplateValue,
+    startExpanded,
     ...rest
   }: {
     items: TCustomTemplateItems | undefined;
     closePopover?: () => void;
     setIsTemplate: React.Dispatch<React.SetStateAction<boolean>>;
     setTemplateValue: React.Dispatch<React.SetStateAction<string | null>>;
+    /** @see `loneSectionStartsExpanded` — the menu's only group opens itself. */
+    startExpanded?: boolean;
   }) => {
     return (
-      <ReqoreMenuSection label='Set Custom Value' isCollapsed transparent icon='Text' {...rest}>
+      <ReqoreMenuSection
+        label='Set Custom Value'
+        isCollapsed={!startExpanded}
+        transparent
+        icon='Text'
+        {...rest}
+      >
         {items.map((menuItem, index) =>
           'isDivider' in menuItem ?
             <ReqoreMenuDivider key={index} {...menuItem} />
@@ -1190,6 +1202,22 @@ const TemplateFieldImpl = memo(
       const hasValueRows =
         showFunctionsDropdown || showTemplatesButton || showCustomValueButton || size(menuItems) > 0;
 
+      /* A lone group opens itself. Two of the menu's groups are collapsed
+         sections, so a menu holding nothing but one of them asked for a click
+         to reach the only thing on offer — on an untyped field, "Set Custom
+         Value" hiding the type rows behind it. Expanded, it still names what
+         its rows are and can still be collapsed. The same rule the template
+         list follows for a lone category, and the row menu already publishes
+         these rows flat. */
+      const loneSectionStartsExpanded =
+        [
+          showFunctionsDropdown,
+          showTemplatesButton,
+          showCustomValueButton,
+          size(menuActions?.items) > 0,
+          size(menuItems) > 0,
+        ].filter(Boolean).length === 1;
+
       /* ONE menu per control. Where this field sits in a form ROW, the row
          already renders a ⋮ of its own, and drawing a second one beside it
          put two menus of slightly different widths on the same control —
@@ -1331,7 +1359,11 @@ const TemplateFieldImpl = memo(
                 : null}
 
                 {size(menuActions?.items) > 0 ?
-                  <MenuActionsSection actions={menuActions} size={rest.size} />
+                  <MenuActionsSection
+                    actions={menuActions}
+                    size={rest.size}
+                    startExpanded={loneSectionStartsExpanded}
+                  />
                 : null}
 
                 {size(menuItems) > 0 ?
@@ -1339,6 +1371,7 @@ const TemplateFieldImpl = memo(
                     items={menuItems}
                     setIsTemplate={setIsTemplate}
                     setTemplateValue={setTemplateValue}
+                    startExpanded={loneSectionStartsExpanded}
                   />
                 : null}
               </ReqoreMenu>
@@ -1358,6 +1391,8 @@ const TemplateFieldImpl = memo(
       rest.readonly,
       rest.size,
       showTemplateToggle,
+      // reaches the menu through `templateSupportsCustomValues`
+      allowCustomValues,
       hasOnlyExpressions,
       type,
       value,

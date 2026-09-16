@@ -628,9 +628,10 @@ export const OptionWithAnyType: Story = {
     await _testsClickButton({ label: 'Richtext Template' });
 
     // Open the ... menu on the 4th field (optionWithAnyTypeToChangeToTemplateToCustomData)
-    // and switch it to a specific custom type (Boolean).
+    // and switch it to a specific custom type (Boolean). The type rows are
+    // reachable straight from the menu: "Set Custom Value" is its only group,
+    // so that section opens itself rather than asking for a click first.
     await _testsOpenTemplateMenu(4);
-    await _testsClickButton({ label: 'Set Custom Value' });
     await _testsClickButton({ label: 'Boolean' });
   },
 };
