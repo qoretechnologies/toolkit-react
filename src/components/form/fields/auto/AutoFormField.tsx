@@ -614,6 +614,19 @@ function AutoField<T = any>({
           return (
             <LongStringFormField
               {...rest}
+              /* Say what the field takes before it is typed into. The server
+                 decodes a binary value as base64 unless it is told otherwise
+                 (`lib/misc.ql` `_priv_parse_ui_hash_value_intern`, symmetric
+                 with the `toBase64()` it encodes with), and bare hex is the
+                 trap: it is not rejected, it is read as base64 and corrupts.
+                 `validateField` already accepts exactly these three spellings
+                 — this is that rule said up front instead of after the fact. */
+              placeholder={
+                currentType === 'binary' ?
+                  ((rest as { placeholder?: string }).placeholder ??
+                  'Base64 — or 0x-prefixed hex, or a data:…;base64 URL')
+                : (rest as { placeholder?: string }).placeholder
+              }
               type={currentType}
               onChange={(value) => handleChange(name, value)}
               value={value}

@@ -159,3 +159,12 @@ export const isOptionInterfaceUiType = (type: unknown): type is TOptionInterface
 
 export const isKnownQorusUiType = (type: unknown): type is TKnownQorusUiType =>
   typeof type === 'string' && knownQorusUiTypeSet.has(type);
+
+/**
+ * `auto` and `any` declare no type: they say the AUTHOR chooses one, and the
+ * chosen type is recorded beside the value, not in the schema. A reader that
+ * takes the schema's word therefore learns nothing about what the value has to
+ * look like — `validateField` handles these two by auto-detecting from the
+ * value, which accepts whatever is there.
+ */
+export const isUntypedOptionType = (type: unknown): boolean => type === 'auto' || type === 'any';

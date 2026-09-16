@@ -4,6 +4,7 @@ import { IQorusFormField, IQorusFormSchema, TQorusForm } from '@qoretechnologies
 import { isArray, size } from 'lodash';
 import { useMemo } from 'react';
 import { getRequiredOptionMessage } from '../../../helpers/options';
+import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
   hasAllDependenciesFullfilled,
   parseDependency,
@@ -164,8 +165,20 @@ export const getOptionFieldMessages = ({
   const result: IReqoreTagProps[] = [];
 
   if (option.value || option.value === false || option.value === 0 || option.value === null) {
+    /* A concrete type the VALUE carries beats an untyped schema.
+       `auto`/`any` declare no type — the author picks one (Binary, Date, …)
+       and it is recorded beside the value. Reading the schema first validated
+       a binary value as `auto`, which auto-detects from the value and accepts
+       anything, so the form said the field needed attention while the field
+       itself gave no reason. The form's own check already prefers the stored
+       type (`getOptionFieldStorageType`); this is the same precedence. */
+    const schemaType = optionSchema?.ui_type as string;
+    const storedType = option.type as string;
+    const typeToValidate =
+      isUntypedOptionType(schemaType) && storedType ? storedType : schemaType || storedType;
+
     const validationData = validateFieldWithResult(
-      getType((optionSchema?.ui_type as string) || (option.type as string)),
+      getType(typeToValidate),
       option.value,
       {
         has_to_have_value: true,

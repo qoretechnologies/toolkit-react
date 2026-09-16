@@ -226,6 +226,33 @@ from the stories:
   where this was reported. Guarded by
   `__tests__/richTextFieldHasNoToolbar.test.tsx`.
 
+**Revised 2026-09-16 — a field says what it takes, and an untyped one is
+checked as the type it was given.** Two rules from the same report (picking
+"Binary" and being told nothing about the value):
+
+- **A binary field names its encodings.** Its placeholder reads
+  `Base64 — or 0x-prefixed hex, or a data:…;base64 URL`, which is what the
+  server actually decodes: Qorus `lib/misc.ql`
+  (`_priv_parse_ui_hash_value_intern`) reads base64 unless the value starts
+  `0x` or `data:<mime>;base64,`, symmetric with the `toBase64()` it encodes
+  with (`Classes/UserApi.qc`). Bare hex is the trap — it is not rejected, it is
+  read as base64 and corrupts. `validateField`'s `binary` branch already
+  accepted exactly these three spellings; the placeholder is that rule said
+  before the fact instead of after. A caller's own placeholder still wins, and
+  `data` is left alone — it is not base64. Guarded by
+  `__tests__/binaryFieldSaysWhatItTakes.test.tsx`.
+- **An untyped option is validated as the type its VALUE carries.** `auto` and
+  `any` declare no type: the author picks one and it is recorded beside the
+  value. `getOptionFieldMessages` read the schema first, so a binary value was
+  validated as `auto` — which auto-detects from the value and accepts whatever
+  is there — while the form's own check prefers the stored type
+  (`getOptionFieldStorageType`). The two disagreed, so the form said "a field
+  is not valid and requires attention" while the field it meant gave no reason.
+  The messages now use the same precedence; a schema that names a concrete type
+  still wins, because the schema is what the field accepts.
+  `isUntypedOptionType` (`helpers/optionUiTypes.ts`) is the shared spelling.
+  Guarded by `__tests__/untypedFieldReportsItsChosenType.test.ts`.
+
 Note that a `FormEngine` option only offers templates when it declares
 `supports_templates` — a field with no ⋮ template entry is that option's
 schema speaking, not a defect.
