@@ -25,9 +25,15 @@
  * is still `auto`.
  */
 import { IQorusFormField } from '@qoretechnologies/ts-toolkit';
+import { UNTYPED_OPTION_TYPES } from '../../../helpers/optionUiTypes';
 
-/** The spellings that mean "no concrete type" wherever they appear. */
-export const BuiltInAnyLikeTypes = ['any', 'auto'];
+/**
+ * The spellings that mean "no concrete type" wherever they appear.
+ *
+ * Re-exported from the type vocabulary in `helpers/optionUiTypes`, which is
+ * where it now lives so non-component code can ask the same question.
+ */
+export const BuiltInAnyLikeTypes: readonly string[] = UNTYPED_OPTION_TYPES;
 
 /**
  * Does this option leave its type up to the author?

@@ -113,6 +113,7 @@ import {
   TMarkdownRenderer,
 } from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
+import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
   TReadFirstStatus,
   findAllowedValueOption,
@@ -720,7 +721,7 @@ export const getTypeAndCanBeNull = (
   return {
     type: realType,
     defaultType: realType,
-    defaultInternalType: realType === 'auto' || realType === 'any' ? undefined : realType,
+    defaultInternalType: isUntypedOptionType(realType) ? undefined : realType,
     canBeNull,
   };
 };
@@ -1674,7 +1675,7 @@ const FormEngineImpl = ({
       touchedOptionsRef.current.add(optionName);
       setLocalValue(({ fields = {} }) => {
         const schemaType = getOptionSchemaStorageType(options?.[optionName], isRendererOnly);
-        const isAnyLike = schemaType === 'any' || schemaType === 'auto';
+        const isAnyLike = isUntypedOptionType(schemaType);
         // For any/auto schema types, preserve the user's chosen type stored in the field
         const resolvedSchemaType =
           isAnyLike && (fields[optionName] as IQorusFormField)?.type ?
@@ -2605,7 +2606,7 @@ const FormEngineImpl = ({
       // schema has not arrived yet (`type` undefined) instead of crashing.
       const optionSchema = options?.[optionName];
       const schemaUiType = optionSchema?.ui_type as TQorusType;
-      const uiTypeIsAnyLike = schemaUiType === 'any' || schemaUiType === 'auto';
+      const uiTypeIsAnyLike = isUntypedOptionType(schemaUiType);
       /* An EXPRESSION's stored type is skipped in this chain.
 
          The value is `{ is_expression: true, value: {...} }`, so the type saved

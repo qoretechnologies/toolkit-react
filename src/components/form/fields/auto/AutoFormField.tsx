@@ -12,7 +12,7 @@ import {
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
 import { TQorusFormFieldSchema, TQorusType } from '@qoretechnologies/ts-toolkit';
-import { isEqual, omit, size } from 'lodash';
+import { isEqual, size } from 'lodash';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import useMount from 'react-use/lib/useMount';
@@ -54,6 +54,7 @@ import { ISelectFormFieldItem, SelectFormField } from '../select/Select';
 import { StringFormField } from '../string/String';
 import { UrlFormField } from '../url/Url';
 import { FormFieldsSkeleton } from '../../engine/FormFieldsSkeleton';
+import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
 
 /** UI superset of `TQorusType` — the IDE's `Field/systemOptions` `IQorusType`. */
 export type IQorusType = TQorusType | string;
@@ -262,7 +263,7 @@ function AutoField<T = any>({
     let internalType: IQorusType;
     // If value already exists, but the type is auto or any
     // set the type based on the value
-    if (value && (defType === 'auto' || defType === 'any') && !defaultInternalType) {
+    if (value && isUntypedOptionType(defType) && !defaultInternalType) {
       internalType = getTypeFromValue(maybeParseYaml(value)) as IQorusType;
     } else {
       internalType = defaultInternalType || defType;
@@ -297,7 +298,7 @@ function AutoField<T = any>({
       if (typeValue && typeValue !== currentType) {
         // If this is auto / any field
         // set the internal type
-        if (typeValue === 'auto' || typeValue === 'any') {
+        if (isUntypedOptionType(typeValue)) {
           setInternalType(value ? (getTypeFromValue(maybeParseYaml(value)) as IQorusType) : 'any');
         } else {
           setInternalType(typeValue);
@@ -511,12 +512,22 @@ function AutoField<T = any>({
   const renderTextEditor = (editorType: string) =>
     offersTemplates ?
       <RichTextFormField
-        {...omit(rest, 'tags')}
+        {...rest}
         valueFormat='text'
         singleLine={isSingleLineStringType(editorType)}
         allowTemplates
-        value={typeof value === 'string' ? value : ''}
-        onChange={(next) => handleChange(name, typeof next === 'string' ? next : '')}
+        /* Stringified rather than blanked: an `auto` field resolved to a text
+           type can be holding a number, and showing an empty box for it reads
+           as the value having been lost. A non-string coming back out is not a
+           value this editor produced, so it is ignored rather than written as
+           '' over what is there. */
+        value={String(value ?? '')}
+        onChange={(next) => {
+          if (typeof next !== 'string') {
+            return;
+          }
+          handleChange(name, next);
+        }}
       />
     : <LongStringFormField
         {...rest}
@@ -620,11 +631,13 @@ function AutoField<T = any>({
                  with the `toBase64()` it encodes with), and bare hex is the
                  trap: it is not rejected, it is read as base64 and corrupts.
                  `validateField` already accepts exactly these three spellings
-                 — this is that rule said up front instead of after the fact. */
+                 — this is that rule said up front instead of after the fact.
+                 Kept short enough to read in one line at phone width, where a
+                 longer hint wrapped out of the field's single visible row. */
               placeholder={
                 currentType === 'binary' ?
                   ((rest as { placeholder?: string }).placeholder ??
-                  'Base64 — or 0x-prefixed hex, or a data:…;base64 URL')
+                  'Base64, 0x hex, or data: URL')
                 : (rest as { placeholder?: string }).placeholder
               }
               type={currentType}
@@ -1019,7 +1032,7 @@ function AutoField<T = any>({
      types still picks between THOSE — that is a choice the schema offers, not a
      question about storage. */
   const typeIsUnresolved =
-    !currentInternalType || currentInternalType === 'auto' || currentInternalType === 'any';
+    !currentInternalType || isUntypedOptionType(currentInternalType);
   const showPicker =
     size(allowedTypes) > 1 ||
     (!typeIsUnresolved &&

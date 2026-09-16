@@ -690,7 +690,7 @@ export const ConcatExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"). By default each operand gets a drag grip and a "Move Argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
+          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"), each edited in the chip editor a string field with templates now uses — a contenteditable box rather than a textarea, so a template reference in an operand reads as its name. By default each operand gets a drag grip and a "Move Argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
       },
     },
   },

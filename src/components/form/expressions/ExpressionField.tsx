@@ -20,6 +20,7 @@ import { DpqlRendering } from './DpqlRendering';
 import { IExpression, IExpressionSchema, IExpressionValue, TExpressionReorder } from './types';
 import { useExpressions } from './useExpressions';
 import { useRenderExpression } from './useRenderExpression';
+import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
 
 export type TExpressionMode = 'visual' | 'text';
 
@@ -152,7 +153,7 @@ export const ExpressionField = memo(
      */
     const targetType = useMemo<string | undefined>(() => {
       const declared = Array.isArray(returnType) ? undefined : (returnType ?? type);
-      return declared && declared !== 'auto' && declared !== 'any' ? declared : undefined;
+      return declared && !isUntypedOptionType(declared) ? declared : undefined;
     }, [returnType, type]);
 
     /**

@@ -28,7 +28,7 @@ import {
   IReqoreTextareaProps,
 } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IQorusFormFieldSchemaBase, TQorusType } from '@qoretechnologies/ts-toolkit';
-import { omit, size } from 'lodash';
+import { size } from 'lodash';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
@@ -66,6 +66,7 @@ import { ReadOnlyTemplateTag } from './ReadOnlyTemplateTag';
 import { RichTextFormField } from '../rich-text/RichText';
 import { richtextToString } from '../../../../helpers/common';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
+import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
 import {
   IRowMenuRegistration,
   RowMenuContext,
@@ -587,7 +588,7 @@ const TemplateFieldImpl = memo(
     // type-filtered list did not exist at mount, so the field fell to the type
     // picker and stayed there. A pick-only field (no custom values) is in
     // template mode regardless, by the `!allowCustomValues` term.
-    const typeIsAnyLike = type === 'any' || type === 'auto';
+    const typeIsAnyLike = isUntypedOptionType(type);
     /* An EMPTY field, for the purpose of offering the template selector.
    
        `null` is deliberately not empty. It is the DPQL null literal — a value
@@ -931,12 +932,16 @@ const TemplateFieldImpl = memo(
        Template mode's editor has no `×` of its own, so without this the author
        who switched to a template had no way back and no menu to ask with. */
     const handleUseCustomValueClick = useCallback(() => {
-      suppressSelectorRestore.current = true;
       setIsTemplate(false);
       /* A reference cannot stay in the custom editor: the field reads it as a
          template again and switches straight back. Anything else is text the
          author wrote, and it survives the switch. */
       if (isValueTemplate(value as string) || isCompleteTemplateToken(templateValue)) {
+        /* Only where the value is actually cleared. The flag is read by the
+           "emptied" effect, which never runs when the text survives — setting
+           it unconditionally left it armed to swallow the NEXT genuine clear's
+           selector restore. */
+        suppressSelectorRestore.current = true;
         setTemplateValue(null);
         onChange?.(name, undefined);
       }
@@ -1132,6 +1137,11 @@ const TemplateFieldImpl = memo(
     const canOfferExpression =
       allowFunctions && !hasOnlyAllowedValues && !rest.readonly && !internalIsFunction;
     const canOfferTemplate = showTemplateToggle && !isTemplate;
+    /* The way back out, published on the same terms the field's own ⋮ draws it.
+       A field inside a form ROW draws no menu of its own — it publishes into
+       the row's — so leaving this out of the published list meant template mode
+       was a one-way door on the surface most options are edited from. */
+    const canOfferCustomValue = showTemplateToggle && isTemplate && templateSupportsCustomValues;
 
     const publishedItems = useMemo(
       () => [
@@ -1155,6 +1165,16 @@ const TemplateFieldImpl = memo(
               },
             ]
           : []),
+        ...(canOfferCustomValue
+          ? [
+              {
+                label: 'Use Custom Value',
+                icon: 'EditLine' as const,
+                tooltip: 'Write the value here instead of choosing a template',
+                onClick: handleUseCustomValueClick,
+              },
+            ]
+          : []),
         /* The "set a value of this type" choices an untyped field offers.
            Dividers are dropped: they grouped items in a menu this field drew
            itself, and in the row's shared menu they would divide other
@@ -1175,9 +1195,11 @@ const TemplateFieldImpl = memo(
         canOfferExpression,
         functions.loading,
         canOfferTemplate,
+        canOfferCustomValue,
         menuItems,
         handleSelectFunctionChange,
         handleTemplateToggleClick,
+        handleUseCustomValueClick,
       ]
     );
 
@@ -1187,6 +1209,7 @@ const TemplateFieldImpl = memo(
     const publishedKey = [
       canOfferExpression && !functions.loading ? 'expression' : '',
       canOfferTemplate ? 'template' : '',
+      canOfferCustomValue ? 'custom-value' : '',
       `custom:${((menuItems ?? []) as { label?: unknown }[]).map((item) => String(item.label ?? '')).join('|')}`,
     ].join(',');
 
@@ -1386,6 +1409,7 @@ const TemplateFieldImpl = memo(
       functions.expressions,
       handleSelectFunctionChange,
       handleTemplateToggleClick,
+      handleUseCustomValueClick,
       hasOnlyAllowedValues,
       isTemplate,
       rest.readonly,
@@ -1422,7 +1446,14 @@ const TemplateFieldImpl = memo(
             ...TemplatesListProps,
           }
         : undefined;
-    }, [JSON.stringify(filteredTemplates), rest.ui_element_type, rest.element_type, type]);
+    }, [
+      JSON.stringify(filteredTemplates),
+      // the list-with-element-type branch hands this back untouched
+      templates,
+      rest.ui_element_type,
+      rest.element_type,
+      type,
+    ]);
 
     if (effectiveIsFunction && !hasOnlyAllowedValues) {
       // SEAM (reqraft): `allowTextExpressions` swaps the IDE's bare builder
@@ -1567,8 +1598,7 @@ const TemplateFieldImpl = memo(
             templates={filteredTemplates}
             allowTemplates
             onChange={handleTemplateTextChange}
-            // `tags` here are the field's own chips; the editor's `tags` are its template list.
-            {...omit(rest, 'tags')}
+            {...rest}
             aria-label={fieldAriaLabel}
           />
         : null}

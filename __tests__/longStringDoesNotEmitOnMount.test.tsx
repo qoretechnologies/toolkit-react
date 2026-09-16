@@ -37,6 +37,23 @@ describe('LongStringFormField', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('reports a clear even where nobody feeds the value back', async () => {
+    // An uncontrolled parent: `value` stays undefined however the field is
+    // edited, so a field comparing itself against the prop would go quiet the
+    // moment its text returned to empty — losing the deletion.
+    const onChange = vi.fn();
+    render(<LongStringFormField value={undefined as never} onChange={onChange} />);
+
+    fireEvent.change(screen.getByTestId('textarea'), { target: { value: 'a' } });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(onChange).toHaveBeenLastCalledWith('a');
+
+    fireEvent.change(screen.getByTestId('textarea'), { target: { value: '' } });
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(onChange).toHaveBeenLastCalledWith('');
+  });
+
   it('still reports what is typed, including clearing it', async () => {
     const onChange = vi.fn();
     render(<LongStringFormField value='abc' onChange={onChange} />);

@@ -1,6 +1,6 @@
 import { ReqoreTextarea } from '@qoretechnologies/reqore';
 import { IReqoreTextareaProps } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { ChangeEvent, KeyboardEvent, useCallback, useEffect, useState } from 'react';
+import { ChangeEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 import {
   flattenToSingleLine,
@@ -29,19 +29,28 @@ export const LongStringFormField = ({
   ...rest
 }: ILongStringFormFieldProps) => {
   const [localValue, setLocalValue] = useState<string>(value ?? '');
+  /* What this field last TOLD its parent, which is not the same as the value it
+     was given. Comparing against the prop loses a clear wherever the parent
+     does not feed the value back: the prop stays `undefined`, so emptying the
+     text makes `localValue` '' and `value ?? ''` '' too, and the parent never
+     learns the field was emptied. Seeded from the initial value so a mount
+     reports nothing — an empty field's text is '' and its value `undefined`,
+     and reporting that difference marked every form holding an empty text
+     field as changed before anyone typed. */
+  const lastEmittedRef = useRef<string>(value ?? '');
 
   useEffect(() => {
-    if (value !== localValue) {
+    if ((value ?? '') !== localValue) {
       setLocalValue(value ?? '');
     }
+    // A value from outside is not something to report back to whoever sent it.
+    lastEmittedRef.current = value ?? '';
   }, [value]);
 
   useDebounce(
     () => {
-      // Against the value as this field shows it: an empty field's text is ''
-      // and its value `undefined`, and reporting that difference on mount marked
-      // every form holding an empty text field as changed before anyone typed.
-      if (localValue !== (value ?? '')) {
+      if (localValue !== lastEmittedRef.current) {
+        lastEmittedRef.current = localValue;
         onChange?.(localValue);
       }
     },

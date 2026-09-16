@@ -253,6 +253,30 @@ checked as the type it was given.** Two rules from the same report (picking
   `isUntypedOptionType` (`helpers/optionUiTypes.ts`) is the shared spelling.
   Guarded by `__tests__/untypedFieldReportsItsChosenType.test.ts`.
 
+**Revised 2026-09-16 (audit pass) — three rules the review pulled out of the
+above.**
+
+- **Whatever the field's own ⋮ offers, its ROW menu offers too.** A field
+  inside a compact row draws no menu of its own and publishes into the row's
+  (`rowMenuContext`). "Use Custom Value" was added to the drawn menu only, so
+  on the surface most options are actually edited from, template mode was still
+  a one-way door. The published list now carries it on the same condition, with
+  its own token in `publishedKey` — that key is what gates re-publication, so a
+  row without one never re-publishes when template mode flips. Guarded by
+  `__tests__/rowMenuOffersTheWayOutOfTemplateMode.test.tsx`.
+- **`RichTextFormField` takes `tags` and does not forward it.** The editor's
+  `tags` is its template catalogue; a form field's `tags` is the chips to show.
+  Two different things under one name, and `{...rest}` sat after the computed
+  value, so a field spreading its props erased the template list — patched at
+  two call sites with `omit(rest, 'tags')` and latent at two more. `rest` is now
+  spread FIRST, `tags` is declared as the field's chips and dropped, and the
+  patches are gone.
+- **One list of the untyped spellings.** `any`/`auto` was hand-rolled in eight
+  places. `UNTYPED_OPTION_TYPES` / `isUntypedOptionType` in
+  `helpers/optionUiTypes.ts` is now the one, and `engine/typeChoices`
+  re-exports it as `BuiltInAnyLikeTypes` for its existing callers. It lives in
+  helpers because a helper cannot import from a component.
+
 Note that a `FormEngine` option only offers templates when it declares
 `supports_templates` — a field with no ⋮ template entry is that option's
 schema speaking, not a defect.

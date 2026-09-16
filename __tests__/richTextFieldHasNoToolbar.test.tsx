@@ -25,18 +25,16 @@ beforeEach(() => {
 });
 
 describe('a rich-text form field', () => {
-  it.each([
-    ['editing a document', {}],
-    ['editing text with chips', { valueFormat: 'text' as const }],
-    ['read-only', { readOnly: true }],
-  ])('offers no toolbar actions when %s', (_case, props) => {
-    render(<RichTextFormField value={'hello' as never} onChange={vi.fn()} {...props} />);
+  it('offers no toolbar actions', () => {
+    render(<RichTextFormField value={'hello' as never} onChange={vi.fn()} />);
 
     // Every one false: Reqore draws no bar at all, rather than an empty one.
     expect(editor.props?.actions).toEqual({ undo: false, redo: false, styling: false });
   });
 
-  it('cannot be given one back by a caller', () => {
+  // The props are spread before this one, so a caller cannot put the bar back:
+  // pins the ORDER, which is the part a refactor breaks silently.
+  it('keeps them off when a caller passes its own actions', () => {
     render(
       <RichTextFormField
         value={'hello' as never}

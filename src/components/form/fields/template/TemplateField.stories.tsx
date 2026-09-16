@@ -1097,7 +1097,7 @@ export const AnyWithLiteralOpensOnTheValue: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'An untyped field holding a literal keeps showing that literal — only an empty one defaults to the template selector.',
+          'An untyped field holding a literal keeps showing that literal — only an empty one defaults to the template selector. Where the field offers templates that editor is the chip editor (a contenteditable box), not a textarea, so the literal appears there.',
       },
     },
   },

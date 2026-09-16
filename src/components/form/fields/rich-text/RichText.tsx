@@ -28,8 +28,21 @@ import { useMarkdownRenderer } from '../../../Description/markdownRendererContex
 
 export interface IRichTextFormFieldProps extends Omit<
   IReqoreRichTextEditorProps,
-  'onChange' | 'value'
+  'onChange' | 'value' | 'tags' | 'actions'
 > {
+  /**
+   * A form field's OWN chips — not the editor's template catalogue, which this
+   * component computes from `templates`.
+   *
+   * The two are different things wearing one name: the editor's `tags` is a
+   * record of offered template values, a field's is a list of chips to show. A
+   * field spreading its props here used to hand the first where the second was
+   * expected, so the template list vanished — call sites patched it one by one
+   * with `omit(rest, 'tags')`. It is accepted here and deliberately not
+   * forwarded, so a field can spread its props without either patch or type
+   * error.
+   */
+  tags?: unknown;
   value?: string | IReqoreRichTextEditorProps['value'];
   onChange?: (value: string | IReqoreRichTextEditorProps['value']) => void;
   allowTemplates?: boolean;
@@ -92,6 +105,8 @@ export const RichTextFormField = memo(({
   templates,
   valueFormat = 'richtext',
   singleLine,
+  // see `tags` on the props above: a field's chips, never the editor's list
+  tags: _fieldChips,
   ...rest
 }: IRichTextFormFieldProps) => {
   const isText = valueFormat === 'text';
@@ -290,6 +305,15 @@ export const RichTextFormField = memo(({
     <ReqoreRichTextEditor
       value={formattedValue}
       onChange={handleChange}
+      /* `rest` is spread BEFORE everything this component computes. It used to
+         come after, so a caller's prop of the same name silently replaced the
+         computed one — and `tags` is exactly such a name twice over: on a form
+         field it means the field's own chips, while the editor's `tags` are its
+         template catalogue. A field passing chips therefore erased the template
+         list, which two call sites had each patched with `omit(rest, 'tags')`.
+         The three props below already fold in whatever `rest` carried for
+         them. */
+      {...rest}
       tagsListProps={{
         useTargetWidth: true,
         minWidth: '300px',
@@ -302,7 +326,6 @@ export const RichTextFormField = memo(({
       getTagProps={handleGetTagProps}
       tags={tags}
       panelProps={{ fluid: true, style: { minWidth: '150px', ...rest.panelProps?.style } }}
-      {...rest}
       readOnly={readOnly}
       onKeyDown={handleKeyDown}
       /* A form field carries no document toolbar. Styling was already off, so
