@@ -578,18 +578,19 @@ export const ExpressionWithIntReturnType: Story = {
     docs: {
       description: {
         story:
-          'Renders the ExpressionBuilder with a "+" (Addition) varargs expression holding four int operands — the three "rest" args each expose a remove-argument button.',
+          'Renders the ExpressionBuilder with a "+" (Addition) varargs expression holding four int operands — every operand, the first included, exposes a remove-argument button.',
       },
     },
   },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
-    // Three "rest" args → three remove-argument buttons.
-    await waitFor(() => expect(removeArgCount()).toBe(3), { timeout: 10000 });
+    // Four operands → four remove-argument buttons; only the last one left
+    // could not be removed.
+    await waitFor(() => expect(removeArgCount()).toBe(4), { timeout: 10000 });
   },
 };
 
-/** Remove one variable argument — the remove-arg count drops from 3 to 2. */
+/** Remove one variable argument — the remove-arg count drops from 4 to 3. */
 export const VariableArgumentsCanBeRemoved: Story = {
   ...ExpressionWithIntReturnType,
   parameters: {
@@ -597,7 +598,7 @@ export const VariableArgumentsCanBeRemoved: Story = {
     docs: {
       description: {
         story:
-          'Renders the "+" varargs expression and clicks one remove-argument button — one operand disappears and the remove-arg count drops from 3 to 2.',
+          'Renders the "+" varargs expression and clicks one remove-argument button — one operand disappears and the remove-arg count drops from 4 to 3.',
       },
     },
   },
@@ -606,11 +607,11 @@ export const VariableArgumentsCanBeRemoved: Story = {
 
     await fireEvent.click(document.querySelector('.expression-remove-arg')!);
 
-    await waitFor(() => expect(removeArgCount()).toBe(2), { timeout: 10000 });
+    await waitFor(() => expect(removeArgCount()).toBe(3), { timeout: 10000 });
   },
 };
 
-/** Remove one then add one back — the count returns to 3. */
+/** Remove one then add one back — the count returns to 4. */
 export const VariableArgumentsCanBeAdded: Story = {
   ...ExpressionWithIntReturnType,
   parameters: {
@@ -618,7 +619,7 @@ export const VariableArgumentsCanBeAdded: Story = {
     docs: {
       description: {
         story:
-          'Renders the "+" varargs expression, removes one operand and then adds one back through the "Add value" slot after the last operand — the remove-arg count moves 3 → 2 → 3.',
+          'Renders the "+" varargs expression, removes one operand and then adds one back through the "Add value" slot after the last operand — the remove-arg count moves 4 → 3 → 4.',
       },
     },
   },
@@ -626,10 +627,10 @@ export const VariableArgumentsCanBeAdded: Story = {
     await ExpressionWithIntReturnType.play!(args);
 
     await fireEvent.click(document.querySelector('.expression-remove-arg')!);
-    await waitFor(() => expect(removeArgCount()).toBe(2), { timeout: 10000 });
+    await waitFor(() => expect(removeArgCount()).toBe(3), { timeout: 10000 });
 
     await fireEvent.click(document.querySelector('.expression-add-arg')!);
-    await waitFor(() => expect(removeArgCount()).toBe(3), { timeout: 10000 });
+    await waitFor(() => expect(removeArgCount()).toBe(4), { timeout: 10000 });
   },
 };
 
@@ -704,7 +705,7 @@ export const ConcatExpression: Story = {
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     await waitForOrder(CONCAT_OPERANDS);
-    expect(removeArgCount()).toBe(2);
+    expect(removeArgCount()).toBe(3);
     expect(count('.expression-arg-drag-handle')).toBe(3);
     expect(count('.expression-arg-position')).toBe(0);
 
@@ -1036,10 +1037,38 @@ export const RemoveValueOnPhone: Story = {
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     await waitForOrder(CONCAT_OPERANDS);
-    // Desktop viewport during play: the two rest operands remove inline.
-    expect(count('.expression-remove-arg')).toBe(2);
+    // Desktop viewport during play: every operand removes inline.
+    expect(count('.expression-remove-arg')).toBe(3);
     await openFieldMenu(1);
     await waitForText('Use Template');
+  },
+};
+
+/** The first operand goes like any other; the last one left has no remove. */
+export const FirstValueCanBeRemoved: Story = {
+  args: concatArgs,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "concat" expression and removes the first operand, then the first again — the order goes first/second/third → second/third → third, onChange reports each step, and the last operand left carries no remove button.',
+      },
+    },
+  },
+  play: async (context) => {
+    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitForOrder(CONCAT_OPERANDS);
+    expect(count('.expression-remove-arg')).toBe(3);
+
+    await clickSelector('.expression-remove-arg', 0);
+    await waitForOrder(['second', 'third']);
+    expectReportedOrder(context, ['second', 'third']);
+    expect(count('.expression-remove-arg')).toBe(2);
+
+    await clickSelector('.expression-remove-arg', 0);
+    await waitForOrder(['third']);
+    expectReportedOrder(context, ['third']);
+    expect(count('.expression-remove-arg')).toBe(0);
   },
 };
 
@@ -1175,7 +1204,7 @@ export const ReorderDisabled: Story = {
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     await waitForOrder(CONCAT_OPERANDS);
-    expect(removeArgCount()).toBe(2);
+    expect(removeArgCount()).toBe(3);
     expect(count('.expression-arg-drag-handle')).toBe(0);
     expect(count('.expression-arg-position')).toBe(0);
 

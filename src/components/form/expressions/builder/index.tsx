@@ -418,6 +418,9 @@ export const Expression = ({
 
   const removeVarArg = useCallback(
     (index: number) => {
+      // Every operand after the removed one moves up a slot; remount the
+      // fields for the same reason `moveVarArg` does.
+      setArgsGeneration((generation) => generation + 1);
       const args = value.value.args.filter((_, i) => i !== index);
 
       onValueChange(
@@ -713,8 +716,15 @@ export const Expression = ({
   // operand already has an always-visible menu, so the action goes there,
   // as the last row. Same media query as the slot, for the same reason.
   const phone = usePhoneViewport();
-  const canRemoveArgs = !!selectedExpression?.varargs && size(rest) > 1 && !readOnly;
+  // Any operand can go, the first included (the next one becomes first),
+  // down to the catalogue's minimum — one for most, so the last operand
+  // left is the one that cannot be removed.
+  const canRemoveArgs =
+    !!selectedExpression?.varargs &&
+    argCount > Math.max(1, selectedExpression.min_args ?? 1) &&
+    !readOnly;
   const removeArgInline = canRemoveArgs && !phone;
+  const handleRemoveFirstArg = useCallback(() => removeVarArg(0), [removeVarArg]);
   const argRemoveMenuItems = useMemo((): IReqoreMenuItemProps[][] | undefined => {
     if (!canRemoveArgs || !phone) {
       return undefined;
@@ -1059,7 +1069,9 @@ export const Expression = ({
         </ReqoreMessage>
       ) : (
         <ReqoreControlGroup
-          fluid={false}
+          // On a phone every operand is a full-width row, so the group spans
+          // the panel; on desktop it hugs its content and wraps.
+          fluid={phone}
           style={{ maxWidth: '100%' }}
           wrap
           verticalAlign='flex-start'
@@ -1074,6 +1086,9 @@ export const Expression = ({
             arg={firstArgument}
             schema={firstArgSchema}
             onTypeChange={handleUpdateTypeChange}
+            onRemoveArgClick={handleRemoveFirstArg}
+            hasMultipleArgs={removeArgInline}
+            fluid={phone}
             readOnly={readOnly}
             reorder={argReorderSurfaces}
             argIndex={0}
@@ -1141,8 +1156,8 @@ export const Expression = ({
                   items: filteredTemplates,
                 };
               }}
-              fluid={false}
-              fixed={true}
+              fluid={phone}
+              fixed={!phone}
               disableManagement
               disabled={readOnly}
               allowed_values={firstArgSchema?.allowed_values}
@@ -1160,6 +1175,7 @@ export const Expression = ({
                     })
               }
               menuActions={argMenuActions?.[0]}
+              menuTrailingItems={argRemoveMenuItems?.[0]}
               reorder={props.reorder}
               expressions={props.expressions as any}
               expressions_url={expressionsUrl}
@@ -1193,6 +1209,7 @@ export const Expression = ({
                       removeVarArg(index + 1);
                     }}
                     hasMultipleArgs={removeArgInline}
+                    fluid={phone}
                     reorder={argReorderSurfaces}
                     argIndex={index + 1}
                     argCount={argCount}
@@ -1248,8 +1265,8 @@ export const Expression = ({
                           arg.required
                         );
                       }) as any}
-                      fluid={false}
-                      fixed={true}
+                      fluid={phone}
+                      fixed={!phone}
                       disableManagement
                       disabled={readOnly}
                       menuItems={buildCustomTemplateItems(arg, (type, removeTemplate) => {

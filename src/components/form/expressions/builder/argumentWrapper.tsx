@@ -25,6 +25,8 @@ export interface IExpressionBuilderArgumentWrapperProps {
   expressions: IExpressionSchema[];
   label?: string;
   readOnly?: boolean;
+  /** Span the operand row — a phone shows one operand per row, full width. */
+  fluid?: boolean;
   /** Reorder surfaces to render; undefined = this operand cannot be moved. */
   reorder?: TExpressionReorderSurface[];
   argIndex?: number;
@@ -48,6 +50,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
     expressions,
     label,
     readOnly,
+    fluid,
     reorder,
     argIndex = 0,
     argCount = 0,
@@ -177,6 +180,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
       <ReqoreControlGroup
         vertical
         wrap
+        fluid={fluid}
         size='small'
         className='expression-arg'
         {...dragProps}
@@ -188,7 +192,10 @@ export const ExpressionBuilderArgumentWrapper = memo(
           label={label}
           expressions={expressions}
         />
-        <ReqoreControlGroup verticalAlign='flex-start' wrap fluid>
+        {/* A fluid operand is a phone row: grip, field and `⋮` share it, and
+            the field takes what is left; wrapping would put the grip on a
+            line of its own above a full-width field. */}
+        <ReqoreControlGroup verticalAlign='flex-start' wrap={!fluid} fluid>
           {reorder && renderReorderControls()}
           {children}
           {hasMultipleArgs && (
