@@ -279,7 +279,7 @@ export const RichTextFormField = memo(({
   // disables tag click/remove) when `readOnly` is set. Honour the field-level
   // flags — the IDE Options model passes `readonly`, the compact form passes
   // `readOnly` + `disabled` — so a read-only form renders the formatted content
-  // rather than an editable box, and the toolbar actions are dropped to match.
+  // rather than an editable box.
   const readOnly = !!(
     (rest as { readOnly?: boolean }).readOnly ||
     (rest as { readonly?: boolean }).readonly ||
@@ -305,11 +305,12 @@ export const RichTextFormField = memo(({
       {...rest}
       readOnly={readOnly}
       onKeyDown={handleKeyDown}
-      actions={
-        readOnly ?
-          { undo: false, redo: false, styling: false }
-        : { redo: true, undo: true, styling: false }
-      }
+      /* A form field carries no document toolbar. Styling was already off, so
+         the bar held only undo and redo — drawn by Reqore as a panel as wide as
+         the tag list, which under a field reads as an empty 600px menu with two
+         greyed icons in it (they are disabled until there is history to walk).
+         Both still work from the keyboard, where every other text field's do. */
+      actions={{ undo: false, redo: false, styling: false }}
     />
   );
 });

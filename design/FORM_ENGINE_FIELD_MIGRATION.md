@@ -205,6 +205,14 @@ from the stories:
   whenever the field is in template mode and accepts custom values; leaving
   clears the value only when it holds a reference (which would put the field
   straight back into template mode) and keeps anything the author typed.
+- **No document toolbar on a form field.** `RichTextFormField` asked Reqore
+  for undo and redo but not styling, and Reqore draws that bar as a panel as
+  wide as the tag list: an empty 600px box under the field holding two greyed
+  icons — they are disabled until there is history to walk. It is off for every
+  form use now; both still work from the keyboard, where every other text
+  field's do. The `richtext` type (the "Text" row of the data-type submenu) is
+  where this was reported. Guarded by
+  `__tests__/richTextFieldHasNoToolbar.test.tsx`.
 
 Note that a `FormEngine` option only offers templates when it declares
 `supports_templates` — a field with no ⋮ template entry is that option's
