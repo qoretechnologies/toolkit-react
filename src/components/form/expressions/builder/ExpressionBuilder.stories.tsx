@@ -768,7 +768,7 @@ export const ReorderLongConcat: Story = {
     docs: {
       description: {
         story:
-          'Renders a seven-operand "concat": typing 6 and Enter into the second operand\'s "Move to position" field moves it to sixth, "More → 7th" moves it last, and the menu is then reopened on that operand with "Move Argument" expanded and "More" open — the strip shows the segments 1–4, the number field for 5–7 with its arrow, and the list 5th / 6th / 7th with 7th (the current position) disabled.',
+          'Renders a seven-operand "concat": typing 6 and Enter into the second operand\'s "Move to position" field moves it to sixth, "More → 7th" moves it last, and the menu is then reopened on that operand with "Move Argument" expanded and "More" open — the strip shows the segments 1–4, the number field for 5–7 with its arrow, and the list 5th / 6th / 7th with 7th (the current position) disabled. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -832,7 +832,7 @@ export const ReorderViaOverflowMenu: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with only the ⋮ menu surface (no grip) and reorders it through the "Move Argument" section: "Move to start" on the third operand, "Move after" on the operand that is now second, then "3rd" from the "Move to position" dropdown on the first — the order goes first/second/third → third/first/second → third/second/first → second/first/third, each move closes its menu, and onChange reports the reordered args.',
+          'Renders the "concat" expression with only the ⋮ menu surface (no grip) and reorders it through the "Move Argument" section: "Move to start" on the third operand, "Move after" on the operand that is now second, then "3rd" from the "Move to position" dropdown on the first — the order goes first/second/third → third/first/second → third/second/first → second/first/third, each move closes its menu, and onChange reports the reordered args. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -871,7 +871,7 @@ export const ReorderViaDragHandle: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with a drag grip before each operand and no "Move Argument" section in the ⋮ menu. Dragging the third operand onto the first puts it first — the order becomes third/first/second.',
+          'Renders the "concat" expression with a drag grip before each operand and no "Move Argument" section in the ⋮ menu. Dragging the third operand onto the first puts it first — the order becomes third/first/second. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1162,7 +1162,7 @@ export const ReorderViaPositionPicker: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with each operand\'s position ("1st", "2nd", "3rd") as a dropdown before its field. Picking "1st" on the third operand moves it to the front — the order becomes third/first/second.',
+          'Renders the "concat" expression with each operand\'s position ("1st", "2nd", "3rd") as a dropdown before its field. Picking "1st" on the third operand moves it to the front — the order becomes third/first/second. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1192,7 +1192,7 @@ export const ReorderAllSurfaces: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with every reorder surface at once — a drag grip and a position dropdown before each operand, plus the "Move Argument" section in the ⋮ menu, opened and expanded on the second operand.',
+          'Renders the "concat" expression with every reorder surface at once — a drag grip and a position dropdown before each operand, plus the "Move Argument" section in the ⋮ menu, opened and expanded on the second operand. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1214,7 +1214,7 @@ export const ReorderDisabled: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with reordering turned off — no grip, no position dropdown, and the ⋮ menu (opened on the second operand) has no "Move Argument" section; only the remove buttons remain.',
+          'Renders the "concat" expression with reordering turned off — no grip, no position dropdown, and the ⋮ menu (opened on the second operand) has no "Move Argument" section; only the remove buttons remain. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1239,7 +1239,7 @@ export const ReorderOnPhone: Story = {
     docs: {
       description: {
         story:
-          'Renders the phone presentation of the "concat" expression with every reorder surface — the operands stack into a column, each keeps its grip and position dropdown, and the ⋮ menu (opened and expanded on the second operand) still carries the "Move Argument" section, so reordering needs no hover or drag.',
+          'Renders the phone presentation of the "concat" expression with every reorder surface — the operands stack into a column, each keeps its grip and position dropdown, and the ⋮ menu (opened and expanded on the second operand) still carries the "Move Argument" section, so reordering needs no hover or drag. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
