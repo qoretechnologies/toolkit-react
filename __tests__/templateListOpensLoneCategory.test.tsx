@@ -83,6 +83,8 @@ describe('the templates this control resolves', () => {
   it('says nothing about a field with no templates at all', () => {
     renderField({ items: [] });
 
-    expect(seen.templates.items).toEqual([]);
+    // Not an empty list: an editor GIVEN a list draws the control that opens
+    // it, and that control would open onto nothing.
+    expect(seen.templates).toBeUndefined();
   });
 });

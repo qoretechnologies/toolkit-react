@@ -915,6 +915,21 @@ const TemplateFieldImpl = memo(
       value,
     ]);
 
+    /* Leaving template mode from the ⋮ — the counterpart of "Use Template".
+       Template mode's editor has no `×` of its own, so without this the author
+       who switched to a template had no way back and no menu to ask with. */
+    const handleUseCustomValueClick = useCallback(() => {
+      suppressSelectorRestore.current = true;
+      setIsTemplate(false);
+      /* A reference cannot stay in the custom editor: the field reads it as a
+         template again and switches straight back. Anything else is text the
+         author wrote, and it survives the switch. */
+      if (isValueTemplate(value as string) || isCompleteTemplateToken(templateValue)) {
+        setTemplateValue(null);
+        onChange?.(name, undefined);
+      }
+    }, [name, onChange, value, templateValue]);
+
     const handleTemplateToggleClick = useCallback(() => {
       setInternalIsFunction(false);
       onChange(name, undefined, undefined, false);
@@ -1169,8 +1184,11 @@ const TemplateFieldImpl = memo(
       const showFunctionsDropdown =
         allowFunctions && !hasOnlyAllowedValues && !rest.readonly && !internalIsFunction;
       const showTemplatesButton = showTemplateToggle && !isTemplate;
+      // The way back out of template mode, where the editor draws no `×`.
+      const showCustomValueButton = showTemplateToggle && isTemplate && templateSupportsCustomValues;
       // The "Set value" label promises a way to set one — reorder rows alone don't.
-      const hasValueRows = showFunctionsDropdown || showTemplatesButton || size(menuItems) > 0;
+      const hasValueRows =
+        showFunctionsDropdown || showTemplatesButton || showCustomValueButton || size(menuItems) > 0;
 
       /* ONE menu per control. Where this field sits in a form ROW, the row
          already renders a ⋮ of its own, and drawing a second one beside it
@@ -1297,6 +1315,21 @@ const TemplateFieldImpl = memo(
                   </ReqoreButton>
                 : null}
 
+                {showCustomValueButton ?
+                  <ReqoreButton
+                    transparent
+                    icon='EditLine'
+                    className='template-custom-value'
+                    tooltip='Write the value here instead of choosing a template'
+                    compact
+                    size={rest.size}
+                    onClick={handleUseCustomValueClick}
+                  >
+                    {' '}
+                    Use Custom Value{' '}
+                  </ReqoreButton>
+                : null}
+
                 {size(menuActions?.items) > 0 ?
                   <MenuActionsSection actions={menuActions} size={rest.size} />
                 : null}
@@ -1341,16 +1374,20 @@ const TemplateFieldImpl = memo(
     // from the field type, so we need to send down the full templates object
     // and the actual rendered field will filter it's own templates
     // This is a special case only for lists with element types
-    const componentTemplates = useMemo(
-      () =>
-        type === 'list' && (rest.ui_element_type || rest.element_type) ?
-          templates
-        : {
+    /* `undefined` when nothing is on offer, rather than a list with no items:
+       an editor given a list draws the control that opens it, so a field whose
+       templates were all filtered out by type opened an EMPTY menu. */
+    const componentTemplates = useMemo(() => {
+      if (type === 'list' && (rest.ui_element_type || rest.element_type)) {
+        return templates;
+      }
+      return size(filteredTemplates?.items) ?
+          {
             ...filteredTemplates,
             ...TemplatesListProps,
-          },
-      [JSON.stringify(filteredTemplates), rest.ui_element_type, rest.element_type, type]
-    );
+          }
+        : undefined;
+    }, [JSON.stringify(filteredTemplates), rest.ui_element_type, rest.element_type, type]);
 
     if (effectiveIsFunction && !hasOnlyAllowedValues) {
       // SEAM (reqraft): `allowTextExpressions` swaps the IDE's bare builder

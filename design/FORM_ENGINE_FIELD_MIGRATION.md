@@ -189,6 +189,27 @@ text: that review rejected a *pick-only* chip because it could not be typed
 into, and this editor is both. Conversion lives in `helpers/templateText.ts`
 (`__tests__/templateText.test.ts`, `__tests__/richTextTextValue.test.tsx`).
 
+**Revised 2026-09-16 — a field offers a template list only when it has one,
+and template mode has a way out.** Two rules about the menu, both reported
+from the stories:
+
+- **No empty menu.** `TemplateField` hands its editor `undefined` — not an
+  empty list — when there is nothing to offer: the field's schema does not
+  allow templates (a `FormEngine` option without `supports_templates`), or the
+  type filter emptied the catalogue. An editor GIVEN a list draws the control
+  that opens it, so a list with no items opened a menu onto nothing. Guarded
+  by `__tests__/noEmptyTemplateMenu.test.tsx`.
+- **A way back to a custom value.** Template mode's chip editor draws no `×`
+  of its own, so a field that entered template mode from the ⋮ ("Use Template")
+  offered nothing to leave it with. The ⋮ now carries "Use Custom Value"
+  whenever the field is in template mode and accepts custom values; leaving
+  clears the value only when it holds a reference (which would put the field
+  straight back into template mode) and keeps anything the author typed.
+
+Note that a `FormEngine` option only offers templates when it declares
+`supports_templates` — a field with no ⋮ template entry is that option's
+schema speaking, not a defect.
+
 ### Out of scope for phase 1
 
 - The `type-depends-on` / `requestFieldData` cross-field type
