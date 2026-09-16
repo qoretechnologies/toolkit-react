@@ -248,8 +248,12 @@ const renderMenuActionRows = (
       );
     }
 
+    // The menu hands its size to direct children only; rows inside a
+    // section get it from here, or they render at the default size next to
+    // rows that do not.
     return (
       <ReqoreMenuItem
+        size={size}
         {...item}
         key={index}
         onClick={(event, itemId) => {
@@ -266,14 +270,17 @@ const MenuTrailingItems = memo(
   ({
     items,
     closePopover,
+    size,
   }: {
     items: IReqoreMenuItemProps[];
     closePopover?: () => void;
+    size?: IReqoreButtonProps['size'];
   }) => (
     <>
-      <ReqoreMenuDivider />
+      <ReqoreMenuDivider size={size} />
       {items.map((item, index) => (
         <ReqoreMenuItem
+          size={size}
           {...item}
           key={index}
           onClick={(event, itemId) => {
@@ -834,7 +841,7 @@ export const TemplateField = memo(
                 ) : null}
 
                 {size(menuTrailingItems) > 0 ? (
-                  <MenuTrailingItems items={menuTrailingItems} />
+                  <MenuTrailingItems items={menuTrailingItems} size={rest.size} />
                 ) : null}
               </ReqoreMenu>
             }
