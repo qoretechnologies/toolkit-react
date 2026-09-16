@@ -105,8 +105,6 @@ export const RichTextFormField = memo(({
   templates,
   valueFormat = 'richtext',
   singleLine,
-  // see `tags` on the props above: a field's chips, never the editor's list
-  tags: _fieldChips,
   ...rest
 }: IRichTextFormFieldProps) => {
   const isText = valueFormat === 'text';
@@ -301,6 +299,12 @@ export const RichTextFormField = memo(({
     (rest as { disabled?: boolean }).disabled
   );
 
+  /* Everything the caller passed, minus its own `tags` — see the prop's doc
+     above: on a form field that name means the chips to show, while the
+     editor's `tags` is the template catalogue this component computes. */
+  const editorProps = { ...rest };
+  delete (editorProps as { tags?: unknown }).tags;
+
   return (
     <ReqoreRichTextEditor
       value={formattedValue}
@@ -313,7 +317,7 @@ export const RichTextFormField = memo(({
          list, which two call sites had each patched with `omit(rest, 'tags')`.
          The three props below already fold in whatever `rest` carried for
          them. */
-      {...rest}
+      {...editorProps}
       tagsListProps={{
         useTargetWidth: true,
         minWidth: '300px',
