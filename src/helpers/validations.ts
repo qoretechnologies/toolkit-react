@@ -1533,12 +1533,18 @@ export const _validateField = (
           continue;
         }
 
-        const result = validateFieldWithResult(argValue.type, argValue.value, {
-          expressions,
-          allowed_values: argDefinition?.allowed_values,
-          element_allowed_values: argDefinition?.element_allowed_values,
-          has_to_have_value: argDefinition?.required,
-        });
+        // A slot with no operand at all is a missing value, not a crash:
+        // judge it as an empty value of the type the catalogue expects.
+        const result = validateFieldWithResult(
+          argValue?.type ?? argDefinition?.ui_type,
+          argValue?.value,
+          {
+            expressions,
+            allowed_values: argDefinition?.allowed_values,
+            element_allowed_values: argDefinition?.element_allowed_values,
+            has_to_have_value: argDefinition?.required,
+          }
+        );
 
         if (!result.isValid) {
           return withContext(

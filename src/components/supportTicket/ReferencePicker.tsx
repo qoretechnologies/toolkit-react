@@ -10,6 +10,7 @@ import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { thinScrollbar } from '../../helpers/scrollbar';
+import { usePhoneViewport } from '../../hooks/usePhoneViewport';
 import {
   defaultInterfaceIcon,
   defaultInterfaceKindLabel,
@@ -282,28 +283,6 @@ const useIsNarrow = (enabled: boolean): [(node: HTMLDivElement | null) => void, 
   }, [enabled, node]);
 
   return [setNode, narrow];
-};
-
-/** Phone-sized viewport. Its own media query rather than reqore's `isMobile`, which
- *  is pinned to `false` under NODE_ENV=test and so never fires in a story run. */
-const usePhoneViewport = (enabled: boolean): boolean => {
-  const [phone, setPhone] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (!enabled || typeof window === 'undefined' || !window.matchMedia) {
-      return undefined;
-    }
-
-    const query = window.matchMedia('(max-width: 480px)');
-    const sync = () => setPhone(query.matches);
-
-    sync();
-    query.addEventListener('change', sync);
-
-    return () => query.removeEventListener('change', sync);
-  }, [enabled]);
-
-  return phone;
 };
 
 export const ReferencePicker = ({
