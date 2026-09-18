@@ -140,6 +140,21 @@ export const shouldMarkAsExpression = (
  * @param args the arguments so far — raw from a parse, or envelopes from the
  * builder's own editors
  */
+/**
+ * An argument slot with nothing in it yet: the catalogue's default when it has
+ * one, otherwise an envelope typed for the editors that need a type to mount.
+ * `false`, `0` and `''` are defaults too — a truthiness test dropped them.
+ */
+const emptyArgumentSlot = (arg: any): any =>
+  arg?.default_value != null ?
+    { value: arg.default_value, type: arg.ui_type }
+  : {
+      type:
+        arg?.ui_type === 'richtext' || arg?.ui_type === 'number' || arg?.ui_type === 'bool' ?
+          arg.ui_type
+        : undefined,
+    };
+
 export const addMissingExpressionArgs = (
   expressions: any[] | undefined,
   expression: string,
@@ -155,16 +170,22 @@ export const addMissingExpressionArgs = (
   if (selected.varargs) {
     if (selected.subtype === 2) {
       newArgs.push({ is_expression: true, value: { args: [] } });
-    } else {
-      newArgs.push(
-        ...Array.from({ length: (selected.min_args ?? 1) - 1 }, () => ({
-          type:
-            selected.args[0].ui_type === 'richtext' || selected.args[0].ui_type === 'number'
-              ? selected.args[0].ui_type
-              : undefined,
-        }))
-      );
+      return newArgs;
     }
+
+    /* Every operand follows the one schema argument. Slots are added up to
+       `min_args`, and EVERY missing one is filled, not only the new ones: the
+       builder leaves an empty slot behind for each argument the previous value
+       had no operand for (a fresh builder has none), and an operand editor or
+       the validator reading such a slot for its `type` crashed the builder. A
+       raw operand from a parse is a value, so it is left alone. */
+    const [schema] = selected.args ?? [];
+    newArgs.push(...Array.from({ length: (selected.min_args ?? 1) - 1 }, () => undefined));
+    newArgs.forEach((slot, index) => {
+      if (isExpressionArgumentMissing(slot)) {
+        newArgs[index] = emptyArgumentSlot(schema);
+      }
+    });
 
     return newArgs;
   }
@@ -185,15 +206,7 @@ export const addMissingExpressionArgs = (
       return;
     }
 
-    newArgs[index] =
-      arg.default_value ?
-        { value: arg.default_value, type: arg.ui_type }
-      : {
-          type:
-            arg.ui_type === 'richtext' || arg.ui_type === 'number' || arg.ui_type === 'bool' ?
-              arg.ui_type
-            : undefined,
-        };
+    newArgs[index] = emptyArgumentSlot(arg);
   });
 
   return newArgs;

@@ -132,6 +132,38 @@ export const Default: Story = {
   },
 };
 
+/**
+ * Picking a varargs operation on a fresh builder. Used to crash: the fresh
+ * value has no operands, the operator change pushed `undefined` for the one
+ * catalogue argument, and the varargs branch of `addMissingArgs` never
+ * filled the hole, so the validator read `.type` of `undefined`.
+ */
+export const AdditionPickedFresh: Story = {
+  ...Default,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an empty ExpressionBuilder and picks "Addition" from the operation picker — the card shows one empty Value operand and the "Add value" slot, with no crash and no error boundary.',
+      },
+    },
+  },
+  play: async (context) => {
+    await Default.play!(context);
+    await selectOperation('Select operation', 'Addition');
+
+    await waitFor(() => expect(count('.expression-arg')).toBe(1), { timeout: 10000 });
+    expect(addSlot()).not.toBeNull();
+    expect(document.querySelector('.reqore-error-boundary')).toBeNull();
+    await waitForText('Value');
+    expect(context.args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        value: expect.objectContaining({ exp: '+', args: [{ type: undefined }] }),
+      })
+    );
+  },
+};
+
 export const DefaultBoolean: Story = {
   args: {
     returnType: ['boolean'],
@@ -547,18 +579,19 @@ export const ExpressionWithIntReturnType: Story = {
     docs: {
       description: {
         story:
-          'Renders the ExpressionBuilder with a "+" (Addition) varargs expression holding four int operands — the three "rest" args each expose a remove-argument button.',
+          'Renders the ExpressionBuilder with a "+" (Addition) varargs expression holding four int operands — every operand, the first included, exposes a remove-argument button.',
       },
     },
   },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
-    // Three "rest" args → three remove-argument buttons.
-    await waitFor(() => expect(removeArgCount()).toBe(3), { timeout: 10000 });
+    // Four operands → four remove-argument buttons; only the last one left
+    // could not be removed.
+    await waitFor(() => expect(removeArgCount()).toBe(4), { timeout: 10000 });
   },
 };
 
-/** Remove one variable argument — the remove-arg count drops from 3 to 2. */
+/** Remove one variable argument — the remove-arg count drops from 4 to 3. */
 export const VariableArgumentsCanBeRemoved: Story = {
   ...ExpressionWithIntReturnType,
   parameters: {
@@ -566,7 +599,7 @@ export const VariableArgumentsCanBeRemoved: Story = {
     docs: {
       description: {
         story:
-          'Renders the "+" varargs expression and clicks one remove-argument button — one operand disappears and the remove-arg count drops from 3 to 2.',
+          'Renders the "+" varargs expression and clicks one remove-argument button — one operand disappears and the remove-arg count drops from 4 to 3.',
       },
     },
   },
@@ -575,11 +608,11 @@ export const VariableArgumentsCanBeRemoved: Story = {
 
     await fireEvent.click(document.querySelector('.expression-remove-arg')!);
 
-    await waitFor(() => expect(removeArgCount()).toBe(2), { timeout: 10000 });
+    await waitFor(() => expect(removeArgCount()).toBe(3), { timeout: 10000 });
   },
 };
 
-/** Remove one then add one back — the count returns to 3. */
+/** Remove one then add one back — the count returns to 4. */
 export const VariableArgumentsCanBeAdded: Story = {
   ...ExpressionWithIntReturnType,
   parameters: {
@@ -587,7 +620,7 @@ export const VariableArgumentsCanBeAdded: Story = {
     docs: {
       description: {
         story:
-          'Renders the "+" varargs expression, removes one operand and then adds one back — the remove-arg count moves 3 → 2 → 3.',
+          'Renders the "+" varargs expression, removes one operand and then adds one back through the "Add value" slot after the last operand — the remove-arg count moves 4 → 3 → 4.',
       },
     },
   },
@@ -595,10 +628,10 @@ export const VariableArgumentsCanBeAdded: Story = {
     await ExpressionWithIntReturnType.play!(args);
 
     await fireEvent.click(document.querySelector('.expression-remove-arg')!);
-    await waitFor(() => expect(removeArgCount()).toBe(2), { timeout: 10000 });
+    await waitFor(() => expect(removeArgCount()).toBe(3), { timeout: 10000 });
 
     await fireEvent.click(document.querySelector('.expression-add-arg')!);
-    await waitFor(() => expect(removeArgCount()).toBe(3), { timeout: 10000 });
+    await waitFor(() => expect(removeArgCount()).toBe(4), { timeout: 10000 });
   },
 };
 
@@ -697,7 +730,7 @@ export const ConcatExpression: Story = {
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     await waitForOrder(CONCAT_OPERANDS);
-    expect(removeArgCount()).toBe(2);
+    expect(removeArgCount()).toBe(3);
     expect(count('.expression-arg-drag-handle')).toBe(3);
     expect(count('.expression-arg-position')).toBe(0);
 
@@ -865,6 +898,215 @@ export const ReorderViaDragHandle: Story = {
   },
 };
 
+// --- Add value slot ---------------------------------------------------------
+// A varargs expression adds its next operand through a dashed slot rendered
+// after the last one, where the value will appear — not through a header
+// icon. Keyed on `concat` so the label reads "Add value".
+
+const addSlot = () => document.querySelector<HTMLButtonElement>('.expression-add-arg');
+
+/** The slot is the last thing in the operand row, and clicking it adds a focused, empty operand. */
+export const AddValueSlot: Story = {
+  args: concatArgs,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "concat" expression with the dashed "Add value" slot after the third operand — the only add control, no header icon. Clicking it appends a fourth, empty operand that takes focus, the slot moves after it, and onChange reports four args.',
+      },
+    },
+  },
+  play: async (context) => {
+    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitForOrder(CONCAT_OPERANDS);
+
+    const slot = addSlot()!;
+    expect(slot.textContent).toContain('Add value');
+    expect(slot).toBeEnabled();
+    // Last in the operand group, after every operand.
+    expect(slot.nextElementSibling).toBeNull();
+    expect(count('.expression-arg')).toBe(3);
+    expect(document.querySelector('.reqore-panel-title .expression-add-arg')).toBeNull();
+
+    await fireEvent.click(slot);
+
+    await waitFor(() => expect(count('.expression-arg')).toBe(4), { timeout: 10000 });
+    const operands = document.querySelectorAll('.expression-arg');
+    const added = operands[operands.length - 1];
+    await waitFor(() => expect(added.contains(document.activeElement)).toBe(true), {
+      timeout: 10000,
+    });
+    // Still after the last operand.
+    expect(addSlot()!.nextElementSibling).toBeNull();
+    expect(context.args.onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        value: expect.objectContaining({
+          exp: 'concat',
+          args: expect.arrayContaining([
+            ...CONCAT_OPERANDS.map((value) => ({ type: 'string', value })),
+          ]),
+        }),
+      })
+    );
+    const reported = (context.args.onChange as ReturnType<typeof fn>).mock.lastCall?.[0];
+    expect(reported.value.args).toHaveLength(4);
+  },
+};
+
+/** An incomplete expression keeps the slot visible but disabled, saying why. */
+export const AddValueSlotWhileIncomplete: Story = {
+  args: {
+    ...concatArgs,
+    value: {
+      value: {
+        exp: 'concat',
+        args: [
+          { type: 'string', value: 'first' },
+          { type: 'string', value: 'second' },
+          { type: 'string' },
+        ],
+      },
+      is_expression: true,
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "concat" expression with its third operand still empty — the "Add value" slot stays where it is but is disabled, and its tooltip says to fill in the current values first.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitFor(() => expect(addSlot()).toBeDisabled(), { timeout: 10000 });
+    expect(count('.expression-arg')).toBe(3);
+  },
+};
+
+/** The slot is also the "move to end" drop target for the drag grip. */
+export const AddValueSlotDropToEnd: Story = {
+  args: { ...concatArgs, reorder: ['dragHandle'] },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "concat" expression with drag grips and drops the first operand onto the "Add value" slot — the operand moves to the end, so the order becomes second/third/first, and onChange reports it.',
+      },
+    },
+  },
+  play: async (context) => {
+    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitForOrder(CONCAT_OPERANDS);
+
+    const handles = document.querySelectorAll('.expression-arg-drag-handle');
+    const slot = addSlot()!;
+    await fireEvent.dragStart(handles[0]);
+    await fireEvent.dragOver(slot);
+    await fireEvent.drop(slot);
+    await fireEvent.dragEnd(handles[0]);
+
+    await waitForOrder(['second', 'third', 'first']);
+    expectReportedOrder(context, ['second', 'third', 'first']);
+    expect(count('.expression-arg')).toBe(3);
+  },
+};
+
+/** On a phone the operands stack, and the slot is simply the last row. */
+export const AddValueSlotOnPhone: Story = {
+  args: concatArgs,
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Renders the phone presentation of the "concat" expression — the operands stack into a column and the "Add value" slot becomes a full-width row under them, with the plus and label centred.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitForOrder(CONCAT_OPERANDS);
+    const slot = addSlot()!;
+    expect(slot).toBeEnabled();
+    expect(slot.nextElementSibling).toBeNull();
+  },
+};
+
+/**
+ * On a phone the remove action leaves the operand row for its ⋮ menu. The play
+ * runs at the runner's desktop viewport, where the inline buttons are the
+ * route, and leaves the second operand's menu open; the capture, taken at
+ * phone width, shows that menu with "Remove value" as its last row and no
+ * remove button beside any field.
+ */
+export const RemoveValueOnPhone: Story = {
+  args: concatArgs,
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Renders the phone presentation of the "concat" expression with the second operand\'s ⋮ menu open — the operand row has no remove button; "Remove value" is the last row of the menu, after a divider, and the "Add value" slot is the full-width row under the operands.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitForOrder(CONCAT_OPERANDS);
+    // Desktop viewport during play: every operand removes inline.
+    expect(count('.expression-remove-arg')).toBe(3);
+    await openFieldMenu(1);
+    await waitForText('Use Template');
+  },
+};
+
+/** The first operand goes like any other; the last one left has no remove. */
+export const FirstValueCanBeRemoved: Story = {
+  args: concatArgs,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "concat" expression and removes the first operand, then the first again — the order goes first/second/third → second/third → third, onChange reports each step, and the last operand left carries no remove button.',
+      },
+    },
+  },
+  play: async (context) => {
+    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitForOrder(CONCAT_OPERANDS);
+    expect(count('.expression-remove-arg')).toBe(3);
+
+    await clickSelector('.expression-remove-arg', 0);
+    await waitForOrder(['second', 'third']);
+    expectReportedOrder(context, ['second', 'third']);
+    expect(count('.expression-remove-arg')).toBe(2);
+
+    await clickSelector('.expression-remove-arg', 0);
+    await waitForOrder(['third']);
+    expectReportedOrder(context, ['third']);
+    expect(count('.expression-remove-arg')).toBe(0);
+  },
+};
+
+/** Read-only: no slot, nothing to add. */
+export const AddValueSlotReadOnly: Story = {
+  args: { ...concatArgs, readOnly: true },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the "concat" expression read-only — the three operands are shown and the "Add value" slot is absent.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitForOrder(CONCAT_OPERANDS);
+    expect(addSlot()).toBeNull();
+  },
+};
+
 /** A template operand moved past a literal: each field shows the operand now in its slot. */
 export const ReorderKeepsTemplateOperand: Story = {
   args: {
@@ -979,7 +1221,7 @@ export const ReorderDisabled: Story = {
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     await waitForOrder(CONCAT_OPERANDS);
-    expect(removeArgCount()).toBe(2);
+    expect(removeArgCount()).toBe(3);
     expect(count('.expression-arg-drag-handle')).toBe(0);
     expect(count('.expression-arg-position')).toBe(0);
 

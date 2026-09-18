@@ -167,6 +167,12 @@ export interface ITemplateFieldProps extends Partial<
    * expression builder puts its operand reorder actions here.
    */
   menuActions?: ITemplateMenuActions;
+  /**
+   * SEAM (reqraft, additive): rows appended at the end of the `⋮` menu, after
+   * a divider — where an operand's destructive action goes on a phone, whose
+   * row has no room for it inline. Clicking a row closes the menu.
+   */
+  menuTrailingItems?: IReqoreMenuItemProps[];
   /** SEAM (reqraft, additive): forwarded to a nested expression builder. */
   reorder?: TExpressionReorder;
   /**
@@ -274,8 +280,12 @@ const renderMenuActionRows = (
       );
     }
 
+    // The menu hands its size to direct children only; rows inside a
+    // section get it from here, or they render at the default size next to
+    // rows that do not.
     return (
       <ReqoreMenuItem
+        size={size}
         {...item}
         key={index}
         onClick={(event, itemId) => {
@@ -285,6 +295,35 @@ const renderMenuActionRows = (
       />
     );
   });
+
+// The `menuTrailingItems` rows: last in the menu, behind a divider. A direct
+// child of `ReqoreMenu` for the same reason as `MenuActionsSection` below.
+const MenuTrailingItems = memo(
+  ({
+    items,
+    closePopover,
+    size,
+  }: {
+    items: IReqoreMenuItemProps[];
+    closePopover?: () => void;
+    size?: IReqoreButtonProps['size'];
+  }) => (
+    <>
+      <ReqoreMenuDivider size={size} />
+      {items.map((item, index) => (
+        <ReqoreMenuItem
+          size={size}
+          {...item}
+          key={index}
+          onClick={(event, itemId) => {
+            item.onClick?.(event, itemId);
+            closePopover?.();
+          }}
+        />
+      ))}
+    </>
+  )
+);
 
 // A direct child of `ReqoreMenu`, like `CustomMenuItems`, so the menu hands it
 // the popover's `closePopover` — a section does not pass it on to its rows.
@@ -500,6 +539,7 @@ const TemplateFieldImpl = memo(
     className,
     menuItems,
     menuActions,
+    menuTrailingItems,
     reorder,
     label,
     ...rest
@@ -1281,7 +1321,7 @@ const TemplateFieldImpl = memo(
         );
       }
 
-      if (hasValueRows || size(menuActions?.items) > 0) {
+      if (hasValueRows || size(menuActions?.items) > 0 || size(menuTrailingItems) > 0) {
         return (
           <ReqorePopover
             component={ReqoreButton}
@@ -1397,6 +1437,10 @@ const TemplateFieldImpl = memo(
                     startExpanded={loneSectionStartsExpanded}
                   />
                 : null}
+
+                {size(menuTrailingItems) > 0 ?
+                  <MenuTrailingItems items={menuTrailingItems} size={rest.size} />
+                : null}
               </ReqoreMenu>
             }
           />
@@ -1422,6 +1466,7 @@ const TemplateFieldImpl = memo(
       value,
       menuItems,
       menuActions,
+      menuTrailingItems,
       internalIsFunction,
       effectiveIsFunction,
       hasInputAffordance,

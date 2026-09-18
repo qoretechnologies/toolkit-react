@@ -1583,7 +1583,17 @@ export const _validateField = (
           continue;
         }
 
-        const result = validateFieldWithResult(argValue?.type, argValue?.value, {
+        /* A slot with no operand at all is judged as what it is — a missing
+           value — rather than read for a `type` it does not have.
+
+           An operand that HOLDS something is judged by the envelope's own type,
+           or — when the envelope carries none (a raw parse operand widened
+           without a `ui_type`, a slot reset by a type change) — by the type the
+           catalogue declares. Without that fallback `_validateField` refuses it
+           for "Missing type" however right the value is. */
+        const operandType =
+          argValue?.type ?? (argValue?.value === undefined ? undefined : argDefinition?.ui_type);
+        const result = validateFieldWithResult(operandType, argValue?.value, {
           expressions,
           allowed_values: argDefinition?.allowed_values,
           element_allowed_values: argDefinition?.element_allowed_values,
@@ -1922,7 +1932,8 @@ const isDependencyFulfilled = (
 };
 
 export const hasAllDependenciesFullfilled = (
-  dependencies: string[] | string[][],
+  /** Every entry must hold; a nested list is an ANY of its entries. Mixed freely. */
+  dependencies: ReadonlyArray<string | readonly string[]>,
   options: TQorusForm,
   optionsSchema?: IQorusFormSchema
 ): boolean => {
@@ -1930,20 +1941,20 @@ export const hasAllDependenciesFullfilled = (
     return true;
   }
 
-  return dependencies.every((dependency: string | string[]) => {
+  return dependencies.every((dependency) => {
     // A nested list is an ANY. It used to look each entry up as a whole form-field
     // name, so a `name=value` entry inside one found no field and returned `true`
     // unconditionally — the any-of group was satisfied by anything at all, while
     // CompactRow's lock rendered those same entries as real comparisons. Both halves
     // now go through one parser, so the grammar cannot mean two things.
     if (isArray(dependency)) {
-      return (dependency as string[]).some((dep) =>
+      return (dependency as readonly string[]).some((dep) =>
         isDependencyFulfilled(dep, options, optionsSchema)
       );
     }
 
     return isString(dependency)
-      ? isDependencyFulfilled(dependency as string, options, optionsSchema)
+      ? isDependencyFulfilled(dependency, options, optionsSchema)
       : true;
   });
 };

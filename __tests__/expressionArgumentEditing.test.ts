@@ -72,3 +72,52 @@ describe('an argument that carries no value is missing', () => {
     expect(kept).toEqual({ type: 'any', value: null });
   });
 });
+
+/**
+ * A varargs operation (concat, `+`, AND, OR) picked on a fresh builder.
+ *
+ * The builder hands the helper an empty slot for every argument the previous
+ * value had no operand for — a fresh builder has none — and an operand editor
+ * or the validator that read such a slot for its `type` crashed the builder.
+ * Every missing slot is filled; a supplied operand, raw or wrapped, is not.
+ */
+const PLUS = {
+  name: 'plus',
+  display_name: 'Plus',
+  return_type: 'number',
+  varargs: true,
+  min_args: 2,
+  args: [{ name: 'operand', display_name: 'Value', ui_type: 'number', required: true }],
+};
+
+const FLAG_ANY = {
+  name: 'any_of',
+  display_name: 'Any of',
+  return_type: 'bool',
+  varargs: true,
+  min_args: 2,
+  args: [{ name: 'operand', display_name: 'Condition', ui_type: 'bool', default_value: false }],
+};
+
+describe('a varargs operation picked on a fresh builder', () => {
+  it('fills the empty slot it was handed as well as the ones it adds', () => {
+    const args = addMissingExpressionArgs([PLUS], 'plus', [undefined]);
+
+    expect(args).toEqual([{ type: 'number' }, { type: 'number' }]);
+  });
+
+  it('fills with the catalogue default where there is one, typed for its editor', () => {
+    const args = addMissingExpressionArgs([FLAG_ANY], 'any_of', [{}]);
+
+    expect(args).toEqual([
+      { value: false, type: 'bool' },
+      { value: false, type: 'bool' },
+    ]);
+  });
+
+  it('leaves supplied operands alone, raw ones and null included', () => {
+    const args = addMissingExpressionArgs([PLUS], 'plus', [3, null, { type: 'number', value: 4 }]);
+
+    expect(args.slice(0, 3)).toEqual([3, null, { type: 'number', value: 4 }]);
+  });
+});

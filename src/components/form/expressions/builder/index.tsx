@@ -15,12 +15,13 @@ import {
   TReqoreHexColor,
 } from '@qoretechnologies/reqore/dist/components/Effect';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
+import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/Menu/item';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TQorusType } from '@qoretechnologies/ts-toolkit';
 import { clone, cloneDeep, get, isArray, set, size, unset } from 'lodash';
 import { darken, rgba } from 'polished';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { moveItem } from '../../../../helpers/common';
 import { areQorusTypesCompatible, getArgumentType } from '../../../../helpers/expressions';
@@ -29,6 +30,7 @@ import { findTemplate } from '../../../../helpers/templates';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
 import { IQorusTypeObject, useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useReqraftStorage } from '../../../../hooks/useStorage/useStorage';
+import { usePhoneViewport } from '../../../../hooks/usePhoneViewport';
 import { useTemplates } from '../../../../hooks/useTemplates';
 import { AutoFormField as auto } from '../../fields/auto/AutoFormField';
 import { SelectFormField as Select } from '../../fields/select/Select';
@@ -47,6 +49,7 @@ import {
 } from '../types';
 import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
+import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
 import { ExpressionBuilderArgumentWrapper } from './argumentWrapper';
 import { ConfirmMismatchedTypesModal } from './confirmMismatchedTypesModal';
 import { ConfirmUnsupportedTypeModal } from './confirmUnsupportedTypeModal';
@@ -375,6 +378,9 @@ export const Expression = ({
 
   const removeVarArg = useCallback(
     (index: number) => {
+      // Every operand after the removed one moves up a slot; remount the
+      // fields for the same reason `moveVarArg` does.
+      setArgsGeneration((generation) => generation + 1);
       const args = value.value.args.filter((_, i) => i !== index);
 
       onValueChange(
@@ -618,9 +624,92 @@ export const Expression = ({
     [updateExp]
   );
 
-  const handleAddArgumentClick = useCallback(() => {
-    updateArg(undefined, size(value.value.args), undefined, false);
-  }, [updateArg, JSON.stringify(value)]);
+  // The panel whose slot was clicked, kept until the operand it adds has
+  // rendered: the new field then takes focus, so adding a value and typing
+  // it is one gesture. The slot sits inside this builder's own panel, and a
+  // nested builder's operands come before it in DOM order, so the last
+  // operand of the panel is the one just added.
+  const focusNewArgIn = useRef<HTMLElement | null>(null);
+
+  const handleAddArgumentClick = useCallback(
+    (event?: React.MouseEvent<HTMLElement>) => {
+      focusNewArgIn.current = event?.currentTarget?.closest<HTMLElement>('.expression') ?? null;
+      updateArg(undefined, size(value.value.args), undefined, false);
+    },
+    [updateArg, JSON.stringify(value)]
+  );
+
+  useEffect(() => {
+    const panel = focusNewArgIn.current;
+
+    if (!panel) {
+      return;
+    }
+
+    focusNewArgIn.current = null;
+    const operands = panel.querySelectorAll<HTMLElement>('.expression-arg');
+    const added = operands[operands.length - 1];
+
+    if (!added) {
+      return;
+    }
+
+    // A typed operand mounts a text field; an untyped one opens on its
+    // template picker, whose trigger is the field's first button that is not
+    // one of the operand's own controls (grip, position, ⋮, remove).
+    const field =
+      added.querySelector<HTMLElement>('textarea, input') ??
+      Array.from(added.querySelectorAll<HTMLElement>('button')).find(
+        (button) =>
+          !button.closest(
+            '.expression-arg-drag-handle, .expression-arg-position, .template-more, .expression-remove-arg'
+          )
+      );
+
+    field?.focus();
+  }, [argCount]);
+
+  const canAddArg = !!selectedExpression?.varargs && !readOnly;
+
+  // On a phone the operand row has no room for a remove button beside the
+  // field, the grip and the `⋮`; it wrapped onto a line of its own. The
+  // operand already has an always-visible menu, so the action goes there,
+  // as the last row. Same media query as the slot, for the same reason.
+  const phone = usePhoneViewport();
+  // Any operand can go, the first included (the next one becomes first),
+  // down to the catalogue's minimum — one for most, so the last operand
+  // left is the one that cannot be removed.
+  const canRemoveArgs =
+    !!selectedExpression?.varargs &&
+    argCount > Math.max(1, selectedExpression.min_args ?? 1) &&
+    !readOnly;
+  const removeArgInline = canRemoveArgs && !phone;
+  const handleRemoveFirstArg = useCallback(() => removeVarArg(0), [removeVarArg]);
+  const argRemoveMenuItems = useMemo((): IReqoreMenuItemProps[][] | undefined => {
+    if (!canRemoveArgs || !phone) {
+      return undefined;
+    }
+
+    const name = (selectedExpression.args[0]?.display_name || 'argument').toLowerCase();
+
+    return Array.from({ length: argCount }, (_, index) => [
+      {
+        label: `Remove ${name}`,
+        icon: 'DeleteBinLine',
+        intent: 'danger',
+        className: 'expression-remove-arg',
+        onClick: () => removeVarArg(index),
+      },
+    ]);
+  }, [canRemoveArgs, phone, argCount, removeVarArg, JSON.stringify(selectedExpression?.args[0])]);
+  const isSlotDropTarget = canReorderArgs && reorderSurfaces.includes('dragHandle');
+  // The slot is indexed one past the last operand, so its drag-over state
+  // never lights an operand and vice versa.
+  const handleSlotDragOver = useCallback(
+    () => handleArgDragOver(argCount),
+    [handleArgDragOver, argCount]
+  );
+  const handleSlotDrop = useCallback(() => handleArgDrop(argCount - 1), [handleArgDrop, argCount]);
 
   const handleWrapExpressionClick = useCallback(
     (value: unknown) => {
@@ -795,17 +884,8 @@ export const Expression = ({
         // SEAM (reqraft): the IDE renders `AiAssistanceAction` first here;
         // consumers inject it (or anything else) via `extraActions`.
         ...resolvedExtraActions,
-        {
-          className: 'expression-add-arg',
-          tooltip: 'Add argument',
-          icon: 'AddCircleLine',
-          fixed: true,
-          disabled: !validateField('expression', value, {
-            expressions: expressions.value,
-          }),
-          onClick: handleAddArgumentClick,
-          show: !!selectedExpression && selectedExpression.varargs === true && !readOnly,
-        },
+        // "Add value" is not up here: it is the slot after the last operand
+        // (`ExpressionBuilderAddArgumentSlot`), where the value will appear.
         {
           as: Select,
           show: readOnly ? false : 'hover',
@@ -945,7 +1025,9 @@ export const Expression = ({
         </ReqoreMessage>
       ) : (
         <ReqoreControlGroup
-          fluid={false}
+          // On a phone every operand is a full-width row, so the group spans
+          // the panel; on desktop it hugs its content and wraps.
+          fluid={phone}
           style={{ maxWidth: '100%' }}
           wrap
           verticalAlign='flex-start'
@@ -960,6 +1042,9 @@ export const Expression = ({
             arg={firstArgument}
             schema={firstArgSchema}
             onTypeChange={handleUpdateTypeChange}
+            onRemoveArgClick={handleRemoveFirstArg}
+            hasMultipleArgs={removeArgInline}
+            fluid={phone}
             readOnly={readOnly}
             reorder={argReorderSurfaces}
             argIndex={0}
@@ -1028,8 +1113,8 @@ export const Expression = ({
                   items: filteredTemplates,
                 };
               }}
-              fluid={false}
-              fixed={true}
+              fluid={phone}
+              fixed={!phone}
               disableManagement
               disabled={readOnly}
               allowed_values={firstArgSchema?.allowed_values}
@@ -1047,6 +1132,7 @@ export const Expression = ({
                     })
               }
               menuActions={argMenuActions?.[0]}
+              menuTrailingItems={argRemoveMenuItems?.[0]}
               reorder={props.reorder}
               expressions={props.expressions as any}
               expressions_url={expressionsUrl}
@@ -1079,7 +1165,8 @@ export const Expression = ({
                     onRemoveArgClick={() => {
                       removeVarArg(index + 1);
                     }}
-                    hasMultipleArgs={selectedExpression.varargs && size(rest) > 1}
+                    hasMultipleArgs={removeArgInline}
+                    fluid={phone}
                     reorder={argReorderSurfaces}
                     argIndex={index + 1}
                     argCount={argCount}
@@ -1130,8 +1217,8 @@ export const Expression = ({
                       onChange={((_name, value, type, isFunction) => {
                         updateArg(value, index + 1, isFunction ? undefined : type, isFunction);
                       }) as any}
-                      fluid={false}
-                      fixed={true}
+                      fluid={phone}
+                      fixed={!phone}
                       disableManagement
                       disabled={readOnly}
                       menuItems={buildCustomTemplateItems(arg, (type, removeTemplate) => {
@@ -1143,6 +1230,7 @@ export const Expression = ({
                         );
                       })}
                       menuActions={argMenuActions?.[index + 1]}
+                      menuTrailingItems={argRemoveMenuItems?.[index + 1]}
                       reorder={props.reorder}
                       expressions={props.expressions as any}
                       expressions_url={expressionsUrl}
@@ -1155,6 +1243,17 @@ export const Expression = ({
                 </React.Fragment>
               ))
             : null}
+          {canAddArg && (
+            <ExpressionBuilderAddArgumentSlot
+              argumentName={selectedExpression.args[0]?.display_name}
+              disabled={!validateField('expression', value, { expressions: expressions.value })}
+              droppable={isSlotDropTarget}
+              dragOver={isDragOverArg(argCount)}
+              onClick={handleAddArgumentClick}
+              onDragOver={handleSlotDragOver}
+              onDrop={handleSlotDrop}
+            />
+          )}
         </ReqoreControlGroup>
       )}
       {!isReturnTypeMatching && (
