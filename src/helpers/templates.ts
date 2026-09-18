@@ -125,9 +125,42 @@ const matchesTemplateValue = (item: TReqoreDropdownItem, value: string): boolean
 /** Splits `$data:{a.b.c}` into its key (`$data`) and inner path (`a.b.c`). */
 const TEMPLATE_TOKEN_PATH = /^(\$[A-Za-z_][\w-]*):\{(.*)\}$/;
 
+/**
+ * The KEY-LESS spelling — `$.create.status`, `$._case.mode`, `$.order[0].sku`.
+ *
+ * A host may name its own references without a key and without braces: a Qorus
+ * test reads what a step captured as `$.create`, and that is the whole token.
+ * The path is captured WITH its leading `.`, so a prefix comparison is between
+ * two strings of the same shape and `$.create` still ends at a path boundary
+ * inside `$.create.status`.
+ *
+ * Deliberately strict — a root segment, then any number of further `.field`
+ * steps and `[0]` indices, and nothing else — so it cannot claim a keyed token
+ * (which carries a `:`) or a bare `$word`.
+ */
+const KEYLESS_TOKEN_PATH = /^\$((?:\.[A-Za-z_][\w-]*|\[\d+\])+)$/;
+
+/**
+ * "No key" is a key of its own.
+ *
+ * `findTemplateByPath` refuses to name a value from an item under a different
+ * key, and the key-less grammar has to take part in that rule rather than sit
+ * outside it: a `$data:{create.status}` item must not name `$.create.status`,
+ * and a `$.create` item must not name `$data:{create.status}`. Every keyed
+ * token's key begins with `$`, so the empty string can never collide with one.
+ */
+const NO_TOKEN_KEY = '';
+
 const getTokenPath = (value?: unknown): { key: string; path: string } | undefined => {
-  const match = typeof value === 'string' ? TEMPLATE_TOKEN_PATH.exec(value) : null;
-  return match ? { key: match[1], path: match[2] } : undefined;
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const keyed = TEMPLATE_TOKEN_PATH.exec(value);
+  if (keyed) {
+    return { key: keyed[1], path: keyed[2] };
+  }
+  const keyless = KEYLESS_TOKEN_PATH.exec(value);
+  return keyless ? { key: NO_TOKEN_KEY, path: keyless[1] } : undefined;
 };
 
 /**
@@ -143,7 +176,12 @@ const getTokenPath = (value?: unknown): { key: string; path: string } | undefine
  *
  * The match must break at a path boundary (`.` or `[`) so `choicesOther` is
  * never named after `choices`, and the token keys must agree so a `$config:`
- * item never names a `$data:` value.
+ * item never names a `$data:` value — "no key" included, so the key-less
+ * grammar and the keyed one never name each other's references.
+ *
+ * Both grammars arrive here: `$data:{create.choices[0]}` and the key-less
+ * `$.create.status` are the same question asked in two spellings, and a
+ * catalogue written in either one names the walks its author took past it.
  */
 export const findTemplateByPath = (
   templates: IReqoreFormTemplates,
@@ -258,9 +296,14 @@ export const resolveTemplateLabel = (
  * never fetches one), and there the raw token is the only thing left to show.
  * Showing it as `$data:{…}` renders a value as code; showing the path renders
  * it as a name, which is the honest floor.
+ *
+ * Only a BRACED wrapper is stripped, because only a braced wrapper is one.
+ * A key-less `$._case.mode` stripped of its `$` reads as `._case.mode`, which
+ * is neither the reference nor a name for it; with nothing to call it, the
+ * reference as written is the honest answer.
  */
 export const getTemplateReferencePath = (value: string): string =>
-  getTokenPath(value)?.path ?? value;
+  (typeof value === 'string' ? TEMPLATE_TOKEN_PATH.exec(value)?.[2] : undefined) ?? value;
 
 /**
  * The best available name for a reference, for a surface that must show

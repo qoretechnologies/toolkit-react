@@ -215,6 +215,93 @@ describe('helpers/templates', () => {
 
   });
 
+  /* A host may spell its references WITHOUT a key and WITHOUT braces — a Qorus
+     test names what a step captured as `$.create`, and an author walks deeper
+     into it by hand as `$.create.status`. Both grammars reach the same
+     resolution, and neither lends its names to the other. */
+  describe('the key-less `$.path` grammar', () => {
+    const templates: IReqoreFormTemplates = {
+      items: [
+        {
+          label: 'Values this case captures',
+          items: [
+            { label: 'everything from create_order', value: '$.create' },
+            { label: 'everything from create_order_other', value: '$.createOther' },
+            { label: 'the case mode', value: '$._case.mode' },
+          ],
+        },
+      ],
+    };
+
+    it('names a hand-extended key-less path after its nearest ancestor', () => {
+      // The catalogue stops where the step's declared output stops; `.status`
+      // is the author's own walk and has no entry of its own.
+      const extended = findTemplateByPath(templates, '$.create.status');
+      expect(extended?.item.label).toBe('everything from create_order');
+      expect(extended?.remainder).toBe('.status');
+
+      expect(resolveTemplateLabel(templates, '$.create.status').label).toBe(
+        'everything from create_order \u203a status'
+      );
+      // An index binds to the name it indexes, exactly as in the braced form.
+      expect(resolveTemplateLabel(templates, '$.create[0].id').label).toBe(
+        'everything from create_order[0].id'
+      );
+      // A leading underscore is a legal first character of a root segment.
+      expect(resolveTemplateLabel(templates, '$._case.mode.raw').label).toBe(
+        'the case mode \u203a raw'
+      );
+    });
+
+    it('still requires a path boundary, so a sibling is not named after it', () => {
+      // `$.createOther` is its OWN entry; it must never be read as `$.create`
+      // extended by `Other`.
+      expect(findTemplateByPath(templates, '$.createOther')).toBeUndefined();
+      expect(resolveTemplateLabel(templates, '$.createOther').label).toBe(
+        'everything from create_order_other'
+      );
+      // A deeper walk from the sibling is named after the SIBLING.
+      expect(findTemplateByPath(templates, '$.createOther.status')?.item.label).toBe(
+        'everything from create_order_other'
+      );
+      // An exact value is not an extension — findTemplate answers that.
+      expect(findTemplateByPath(templates, '$.create')).toBeUndefined();
+      expect(resolveTemplateLabel(templates, '$.create').label).toBe(
+        'everything from create_order'
+      );
+    });
+
+    it('never lets a keyed and a key-less token name each other', () => {
+      const keyed: IReqoreFormTemplates = {
+        items: [{ label: 'Choices', value: '$data:{create.choices}' }],
+      };
+      // "no key" is a key of its own: a $data: item explains no `$.` value…
+      expect(findTemplateByPath(keyed, '$.create.choices.first')).toBeUndefined();
+      expect(resolveTemplateLabel(keyed, '$.create.choices.first').label).toBe(
+        '$.create.choices.first'
+      );
+      // …and a key-less item explains no $data: value.
+      expect(findTemplateByPath(templates, '$data:{create.status}')).toBeUndefined();
+      expect(resolveTemplateLabel(templates, '$data:{create.status}').label).toBe(
+        '$data:{create.status}'
+      );
+    });
+
+    it('leaves an unknown root, and the braced grammar, exactly as they were', () => {
+      // Nothing in the catalogue explains this root, so the reference itself
+      // is the honest answer.
+      expect(resolveTemplateLabel(templates, '$.unknown.status').label).toBe('$.unknown.status');
+      // A key-less reference has no wrapper to strip, so the readable floor
+      // stays the reference as written rather than a headless `.create.status`.
+      expect(getTemplateReferencePath('$.create.status')).toBe('$.create.status');
+      expect(describeTemplateReference(templates, '$.unknown.status').label).toBe(
+        '$.unknown.status'
+      );
+      // A bare `$word` is not this grammar and names nothing.
+      expect(findTemplateByPath(templates, '$create')).toBeUndefined();
+    });
+  });
+
   describe('filterTemplatesByType', () => {
     const templates: IReqoreFormTemplates = {
       items: [
