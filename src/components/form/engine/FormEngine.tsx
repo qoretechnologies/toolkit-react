@@ -1988,6 +1988,18 @@ const FormEngineImpl = ({
     setShowAllDescriptions((prev) => prev !== true);
   }, []);
   const handleToggleInvalidOnly = useCallback(() => setShowInvalidOptionsOnly((prev) => !prev), []);
+  /**
+   * Put every field back, whichever filter took them away.
+   *
+   * Both filters can hide the whole form at once, and a reader who has
+   * lost the form does not care which one did it — so one control
+   * undoes both rather than making them work out that the attention
+   * filter is still on behind the text they just cleared.
+   */
+  const handleClearCompactFilters = useCallback(() => {
+    setCompactQuery('');
+    setShowInvalidOptionsOnly(false);
+  }, []);
   const handleRevertChangesClick = useCallback(() => {
     setLocalValue({
       fields: originalValue.current,
@@ -3167,11 +3179,48 @@ const FormEngineImpl = ({
                   }}
                 >
                   {size(groupKeys) === 0 || (readOnly && !bucketCount('set')) ?
-                    <ReqoreMessage flat opaque={false} size='small'>
-                      {readOnly && !query ?
-                        'Nothing is set.'
-                      : 'No fields match the current filters.'}
-                    </ReqoreMessage>
+                    readOnly && !query ?
+                      <ReqoreMessage flat opaque={false} size='small'>
+                        Nothing is set.
+                      </ReqoreMessage>
+                      /* A filter has hidden the whole form. Say which one,
+                         say what is behind it, and offer the way back.
+
+                         This used to be one passive line — "No fields match
+                         the current filters." — with no control and no idea
+                         how much it was hiding, while the toolbar directly
+                         above it still read "2 need attention →". The form
+                         claimed two fields wanted the reader's attention and
+                         then showed them none, which reads as a broken form
+                         rather than a filter. At phone width that line plus
+                         the toolbar IS the whole form, and the input's own
+                         clear affordance is a ~20px target. */
+                    : <ReqoreMessage flat opaque={false} size='small' icon='Search2Line'>
+                        <ReqoreControlGroup vertical gapSize='small'>
+                          <span>
+                            {query ?
+                              `No field matches "${compactQuery.trim()}".`
+                            : 'No field needs attention right now.'}
+                            {/* The sentence that resolves the contradiction
+                                with the toolbar: the fields are still there,
+                                the filter is simply in front of them. */}
+                            {readFirstAttentionCount > 0 && query ?
+                              ` ${readFirstAttentionCount} of the fields here still need attention.`
+                            : ''}
+                          </span>
+                          <ReqoreButton
+                            fixed
+                            flat
+                            minimal
+                            size='small'
+                            icon='FilterOffLine'
+                            className='options-readfirst-clear-filters'
+                            onClick={handleClearCompactFilters}
+                          >
+                            Show every field
+                          </ReqoreButton>
+                        </ReqoreControlGroup>
+                      </ReqoreMessage>
                   : null}
 
                   {/* A read-only form is one flat list of what is set: no

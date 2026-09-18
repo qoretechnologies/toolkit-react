@@ -7831,3 +7831,78 @@ export const CompactNoMaxFieldsShown: Story = {
     expect(canvasElement.querySelector('.readfirst-more-row')).toBeNull();
   },
 };
+
+/**
+ * A filter that matches nothing must not look like a broken form.
+ *
+ * Found by building a DB schema by hand in qorus-ide: the filter box is
+ * the first input on that page, so reaching for "the name field" and
+ * hitting the filter is easy — and what came back was one grey line,
+ * "No fields match the current filters.", under a toolbar still reading
+ * "2 need attention →". The form claimed two fields wanted the reader's
+ * attention and then showed them none.
+ *
+ * At phone width that line plus the toolbar IS the whole form, and the
+ * input's own clear affordance is a ~20px target. So the empty state now
+ * names the query, says what is behind it, and carries the way back.
+ */
+export const CompactFilterMatchesNothing: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose filter matches nothing. The empty state names the query, says how many of the hidden fields still need attention — the sentence that stops it contradicting the toolbar above — and offers "Show every field", which clears the filter and brings the form back.',
+      },
+    },
+    chromatic: { disable: true },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactSchema,
+    // Nothing filled, so the required fields genuinely need attention and
+    // the count in the empty state is a real one.
+    value: {},
+    groups: CompactGroups,
+  },
+  play: async () => {
+    await _testsWaitForText('Name');
+
+    await _testsChangeStringField({
+      selector: 'input[placeholder="Filter fields..."]',
+      value: 'zzzznomatch',
+    });
+
+    // The form is hidden...
+    await _testsWaitForTextToNotExist('Description');
+    // ...and the empty state says which filter did it, quoting the query
+    // rather than the generic "the current filters".
+    await _testsWaitForText(/No field matches "zzzznomatch"/);
+    // The half that resolves the contradiction with the toolbar: the
+    // fields are still there, the filter is simply in front of them.
+    await _testsWaitForText(/still need attention/);
+
+    // One control puts every field back.
+    const clear = document.querySelector('.options-readfirst-clear-filters') as HTMLElement;
+    expect(clear, 'the empty state must offer a way back').toBeTruthy();
+    clear.click();
+
+    await _testsWaitForText('Description');
+    await waitFor(() => {
+      const search = document.querySelector(
+        'input[placeholder="Filter fields..."]'
+      ) as HTMLInputElement;
+      expect(search.value, 'clearing must empty the filter box too').toBe('');
+    });
+
+    // Leave the form BACK in the state this story is about. The capture is
+    // taken after the play, so ending on the restored form would publish a
+    // picture of an ordinary form — and a reviewer looking at it would learn
+    // nothing about the empty state the story exists to show.
+    await _testsChangeStringField({
+      selector: 'input[placeholder="Filter fields..."]',
+      value: 'zzzznomatch',
+    });
+    await _testsWaitForText(/No field matches "zzzznomatch"/);
+  },
+};
