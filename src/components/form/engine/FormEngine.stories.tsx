@@ -7894,5 +7894,15 @@ export const CompactFilterMatchesNothing: Story = {
       ) as HTMLInputElement;
       expect(search.value, 'clearing must empty the filter box too').toBe('');
     });
+
+    // Leave the form BACK in the state this story is about. The capture is
+    // taken after the play, so ending on the restored form would publish a
+    // picture of an ordinary form — and a reviewer looking at it would learn
+    // nothing about the empty state the story exists to show.
+    await _testsChangeStringField({
+      selector: 'input[placeholder="Filter fields..."]',
+      value: 'zzzznomatch',
+    });
+    await _testsWaitForText(/No field matches "zzzznomatch"/);
   },
 };
