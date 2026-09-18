@@ -54,22 +54,24 @@ const waitForText = async (text: string | RegExp) => {
 
 // --- reqraft behavioral stories (kept from the field-migration batch) -------
 
-/** Auto type, no value — the picker is shown and the field area prompts for a type. */
+/** Untyped, no value — the field opens on an editor to type into, never on a type question. */
 export const Empty: Story = {
   args: {},
   parameters: {
     docs: {
       description: {
         story:
-          'Renders AutoFormField with no value or defaultType — the type picker is shown and the field area prompts the operator to pick a data type.',
+          'Renders AutoFormField with no value or defaultType. The field opens on a text editor to type into; it does not show a type picker or ask for a data type.',
       },
     },
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
-    // The IDE auto resolves its type in a mount effect — assert asynchronously.
-    await expect(await canvas.findByText('Please select data type')).toBeInTheDocument();
-    // No concrete field is rendered yet.
+    // The type resolves in a mount effect — assert asynchronously.
+    await waitFor(() => expect(canvasElement.querySelector('textarea')).toBeInTheDocument(), {
+      timeout: 5000,
+    });
+    await expect(canvas.queryByText('Please select data type')).not.toBeInTheDocument();
     await expect(canvasElement.querySelector('input[type="number"]')).not.toBeInTheDocument();
   },
 };
@@ -179,7 +181,7 @@ export const Nullable: Story = {
   },
 };
 
-/** The picker can be restricted to a subset of types via `allowedTypes`. */
+/** A field declaring several allowed types still picks between them. */
 export const AllowedTypesSubset: Story = {
   args: {
     allowedTypes: [
@@ -191,14 +193,14 @@ export const AllowedTypesSubset: Story = {
     docs: {
       description: {
         story:
-          'Renders AutoFormField with allowedTypes restricted to Integer and Text — the picker badge shows 2 available types instead of the full 14.',
+          'Renders AutoFormField with allowedTypes restricted to Integer and Text. The type picker offers those 2 types (its badge reads 2), and the field can be typed into meanwhile without being asked for a data type.',
       },
     },
   },
-  async play() {
+  async play({ canvasElement }) {
     // The picker badge reflects the restricted list — 2 instead of 14.
-    await waitForText('Please select data type');
     await waitForText('2');
+    await expect(within(canvasElement).queryByText('Please select data type')).not.toBeInTheDocument();
   },
 };
 
@@ -206,31 +208,35 @@ export const AllowedTypesSubset: Story = {
 export const NoSoftTypes: Story = {
   args: {
     noSoft: true,
+    /* The picker belongs to a value with a type: an untyped field that is
+       empty is typed into, and one holding text has resolved to `string`. */
+    defaultType: 'auto',
+    value: 'some text',
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Renders AutoFormField with noSoft enabled — the soft* type variants are hidden and the picker badge reads 9 instead of 14.',
+          'Renders an untyped AutoFormField holding a text value with noSoft enabled. The picker for the type the value resolved to leaves out the soft* variants, so its badge reads 9 instead of 14.',
       },
     },
   },
-  async play() {
-    await waitForText('Please select data type');
+  async play({ canvasElement }) {
     await waitForText('9');
+    await expect(within(canvasElement).queryByText('Please select data type')).not.toBeInTheDocument();
   },
 };
 
 /**
  * The whole point of the migration: a `FormEngine` schema with a field typed
- * `auto` renders the picker for free, via FormEngine → TemplateField → auto.
+ * `auto` renders the untyped editor for free, via FormEngine → TemplateField → auto.
  */
 export const ViaFormEngine: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema whose single option is typed as auto — the engine flows through TemplateField and renders the AutoFormField picker without any extra wiring.',
+          'Renders a FormEngine schema whose single option is typed as auto. The engine flows through TemplateField to the untyped editor without any extra wiring: an editor to type into, with no data-type question.',
       },
     },
   },
@@ -255,15 +261,76 @@ export const ViaFormEngine: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     // Generous timeout: findByText defaults to 1s, which flakes under CI load
-    // while the engine boots the auto field's type picker (the rest of the suite
-    // waits ~10s).
+    // while the engine boots the auto field (the rest of the suite waits ~10s).
     await expect(
       await canvas.findByText('My Auto Field', undefined, { timeout: 10000 })
     ).toBeInTheDocument();
-    // The auto field renders its type picker inside the engine-driven form.
+    // The untyped field opens on an editor inside the engine-driven form, and
+    // never asks for a data type.
+    await waitFor(() => expect(canvasElement.querySelector('textarea')).toBeInTheDocument(), {
+      timeout: 10000,
+    });
+    await expect(canvas.queryByText('Please select data type')).not.toBeInTheDocument();
+  },
+};
+
+/**
+ * The ⋮ on that same field holds one group — "Set Custom Value" and the data
+ * types under it — and opens it, rather than asking for a click to reach the
+ * only thing on offer.
+ */
+export const ViaFormEngineMenuOpensItsOnlyGroup: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The untyped field\'s ⋮ holds nothing but the "Set Custom Value" section, so that section is already open: the data types are one click from the menu, not two. Where a menu holds more than one group the sections stay shut, because there the click is the choice.',
+      },
+    },
+  },
+  render: () => {
+    const [val, setVal] = useState<any>({});
+    return (
+      <FormEngine
+        name='autoFieldMenuDemo'
+        options={{
+          myAutoField: {
+            type: 'auto',
+            ui_type: 'auto',
+            display_name: 'My Auto Field',
+            preselected: true,
+          },
+        }}
+        value={val}
+        onChange={(_n, v) => setVal(v)}
+      />
+    );
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
     await expect(
-      await canvas.findByText('Please select data type', undefined, { timeout: 10000 })
+      await canvas.findByText('My Auto Field', undefined, { timeout: 10000 })
     ).toBeInTheDocument();
+
+    const menu = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('.template-more');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 10000 }
+    );
+    await userEvent.click(menu);
+
+    // The section still names its rows...
+    await waitFor(
+      () => expect(document.body.textContent).toContain('Set Custom Value'),
+      { timeout: 10000 }
+    );
+    // ...and the rows are there to click, with no header click in between.
+    await waitFor(() => expect(document.body.textContent).toContain('Ordered key-value pair'), {
+      timeout: 10000,
+    });
   },
 };
 

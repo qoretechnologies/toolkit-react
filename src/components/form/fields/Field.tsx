@@ -2,7 +2,6 @@ import {
   IReqoreLabelProps,
   ReqoreCheckbox,
   ReqoreControlGroup,
-  ReqoreSkeleton,
   ReqoreSpan,
 } from '@qoretechnologies/reqore';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
@@ -38,6 +37,7 @@ import { IDataSchemaDefinition } from './schema-definition/types';
 // Direct import — circular dep (FormEngine → TemplateField → FormField → FormEngine) is safe
 // because modules are all loaded before any component renders
 import { FormEngine } from '../engine/FormEngine';
+import { FormFieldsSkeleton } from '../engine/FormFieldsSkeleton';
 
 /** Soft Qore types (softint, softstring, …) render as their concrete base —
  * the soft/hard distinction is value-level, not UI. */
@@ -345,7 +345,8 @@ export const FormField = <T extends TFormFieldType>({
 
       case 'hash': {
         if (argSchemaLoading) {
-          return <ReqoreSkeleton height='80px' />;
+          // A hash renders a nested FORM, so it waits in the shape of one.
+          return <FormFieldsSkeleton rows={2} />;
         }
         if (finalArgSchema) {
           return (

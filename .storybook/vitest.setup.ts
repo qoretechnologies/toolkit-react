@@ -7,9 +7,9 @@ import * as previewAnnotations from './preview';
 // faker on the FIRST story or on Storybook's `STORY_CHANGED` channel event —
 // neither of which happens per-story in the Vitest browser (no manager firing
 // STORY_CHANGED). So only the first mockData story is mocked and the rest hit the
-// real network and 401/time out. Re-map faker from the current story's mockData
-// on EVERY story here instead (and restore for stories without mockData so a
-// previous story's mock can't leak into a live one).
+// real network and 401/time out. Re-map faker on EVERY story here instead, from
+// the same data the addon would use — `mockAddonConfigs.globalMockData` followed
+// by the story's `mockData` — so a previous story's mock can't leak into the next.
 // @ts-expect-error — deep import; the addon ships no types for this entry.
 import faker from 'storybook-addon-mock/dist/esm/utils/faker';
 
@@ -20,12 +20,14 @@ const annotations = setProjectAnnotations([
   {
     decorators: [
       (Story: any, context: any) => {
+        const globalMockData = context?.parameters?.mockAddonConfigs?.globalMockData;
         const mockData = context?.parameters?.mockData;
-        if (Array.isArray(mockData) && mockData.length) {
-          faker.makeInitialRequestMap(mockData);
-        } else {
-          faker.restore();
-        }
+        // Same order as the addon: a story entry for the same request replaces
+        // the global one.
+        faker.makeInitialRequestMap([
+          ...(Array.isArray(globalMockData) ? globalMockData : []),
+          ...(Array.isArray(mockData) ? mockData : []),
+        ]);
         return Story();
       },
       // The vitest tester mounts stories into an auto-height <div> under <body>,

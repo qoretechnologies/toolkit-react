@@ -1,4 +1,5 @@
 import { modalStore } from '@qoretechnologies/reqore';
+import { TReqoreTooltipProp } from '@qoretechnologies/reqore/dist/types/global';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import {
   TReqoreDropdownItem,
@@ -19,6 +20,24 @@ import { areQorusTypesCompatible } from './expressions';
  * paired with the "?" action that shows the full value.
  */
 export const TEMPLATE_EXAMPLE_PREVIEW_LENGTH = 150;
+
+/**
+ * How template picker entries are ordered: by the label a reader actually sees.
+ *
+ * The server sends groups and their items in whatever order it assembled them —
+ * for the test vocabulary that is step order, for an app's actions it is the
+ * connector's own. Neither is an order a reader can predict, and a picker
+ * holding 29 items is navigated by looking for a NAME.
+ *
+ * `localeCompare` with `numeric` so `item2` sorts before `item10`, and
+ * `sensitivity: 'base'` so case and accents do not split otherwise-adjacent
+ * neighbours.
+ */
+const byLabel = (a: { label?: unknown }, b: { label?: unknown }): number =>
+  String(a?.label ?? '').localeCompare(String(b?.label ?? ''), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
 
 /**
  * Shared template string utilities.
@@ -106,9 +125,42 @@ const matchesTemplateValue = (item: TReqoreDropdownItem, value: string): boolean
 /** Splits `$data:{a.b.c}` into its key (`$data`) and inner path (`a.b.c`). */
 const TEMPLATE_TOKEN_PATH = /^(\$[A-Za-z_][\w-]*):\{(.*)\}$/;
 
+/**
+ * The KEY-LESS spelling — `$.create.status`, `$._case.mode`, `$.order[0].sku`.
+ *
+ * A host may name its own references without a key and without braces: a Qorus
+ * test reads what a step captured as `$.create`, and that is the whole token.
+ * The path is captured WITH its leading `.`, so a prefix comparison is between
+ * two strings of the same shape and `$.create` still ends at a path boundary
+ * inside `$.create.status`.
+ *
+ * Deliberately strict — a root segment, then any number of further `.field`
+ * steps and `[0]` indices, and nothing else — so it cannot claim a keyed token
+ * (which carries a `:`) or a bare `$word`.
+ */
+const KEYLESS_TOKEN_PATH = /^\$((?:\.[A-Za-z_][\w-]*|\[\d+\])+)$/;
+
+/**
+ * "No key" is a key of its own.
+ *
+ * `findTemplateByPath` refuses to name a value from an item under a different
+ * key, and the key-less grammar has to take part in that rule rather than sit
+ * outside it: a `$data:{create.status}` item must not name `$.create.status`,
+ * and a `$.create` item must not name `$data:{create.status}`. Every keyed
+ * token's key begins with `$`, so the empty string can never collide with one.
+ */
+const NO_TOKEN_KEY = '';
+
 const getTokenPath = (value?: unknown): { key: string; path: string } | undefined => {
-  const match = typeof value === 'string' ? TEMPLATE_TOKEN_PATH.exec(value) : null;
-  return match ? { key: match[1], path: match[2] } : undefined;
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+  const keyed = TEMPLATE_TOKEN_PATH.exec(value);
+  if (keyed) {
+    return { key: keyed[1], path: keyed[2] };
+  }
+  const keyless = KEYLESS_TOKEN_PATH.exec(value);
+  return keyless ? { key: NO_TOKEN_KEY, path: keyless[1] } : undefined;
 };
 
 /**
@@ -124,7 +176,12 @@ const getTokenPath = (value?: unknown): { key: string; path: string } | undefine
  *
  * The match must break at a path boundary (`.` or `[`) so `choicesOther` is
  * never named after `choices`, and the token keys must agree so a `$config:`
- * item never names a `$data:` value.
+ * item never names a `$data:` value — "no key" included, so the key-less
+ * grammar and the keyed one never name each other's references.
+ *
+ * Both grammars arrive here: `$data:{create.choices[0]}` and the key-less
+ * `$.create.status` are the same question asked in two spellings, and a
+ * catalogue written in either one names the walks its author took past it.
  */
 export const findTemplateByPath = (
   templates: IReqoreFormTemplates,
@@ -239,9 +296,14 @@ export const resolveTemplateLabel = (
  * never fetches one), and there the raw token is the only thing left to show.
  * Showing it as `$data:{…}` renders a value as code; showing the path renders
  * it as a name, which is the honest floor.
+ *
+ * Only a BRACED wrapper is stripped, because only a braced wrapper is one.
+ * A key-less `$._case.mode` stripped of its `$` reads as `._case.mode`, which
+ * is neither the reference nor a name for it; with nothing to call it, the
+ * reference as written is the honest answer.
  */
 export const getTemplateReferencePath = (value: string): string =>
-  getTokenPath(value)?.path ?? value;
+  (typeof value === 'string' ? TEMPLATE_TOKEN_PATH.exec(value)?.[2] : undefined) ?? value;
 
 /**
  * The best available name for a reference, for a surface that must show
@@ -258,43 +320,34 @@ export const describeTemplateReference = (
   return resolved.item ? resolved : { label: getTemplateReferencePath(value) };
 };
 
-const EMBEDDED_TEMPLATE_TOKEN = new RegExp(TEMPLATE_TOKEN_SOURCE, 'g');
-
-export type TTemplateTextSegment =
-  | { kind: 'text'; text: string }
-  | { kind: 'token'; text: string };
-
 /**
- * Splits prose that embeds template tokens into its literal and token parts —
- * `trim("$data:{…}")` becomes `trim("`, the token, `")`. Used to chip the
- * references inside a rendered expression instead of printing them raw.
+ * What a chosen template's hover should say.
+ *
+ * The reference itself — `$._case.title`, `$data:{dc_ai_reply.choices[0]…}` —
+ * is an implementation detail of the grammar, and it was what every template
+ * chip put in its tooltip. An author hovering a chip wants to know WHAT VALUE
+ * this is, and the catalogue already carries that: the entry's `description`
+ * is the prose the picker lists it under, written from the schema that declares
+ * it, with its type appended.
+ *
+ * So the hover reads as a small card — the value's name as the title, its
+ * description as the body — and the path stays where it is genuinely needed:
+ * the field's own help, which teaches the grammar with a worked example, and
+ * the picker, for the walks no list can hold.
+ *
+ * Falls back to the resolved label (itself the stripped path when the catalogue
+ * explains nothing), because a surface with no catalogue must still say what
+ * the value is rather than nothing at all.
  */
-export const splitTemplateTokens = (text?: string): TTemplateTextSegment[] => {
-  if (!text) {
-    return [];
-  }
-
-  const segments: TTemplateTextSegment[] = [];
-  let lastIndex = 0;
-
-  // A fresh regex per call: a shared /g instance carries `lastIndex` between
-  // calls and would skip tokens on the second string it is given.
-  const pattern = new RegExp(EMBEDDED_TEMPLATE_TOKEN.source, 'g');
-  let match: RegExpExecArray | null;
-
-  while ((match = pattern.exec(text)) !== null) {
-    if (match.index > lastIndex) {
-      segments.push({ kind: 'text', text: text.slice(lastIndex, match.index) });
-    }
-    segments.push({ kind: 'token', text: match[0] });
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < text.length) {
-    segments.push({ kind: 'text', text: text.slice(lastIndex) });
-  }
-
-  return segments;
+export const templateTooltip = (
+  templates: IReqoreFormTemplates | undefined,
+  value: string
+): TReqoreTooltipProp => {
+  const { label, item } = describeTemplateReference(templates, value);
+  const description = (item as { description?: unknown } | undefined)?.description;
+  return typeof description === 'string' && description.trim() ?
+      { title: label, content: description, maxWidth: '360px' }
+    : label || value;
 };
 
 // Ported verbatim from qorus-ide `helpers/functions.tsx` (FIELD_STACK_REPORT
@@ -506,7 +559,7 @@ export const buildTemplates = (
 
         return item;
       }
-    );
+    ).sort(byLabel);
 
   return {
     items: Object.values(templates).map(
@@ -544,6 +597,6 @@ export const buildTemplates = (
           data_role
         ),
       })
-    ),
+    ).sort(byLabel),
   } as IReqoreFormTemplates;
 };

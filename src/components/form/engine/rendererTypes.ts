@@ -1,4 +1,16 @@
 import { TQorusType } from '@qoretechnologies/ts-toolkit';
+import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+
+/**
+ * A field schema that carries a template list of its own.
+ *
+ * `templates` is deliberately NOT added to `TQorusFormFieldSchema`: that type is
+ * owned by ts-toolkit and shared with consumers that have no notion of a form
+ * engine, so the capability is read through this narrow view instead of widening
+ * the shared type from here. A schema that sets it is offering a list scoped to
+ * one field rather than to the whole form.
+ */
+export type TFieldWithOwnTemplates = { templates?: IReqoreFormTemplates };
 
 /**
  * A schema entry carries two type-ish keys with different jobs:

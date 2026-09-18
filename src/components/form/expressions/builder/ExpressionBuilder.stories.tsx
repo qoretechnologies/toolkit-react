@@ -9,6 +9,7 @@ import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/tes
 import { useState } from 'react';
 import { sleep } from '../../../../../__tests__/utils';
 import { StoryMeta } from '../../../../types';
+import { templateChipLabel } from '../../../../helpers/templateText';
 import { mockExpressions } from '../mockExpressions';
 import { IExpression } from '../types';
 import { ExpressionBuilder } from './index';
@@ -643,14 +644,38 @@ export const VariableArgumentsCanBeAdded: Story = {
 const CONCAT_OPERANDS = ['first', 'second', 'third'];
 const OPERAND_LITERALS = [...CONCAT_OPERANDS, 'plain', '$local:some-richtext'];
 
+/**
+ * What an operand field holds. A text operand is edited in the chip editor
+ * (these stories offer templates), so it is read from the editable field; a
+ * template chip in it shows the name these stories' templates give the
+ * reference ("Richtext Template"), read back as the reference it names.
+ */
+const readOperand = (field: HTMLElement): string => {
+  if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+    return field.value;
+  }
+  const shown = (field.textContent ?? '').replace(/\uFEFF/g, '').trim();
+  return (
+    OPERAND_LITERALS.find(
+      (literal) => literal === shown || templateChipLabel(localTemplates as never, literal) === shown
+    ) ?? shown
+  );
+};
+
+/** Every operand editor's text, in DOM order (no number or position inputs). */
+const operandTexts = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>('.expression textarea, .expression [contenteditable="true"]')
+  ).map(readOperand);
+
 /** Seeded operand values in DOM order — only the seeded ones, so stray fields don't count. */
 const operandValues = () =>
   Array.from(
-    document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-      '.expression textarea, .expression input'
+    document.querySelectorAll<HTMLElement>(
+      '.expression textarea, .expression input, .expression [contenteditable="true"]'
     )
   )
-    .map((field) => field.value)
+    .map(readOperand)
     .filter((value) => OPERAND_LITERALS.includes(value));
 
 const count = (selector: string) => document.querySelectorAll(selector).length;
@@ -698,7 +723,7 @@ export const ConcatExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"). By default each operand gets a drag grip and a "Move Argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
+          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"), each edited in the chip editor a string field with templates now uses — a contenteditable box rather than a textarea, so a template reference in an operand reads as its name. By default each operand gets a drag grip and a "Move Argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
       },
     },
   },
@@ -765,11 +790,7 @@ export const ReorderLongConcat: Story = {
     await fireEvent.keyDown(field, { key: 'Enter' });
     await waitFor(
       () =>
-        expect(
-          Array.from(
-            document.querySelectorAll<HTMLTextAreaElement>('.expression textarea')
-          ).map((t) => t.value)
-        ).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'second', 'seventh']),
+        expect(operandTexts()).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'second', 'seventh']),
       { timeout: 10000 }
     );
 
@@ -780,11 +801,7 @@ export const ReorderLongConcat: Story = {
     await clickSelector('.expression-arg-move-to-7');
     await waitFor(
       () =>
-        expect(
-          Array.from(
-            document.querySelectorAll<HTMLTextAreaElement>('.expression textarea')
-          ).map((t) => t.value)
-        ).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'second']),
+        expect(operandTexts()).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'second']),
       { timeout: 10000 }
     );
     expect(context.args.onChange).toHaveBeenLastCalledWith(

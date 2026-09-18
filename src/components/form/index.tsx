@@ -24,6 +24,7 @@ export * from './fields/string/String';
 export * from './fields/template/ExampleValueModal';
 export * from './fields/template/TemplateField';
 export * from './engine/FormEngine';
+export * from './engine/FormFieldsSkeleton';
 export * from './engine/optionActions';
 export * from './engine/rendererTypes';
 export * from './expressions/types';

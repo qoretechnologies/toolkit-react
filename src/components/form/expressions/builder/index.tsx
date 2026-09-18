@@ -25,6 +25,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import styled from 'styled-components';
 import { moveItem } from '../../../../helpers/common';
 import { areQorusTypesCompatible, getArgumentType } from '../../../../helpers/expressions';
+import { addMissingExpressionArgs } from '../argumentPresence';
 import { findTemplate } from '../../../../helpers/templates';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
 import { IQorusTypeObject, useQorusTypes } from '../../../../hooks/useQorusTypes';
@@ -79,6 +80,18 @@ export interface IExpressionBuilderProps {
   expressions?: IExpressionSchema[];
   expressionsUrl?: string;
   serverHandled?: boolean;
+  /**
+   * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the operand
+   * fields below.
+   *
+   * Without them an operand whose type is one of the CONSUMER's own ui_types
+   * falls through `AutoFormField`'s switch to the literal "Unknown type!" tag.
+   * That is what an assertion's `Value` did the moment it was turned into an
+   * expression: the field is `test-reference`, an IDE ui_type whose editor the
+   * IDE registers through `componentOverrides`, and the builder rendered its
+   * operands without them.
+   */
+  componentOverrides?: Record<string, React.FC<any>>;
   size?: string;
   /**
    * SEAM (reqraft): extra hover actions prepended to each expression card —
@@ -132,6 +145,7 @@ export const Expression = ({
   expressionsUrl,
   serverHandled,
   extraActions,
+  componentOverrides,
   ...props
 }: IExpressionProps) => {
   const types = useQorusTypes();
@@ -267,62 +281,8 @@ export const Expression = ({
   );
 
   const addMissingArgs = useCallback(
-    (expression: string, args: IExpression[] = []): IExpression[] => {
-      const newArgs = [...args];
-      // Check if this expression has variable arguments
-      const selectedExpression = expressions.value?.find((exp) => exp.name === expression);
-
-      // An operand slot with nothing in it yet: the schema's default value
-      // when it has one, otherwise an envelope typed after the schema for
-      // the editors that need a type to mount. `updateExp` leaves such a
-      // slot behind for every catalogue argument the previous value had no
-      // operand for (a fresh builder has none), so every branch below has
-      // to fill them — an `undefined` operand that reaches the validator or
-      // an operand editor is read for its `type` and crashes the builder.
-      const isEmptySlot = (slot: IExpression | undefined, arg: IExpressionSchemaArg) =>
-        slot === undefined || size(slot) === 0 || (arg.default_value && !('value' in slot));
-      const emptySlot = (arg: IExpressionSchemaArg): IExpression =>
-        arg.default_value
-          ? { value: arg.default_value, type: arg.ui_type }
-          : {
-              type:
-                arg.ui_type === 'richtext' || arg.ui_type === 'number' || arg.ui_type === 'bool'
-                  ? arg.ui_type
-                  : undefined,
-            };
-
-      if (selectedExpression.varargs) {
-        if (selectedExpression.subtype === 2) {
-          newArgs.push({
-            is_expression: true,
-            value: {
-              args: [],
-            },
-          });
-        } else {
-          // Every operand follows the one schema argument; add slots up to
-          // min_args and fill the empty ones.
-          const [schema] = selectedExpression.args;
-
-          newArgs.push(
-            ...Array.from({ length: selectedExpression.min_args - 1 }, () => emptySlot(schema))
-          );
-          newArgs.forEach((slot, index) => {
-            if (isEmptySlot(slot, schema)) {
-              newArgs[index] = emptySlot(schema);
-            }
-          });
-        }
-      } else {
-        selectedExpression.args.forEach((arg, index) => {
-          if (isEmptySlot(newArgs[index], arg)) {
-            newArgs[index] = emptySlot(arg);
-          }
-        });
-      }
-
-      return newArgs;
-    },
+    (expression: string, args: IExpression[] = []): IExpression[] =>
+      addMissingExpressionArgs(expressions.value as never, expression, args as never) as never,
     [JSON.stringify(expressions.value)]
   );
 
@@ -511,13 +471,7 @@ export const Expression = ({
   );
 
   const updateArg = useCallback(
-    (
-      val: any,
-      index: number = 0,
-      type?: string,
-      isFunction?: boolean,
-      isRequired?: boolean
-    ) => {
+    (val: any, index: number = 0, type?: string, isFunction?: boolean) => {
       const args = clone(value.value.args);
       const newVal = clone(val);
 
@@ -525,12 +479,18 @@ export const Expression = ({
         newVal.args = addMissingArgs(newVal.exp, newVal.args);
       }
 
+      /* `required` is NOT written here. It is a schema key — it describes the
+         catalogue's declaration of the argument, not the author's value, and
+         nothing reads it back off a stored argument (validation takes it from
+         the schema). Persisting it made a cleared argument indistinguishable
+         from real data: the value dropped out as `undefined`, `required: true`
+         stayed, and what was saved to the draft was `{type, required}` — an
+         argument DEFINITION sitting where its value should be. */
       args[index] = {
         ...args[index],
         value: newVal,
         type: !isFunction ? type || args[index]?.type : undefined,
         is_expression: isFunction,
-        required: isRequired,
       };
 
       onValueChange(
@@ -776,16 +736,10 @@ export const Expression = ({
   const handleFirstParamChange = useCallback(
     (_name, value, type, isFunction) => {
       if (isFunction || (type !== 'any' && type !== 'auto')) {
-        updateArg(
-          value,
-          0,
-          isFunction ? undefined : type,
-          isFunction,
-          selectedExpression?.args?.[0]?.required
-        );
+        updateArg(value, 0, isFunction ? undefined : type, isFunction);
       }
     },
-    [updateArg, JSON.stringify(selectedExpression)]
+    [updateArg]
   );
 
   const buildCustomTemplateItems = useCallback(
@@ -1062,7 +1016,9 @@ export const Expression = ({
           {confirmDialogData.children}
         </ConfirmUnsupportedTypeModal>
       )}
-      {showSummary && <ExpressionRenderTemplate exp={value} expressions={expressions.value} />}
+      {showSummary && (
+        <ExpressionRenderTemplate exp={value} expressions={expressions.value} templates={localTemplates} />
+      )}
       {!selectedExpression && !serverExpression && !firstArgument?.value && level === 0 ? (
         <ReqoreMessage size='small' opaque={false} intent='info'>
           Select an operation to start building your expression
@@ -1102,6 +1058,7 @@ export const Expression = ({
           >
             <TemplateField
               component={auto}
+              componentOverrides={componentOverrides}
               // SEAM (reqraft): an operand that becomes an expression mounts
               // its own builder through this TemplateField — hand the host's
               // actions on, or nesting silently drops them (the group
@@ -1223,6 +1180,7 @@ export const Expression = ({
                     <TemplateField
                       minimal
                       component={auto}
+                      componentOverrides={componentOverrides}
                       // SEAM (reqraft): same as the first operand above.
                       extraActions={extraActions}
                       noSoft
@@ -1257,13 +1215,7 @@ export const Expression = ({
                         !!arg.default_value
                       }
                       onChange={((_name, value, type, isFunction) => {
-                        updateArg(
-                          value,
-                          index + 1,
-                          isFunction ? undefined : type,
-                          isFunction,
-                          arg.required
-                        );
+                        updateArg(value, index + 1, isFunction ? undefined : type, isFunction);
                       }) as any}
                       fluid={phone}
                       fixed={!phone}
@@ -1351,6 +1303,7 @@ export const ExpressionBuilder = ({
   expressionsUrl,
   serverHandled,
   extraActions,
+  componentOverrides,
   reorder,
 }: IExpressionBuilderProps) => {
   const templates = useTemplates(!isChild, localTemplates);
@@ -1472,7 +1425,11 @@ export const ExpressionBuilder = ({
         >
           <ReqoreControlGroup vertical fluid size='normal' style={{ position: 'relative' }} wrap>
             {showSummary && (
-              <ExpressionRenderTemplate exp={value} expressions={_expressions.expressions} />
+              <ExpressionRenderTemplate
+                exp={value}
+                expressions={_expressions.expressions}
+                templates={localTemplates}
+              />
             )}
             <StyledExpressionItemLabel
               as={ReqoreP}
@@ -1535,6 +1492,7 @@ export const ExpressionBuilder = ({
         id={level === 0 && index === 0 ? 'expression-builder' : undefined}
         serverHandled={serverHandled}
         extraActions={extraActions}
+        componentOverrides={componentOverrides}
         reorder={reorder}
       />
     </ReqoreErrorBoundary>

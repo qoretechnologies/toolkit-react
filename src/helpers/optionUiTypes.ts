@@ -159,3 +159,25 @@ export const isOptionInterfaceUiType = (type: unknown): type is TOptionInterface
 
 export const isKnownQorusUiType = (type: unknown): type is TKnownQorusUiType =>
   typeof type === 'string' && knownQorusUiTypeSet.has(type);
+
+/** The spellings that mean "no concrete type" wherever they appear. */
+export const UNTYPED_OPTION_TYPES = ['any', 'auto'] as const;
+
+export type TUntypedOptionType = (typeof UNTYPED_OPTION_TYPES)[number];
+
+const untypedOptionTypeSet = new Set<string>(UNTYPED_OPTION_TYPES);
+
+/**
+ * `auto` and `any` declare no type: they say the AUTHOR chooses one, and the
+ * chosen type is recorded beside the value, not in the schema. A reader that
+ * takes the schema's word therefore learns nothing about what the value has to
+ * look like — `validateField` handles these two by auto-detecting from the
+ * value, which accepts whatever is there.
+ *
+ * This list lives here, with the rest of the type vocabulary, rather than in
+ * `engine/typeChoices` where it started: a helper cannot import from a
+ * component, and the rule was already spelled out by hand in seven other
+ * places.
+ */
+export const isUntypedOptionType = (type: unknown): type is TUntypedOptionType =>
+  typeof type === 'string' && untypedOptionTypeSet.has(type);

@@ -7,7 +7,6 @@ import {
   ReqoreControlGroup,
   ReqoreErrorBoundary,
   ReqoreMessage,
-  ReqoreSpinner,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
@@ -19,6 +18,7 @@ import { useUpdateEffect } from 'react-use';
 import useMount from 'react-use/lib/useMount';
 import { typedToYaml, yamlToTyped } from '../../../../helpers/common';
 import { getListElementValue } from '../../../../helpers/options';
+import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import {
   getTypeFromValue,
   getValueOrDefaultValue,
@@ -53,6 +53,8 @@ import { IDataSchemaDefinition } from '../schema-definition/types';
 import { ISelectFormFieldItem, SelectFormField } from '../select/Select';
 import { StringFormField } from '../string/String';
 import { UrlFormField } from '../url/Url';
+import { FormFieldsSkeleton } from '../../engine/FormFieldsSkeleton';
+import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
 
 /** UI superset of `TQorusType` — the IDE's `Field/systemOptions` `IQorusType`. */
 export type IQorusType = TQorusType | string;
@@ -261,7 +263,7 @@ function AutoField<T = any>({
     let internalType: IQorusType;
     // If value already exists, but the type is auto or any
     // set the type based on the value
-    if (value && (defType === 'auto' || defType === 'any') && !defaultInternalType) {
+    if (value && isUntypedOptionType(defType) && !defaultInternalType) {
       internalType = getTypeFromValue(maybeParseYaml(value)) as IQorusType;
     } else {
       internalType = defaultInternalType || defType;
@@ -296,7 +298,7 @@ function AutoField<T = any>({
       if (typeValue && typeValue !== currentType) {
         // If this is auto / any field
         // set the internal type
-        if (typeValue === 'auto' || typeValue === 'any') {
+        if (isUntypedOptionType(typeValue)) {
           setInternalType(value ? (getTypeFromValue(maybeParseYaml(value)) as IQorusType) : 'any');
         } else {
           setInternalType(typeValue);
@@ -395,6 +397,13 @@ function AutoField<T = any>({
         arg_schema={arg_schema}
         element_type={element_type}
         ui_element_type={ui_element_type}
+        // Same reason as the three above: it is destructured out of `rest` so the
+        // primitive renderers do not spread it onto a DOM node, which also took
+        // it away from host editors — and a host editor is exactly what
+        // `inherit_props` exists to feed. A field declaring it got the values
+        // resolved and then had nowhere to send them, so every consumer
+        // downstream saw `undefined` and silently did nothing.
+        inheritedFromParent={inheritedFromParent}
         name={name}
         value={value}
         onChange={(val: any, emittedType?: IQorusType, emittedIsFunction?: boolean) => {
@@ -457,7 +466,10 @@ function AutoField<T = any>({
   }
 
   if (arg_schema && !finalArgSchema) {
-    return <ReqoreSpinner size='small'>Loading field data...</ReqoreSpinner>;
+    /* One ROW, because this stands in for one field. It was a spinner reading
+       "Loading field data…", which is a different picture from every other
+       wait on the page and announces a delay the reader cannot act on. */
+    return <FormFieldsSkeleton rows={1} />;
   }
 
   const renderAllowedValues = (currentType: IQorusType) => {
@@ -489,6 +501,40 @@ function AutoField<T = any>({
       />
     );
   };
+
+  /* Text that may hold template references is edited in the chip editor
+     whenever the field offers templates (`RichTextFormField`, `text` format):
+     each reference is drawn as the name it was chosen by and the value stays the
+     plain string. Text holding a reference anywhere but its start
+     (`Interface $local:id failed`) never enters template mode, so in a textarea
+     its references read as their spelling. */
+  const offersTemplates = rest.allowTemplates !== false && size(rest.templates?.items) > 0;
+  const renderTextEditor = (editorType: string) =>
+    offersTemplates ?
+      <RichTextFormField
+        {...rest}
+        valueFormat='text'
+        singleLine={isSingleLineStringType(editorType)}
+        allowTemplates
+        /* Stringified rather than blanked: an `auto` field resolved to a text
+           type can be holding a number, and showing an empty box for it reads
+           as the value having been lost. A non-string coming back out is not a
+           value this editor produced, so it is ignored rather than written as
+           '' over what is there. */
+        value={String(value ?? '')}
+        onChange={(next) => {
+          if (typeof next !== 'string') {
+            return;
+          }
+          handleChange(name, next);
+        }}
+      />
+    : <LongStringFormField
+        {...rest}
+        type={editorType}
+        onChange={(next) => handleChange(name, next)}
+        value={value}
+      />;
 
   const renderField = (currentType: IQorusType) => {
     // If this field is set to null
@@ -565,18 +611,35 @@ function AutoField<T = any>({
       // reqraft FormField vocabulary — the IDE calls it `string` (both render
       // the textarea field).
       switch (currentType) {
+        /* These four share an editor but not a shape: a `string` holds exactly
+           one line, while `data`, `binary` and `long-string` hold a document.
+           Without the type the field cannot tell them apart and treats them all
+           as documents, so an interface's Internal Name — which becomes a YAML
+           key — accepted Enter. Only text takes references; `data` and
+           `binary` are encoded content, where a chip would stand for nothing. */
         case 'string':
+        case 'long-string':
+          return renderTextEditor(currentType);
         case 'data':
         case 'binary':
-        case 'long-string':
           return (
             <LongStringFormField
               {...rest}
-              // These four share one editor but not one shape: a `string` holds
-              // exactly one line, while `data`, `binary` and `long-string` hold
-              // a document. Without the type the field cannot tell them apart
-              // and treats them all as documents, so an interface's Internal
-              // Name — which becomes a YAML key — accepted Enter.
+              /* Say what the field takes before it is typed into. The server
+                 decodes a binary value as base64 unless it is told otherwise
+                 (`lib/misc.ql` `_priv_parse_ui_hash_value_intern`, symmetric
+                 with the `toBase64()` it encodes with), and bare hex is the
+                 trap: it is not rejected, it is read as base64 and corrupts.
+                 `validateField` already accepts exactly these three spellings
+                 — this is that rule said up front instead of after the fact.
+                 Kept short enough to read in one line at phone width, where a
+                 longer hint wrapped out of the field's single visible row. */
+              placeholder={
+                currentType === 'binary' ?
+                  ((rest as { placeholder?: string }).placeholder ??
+                  'Base64, 0x hex, or data: URL')
+                : (rest as { placeholder?: string }).placeholder
+              }
               type={currentType}
               onChange={(value) => handleChange(name, value)}
               value={value}
@@ -941,17 +1004,17 @@ function AutoField<T = any>({
             />
           );
         }
+        /* An UNTYPED field is typed into, never asked for a type.
+
+           It used to show a type picker and "Please select data type" — a
+           question about storage ("is this a Text or a Number?") that an author
+           writing a value often cannot answer, asked before they could write
+           anything. What is typed is stored untyped, exactly as template mode
+           stores it; a value of an explicit type is set from the field's ⋮ menu
+           (see `FormEngine`'s `getCustomMenuTemplateItems`). */
         case 'any':
-          return null;
         case 'auto':
-          return (
-            <ReqoreTag
-              intent='warning'
-              minimal
-              icon='ErrorWarningLine'
-              label='Please select data type'
-            />
-          );
+          return renderTextEditor('string');
         default:
           return <ReqoreTag intent='danger' icon='SpamLine' label='Unknown type!' />;
       }
@@ -964,9 +1027,16 @@ function AutoField<T = any>({
     );
   };
 
+  /* No picker while the type is unresolved: the field is typed into instead
+     (see the `auto` / `any` editor above). A field declaring several allowed
+     types still picks between THOSE — that is a choice the schema offers, not a
+     question about storage. */
+  const typeIsUnresolved =
+    !currentInternalType || isUntypedOptionType(currentInternalType);
   const showPicker =
     size(allowedTypes) > 1 ||
-    ((!size(rest.allowed_values) ||
+    (!typeIsUnresolved &&
+    (!size(rest.allowed_values) ||
       (size(rest?.allowed_values) > 0 && !rest.allowed_values_creatable) ||
       !size(rest.element_allowed_values) ||
       (size(rest?.element_allowed_values) > 0 && !rest.element_allowed_values_creatable)) &&

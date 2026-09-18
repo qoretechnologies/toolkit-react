@@ -10,6 +10,7 @@ import {
   ReqoreTagGroup,
 } from '@qoretechnologies/reqore';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
+import { RowMenuContext, useRowMenuRegistry } from './rowMenuContext';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { resolveOptionActions } from './optionActions';
 import {
@@ -28,8 +29,7 @@ import {
   findTemplate,
   getTemplateTagStyle,
   isValueTemplate,
-  describeTemplateReference,
-  splitTemplateTokens,
+  templateTooltip,
   TTemplateMeta,
 } from '../../../helpers/templates';
 import { getDefaultValue, richtextToSegments, richtextToString } from '../../../helpers/common';
@@ -64,6 +64,7 @@ import {
   findAllowedValueOption,
   formatBytes,
   formatOptionValue,
+  getAllowedValueIcon,
   getAllowedValueImage,
   getFileSize,
   getHashEntries,
@@ -72,8 +73,11 @@ import {
   isFixedCompactAllowedValueOption,
   isOptionValueEmpty,
   optionHasImages,
+  getExpressionAst,
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
+import { DpqlRendering } from '../expressions/DpqlRendering';
+import { TFieldWithOwnTemplates } from './rendererTypes';
 
 /**
  * Does this markdown value have more document in it than one row can show?
@@ -299,6 +303,39 @@ export const CompactRow = memo(
           { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
         : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
+      /* A row has to SAY when its value is an expression.
+      
+         Reported from the live IDE: an author accepted the *Use as expression*
+         offer on one field and not on the other, and the two rows read exactly
+         the same - `1 + 2` and `2 + 1`, both plain text - so there was no way
+         to tell which had been converted. The assertion then compared the
+         string `"1 + 2"` against the number `3` and the author had no way to
+         see why.
+      
+         The same Σ the expression editor uses, so the mark means the same thing
+         wherever it appears. */
+      const withExpressionMarker = (rendered: React.ReactNode): React.ReactNode => {
+        if (!(field as { is_expression?: boolean })?.is_expression) {
+          return rendered;
+        }
+
+        return (
+          <span style={{ ...wrapStyle, gap: 4 }}>
+            <ReqoreIcon
+              icon='Functions'
+              size='tiny'
+              /* A stable hook: reqore renders every icon as a bare
+                 `.reqore-icon`, so without this there is nothing to select the
+                 mark by — in a test or in a consumer's stylesheet. */
+              className='reqraft-expression-marker'
+              style={{ flexShrink: 0, opacity: 0.7 }}
+              tooltip='This value is an expression'
+            />
+            {rendered}
+          </span>
+        );
+      };
+
       if (valueType === 'rgbcolor') {
         const swatch = colorToCss(field?.value);
         return (
@@ -349,6 +386,52 @@ export const CompactRow = memo(
             label={formatted}
           />
         );
+      }
+
+      // A test's cases read as CHIPS here, the same as the names in the table
+      // this row opens (`CasesTable`, qorus-ide). `test-cases` is a
+      // renderer-only ui_type, so it reached none of the branches above and
+      // fell through to the generic summary, which flattens the array of case
+      // hashes to a comma-joined string — "case_1, resolved_expected_values".
+      // A case name is an identifier the author types into `$.` references and
+      // skip conditions, and a chip is how the rest of the product writes an
+      // identifier down; the table already agreed, so the collapsed row was the
+      // only surface still printing them as prose.
+      //
+      // `intent` is a FILL, which is what a tag is — the hazard the other
+      // branches warn about is only ever using an intent as a TEXT colour.
+      //
+      // Falls through to the plain summary unless EVERY entry yields a name: a
+      // partly-chipped row would read as though the unnamed cases were missing.
+      if (valueType === 'test-cases' && Array.isArray(field?.value)) {
+        const caseNames = (field.value as unknown[]).map((item) => {
+          const name = (item as { name?: unknown } | null | undefined)?.name;
+          return typeof name === 'string' ? name.trim() : '';
+        });
+        if (caseNames.length > 0 && caseNames.every((name) => name !== '')) {
+          return (
+            <ReqoreControlGroup
+              gapSize='tiny'
+              verticalAlign='center'
+              // An editable row is ONE line: further chips clip with the row
+              // instead of growing it. A read-only row is the only rendering
+              // the value gets, so it wraps and shows every case.
+              wrap={full}
+              style={full ? undefined : { minWidth: 0, overflow: 'hidden' }}
+            >
+              {caseNames.map((name, index) => (
+                <ReqoreTag
+                  key={`${name}-${index}`}
+                  className='options-readfirst-case-tag'
+                  size='small'
+                  minimal
+                  intent='info'
+                  label={name}
+                />
+              ))}
+            </ReqoreControlGroup>
+          );
+        }
       }
 
       // Code-editor read summary: replace the truncated string with a chip
@@ -418,15 +501,40 @@ export const CompactRow = memo(
         );
       }
 
+      // The same, for an option whose mark is an ICON rather than a logo. Only
+      // images were drawn here, so a list whose entries are told apart by their
+      // icon — every interface kind is a bare word, `Service`, `Job`, `Qog` —
+      // showed the mark while choosing and lost it the moment the row went
+      // read-only, which is where a reader spends most of their time.
+      const allowedIcon = getAllowedValueIcon(field?.value, schema);
+      if (allowedIcon) {
+        return (
+          <span style={wrapStyle}>
+            <ReqoreIcon icon={allowedIcon as any} size='16px' style={{ flexShrink: 0 }} />
+            <span style={textStyle}>{formatted}</span>
+          </span>
+        );
+      }
+
       // Template value ($local:…): the read-only template picker — the SAME chip
       // TemplateField renders when disabled, so a template reads identically here
       // and in the editor (qorus-ide intent scheme: info / qorus purple).
+      //
+      // A field may also declare templates OF ITS OWN, and a value drawn from
+      // that list is just as much a template even when it does not look like
+      // `$name:key` — `isValueTemplate` is a guess at the shape of the built-in
+      // grammar, and a host's own grammar (a Qorus test's `$.order.id`) fails it.
+      // Asking the field's list whether it CONTAINS the value settles it without
+      // guessing at syntax, and hands back the entry whose label the chip prints,
+      // so a reference reads as the name it was chosen by here as well as in the
+      // editor rather than as a raw path.
+      const ownTemplates = (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates;
       if (
         typeof field?.value === 'string' &&
         !(field as { is_expression?: boolean }).is_expression &&
-        isValueTemplate(field.value)
+        (isValueTemplate(field.value) || !!findTemplate(ownTemplates ?? {}, field.value))
       ) {
-        return <ReadOnlyTemplateTag value={field.value} templates={templates} size='small' />;
+        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} size='small' />;
       }
 
       // A LIST whose elements are rich-text envelopes is a list of strings, so it
@@ -465,7 +573,9 @@ export const CompactRow = memo(
                     style={{ fontSize: 'inherit' }}
                     icon='ExchangeDollarLine'
                     label={segment.text || segment.value}
-                    tooltip={segment.value}
+                    // The same card the chosen-template chip shows: what the
+                    // value IS, not the reference that names it.
+                    tooltip={templateTooltip(templates, segment.value)}
                     {...getTemplateTagStyle(
                       (templates ? findTemplate(templates, segment.value || '') : undefined)
                         ?.metadata as TTemplateMeta | undefined
@@ -480,50 +590,20 @@ export const CompactRow = memo(
         }
       }
 
-      // An expression summarises to one line of text, and a template reference
-      // inside it printed as its own raw token — `$data:{…}` renders a value as
-      // code where a name belongs. Chip every reference here, on the richtext
-      // branch's pattern above, so the wrapper (`trim(`…`)`) still reads as the
-      // text it is while the reference reads as a name.
-      //
-      // Unconditionally: a surface with no catalogue (the Automation Hub
-      // template preview never fetches one) still shows the reference's own
-      // path, which is the point — a conditional chip is no chip at all
-      // exactly where the raw token looks worst.
+      // An expression reads as DPQL wherever it is shown without being edited:
+      // the same rendering its Explain panel and Preview use — monospace,
+      // coloured by the language server, template references as chips — so a
+      // collapsed row and the editor it opens never disagree about what the
+      // value looks like. See `DpqlRendering`.
       if ((field as { is_expression?: boolean })?.is_expression && formatted) {
-        const segments = splitTemplateTokens(formatted);
-        const named = segments.map((segment) =>
-          segment.kind === 'token' ?
-            { ...segment, ...describeTemplateReference(templates, segment.text) }
-          : segment
+        return withExpressionMarker(
+          <span style={{ minWidth: 0, flex: '1 1 auto', ...(full ? {} : { overflow: 'hidden' }) }}>
+            <DpqlRendering text={formatted} templates={ownTemplates} />
+          </span>
         );
-
-        if (named.some((segment) => segment.kind === 'token')) {
-          return (
-            <span style={{ ...wrapStyle, gap: 4, overflow: 'hidden' }}>
-              {named.map((segment, index) =>
-                segment.kind === 'token' ?
-                  <ReqoreTag
-                    key={index}
-                    size='tiny'
-                    // Inherit the row's font size so the chip shares a baseline
-                    // with the text around it — see the richtext branch above.
-                    style={{ fontSize: 'inherit' }}
-                    icon='ExchangeDollarLine'
-                    label={segment.label}
-                    tooltip={segment.text}
-                    {...getTemplateTagStyle(segment.item?.metadata as TTemplateMeta | undefined)}
-                  />
-                : <span key={index} style={{ whiteSpace: full ? 'pre-wrap' : 'pre' }}>
-                    {segment.text}
-                  </span>
-              )}
-            </span>
-          );
-        }
       }
 
-      return full ? <span style={textStyle}>{formatted}</span> : formatted;
+      return withExpressionMarker(full ? <span style={textStyle}>{formatted}</span> : formatted);
     };
 
     const schema = options?.[optionName];
@@ -627,8 +707,23 @@ export const CompactRow = memo(
     const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
     // "Has a value" = set to anything non-empty. Drives the edit-row Clear
     // button and the cluster node's filled state (see `memberSet`).
+    /* "Is there anything to clear?" — this predicate has exactly one job, and
+       both of its uses are the Clear-value button.
+    
+       An empty list is not a value. `[]` is neither `undefined`, `null` nor `''`,
+       so a field whose last item had just been removed went on offering to clear
+       it, and the confirmation asked whether to clear nothing. A test's cases
+       table is where this shows: delete the last case and a red clear-all sat
+       above an empty table, guarding a no-op.
+    
+       Deliberately arrays only. An empty hash is arguable — "present but empty"
+       can be a real state for a hash — and nothing has demonstrated the same
+       defect there, so widening this predicate would be a guess. */
     const hasValue =
-      optionField?.value !== undefined && optionField?.value !== null && optionField?.value !== '';
+      optionField?.value !== undefined &&
+      optionField?.value !== null &&
+      optionField?.value !== '' &&
+      !(Array.isArray(optionField.value) && optionField.value.length === 0);
     // Required-group membership shows a PERSISTENT chip on every member: amber
     // "One of" while the group is unmet (tap → flash siblings), then a muted-green
     // resolution once satisfied — "Covers" on the field that satisfied it,
@@ -705,7 +800,7 @@ export const CompactRow = memo(
       : (schema?.ui_type as string) || (schema?.type as string)) ?? '';
     // Scalars edit in place inside the row; complex fields (tall or nested
     // editors) still open the expanded card below.
-    const inlineEditable =
+    const inlineEditableNow =
       !readOnly &&
       !schema?.arg_schema &&
       !(operators && size(operators)) &&
@@ -714,6 +809,43 @@ export const CompactRow = memo(
       // A choice with per-option logos (e.g. language) reads better collapsed.
       !optionHasImages(schema) &&
       !COMPACT_COMPLEX_TYPES.has(editType);
+
+    /* Which of the two editors a row gets is settled when the row OPENS.
+     *
+     * Every term above reads the VALUE or a schema derived from it, so the
+     * answer can change while the author is inside the control — and the two
+     * branches are different subtrees, so a changed answer does not restyle
+     * the editor, it unmounts one and mounts the other. Everything the old one
+     * held goes with it: what was typed, the caret, and any state the editor
+     * keeps about how it was entered.
+     *
+     * `is_expression` is the term that actually fires, and it fires on the one
+     * interaction that exists to keep the author where they are: accepting
+     * "Use as expression" is the moment the value becomes an expression, and
+     * the expression shell opens on its Text view precisely because the author
+     * has just written the expression as text. The remount discarded that and
+     * dropped them into the visual builder, so the sentence they had typed was
+     * nowhere on screen. Clicking Text then appeared to work and bounced back,
+     * because the next value change remounted the row again.
+     *
+     * So the row keeps the editor it opened with for as long as it is open,
+     * and asks the question again when it is next opened — the same trade
+     * `editEntryValue` above makes for a different reason, and the one
+     * qorus-ide's `referenceEditorLatch` makes for this exact one. A field that
+     * already holds an expression when it is opened still gets the card; it is
+     * only a field that BECOMES one under the author that stays put.
+     *
+     * Held in a ref and settled during render rather than in an effect: an
+     * effect lands one render late, and one render late is a visible flash of
+     * the wrong editor — which is the thing being fixed.
+     */
+    const inlineEditableLatch = React.useRef<boolean | undefined>(undefined);
+    if (!isExpanded) {
+      inlineEditableLatch.current = undefined;
+    } else if (inlineEditableLatch.current === undefined) {
+      inlineEditableLatch.current = inlineEditableNow;
+    }
+    const inlineEditable = isExpanded ? !!inlineEditableLatch.current : inlineEditableNow;
 
     // Auto-focus the editor's first input when a field is opened, so you can type
     // straight away (matches the prototype's tap-to-edit feel).
@@ -1061,6 +1193,19 @@ export const CompactRow = memo(
     // stacks children flush, and the class rule that used to carry a 4px gap
     // never reached this element at all — which is why two messages read as one
     // two-tone block with no space between them.
+    /* A message is PROSE, so it is drawn by the host's prose renderer.
+    
+       `markdownRendererContext` says this package renders markdown "in exactly
+       one place — a field's description". That was one place short: a schema
+       message is written by the same author, in the same dialect, and it landed
+       here as a raw string. A Qorus warning reading "Give that step a **Fixture
+       Output**" showed the asterisks, and every reference inside it stayed a raw
+       `$.` path where the editor two lines above renders it as a named chip.
+    
+       `compact` for the same reason the row inset asks for it: this is a strip
+       inside a row, never a page, and markdown authored as a document opens with
+       a heading that would outgrow the field label above it. Without a host
+       renderer the string is drawn as it always was. */
     const renderInfoStrip = (m: TInfoMsg, index: number) => (
       <ReqoreMessage
         key={`${m.content}-${index}`}
@@ -1071,7 +1216,9 @@ export const CompactRow = memo(
         title={m.title}
         style={{ marginBottom: 8 }}
       >
-        {m.content}
+        {markdownRenderer && typeof m.content === 'string' ?
+          markdownRenderer({ value: m.content, compact: true })
+        : m.content}
       </ReqoreMessage>
     );
     const reasonColor = (intent?: string) =>
@@ -1107,6 +1254,9 @@ export const CompactRow = memo(
           onMouseLeave: () => setHighlightedOptions([]),
         }
       : {};
+
+    // Items the EDITOR inside this row published — see `rowMenuContext`.
+    const { rowMenu, items: editorMenuItems } = useRowMenuRegistry();
 
     // Secondary edit actions tuck into a "More" (⋮) menu so the card header stays
     // calm: Fullscreen always, plus Remove field for a removable option. Rendered
@@ -1144,6 +1294,10 @@ export const CompactRow = memo(
           // wholesale on touch) land here — this row already has a menu, so they
           // reuse it rather than adding a second one beside it.
           ...injectedOptionActionMenuItems,
+          // ...and for the same reason, so do the editor's own actions. Without
+          // this an editor with affordances of its own had to draw a second ⋮
+          // inside the value cell, beside this one.
+          ...editorMenuItems,
         ]}
       />
     );
@@ -1316,7 +1470,13 @@ export const CompactRow = memo(
                   editor they belong to — the language you are writing in is
                   read before the code, not after it. */}
               {absorbedNodes}
-              {renderOption(optionName, optionField, 'small', true)}
+              {/* The editor may publish into THIS row's ⋮ — see `rowMenuContext`.
+                  Only the editors rendered in the row are given the channel: the
+                  fullscreen modal below has no row menu on screen, so an editor
+                  there keeps drawing its own control. */}
+              <RowMenuContext.Provider value={rowMenu}>
+                {renderOption(optionName, optionField, 'small', true)}
+              </RowMenuContext.Provider>
             </div>
             <StyledRowActions>
               {draftChip}
@@ -1556,7 +1716,9 @@ export const CompactRow = memo(
                   longDescriptionShownByDefault
                 />
               : null}
-              {renderOption(optionName, optionField)}
+              <RowMenuContext.Provider value={rowMenu}>
+                {renderOption(optionName, optionField)}
+              </RowMenuContext.Provider>
             </FocusedEditing>
           </div>
         </StyledEditCard>
@@ -1596,11 +1758,21 @@ export const CompactRow = memo(
     ];
     // A hash row reveals its sub-fields as read-only sub-rows under a "view
     // more" disclosure; the row itself still expands the real editor on click.
+    /* An EXPRESSION is not a hash, whatever shape it is stored in.
+    
+       `{is_expression: true, value: {exp, args}}` is hash-shaped, so a field
+       holding one earned the structured inset and the row printed the syntax
+       tree — `is_expression true / value / exp + / args 1 2` — directly under a
+       summary line that already read `1 + 2`. The AST is how an expression is
+       STORED, not what it is; the row's line is the whole value, and the
+       expression editor is where its parts are looked at. Same exclusion, and
+       for the same reason, as `schema-definition` beside it. */
     const hashEntries =
       (
         !hidden &&
         (valueType === 'hash' || valueType === 'free-hash') &&
-        (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition'
+        (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition' &&
+        getExpressionAst(optionField) === undefined
       ) ?
         getHashEntries(optionField, schema)
       : [];
@@ -1647,6 +1819,22 @@ export const CompactRow = memo(
       valueType === 'richtext' &&
       Array.isArray(optionField?.value) &&
       richtextToSegments(optionField.value as never).some((segment) => segment.kind === 'tag');
+    /* The same pair, for a value that IS one template rather than prose with
+       templates embedded in it. `showsTemplateChips` above closed the richtext
+       case and left this one open: a chosen reference renders as
+       `ReadOnlyTemplateTag`, which carries its own popover, while the row went
+       on setting a native `title` holding the raw reference. Hovering fired
+       both — two tooltips in two places, and the one that says something useful
+       is not the one a screenshot captures. */
+    const showsTemplateTag =
+      !hidden &&
+      typeof optionField?.value === 'string' &&
+      !(optionField as { is_expression?: boolean } | undefined)?.is_expression &&
+      (isValueTemplate(optionField.value) ||
+        !!findTemplate(
+          (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates ?? {},
+          optionField.value
+        ));
     // Markdown reads the same way for the same reason: the row itself can only
     // show a line of text, and for markdown that line is the SOURCE — the reader
     // gets `## ` and `**` where the point of the value is what it looks like
@@ -1960,6 +2148,7 @@ export const CompactRow = memo(
               !showCodePreview &&
               !showMarkdownPreview &&
               !showsTemplateChips &&
+              !showsTemplateTag &&
               typeof formatted === 'string'
             ) ?
               formatted

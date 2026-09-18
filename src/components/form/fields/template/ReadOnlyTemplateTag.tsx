@@ -5,6 +5,7 @@ import { memo } from 'react';
 import {
   getTemplateTagStyle,
   describeTemplateReference,
+  templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
 
@@ -18,7 +19,8 @@ export interface IReadOnlyTemplateTagProps {
 
 /**
  * The read-only representation of a selected template — a picker-shaped chip:
- * the `$`-dollar icon, the resolved display name (raw value in the tooltip), the
+ * the `$`-dollar icon, the resolved display name (and what the value IS in the
+ * tooltip, not the reference that names it), the
  * app image when present, coloured by qorus-ide's scheme (info / qorus purple /
  * success — see `getTemplateTagStyle`). Shared by `TemplateField`'s disabled
  * branch and the compact read-first row so a template reads identically wherever
@@ -34,7 +36,7 @@ export const ReadOnlyTemplateTag = memo(
           icon='ExchangeDollarLine'
           leftIconProps={{ image: metadata?.image }}
           label={label}
-          tooltip={value}
+          tooltip={templateTooltip(templates, value)}
           {...getTemplateTagStyle(metadata)}
         />
       </ReqoreTagGroup>

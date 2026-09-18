@@ -1,5 +1,6 @@
 import { Server, WebSocket as MockWebSocket } from 'mock-socket';
 import {
+  buildReqraftSocketUrl,
   ReqraftWebSocket,
   ReqraftWebSocketsManager,
 } from '../src/utils/websocket';
@@ -24,6 +25,28 @@ vi.mock('../src/utils/fetch', () => ({
 (global as any).WebSocket = MockWebSocket;
 
 const WS_URL = 'ws://localhost:8092/lsp?token=test-token';
+
+// The single definition of the address a socket dials — story mocks are built
+// from it too, so a mock always names the URL the code connects to.
+describe('buildReqraftSocketUrl', () => {
+  it('switches https to wss and drops the instance trailing slash', () => {
+    expect(buildReqraftSocketUrl('https://host:8092/', 'lsp')).toBe('wss://host:8092/lsp');
+  });
+
+  it('switches http to ws for an instance without a trailing slash', () => {
+    expect(buildReqraftSocketUrl('http://localhost:8011', 'log-test')).toBe(
+      'ws://localhost:8011/log-test'
+    );
+  });
+
+  it('carries the token in the query only when there is one', () => {
+    expect(buildReqraftSocketUrl('https://host:8092/', 'lsp', 'abc')).toBe(
+      'wss://host:8092/lsp?token=abc'
+    );
+    expect(buildReqraftSocketUrl('https://host:8092/', 'lsp', '')).toBe('wss://host:8092/lsp');
+    expect(buildReqraftSocketUrl('https://host:8092/', 'lsp')).toBe('wss://host:8092/lsp');
+  });
+});
 
 describe('ReqraftWebSocket', () => {
   let mockServer: Server;

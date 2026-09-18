@@ -3,6 +3,8 @@
 // `getTagProps` callback for ReqoreRichTextEditor.
 
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
+import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { describeTemplateReference, templateTooltip } from '../../helpers/templates';
 import { ISlateElement } from '../smartEditor/types';
 import { IDpqlFieldMeta } from './useDpqlSession';
 
@@ -55,6 +57,13 @@ export interface IDpqlTagRendererOptions {
    * keeps the per-prefix palette for telling prefixes apart at a glance.
    */
   templateTagsUseIntent?: boolean;
+  /**
+   * The template catalogue the surface offers. A reference found in it reads
+   * as the name it was chosen by — `trim(Choices[0].message.content)` rather
+   * than the `$data:{…}` path — with the entry's description as its hover; one
+   * that is not found keeps its path.
+   */
+  templates?: IReqoreFormTemplates;
 }
 
 /**
@@ -88,8 +97,12 @@ export function makeDpqlTagRenderer(
     }
 
     if (tagValue.startsWith('$')) {
+      const named = options.templates && describeTemplateReference(options.templates, tagValue);
       return {
         icon: 'ExchangeDollarLine',
+        ...(named?.item ?
+          { label: named.label, tooltip: templateTooltip(options.templates, tagValue) }
+        : {}),
         ...(options.templateTagsUseIntent
           ? { intent: 'info' as const }
           : { color: getTemplatePrefixColor(tagValue) as `#${string}` }),

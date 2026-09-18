@@ -10,6 +10,10 @@ export type {
   ISlateText,
   TSlateNode,
 } from './types';
+export { dpqlProbe } from './dpqlProbe';
+export type { IDpqlProbeResult } from './dpqlProbe';
+export { useDpqlProbe } from './useDpqlProbe';
+export type { TDpqlProbeFn } from './useDpqlProbe';
 export { useDpqlSession } from './useDpqlSession';
 export type {
   IDpqlFieldMeta,

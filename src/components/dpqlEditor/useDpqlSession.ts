@@ -50,8 +50,11 @@ export interface IUseDpqlSessionResult {
   fieldMeta: Record<string, IDpqlFieldMeta>;
   /** Most recent `publishDiagnostics`. */
   diagnostics: ILspDiagnostic[];
-  /** `dpql/parse` — DPQL text → expression AST. */
-  parse: (text: string) => Promise<IDpqlParseResult>;
+  /**
+   * `dpql/parse` — DPQL text → expression AST, and, when `targetType` is
+   * given, whether that result can satisfy the type the field declares.
+   */
+  parse: (text: string, targetType?: string) => Promise<IDpqlParseResult>;
   /** `dpql/serialize` — expression AST → DPQL text. */
   serialize: (expression: Record<string, any>) => Promise<string>;
   /**
@@ -314,18 +317,31 @@ export function useDpqlSession(
   );
 
   const parse = useCallback(
-    async (text: string): Promise<IDpqlParseResult> => {
+    async (text: string, targetType?: string): Promise<IDpqlParseResult> => {
       if (!session.client) {
         return { success: false, expression: null, diagnostics: [] };
       }
       try {
         const result = await session.client.customRequest<Partial<IDpqlParseResult>>(
           'dpql/parse',
-          { uri: session.uri, text }
+          {
+            uri: session.uri,
+            text,
+            // Only sent when the field declares one. Without it the server
+            // does no type analysis at all, which is the right answer for a
+            // caller that only wants to know whether the text parses.
+            ...(targetType ? { target_type: targetType } : {}),
+          }
         );
         return {
           success: result?.success ?? false,
           expression: result?.expression ?? null,
+          inferred_type: result?.inferred_type,
+          target_type: result?.target_type,
+          type_compatible: result?.type_compatible,
+          auto_coercible: result?.auto_coercible,
+          coercion_may_fail: result?.coercion_may_fail,
+          suggested_fix: result?.suggested_fix,
           diagnostics: result?.diagnostics ?? [],
         };
       } catch {

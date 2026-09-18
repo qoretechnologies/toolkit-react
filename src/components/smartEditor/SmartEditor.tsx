@@ -18,7 +18,16 @@ import {
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
-import React, { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef } from 'react';
+import React, {
+  forwardRef,
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useReducer,
+  useRef,
+} from 'react';
 import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
@@ -320,6 +329,14 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     // ReqoreRichTextEditor's tokenizer mid-token (typed `@s` collapses to a
     // tag chip, making the rest of the field name impossible to type).
     const slateValueRef = useRef<ISlateElement[] | null>(null);
+    /* Counts the node trees the editor has reported. The tree a value converts
+       to is not always the tree the editor holds: Slate normalises a value set
+       from outside — a leading chip gains an empty text leaf before it — without
+       changing its text, so `value` never changes and the cache above kept the
+       tree the editor no longer had. Every offset computed from it (token
+       colours, diagnostics, signature help) then pointed one leaf off: a Text
+       view seeded with `"$local:name" == "John"` was never highlighted. */
+    const [editorTreeVersion, noteEditorTree] = useReducer((count: number) => count + 1, 0);
 
     useImperativeHandle(ref, () => editorRef.current as TReqoreRichTextEditorRef, []);
 
@@ -350,7 +367,17 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       const next = converter.toSlateNodes(value);
       slateValueRef.current = next;
       return next;
-    }, [value, converter]);
+      // `editorTreeVersion` re-reads the cache once the editor reports its own tree.
+    }, [value, converter, editorTreeVersion]);
+
+    /* A value set from outside is a change to the document as much as typing
+       is — a Text view seeded after mount, a Preview following the author. The
+       server colours and diagnoses its own copy of the text, so it must hold
+       this one; typing already sent its text, and is not resent. */
+    const { didChange: syncDocument } = session;
+    useEffect(() => {
+      syncDocument(value);
+    }, [syncDocument, value]);
 
     const diagnosticDecorate = useLspDiagnosticDecorations(
       session.diagnostics,
@@ -450,15 +477,20 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       (newNodes: ISlateElement[]) => {
         const plainText = converter.fromSlateNodes(newNodes);
 
+        // A selection change reports the same tree; anything else is the tree
+        // the editor now holds, and the one every offset is computed against.
+        if (newNodes !== slateValueRef.current) {
+          slateValueRef.current = newNodes;
+          noteEditorTree();
+        }
+
         if (plainText !== lastPlainTextRef.current) {
           lastPlainTextRef.current = plainText;
-          // CRITICAL: refresh `slateValueRef` to the live nodes too. The
-          // next render's `value` equals `lastPlainTextRef` (the typing
-          // echo), so `slateValue`'s cache returns this ref — leave it
-          // stale and downstream hooks (signature help, semantic tokens)
-          // never recompute, so the signature pill's active parameter
-          // never advances.
-          slateValueRef.current = newNodes;
+          // CRITICAL: the next render's `value` equals `lastPlainTextRef` (the
+          // typing echo), so `slateValue`'s cache returns the live nodes set
+          // above — leave them stale and downstream hooks (signature help,
+          // semantic tokens) never recompute, so the signature pill's active
+          // parameter never advances.
           onChange(plainText);
           session.didChange(plainText);
         }

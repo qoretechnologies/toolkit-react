@@ -2,6 +2,7 @@ import { StoryObj } from '@storybook/react-vite';
 import { expect, fireEvent, fn } from 'storybook/test';
 import { Server } from 'mock-socket';
 import { sleep, testsClickButton, testsWaitForText } from '../../../__tests__/utils';
+import { storySocketUrl } from '../../stories/storyNetwork';
 import { StoryMeta } from '../../types';
 import { ReqraftLog } from './Log';
 
@@ -24,7 +25,7 @@ const meta = {
     mockdate: new Date('2024-01-01T08:00:00.000Z'),
   },
   async beforeEach() {
-    const url = `wss://hq.qoretechnologies.com:8092/log-test?token=${process.env.REACT_APP_QORUS_TOKEN}`;
+    const url = storySocketUrl('log-test');
     let server = new Server(url);
     let killTimeout: NodeJS.Timeout;
     let fakeInterval: NodeJS.Timeout;

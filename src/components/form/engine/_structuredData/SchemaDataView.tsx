@@ -24,6 +24,7 @@ import {
   fieldLabel,
   findAllowedValueOption,
   formatOptionValue,
+  getAllowedValueIcon,
   getAllowedValueImage,
   isCodeField,
   orderedKeys,
@@ -356,7 +357,11 @@ const FieldValue = ({
   const formatted = formatOptionValue(field, fieldSchema);
   // An allowed value that carries a logo shows it here too, exactly as the row
   // above does — the preview is the same value, so it gets the same treatment.
+  // An option marked with an ICON rather than a logo gets the same, for the same
+  // reason: the mark is how a list of bare words is told apart, and dropping it
+  // here would make the preview disagree with the row it previews.
   const image = getAllowedValueImage(field.value, fieldSchema);
+  const icon = getAllowedValueIcon(field.value, fieldSchema);
 
   // Data reads in mono; a chosen label does not.
   //
@@ -384,6 +389,12 @@ const FieldValue = ({
           {image ?
             <ReqoreIcon
               image={image}
+              size='14px'
+              style={{ flexShrink: 0, marginRight: 6, verticalAlign: 'middle' }}
+            />
+          : icon ?
+            <ReqoreIcon
+              icon={icon as any}
               size='14px'
               style={{ flexShrink: 0, marginRight: 6, verticalAlign: 'middle' }}
             />

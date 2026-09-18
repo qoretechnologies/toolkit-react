@@ -40,12 +40,22 @@ const DISALLOW_COMPACT_AO_TYPES = ['connection'];
  * Whether a creatable field's value is carried by the chip picker rather than
  * by a raw editor with a suggestion list beside it.
  *
- * `string` only, and only with something to suggest. Every other shape a
+ * String-valued only, and only with something to suggest. Every other shape a
  * creatable field can declare either does not fit a one-line chip (a document
  * — `long-string`, `binary`, `data`; a hash; a list) or would come back out of
  * one as a string (a number, a date), and a field with nothing to offer is
  * better served by the editor it has always had. Those keep today's rendering:
  * the raw editor, with the saved-and-suggested picker under it.
+ *
+ * `select-string` counts, and leaving it out was the bug. A picker field
+ * declares its storage type (`*string`) and its `ui_type` (`select-string`),
+ * and by the time a schema reaches here the two have been flattened to one:
+ * `type` arrives as `select-string`. So this returned false for every such
+ * field and NEITHER renderer stood down — the picker drew the value, and the
+ * saved-and-suggested list drew the same candidates again underneath it. A
+ * test's Service and Method fields showed 183 and 7 items twice over, in two
+ * controls that set one value. A select-string's value IS a string and fits the
+ * chip, which is the only thing this predicate is really asking.
  *
  * Both the renderer of the picker (`FieldAllowedValues`) and the renderer of
  * the raw editor (`AutoFormField`, `FormField`) ask this, so that exactly one
@@ -55,7 +65,8 @@ export const rendersCreatableValueSelect = (
   type?: string,
   allowCreation?: boolean,
   items?: unknown[]
-): boolean => !!allowCreation && type === 'string' && count(items) > 0;
+): boolean =>
+  !!allowCreation && (type === 'string' || type === 'select-string') && count(items) > 0;
 
 export const FieldAllowedValuesCheckGroup = memo(
   ({

@@ -5,7 +5,6 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
-import { defaultQorusTypes } from '../../../hooks/useQorusTypes';
 import {
   _testsChangeRichText,
   _testsChangeStringField,
@@ -19,7 +18,6 @@ import {
   _testsWaitForTextToNotExist,
   sleep,
 } from '../../../stories/Tests/utils';
-import { startDpqlMockLsp } from '../expressions/dpqlMockLsp';
 import { mockExpressions } from '../expressions/mockExpressions';
 import { mockPopulatedDefinition } from '../fields/schema-definition/mockDefinition';
 import { defaultMarkdownRenderer } from '../fields/markdown/MarkdownView';
@@ -92,29 +90,9 @@ const meta: Meta<typeof FormEngine> = {
     chromatic: {
       viewports: [2560],
     },
-    // `useQorusTypes` resolves the type catalogue as `size(data) ? data : defaultQorusTypes`,
-    // so a reachable, authenticated instance *replaces* the built-in list rather than
-    // supplementing it. These stories never opt into live data (no `live: true`), but the
-    // request fires anyway — which made `Option With Any Type` pass locally (401 → built-in
-    // list, so "Boolean" exists) and fail in CI, where the token is valid and the server's
-    // list decides the labels. Pin the catalogue so the type names the plays click are ours.
-    mockData: [
-      {
-        // `query()` builds `${instance}api/latest/${url}`, and the hook's url is
-        // `/system/qorus-type-info` — hence the doubled slash. Both spellings are listed
-        // so the mock keeps matching if that leading slash is ever dropped.
-        url: 'https://hq.qoretechnologies.com:8092/api/latest//system/qorus-type-info',
-        method: 'GET',
-        status: 200,
-        response: defaultQorusTypes,
-      },
-      {
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/system/qorus-type-info',
-        method: 'GET',
-        status: 200,
-        response: defaultQorusTypes,
-      },
-    ],
+    // The type catalogue the plays click through (`Option With Any Type` picks
+    // "Boolean") is pinned for every story by the global mocks in
+    // `src/stories/storyNetwork.ts`.
   },
   render: ({ value, onChange, ...rest }: IFormEngineProps) => {
     const [val, setValue] = useState(value);
@@ -191,11 +169,17 @@ export const Basic: Story = {
     value: basicFormValue,
   },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-
-    await waitFor(() => expect(canvas.getAllByDisplayValue('$local:test')[0]).toBeInTheDocument(), {
-      timeout: 10000,
-    });
+    // The template option's `$local:test` reads as the name the form's
+    // templates give it, as a chip in its editor.
+    await waitFor(
+      () =>
+        expect(
+          Array.from(canvasElement.querySelectorAll('[contenteditable="true"] .reqore-tag')).some((chip) =>
+            chip.textContent?.includes('Test (local)')
+          )
+        ).toBe(true),
+      { timeout: 10000 }
+    );
     await waitFor(
       () =>
         expect(
@@ -510,11 +494,11 @@ export const OptionDependsOnOptionOrAnotherOption: Story = {
     });
 
     await _testsWaitForText(
-      'This field is disabled because some dependencies are not fulfilled: "Required Option 2", "Required Option 5"'
+      'This field is disabled because some dependencies are not fulfilled: ("Required Option 2" or "Required Option 5")'
     );
     await _testsChangeRichText('I have value', 5);
     await _testsWaitForTextToNotExist(
-      'This field is disabled because some dependencies are not fulfilled: "Required Option 2", "Required Option 5"'
+      'This field is disabled because some dependencies are not fulfilled: ("Required Option 2" or "Required Option 5")'
     );
   },
 };
@@ -582,7 +566,7 @@ export const OptionWithAnyType: Story = {
     docs: {
       description: {
         story:
-          'Renders four options typed as any with templates enabled — empty ones show a Select Template dropdown, the pre-typed number field renders as a Number input and the operator can switch types via the More menu.',
+          'Renders four options typed as any with templates enabled — empty ones show a Select Template dropdown, the pre-typed number field renders as a Number input and the operator can switch types via the More menu. That menu holds one group, "Set Custom Value", so it opens already expanded and the data types are one click away rather than two.',
       },
     },
   },
@@ -644,9 +628,10 @@ export const OptionWithAnyType: Story = {
     await _testsClickButton({ label: 'Richtext Template' });
 
     // Open the ... menu on the 4th field (optionWithAnyTypeToChangeToTemplateToCustomData)
-    // and switch it to a specific custom type (Boolean).
+    // and switch it to a specific custom type (Boolean). The type rows are
+    // reachable straight from the menu: "Set Custom Value" is its only group,
+    // so that section opens itself rather than asking for a click first.
     await _testsOpenTemplateMenu(4);
-    await _testsClickButton({ label: 'Set Custom Value' });
     await _testsClickButton({ label: 'Boolean' });
   },
 };
@@ -1750,12 +1735,15 @@ export const DependantsResetWhenParentChanges: Story = {
 
     await sleep(500);
 
+    // The engine clears a dependant to `undefined`. This read `''` while an
+    // emptied text field reported '' on its own after the reset, which is not
+    // the engine's value and marked untouched forms as changed.
     await expect(args.onChange).toHaveBeenLastCalledWith(
       'test',
       expect.objectContaining({
         optionWithDependents: { type: 'long-string', value: 'My value changed' },
         anotherDependent: { type: 'long-string', value: 'My value will not change' },
-        dependent1: { type: 'long-string', value: '' },
+        dependent1: { type: 'long-string', value: undefined },
         dependent2: { type: 'hash', value: undefined },
       }),
       undefined
@@ -4364,7 +4352,7 @@ const FieldTypeCatalogGroups: Record<string, IFormEngineGroup> = {
  * summary of the `{exp,args}` AST (`renderExpressionToText`); drilling in opens
  * the full `ExpressionField` in the card — the Visual builder (catalogue offline
  * via `mockExpressions`) plus the Text/DPQL editor, whose seed + Explain are
- * served by the in-test `dpqlMockLsp`. No instance/LSP required.
+ * served by the story language server every story gets. No instance required.
  */
 export const CompactExpressions: Story = {
   // chromatic off: ends with the live ExpressionField editor (Text mode) open.
@@ -4404,65 +4392,61 @@ export const CompactExpressions: Story = {
     } as unknown as IOptions,
   },
   play: async () => {
-    const stop = startDpqlMockLsp();
-    try {
-      // Read-first: the offline DPQL summary of the AST — the literals read as
-      // the text they are, and the template reference reads as a chip rather
-      // than as its raw `$local:name` token inside the string.
-      await waitFor(() => {
-        const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
-          tag.textContent?.includes('$local:name')
-        );
-        expect(chip, 'the reference in the summary renders as a chip').toBeTruthy();
-      });
-      await _testsWaitForText('" == "John"');
+    // Read-first: the summary of the AST reads as DPQL, through the same
+    // rendering the Explain panel and Preview use — the template reference a
+    // chip rather than its raw `$local:name` token, the literal as the text it is.
+    await waitFor(() => {
+      const summary = document.querySelector(
+        '.readfirst-row[data-field="condition"] .dpql-rendering'
+      );
+      expect(summary, 'the collapsed row renders its summary as DPQL').toBeTruthy();
+      expect(summary?.textContent).toContain('local: name');
+      expect(summary?.textContent).toContain('== "John"');
+    });
 
-      // Drill in → the card hosts the ExpressionField (Visual builder).
-      await fireEvent.click(
-        document.querySelector('.readfirst-row[data-field="condition"]') as HTMLElement
-      );
-      await waitFor(
-        () =>
-          expect(
-            document.querySelector('.options-readfirst-card[data-field="condition"] .expression')
-          ).toBeInTheDocument(),
-        { timeout: 10000 }
-      );
-      // The builder resolves the operator from the offline catalogue.
-      await _testsWaitForText('Logical Equals');
+    // Drill in → the card hosts the ExpressionField (Visual builder).
+    await fireEvent.click(
+      document.querySelector('.readfirst-row[data-field="condition"]') as HTMLElement
+    );
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('.options-readfirst-card[data-field="condition"] .expression')
+        ).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
+    // The builder resolves the operator from the offline catalogue.
+    await _testsWaitForText('Logical Equals');
 
-      // Text/DPQL tab — seeded from the AST via the mock LSP (dpql/serialize).
-      const textBtn = Array.from(
-        document.querySelectorAll(
-          '.options-readfirst-card[data-field="condition"] .expression-field button'
-        )
-      ).find((b) => b.textContent?.trim() === 'Text') as HTMLElement;
-      await fireEvent.click(textBtn);
-      await waitFor(
-        () =>
-          expect(
-            document.querySelector(
-              '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
-            )
-          ).toBeInTheDocument(),
-        { timeout: 10000 }
-      );
+    // Text/DPQL tab — seeded from the AST via the mock LSP (dpql/serialize).
+    const textBtn = Array.from(
+      document.querySelectorAll(
+        '.options-readfirst-card[data-field="condition"] .expression-field button'
+      )
+    ).find((b) => b.textContent?.trim() === 'Text') as HTMLElement;
+    await fireEvent.click(textBtn);
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
+          )
+        ).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
 
-      // The "Parsed" line is the single live rendering of the AST (over the
-      // mock dpql/renderExpression) — it reflects the seeded expression. The
-      // separate Text-mode "Explain" button was dropped; Parsed is canonical.
-      await waitFor(
-        () =>
-          expect(
-            document.querySelector(
-              '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
-            )?.textContent
-          ).toContain('John'),
-        { timeout: 10000 }
-      );
-    } finally {
-      stop();
-    }
+    // The "Parsed" line is the single live rendering of the AST (over the
+    // mock dpql/renderExpression) — it reflects the seeded expression. The
+    // separate Text-mode "Explain" button was dropped; Parsed is canonical.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
+          )?.textContent
+        ).toContain('John'),
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -5242,15 +5226,18 @@ export const CompactFieldTypes: Story = {
     // than a raw hash key-count.
     await _testsWaitForText('512MiB');
     await _testsWaitForText(/example_customer_addresses/);
-    // Expression field → read-first shows the offline DPQL summary of the AST,
-    // with the template reference inside it chipped rather than printed raw.
+    // Expression field → read-first shows the offline DPQL summary of the AST
+    // as DPQL, with the template reference inside it chipped rather than
+    // printed raw.
     await waitFor(() => {
-      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
-        tag.textContent?.includes('$local:name')
+      const summary = document.querySelector('.readfirst-row[data-field="expr"] .dpql-rendering');
+      const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
+        tag.textContent?.includes('name')
       );
       expect(chip, 'the reference in the summary renders as a chip').toBeTruthy();
+      expect(summary?.textContent).toContain('== "John"');
+      expect(summary?.textContent).not.toContain('$local:name');
     });
-    await _testsWaitForText('" == "John"');
     await expect(document.querySelectorAll('.options-readfirst-card')).toHaveLength(0);
 
     // A hash renders its read-first preview (the structured tree by default)
@@ -7179,10 +7166,10 @@ export const CompactListOfHashReadsInSchemaWordsMobile: Story = {
 };
 
 /**
- * The read-first summary of an EXPRESSION: it renders to one line of text, and
- * a template reference inside it used to print as its own raw token — the same
- * reference the editor shows as a named chip. This is the Save Reply row of the
- * Discord assistant template, whose value is
+ * The read-first summary of an EXPRESSION: it reads as DPQL, and a template
+ * reference inside it used to print as its own raw token — the same reference
+ * the editor shows as a named chip. This is the Save Reply row of the Discord
+ * assistant template, whose value is
  * `trim($data:{dc_ai_reply.choices[0].message.content})`.
  */
 export const CompactExpressionTemplateChips: Story = {
@@ -7190,7 +7177,7 @@ export const CompactExpressionTemplateChips: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact read-first row whose value is an expression wrapping a template reference — the reference renders as a named chip inside the summary text (trim("Choices[0].message.content")) rather than as its raw $data token.',
+          'Renders a compact read-first row whose value is an expression wrapping a template reference — the summary reads as DPQL and the reference inside it is a chip named from the form\'s template catalogue, trim(Choices[0].message.content), rather than its raw $data token or its path.',
       },
     },
     chromatic: { disable: true },
@@ -7241,20 +7228,20 @@ export const CompactExpressionTemplateChips: Story = {
       onChange={fn()}
     />
   ),
-  play: async () => {
-    // The summary keeps its literal text…
-    await _testsWaitForText('trim("', undefined, 1);
-    // …and the reference inside it is a named chip, not the raw token.
+  play: async ({ canvasElement }) => {
     await waitFor(() => {
-      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
+      const summary = canvasElement.querySelector('.readfirst-row .dpql-rendering');
+      // The summary keeps its literal text…
+      expect(summary?.textContent, 'the row summarises the expression as DPQL').toContain('trim(');
+      // …and the reference inside it is a chip named from the catalogue.
+      const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
         tag.textContent?.includes('Choices[0].message.content')
       );
       expect(chip, 'the reference renders as a named chip in the summary').toBeTruthy();
+      // Named, so neither the raw token nor the path it resolves.
+      expect(summary?.textContent).not.toContain('$data:{');
+      expect(summary?.textContent).not.toContain('dc_ai_reply');
     });
-    const raw = Array.from(document.querySelectorAll('.readfirst-row')).filter((row) =>
-      row.textContent?.includes('$data:{')
-    );
-    expect(raw, 'the row prints no raw token').toHaveLength(0);
   },
 };
 
@@ -7269,7 +7256,7 @@ export const CompactExpressionWithoutCatalogue: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact read-first row whose value is an expression wrapping a template reference, with no templates supplied — the reference still renders as a chip carrying its own path (dc_ai_reply.choices[0].message.content) rather than the raw $data token.',
+          'Renders a compact read-first row whose value is an expression wrapping a template reference, with no templates supplied — the summary reads as DPQL and the reference still renders as a chip carrying its own path (data: dc_ai_reply.choices[0].message.content) rather than the raw $data token.',
       },
     },
     chromatic: { disable: true },
@@ -7304,18 +7291,16 @@ export const CompactExpressionWithoutCatalogue: Story = {
       onChange={fn()}
     />
   ),
-  play: async () => {
-    await _testsWaitForText('trim("', undefined, 1);
+  play: async ({ canvasElement }) => {
     await waitFor(() => {
-      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
+      const summary = canvasElement.querySelector('.readfirst-row .dpql-rendering');
+      expect(summary?.textContent, 'the row summarises the expression as DPQL').toContain('trim(');
+      const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
         tag.textContent?.includes('dc_ai_reply.choices[0].message.content')
       );
       expect(chip, 'the reference chips even with no catalogue').toBeTruthy();
+      expect(summary?.textContent, 'the row prints no raw token').not.toContain('$data:{');
     });
-    const raw = Array.from(document.querySelectorAll('.readfirst-row')).filter((row) =>
-      row.textContent?.includes('$data:{')
-    );
-    expect(raw, 'the row prints no raw token').toHaveLength(0);
   },
 };
 
@@ -7469,12 +7454,39 @@ export const CompactToolbarTrimmed: Story = {
   },
 };
 
-export const CompactCollapseListLeavesLoneOptionalOpen: Story = {
+export const CompactLoneOptionalStaysOpenByDefault: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          "Renders an all-optional compact form with an explicit `compactCollapsedGroups={['optional']}` — the Optional box stays open anyway, because it is the whole form and collapsing it would render a titled card containing one collapsed strip and nothing else. The invariant outranks the consumer's collapse list.",
+          'Renders an all-optional compact form with NO `compactCollapsedGroups` — the Optional box is the whole form, so it stays open. Collapsing the only box would render a titled card containing one collapsed strip and nothing else, which reads as broken rather than as tidy. This is the default half of the contract; its pair below is what an explicit collapse list changes.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      alpha: { type: 'string', ui_type: 'string', display_name: 'Alpha' },
+      beta: { type: 'string', ui_type: 'string', display_name: 'Beta' },
+    } as unknown as IOptionsSchema,
+    value: {} as IOptions,
+  },
+  play: async () => {
+    // No collapse list was passed, so the invariant holds and the rows are on
+    // screen with no click.
+    await expectBoxOpen('Optional');
+    await _testsWaitForText('Alpha');
+    await _testsWaitForText('Beta');
+  },
+};
+
+export const CompactCollapseListCollapsesLoneOptional: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the same all-optional form with an explicit `compactCollapsedGroups={['optional']}` — and this time the Optional box IS collapsed. Passing the prop waives the \"never collapse the sole box\" invariant: it is a default, not a law. A host that supplies its own heading and explanation around the form — a run-options panel headed \"Change a setting for this run\", say — has already told the reader what the card is, and has asked for the settings to start folded away. The default (the story above) is unchanged for every caller that says nothing.",
       },
     },
   },
@@ -7489,10 +7501,9 @@ export const CompactCollapseListLeavesLoneOptionalOpen: Story = {
     compactCollapsedGroups: ['optional'],
   },
   play: async () => {
-    // The lone Optional box is open — its rows are on screen with no click.
-    await expectBoxOpen('Optional');
-    await _testsWaitForText('Alpha');
-    await _testsWaitForText('Beta');
+    // The caller asked for it folded, so it is folded even though it is the
+    // only box: `ReqorePanel` unmounts collapsed content, so the rows are gone.
+    await expectBoxCollapsed('Optional');
   },
 };
 
@@ -7829,5 +7840,301 @@ export const CompactNoMaxFieldsShown: Story = {
   play: async ({ canvasElement }) => {
     await _testsWaitForText('Foxtrot');
     expect(canvasElement.querySelector('.readfirst-more-row')).toBeNull();
+  },
+};
+
+/**
+ * A test's cases read as chips on the collapsed row.
+ *
+ * `test-cases` is a renderer-only `ui_type`, so it reached none of the typed
+ * branches in `renderReadFirstValue` and fell through to the generic summary,
+ * which flattens the array of case hashes to `"case_1, resolved_expected_values"`.
+ * The table the row opens already draws each name as a chip, so the collapsed
+ * row was the only surface still printing an identifier as prose.
+ *
+ * The fall-throughs are the point of the other two fields: chips are all-or-
+ * nothing, because a partly-chipped row reads as though the unnamed cases were
+ * missing entirely.
+ */
+export const CompactRowTestCaseChips: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a collapsed `test-cases` row: every case name is a chip, matching the cases table the row opens. A value whose entries are not all named, and an empty value, keep the plain summary instead — chips are all-or-nothing.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {
+      cases: {
+        type: 'list',
+        value: [
+          { name: 'case_1', desc: 'the happy path' },
+          { name: 'resolved_expected_values', desc: 'reference resolution' },
+        ],
+      },
+      mixed: {
+        type: 'list',
+        value: [{ name: 'case_1' }, { desc: 'a case that has no name yet' }],
+      },
+      none: { type: 'list', value: [] },
+    },
+    // Cast for the same reason the markdown/cron/dpql stories need one: a
+    // renderer-only `ui_type` names an EDITOR, and ts-toolkit's `TQorusType`
+    // enumerates STORAGE types, so it has no member for one.
+    options: {
+      cases: { type: 'list', ui_type: 'test-cases', display_name: 'Cases' },
+      mixed: { type: 'list', ui_type: 'test-cases', display_name: 'Mixed' },
+      none: { type: 'list', ui_type: 'test-cases', display_name: 'None' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    // (a) Every case name is a chip, in order.
+    await waitFor(
+      () => {
+        const chips = canvasElement.querySelectorAll(
+          '[data-field="cases"] .options-readfirst-case-tag'
+        );
+        expect(chips.length).toBe(2);
+        expect(Array.from(chips).map((chip) => chip.textContent?.trim())).toEqual([
+          'case_1',
+          'resolved_expected_values',
+        ]);
+      },
+      { timeout: 5000 }
+    );
+
+    // (b) …and the comma-joined prose they replace is gone. Asserting the text
+    //     rather than only the chip count: the first cut rendered the chips
+    //     BESIDE the summary, which is the same identifiers twice.
+    const casesText =
+      canvasElement
+        .querySelector('[data-field="cases"] .options-readfirst-valuetext')
+        ?.textContent?.trim() ?? '';
+    expect(casesText).not.toContain('case_1,');
+
+    // (c) NEGATIVE: one entry has no name, so no entry is chipped — a
+    //     half-chipped row would read as though that case were missing.
+    const mixedRow = canvasElement.querySelector('[data-field="mixed"]');
+    expect(mixedRow?.querySelectorAll('.options-readfirst-case-tag').length).toBe(0);
+
+    // (d) NEGATIVE: an empty value is not a SET value, so it never reaches
+    //     this branch at all — its row sits in the collapsed optional group and
+    //     is not in the DOM. Counting canvas-wide says the same thing more
+    //     strongly than probing for a row that does not exist: the only chips
+    //     on the whole form are the two named cases, so neither the unnamed nor
+    //     the empty field contributed one.
+    expect(canvasElement.querySelectorAll('.options-readfirst-case-tag').length).toBe(2);
+  },
+};
+
+/**
+ * Clear-value is offered only when there is something to clear.
+ *
+ * `[]` is neither `undefined`, `null` nor `''`, so a list field whose last item
+ * had just been removed went on showing the red clear button, and confirming it
+ * cleared nothing. It is visible wherever a list field stays open — a test's
+ * cases table sits above exactly such a button once its last case is deleted.
+ *
+ * Both fields here are lists with the same schema; only the value differs, so
+ * the button's presence is decided by the value alone.
+ */
+export const ClearValueOnlyWhenThereIsAValue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A list field with items offers Clear value; the same field with an empty list does not, because there is nothing to clear.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    /* Both rows OPEN, because that is where this button lives. A collapsed list
+       row shows no clear at all — the inline one is only for editors with no
+       clear of their own (bools, fixed-choice pickers) — so the button under
+       test is the expanded card's, which is what a consumer that opens a field
+       by default puts permanently on screen. */
+    initialExpandedOptions: ['filled', 'emptied'],
+    value: {
+      filled: { type: 'list', value: ['alpha', 'beta'] },
+      emptied: { type: 'list', value: [] },
+    },
+    options: {
+      /* Both REQUIRED, like a test's `cases`. An unset optional field folds
+         into the collapsed Optional box and is not in the DOM at all, so an
+         empty list only stays on screen — where this button can be misclicked —
+         when the field is one the form insists on. */
+      filled: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'string',
+        display_name: 'Filled',
+        required: true,
+      },
+      emptied: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'string',
+        display_name: 'Emptied',
+        required: true,
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () => {
+        expect(canvasElement.querySelector('[data-field="filled"]')).toBeTruthy();
+      },
+      { timeout: 5000 }
+    );
+
+    // (a) items present -> the clear button is offered
+    const filled = canvasElement.querySelector('[data-field="filled"]');
+    expect(filled?.querySelectorAll('.options-readfirst-clear').length).toBe(1);
+
+    // (b) empty list -> nothing to clear, so no button and no dialog to reach
+    const emptied = canvasElement.querySelector('[data-field="emptied"]');
+    expect(emptied).toBeTruthy();
+    expect(emptied?.querySelectorAll('.options-readfirst-clear').length).toBe(0);
+  },
+};
+
+/**
+ * A creatable picker is ONE control, not two.
+ *
+ * `rendersCreatableValueSelect` exists so that exactly one of the two renderers
+ * draws the value: the chip picker holds it and offers the candidates, and the
+ * raw editor stands down. It asked for `type === 'string'` — but a picker field
+ * declares a storage type (`*string`) AND a `ui_type` (`select-string`), and by
+ * the time the schema arrives the two are flattened to `type: 'select-string'`.
+ * So neither renderer stood down: the picker drew the value, and the
+ * saved-and-suggested list drew the same candidates again beneath it.
+ *
+ * It showed on a test's service-method step, where Service and Method offered
+ * 183 and 7 values twice over in two controls that set one value each.
+ */
+export const CreatablePickerIsOneControl: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A creatable select-string with candidates renders a single picker that both holds the value and offers the list — not a picker plus a second "Saved & Suggested Values" control listing the same items.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['method'],
+    value: { method: { type: 'select-string', value: 'init' } },
+    options: {
+      method: {
+        type: 'select-string',
+        ui_type: 'select-string',
+        display_name: 'Method',
+        required: true,
+        allowed_values_creatable: true,
+        allowed_values: [
+          { display_name: 'init', value: { type: 'string', value: 'init' } },
+          { display_name: 'start', value: { type: 'string', value: 'start' } },
+          { display_name: 'stop', value: { type: 'string', value: 'stop' } },
+        ],
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="method"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // The value is still shown and still editable — one control, not none.
+    expect(row.textContent).toContain('init');
+
+    // …and the second way to set the same field is gone. Asserting the label
+    // rather than a count: it is what the duplicate control announces itself as,
+    // and what a reader saw twice.
+    expect(row.textContent).not.toContain('Saved & Suggested Values');
+  },
+};
+
+/**
+ * A chosen template hovers ONCE, and says what the value is.
+ *
+ * Two defects met on the same row. The chip carries its own popover and the row
+ * carried a native `title` as well, so hovering fired both — in two places, and
+ * only the popover appears in a screenshot, which is what makes the pair hard to
+ * report. `showsTemplateChips` had already closed this for prose with templates
+ * embedded in it; a value that IS one template was left open.
+ *
+ * And both of them showed the reference — `$._case.title` — which is the
+ * grammar's business, not the author's. The catalogue already carries what they
+ * want: the entry's name and the prose describing it. The reference stays in the
+ * field's own help and in the picker, where it is genuinely needed.
+ */
+export const TemplateValueHoversOnceAndDescribesItself: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A row whose value is a chosen template shows one hover — the chip’s own — carrying the value’s name and description rather than the raw reference, and the row adds no second browser tooltip.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: { expected: { type: 'string', value: '$._case.title' } },
+    options: {
+      expected: {
+        type: 'string',
+        display_name: 'Expected Value',
+        supports_templates: true,
+        templates: {
+          items: [
+            {
+              label: 'Values this case captures',
+              items: [
+                {
+                  value: '$._case.title',
+                  label: 'title (this case)',
+                  description: 'A short line naming what this case verifies. (string)',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="expected"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // (a) The row draws the friendly name, not the reference.
+    expect(row.textContent).toContain('title (this case)');
+
+    // (b) ONE hover on the value. The row must not add a native `title`
+    //     alongside the chip's own popover — the label keeps its own, which is
+    //     a different element and a different thing to say.
+    const nativeTitles = Array.from(row.querySelectorAll('[title]')).map((el) =>
+      el.getAttribute('title')
+    );
+    expect(nativeTitles).not.toContain('$._case.title');
   },
 };

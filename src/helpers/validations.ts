@@ -1064,14 +1064,39 @@ export const _validateField = (
         }
       }
 
-      if (parsedData) {
-        return withContext(
-          validateFieldWithResult(getTypeFromValue(parsedData), value),
-          'Auto-detected type is invalid'
-        );
+      /* A FALSY value is not an ABSENT one. `null`, `0`, `false` and `""` are
+         all values an author may hold in an `auto`/`any` field — a test
+         assertion expecting a count of zero, a flag that is off, or a blank
+         string — and the truthiness gate that used to stand here refused every
+         one of them as *"Value is empty"*. It surfaced on an assertion's
+         Expected Value holding `null`: opening it reported *"Value for argument
+         1 ("any") is invalid: Value is empty"* on the value the author had
+         deliberately chosen. Only `undefined` is actually empty.
+
+         `null` and `""` are answered here rather than delegated, for two
+         different reasons: `getTypeFromValue(null)` answers `auto`, which would
+         re-enter this very branch, and the `string` validator rejects `""`
+         because that is the rule for a REQUIRED text field — a different
+         question from whether an untyped field may hold a blank string. */
+      if (parsedData === undefined) {
+        return invalidResult('Value is empty');
       }
 
-      return invalidResult('Value is empty');
+      if (parsedData === null || parsedData === '') {
+        return validResult();
+      }
+
+      /* Validate what was PARSED, against the type detected from the same
+         parse. Validating the raw `value` instead made the two disagree
+         whenever parsing changed the shape: typing `1` into an `auto` field
+         parsed to the number 1, detected `int`, and then validated the STRING
+         "1" against it — "Value must be an integer", on a value that is one.
+         The author saw their field go invalid on the first character they
+         typed. */
+      return withContext(
+        validateFieldWithResult(getTypeFromValue(parsedData), parsedData),
+        'Auto-detected type is invalid'
+      );
     }
     case 'processor': {
       if (!value || !value['processor-input-type'] || !value['processor-output-type']) {
@@ -1512,6 +1537,31 @@ export const _validateField = (
         const argDefinition = expressionDefinition.varargs
           ? expressionDefinition.args[0]
           : expressionDefinition.args[index];
+        /* The argument's name for the message.
+        
+           `display_name` is what a catalogue MAY carry; the served one carries
+           `name`, so every message about an argument read "argument 1
+           ("undefined") is invalid" and named a field that does not exist. */
+        const argLabel =
+          argDefinition?.display_name ?? argDefinition?.name ?? `argument ${index + 1}`;
+
+        /* An explicit null is a VALUE, and DPQL says so: `null` is a literal
+           that parses, serializes and round-trips like any other.
+        
+           Treated as a missing one, it made "this returns no value"
+           unsayable. Typing `null` into the text editor produces the literal
+           expression `{exp: "value", args: [null]}`; the visual view then
+           called it invalid and refused to render a summary, and a raw null
+           argument crashed the validator outright on `argValue.type`. Reported
+           from the live IDE by an author with no other way to assert that a
+           service method returns nothing.
+        
+           Only an EXPLICIT null counts. An argument that is simply absent, or
+           an envelope holding `undefined`, is still missing — which is the
+           distinction the author is making when they write it. */
+        if (argValue === null || (isObject(argValue) && (argValue as any).value === null)) {
+          continue;
+        }
 
         if (!argValue?.value && !argDefinition?.required) {
           continue;
@@ -1526,30 +1576,34 @@ export const _validateField = (
           if (!result.isValid) {
             return withContext(
               result,
-              `Sub-expression for argument ${index + 1} ("${argDefinition?.display_name}") is invalid`
+              `Sub-expression for argument ${index + 1} ("${argLabel}") is invalid`
             );
           }
 
           continue;
         }
 
-        // A slot with no operand at all is a missing value, not a crash:
-        // judge it as an empty value of the type the catalogue expects.
-        const result = validateFieldWithResult(
-          argValue?.type ?? argDefinition?.ui_type,
-          argValue?.value,
-          {
-            expressions,
-            allowed_values: argDefinition?.allowed_values,
-            element_allowed_values: argDefinition?.element_allowed_values,
-            has_to_have_value: argDefinition?.required,
-          }
-        );
+        /* A slot with no operand at all is judged as what it is — a missing
+           value — rather than read for a `type` it does not have.
+
+           An operand that HOLDS something is judged by the envelope's own type,
+           or — when the envelope carries none (a raw parse operand widened
+           without a `ui_type`, a slot reset by a type change) — by the type the
+           catalogue declares. Without that fallback `_validateField` refuses it
+           for "Missing type" however right the value is. */
+        const operandType =
+          argValue?.type ?? (argValue?.value === undefined ? undefined : argDefinition?.ui_type);
+        const result = validateFieldWithResult(operandType, argValue?.value, {
+          expressions,
+          allowed_values: argDefinition?.allowed_values,
+          element_allowed_values: argDefinition?.element_allowed_values,
+          has_to_have_value: argDefinition?.required,
+        });
 
         if (!result.isValid) {
           return withContext(
             result,
-            `Value for argument ${index + 1} ("${argDefinition?.display_name}") is invalid`
+            `Value for argument ${index + 1} ("${argLabel}") is invalid`
           );
         }
       }
@@ -1878,7 +1932,8 @@ const isDependencyFulfilled = (
 };
 
 export const hasAllDependenciesFullfilled = (
-  dependencies: string[] | string[][],
+  /** Every entry must hold; a nested list is an ANY of its entries. Mixed freely. */
+  dependencies: ReadonlyArray<string | readonly string[]>,
   options: TQorusForm,
   optionsSchema?: IQorusFormSchema
 ): boolean => {
@@ -1886,20 +1941,20 @@ export const hasAllDependenciesFullfilled = (
     return true;
   }
 
-  return dependencies.every((dependency: string | string[]) => {
+  return dependencies.every((dependency) => {
     // A nested list is an ANY. It used to look each entry up as a whole form-field
     // name, so a `name=value` entry inside one found no field and returned `true`
     // unconditionally — the any-of group was satisfied by anything at all, while
     // CompactRow's lock rendered those same entries as real comparisons. Both halves
     // now go through one parser, so the grammar cannot mean two things.
     if (isArray(dependency)) {
-      return (dependency as string[]).some((dep) =>
+      return (dependency as readonly string[]).some((dep) =>
         isDependencyFulfilled(dep, options, optionsSchema)
       );
     }
 
     return isString(dependency)
-      ? isDependencyFulfilled(dependency as string, options, optionsSchema)
+      ? isDependencyFulfilled(dependency, options, optionsSchema)
       : true;
   });
 };
