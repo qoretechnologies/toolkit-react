@@ -4,6 +4,7 @@ import {
   ReqoreControlGroup,
   ReqoreMessage,
   ReqoreModal,
+  ReqoreTag,
 } from '@qoretechnologies/reqore';
 import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/components/Collection/item';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
@@ -14,6 +15,10 @@ import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { capitalize, isEqual, size } from 'lodash';
 import { useMemo, useState } from 'react';
 import styled from 'styled-components';
+import {
+  UNAVAILABLE_VALUE_FALLBACK_REASON,
+  getRefusalMessage,
+} from '../../../../helpers/options';
 import { Description } from '../../../Description';
 
 /**
@@ -48,6 +53,12 @@ export const SELECT_DIALOG_MIN_WIDTH = 320;
 export const SELECT_DIALOG_MIN_HEIGHT = 180;
 
 /**
+ * The hook a row wears while its value cannot be picked — for the stylesheet
+ * below, and for a host's own tests and styling.
+ */
+export const UNAVAILABLE_ITEM_CLASS = 'reqraft-select-item-unavailable';
+
+/**
  * The picker's floor, expressed where it survives the reqore we pin.
  *
  * `className` reaches the element `re-resizable` sizes and drags, and a CSS
@@ -77,6 +88,29 @@ export const SELECT_DIALOG_MIN_HEIGHT = 180;
 const StyledSelectDialog = styled(ReqoreModal)`
   min-width: min(${SELECT_DIALOG_MIN_WIDTH}px, 90vw) !important;
   min-height: min(${SELECT_DIALOG_MIN_HEIGHT}px, 90vh) !important;
+
+  /*
+   * A value that cannot be picked, said in the row's own stylesheet.
+   *
+   * Reqore's "disabled" is NOT what marks it. That applies DisabledElement,
+   * which is "pointer-events: none" — and the two places the reason can be
+   * read, the row's tooltip and whatever control its title bar carries, both
+   * need the pointer. Dropping onClick is what actually makes the row inert:
+   * reqore derives "interactive" from the handlers a panel was given, so a row
+   * with none gets no pointer cursor and no hover lift while keeping every
+   * pointer event it had.
+   *
+   * The dimming lands on the TITLE rather than on the row, because "opacity"
+   * creates a stacking context: dimming the row would dim the reason inside it,
+   * and the reason is the one thing on an unavailable row that has to read.
+   */
+  .${UNAVAILABLE_ITEM_CLASS} {
+    cursor: not-allowed;
+  }
+
+  .${UNAVAILABLE_ITEM_CLASS} > .reqore-panel-title {
+    opacity: 0.55;
+  }
 `;
 
 const PositiveColorEffect = {
@@ -123,6 +157,13 @@ export type TSelectFieldCollectionItemTooltip =
       content?: TSelectFieldCollectionItemTooltipContent;
     });
 
+/** A note rendered in an item's body, in the same shape a schema sends one. */
+export interface ISelectFieldCollectionItemMessage {
+  intent?: TReqoreIntent;
+  title?: string;
+  content: string;
+}
+
 export interface ISelectFieldCollectionItem {
   value?: unknown;
   name?: unknown;
@@ -158,7 +199,31 @@ export interface ISelectFieldCollectionItem {
    * in `content`, which every row pays for in height whether it is read or not.
    */
   tooltip?: TSelectFieldCollectionItemTooltip;
-  messages?: { intent?: TReqoreIntent; title?: string; content: string }[];
+  messages?: ISelectFieldCollectionItemMessage[];
+  /**
+   * Why the value cannot be picked, when it cannot.
+   *
+   * Rendered FIRST in the row — above the description, not under it, where a
+   * `messages` entry would land. A reader who has just been refused a choice is
+   * looking for the reason, and a row that answers with its description and
+   * makes them read on has answered a different question.
+   *
+   * Set it together with `disabled`, which is what drops the click handler.
+   * Carried as data rather than as a node for the reason in
+   * {@link ISelectFieldCollectionItemAction}.
+   */
+  unavailable?: ISelectFieldCollectionItemMessage;
+  /** Added to the row's own classes — see {@link UNAVAILABLE_ITEM_CLASS}. */
+  className?: string;
+  /**
+   * Extra words the list's search matches this row on.
+   *
+   * Reqore searches a row's label and the STRING of its content, and this
+   * collection's content is a React element — which stringifies to
+   * `[object Object]` and matches every query equally. Anything that has to be
+   * findable belongs here.
+   */
+  searchString?: string;
   [key: string]: unknown;
 }
 
@@ -233,6 +298,39 @@ export const getSelectItemDescriptionProps = (
 };
 
 /**
+ * Why an item cannot be picked, in the words the row will print.
+ *
+ * Two shapes reach here and they mean the same thing. A caller that resolved
+ * the availability itself sends `unavailable`; a caller — or a server — that
+ * only marked the value `disabled` and explained it in `messages` gets the same
+ * treatment, because a refusal nobody worded is still a refusal, and a row that
+ * silently ignores a click is the defect this answers.
+ *
+ * Which message explains a refusal is decided in one place
+ * ({@link getRefusalMessage}), so the picker and the form's own resolver cannot
+ * word the same refusal differently.
+ */
+export const getSelectItemUnavailability = (
+  item: Pick<ISelectFieldCollectionItem, 'unavailable' | 'disabled' | 'messages'>
+): ISelectFieldCollectionItemMessage | undefined => {
+  if (item.unavailable) {
+    return item.unavailable;
+  }
+
+  if (!item.disabled) {
+    return undefined;
+  }
+
+  const explanation = getRefusalMessage(item.messages);
+
+  return {
+    intent: explanation?.intent || 'warning',
+    title: explanation?.title,
+    content: explanation?.content || UNAVAILABLE_VALUE_FALLBACK_REASON,
+  };
+};
+
+/**
  * An item's title-bar affordances as reqore panel actions.
  *
  * `as` is defaulted here rather than left to reqore: reqore renders an action
@@ -245,21 +343,40 @@ export const getSelectItemDescriptionProps = (
  * its title bar is too unless the caller says otherwise. The body renderer
  * below forces `size` after the caller's props and cannot be given a
  * different one; that is the older behaviour and it is left alone.
+ *
+ * An unavailable row leads with a padlock, before whatever the caller declared.
+ * It is a TAG, not a control: the words are already on the row and in its
+ * tooltip, and a second popover saying the same thing over the first is worse
+ * than one. It is also not the compact form's "Depends on" chip, whose whole
+ * value is clicking through to the blocking field — from inside a modal that
+ * covers that field, there is nowhere for such a click to go.
  */
 export const getSelectItemTitleActions = (
-  item: Pick<ISelectFieldCollectionItem, 'title_actions'>
+  item: Pick<ISelectFieldCollectionItem, 'title_actions'>,
+  unavailable?: ISelectFieldCollectionItemMessage
 ): IReqorePanelAction[] | undefined => {
-  if (!item.title_actions?.length) {
-    return undefined;
-  }
-
-  return item.title_actions.map(
+  const declared = (item.title_actions || []).map(
     ({ as = ReqoreButton, props, ...rest }): IReqorePanelAction => ({
       ...rest,
       as,
       props: { size: 'tiny', ...props },
     })
   );
+
+  const actions = unavailable ? [UNAVAILABLE_TITLE_ACTION, ...declared] : declared;
+
+  return actions.length ? actions : undefined;
+};
+
+/** The padlock an unavailable row wears — see {@link getSelectItemTitleActions}. */
+const UNAVAILABLE_TITLE_ACTION: IReqorePanelAction = {
+  as: ReqoreTag,
+  props: {
+    size: 'tiny',
+    icon: 'LockLine',
+    minimal: true,
+    className: 'reqraft-select-item-lock',
+  },
 };
 
 /**
@@ -352,22 +469,53 @@ export const SelectFieldCollection = ({
         showLayoutSwitch={false}
         items={filteredItems.map((item): IReqoreCollectionItemProps => {
           const { longDescription, shortDescription } = getSelectItemDescriptionProps(item);
+          const unavailable = getSelectItemUnavailability(item);
+          /* One `messages` entry can be the refusal itself — a server that sent
+             `disabled` with its reason, resolved into `unavailable` upstream.
+             It is already printed above the description, so it is not printed
+             again underneath it. */
+          const messages = (item.messages || []).filter(
+            (message) => !unavailable || message.content !== unavailable.content
+          );
 
           return {
             label: item.display_name || item.value?.toString(),
             size: 'tiny',
             groups: item.groups,
+            className: [item.className, unavailable ? UNAVAILABLE_ITEM_CLASS : undefined]
+              .filter(Boolean)
+              .join(' '),
             /* Inline with the name, in height the title bar already spends.
                `actions` on the item stays where it has always been, in the
                body under the description. */
-            actions: getSelectItemTitleActions(item),
+            actions: getSelectItemTitleActions(item, unavailable),
             /* The row is the hover target, so an explanation costs the list
                nothing until it is asked for. */
-            tooltip: buildSelectItemTooltip(item.tooltip),
+            tooltip: buildSelectItemTooltip(item.tooltip ?? unavailable?.content),
+            /* Reqore searches a row's label and its stringified content, and
+               the content below is an element — so every row matches
+               `[object Object]` and nothing matches a word inside it. A reason
+               nobody can search for in a list of hundreds is a reason nobody
+               finds. */
+            searchString: [item.searchString, unavailable?.title, unavailable?.content]
+              .filter(Boolean)
+              .join(' '),
             customTheme: { main: '#08182d' },
             responsiveTitle: false,
             content: (
               <ReqoreControlGroup vertical fluid>
+                {unavailable ? (
+                  <ReqoreMessage
+                    flat
+                    icon='LockLine'
+                    intent={unavailable.intent || 'warning'}
+                    title={unavailable.title}
+                    size='small'
+                    opaque={false}
+                  >
+                    {unavailable.content}
+                  </ReqoreMessage>
+                ) : null}
                 {longDescription || shortDescription ? (
                   <Description
                     longDescription={longDescription || ''}
@@ -385,7 +533,7 @@ export const SelectFieldCollection = ({
                     size='tiny'
                   />
                 ))}
-                {(item.messages || []).map(({ intent, title, content }, index) => (
+                {messages.map(({ intent, title, content }, index) => (
                   <ReqoreMessage
                     flat
                     intent={intent}
@@ -413,7 +561,10 @@ export const SelectFieldCollection = ({
               size: '20px',
               rounded: true,
             },
-            onClick: !item.disabled
+            /* No handler is what makes an unavailable row inert, and it is
+               deliberately NOT reqore's `disabled`: see the stylesheet on
+               `StyledSelectDialog`. */
+            onClick: !item.disabled && !unavailable
               ? (e) => {
                   if (e.currentTarget.contains(e.target as Node)) {
                     onItemSelect(item);

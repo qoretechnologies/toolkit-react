@@ -16,8 +16,10 @@ import { memo, useCallback, useContext, useEffect, useMemo, useState } from 'rea
 import { RowOpenPickerContext } from '../../engine/rowOpenPicker';
 import {
   getSelectItemShortDescription,
+  getSelectItemUnavailability,
   ISelectFieldCollectionItem,
   SelectFieldCollection,
+  UNAVAILABLE_ITEM_CLASS,
 } from './SelectCollection';
 
 export type ISelectFormFieldItem = ISelectFieldCollectionItem;
@@ -159,15 +161,37 @@ export const SelectFormField = memo(
     }, [predicate, items]);
 
     const reqoreItems: IReqoreDropdownItem[] = useMemo(() => {
-      return filteredItems.map((item) => ({
-        label: item.display_name || valueToShow(item.value),
-        description: getItemDescription(item.value) as string,
-        value: item.value,
-        selected: isEqual(item.value, value),
-        intent: item.intent,
-        disabled: item.disabled,
-        onClick: () => handleSelectClick(item),
-      }));
+      return filteredItems.map((item) => {
+        /* The dropdown used to drop `messages` on the floor, so a value refused
+           with a reason arrived here as a row that simply would not respond.
+           The reason leads the description — a reader who has just been refused
+           a choice is looking for why, not for what the value would have
+           done. */
+        const unavailable = getSelectItemUnavailability(item);
+        const description = getItemDescription(item.value) as string;
+
+        return {
+          label: item.display_name || valueToShow(item.value),
+          description:
+            unavailable ?
+              [unavailable.title, unavailable.content, description].filter(Boolean).join(' — ')
+            : description,
+          /* Read in full on hover, however narrow the list is. */
+          tooltip: unavailable ? unavailable.content : undefined,
+          icon: unavailable ? ('LockLine' as const) : undefined,
+          value: item.value,
+          selected: isEqual(item.value, value),
+          intent: item.intent,
+          className: unavailable ? UNAVAILABLE_ITEM_CLASS : undefined,
+          /* Dimmed through reqore's own effect, and never through `disabled`:
+             that applies `DisabledElement` (`pointer-events: none`), which
+             takes the tooltip with it — the only place the whole reason fits.
+             The row is made inert by having no handler, as in the collection. */
+          effect: unavailable ? { opacity: 0.55 } : undefined,
+          style: unavailable ? { cursor: 'not-allowed' } : undefined,
+          onClick: unavailable ? undefined : () => handleSelectClick(item),
+        };
+      });
     }, [JSON.stringify(filteredItems), value]) as IReqoreDropdownItem[];
 
     const getItemShortDescription = useCallback(
@@ -290,14 +314,40 @@ export const SelectFormField = memo(
 
     const creatableItems = useMemo<TReqoreSelectItem[]>(
       () =>
-        filteredItems.map((item) => ({
-          value: valueToShow(item.value) as string,
-          label: item.display_name || (valueToShow(item.value) as string),
-          description: getItemDescription(item.value) as string,
-          disabled: item.disabled,
-          intent: item.intent,
-          wrap: true,
-        })),
+        filteredItems.map((item) => {
+          /* The same shape as `reqoreItems` above, for the same reason: this
+             branch passed the item's `disabled` straight to reqore, which
+             applies `DisabledElement` (`pointer-events: none`) and takes the
+             row's tooltip with it — so a value refused WITH a reason arrived
+             as a row that would not respond and would not explain.
+
+             What refuses it here is `handleCreatableChange`, because reqore
+             owns this list's selection and there is no per-row handler to
+             withhold. Against the 0.74.x we pin, `readOnly` marks the row and
+             does not yet refuse it; once the pin moves to a reqore whose list
+             declines a read-only row, the row refuses itself and the guard
+             below becomes a second lock on the same door. */
+          const unavailable = getSelectItemUnavailability(item);
+          const description = getItemDescription(item.value) as string;
+
+          return {
+            value: valueToShow(item.value) as string,
+            label: item.display_name || (valueToShow(item.value) as string),
+            description:
+              unavailable ?
+                [unavailable.title, unavailable.content, description].filter(Boolean).join(' — ')
+              : description,
+            /* Read in full on hover, which `disabled` would have made
+               unreachable. */
+            tooltip: unavailable ? unavailable.content : undefined,
+            icon: unavailable ? ('LockLine' as const) : undefined,
+            className: unavailable ? UNAVAILABLE_ITEM_CLASS : undefined,
+            effect: unavailable ? { opacity: 0.55 } : undefined,
+            readOnly: !!unavailable,
+            intent: item.intent,
+            wrap: true,
+          };
+        }),
       [filteredItems, getItemDescription]
     );
 
@@ -311,6 +361,17 @@ export const SelectFormField = memo(
         // the value the caller gave us — its own shape intact. Only a value
         // the author created is a string of their own making.
         const offered = filteredItems.find((item) => valueToShow(item.value) === next);
+
+        /* Where the refusal actually lands for this branch — see
+           `creatableItems`. A value the form will not accept is not accepted
+           however it was reached: by clicking its row, by pressing Enter on
+           it, or by typing its text into a creatable field, which is the same
+           value by another route. Clearing is never the answer: `next ===
+           undefined` above is the author clearing it themselves. */
+        if (offered && getSelectItemUnavailability(offered)) {
+          return;
+        }
+
         onChange?.(offered ? offered.value : next);
       },
       [filteredItems, onChange]
@@ -425,15 +486,36 @@ export const SelectFormField = memo(
         )}
         {asMenu ?
           <ReqoreMenu>
-            {filteredItems.map((item) => (
-              <ReqoreMenuItem
-                key={valueToShow(item.value)}
-                label={item.display_name || valueToShow(item.value)}
-                disabled={item.disabled}
-                intent={item.intent}
-                onClick={() => handleSelectClick(item)}
-              />
-            ))}
+            {filteredItems.map((item) => {
+              /* This branch owns its handler, so it gets the full shape: no
+                 `disabled` (that is `DisabledElement`, which would take the
+                 row's tooltip with it), no handler, the reason printed under
+                 the name and readable on hover, and `readOnly` for the cursor.
+                 Dropping the handler is what makes the row inert. */
+              const unavailable = getSelectItemUnavailability(item);
+              const description = getSelectItemShortDescription(item);
+
+              return (
+                <ReqoreMenuItem
+                  key={valueToShow(item.value)}
+                  label={item.display_name || valueToShow(item.value)}
+                  description={
+                    unavailable ?
+                      [unavailable.title, unavailable.content, description]
+                        .filter(Boolean)
+                        .join(' — ')
+                    : description
+                  }
+                  tooltip={unavailable ? unavailable.content : undefined}
+                  icon={unavailable ? 'LockLine' : undefined}
+                  className={unavailable ? UNAVAILABLE_ITEM_CLASS : undefined}
+                  effect={unavailable ? { opacity: 0.55 } : undefined}
+                  readOnly={!!unavailable}
+                  intent={item.intent}
+                  onClick={unavailable ? undefined : () => handleSelectClick(item)}
+                />
+              );
+            })}
           </ReqoreMenu>
         : hasItemsWithDesc(items) && !forceDropdown ?
           <ReqoreButton

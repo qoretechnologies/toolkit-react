@@ -122,3 +122,29 @@ export const resolveDegenerateRequiredGroups = <T extends IQorusFormSchema | und
   });
   return resolved as T;
 };
+
+/** A note attached to a field or to one of its allowed values. */
+export interface ISchemaMessage {
+  intent?: string;
+  title?: string;
+  content?: string;
+}
+
+/** The sentence a refusal with no reason of its own falls back to. */
+export const UNAVAILABLE_VALUE_FALLBACK_REASON = 'This value is not available';
+
+/**
+ * Which of a refused value's messages is the REASON it was refused.
+ *
+ * A value can carry several notes, and only one of them explains why it cannot
+ * be picked. The most serious one does: a `danger` message is what a refusal
+ * sounds like, a `warning` is the next thing to it, and an `info` note beside
+ * either is a remark about the value rather than about the refusal.
+ *
+ * Both the form's resolver and the picker that renders a pre-resolved refusal
+ * ask this, so the two cannot disagree about which words stand in for a choice.
+ */
+export const getRefusalMessage = <T extends ISchemaMessage>(messages?: T[]): T | undefined =>
+  messages?.find((message) => message.intent === 'danger') ||
+  messages?.find((message) => message.intent === 'warning') ||
+  messages?.[0];

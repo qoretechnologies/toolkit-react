@@ -17,6 +17,12 @@ import { hasAllDependenciesFullfilled, parseDependency } from '../src/helpers/va
  *    wrong the moment a value is added — which is exactly the shape a test's
  *    subject field needs: it applies to every subject kind except `type`, whose
  *    subjects are selected by path instead of by name.
+ *
+ * 3. And there was no way to say "not answered at all". `name!=value` cannot:
+ *    it is a statement about an ANSWER, so it is false on an unanswered
+ *    sibling. Two options that exclude one another need exactly that, and
+ *    spelling it with `!=` would have kept both halves locked until one of them
+ *    was filled in — which nothing could then do.
  */
 
 const form = (values: Record<string, unknown>) =>
@@ -27,8 +33,9 @@ const form = (values: Record<string, unknown>) =>
 const schema = { kind: { type: 'string' }, name: { type: 'string' } } as never;
 
 describe('parseDependency', () => {
-  it('reads the three forms', () => {
+  it('reads the four forms', () => {
     expect(parseDependency('kind')).toEqual({ name: 'kind' });
+    expect(parseDependency('!kind')).toEqual({ name: 'kind', op: '!' });
     expect(parseDependency('kind=type')).toEqual({ name: 'kind', op: '=', value: 'type' });
     expect(parseDependency('kind!=type')).toEqual({ name: 'kind', op: '!=', value: 'type' });
   });
@@ -37,6 +44,14 @@ describe('parseDependency', () => {
     // `indexOf('=')` alone would split `kind!=type` into `kind!` and `=type`
     expect(parseDependency('kind!=type').name).toBe('kind');
     expect(parseDependency('kind!=type').value).toBe('type');
+  });
+
+  it('keeps "!=" and a leading "!" apart', () => {
+    // Reading the leading `!` first would take `kind!=type` for a negation of a
+    // field called `kind` and drop the comparison entirely.
+    expect(parseDependency('kind!=type').op).toBe('!=');
+    expect(parseDependency('!kind').op).toBe('!');
+    expect(parseDependency('!kind').value).toBeUndefined();
   });
 });
 
@@ -84,6 +99,37 @@ describe('hasAllDependenciesFullfilled', () => {
       false
     );
     expect(hasAllDependenciesFullfilled(deps, form({ kind: 'fsm', name: 'a' }), schema)).toBe(false);
+  });
+
+  it('reads !name as "has no value"', () => {
+    expect(hasAllDependenciesFullfilled(['!kind'], form({ kind: '' }), schema)).toBe(true);
+    expect(hasAllDependenciesFullfilled(['!kind'], form({ kind: 'fsm' }), schema)).toBe(false);
+    // The mutual-exclusion case, and the reason `!=` cannot serve it: a sibling
+    // the form has not materialized holds nothing, so it has no value — and
+    // both halves of an exclusion have to be reachable from an empty form.
+    expect(hasAllDependenciesFullfilled(['!kind'], form({}), schema)).toBe(true);
+  });
+
+  it('locks each half of a mutual exclusion only once the other is answered', () => {
+    const toOpenapi = ['!name'];
+    const fromNodeset = ['!kind'];
+    const empty = form({});
+
+    expect(hasAllDependenciesFullfilled(toOpenapi, empty, schema)).toBe(true);
+    expect(hasAllDependenciesFullfilled(fromNodeset, empty, schema)).toBe(true);
+
+    const oneAnswered = form({ kind: 'nodeset2' });
+    expect(hasAllDependenciesFullfilled(toOpenapi, oneAnswered, schema)).toBe(true);
+    expect(hasAllDependenciesFullfilled(fromNodeset, oneAnswered, schema)).toBe(false);
+  });
+
+  it('composes !name with the AND of the list and the OR of a nested one', () => {
+    // Nothing special is done for it anywhere: it is a predicate like the rest.
+    const deps = [['!kind', 'kind=fsm'], '!name'];
+    expect(hasAllDependenciesFullfilled(deps, form({}), schema)).toBe(true);
+    expect(hasAllDependenciesFullfilled(deps, form({ kind: 'fsm' }), schema)).toBe(true);
+    expect(hasAllDependenciesFullfilled(deps, form({ kind: 'workflow' }), schema)).toBe(false);
+    expect(hasAllDependenciesFullfilled(deps, form({ kind: 'fsm', name: 'X' }), schema)).toBe(false);
   });
 
   it('treats a bare name with no entry in the form at all as fulfilled', () => {

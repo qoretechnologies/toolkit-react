@@ -13,8 +13,14 @@ import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/But
 import { IQorusAllowedValue, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size as count, isEqual } from 'lodash';
 import { memo, useMemo } from 'react';
-import { getSelectItemShortDescription } from '../select/SelectCollection';
+import {
+  getSelectItemShortDescription,
+  getSelectItemUnavailability,
+  UNAVAILABLE_ITEM_CLASS,
+} from '../select/SelectCollection';
 import { ISelectFormFieldItem, SelectFormField as Select } from '../select/Select';
+import { useAllowedValueAvailability } from '../../engine/OptionFieldMessages';
+import type { IReqraftAllowedValue } from '../Field';
 
 export interface IFieldAllowedValuesProps extends Pick<
   IReqoreButtonProps,
@@ -98,44 +104,71 @@ export const FieldAllowedValuesCheckGroup = memo(
           : multiSelect ? 'Select one or more:'
           : 'Select one:'}
         </ReqoreSpan>
-        {items?.map((item) => (
-          <ReqoreCheckbox
-            margin='right'
-            key={item.value?.toString()}
-            label={item.display_name || JSON.stringify(item.value)}
-            tooltip={getSelectItemShortDescription(item)}
-            disabled={rest.disabled}
-            readOnly={rest.readOnly}
-            intent={item.value === value ? 'info' : undefined}
-            // `isEqual`, and only once there is a value to match. The single
-            // -select branch compared JSON.stringify(value) with
-            // JSON.stringify(item.value), and JSON.stringify(undefined) is
-            // undefined — so an unset field whose items carry no resolved value
-            // compared undefined with undefined and reported EVERY option as
-            // checked, on a field that was simultaneously "This field is
-            // required". Nothing selected must read as nothing selected.
-            checked={
-              multiSelect
-                ? Array.isArray(value) && value.some((v) => isEqual(v, item.value))
-                : value !== undefined && value !== null && isEqual(value, item.value)
-            }
-            onClick={() => {
-              if (multiSelect) {
-                let newValue: unknown[] = Array.isArray(value) ? [...value] : [];
+        {items?.map((item) => {
+          const unavailable = getSelectItemUnavailability(item);
 
-                if (newValue.some((v) => isEqual(v, item.value))) {
-                  newValue = newValue.filter((v) => !isEqual(v, item.value));
-                } else {
-                  newValue.push(item.value);
-                }
-
-                onChange(name, newValue);
-              } else {
-                onChange(name, isEqual(value, item.value) ? undefined : item.value);
+          return (
+            <ReqoreCheckbox
+              margin='right'
+              key={item.value?.toString()}
+              label={item.display_name || JSON.stringify(item.value)}
+              tooltip={getSelectItemShortDescription(item)}
+              /* The reason is IN the row: a checkbox has no body to put it in,
+                 and a hover is the one affordance a touch screen and a keyboard
+                 never reach. */
+              description={unavailable?.content}
+              className={unavailable ? UNAVAILABLE_ITEM_CLASS : undefined}
+              /* `labelEffect`, not `effect`: a non-switch `ReqoreCheckbox`
+                 destructures `effect` out and never applies it, so the dimming
+                 this asked for never appeared. The NAME is also the right
+                 thing to dim — `description` above carries the reason, and a
+                 reason has to stay readable. */
+              labelEffect={unavailable ? { opacity: 0.55 } : undefined}
+              uncheckedIcon={unavailable ? 'LockLine' : undefined}
+              /* The FIELD's `disabled` still goes through reqore — a field nobody
+                 may edit has no explanation to protect. A refused VALUE never
+                 does: `DisabledElement` is `pointer-events: none` and would take
+                 its tooltip with it. */
+              disabled={rest.disabled}
+              /* `cursor: not-allowed` from reqore's own `ReadOnlyElement`,
+                 which keeps the pointer events the tooltip is read through.
+                 It does not withhold `onClick` — the handler below does. */
+              readOnly={rest.readOnly || !!unavailable}
+              intent={item.value === value ? 'info' : undefined}
+              // `isEqual`, and only once there is a value to match. The single
+              // -select branch compared JSON.stringify(value) with
+              // JSON.stringify(item.value), and JSON.stringify(undefined) is
+              // undefined — so an unset field whose items carry no resolved value
+              // compared undefined with undefined and reported EVERY option as
+              // checked, on a field that was simultaneously "This field is
+              // required". Nothing selected must read as nothing selected.
+              checked={
+                multiSelect
+                  ? Array.isArray(value) && value.some((v) => isEqual(v, item.value))
+                  : value !== undefined && value !== null && isEqual(value, item.value)
               }
-            }}
-          />
-        ))}
+              onClick={
+                unavailable ? undefined : (
+                  () => {
+                    if (multiSelect) {
+                      let newValue: unknown[] = Array.isArray(value) ? [...value] : [];
+
+                      if (newValue.some((v) => isEqual(v, item.value))) {
+                        newValue = newValue.filter((v) => !isEqual(v, item.value));
+                      } else {
+                        newValue.push(item.value);
+                      }
+
+                      onChange(name, newValue);
+                    } else {
+                      onChange(name, isEqual(value, item.value) ? undefined : item.value);
+                    }
+                  }
+                )
+              }
+            />
+          );
+        })}
       </ReqoreControlGroup>
     );
   }
@@ -157,17 +190,35 @@ export const FieldAllowedValues = memo(
     readOnly,
     label,
   }: IFieldAllowedValuesProps) => {
+    /* Resolved against the form this field stands in — the value's own
+       `depends_on`, and a refusal the server had already decided. Both end up
+       as one state on the item: no click handler, and a reason to read. */
+    const availability = useAllowedValueAvailability(items as IReqraftAllowedValue[]);
+
     const fullItems = useMemo(() => {
       const result = [
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        ...items.map(({ metadata, value, ...rest }) => ({
-          value: value?.value,
-          ...rest,
-        })),
+        ...items.map(({ metadata, value, ...rest }, index) => {
+          const resolved = availability[index];
+
+          return {
+            value: value?.value,
+            ...rest,
+            disabled: rest.disabled || resolved?.available === false,
+            unavailable:
+              resolved && !resolved.available ?
+                {
+                  title: resolved.title,
+                  content: resolved.reason as string,
+                  intent: resolved.intent,
+                }
+              : undefined,
+          };
+        }),
       ] as ISelectFormFieldItem[];
 
       return result;
-    }, [JSON.stringify(items), type, value, showSavedValues, disabled, readOnly]);
+    }, [JSON.stringify(items), availability, type, value, showSavedValues, disabled, readOnly]);
 
     const style = useMemo(() => ({ width: '100%' }), []);
 

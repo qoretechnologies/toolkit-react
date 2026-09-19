@@ -42,14 +42,13 @@ import { shouldMarkAsExpression } from '../expressions/argumentPresence';
 import { offersTypeChoices } from './typeChoices';
 import { optionRowActions, resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
-import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last } from 'lodash';
+import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last, uniq } from 'lodash';
 import map from 'lodash/map';
 import reduce from 'lodash/reduce';
 import size from 'lodash/size';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
 import styled, { css } from 'styled-components';
-import { createContext } from 'use-context-selector';
 import {
   fixOperatorValue,
   getDefaultValue,
@@ -105,8 +104,10 @@ import {
 import {
   IConditionalFieldMessage,
   OptionFieldMessages,
+  getAllowedValueAvailability,
   getShownSchemaMessages,
 } from './OptionFieldMessages';
+import { OptionsContext } from './optionsContext';
 import {
   MarkdownRendererContext,
   TMarkdownRenderer,
@@ -484,10 +485,10 @@ export const hasRequiredOptions = (options: IQorusFormSchema = {}) => {
   return !!findKey(options, (option) => option.required);
 };
 
-export const OptionsContext = createContext<{
-  schema?: IQorusFormSchema;
-  value?: TQorusForm;
-}>({});
+/* Re-exported from the module that owns it so the existing import path keeps
+   working; see `optionsContext.ts` for why it is not declared here. */
+export { OptionsContext } from './optionsContext';
+export type { IOptionsContext } from './optionsContext';
 
 export const fixOptions = (
   value: TQorusForm | TQorusFlatForm = {},
@@ -2226,6 +2227,49 @@ const FormEngineImpl = ({
       flashOptions(unlocked);
     }
   }, [dependencyLockedNames.join('|')]);
+
+  /* The same thing one level down: a CHOICE that becomes available is as
+     invisible as a field that becomes editable, and it is worse, because it
+     opens up inside a control the reader may not have open. So the field that
+     offers it flashes, which is the affordance that says "look here" without
+     claiming the choice was made.
+
+     Keyed by field and by the value's identity, so a value that merely moves in
+     the list is not mistaken for one that opened. Fields whose values gate on
+     nothing never enter the set, which is nearly all of them. */
+  const lockedAllowedValues = useMemo(() => {
+    const locked: string[] = [];
+    forEach(options || {}, (optionSchema, name) => {
+      forEach(optionSchema?.allowed_values || [], (allowedValue) => {
+        if (!getAllowedValueAvailability(allowedValue, availableOptions, options || {}).available) {
+          locked.push(`${name}\u0000${JSON.stringify(allowedValue?.value?.value)}`);
+        }
+      });
+    });
+    return locked;
+  }, [JSON.stringify(options), JSON.stringify(availableOptions)]);
+  const previousLockedAllowedValues = useRef<string[] | null>(null);
+  useEffect(() => {
+    const previous = previousLockedAllowedValues.current;
+    previousLockedAllowedValues.current = lockedAllowedValues;
+    if (!previous) {
+      return;
+    }
+    const opened = previous
+      .filter((key) => !lockedAllowedValues.includes(key))
+      .map((key) => key.split('\u0000')[0]);
+    const fields = uniq(opened).filter(
+      (name) =>
+        !!options?.[name] &&
+        !options?.[name]?.disabled &&
+        // A field that is itself still locked flashes for its OWN unlocking, in
+        // the effect above; two flashes for one change is a flicker, not a cue.
+        !dependencyLockedNames.includes(name)
+    );
+    if (fields.length) {
+      flashOptions(fields);
+    }
+  }, [lockedAllowedValues.join('|')]);
 
   // The not-yet-added optional fields: everything in the schema the form is not
   // already showing a row for. This ONE list feeds all three ways a field gets

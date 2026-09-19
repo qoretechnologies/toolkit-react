@@ -2006,9 +2006,16 @@ export const CompactRow = memo(
       return {
         name: depName,
         exists: !!options?.[depName],
-        label: !op ? depLabel : `${depLabel} ${op === '=' ? '=' : '≠'} ${expected}`,
+        // `!name` compares against nothing — it is satisfied by the sibling
+        // being unanswered — so it says so, rather than going through the
+        // comparison template and reading `Name ≠ undefined`.
+        label:
+          op === '!' ? `${depLabel} unset`
+          : !op ? depLabel
+          : `${depLabel} ${op === '=' ? '=' : '≠'} ${expected}`,
         fulfilled:
-          !op ? !isOptionValueEmpty(depValue)
+          op === '!' ? isOptionValueEmpty(depValue)
+          : !op ? !isOptionValueEmpty(depValue)
           : depValue == null ? false
           : op === '=' ? String(depValue) === expected
           : String(depValue) !== expected,

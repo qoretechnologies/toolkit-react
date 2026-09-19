@@ -4,7 +4,11 @@ import { expect, fireEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 import { StoryMeta } from '../../../../types';
 import { SelectFormField } from './Select';
-import { SELECT_DIALOG_MIN_HEIGHT, SELECT_DIALOG_MIN_WIDTH } from './SelectCollection';
+import {
+  SELECT_DIALOG_MIN_HEIGHT,
+  SELECT_DIALOG_MIN_WIDTH,
+  UNAVAILABLE_ITEM_CLASS,
+} from './SelectCollection';
 
 const meta = {
   component: SelectFormField,
@@ -592,6 +596,89 @@ export const ItemTooltipOnTheRow: Story = {
         ).toContain('All of what Coverage: process is for.'),
       { timeout: 5000 }
     );
+  },
+};
+
+const REFUSED_ITEMS = [
+  {
+    display_name: 'Coverage: process',
+    value: 'process_coverage',
+    short_desc: 'Passes when the process you name ran code.',
+    desc: 'Passes when the process you name ran code.',
+  },
+  {
+    display_name: 'Step: result',
+    value: 'step_result',
+    short_desc: 'Passes when the named step reported this result.',
+    desc: 'Passes when the named step reported this result.',
+    disabled: true,
+    unavailable: {
+      intent: 'warning' as const,
+      content:
+        'Unavailable because some dependencies are not fulfilled: "Interface Kind" must be "workflow"',
+    },
+  },
+  {
+    display_name: 'File: written',
+    value: 'file_written',
+    short_desc: 'Passes when the target wrote the file.',
+    desc: 'Passes when the target wrote the file.',
+    disabled: true,
+    messages: [
+      { intent: 'danger' as const, content: 'This sandbox denies the FILESYSTEM domain.' },
+    ],
+  },
+  {
+    display_name: 'Value: equals',
+    value: 'value_equals',
+    short_desc: 'Passes when the value is exactly equal.',
+    desc: 'Passes when the value is exactly equal.',
+  },
+];
+
+export const UnavailableItemsSayWhy: Story = {
+  args: {
+    forceDropdown: false,
+    items: REFUSED_ITEMS,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "A value that cannot be picked is disabled and says why, never hidden — a choice that vanishes takes its own explanation with it. Two things refuse one and they render identically: the value's own `depends_on`, judged against the form it stands in (row 2), and a refusal the server had already decided as `disabled` with a message (row 3), for what only the server can know. The reason reads FIRST, above the description a `messages` entry would have landed under; the name is dimmed and the cursor says `not-allowed`; and the row keeps every pointer event, because reqore's `disabled` is `pointer-events: none` and would take the row's tooltip with it. What makes the row inert is having no click handler at all.",
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await openTheCollection(canvasElement);
+    const rows = () =>
+      [...document.querySelectorAll<HTMLElement>('.reqraft-select-dialog .reqore-collection-item')];
+    await waitFor(() => expect(rows().length).toBe(4), { timeout: 5000 });
+    /* By name, not by index: the collection sorts its rows, so a positional
+       lookup asserts about whichever row the sort happened to put there. */
+    const rowNamed = (label: string) =>
+      rows().find((row) =>
+        row.querySelector(':scope > .reqore-panel-title')?.textContent?.includes(label)
+      ) as HTMLElement;
+
+    await expect(rows().filter((row) => row.className.includes(UNAVAILABLE_ITEM_CLASS)).length).toBe(
+      2
+    );
+
+    // The one thing this must never do: `DisabledElement` would make it `none`
+    // and take the row's tooltip with it.
+    const gated = rowNamed('Step: result');
+    await expect(getComputedStyle(gated).pointerEvents).toBe('auto');
+    await expect(getComputedStyle(gated).cursor).toBe('not-allowed');
+    await expect(getComputedStyle(rowNamed('Value: equals')).cursor).toBe('pointer');
+
+    // A served refusal is promoted out of `messages` and printed once, above
+    // the description rather than under it.
+    const text =
+      (rowNamed('File: written').querySelector(':scope > .reqore-panel-content') as HTMLElement)
+        .textContent || '';
+    await expect(text.indexOf('FILESYSTEM')).toBeGreaterThan(-1);
+    await expect(text.indexOf('FILESYSTEM')).toBeLessThan(text.indexOf('wrote the file'));
   },
 };
 

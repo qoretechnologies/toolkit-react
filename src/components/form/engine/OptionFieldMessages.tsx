@@ -1,9 +1,15 @@
 import { ReqoreControlGroup, ReqoreTag, ReqoreVerticalSpacer } from '@qoretechnologies/reqore';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
+import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IQorusFormField, IQorusFormSchema, TQorusForm } from '@qoretechnologies/ts-toolkit';
 import { isArray, size } from 'lodash';
 import { useMemo } from 'react';
-import { getRequiredOptionMessage } from '../../../helpers/options';
+import { useContextSelector } from 'use-context-selector';
+import {
+  UNAVAILABLE_VALUE_FALLBACK_REASON,
+  getRefusalMessage,
+  getRequiredOptionMessage,
+} from '../../../helpers/options';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
   hasAllDependenciesFullfilled,
@@ -11,6 +17,7 @@ import {
   validateFieldWithResult,
   validateOptionWithRequiredGroups,
 } from '../../../helpers/validations';
+import { OptionsContext } from './optionsContext';
 
 /** A `messages` entry that appears only for certain values of its siblings. */
 export interface IConditionalFieldMessage {
@@ -94,6 +101,13 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
 
   const label = `"${dependencySchema.display_name || name}"`;
 
+  // `!name` names no value to compare against — it is satisfied by the sibling
+  // being unanswered — so it gets a sentence of its own rather than the
+  // comparison template, which would read `must not be "undefined"`.
+  if (op === '!') {
+    return `${label} must have no value`;
+  }
+
   return op ? `${label} must ${op === '!=' ? 'not ' : ''}be "${value}"` : label;
 };
 
@@ -105,7 +119,7 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
  * are an AND, so an either/or was shown to the reader as a set of things all
  * required. The alternatives now stay grouped and joined by "or".
  */
-const describeDependencies = (
+export const describeDependencies = (
   dependencies: (string | string[])[] | string[][],
   schema: IQorusFormSchema
 ): string =>
@@ -124,6 +138,187 @@ const describeDependencies = (
     })
     .filter((entry): entry is string => !!entry)
     .join(', ');
+
+/**
+ * An allowed VALUE, as far as being offered is concerned.
+ *
+ * Declared here rather than imported, for the same reason
+ * {@link IConditionalFieldMessage} above is: reqraft installs ts-toolkit
+ * `^0.5.80`, whose `IQorusAllowedValue` carries no `depends_on` and whose
+ * `IQorusFormFieldMessage` carries no `when`/`unless`. The shapes are the ones
+ * ts-toolkit 0.5.83 publishes, so both collapse to an import of
+ * `IQorusAllowedValue` and nothing else once reqraft can move its pin.
+ */
+export interface IAllowedValueAvailabilityInput {
+  /**
+   * The value is offered only while every entry holds — the SAME grammar, the
+   * same parser and the same evaluator a field's `depends_on` uses, one level
+   * down. For what this form can decide on its own.
+   */
+  depends_on?: (string | string[])[];
+  /**
+   * Someone who already knows has refused it — the server, for a sandbox or
+   * permission context, a capability of the selected kind, or a requirement in
+   * a scope `depends_on` deliberately cannot reach.
+   */
+  disabled?: boolean;
+  /** Where a refusal says why. */
+  messages?: IConditionalFieldMessage[];
+}
+
+/** Whether a value can be picked, and the sentence that stands in for it. */
+export interface IAllowedValueAvailability {
+  available: boolean;
+  /** Why not. Read by the row itself, by its tooltip and by the list's search. */
+  reason?: string;
+  /** A heading the refusal came with, when it came with one. */
+  title?: string;
+  intent?: TReqoreIntent;
+}
+
+/** One object for every available value, so identity says "nothing to show". */
+export const ALLOWED_VALUE_AVAILABLE: IAllowedValueAvailability = Object.freeze({
+  available: true,
+});
+
+/**
+ * Whether an offered value can be picked, and why not.
+ *
+ * Two things can refuse a value and they render identically, because a reader
+ * has no way to tell them apart and no reason to care:
+ *
+ * - **the predicate** — the value's own `depends_on`, judged against the form
+ *   it is standing in. Whatever the form itself can decide.
+ * - **the pre-resolved refusal** — `disabled: true` with a message, from
+ *   whoever already knows. A sandbox that denies a domain, a capability of the
+ *   selected kind, a requirement in another value scope: none of them are
+ *   reachable from a sibling's answer, and a predicate that pretended otherwise
+ *   would be a predicate that never fires.
+ *
+ * The predicate is checked first when both could speak. It names a field in
+ * this very form, so the reader can act on it without leaving the row; a served
+ * reason is a statement about somewhere else.
+ *
+ * A value is never HIDDEN for either reason. A choice that vanishes takes its
+ * own explanation with it, and leaves the reader looking for something they
+ * were told exists.
+ */
+export const getAllowedValueAvailability = (
+  value: IAllowedValueAvailabilityInput | undefined,
+  allOptions?: TQorusForm,
+  schema?: IQorusFormSchema
+): IAllowedValueAvailability => {
+  if (!value) {
+    return ALLOWED_VALUE_AVAILABLE;
+  }
+
+  /* `allOptions` is undefined only when there is no form around the picker at
+     all (see `OptionsContext`). A predicate about siblings has nothing to judge
+     there, and locking every gated value in a standalone picker would be a
+     rendering fault rather than a fact about the form. */
+  if (
+    size(value.depends_on) &&
+    allOptions &&
+    !hasAllDependenciesFullfilled(value.depends_on!, allOptions, schema)
+  ) {
+    const dependsOn = schema ? describeDependencies(value.depends_on!, schema) : '';
+
+    return {
+      available: false,
+      intent: 'warning',
+      reason:
+        dependsOn ?
+          `Unavailable because some dependencies are not fulfilled: ${dependsOn}`
+          // Nothing nameable: every entry pointed at a field this schema does
+          // not contain. A sentence that ends in a colon and then stops reads
+          // as a rendering fault rather than as a fact about the form.
+        : 'Unavailable because some dependencies are not fulfilled',
+    };
+  }
+
+  if (value.disabled) {
+    /* The refusal picks its own words out of `messages`, through the same
+       `when`/`unless` filter a field's messages go through — a served reason
+       can itself be conditional. The most serious one speaks: a `danger`
+       message is the one that explains a refusal, and an `info` note beside it
+       is not. */
+    const explanation = getRefusalMessage(getShownSchemaMessages(value.messages, allOptions, schema));
+
+    return {
+      available: false,
+      intent: (explanation?.intent as TReqoreIntent) || 'warning',
+      title: explanation?.title,
+      // A refusal with no message at all still has to say something: silence
+      // over a value that will not respond is the defect this whole mechanism
+      // exists to remove.
+      reason: explanation?.content || UNAVAILABLE_VALUE_FALLBACK_REASON,
+    };
+  }
+
+  return ALLOWED_VALUE_AVAILABLE;
+};
+
+/**
+ * The availability of each offered value, against the form the picker stands in.
+ *
+ * Aligned with `items`: the result at index `i` describes `items[i]`.
+ *
+ * The answer is computed INSIDE the context selector, not from a copy of the
+ * form values pulled out of it. `OptionsContext` hands down a fresh object on
+ * every render of the engine, so a picker that selected the values themselves
+ * would re-render on every keystroke anywhere in the form; selecting the
+ * computed answer re-renders it only when an availability actually changes.
+ *
+ * Values that gate on nothing skip the computation entirely, and that is a
+ * claim about each VALUE rather than about the field it belongs to. The gate
+ * used to be one flag for the whole list, so a single gated value in a
+ * thousand-item picker resolved all thousand and serialised all thousand on
+ * every keystroke anywhere in the form. Only the gated indices are resolved
+ * and serialised; every other position is the same frozen
+ * {@link ALLOWED_VALUE_AVAILABLE}, which costs nothing to fill in and lets
+ * identity say "nothing to show".
+ */
+export const useAllowedValueAvailability = (
+  items: readonly IAllowedValueAvailabilityInput[] | undefined
+): IAllowedValueAvailability[] => {
+  const gatedIndices = useMemo(
+    () =>
+      (items || []).reduce<number[]>((indices, item, index) => {
+        if (size(item?.depends_on) || item?.disabled === true) {
+          indices.push(index);
+        }
+        return indices;
+      }, []),
+    [items]
+  );
+
+  const serialized = useContextSelector(OptionsContext, (context) =>
+    gatedIndices.length ?
+      JSON.stringify(
+        gatedIndices.map((index) =>
+          getAllowedValueAvailability(items![index], context.value, context.schema)
+        )
+      )
+    : ''
+  );
+
+  return useMemo(() => {
+    const result = (items || []).map(() => ALLOWED_VALUE_AVAILABLE);
+
+    if (!serialized) {
+      return result;
+    }
+
+    // Aligned back onto the caller's own indices: the picker asks for
+    // `availability[i]` and must get the answer for `items[i]`.
+    const resolved = JSON.parse(serialized) as IAllowedValueAvailability[];
+    gatedIndices.forEach((index, position) => {
+      result[index] = resolved[position];
+    });
+
+    return result;
+  }, [serialized, items, gatedIndices]);
+};
 
 export interface IOptionFieldMessagesProps {
   schema: IQorusFormSchema;

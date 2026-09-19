@@ -1872,19 +1872,28 @@ export const getUnresolvedRequiredOptions = (
 /**
  * Split a dependency entry into the sibling it names and how its value is compared.
  *
- * Three forms: `name` (the sibling must simply have a value), `name=value` (it must
- * have exactly that value) and `name!=value` (it must have a value, and not that
- * one). The negative form is what lets a field say it applies to every variant of a
- * record but one — spelling that as an `any-of` list of every other variant is both
- * unreadable in the "Depends on" lock and silently wrong the moment a variant is
- * added.
+ * Four forms: `name` (the sibling must simply have a value), `!name` (it must have
+ * none), `name=value` (it must have exactly that value) and `name!=value` (it must
+ * have a value, and not that one). The negative comparison is what lets a field say
+ * it applies to every variant of a record but one — spelling that as an `any-of`
+ * list of every other variant is both unreadable in the "Depends on" lock and
+ * silently wrong the moment a variant is added.
  *
  * `!=` deliberately requires the sibling to be answered: "not X" is a statement about
  * an answer, so an unanswered sibling does not satisfy it and the field stays locked.
+ *
+ * `!name` is the form that statement cannot make. Two options that exclude one
+ * another (a converter that reads NodeSet2 and one that writes OpenAPI 3) each
+ * apply only while the OTHER has not been answered at all, and `name!=value` cannot
+ * say that: it requires an answer. Being a predicate like any other, it composes
+ * with the AND of the top-level entries and the OR of a nested list for free.
+ *
+ * `!` binds to the whole entry, so `!name` never carries a value; `!=` is checked
+ * first, which is what keeps `name!=value` from being read as a leading `!`.
  */
 export const parseDependency = (
   dependency: string
-): { name: string; op?: '=' | '!='; value?: string } => {
+): { name: string; op?: '=' | '!=' | '!'; value?: string } => {
   const neqIdx = dependency.indexOf('!=');
   if (neqIdx !== -1) {
     return {
@@ -1903,8 +1912,24 @@ export const parseDependency = (
     };
   }
 
+  if (dependency.startsWith('!')) {
+    return { name: dependency.substring(1), op: '!' };
+  }
+
   return { name: dependency };
 };
+
+/** Whether the named sibling currently holds a value this form accepts. */
+const siblingHasValue = (
+  name: string,
+  options: TQorusForm,
+  optionsSchema?: IQorusFormSchema
+): boolean =>
+  validateField(options?.[name]?.type, options?.[name]?.value, {
+    ...(optionsSchema?.[name] as unknown as IFieldValidationProps),
+    options,
+    optionSchema: optionsSchema,
+  });
 
 /** Whether one dependency entry holds against the current form values. */
 const isDependencyFulfilled = (
@@ -1914,6 +1939,15 @@ const isDependencyFulfilled = (
 ): boolean => {
   const { name, op, value } = parseDependency(dependency);
 
+  if (op === '!') {
+    // "Has no value" is true of a field the form has not materialized at all —
+    // there is nothing there to be the value. So an absent sibling satisfies
+    // this, exactly as it satisfies the bare form below: neither has an answer
+    // to judge, and a mutual exclusion that locked both halves until one of
+    // them was added would offer the author no way in.
+    return !options?.[name] || !siblingHasValue(name, options, optionsSchema);
+  }
+
   if (op) {
     const optValue = options?.[name]?.value;
     if (optValue == null) {
@@ -1922,13 +1956,7 @@ const isDependencyFulfilled = (
     return op === '=' ? String(optValue) === value : String(optValue) !== value;
   }
 
-  return options?.[name]
-    ? validateField(options[name].type, options[name].value, {
-        ...(optionsSchema?.[name] as unknown as IFieldValidationProps),
-        options,
-        optionSchema: optionsSchema,
-      })
-    : true;
+  return options?.[name] ? siblingHasValue(name, options, optionsSchema) : true;
 };
 
 export const hasAllDependenciesFullfilled = (
