@@ -31,13 +31,9 @@ vi.mock('../src/components/form/expressions/ExpressionField', () => ({
 
 import { TemplateField } from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 describe('the return type handed to the expression builder', () => {
   it('is the declared data type, not the ui_type that chose the editor', async () => {
@@ -45,7 +41,7 @@ describe('the return type handed to the expression builder', () => {
 
     render(
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as never}>
+        <FetchContext.Provider value={fetchContext}>
           <TemplateField
             name='expected'
             aria-label='Expected Value'

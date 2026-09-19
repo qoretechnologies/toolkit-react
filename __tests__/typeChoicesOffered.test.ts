@@ -47,6 +47,14 @@ describe('offersTypeChoices', () => {
     expect(offersTypeChoices({ ui_type: 'string', type: 'auto' } as never)).toBe(false);
   });
 
+  it('reads a type the server sends as a list by its first entry', () => {
+    // A data provider option that accepts several types is sent with them as a
+    // list; the field renders as the first (see `getType`), so that entry is
+    // the one that decides whether the author chooses.
+    expect(offersTypeChoices({ type: ['auto', 'string'] } as never)).toBe(true);
+    expect(offersTypeChoices({ type: ['string', 'auto'] } as never)).toBe(false);
+  });
+
   it('answers false for a missing option rather than throwing', () => {
     expect(offersTypeChoices(undefined)).toBe(false);
   });

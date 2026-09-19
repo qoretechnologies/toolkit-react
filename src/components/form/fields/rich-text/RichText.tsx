@@ -56,6 +56,18 @@ export interface IRichTextFormFieldProps extends Omit<
   valueFormat?: 'richtext' | 'text';
   /** With `valueFormat: 'text'`: the value holds one line, so Enter adds none. */
   singleLine?: boolean;
+  /**
+   * With `valueFormat: 'text'`: the token grammar the value's references are
+   * WRITTEN in, when the host speaks one of its own.
+   *
+   * The field schema's `templateToken` (`TFieldWithOwnTemplates`), which the
+   * read-only renderings already take. Without it this editor knew only
+   * reqraft's built-in `$key:{path}`, so a host's own spelling — a Qorus test's
+   * `$._case.mode` — was a named chip on the collapsed row and raw text in the
+   * editor that row opens. Declared here, and deliberately NOT forwarded to
+   * Reqore's editor, which has no such prop.
+   */
+  templateToken?: RegExp | string;
 }
 
 /**
@@ -105,11 +117,12 @@ export const RichTextFormField = memo(({
   templates,
   valueFormat = 'richtext',
   singleLine,
+  templateToken,
   ...rest
 }: IRichTextFormFieldProps) => {
   const isText = valueFormat === 'text';
   const [localValue, setLocalValue] = useState<any>(() =>
-    isText ? templateTextToNodes(String(value ?? ''), templates) : value
+    isText ? templateTextToNodes(String(value ?? ''), templates, templateToken) : value
   );
   /* In text mode, the string the editor's document stands for. The value that
      comes back from the parent is usually that same string, and rebuilding the
@@ -122,7 +135,7 @@ export const RichTextFormField = memo(({
       const text = String(value ?? '');
       if (text !== lastTextRef.current) {
         lastTextRef.current = text;
-        setLocalValue(templateTextToNodes(text, templates));
+        setLocalValue(templateTextToNodes(text, templates, templateToken));
       }
       return;
     }
@@ -159,7 +172,7 @@ export const RichTextFormField = memo(({
       // stopped below. Flattened text is shown as the one line it now is.
       if (singleLine && hasLineBreak(text)) {
         lastTextRef.current = flattenToSingleLine(text);
-        setLocalValue(templateTextToNodes(lastTextRef.current, templates));
+        setLocalValue(templateTextToNodes(lastTextRef.current, templates, templateToken));
         return;
       }
       lastTextRef.current = text;

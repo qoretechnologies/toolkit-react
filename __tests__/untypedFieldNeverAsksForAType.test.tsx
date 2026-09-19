@@ -44,15 +44,11 @@ vi.mock('../src/components/form/fields/rich-text/RichText', () => ({
   },
 }));
 import { AutoFormField } from '../src/components/form/fields/auto/AutoFormField';
-import { TemplateField } from '../src/components/form/fields/template/TemplateField';
+import { TemplateField, ITemplateFieldProps } from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 const TEMPLATES = {
   items: [{ label: 'Values this case captures', items: [{ value: '$.result', label: 'result' }] }],
@@ -60,11 +56,11 @@ const TEMPLATES = {
 
 const wrap = (node: React.ReactNode) => (
   <ReqoreUIProvider>
-    <FetchContext.Provider value={fetchContext as never}>{node}</FetchContext.Provider>
+    <FetchContext.Provider value={fetchContext}>{node}</FetchContext.Provider>
   </ReqoreUIProvider>
 );
 
-const untyped = (props: Record<string, unknown>) =>
+const untyped = (props: Partial<ITemplateFieldProps>) =>
   wrap(
     <TemplateField
       name='expected'
@@ -73,7 +69,7 @@ const untyped = (props: Record<string, unknown>) =>
       allowCustomValues
       filterTemplatesByType={false}
       onChange={vi.fn()}
-      {...(props as never)}
+      {...props}
     />
   );
 

@@ -8,13 +8,9 @@ vi.mock('../src/hooks/useStorage/useStorage', () => ({
 
 import { Expression } from '../src/components/form/expressions/builder';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-} as any;
+const fetchContext = emptyFetchContext();
 
 /**
  * The served `value` expression: one argument, declared `any`.

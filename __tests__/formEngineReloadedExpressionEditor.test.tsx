@@ -40,13 +40,9 @@ vi.mock('../src/hooks/useStorage/useStorage', () => ({
 
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /** `1 + 2`, as the expression builder stores it. */
 const AST = {
@@ -70,13 +66,12 @@ const SCHEMA = {
 const renderExpanded = async (value: Record<string, unknown>) => {
   const { container } = render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as never}>
+      <FetchContext.Provider value={fetchContext}>
         <FormEngine
           compact
           // The editor mounts only for an expanded row — the whole point.
           initialExpandedOptions={['expected_value']}
           name='reloaded-expression'
-          allowFunctions
           value={value as never}
           options={SCHEMA as never}
           onChange={vi.fn()}

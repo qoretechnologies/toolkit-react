@@ -77,7 +77,11 @@ export const useExpressions = (
   const expressions = useMemo<IExpressionSchema[]>(() => {
     if (errorOverride) return [];
     if (override) return override;
-    const base = system.data ?? [];
+    // Through `asArray` like the extras: an answer that is not a list (the
+    // instance-info hash, when something answers `system` for
+    // `system?action=expressions`) leaves the catalogue empty instead of
+    // throwing inside every form below.
+    const base = asArray(system.data);
     const extras = expressionsUrl ? asArray(extra.data) : extraExpressions ?? [];
     return mergeExpressions(base, extras);
   }, [override, errorOverride, system.data, extra.data, expressionsUrl, extraExpressions]);

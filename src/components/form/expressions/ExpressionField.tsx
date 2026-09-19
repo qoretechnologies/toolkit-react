@@ -10,6 +10,7 @@ import {
   ReqoreButton,
   ReqoreControlGroup,
   ReqoreMessage,
+  ReqoreVerticalSpacer,
 } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -441,9 +442,10 @@ export const ExpressionField = memo(
                   ' That conversion is attempted rather than guaranteed, so the value itself is checked when it runs.'
                 : ''}
                 {typeCheck.fix ? (
-                  <div style={{ marginTop: '6px' }}>
+                  <>
+                    <ReqoreVerticalSpacer height={6} />
                     <DpqlRendering text={typeCheck.fix} data-testid='expression-type-fix' />
-                  </div>
+                  </>
                 ) : null}
               </ReqoreMessage>
             )}

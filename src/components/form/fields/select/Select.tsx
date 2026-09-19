@@ -12,7 +12,8 @@ import { TReqoreSelectItem } from '@qoretechnologies/reqore/dist/components/Sele
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { isEqual, size } from 'lodash';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { RowOpenPickerContext } from '../../engine/rowOpenPicker';
 import {
   getSelectItemShortDescription,
   ISelectFieldCollectionItem,
@@ -99,6 +100,31 @@ export const SelectFormField = memo(
   }: ISelectFormFieldProps) => {
     const [items, setItems] = useState<ISelectFormFieldItem[]>(fixItems(rawItems));
     const [collectionOpen, setCollectionOpen] = useState(false);
+    // Reqore owns the anchored list's open state; this mirrors it so the
+    // trigger can say `aria-expanded` truthfully.
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+
+    /* A compact row the author opened into THIS control asks it to show the
+       choices, instead of drawing a closed trigger that reprints the value the
+       collapsed row had just printed (see `RowOpenPickerContext`). A rising
+       edge, so closing the list again does not fight the instruction. */
+    // Composed rather than replaced: `rest` is spread onto the dropdown and a
+    // caller may already be watching it.
+    const callerToggle = (rest as { onToggleChange?: (open: boolean) => void }).onToggleChange;
+    const handleDropdownToggle = useCallback(
+      (open: boolean) => {
+        setDropdownOpen(open);
+        callerToggle?.(open);
+      },
+      [callerToggle]
+    );
+
+    const rowAsksForTheChoices = useContext(RowOpenPickerContext);
+    useEffect(() => {
+      if (rowAsksForTheChoices) {
+        setCollectionOpen(true);
+      }
+    }, [rowAsksForTheChoices]);
 
     useEffect(() => {
       setItems(fixItems(rawItems));
@@ -430,6 +456,14 @@ export const SelectFormField = memo(
             badge={itemCount}
             {...getIcon(items, value)}
             rightIcon={showRightIcon ? 'ExpandUpDownLine' : undefined}
+            /* What this control IS: a trigger that opens the picker dialog, not
+               a place the value can be typed. Assistive technology has always
+               needed this, and a compact row's opening reads it too — a row the
+               author opened lands them in the list rather than on a closed
+               trigger reprinting the value the read row already showed
+               (`isClosedPickerTrigger`). */
+            aria-haspopup='dialog'
+            aria-expanded={collectionOpen}
             onClick={(e) => {
               e.stopPropagation();
               setCollectionOpen(true);
@@ -446,6 +480,15 @@ export const SelectFormField = memo(
           </ReqoreButton>
         : <ReqoreDropdown
             {...(rest as any)}
+            /* Same declaration as the dialog trigger above, for the anchored
+               list this branch draws instead. `onToggleChange` keeps
+               `aria-expanded` honest — reqore owns the popover's open state. */
+            aria-haspopup='listbox'
+            aria-expanded={dropdownOpen}
+            onToggleChange={handleDropdownToggle}
+            // Reqore opens the anchored list when this turns true, on mount or
+            // later — so the same instruction serves both pickers.
+            isDefaultOpen={rowAsksForTheChoices}
             items={reqoreItems}
             listCustomTheme={{
               main: '#010811',

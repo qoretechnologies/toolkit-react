@@ -8,13 +8,9 @@ vi.mock('../src/hooks/useStorage/useStorage', () => ({
 
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-} as any;
+const fetchContext = emptyFetchContext();
 
 const SCHEMA = {
   subject: { type: 'auto', display_name: 'Value', desc: 'The value this assertion is about' },

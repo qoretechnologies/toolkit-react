@@ -1,15 +1,11 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /** A test assertion's Path: the candidates are known one level deep, and
  * anything below a field whose declared type is open is not — so the field
@@ -64,8 +60,16 @@ describe('FormEngine creatable allowed-value fields', () => {
     });
 
     // The chip reads as the human label the producer gave the path, not as the
-    // `$.`-grammar spelling the author never needed to learn
-    const chip = await screen.findByText('status from create');
+    // `$.`-grammar spelling the author never needed to learn.
+    //
+    // Scoped to the row: an opened row puts the caret in the control it
+    // offers, and a picker that has the caret lists its candidates — so the
+    // same label is also on screen in the (portalled) list, which is not what
+    // this assertion is about.
+    await waitFor(() => expect(container.querySelector('.readfirst-row-editing')).toBeTruthy());
+    const chip = within(
+      container.querySelector('.readfirst-row-editing') as HTMLElement
+    ).getByText('status from create');
     expect(chip.closest('.reqore-tag')).toBeTruthy();
 
     // …and the chip belongs to the creatable picker, not to a read-only summary

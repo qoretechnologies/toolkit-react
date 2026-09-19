@@ -3,6 +3,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
 // `query` is imported directly by the components under test (CompactRow resolves
 // an arg_schema id with it, exactly as AutoFormField does), so it has to be
@@ -13,12 +14,7 @@ vi.mock('../src/utils/fetch', async (importOriginal) => ({
   query: (...args: unknown[]) => queryMock(...args),
 }));
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /**
  * Two affordances on a compact form that both stopped one click short of the

@@ -3,13 +3,9 @@ import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 describe('inherit_props reaches a consumer-injected editor', () => {
   it('hands a host editor the sibling values its field declared', async () => {
@@ -27,7 +23,7 @@ describe('inherit_props reaches a consumer-injected editor', () => {
 
     const { findByTestId } = render(
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as never}>
+        <FetchContext.Provider value={fetchContext}>
           <FormEngine
             name='inherit-props'
             value={{

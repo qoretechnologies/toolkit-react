@@ -1,11 +1,15 @@
-import { ReqoreDropdown } from '@qoretechnologies/reqore';
-import { ComponentProps, ReactNode } from 'react';
+import type { TReqoreDropdownItems } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
+import { ReactNode } from 'react';
 import { Composer, IComposerSendAction, TComposerEditor } from '../composer/Composer';
 import { fileToAttachment as defaultFileToAttachment } from './fileToAttachment';
 import { IAttachmentUpload } from './meta';
 
-/** The exact `items` shape ReqoreDropdown accepts — no import-path guessing. */
-type TAttachMenuItems = NonNullable<ComponentProps<typeof ReqoreDropdown>['items']>;
+/**
+ * The `items` shape ReqoreDropdown accepts. Named, not derived: `ReqoreDropdown`
+ * is a generic component, and `ComponentProps` of a generic resolves to `{}`
+ * under strict checking — so the derived type had no `items` at all.
+ */
+type TAttachMenuItems = TReqoreDropdownItems;
 
 export interface ITicketReplyBoxProps {
   /** Send the composed message. `internal` is only ever true when

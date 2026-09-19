@@ -26,6 +26,9 @@
     "./mock/*",
     "__tests__/*",
     "./src/**/*.stories.tsx",
+    "./src/**/__fixtures__/**/*",
+    "./src/components/form/expressions/dpqlMockLanguage.ts",
+    "./src/components/form/expressions/dpqlMockLsp.ts",
     "./src/types.ts",
     "./src/stories/**/*"
   ],

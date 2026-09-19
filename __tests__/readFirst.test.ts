@@ -6,6 +6,7 @@
  * Breaking the implementation must cause at least one test to fail.
  */
 
+import type { TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import {
   colorToCss,
   formatBytes,
@@ -46,10 +47,11 @@ describe('isOptionValueEmpty', () => {
 });
 
 describe('shouldAutoCollapseCompactAllowedValueOption', () => {
-  const fixedChoiceSchema = {
+  const fixedChoiceSchema: TQorusFormFieldSchema = {
     type: 'string',
-    allowed_values: [{ value: 'api', display_name: 'API' }],
-  } as never;
+    ui_type: 'string',
+    allowed_values: [{ value: { type: 'string', value: 'api' }, display_name: 'API' }],
+  };
 
   it('identifies fixed allowed-value fields that do not need a Done confirmation', () => {
     expect(isFixedCompactAllowedValueOption(fixedChoiceSchema)).toBe(true);
@@ -57,11 +59,9 @@ describe('shouldAutoCollapseCompactAllowedValueOption', () => {
       isFixedCompactAllowedValueOption({
         ...fixedChoiceSchema,
         allowed_values_creatable: true,
-      } as never)
+      })
     ).toBe(false);
-    expect(
-      isFixedCompactAllowedValueOption({ ...fixedChoiceSchema, arg_schema: {} } as never)
-    ).toBe(false);
+    expect(isFixedCompactAllowedValueOption({ ...fixedChoiceSchema, arg_schema: {} })).toBe(false);
   });
 
   it('auto-collapses fixed allowed-value selections', () => {
@@ -75,7 +75,7 @@ describe('shouldAutoCollapseCompactAllowedValueOption', () => {
   it('does not auto-collapse creatable allowed-value fields', () => {
     expect(
       shouldAutoCollapseCompactAllowedValueOption(
-        { ...fixedChoiceSchema, allowed_values_creatable: true } as never,
+        { ...fixedChoiceSchema, allowed_values_creatable: true },
         'custom'
       )
     ).toBe(false);
@@ -83,10 +83,9 @@ describe('shouldAutoCollapseCompactAllowedValueOption', () => {
 
   it('does not auto-collapse multiselect fields', () => {
     expect(
-      shouldAutoCollapseCompactAllowedValueOption(
-        { ...fixedChoiceSchema, multiselect: true } as never,
-        ['api']
-      )
+      shouldAutoCollapseCompactAllowedValueOption({ ...fixedChoiceSchema, multiselect: true }, [
+        'api',
+      ])
     ).toBe(false);
   });
 });
@@ -96,6 +95,14 @@ describe('shouldAutoCollapseCompactOption', () => {
     expect(isCompactBooleanOption({ type: 'bool' } as never)).toBe(true);
     expect(isCompactBooleanOption({ ui_type: 'boolean' } as never)).toBe(true);
     expect(isCompactBooleanOption({ type: 'string' } as never)).toBe(false);
+  });
+
+  it('reads a type the server sends as a list by its first entry', () => {
+    // A data provider option can accept several types, and the server sends
+    // them as a list (`DataProvider::getInfoAsData()`); calling `toLowerCase`
+    // on that list threw and took the form to the error boundary.
+    expect(isCompactBooleanOption({ type: ['bool', 'string'] } as never)).toBe(true);
+    expect(isCompactBooleanOption({ type: ['string', 'bool'] } as never)).toBe(false);
   });
 
   it('auto-collapses explicit true and false choices but not an unset boolean', () => {

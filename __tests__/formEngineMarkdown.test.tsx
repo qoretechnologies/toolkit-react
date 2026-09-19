@@ -8,13 +8,9 @@ import {
   summariseMarkdown,
 } from '../src/components/form/engine/readFirst';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 const DOCUMENT = [
   '## Order intake',
@@ -28,7 +24,7 @@ const ONE_LINER = 'Receives orders from the **partner** portal.';
 const renderForm = (props: Record<string, unknown> = {}) =>
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as never}>
+      <FetchContext.Provider value={fetchContext}>
         <FormEngine
           compact
           name='markdown'

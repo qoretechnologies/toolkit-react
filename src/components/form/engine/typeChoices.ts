@@ -24,8 +24,8 @@
  * editor (`ui_type: 'string'`) has pinned the field even if its storage `type`
  * is still `auto`.
  */
-import { IQorusFormField } from '@qoretechnologies/ts-toolkit';
-import { UNTYPED_OPTION_TYPES } from '../../../helpers/optionUiTypes';
+import type { TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
+import { firstDeclaredType, UNTYPED_OPTION_TYPES } from '../../../helpers/optionUiTypes';
 
 /**
  * The spellings that mean "no concrete type" wherever they appear.
@@ -43,19 +43,21 @@ export const BuiltInAnyLikeTypes: readonly string[] = UNTYPED_OPTION_TYPES;
  * own — see `FormEngine`'s `anyLikeUiTypes`
  */
 export const offersTypeChoices = (
-  option: Partial<IQorusFormField> | undefined,
+  option: TQorusFormFieldSchema | undefined,
   extraUiTypes?: string[]
 ): boolean => {
   if (!option) {
     return false;
   }
 
-  const uiType = (option as { ui_type?: string }).ui_type;
+  const uiType: string | undefined = option.ui_type;
 
   if (uiType) {
     return BuiltInAnyLikeTypes.includes(uiType) || !!extraUiTypes?.includes(uiType);
   }
 
-  // No `ui_type`: the storage type is the only thing that can pin the field.
-  return BuiltInAnyLikeTypes.includes((option as { type?: string }).type as string);
+  // No `ui_type`: the storage type is the only thing that can pin the field,
+  // read as the field is rendered (`firstDeclaredType`).
+  const type = firstDeclaredType(option.type);
+  return type !== undefined && BuiltInAnyLikeTypes.includes(type);
 };

@@ -1,16 +1,12 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { FormEngine } from '../src/components/form/engine/FormEngine';
+import { FormEngine, IOptionsSchema } from '../src/components/form/engine/FormEngine';
 import { isConditionalMessageShown } from '../src/components/form/engine/OptionFieldMessages';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /**
  * A schema message that appears only for certain values of its siblings.
@@ -24,7 +20,7 @@ const fetchContext = {
 const WARNING = 'Anonymous callers skip these requirements entirely.';
 
 /** `permissions` warns only while the anonymous exemption is also on. */
-const SCHEMA = {
+const SCHEMA: IOptionsSchema = {
   permissions: {
     type: 'string',
     ui_type: 'string',
@@ -42,7 +38,7 @@ const SCHEMA = {
     ui_type: 'bool',
     display_name: 'Exempt Anonymous Callers',
   },
-} as never;
+};
 
 const renderForm = (value: never) =>
   render(
@@ -63,7 +59,7 @@ const withExemption = (on: boolean) =>
 const DANGER = 'This combination rejects every anonymous caller.';
 
 /** Same shape, but at the intent that actually re-buckets a field. */
-const DANGER_SCHEMA = {
+const DANGER_SCHEMA: IOptionsSchema = {
   permissions: {
     type: 'string',
     ui_type: 'string',
@@ -71,7 +67,7 @@ const DANGER_SCHEMA = {
     messages: [{ intent: 'danger', content: DANGER, when: ['allow_anonymous=true'] }],
   },
   allow_anonymous: { type: 'bool', ui_type: 'bool', display_name: 'Exempt Anonymous Callers' },
-} as never;
+};
 
 const renderDangerForm = (on: boolean) =>
   render(

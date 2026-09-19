@@ -8,6 +8,7 @@
 // back to the `$data:{dc_ai_reply.choices[0].message.content}` path.
 import { describe, expect, it } from 'vitest';
 import { makeDpqlTagRenderer } from '../../src/components/dpqlEditor/dpqlTags';
+import type { ISlateElement } from '../../src/components/smartEditor/types';
 
 const TEMPLATES = {
   items: [
@@ -25,7 +26,12 @@ const TEMPLATES = {
   ],
 } as never;
 
-const tag = (value: string) => ({ type: 'tag', value, label: value, children: [{ text: '' }] });
+const tag = (value: string): ISlateElement => ({
+  type: 'tag',
+  value,
+  label: value,
+  children: [{ text: '' }],
+});
 
 describe('makeDpqlTagRenderer template references', () => {
   it('names a reference the catalogue knows, by an alias and a path below it', () => {

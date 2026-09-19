@@ -24,6 +24,11 @@ module.exports = {
     sourceType: 'module',
   },
   plugins: ['@typescript-eslint', 'react'],
+  settings: {
+    react: {
+      version: 'detect',
+    },
+  },
   rules: {
     'linebreak-style': ['error', 'unix'],
     semi: ['error', 'always'],

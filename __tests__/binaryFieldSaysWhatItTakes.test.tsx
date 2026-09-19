@@ -19,12 +19,12 @@ vi.mock('../src/components/form/fields/long-string/LongString', () => ({
   },
 }));
 
-import { AutoFormField } from '../src/components/form/fields/auto/AutoFormField';
+import { AutoFormField, IAutoFieldProps } from '../src/components/form/fields/auto/AutoFormField';
 
-const field = (props: Record<string, unknown>) =>
+const field = (props: Partial<IAutoFieldProps>) =>
   render(
     <ReqoreUIProvider>
-      <AutoFormField name='blob' value={'' as never} onChange={vi.fn()} {...(props as never)} />
+      <AutoFormField name='blob' value={'' as never} onChange={vi.fn()} {...props} />
     </ReqoreUIProvider>
   );
 

@@ -1,15 +1,11 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FetchContext } from '../src/contexts/FetchContext';
-import { FormEngine } from '../src/components/form/engine/FormEngine';
+import { FormEngine, IOptionsSchema } from '../src/components/form/engine/FormEngine';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /**
  * Several compact engines can be mounted at once with colliding field names —
@@ -34,9 +30,10 @@ describe('FormEngine moved-field flash scoping', () => {
     Element.prototype.scrollIntoView = originalScrollIntoView;
   });
 
-  const guildSchema = {
+  const guildSchema: IOptionsSchema = {
     guild: {
       type: 'string',
+      ui_type: 'string',
       display_name: 'Server',
       required: true,
       supports_expressions: false,

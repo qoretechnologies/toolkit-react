@@ -18,6 +18,7 @@ import {
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { StyledEffect } from '@qoretechnologies/reqore/dist/components/Effect';
+import type { TReqoreDropdownItems } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import type { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import type { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import {
@@ -45,8 +46,12 @@ import {
 type TIntent = ComponentProps<typeof ReqoreButton>['intent'];
 type TEffect = ComponentProps<typeof StyledEffect>['effect'];
 type TCustomTheme = ComponentProps<typeof ReqoreButton>['customTheme'];
-/** The exact `items` shape ReqoreDropdown accepts. */
-type TDropdownItems = NonNullable<ComponentProps<typeof ReqoreDropdown>['items']>;
+/**
+ * The `items` shape ReqoreDropdown accepts. Named, not derived: `ReqoreDropdown`
+ * is a generic component, and `ComponentProps` of a generic resolves to `{}`
+ * under strict checking — so the derived type had no `items` at all.
+ */
+type TDropdownItems = TReqoreDropdownItems;
 
 /** Which editor the composer renders. */
 export type TComposerEditor = 'rich' | 'plain';

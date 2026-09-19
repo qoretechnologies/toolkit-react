@@ -12,7 +12,7 @@ import {
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { RowMenuContext, useRowMenuRegistry } from './rowMenuContext';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
-import { resolveOptionActions } from './optionActions';
+import { optionActionAsMenuItem, resolveOptionActions, splitOptionActions } from './optionActions';
 import {
   IQorusFormField,
   IQorusFormSchema,
@@ -25,15 +25,11 @@ import size from 'lodash/size';
 import React, { memo } from 'react';
 import { useContextSelector } from 'use-context-selector';
 import { hasAllDependenciesFullfilled, parseDependency } from '../../../helpers/validations';
-import {
-  findTemplate,
-  getTemplateTagStyle,
-  isValueTemplate,
-  templateTooltip,
-  TTemplateMeta,
-} from '../../../helpers/templates';
+import { findTemplate, isValueTemplate } from '../../../helpers/templates';
 import { getDefaultValue, richtextToSegments, richtextToString } from '../../../helpers/common';
+import { hasTemplateText, templateTextSegments } from '../../../helpers/templateText';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
+import { TemplateText } from '../fields/template/TemplateText';
 import { describeCodeSize, formatCodeChars, formatCodeLines } from '../../codeSize';
 import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
@@ -57,6 +53,8 @@ import {
   StyledStatusDot,
 } from './compactRowStyles';
 import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMessages';
+import { findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
+import { RowOpenPickerContext } from './rowOpenPicker';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
 import { query } from '../../../utils/fetch';
 import {
@@ -135,12 +133,6 @@ const COMPACT_SINGLE_VALUE_TYPES = new Set([
   'method-name',
 ]);
 
-// How many consumer-injected actions may sit inline in a row before the rest
-// overflow into the row's menu. A row's action slot shares space with the
-// value; an unbounded button strip would squeeze the value out, and the
-// consumer controls how many actions it injects.
-const MAX_INLINE_OPTION_ACTIONS = 2;
-
 // One read-first row: label | value | action collapsed; the real editor (the
 // classic renderOption) expanded. `hidden` = search-surfaced optional —
 // activating the row adds the field first.
@@ -206,7 +198,6 @@ export const CompactRow = memo(
     const isExpanded = useContextSelector(CompactRowContext, (v) =>
       v.expandedOptions.includes(optionName)
     );
-    const autoFocusNameRef = useContextSelector(CompactRowContext, (v) => v.autoFocusNameRef);
     const isHighlighted = useContextSelector(CompactRowContext, (v) =>
       v.highlightedOptions.includes(optionName)
     );
@@ -259,27 +250,6 @@ export const CompactRow = memo(
 
     // Value-cell content: colour adds a swatch, file an icon + size; hash keeps
     // its "N fields" summary (sub-fields reveal beneath the row).
-    /**
-     * Flattens the line breaks in one prose segment of a richtext SUMMARY.
-     *
-     * The read-first row is a single line: every other value type reaches it
-     * through `whiteSpace: 'nowrap'`, which collapses newlines for free. The
-     * richtext branch is the only one that opts into `'pre'` — it has to, or the
-     * spaces that separate a word from the chip beside it are dropped — and `pre`
-     * also honours the newlines, which `nowrap` would have eaten.
-     *
-     * So a genuinely multi-line value (an alert rule's Gmail message body is five
-     * `\n`-separated lines) gave each segment after the first a blank first line.
-     * The wrapper centres its items, so a two-line-tall box centred against
-     * one-line chips put every word 12px below the chip beside it, and the row
-     * read as a staircase. Measured on supah: prose boxes 30px against 14px chips.
-     *
-     * A space, not nothing: consecutive prose segments are merged before they get
-     * here, so a value with a break and no chip between its lines would otherwise
-     * lose the word boundary entirely.
-     */
-    const collapseSummaryBreaks = (text: string): string => text.replace(/\s*\r?\n\s*/g, ' ');
-
     const renderReadFirstValue = (
       field: IQorusFormField,
       schema: TQorusFormFieldSchema | undefined,
@@ -328,7 +298,11 @@ export const CompactRow = memo(
                  `.reqore-icon`, so without this there is nothing to select the
                  mark by — in a test or in a consumer's stylesheet. */
               className='reqraft-expression-marker'
-              style={{ flexShrink: 0, opacity: 0.7 }}
+              /* Opacity through `effect`, which is how this repo dims a reqore
+                 component (see the card's `short_desc` below); only the flex
+                 rule, which reqore has no prop for, stays inline. */
+              effect={{ opacity: 0.7 }}
+              style={{ flexShrink: 0 }}
               tooltip='This value is an expression'
             />
             {rendered}
@@ -529,6 +503,9 @@ export const CompactRow = memo(
       // so a reference reads as the name it was chosen by here as well as in the
       // editor rather than as a raw path.
       const ownTemplates = (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates;
+      // The grammar the field declares its references in, when it speaks one of
+      // its own — the same schema key its rich-text editor is given.
+      const templateGrammar = (schema as TFieldWithOwnTemplates | undefined)?.templateToken;
       if (
         typeof field?.value === 'string' &&
         !(field as { is_expression?: boolean }).is_expression &&
@@ -557,36 +534,7 @@ export const CompactRow = memo(
       if (valueType === 'richtext' && Array.isArray(field?.value)) {
         const segments = richtextToSegments(field.value as never);
         if (segments.some((segment) => segment.kind === 'tag')) {
-          return (
-            <span style={{ ...wrapStyle, gap: 4, overflow: 'hidden' }}>
-              {segments.map((segment, index) =>
-                segment.kind === 'tag' ?
-                  <ReqoreTag
-                    key={index}
-                    size='tiny'
-                    // The chip's label has to be the same size as the prose it is
-                    // embedded in. The wrapper centres boxes, so two different text
-                    // sizes centred against each other cannot share a baseline, and
-                    // the chips visibly float above the words. Inheriting the row's
-                    // size makes centring align the baselines too, at whatever font
-                    // size the consuming app uses.
-                    style={{ fontSize: 'inherit' }}
-                    icon='ExchangeDollarLine'
-                    label={segment.text || segment.value}
-                    // The same card the chosen-template chip shows: what the
-                    // value IS, not the reference that names it.
-                    tooltip={templateTooltip(templates, segment.value)}
-                    {...getTemplateTagStyle(
-                      (templates ? findTemplate(templates, segment.value || '') : undefined)
-                        ?.metadata as TTemplateMeta | undefined
-                    )}
-                  />
-                : <span key={index} style={{ whiteSpace: full ? 'pre-wrap' : 'pre' }}>
-                    {full ? segment.text : collapseSummaryBreaks(segment.text)}
-                  </span>
-              )}
-            </span>
-          );
+          return <TemplateText segments={segments} templates={ownTemplates} full={full} />;
         }
       }
 
@@ -600,6 +548,30 @@ export const CompactRow = memo(
           <span style={{ minWidth: 0, flex: '1 1 auto', ...(full ? {} : { overflow: 'hidden' }) }}>
             <DpqlRendering text={formatted} templates={ownTemplates} />
           </span>
+        );
+      }
+
+      /* A value that MENTIONS a reference rather than being one.
+      
+         The branch above answers "is this value a template?", and a predicate is
+         not: `$._case.mode != 'simulate'` is a comparison the author wrote with a
+         reference inside it. So it fell all the way through to the plain string
+         and the row printed the engine's own spelling of a value the author had
+         picked by name — the one thing the template mechanism exists to stop.
+         Reported against the Skip-when field of a test case, where the list
+         above the drawer already named it and the drawer contradicted it.
+      
+         Drawn from `formatted` rather than from the raw value, so everything the
+         formatter already did — a joined list, a sensitive value's dots — still
+         holds, and only the references inside the resulting line become chips.
+         The author's own text around them survives exactly as typed. */
+      const templateSegments =
+        typeof formatted === 'string' && formatted ?
+          templateTextSegments(formatted, ownTemplates, templateGrammar)
+        : [];
+      if (templateSegments.some((segment) => segment.kind === 'tag')) {
+        return withExpressionMarker(
+          <TemplateText segments={templateSegments} templates={ownTemplates} full={full} />
         );
       }
 
@@ -620,37 +592,15 @@ export const CompactRow = memo(
       [availableOptions?.[optionName], optionActions, optionName, schema]
     );
     // Which injected actions stay as inline buttons, and which move into the
-    // overflow menu. Everything collapses on touch / narrow viewports — a
-    // hover-gated button is unreachable without a hover — and anything past the
-    // inline cap overflows regardless, so a consumer injecting ten actions can
-    // never push the row's value out of view.
+    // overflow menu — see `splitOptionActions`.
     const [inlineOptionActions, menuOptionActions] = React.useMemo<
       [IReqorePanelAction[], IReqorePanelAction[]]
     >(
-      () =>
-        collapseOptionActions ?
-          [[], injectedOptionActions]
-        : [
-            injectedOptionActions.slice(0, MAX_INLINE_OPTION_ACTIONS),
-            injectedOptionActions.slice(MAX_INLINE_OPTION_ACTIONS),
-          ],
+      () => splitOptionActions(injectedOptionActions, !!collapseOptionActions),
       [collapseOptionActions, injectedOptionActions]
     );
     const injectedOptionActionMenuItems = React.useMemo<IReqoreDropdownItem[]>(
-      () =>
-        menuOptionActions.map(
-          (action, index) =>
-            ({
-              // A panel action labels itself with `label`, but an icon-only one
-              // (the IDE's AI-assist button) carries its name in the tooltip —
-              // a menu row has no hover affordance to fall back on.
-              label: action.label ?? action.tooltip ?? `Action ${index + 1}`,
-              icon: action.icon,
-              intent: action.intent,
-              disabled: action.disabled,
-              onClick: () => action.onClick?.(),
-            }) as IReqoreDropdownItem
-        ),
+      () => menuOptionActions.map(optionActionAsMenuItem),
       [menuOptionActions]
     );
     const renderInjectedOptionAction = (
@@ -840,6 +790,16 @@ export const CompactRow = memo(
      * the wrong editor — which is the thing being fixed.
      */
     const inlineEditableLatch = React.useRef<boolean | undefined>(undefined);
+    /* Whether THIS opening was the author asking to change the value.
+     *
+     * A click (or Enter/Space) on a closed row means "let me edit this"; a row
+     * opened by the form itself — `initialExpandedOptions` from an address, the
+     * first-attention row, a diagram opening the step it is showing — means
+     * "here it is". Only the first answers the question the picker answers, so
+     * only the first opens one (see the caret effect below). A ref, because it
+     * is read by the effect that runs after the open and must not itself cause
+     * a render. */
+    const openedByAuthor = React.useRef(false);
     if (!isExpanded) {
       inlineEditableLatch.current = undefined;
     } else if (inlineEditableLatch.current === undefined) {
@@ -847,22 +807,113 @@ export const CompactRow = memo(
     }
     const inlineEditable = isExpanded ? !!inlineEditableLatch.current : inlineEditableNow;
 
-    // Auto-focus the editor's first input when a field is opened, so you can type
-    // straight away (matches the prototype's tap-to-edit feel).
+    /* The author's intent survives until the row is closed again, and no longer.
+     *
+     * An EFFECT, keyed on the row actually closing, rather than a line in the
+     * render body: between the click and the row opening there is a committed
+     * render that still reads `expandedOptions` without this row in it (the
+     * context propagates a beat after the handler runs), and clearing the flag
+     * on every collapsed render cleared it in that gap — the picker then never
+     * opened, which is the defect this whole mechanism exists to fix. Keyed on
+     * `isExpanded`, the transient render is not a change and the effect does
+     * not run; a genuine collapse is, and it does. */
+    React.useEffect(() => {
+      if (!isExpanded) {
+        openedByAuthor.current = false;
+      }
+    }, [isExpanded]);
+
+    /* The instruction the row gives its editor when it opens into a picker.
+     *
+     * State, not a call on the control: reqore's popover binds its own click
+     * listener in an effect keyed on the trigger element arriving, so a
+     * synthetic click dispatched from the row's own effect lands before
+     * anything is listening and does nothing at all. The editor opening itself
+     * from a prop has no such ordering to lose. */
+    const [openThePicker, setOpenThePicker] = React.useState(false);
+    React.useEffect(() => {
+      // One shot: true for the commit the editor acts on, false again after.
+      if (openThePicker) {
+        setOpenThePicker(false);
+      }
+    }, [openThePicker]);
+
+    // Put the caret in the row's editor when the row opens, so the reader can
+    // answer straight away (the prototype's tap-to-edit feel) — and so
+    // `autoFocusFirstRequired` means what it says.
+    //
+    // Whatever control the row OFFERS: `findRowFocusTarget` knows a pick-one is
+    // a set of `[tabindex]` checkboxes and a selector is a `<button>`, which a
+    // text-only scan skipped — so the engine opened the right row and the caret
+    // never moved. That is most of the first questions a form asks.
+    //
+    // The row is revealed before the caret lands in it, `block: 'nearest'` on
+    // the ROW. A caret nobody can see is not a caret: a form opened by a click
+    // usually mounts below the fold, and focusing something 700px down changes
+    // nothing on screen while the next keystroke goes somewhere invisible.
+    // `nearest` is by spec a no-op for a row already in view, so a form on
+    // screen never jumps, and it is the row that carries the label saying what
+    // the question is. A caller that wants the row opened WITHOUT the caret
+    // has `expandFirstRequired` for exactly that.
+    //
+    // A MutationObserver, not a timer: a host editor that resolves a catalogue
+    // before it can draw a control mounts it several commits after this effect
+    // runs, and there is no fixed time to wait for it — the control appearing
+    // IS the event. The 60ms timer this replaces missed every such editor, and
+    // fired too early or too late for every other one. One shot, and it gives
+    // up the moment the caret belongs to someone outside this row, so it can
+    // never pull a reader out of a control they moved into themselves.
     const editorRef = React.useRef<HTMLDivElement>(null);
+    const rowRef = React.useRef<HTMLDivElement>(null);
     React.useEffect(() => {
       if (!isExpanded) return undefined;
-      const id = window.setTimeout(() => {
-        const el = editorRef.current?.querySelector<HTMLElement>(
-          'input:not([type="hidden"]):not([disabled]), textarea, [contenteditable="true"]'
-        );
-        // A user-driven expand scrolls the just-opened editor into view; the
-        // programmatic `autoFocusFirstRequired` expand must NOT — otherwise an
-        // off-screen / below-the-fold form scrolls itself into view on mount.
-        el?.focus(autoFocusNameRef?.current === optionName ? { preventScroll: true } : undefined);
-      }, 60);
-      return () => window.clearTimeout(id);
-    }, [isExpanded, optionName, autoFocusNameRef]);
+      const editor = editorRef.current;
+      if (!editor) return undefined;
+      let settled = false;
+      const takeCaret = (): boolean => {
+        if (settled) return true;
+        const active = document.activeElement as HTMLElement | null;
+        if (active && active !== document.body && !rowRef.current?.contains(active)) {
+          // Someone else holds the caret — a field the reader moved into while
+          // this row's editor was still arriving. Leave it where it is.
+          settled = true;
+          return true;
+        }
+        const control = findRowFocusTarget(editor);
+        if (!control) return false;
+        // Optional call: jsdom does not implement `scrollIntoView`.
+        rowRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        // `preventScroll`, because the reveal above has already put the row
+        // where it belongs; letting focus scroll as well moves it twice.
+        control.focus({ preventScroll: true });
+        /* …and if the control the row offers is a PICKER, open it.
+         *
+         * A closed picker prints the value it holds, which is exactly what the
+         * read row printed — so the row opened, nothing on screen changed, and
+         * changing the value still cost a second click. Read-first is the
+         * COLLAPSED row's job; an open row is the editor.
+         *
+         * Narrow on purpose, and each term is a case where read-first is still
+         * right: only a row the author opened themselves (a form that opens a
+         * row to SHOW it must not throw a list over it), only an inline scalar
+         * row (a complex field opens a card that is a form in its own right —
+         * its first control is one of several and nobody asked for it), and
+         * only a control that declares itself a picker, so nothing else is
+         * ever clicked on the author's behalf. */
+        if (openedByAuthor.current && inlineEditable && isClosedPickerTrigger(control)) {
+          openedByAuthor.current = false;
+          setOpenThePicker(true);
+        }
+        settled = true;
+        return true;
+      };
+      if (takeCaret() || typeof MutationObserver === 'undefined') return undefined;
+      const observer = new MutationObserver(() => {
+        if (takeCaret()) observer.disconnect();
+      });
+      observer.observe(editor, { childList: true, subtree: true });
+      return () => observer.disconnect();
+    }, [isExpanded, optionName, inlineEditable]);
 
     // What the field held when it was opened — the baseline Cancel restores.
     //
@@ -1372,6 +1423,7 @@ export const CompactRow = memo(
         const editingRow = (
           <div
             key={optionName}
+            ref={rowRef}
             data-field={optionName}
             className='readfirst-row readfirst-row-editing options-readfirst-inline options-readfirst-value'
             style={
@@ -1474,9 +1526,13 @@ export const CompactRow = memo(
                   Only the editors rendered in the row are given the channel: the
                   fullscreen modal below has no row menu on screen, so an editor
                   there keeps drawing its own control. */}
-              <RowMenuContext.Provider value={rowMenu}>
-                {renderOption(optionName, optionField, 'small', true)}
-              </RowMenuContext.Provider>
+              {/* Scoped to the row's OWN editor: the absorbed siblings above
+                  are other fields, which this row did not open. */}
+              <RowOpenPickerContext.Provider value={openThePicker}>
+                <RowMenuContext.Provider value={rowMenu}>
+                  {renderOption(optionName, optionField, 'small', true)}
+                </RowMenuContext.Provider>
+              </RowOpenPickerContext.Provider>
             </div>
             <StyledRowActions>
               {draftChip}
@@ -1835,6 +1891,19 @@ export const CompactRow = memo(
           (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates ?? {},
           optionField.value
         ));
+    /* And once more for a value that only MENTIONS references — a predicate, a
+       greeting with a name in it. The row draws those as prose plus chips too,
+       so a native `title` would hover the raw spelling of exactly what the chips
+       replaced, and each chip's own popover would fire alongside it. */
+    const showsTemplateText =
+      !hidden &&
+      !showsTemplateTag &&
+      !!formatted &&
+      hasTemplateText(
+        formatted,
+        (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates,
+        (schema as TFieldWithOwnTemplates | undefined)?.templateToken
+      );
     // Markdown reads the same way for the same reason: the row itself can only
     // show a line of text, and for markdown that line is the SOURCE — the reader
     // gets `## ` and `**` where the point of the value is what it looks like
@@ -2008,6 +2077,10 @@ export const CompactRow = memo(
       if (target?.classList?.contains('readfirst-row')) {
         readRowHeights.current[optionName] = Math.round(target.getBoundingClientRect().height);
       }
+      // The author asked for this one — so the row opens all the way (a picker
+      // opens its list rather than reprinting the value as a closed trigger).
+      // Only when it is OPENING: the same handler collapses an open row.
+      openedByAuthor.current = !isExpanded;
       // Optional fields aren't "added" — every one is editable in place. Opening a
       // not-yet-set field just expands its editor (with an empty value); it joins
       // the form's output the moment a value is set (and moves to Set / Needs
@@ -2149,6 +2222,7 @@ export const CompactRow = memo(
               !showMarkdownPreview &&
               !showsTemplateChips &&
               !showsTemplateTag &&
+              !showsTemplateText &&
               typeof formatted === 'string'
             ) ?
               formatted

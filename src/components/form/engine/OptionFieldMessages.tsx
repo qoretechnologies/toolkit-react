@@ -51,12 +51,12 @@ export const isConditionalMessageShown = (
   optionsSchema?: IQorusFormSchema
 ): boolean => {
   const values = allOptions || {};
-  if (message.when && !hasAllDependenciesFullfilled(message.when as never, values, optionsSchema)) {
+  if (message.when && !hasAllDependenciesFullfilled(message.when, values, optionsSchema)) {
     return false;
   }
   if (
     message.unless &&
-    hasAllDependenciesFullfilled(message.unless as never, values, optionsSchema)
+    hasAllDependenciesFullfilled(message.unless, values, optionsSchema)
   ) {
     return false;
   }

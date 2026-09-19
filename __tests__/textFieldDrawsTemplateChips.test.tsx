@@ -32,15 +32,15 @@ vi.mock('../src/components/form/fields/long-string/LongString', () => ({
   },
 }));
 
-import { AutoFormField } from '../src/components/form/fields/auto/AutoFormField';
+import { AutoFormField, IAutoFieldProps } from '../src/components/form/fields/auto/AutoFormField';
 
 const TEMPLATES = { items: [{ label: 'Interface ID', value: '$local:id' }] };
 const VALUE = 'Interface $local:id failed';
 
-const field = (props: Record<string, unknown>) =>
+const field = (props: Partial<IAutoFieldProps>) =>
   render(
     <ReqoreUIProvider>
-      <AutoFormField name='message' value={VALUE} onChange={vi.fn()} {...(props as never)} />
+      <AutoFormField name='message' value={VALUE} onChange={vi.fn()} {...props} />
     </ReqoreUIProvider>
   );
 

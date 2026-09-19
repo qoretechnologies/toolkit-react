@@ -79,11 +79,15 @@ export const getDefaultValue = (schema?: TQorusFormFieldSchema): unknown | undef
     return undefined;
   }
   if ('default_value' in schema) {
-    if (schema.default_value != null && typeof schema.default_value === 'object') {
-      return schema.default_value.value;
+    const value: unknown = schema.default_value;
+    // The server sends a default either bare, of any type — a list or a hash
+    // included — or in a `{ type, value }` envelope; only the envelope is
+    // unwrapped.
+    if (value != null && typeof value === 'object' && !Array.isArray(value) && 'type' in value) {
+      return (value as { value?: unknown }).value;
     }
 
-    return schema.default_value;
+    return value;
   }
 
   return undefined;

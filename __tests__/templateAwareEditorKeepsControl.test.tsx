@@ -15,19 +15,11 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import {
-  BuiltInTemplateAwareUiTypes,
-  isTemplateAwareUiType,
-  TemplateField,
-} from '../src/components/form/fields/template/TemplateField';
+import { BuiltInTemplateAwareUiTypes, isTemplateAwareUiType, TemplateField, ITemplateFieldProps } from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 const TEMPLATES = {
   items: [
@@ -40,10 +32,10 @@ const HostEditor = (props: any) => (
   <div data-testid='host-editor' data-allow-templates={String(!!props.allowTemplates)} />
 );
 
-const renderField = (props: Record<string, unknown>) =>
+const renderField = (props: Partial<ITemplateFieldProps>) =>
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as never}>
+      <FetchContext.Provider value={fetchContext}>
         <TemplateField
           name='value'
           allowTemplates
@@ -51,7 +43,7 @@ const renderField = (props: Record<string, unknown>) =>
           filterTemplatesByType={false}
           onChange={vi.fn()}
           component={HostEditor as never}
-          {...(props as never)}
+          {...props}
         />
       </FetchContext.Provider>
     </ReqoreUIProvider>

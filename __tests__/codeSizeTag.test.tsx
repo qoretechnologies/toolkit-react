@@ -15,6 +15,7 @@ import {
   describeCodeSize,
   formatCodeChars,
   formatCodeLines,
+  IReqraftCodeSizeTagProps,
 } from '../src/components/codeSize';
 
 describe('describeCodeSize', () => {
@@ -52,10 +53,10 @@ describe('code size phrasing', () => {
 });
 
 describe('ReqraftCodeSizeTag', () => {
-  const renderTag = (props: Record<string, unknown>) =>
+  const renderTag = (props: Partial<IReqraftCodeSizeTagProps>) =>
     render(
       <ReqoreUIProvider>
-        <ReqraftCodeSizeTag code='' {...(props as never)} />
+        <ReqraftCodeSizeTag code='' {...props} />
       </ReqoreUIProvider>
     );
 

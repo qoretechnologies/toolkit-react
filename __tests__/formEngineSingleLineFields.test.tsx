@@ -3,6 +3,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
 const queryMock = vi.fn(async () => ({ ok: true, data: [] }));
 vi.mock('../src/utils/fetch', async (importOriginal) => ({
@@ -10,12 +11,7 @@ vi.mock('../src/utils/fetch', async (importOriginal) => ({
   query: () => queryMock(),
 }));
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-} as never;
+const fetchContext = emptyFetchContext();
 
 /**
  * A single-line field must still be single-line once FormEngine has built it.

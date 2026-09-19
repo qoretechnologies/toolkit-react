@@ -3,13 +3,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /**
  * A schema message is PROSE, and prose is the host's to draw.
@@ -49,7 +45,7 @@ const hostRenderer = vi.fn(({ value, compact }: { value: string; compact?: boole
 const renderForm = (withHost = true) =>
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as never}>
+      <FetchContext.Provider value={fetchContext}>
         {/* The renderer is a PROP: `FormEngine` provides it into the context
             itself, so an outer provider is shadowed by the prop's value. This is
             exactly how a host supplies one. */}

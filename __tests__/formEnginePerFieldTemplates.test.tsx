@@ -3,13 +3,9 @@ import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /** The form's shared vocabulary, offered to every template-capable field. */
 const SHARED_TEMPLATES = {
@@ -24,7 +20,7 @@ const FIELD_TEMPLATES = {
 const renderForm = (options: Record<string, unknown>, props: Record<string, unknown> = {}) =>
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as never}>
+      <FetchContext.Provider value={fetchContext}>
         <FormEngine
           // The COMPACT (read-first) form is where the hand-off under test
           // lives; the classic form rest-spreads the field descriptor, so a

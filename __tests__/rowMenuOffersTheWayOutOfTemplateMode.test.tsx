@@ -11,15 +11,14 @@ import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dr
 import { render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RowMenuContext } from '../src/components/form/engine/rowMenuContext';
-import { TemplateField } from '../src/components/form/fields/template/TemplateField';
+import {
+  TemplateField,
+  ITemplateFieldProps,
+} from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 const TEMPLATES = { items: [{ label: 'A name', badge: 'string', value: '$local:name' }] };
 
@@ -40,10 +39,10 @@ const labels = () =>
     .flat()
     .map((item) => String((item as { label?: unknown }).label ?? ''));
 
-const fieldInARow = (props: Record<string, unknown>) =>
+const fieldInARow = (props: Partial<ITemplateFieldProps>) =>
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as never}>
+      <FetchContext.Provider value={fetchContext}>
         <RowMenuContext.Provider value={registry}>
           <TemplateField
             name='subject'
@@ -52,7 +51,7 @@ const fieldInARow = (props: Record<string, unknown>) =>
             allowCustomValues
             templates={TEMPLATES as never}
             onChange={vi.fn()}
-            {...(props as never)}
+            {...props}
           />
         </RowMenuContext.Provider>
       </FetchContext.Provider>

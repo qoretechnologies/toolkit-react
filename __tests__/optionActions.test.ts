@@ -2,6 +2,7 @@ import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Pan
 import { describe, expect, it, vi } from 'vitest';
 import {
   IOptionActionsContext,
+  optionActionAsMenuItem,
   resolveOptionActions,
 } from '../src/components/form/engine/optionActions';
 import {
@@ -71,9 +72,15 @@ describe('createRendererOnlyUiTypeCheck', () => {
     expect(isRendererOnlyUiType('long-string')).toBe(false);
   });
 
-  it('ignores non-string types (an array ui_type names no single renderer)', () => {
+  it('reads a ui_type the server sends as a list by its first entry', () => {
+    /* An option that accepts several types is served with them as a list, and
+       the row is RENDERED as the first of them (`getType`). The storage type
+       has to be decided from the same entry, or the row is drawn with one
+       editor and its value stored as another. This predicate used to answer
+       "not a string, so no" and was the only reader that disagreed. */
+    expect(isRendererOnlyUiType(['cron', 'string'] as never)).toBe(true);
+    expect(isRendererOnlyUiType(['string', 'cron'] as never)).toBe(false);
     expect(isRendererOnlyUiType(undefined)).toBe(false);
-    expect(isRendererOnlyUiType(['cron', 'string'] as never)).toBe(false);
   });
 
   it('recognises a consumer-declared renderer type without a reqraft release', () => {
@@ -92,5 +99,25 @@ describe('createRendererOnlyUiTypeCheck', () => {
     expect(withExtra('my-custom-editor')).toBe(true);
     expect(withoutExtra('my-custom-editor')).toBe(false);
     expect(isRendererOnlyUiType('my-custom-editor')).toBe(false);
+  });
+});
+
+describe('an injected action moved into the ⋯ menu', () => {
+  it('labels it with its own label, then a text tooltip, then its position', () => {
+    expect(optionActionAsMenuItem({ label: 'Reset', tooltip: 'Put it back' }, 0).label).toBe(
+      'Reset'
+    );
+    expect(optionActionAsMenuItem({ tooltip: 'Put it back' }, 0).label).toBe('Put it back');
+    expect(optionActionAsMenuItem({ icon: 'DeleteBinLine' }, 2).label).toBe('Action 3');
+  });
+
+  it('does not put a configured tooltip OBJECT where the label goes', () => {
+    // `tooltip` may be an `IReqoreTooltip`; a menu row's label has to be text.
+    const item = optionActionAsMenuItem(
+      { icon: 'DeleteBinLine', tooltip: { content: 'Put it back', delay: 200 } },
+      0
+    );
+
+    expect(item.label).toBe('Action 1');
   });
 });

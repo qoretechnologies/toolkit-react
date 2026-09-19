@@ -90,6 +90,32 @@ describe("RichTextFormField valueFormat='text'", () => {
     expect(editor.props?.value[0].children[1]).toMatchObject({ type: 'tag', value: '$local:name' });
   });
 
+  it('reads a HOST’s own grammar, so the editor chips what the row it opens chips', () => {
+    /* The field's `templateToken`. Without it the editor knew only reqraft's
+       `$key:{path}` and drew `$._case.attempt` as raw text, while the collapsed
+       row — which IS given the grammar — drew it as a chip. `attempt` is
+       deliberately NOT in the catalogue: an offered value would be found by
+       matching the catalogue's literals alone, so it would not tell the two
+       mechanisms apart. */
+    render(
+      <RichTextFormField
+        valueFormat='text'
+        templates={TEMPLATES}
+        templateToken={/\$\.[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*/g}
+        value="skip if $._case.attempt == 1"
+        onChange={vi.fn()}
+      />
+    );
+
+    const [paragraph] = editor.props?.value;
+    expect(paragraph.children.map((node: any) => node.text ?? node.value)).toEqual([
+      'skip if ',
+      '$._case.attempt',
+      ' == 1',
+    ]);
+    expect(paragraph.children[1]).toMatchObject({ type: 'tag', value: '$._case.attempt' });
+  });
+
   it('holds one line when asked to: Enter adds none, and a pasted break is flattened', async () => {
     const onChange = vi.fn();
     render(

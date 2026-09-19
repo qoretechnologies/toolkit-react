@@ -1,8 +1,15 @@
-import { ReqoreInput } from '@qoretechnologies/reqore';
+import {
+  ReqoreButton,
+  ReqoreInput,
+  ReqoreP,
+  ReqoreTag,
+  ReqoreTagGroup,
+  ReqoreVerticalSpacer,
+} from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react-vite';
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
 import {
@@ -283,19 +290,62 @@ export const OptionalOpened: Story = {
   },
 };
 
+/** Opens one option row's ⋯ menu. */
+const openOptionRowMenu = async (nth = 0) => {
+  await _testsClickButton({ selector: '.options-item-more', nth });
+};
+
+/**
+ * A row's own actions stay inside the row.
+ *
+ * They used to float: a bar portalled above the hovered row, which on the
+ * first row landed on the form's own header buttons and made them
+ * unclickable — and a bar that only appears on hover is out of reach on a
+ * phone. The row's secondary actions now live in its ⋯ menu.
+ */
+export const RowActionsStayInTheRow: Story = {
+  ...Basic,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the Basic FormEngine, hovers its first option and opens that option's ⋯ menu. No action bar floats over the form's header when the row is hovered; the row's secondary actions — Focused editing among them — are listed in its menu, where they can be reached without a hover.",
+      },
+    },
+  },
+  play: async (args) => {
+    await Basic.play!(args);
+    const firstRow = document.querySelectorAll<HTMLElement>('.system-option')[0];
+    // The row draws its own actions, in its own header, before anyone hovers
+    // it. A floating bar is only ever drawn elsewhere, and only on a hover.
+    const more = await waitFor(
+      () => {
+        const button = firstRow.querySelector<HTMLElement>('.options-item-more');
+        expect(button).toBeTruthy();
+        return button!;
+      },
+      { timeout: 10000 }
+    );
+    await userEvent.hover(firstRow);
+    await expect(document.querySelector('.reqore-panel-floating-actions')).toBeNull();
+    await userEvent.click(more);
+    await _testsWaitForText('Focused editing');
+  },
+};
+
 export const FocusedEditing: Story = {
   ...Basic,
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the Basic FormEngine, hovers an option and clicks its fullscreen action — the Focused Editing modal opens over that single field.',
+          "Renders the Basic FormEngine, opens an option's ⋯ menu and picks Focused editing — the Focused Editing modal opens over that single field.",
       },
     },
   },
   play: async (args) => {
     await Basic.play!(args);
-    await userEvent.hover(document.querySelectorAll('.system-option')[0]);
+    await openOptionRowMenu(0);
     await _testsClickButton({ selector: '.options-item-fullscreen', nth: 0 });
     await _testsWaitForText('Focused Editing');
   },
@@ -325,7 +375,7 @@ export const ValueCanBeRemoved: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine holding a text option and a file option, both with values. Hovering each row and clicking its remove action clears the value and marks the row as revertable.',
+          "Renders FormEngine holding a text option and a file option, both with values. Picking Remove value from each row's ⋯ menu clears the value, and the row's menu then offers Revert changes.",
       },
     },
   },
@@ -354,20 +404,44 @@ export const ValueCanBeRemoved: Story = {
   },
   play: async () => {
     await _testsWaitForText('Click here to upload a different file');
-    await userEvent.hover(document.querySelectorAll('.system-option')[0]);
-    await waitFor(() => expect(document.querySelector('.options-item-remove')).toBeTruthy(), {
-      timeout: 10000,
-    });
+    // The first row's value goes, and its menu now offers the way back.
+    await openOptionRowMenu(0);
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
+    await openOptionRowMenu(0);
     await waitFor(() => expect(document.querySelectorAll('.options-item-revert').length).toBe(1), {
       timeout: 10000,
     });
-    await userEvent.hover(document.querySelectorAll('.system-option')[1]);
-    await waitFor(() => expect(document.querySelector('.options-item-remove')).toBeTruthy(), {
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelectorAll('.options-item-revert').length).toBe(0), {
       timeout: 10000,
     });
+    // Then the second row's.
+    await openOptionRowMenu(1);
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
     await _testsWaitForTextToNotExist('Click here to upload a different file');
+  },
+};
+
+/**
+ * A phone reaches a row's actions through its ⋯ menu: there is no hover to
+ * reveal anything, and no bar floating over the row above.
+ */
+export const RowActionsOnAPhone: Story = {
+  ...ValueCanBeRemoved,
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          "Renders a text option and a file option, both with values, at phone width with the first option's ⋯ menu open — Focused editing and Remove value are listed there, reachable without a hover.",
+      },
+    },
+  },
+  play: async () => {
+    await _testsWaitForText('Click here to upload a different file');
+    await openOptionRowMenu(0);
+    await _testsWaitForText('Focused editing');
+    await _testsWaitForText('Remove value');
   },
 };
 
@@ -377,13 +451,14 @@ export const ChangeCanBeReverted: Story = {
     docs: {
       description: {
         story:
-          'Renders the ValueCanBeRemoved fixture after both values are removed, then clicks the per-row revert action — the file value comes back.',
+          "Renders the ValueCanBeRemoved fixture after both values are removed, then picks Revert changes from the file row's ⋯ menu — the file value comes back.",
       },
     },
   },
   play: async (args) => {
     await ValueCanBeRemoved.play!(args);
-    await _testsClickButton({ selector: '.options-item-revert', nth: 1 });
+    await openOptionRowMenu(1);
+    await _testsClickButton({ selector: '.options-item-revert', nth: 0 });
     await _testsWaitForText('Click here to upload a different file');
   },
 };
@@ -1526,6 +1601,119 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
     await expect(await canvas.findByText('init', undefined, { timeout: 5000 })).toBeInTheDocument();
     await expect(await canvas.findByText('run')).toBeInTheDocument();
     await expect(canvasElement.textContent ?? '').not.toContain('[object Object]');
+  },
+};
+
+/**
+ * Counts how often the inheritance bag it is handed becomes a DIFFERENT object
+ * while the value in it never changes — the cost of a prop built inline.
+ */
+const InheritedScopeProbe = ({ inheritedFromParent }: any) => {
+  const renders = useRef(0);
+  const identities = useRef(0);
+  const lastBag = useRef<unknown>(undefined);
+  renders.current += 1;
+  if (lastBag.current !== inheritedFromParent) {
+    identities.current += 1;
+    lastBag.current = inheritedFromParent;
+  }
+  return (
+    <ReqoreTagGroup>
+      <ReqoreTag labelKey='renders' label={`${renders.current}`} />
+      <ReqoreTag
+        labelKey='bag identities'
+        label={`${identities.current}`}
+        intent={identities.current > 1 ? 'danger' : 'success'}
+      />
+      <ReqoreTag labelKey='language' label={`${inheritedFromParent?.language ?? 'none'}`} />
+    </ReqoreTagGroup>
+  );
+};
+
+/**
+ * Re-renders the form on demand, the way a host does on every keystroke
+ * somewhere else on the page.
+ */
+const InheritedScopeHarness = (args: any) => {
+  const [tick, setTick] = useState(0);
+  return (
+    <>
+      <ReqoreButton id='rerender-the-form' onClick={() => setTick((current) => current + 1)}>
+        Re-render the form ({tick})
+      </ReqoreButton>
+      <ReqoreVerticalSpacer height={10} />
+      <FormEngine {...args} />
+    </>
+  );
+};
+
+// The bag a field forwards to any sub-form it hosts is a PROP, and it used to be
+// built inline — `{ ...inheritedFromParent, ...resolveInheritProps(...) }` — so
+// every field got a NEW object on every render of the form, including the
+// majority that declare no `inherit_props` at all and were handed
+// `{ ...(undefined ?? {}) }`. A memoised field re-renders on an unequal prop, so
+// this churn re-rendered every field of every form the engine draws, forever,
+// over a value that never changed (it surfaced as `Template field kind Updated
+// because: {inheritedFromParent}` repeating in the console). The probe below
+// counts the bag's identities: it must stay at 1 however often the form renders.
+export const CompactInheritedScopeKeepsItsIdentity: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Re-renders a form whose fields inherit a scope from their parent — the inheritance bag each field is handed stays the same object, so a field that receives it is not re-rendered over a value that never changed.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    name: 'inherited-scope',
+    inheritedFromParent: { language: 'qore' },
+    value: {
+      kind: { type: 'string', value: 'service' },
+      body: { type: 'string', value: 'sub my_method() {}' },
+    },
+    options: {
+      kind: {
+        type: 'string',
+        ui_type: 'scope-probe',
+        display_name: 'Kind',
+        short_desc: 'Declares no inherit_props — it forwards the bag it was handed',
+      },
+      body: {
+        type: 'string',
+        ui_type: 'scope-probe',
+        display_name: 'Body',
+        short_desc: 'Declares inherit_props — its bag is a merge, made once',
+        inherit_props: { subjectKind: 'kind' },
+      },
+    } as unknown as IOptionsSchema,
+    componentOverrides: { 'scope-probe': InheritedScopeProbe },
+    initialExpandedOptions: ['kind', 'body'],
+  },
+  render: (args) => <InheritedScopeHarness {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getAllByText('renders').length).toBe(2), { timeout: 10000 });
+
+    const identityCounts = () =>
+      Array.from(canvasElement.querySelectorAll('.reqore-tag'))
+        .filter((tag) => (tag.textContent ?? '').startsWith('bag identities'))
+        .map((tag) => (tag.textContent ?? '').replace('bag identities', ''));
+
+    const before = identityCounts();
+    expect(before).toEqual(['1', '1']);
+
+    // Render the form again, three times over, with nothing about the fields
+    // changed.
+    await _testsClickButton({ selector: '#rerender-the-form' });
+    await _testsClickButton({ selector: '#rerender-the-form' });
+    await _testsClickButton({ selector: '#rerender-the-form' });
+    await _testsWaitForText('Re-render the form (3)');
+
+    // Every field was handed the SAME bag each time.
+    expect(identityCounts()).toEqual(['1', '1']);
   },
 };
 
@@ -6559,15 +6747,13 @@ export const CompactAutoFocusTargetsInvalidFilledField: Story = {
   },
 };
 
-// DEMO / manual-test story: the first "needs attention" field is a BOOLEAN,
-// whose compact editor is a `<div tabindex=0>` (ReqoreCheckbox) — NOT an
-// input/textarea/contenteditable that CompactRow's focus selector matches. Both
-// `enabled` and `name` are required and unset, so both need attention; `enabled`
-// is first. Open this in Storybook to see the UX: autofocus TARGETS the boolean
-// (its row expands) and does NOT skip ahead to the focusable `name` field — but
-// no element inside actually receives keyboard focus, so the caret is left
-// nowhere. (This is the non-text-editor focus gap; kept as a playground rather
-// than a hard assertion until we decide how CompactRow should focus such rows.)
+// The first "needs attention" field is a BOOLEAN, whose compact editor is a
+// focusable icon (ReqoreCheckbox) — not an input/textarea/contenteditable. Both
+// `enabled` and `name` are required and unset, so both need attention;
+// `enabled` is first. The row's scan used to look for text controls alone, so
+// autofocus targeted the boolean, opened its row, and left the caret nowhere —
+// this story was the playground that documented the gap. The row now focuses
+// whatever control it offers, so the caret is ON the boolean.
 const CompactNonFocusableFirstSchema: Record<string, TCompactField> = {
   enabled: {
     type: 'bool',
@@ -6596,7 +6782,7 @@ export const CompactAutoFocusNonFocusableFirstField: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with autoFocus enabled where the first needs-attention field is a boolean (not focusable) — the autofocus skips it and opens the next focusable field instead.',
+          'Renders a compact form with autoFocus enabled where the first needs-attention field is a boolean, whose editor is not a text box — the caret lands on the boolean itself rather than being left nowhere.',
       },
     },
   },
@@ -6609,11 +6795,149 @@ export const CompactAutoFocusNonFocusableFirstField: Story = {
     autoFocusFirstRequired: true,
   },
   play: async () => {
-    // Smoke: both required-but-unset fields render (both land in "needs
-    // attention"), with the boolean first. Focus behaviour is intentionally left
-    // for manual observation — see the note above.
     await _testsWaitForText('Enabled');
     await _testsWaitForText('Name');
+
+    // The caret is inside the boolean's row — the field the engine targeted.
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        expect(document.querySelector('[data-field="enabled"]')?.contains(active!)).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+    // On the control itself, which is not a text box: that is the whole case.
+    const active = document.activeElement as HTMLElement;
+    expect(['INPUT', 'TEXTAREA']).not.toContain(active.tagName);
+    // It did not settle for the focusable text field further down instead.
+    expect(document.querySelector('[data-field="name"]')?.contains(active)).toBe(false);
+  },
+};
+
+// The first question most forms ask is "which kind?", and a pick-one is a set
+// of buttons: with ≤ 3 candidates the engine renders reqore checkboxes, which
+// are focusable icons rather than inputs. The engine opened this row and the
+// caret stayed on whatever opened the form.
+const CompactPickOneFirstSchema: Record<string, TCompactField> = {
+  kind: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Kind',
+    short_desc: 'Which kind of interface is this? — the first required question',
+    required: true,
+    preselected: true,
+    group: 'general',
+    allowed_values: [
+      { display_name: 'Service', value: { type: 'string', value: 'service' } },
+      { display_name: 'Job', value: { type: 'string', value: 'job' } },
+      { display_name: 'Workflow', value: { type: 'string', value: 'workflow' } },
+    ],
+  } as TCompactField,
+  name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Name',
+    short_desc: 'A text field — comes second',
+    required: true,
+    preselected: true,
+    group: 'general',
+  },
+};
+
+export const CompactAutoFocusPickOneFirstQuestion: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with autoFocus enabled whose first required question is a pick-one — the caret lands on the first choice, so the answer can be given from the keyboard.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactPickOneFirstSchema as IOptionsSchema,
+    value: {},
+    groups: CompactGroups,
+    autoFocusFirstRequired: true,
+  },
+  play: async () => {
+    await _testsWaitForText('Service');
+
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        expect(document.querySelector('[data-field="kind"]')?.contains(active!)).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+    const active = document.activeElement as HTMLElement;
+    // The control the row actually offers: a choice, not a text box.
+    expect(['INPUT', 'TEXTAREA']).not.toContain(active.tagName);
+    expect(active.getAttribute('tabindex')).toBe('0');
+  },
+};
+
+/**
+ * A host editor that cannot draw its control on the first frame — it resolves
+ * its catalogue first, the way the IDE's connection and interface selectors do.
+ * The row the engine opens is empty for the first commits, and the control is
+ * the LAST thing to arrive.
+ */
+const LateMountingEditor = () => {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 400);
+    return () => clearTimeout(timer);
+  }, []);
+  return ready ?
+      <ReqoreButton className='late-editor-control'>Choose a connection…</ReqoreButton>
+    : <ReqoreP effect={{ opacity: 0.5 }}>Loading connections…</ReqoreP>;
+};
+
+const CompactLateEditorSchema = {
+  connection: {
+    type: 'string',
+    // A host `ui_type`: the editor is injected, exactly as the IDE injects its
+    // connection and interface selectors.
+    ui_type: 'late-editor',
+    display_name: 'Connection',
+    short_desc: 'A host editor that resolves its catalogue before it can draw a control',
+    required: true,
+  },
+} as unknown as IOptionsSchema;
+
+export const CompactAutoFocusLateMountingEditor: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a compact form whose first required question is drawn by a host editor that mounts its control after the form has rendered — the caret follows the control when it arrives, instead of being spent on a row that was still empty.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactLateEditorSchema,
+    value: {},
+    autoFocusFirstRequired: true,
+    componentOverrides: { 'late-editor': LateMountingEditor },
+  },
+  render: (args) => <FormEngine {...(args as IFormEngineProps)} />,
+  play: async () => {
+    // Nothing to focus yet: the row is open and its editor is still loading.
+    await _testsWaitForText('Loading connections…');
+    expect(document.activeElement).toBe(document.body);
+
+    await _testsWaitForText('Choose a connection…');
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        expect(active?.closest('.late-editor-control')).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -8136,5 +8460,351 @@ export const TemplateValueHoversOnceAndDescribesItself: Story = {
       el.getAttribute('title')
     );
     expect(nativeTitles).not.toContain('$._case.title');
+  },
+};
+
+/** The grammar a Qorus test writes its references in — `$.step.field`, which
+ *  carries no `$key:` and so matches none of reqraft's own token grammar. */
+const SKIP_WHEN_GRAMMAR = /(\$\.[A-Za-z_][\w]*(?:(?:\.[A-Za-z_][\w]*)|(?:\[\d+\]))*)/g;
+
+/** What that case's own picker offers, and the names it offers them under. */
+const SKIP_WHEN_TEMPLATES = {
+  items: [
+    {
+      label: 'Values this case captures',
+      items: [
+        {
+          value: '$._case.mode',
+          label: 'mode (this case)',
+          description: 'How this case runs — live, or simulated. (string)',
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * A value that MENTIONS a reference reads as a sentence, not as a token.
+ *
+ * The story above closed the case where the value IS one template. This is the
+ * one next to it, and it is the shape a condition actually arrives in: a
+ * comparison the author wrote with a reference inside it. It matched neither the
+ * whole-value template branch nor the rich-text one, so it fell all the way
+ * through to the plain string and the row printed `$._case.mode != 'simulate'` —
+ * the engine's spelling of a value the author had picked by name, on a surface
+ * whose only job is to show them what they wrote.
+ *
+ * Reported against a test case's **Skip when** field, where the case list above
+ * the drawer already named the reference and the drawer beneath it did not.
+ *
+ * Both halves matter. The reference becomes the chip the picker offered; the
+ * comparison is the author's own text and survives exactly as typed.
+ */
+export const AValueThatMentionsATemplateReadsAsOne: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A row whose value holds a reference inside the author’s own text — a skip-when predicate — draws the reference as the chip the picker names it by and leaves the comparison beside it exactly as written, instead of printing the raw token.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {
+      skip_when: { type: 'string', value: "$._case.mode != 'simulate'" },
+      // The same value one level down, so the row's own line and the preview it
+      // opens are compared against each other in one story.
+      guard: {
+        type: 'hash',
+        value: { when: { type: 'string', value: "$._case.mode != 'simulate'" } },
+      },
+    },
+    options: {
+      skip_when: {
+        type: 'string',
+        display_name: 'Skip when',
+        supports_templates: true,
+        // The grammar this host writes its references in — `$.step.field`, which
+        // carries no `$key:` and so matches none of reqraft's own token grammar.
+        // A field that speaks one says so, exactly as it hands down its list.
+        templateToken: SKIP_WHEN_GRAMMAR,
+        templates: SKIP_WHEN_TEMPLATES,
+      },
+      guard: {
+        type: 'hash',
+        display_name: 'Guard',
+        arg_schema: {
+          when: {
+            type: 'string',
+            display_name: 'When',
+            supports_templates: true,
+            templateToken: SKIP_WHEN_GRAMMAR,
+            templates: SKIP_WHEN_TEMPLATES,
+          },
+        },
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="skip_when"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // (a) The reference wears the name it was chosen by, on a chip.
+    const chip = await waitFor(() => {
+      const el = row.querySelector('.reqraft-template-chip');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    expect(chip.textContent).toContain('mode (this case)');
+
+    // (b) The author's comparison is still there, word for word.
+    expect(row.textContent).toContain("!= 'simulate'");
+
+    // (c) And the engine's own spelling is nowhere on the row — not in its text,
+    //     and not in a native tooltip hovering the very thing the chip replaced.
+    expect(row.textContent).not.toContain('$._case.mode');
+    const nativeTitles = Array.from(row.querySelectorAll('[title]')).map((el) =>
+      el.getAttribute('title')
+    );
+    expect(nativeTitles.some((title) => title?.includes('$._case.mode'))).toBe(false);
+
+    // (d) The schema preview under the hash row is the same value one level
+    //     down, and it used to reach the mono cell as a raw string — a row
+    //     disagreeing with its own inset about what its value is.
+    const preview = await waitFor(() => {
+      const el = canvasElement.querySelector('[data-field="guard"] .schema-data-view');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    expect(preview.querySelector('.reqraft-template-chip')?.textContent).toContain(
+      'mode (this case)'
+    );
+    expect(preview.textContent).toContain("!= 'simulate'");
+    expect(preview.textContent).not.toContain('$._case.mode');
+  },
+};
+
+/**
+ * The editor a row opens recognises the SAME references the row does.
+ *
+ * The story above asserts the two READ surfaces — the collapsed row and the
+ * schema preview under a hash row. Neither of them opens anything, and the
+ * editor was the surface that disagreed: `templateTextSegments` took the
+ * field's declared grammar, while `templateTextToNodes` had no grammar
+ * parameter at all and knew only reqraft's built-in `$key:{path}`. So a host's
+ * own spelling was a named chip on the row and raw text the moment the author
+ * clicked it — the same defect as before, pointing the other way.
+ *
+ * Both now resolve references through one `lineReferenceSpans`, and the field's
+ * `templateToken` reaches the editor as a prop. This opens the row and asserts
+ * the chip is still a chip, with the author's comparison beside it.
+ */
+export const AHostGrammarSurvivesTheEditorTheRowOpens: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opens the Skip when row whose field declares its own token grammar — the reference stays the chip the picker names it by inside the editor, with the author’s comparison beside it, instead of reverting to its raw spelling.',
+      },
+    },
+  },
+  args: {
+    ...AValueThatMentionsATemplateReadsAsOne.args,
+    /* A SECOND reference the catalogue does not list. It is the one that
+       separates the two mechanisms: `$._case.mode` is an offered value and
+       would be found by matching the catalogue's literals alone, while
+       `$._case.attempt` exists only as far as the declared grammar says it
+       does. A surface that has not been given the grammar draws one chip
+       here and the raw spelling of the other. */
+    value: {
+      skip_when: {
+        type: 'string',
+        value: "$._case.mode != 'simulate' && $._case.attempt == 1",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="skip_when"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // The collapsed row draws BOTH — the named one and the one only the
+    // grammar knows the extent of.
+    await waitFor(() =>
+      expect(
+        Array.from(row.querySelectorAll('.reqraft-template-chip')).map((chip) =>
+          chip.textContent?.trim()
+        )
+      ).toEqual(['mode (this case)', '$._case.attempt'])
+    );
+
+    // Open the row.
+    fireEvent.click(row);
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy(), {
+      timeout: 5000,
+    });
+
+    // The editor draws the same reference as the same name.
+    const editor = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>(
+          '[data-field="skip_when"] [contenteditable="true"]'
+        );
+        expect(el).toBeTruthy();
+        return el!;
+      },
+      { timeout: 10000 }
+    );
+    await waitFor(
+      () =>
+        expect(
+          Array.from(editor.querySelectorAll('.reqore-tag')).map((chip) => chip.textContent?.trim())
+        ).toEqual(['mode (this case)', '$._case.attempt']),
+      { timeout: 10000 }
+    );
+
+    // And the comparison the author wrote is beside them, unchanged — while
+    // the engine's own spelling of the NAMED reference is nowhere in the
+    // editor. (`$._case.attempt` has no name to wear: an unnamed reference is
+    // its own honest label, and it is a chip either way.)
+    expect(editor.textContent).toContain("!= 'simulate'");
+    expect(editor.textContent).toContain('== 1');
+    expect(editor.textContent).not.toContain('$._case.mode');
+  },
+};
+
+/**
+ * A choice whose author has to click twice to change it.
+ *
+ * Read-first is the collapsed row's job: the row prints the value, and clicking
+ * it mounts the editor. A PICKER's editor is a closed trigger printing that
+ * same value — so the row opened, nothing on screen changed, and the author had
+ * to click again to see the list. Reported on a test case's Kind row:
+ * "clicking on a closed option like 'Kind' opens the option, but the same
+ * chosen value is displayed … the user has to click twice to edit the option".
+ *
+ * A row the AUTHOR opens now opens its picker with it. A row the FORM opens
+ * still does not — see `CompactInitialExpandedOptions` and
+ * `CompactAutoFocusFirstRequired`, where the host is showing a row rather than
+ * asking the question, and a list thrown over it would cover what it came to
+ * show.
+ */
+const CompactPickerRowSchema: Record<string, TCompactField> = {
+  kind: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Kind',
+    short_desc: 'Which kind of assertion is this?',
+    required: true,
+    preselected: true,
+    group: 'general',
+    allowed_values: [
+      {
+        display_name: 'Process coverage',
+        short_desc: 'Which Qorus process ran the code',
+        value: { type: 'string', value: 'process_coverage' },
+      },
+      {
+        display_name: 'Log match',
+        short_desc: 'A line the run had to log',
+        value: { type: 'string', value: 'log_match' },
+      },
+      {
+        display_name: 'Value equals',
+        short_desc: 'A captured value, compared',
+        value: { type: 'string', value: 'value_equals' },
+      },
+      {
+        display_name: 'Row count',
+        short_desc: 'How many rows a query returned',
+        value: { type: 'string', value: 'row_count' },
+      },
+      {
+        display_name: 'Raises error',
+        short_desc: 'The error the step had to raise',
+        value: { type: 'string', value: 'raises_error' },
+      },
+    ],
+  } as TCompactField,
+  name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Name',
+    short_desc: 'A text field — its editor is the text box itself',
+    required: true,
+    preselected: true,
+    group: 'general',
+  },
+};
+
+export const CompactRowOpensItsPicker: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicking a closed row whose value is a choice lands the author in the list of choices, in one click, instead of opening the row onto a closed picker showing the value it already had.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    options: CompactPickerRowSchema as IOptionsSchema,
+    value: { kind: { type: 'string', value: 'log_match' } },
+    groups: CompactGroups,
+  },
+  play: async () => {
+    await _testsWaitForText('Kind');
+    // Read-first: the row prints the chosen kind, and no other kind is on screen.
+    await _testsWaitForTextToNotExist('Row count');
+
+    await _testsClickButton({ selector: '[data-field="kind"].readfirst-row' });
+
+    // ONE click, and the choices the author came for are in front of them.
+    await _testsWaitForText('Row count');
+    await _testsWaitForText('Raises error');
+  },
+};
+
+export const CompactTextRowOpensItsTextBox: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The other half of the same rule: a row whose editor is a text box opens straight into it with the caret, and opens nothing over the form.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    options: CompactPickerRowSchema as IOptionsSchema,
+    value: { name: { type: 'string', value: 'the assertion' } },
+    groups: CompactGroups,
+  },
+  play: async () => {
+    await _testsWaitForText('Name');
+    await _testsClickButton({ selector: '[data-field="name"].readfirst-row' });
+
+    await waitFor(() => {
+      const active = document.activeElement as HTMLElement;
+      expect(['INPUT', 'TEXTAREA']).toContain(active.tagName);
+      expect(document.querySelector('[data-field="name"]')?.contains(active)).toBe(true);
+    });
+    // Nothing was opened over the form — the text box IS the editor.
+    expect(document.querySelector('.reqraft-select-dialog')).toBeNull();
   },
 };

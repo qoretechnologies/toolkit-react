@@ -17,13 +17,9 @@ import {
 } from '../src/components/form/engine/rowMenuContext';
 import { TemplateField } from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 const TEMPLATES = {
   items: [{ label: 'Captured', items: [{ value: '$.result', label: 'result' }] }],
@@ -51,7 +47,7 @@ const renderInRow = (component: unknown) => {
   const unregisterRowMenuItems = vi.fn();
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as never}>
+      <FetchContext.Provider value={fetchContext}>
         <RowMenuContext.Provider value={{ registerRowMenuItems, unregisterRowMenuItems }}>
           <TemplateField
             name='outer'

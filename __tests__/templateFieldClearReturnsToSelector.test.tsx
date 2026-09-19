@@ -22,15 +22,14 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { TemplateField } from '../src/components/form/fields/template/TemplateField';
+import {
+  TemplateField,
+  ITemplateFieldProps,
+} from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /** What the assertion's `Expected Value` is actually offered: captured values. */
 const TEMPLATES = {
@@ -42,10 +41,10 @@ const TEMPLATES = {
   ],
 };
 
-const renderField = (props: Record<string, unknown> = {}) =>
+const renderField = (props: Partial<ITemplateFieldProps> = {}) =>
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as never}>
+      <FetchContext.Provider value={fetchContext}>
         <TemplateField
           name='expected_value'
           type={'auto' as never}
@@ -55,7 +54,7 @@ const renderField = (props: Record<string, unknown> = {}) =>
           // filtered down to the naming field's own type.
           filterTemplatesByType={false}
           onChange={vi.fn()}
-          {...(props as never)}
+          {...props}
         />
       </FetchContext.Provider>
     </ReqoreUIProvider>
@@ -93,7 +92,7 @@ describe('clearing an untyped field with templates on offer', () => {
 
     rerender(
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as never}>
+        <FetchContext.Provider value={fetchContext}>
           <TemplateField
             name='expected_value'
             type={'auto' as never}
@@ -122,7 +121,7 @@ describe('clearing an untyped field with templates on offer', () => {
        did nothing at all. */
     const props = (value: unknown, type: string) => (
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as never}>
+        <FetchContext.Provider value={fetchContext}>
           <TemplateField
             name='expected_value'
             type={type as never}
@@ -157,7 +156,7 @@ describe('clearing an untyped field with templates on offer', () => {
 
     rerender(
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as never}>
+        <FetchContext.Provider value={fetchContext}>
           <TemplateField
             name='expected_value'
             type={'string' as never}
@@ -184,7 +183,7 @@ describe('clearing an untyped field with templates on offer', () => {
 
     rerender(
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as never}>
+        <FetchContext.Provider value={fetchContext}>
           <TemplateField
             name='expected_value'
             type={'auto' as never}

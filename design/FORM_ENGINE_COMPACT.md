@@ -116,6 +116,40 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   `CompactShowcase` (+`Mobile`).
 - **Accessibility.** Read-first rows are real controls (`role="button"`, `tabIndex={0}`, Enter/Space
   activate, visible focus ring), not just click handlers; the Done button and dropdowns are native buttons.
+- **The caret follows the row that opens.** An opened row moves the caret into the control it offers —
+  whatever that control is. `findRowFocusTarget` ([`rowFocus.ts`](../src/components/form/engine/rowFocus.ts))
+  prefers a text-entry control (`input` / `textarea` / `contenteditable`) and otherwise takes the first
+  other focusable one (a `<button>` selector, a `[tabindex]` reqore checkbox — a pick-one's choices are
+  not inputs), ignoring an absorbed sibling's editor and the schema-message strip, which belong to other
+  fields. The row is revealed first — `scrollIntoView({ block: 'nearest' })` on the ROW, a no-op when it
+  is already visible — because a caret below the fold changes nothing on screen while the next keystroke
+  goes somewhere invisible; focus itself then uses `preventScroll` so nothing moves twice. A caller that
+  wants the row **opened without the caret** uses `expandFirstRequired` rather than
+  `autoFocusFirstRequired`. The search is re-run by a one-shot `MutationObserver` on the row's value cell,
+  so an editor that mounts its control several commits later (a host editor resolving a catalogue) still
+  gets the caret, and it gives up the moment the caret is somewhere outside this row. Stories:
+  `CompactAutoFocusFirstRequired`, `CompactAutoFocusPickOneFirstQuestion`,
+  `CompactAutoFocusNonFocusableFirstField`, `CompactAutoFocusLateMountingEditor`.
+- **A row the AUTHOR opens into a picker opens the picker with it.** Read-first belongs to the
+  COLLAPSED row; it must not be the answer twice. A picker's editor is a closed trigger printing the
+  value the read row had just printed, so the row opened, nothing on screen changed, and changing the
+  value still cost a second click ("clicking on a closed option like 'Kind' opens the option, but the
+  same chosen value is displayed"). The row decides — it is the only party that knows both that the
+  author opened it (rather than the form) and which control it offers (`findRowFocusTarget`, the same
+  scan that hands over the caret) — and the control obeys, through
+  **`RowOpenPickerContext`** ([`rowOpenPicker.ts`](../src/components/form/engine/rowOpenPicker.ts)), a
+  one-shot `true` scoped to the row's own editor. A control declares itself a picker with
+  **`aria-haspopup`** (`isClosedPickerTrigger` in `rowFocus.ts`), which is the attribute's own meaning
+  and the existing contract with assistive technology — so a host's editor opts in by being accessible.
+  A context value rather than a synthetic click on the trigger: reqore's popover binds its click
+  listener in an effect keyed on the trigger element arriving, so a click dispatched from the row's
+  effect lands before anything is listening.
+  Read-first is kept where it still says something, and each of these is a term in the condition:
+  the collapsed row itself; a row the FORM opened (`initialExpandedOptions` — an address, or
+  qorus-ide's diagram showing a step — and `autoFocusFirstRequired`, which promises the caret and
+  only the caret); and the edit CARD a complex field opens, which is a form in its own right whose
+  first control is one of several. Stories: `CompactRowOpensItsPicker`,
+  `CompactTextRowOpensItsTextBox`; tests: `__tests__/compactRowClickOpensThePicker.test.tsx`.
 - **Grouping.** Rows are grouped by each option's raw `group` key into collapsible `ReqorePanel` sections,
   each with a `✓ all set` / `⚠ N to resolve` badge (the catch-all `optional` group shows `N optional`
   instead). Display per group (label / icon / subtitle / order) is

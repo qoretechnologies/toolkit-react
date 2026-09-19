@@ -71,13 +71,9 @@ vi.mock('../src/components/dpqlEditor', () => ({
 
 import { ExpressionField } from '../src/components/form/expressions/ExpressionField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 const Harness = () => {
   const [value, setValue] = useState<any>({ is_expression: true, value: { args: [] } });

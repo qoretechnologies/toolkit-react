@@ -40,10 +40,9 @@ import {
 } from '@qoretechnologies/ts-toolkit';
 import { shouldMarkAsExpression } from '../expressions/argumentPresence';
 import { offersTypeChoices } from './typeChoices';
-import { resolveOptionActions, TOptionActions } from './optionActions';
+import { optionRowActions, resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
 import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last } from 'lodash';
-import isArray from 'lodash/isArray';
 import map from 'lodash/map';
 import reduce from 'lodash/reduce';
 import size from 'lodash/size';
@@ -113,7 +112,7 @@ import {
   TMarkdownRenderer,
 } from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
-import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
+import { firstDeclaredType, isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
   TReadFirstStatus,
   findAllowedValueOption,
@@ -159,8 +158,25 @@ export type TOperatorValue = TQorusFormOperatorValue;
  */
 export interface IOptionFieldMessage
   extends IQorusFormFieldMessage, Pick<IConditionalFieldMessage, 'when' | 'unless'> {}
-export type IOptionsSchemaArg = TQorusFormFieldSchema;
-export interface IOptionsSchema extends IQorusFormSchema {}
+/** `T` without `K`, member by member — `Omit` on a union collapses the union. */
+type TDistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+/**
+ * One field of a form's schema: the shared descriptor, plus what this engine
+ * reads that the shared type does not carry — conditional `messages`, and
+ * `absorb_fields`. Declared, so a descriptor using them is checked rather than
+ * cast; still assignable wherever the shared descriptor is expected.
+ */
+export type IOptionsSchemaArg = TDistributiveOmit<TQorusFormFieldSchema, 'messages'> & {
+  messages?: IOptionFieldMessage[];
+  /**
+   * Siblings this field renders inside its own editor instead of on rows of
+   * their own — a code editor and its language, say.
+   */
+  absorb_fields?: string[];
+};
+export interface IOptionsSchema {
+  [optionName: string]: IOptionsSchemaArg;
+}
 export interface IOperator extends IQorusFormOperator {}
 export interface IOperatorsSchema extends IQorusFormOperatorsSchema {}
 export interface IOptionsOnChangeMeta extends IQorusFormFieldOnChangeMeta {
@@ -220,6 +236,48 @@ const resolveInheritProps = (
     out[propName] = localValue !== undefined ? localValue : inheritedFromParent?.[siblingName];
   }
   return out;
+};
+
+/** One shared "nothing came down from above" bag. See `inheritedScopeFor`. */
+const NO_INHERITED_SCOPE: Record<string, unknown> = Object.freeze({});
+
+/**
+ * The inheritance bag ONE field forwards to any `arg_schema` sub-form it hosts:
+ * whatever the ancestor chain passed down, plus whatever this field's own
+ * `inherit_props` resolves to.
+ *
+ * Written as a function with a stable answer because it is a PROP, and a prop
+ * that is a new object on every render re-renders the field that receives it
+ * every time this form renders — for most fields, forever, over a value that
+ * never changed. It showed up in the console as `Template field kind Updated
+ * because: {inheritedFromParent}` repeating on a form nobody was touching:
+ * `kind` declares no `inherit_props` at all, so the bag it was handed was
+ * `{ ...(undefined ?? {}) }` — a fresh empty object each time, unequal to the
+ * last one, and `TemplateField` is memoised precisely so it does not re-render
+ * on a prop that did not change.
+ *
+ * So a field with nothing of its own to add forwards the bag it was HANDED,
+ * unchanged and unwrapped, and a form with no inherited scope at all forwards
+ * one shared frozen object rather than minting one per field per render.
+ *
+ * Mirrored in qorus-ide's `systemOptions.tsx` (which grew this treatment
+ * first); per the CLAUDE.md rule there, the forwarding logic is kept identical
+ * in both until FormEngine replaces that renderer.
+ *
+ * @param inheritProps the field's `inherit_props` map, if it declares one
+ * @param availableOptions this form's fields, where a sibling's value is read
+ * @param inheritedFromParent the bag threaded in from an outer form
+ */
+export const inheritedScopeFor = (
+  inheritProps: Record<string, string> | undefined,
+  availableOptions: TQorusForm | undefined,
+  inheritedFromParent: Record<string, unknown> | undefined
+): Record<string, unknown> => {
+  const resolved = resolveInheritProps(inheritProps, availableOptions, inheritedFromParent);
+  if (!Object.keys(resolved).length) {
+    return inheritedFromParent ?? NO_INHERITED_SCOPE;
+  }
+  return { ...(inheritedFromParent ?? {}), ...resolved };
 };
 
 const NegativeColorEffect: any = {
@@ -326,7 +384,7 @@ export const getType = (
   operator?: TOperatorValue
 ): TQorusType => {
   const finalType = getTypeFromOperator(operators, fixOperatorValue(operator)) || type;
-  const resolvedType = isArray(finalType) ? finalType[0] : finalType;
+  const resolvedType = firstDeclaredType(finalType);
 
   // A value can be received before its server-driven option schema. Keep the
   // renderer type-safe during that transition without guessing a concrete type.
@@ -739,7 +797,7 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   name: string;
   uniqueName?: string;
   value?: TQorusForm | TQorusFlatForm;
-  options?: IQorusFormSchema;
+  options?: IOptionsSchema;
   onChange?: (name: string, value?: TQorusForm, meta?: IOptionsOnChangeMeta) => void;
   /**
    * `'immediate'` (default): edits flow out via the debounced `onChange`.
@@ -886,6 +944,55 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * change; bucketing, icons and intents are untouched.
    */
   compactBoxLabels?: Partial<Record<TFormEngineBoxKey, string>>;
+  /**
+   * Compact mode only: the three status-box headers stay pinned to the top of
+   * whatever scrolls while their own box is in view. Default `true`.
+   *
+   * A box header is the only thing that says which bucket a row is in — `Set`,
+   * `Needs attention`, `Optional`. On a form long enough to scroll it leaves
+   * the screen, and every row below it then reads as an undifferentiated list:
+   * the reader deep inside `Optional` has no way to tell it from `Set` except
+   * by scrolling back. Pinning the header is what keeps the answer on screen.
+   *
+   * ALL THREE behave identically, deliberately. They are one control rendered
+   * three times, differing only in label, tint and icon; a reader who has
+   * scrolled into the Optional box needs to know that exactly as much as one
+   * who has scrolled into Set, and a rule that pinned only some of them would
+   * make the absence of a pinned header mean two different things (this box has
+   * no header vs. you are above every box).
+   *
+   * A header can never outlive its own box: `position: sticky` is bounded by
+   * its containing block, so each header unpins as its box scrolls away and at
+   * most ONE box header is ever pinned at a time. The pin costs one header's
+   * height, not three.
+   *
+   * Off by construction for a nested (`arg_schema`) sub-form — it sits inside
+   * the parent form's card and owns no scroll context to pin against.
+   *
+   * On a NARROW form this also takes the pin off the form's own toolbar, so the
+   * two never cost a third of a phone's screen between them — see the note at
+   * the panel's `stickyHeader`.
+   *
+   * Turn it off where the form is one item in a scrolling LIST of forms: there
+   * the reader is choosing which form to read, and a box header pinned from the
+   * item they have scrolled past is chrome belonging to something they have
+   * left.
+   */
+  compactStickyBoxHeaders?: boolean;
+  /**
+   * Compact mode only: how many pixels of the HOST's own sticky chrome sit
+   * above this form, inside the same scroll container.
+   *
+   * Sticky offsets do not compose by themselves — every pinned thing resolves
+   * `top` against the same scrollport, so two of them with the same offset land
+   * on top of each other. A host that pins a bar of its own (a page header
+   * carrying a name and a Run control, say) measures it and passes the height
+   * here; the form then pins its toolbar below that bar, and its box headers
+   * below the toolbar, instead of underneath both.
+   *
+   * Default `0` — the form is the topmost pinned thing in its scroller.
+   */
+  compactStickyOffset?: number;
   /**
    * Compact mode only: which parts of the form's toolbar to show. `true`
    * (default) shows all of it; `false` hides the whole thing.
@@ -1153,6 +1260,8 @@ const FormEngineImpl = ({
   compactPanelProps,
   compactCollapsedGroups: compactCollapsedGroupsProp,
   compactBoxLabels,
+  compactStickyBoxHeaders = true,
+  compactStickyOffset = 0,
   compactToolbar = true,
   commitMode = 'immediate',
   expandMode = 'single',
@@ -1190,11 +1299,11 @@ const FormEngineImpl = ({
   // from Reqore's context (one subscription for the whole app) rather than a
   // reqraft-local matchMedia hook.
   //
-  // `isHoverCapable` defaults to `true` in Reqore, but fall back explicitly so
-  // an older Reqore — where the property does not exist — degrades to "this
-  // pointer hovers" (the pre-existing behaviour) instead of collapsing every
-  // action into a menu for everyone.
-  const isHoverCapable = useReqoreProperty('isHoverCapable') ?? true;
+  // Both are always set by `ReqoreProvider`, and the peer floor (>= 0.74.0) is
+  // the version that sets them. A defensive `?? true` here would be dead code:
+  // `useReqoreProperty` THROWS on a context that lacks the key, so an older
+  // Reqore fails at the hook rather than degrading to a default.
+  const isHoverCapable = useReqoreProperty('isHoverCapable');
   const isMobile = useReqoreProperty('isMobile');
   const collapseOptionActions =
     optionActionsCollapse === 'always' ? true
@@ -1302,6 +1411,67 @@ const FormEngineImpl = ({
     },
     [compactWrapRef]
   );
+  /* Declared here, not where it is first USED in the render: the sticky
+     measurement below takes it as a dependency, and a dependency array is
+     evaluated during render — a `const` declared further down would still be
+     in its temporal dead zone. */
+  const compactNarrow = !!compactWrapWidth && compactWrapWidth < 480;
+
+  /* How much pinned chrome sits above a status-box header.
+  
+     Sticky offsets do not compose on their own: everything pinned in one
+     scroller resolves `top` against the same scrollport, so a box header and
+     this form's own toolbar both asking for 0 land on top of each other — and
+     the toolbar is the loser, because it renders first and the box header wins
+     on z-order. Covering it hides the search, which is the one control that
+     forces a collapsed box open.
+  
+     So the box headers pin BELOW the toolbar, at the host's own offset plus the
+     toolbar's height. Measured, not assumed: the toolbar is a completion meter,
+     a search row and a field picker that each hide themselves when they have
+     nothing to say, and what is left wraps differently at every form width.
+     Zero when this form draws no toolbar at all. */
+  const [compactToolbarHeight, setCompactToolbarHeight] = useState(0);
+  useLayoutEffect(() => {
+    const wrap = compactWrapNode;
+    if (!compact || !wrap || compactNested || !compactStickyBoxHeaders) {
+      setCompactToolbarHeight(0);
+      return undefined;
+    }
+    const header = wrap.querySelector<HTMLElement>(
+      ':scope > .reqore-panel > .reqore-panel-title'
+    );
+    if (!header) {
+      setCompactToolbarHeight(0);
+      return undefined;
+    }
+    const read = () =>
+      setCompactToolbarHeight((prev) => {
+        /* Only a toolbar that is ITSELF pinned takes room off the top. A host
+           can switch the pin off (`compactPanelProps.stickyHeader`), and it
+           does where the form is a couple of fields inside a longer page — and
+           a box header offset by a toolbar that scrolls away would float a
+           header's height below the top edge with nothing under it. Read from
+           the element rather than from the props that produced it, so every
+           route to that decision is accounted for. */
+        const pinned = getComputedStyle(header).position === 'sticky';
+        const next = pinned ? Math.round(header.getBoundingClientRect().height) : 0;
+        return prev === next ? prev : next;
+      });
+    read();
+    /* jsdom and older engines have no ResizeObserver; the one-shot read above
+       still gives the right answer for a form whose toolbar never reflows. */
+    if (typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+    const observer = new ResizeObserver(read);
+    observer.observe(header);
+    return () => observer.disconnect();
+    /* `compactNarrow` is a dependency, not decoration: crossing the width
+       breakpoint takes the pin OFF the toolbar without changing its height, so
+       the ResizeObserver never fires and a stale 124px would go on offsetting
+       the box headers below a toolbar that is no longer there. */
+  }, [compact, compactNested, compactStickyBoxHeaders, compactNarrow, compactWrapNode, options]);
 
   // Global label-column sizing: size the label column to the WIDEST field label
   // across the whole form, clamped to [MIN, MAX], and publish it as a CSS var on
@@ -1402,7 +1572,6 @@ const FormEngineImpl = ({
     }
   });
 
-  const compactNarrow = !!compactWrapWidth && compactWrapWidth < 480;
   // Info panels auto-open on Tier-1 content; the per-row user override sticks.
   const [infoPanelOverrides, setInfoPanelOverrides] = useState<Record<string, boolean>>({});
   // Toolbar filters affect the listed rows only — the meter reflects the full set.
@@ -2008,6 +2177,27 @@ const FormEngineImpl = ({
     return { members, satisfiedBy };
   }, [JSON.stringify(options), JSON.stringify(availableOptions)]);
 
+  /* One bag per field, rebuilt only when something it is made of changes — the
+     schema that declares the `inherit_props`, the sibling values they resolve
+     against, or the scope handed in from an outer form. Held per field rather
+     than per form because each field's bag is different: `inherit_props` is
+     declared on the field. See `inheritedScopeFor` for what a churning bag
+     costs the field that receives it. */
+  const inheritedScopes = useMemo(() => {
+    const scopes = new Map<string, Record<string, unknown>>();
+    for (const optionName of Object.keys(options ?? {})) {
+      scopes.set(
+        optionName,
+        inheritedScopeFor(
+          options?.[optionName]?.inherit_props,
+          availableOptions,
+          inheritedFromParent
+        )
+      );
+    }
+    return scopes;
+  }, [options, availableOptions, inheritedFromParent]);
+
   // Dependency linkage (3a): when filling a dependency unlocks rows, flash
   // them once — the form visibly "opens up" instead of silently changing.
   const dependencyLockedNames = useMemo(() => {
@@ -2412,15 +2602,13 @@ const FormEngineImpl = ({
   // genuine remount (a fresh instance) auto-focuses again, which is the intended
   // on-mount behaviour.
   const hasAutoFocusedRef = useRef(false);
-  // The field expanded programmatically for autofocus. A ref (not state) so
-  // CompactRow's 60ms focus timer reads the current value regardless of render
-  // batching; CompactRow focuses this one with `preventScroll` so an off-screen
-  // (or below-the-fold) form is never scrolled into view on mount.
-  const autoFocusNameRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    // Two decisions, one scan. `autoFocusFirstRequired` opens the row AND puts
-    // the caret in it; `expandFirstRequired` only opens it. Setting both keeps
-    // the focusing behaviour, since focusing implies opening.
+    // Two decisions, one scan. Both open the row that needs attention;
+    // `autoFocusFirstRequired` additionally promises the caret lands in it, and
+    // so refuses to run at all while the reader holds the caret somewhere else
+    // (the guard below). An opened row takes the caret either way — that is
+    // CompactRow's tap-to-edit rule, and it declines just as firmly to take one
+    // that is already somewhere outside the row.
     const wantsFocus = !!autoFocusFirstRequired;
     if ((!wantsFocus && !expandFirstRequired) || !compact || !options) {
       return;
@@ -2474,11 +2662,6 @@ const FormEngineImpl = ({
     hasAutoFocusedRef.current = true;
 
     if (target) {
-      // Set the ref before the state update so CompactRow's focus timer sees it.
-      // Expand-only leaves it unset, which is what keeps the caret where it is.
-      if (wantsFocus) {
-        autoFocusNameRef.current = target;
-      }
       setExpandedOptions((prev) =>
         prev.includes(target) ? prev
         : expandMode === 'multi' ? [...prev, target]
@@ -2791,14 +2974,16 @@ const FormEngineImpl = ({
             // `inherit_props: { language: 'language' }`, the list renderer
             // forwards it into each row, and the row's body resolves against
             // the accumulated bag.
-            inheritedFromParent={{
-              ...inheritedFromParent,
-              ...resolveInheritProps(
-                options?.[optionName]?.inherit_props,
-                availableOptions,
-                inheritedFromParent
-              ),
-            }}
+            //
+            // Read from the memoised map rather than built here: this is a
+            // PROP, and one built inline is a new object on every render of
+            // the form, which re-renders every field that receives it. The
+            // `??` chain answers for a field the schema does not describe —
+            // `inheritedScopeFor` returns the SAME references, so an
+            // undescribed field is as stable as a described one.
+            inheritedFromParent={
+              inheritedScopes.get(optionName) ?? inheritedFromParent ?? NO_INHERITED_SCOPE
+            }
             // Propagate compact so an arg_schema field renders a COMPACT sub-form
             // (consistent with the parent) rather than the classic FormEngine.
             compact={compact}
@@ -2949,6 +3134,8 @@ const FormEngineImpl = ({
       handleRemoveOperator,
       getCustomMenuTemplateItems,
       getTypeForOption,
+      inheritedScopes,
+      inheritedFromParent,
     ]
   );
 
@@ -2990,7 +3177,6 @@ const FormEngineImpl = ({
       codePreviewRenderer,
       showAllDescriptions,
       expandedOptions,
-      autoFocusNameRef,
       highlightedOptions,
       flashedOptions,
       infoPanelOverrides,
@@ -3038,7 +3224,6 @@ const FormEngineImpl = ({
       codePreviewRenderer,
       showAllDescriptions,
       expandedOptions,
-      autoFocusNameRef,
       highlightedOptions,
       flashedOptions,
       infoPanelOverrides,
@@ -3406,6 +3591,10 @@ const FormEngineImpl = ({
     const boxHasPreselectedRows = (boxKey: TFormEngineBoxKey) =>
       boxKey === 'optional' &&
       bucketGroups[boxKey].some((groupName) => groupHasPreselectedRow(boxKey, groupName));
+    /* The pin, and where it lands. A nested sub-form sits inside the parent's
+       card and owns no scroll context, so it never pins. */
+    const stickyBoxHeaders = compactStickyBoxHeaders && !compactNested;
+    const boxStickyOffset = compactStickyOffset + compactToolbarHeight;
     const STATUS_BOXES: Array<{
       key: TFormEngineBoxKey;
       label: string;
@@ -3575,6 +3764,9 @@ const FormEngineImpl = ({
                   // transparent inside the parent's card.
                   $headerBg={compactNested ? 'transparent' : headerBg}
                   $nested={compactNested}
+                  // Keeps the wrapper from clipping, which is what a pinned box
+                  // header inside it needs — see StyledCompactPanel.
+                  $stickyBoxes={compactStickyBoxHeaders && !compactNested}
                   flat
                   raised
                   minimal
@@ -3583,7 +3775,30 @@ const FormEngineImpl = ({
                   // parent's edit card) instead of stacking its own dark surface.
                   // The status boxes keep their own tints; the sticky toolbar keeps
                   // its blurred header via the $headerBg override.
-                  stickyHeader={!compactNested}
+                  // NARROW: the toolbar gives up its pin so the box headers
+                  // can keep theirs.
+                  //
+                  // Measured at 380px, a pinned toolbar is 124px and a pinned
+                  // box header is 48 — together a third of a phone's readable
+                  // body, before the form has drawn a line. Only one of them
+                  // can be afforded there, and the box header is the better
+                  // buy: the toolbar is chrome you GO to (a search, a field
+                  // picker, a meter — all of it still one scroll away at the
+                  // top of the form), while the box header is chrome you READ,
+                  // and it is the only thing that says which bucket the rows
+                  // under the pointer are in.
+                  //
+                  // Same shape of decision the engine already makes one level
+                  // down, where `optionActionsCollapse: 'auto'` folds a row's
+                  // actions into a menu because a narrow row has no width for
+                  // a button strip.
+                  //
+                  // A consumer can still force either way: `compactPanelProps`
+                  // spreads after this.
+                  stickyHeader={!compactNested && !(compactNarrow && compactStickyBoxHeaders)}
+                  // Below the host's own pinned chrome, if it has any — see
+                  // `compactStickyOffset`.
+                  stickyHeaderOffset={compactStickyOffset || undefined}
                   // Consumer overrides land last so they win over every default
                   // above; `actions` and `contentStyle` below merge rather than
                   // replace (see `compactPanelProps`).
@@ -3593,6 +3808,26 @@ const FormEngineImpl = ({
                     display: 'flex',
                     flexFlow: 'column',
                     gap: '10px',
+                    /* The panel body must not be a SCROLL CONTAINER.
+                    
+                       `StyledPanelContent` ships `overflow: auto` so a
+                       height-capped panel can scroll its body. This one is never
+                       capped — in `compactScroll: 'host'` the page scrolls and in
+                       'own' the wrap above does — so the `auto` never engages and
+                       reads as inert. It is not: an `overflow: auto` box is a
+                       scrollport whether or not it scrolls, and every
+                       `position: sticky` inside resolves against IT. The status
+                       box headers (and the toolbar, in a nested host) would pin
+                       to a box that never moves, which looks exactly like sticky
+                       being ignored.
+                    
+                       `overflow-x: clip`, NOT `hidden`, for the reason spelled
+                       out on `StyledCompactWrap`: CSS coerces an `overflow-y:
+                       visible` to `auto` unless the other axis is visible or
+                       clip, which would put the scrollport straight back. `clip`
+                       keeps the horizontal guard the row ellipsis relies on. */
+                    overflowY: 'visible',
+                    overflowX: 'clip',
                     ...compactPanelProps?.contentStyle,
                   }}
                 >
@@ -3695,6 +3930,10 @@ const FormEngineImpl = ({
                         <StyledStatusBox
                           $accent={accent}
                           $bg={boxBg}
+                          // Only a box that PINS needs an opaque header (see
+                          // StyledStatusBox); passing it unconditionally would
+                          // repaint every form's boxes for nothing.
+                          $surface={stickyBoxHeaders ? getMainBackgroundColor(theme) : undefined}
                           key={box.key}
                           ref={(node: HTMLDivElement | null) => {
                             statusBoxRefs.current[box.key] = node;
@@ -3706,6 +3945,12 @@ const FormEngineImpl = ({
                           }
                           flat
                           minimal
+                          /* The header stays on screen while its own box is
+                             being read — see `compactStickyBoxHeaders`. Sticky
+                             is bounded by its containing block, so the header
+                             leaves with its box and only one is ever pinned. */
+                          stickyHeader={stickyBoxHeaders}
+                          stickyHeaderOffset={stickyBoxHeaders ? boxStickyOffset : undefined}
                           collapseButtonProps={{ flat: true, minimal: true, size: 'small' }}
                           collapsible
                           // Which boxes start closed is the consumer's call
@@ -4061,91 +4306,70 @@ const FormEngineImpl = ({
                 STRECHABLE_TYPES.has(options[optionName].type as TQorusType) ||
                 (options[optionName] as { stretch?: boolean }).stretch,
               size: 'small',
-              floatingActions: true,
-              actions: [
-                // SEAM (reqraft): per-option injected hover actions — where
-                // the IDE renders its `allowAi` AiAssistanceAction (with the
-                // option's schema as context). The consumer (the IDE) injects
-                // it; same factory pattern as the ExpressionBuilder's
-                // `extraActions`.
-                ...resolveOptionActions(optionActions, {
+              /* No floating bar. It is portalled over whatever sits above the
+                 row — on the first row, the form's own header buttons, which it
+                 made unclickable — and a bar that only appears on a hover is out
+                 of reach on a phone. The row's actions render in its own
+                 header: injected ones as buttons (all of them in the menu on
+                 touch or a narrow viewport), the row's own secondary ones in
+                 its ⋯ menu. */
+              actions: optionRowActions({
+                injected: resolveOptionActions(optionActions, {
                   name: optionName,
                   schema: options[optionName],
                   value: availableOptions?.[optionName] as TOption,
-                }),
-                {
-                  size: 'tiny',
-                  icon: 'FullscreenLine',
-                  className: 'options-item-fullscreen',
-                  tooltip: 'Focused Editing',
-                  show:
-                    (
-                      !readOnly &&
-                      type !== 'code-editor' &&
-                      ((options[optionName] as any)?.ui_type || options[optionName]?.type) !==
-                        'code-editor'
-                    ) ?
-                      'hover'
-                    : false,
-                  onClick: () => setFocusedEditing(optionName),
-                },
-                {
-                  size: 'tiny',
-                  icon: 'CloseLine',
-                  className: 'options-item-remove',
-                  tooltip: 'Remove Value',
-                  show:
-                    (
-                      !readOnly &&
-                      (other as any).value &&
-                      !isEqual((other as any).value, getDefaultValue(options[optionName])) &&
-                      !(options[optionName]?.disabled || (options[optionName] as any)?.readonly)
-                    ) ?
-                      'hover'
-                    : false,
-                  onClick: () => handleValueChange(optionName, undefined),
-                },
-                {
-                  size: 'tiny',
-                  icon: 'HistoryLine',
-                  className: 'options-item-revert',
-                  tooltip: 'Revert Changes',
-                  show:
-                    !readOnly && hasOptionChanged((other as any).value, optionName) ?
-                      'hover'
-                    : false,
-                  onClick: () => {
-                    handleValueChange(
-                      optionName,
-                      originalValue.current?.[optionName]?.value,
-                      originalValue.current?.[optionName]?.type
-                    );
-                  },
-                },
-                {
-                  size: 'tiny',
-                  icon: 'DeleteBinLine',
-                  intent: 'danger',
-                  minimal: true,
-                  className: 'options-optional-remove',
-                  show:
-                    (
-                      !readOnly &&
-                      !options[optionName]?.preselected &&
-                      !options[optionName]?.required
-                    ) ?
-                      'hover'
-                    : false,
-                  onClick: () => {
-                    confirmAction({
-                      title: 'Remove Selected Option',
-                      onConfirm: () => {
-                        removeSelectedOption(optionName);
+                }).filter((action) => action.show !== false),
+                collapse: collapseOptionActions,
+                menu: [
+                  !readOnly &&
+                    type !== 'code-editor' &&
+                    ((options[optionName] as any)?.ui_type || options[optionName]?.type) !==
+                      'code-editor' && {
+                      label: 'Focused editing',
+                      icon: 'FullscreenLine',
+                      className: 'options-item-fullscreen',
+                      onClick: () => setFocusedEditing(optionName),
+                    },
+                  !readOnly &&
+                    hasOptionChanged((other as any).value, optionName) && {
+                      label: 'Revert changes',
+                      icon: 'HistoryLine',
+                      className: 'options-item-revert',
+                      onClick: () => {
+                        handleValueChange(
+                          optionName,
+                          originalValue.current?.[optionName]?.value,
+                          originalValue.current?.[optionName]?.type
+                        );
                       },
-                    });
-                  },
-                },
-              ],
+                    },
+                  !readOnly &&
+                    (other as any).value &&
+                    !isEqual((other as any).value, getDefaultValue(options[optionName])) &&
+                    !(options[optionName]?.disabled || (options[optionName] as any)?.readonly) && {
+                      label: 'Remove value',
+                      icon: 'CloseLine',
+                      className: 'options-item-remove',
+                      onClick: () => handleValueChange(optionName, undefined),
+                    },
+                  !readOnly &&
+                    !options[optionName]?.preselected &&
+                    !options[optionName]?.required && {
+                      label: 'Remove option',
+                      icon: 'DeleteBinLine',
+                      intent: 'danger',
+                      className: 'options-optional-remove',
+                      onClick: () => {
+                        confirmAction({
+                          title: 'Remove Selected Option',
+                          onConfirm: () => {
+                            removeSelectedOption(optionName);
+                          },
+                        });
+                      },
+                    },
+                ],
+              }),
               content: (
                 <FocusedEditing
                   isFullscreen={focusedEditing === optionName}

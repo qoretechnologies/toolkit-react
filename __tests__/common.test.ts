@@ -112,4 +112,21 @@ describe('getDefaultValue', () => {
     ).toBe(3);
     expect(getDefaultValue({ type: 'string' } as any)).toBeUndefined();
   });
+
+  it('keeps a list or hash default whole', () => {
+    // The server sends plain defaults of every type: a list option's default
+    // is a list and a hash option's is a hash. Only an envelope — an object
+    // with a `type` — is unwrapped; reading `.value` of anything else lost
+    // the default.
+    expect(getDefaultValue({ type: 'list', default_value: ['GET', 'POST'] } as any)).toEqual([
+      'GET',
+      'POST',
+    ]);
+    expect(
+      getDefaultValue({ type: 'hash', default_value: { retries: 3, backoff: 'linear' } } as any)
+    ).toEqual({ retries: 3, backoff: 'linear' });
+    expect(
+      getDefaultValue({ type: 'list', default_value: { type: 'list', value: ['GET'] } } as any)
+    ).toEqual(['GET']);
+  });
 });

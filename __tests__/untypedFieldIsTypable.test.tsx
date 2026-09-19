@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { TemplateField } from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
 /**
  * An empty UNTYPED field opens on something you can type into.
@@ -19,12 +20,7 @@ import { FetchContext } from '../src/contexts/FetchContext';
  * the pick-only dropdown and a literal could only be reached through the ⋮
  * menu.
  */
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 const TEMPLATES = {
   items: [
@@ -38,7 +34,7 @@ const TEMPLATES = {
 const renderField = (type: string, value?: unknown) =>
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as never}>
+      <FetchContext.Provider value={fetchContext}>
         <TemplateField
           name='expected'
           type={type as never}
@@ -86,7 +82,7 @@ describe('what this must not change', () => {
        picker away would leave it with no control at all. */
     render(
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as never}>
+        <FetchContext.Provider value={fetchContext}>
           <TemplateField
             name='expected'
             type={'auto' as never}

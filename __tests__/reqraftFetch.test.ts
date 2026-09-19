@@ -24,7 +24,8 @@ import {
 
 /** A QueryClient per test: a shared cache would leak entries between cases. */
 const freshClient = () =>
-  new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  // `cacheTime`: react-query 4's name for it (`gcTime` is 5's, and 4 ignores it).
+  new QueryClient({ defaultOptions: { queries: { retry: false, cacheTime: Infinity } } });
 
 const jsonResponse = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {

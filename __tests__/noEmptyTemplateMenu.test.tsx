@@ -35,29 +35,28 @@ vi.mock('../src/components/form/fields/rich-text/RichText', () => ({
   },
 }));
 
-import { TemplateField } from '../src/components/form/fields/template/TemplateField';
+import {
+  TemplateField,
+  ITemplateFieldProps,
+} from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 const A_STRING_TEMPLATE = { items: [{ label: 'A name', badge: 'string', value: '$local:name' }] };
 
-const stringField = (props: Record<string, unknown>) =>
+const stringField = (props: Partial<ITemplateFieldProps>) =>
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as never}>
+      <FetchContext.Provider value={fetchContext}>
         <TemplateField
           name='subject'
           type={'string' as never}
           value={'hello' as never}
           allowCustomValues
           onChange={vi.fn()}
-          {...(props as never)}
+          {...props}
         />
       </FetchContext.Provider>
     </ReqoreUIProvider>

@@ -10,6 +10,7 @@ import { renderExpressionToText } from '../expressions/renderExpressionToText';
 import { IExpressionValue } from '../expressions/types';
 import yaml from 'js-yaml';
 import { formatTimeoutValue, richtextToString } from '../../../helpers/common';
+import { firstDeclaredType } from '../../../helpers/optionUiTypes';
 
 /** "N noun" with naive pluralisation ("1 item", "2 items"). */
 const pluralize = (count: number, noun: string): string =>
@@ -224,7 +225,7 @@ export const shouldAutoCollapseCompactAllowedValueOption = (
  * user chooses either boolean value in compact mode, the choice is complete
  * and the inline editor can close without a separate confirmation. */
 export const isCompactBooleanOption = (schema: TQorusFormFieldSchema | undefined): boolean => {
-  const type = (schema?.ui_type || schema?.type)?.toLowerCase();
+  const type = firstDeclaredType(schema?.ui_type || schema?.type)?.toLowerCase();
   return type === 'bool' || type === 'boolean';
 };
 

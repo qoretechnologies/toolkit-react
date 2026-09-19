@@ -64,9 +64,15 @@ export interface IAutoFieldProps
     IWithReqoreSize,
     Omit<
       TQorusFormFieldSchema,
-      'get_message' | 'return_message' | 'on_change' | 'type' | 'arg_schema'
+      'get_message' | 'return_message' | 'on_change' | 'type' | 'arg_schema' | 'ui_type'
     > {
   name?: string;
+  /**
+   * The editor the schema asks for. Optional here although the shared
+   * descriptor requires it: the field renders from `type` / `defaultType` when
+   * there is none, and reads this only to pick an override or a special editor.
+   */
+  ui_type?: IQorusType;
   value?: any;
   default_value?: any;
   type?: IQorusType;

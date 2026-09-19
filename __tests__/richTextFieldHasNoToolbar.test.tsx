@@ -18,7 +18,10 @@ vi.mock('@qoretechnologies/reqore/dist/components/RichTextEditor', () => ({
   },
 }));
 
-import { RichTextFormField } from '../src/components/form/fields/rich-text/RichText';
+import {
+  IRichTextFormFieldProps,
+  RichTextFormField,
+} from '../src/components/form/fields/rich-text/RichText';
 
 beforeEach(() => {
   editor.props = undefined;
@@ -39,7 +42,9 @@ describe('a rich-text form field', () => {
       <RichTextFormField
         value={'hello' as never}
         onChange={vi.fn()}
-        {...({ actions: { undo: true, redo: true, styling: true } } as never)}
+        // A field spreads its schema props untyped at run time, so this is the
+        // shape a stray `actions` really arrives in — outside the typed API.
+        {...({ actions: { undo: true, redo: true, styling: true } } as IRichTextFormFieldProps)}
       />
     );
 

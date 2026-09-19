@@ -58,9 +58,10 @@ export const FormFieldsSkeleton = ({
     vertical
     fluid
     gapSize='big'
+    /* No `width: '100%'` here: `fluid` above IS that, and stating it twice
+       means the next person has two places to change. */
     style={{
       padding: '12px 6px',
-      width: '100%',
       ...(fill ? { flex: '1 1 auto', minHeight: 0 } : {}),
     }}
   >

@@ -6,7 +6,7 @@
 // re-reads the stored value, so a DOM-only assertion would pass just as
 // happily against a field that stored nothing at all.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,13 +19,9 @@ vi.mock('../src/components/dpqlEditor/useDpqlProbe', () => ({
 
 import { TemplateField } from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /** What the live server returns for a real expression. */
 const expressionResult = (exp: string) => ({
@@ -78,7 +74,7 @@ const renderTypedField = async (
 
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={fetchContext as any}>
+      <FetchContext.Provider value={fetchContext}>
         <Harness />
       </FetchContext.Provider>
     </ReqoreUIProvider>
@@ -299,7 +295,7 @@ describe('a value that is a richtext document', () => {
 
     render(
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as any}>
+        <FetchContext.Provider value={fetchContext}>
           <TemplateField
             name='opt'
             aria-label='Option'
@@ -324,7 +320,7 @@ describe('a value that is a richtext document', () => {
     // the field must not even ask the server about it.
     render(
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as any}>
+        <FetchContext.Provider value={fetchContext}>
           <TemplateField
             name='opt'
             aria-label='Option'

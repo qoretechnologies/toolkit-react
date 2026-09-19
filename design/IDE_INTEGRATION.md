@@ -43,6 +43,19 @@ checklist the IDE-integration PR ticks off so that can't happen.
   *Revised 2026-09-08:* a host that mirrors this rule needs the bare builder
   from the barrel; it is exported next to the shell as of 0.10.53 (#119) — no
   deep import of `dist/…/expressions/builder` required.
+- **`inheritedFromParent` is stable by identity.** A host editor (and any
+  `arg_schema` sub-form) is handed the inheritance bag as a prop, and the
+  engine guarantees the SAME object back for as long as nothing in it changed:
+  a field that declares no `inherit_props` forwards the bag it was handed
+  unwrapped, a form with no inherited scope forwards one shared frozen object,
+  and a field that does declare `inherit_props` gets one merge per schema /
+  sibling-value change (`inheritedScopeFor`, memoised per field). A host editor
+  may therefore use it in a dependency list or a `memo` comparison. Built
+  inline, as it was before 0.10.55, it re-rendered every field of every form on
+  every render — the console read `Template field <name> Updated because:
+  {inheritedFromParent}` forever. The same treatment exists in qorus-ide's
+  `systemOptions.tsx`, which must stay in step until FormEngine replaces it.
+
 - **Open product call (B4):** whether reqraft should ALSO ship a *native*
   saved-values (so non-IDE consumers get it without wiring the seam). The
   storage primitive exists (`useReqraftStorage` mirrors the IDE's

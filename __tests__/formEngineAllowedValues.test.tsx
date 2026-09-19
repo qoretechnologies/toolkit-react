@@ -4,13 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { FetchContext } from '../src/contexts/FetchContext';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 describe('FormEngine fixed allowed-value fields', () => {
   it('renders a selectable editor for fixed allowed values with a rich renderer hint', async () => {
@@ -31,7 +27,6 @@ describe('FormEngine fixed allowed-value fields', () => {
                 supports_custom_values: false,
                 supports_expressions: false,
                 supports_templates: false,
-                disallow_template: true,
                 allowed_values: [
                   {
                     display_name: 'Qore Technologies',
@@ -129,7 +124,6 @@ describe('FormEngine fixed allowed-value fields', () => {
                 supports_custom_values: false,
                 supports_expressions: false,
                 supports_templates: false,
-                disallow_template: true,
                 allowed_values: [
                   {
                     display_name: 'Qore Technologies',

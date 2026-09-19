@@ -40,13 +40,9 @@ vi.mock('../src/components/form/expressions/builder', () => ({
 import { ExpressionField } from '../src/components/form/expressions/ExpressionField';
 import { TemplateField } from '../src/components/form/fields/template/TemplateField';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /** Stands in for the IDE's `TestReferenceField`. */
 const HostEditor = () => <div data-testid='host-editor'>host editor</div>;
@@ -54,7 +50,7 @@ const OVERRIDES = { 'test-reference': HostEditor };
 
 const wrap = (node: React.ReactNode) => (
   <ReqoreUIProvider>
-    <FetchContext.Provider value={fetchContext as never}>{node}</FetchContext.Provider>
+    <FetchContext.Provider value={fetchContext}>{node}</FetchContext.Provider>
   </ReqoreUIProvider>
 );
 

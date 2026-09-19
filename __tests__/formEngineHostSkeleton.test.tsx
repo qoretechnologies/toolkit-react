@@ -3,13 +3,14 @@ import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
+
+/* A schema load that never answers. Never REJECTS either: a rejection after the
+   test has unmounted is an unhandled one, and it would fail the run from a
+   test that had already passed. */
+const neverLoads = () => new Promise<never>(() => {});
 
 const OPTIONS = {
   name: { type: 'string', display_name: 'Name' },
@@ -69,13 +70,18 @@ describe('a host wait handed to the form', () => {
 
   it('is one placeholder, not one per wait: the same node survives the handover', async () => {
     // The host finishes first and the form's own waits carry on. If the two
-    // drew separate placeholders this is where the swap would show.
-    const { container, rerender } = renderForm({ skeleton: true });
+    // drew separate placeholders this is where the swap would show — so the
+    // form is given a wait that OUTLIVES the host's: a schema loader that never
+    // settles, which pins `data-wait` at `options` once the host stops waiting.
+    // Without it the handover is a race against the type catalogue resolving,
+    // and the moment worth asserting would be gone before it could be read.
+    const { container, rerender } = renderForm({ skeleton: true, options: undefined, optionsLoader: neverLoads });
 
     await waitFor(() => {
       expect(container.querySelector(skeletonSelector)).not.toBeNull();
     });
     const first = container.querySelector(skeletonSelector);
+    expect(first?.getAttribute('data-wait')).toBe('host');
 
     rerender(
       <ReqoreUIProvider>
@@ -84,7 +90,8 @@ describe('a host wait handed to the form', () => {
             compact
             name='host-wait'
             value={{} as never}
-            options={OPTIONS}
+            options={undefined}
+            optionsLoader={neverLoads}
             onChange={vi.fn()}
             skeleton={false}
           />
@@ -92,12 +99,13 @@ describe('a host wait handed to the form', () => {
       </ReqoreUIProvider>
     );
 
-    await waitFor(() => {
-      expect(container.textContent).toContain('Name');
-    });
-    // The placeholder gave way to the form directly — it was never replaced by
-    // a second placeholder from the same component.
-    expect(container.querySelector(skeletonSelector)).toBeNull();
-    expect(first).not.toBeNull();
+    // The host's wait is over and one of the form's own is now holding the
+    // gate...
+    const after = container.querySelector(skeletonSelector);
+    expect(after?.getAttribute('data-wait')).not.toBe('host');
+    // ...in the very same node. A second placeholder mounted for the second
+    // wait is the cost this prop exists to remove, and it would show here as a
+    // different element.
+    expect(after).toBe(first);
   });
 });
