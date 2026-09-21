@@ -242,9 +242,11 @@ export const CompactRow = memo(
         String(optionField?.value)
       : JSON.stringify(optionField?.value);
 
+    /* `valueKey` alone, deliberately - see above. No eslint-disable: this repo
+       does not load `react-hooks`, so a suppression for a rule that is not
+       there is itself an error, and the pre-push lint refuses the push. */
     React.useEffect(() => {
       delete readRowHeights.current[optionName];
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [valueKey]);
     const originalValue = useContextSelector(CompactRowContext, (v) => v.originalValue);
     const availableOptions = useContextSelector(CompactRowContext, (v) => v.availableOptions);
