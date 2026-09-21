@@ -1320,6 +1320,22 @@ export const _validateField = (
             continue;
           }
 
+          /* An option whose dependencies are not fulfilled is not part of this
+             object, so it cannot make the object invalid.
+
+             The form already takes that view — it HIDES such an option — and
+             the two disagreeing is a trap with no way out of it: a test whose
+             subject moved from a versioned kind to a service keeps the
+             `subject_iface_version` it no longer has a field for, and Submit
+             goes dead naming an option that is nowhere on screen. Nulling the
+             value does not help either, because a null is still a value the
+             loop reaches.
+
+             A REQUIRED option with unfulfilled dependencies is unaffected:
+             `getUnresolvedRequiredOptions` above reports it as `dependency`
+             before this loop runs, and it is the only owner of that question.
+             This branch was therefore only ever able to fail an option the
+             author could not see and did not need. */
           if (
             (optionSchema?.[option] as TQorusFormFieldSchema)?.depends_on &&
             !hasAllDependenciesFullfilled(
@@ -1328,7 +1344,7 @@ export const _validateField = (
               optionSchema
             )
           ) {
-            return invalidResult(`Option ${option} dependencies are not fulfilled`);
+            continue;
           }
 
           const optionResult =
