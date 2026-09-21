@@ -1057,6 +1057,70 @@ export const CompactRowCancelEdit: Story = {
   },
 };
 
+export const CompactRowReleasesItsOpeningFloor: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opening a row pins the height it had while being READ, so the click cannot yank the content below it up under the pointer. That floor is for the transition only: it is released the moment the author changes the value. Without the release, a row that was tall because it carried a warning kept that height after the author fixed the very thing the warning was about — reported as "the chip is removed, but the vertical size of the option remains the same", leaving a large empty box where the explanation had been.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: { cookie_name: { type: 'string', value: 'my-cookie' } },
+    options: {
+      cookie_name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Cookie Name',
+        short_desc: 'Cookie name for cookie authentication',
+        // A message is what makes a read row tall enough for the stuck floor
+        // to be visible rather than merely present.
+        messages: [
+          {
+            intent: 'warning',
+            title: 'This name is not one the browser will keep',
+            content:
+              'A cookie name may not contain a space, a comma or a semicolon. Rename it, and this notice goes away — and so should the space it took up.',
+          },
+        ],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() =>
+      expect(canvasElement.querySelector('[data-field="cookie_name"]')).toBeTruthy()
+    );
+    fireEvent.click(canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]')!);
+
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy());
+
+    /* Opening pins the read height. Asserted on the inline style rather than
+       on the measured height: jsdom lays nothing out, so a height comparison
+       here would pass on any code at all. */
+    const editing = canvasElement.querySelector<HTMLElement>('.readfirst-row-editing');
+    expect(editing!.style.minHeight).not.toBe('');
+
+    const input = canvasElement.querySelector<HTMLInputElement>(
+      '[data-field="cookie_name"] input, [data-field="cookie_name"] textarea'
+    );
+    expect(input).toBeTruthy();
+    fireEvent.change(input!, { target: { value: 'changed-cookie' } });
+
+    // ...and the author changing the value releases it, so the row can settle
+    // to whatever it now holds.
+    await waitFor(
+      () => {
+        const still = canvasElement.querySelector<HTMLElement>('.readfirst-row-editing');
+        expect(still?.style.minHeight ?? '').toBe('');
+      },
+      { timeout: 5000 }
+    );
+  },
+};
+
 // Language and Source code are one decision — "what is this code, and in what
 // language" — and the form used to ask it as two unrelated rows one above the
 // other. `absorb_fields` lets the editor take the language into its own

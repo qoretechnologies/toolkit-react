@@ -210,6 +210,38 @@ export const CompactRow = memo(
     );
     const setFocusedEditing = useContextSelector(CompactRowContext, (v) => v.setFocusedEditing);
     const readRowHeights = useContextSelector(CompactRowContext, (v) => v.readRowHeights);
+
+    /**
+     * The floor recorded when a row is opened lasts until the author changes
+     * something.
+     *
+     * `activate()` measures the row as it was READ and pins that as the
+     * editing row's `min-height`, so opening a row cannot yank the content
+     * below it up under the pointer. That is right for the transition and
+     * wrong for the rest of the session: a row that was tall because it
+     * carried a warning keeps that height after the author fixes the very
+     * thing the warning was about, leaving a large empty box where the
+     * explanation used to be — reported as "the chip is removed, but the
+     * vertical size of the option remains the same".
+     *
+     * Released on the first change to the value, which is exactly the moment
+     * the author has acted and the row should settle to what it now holds.
+     * Nothing is yanked by that: the author caused it and is looking at it.
+     *
+     * Keyed on a STRING rather than the value itself. A form value is often a
+     * fresh object on every render (`{source, value}` for a reference), so a
+     * dependency on its identity would drop the floor on the first re-render
+     * and the transition it exists for would never be smoothed at all.
+     */
+    const valueKey =
+      optionField?.value === null || typeof optionField?.value !== 'object' ?
+        String(optionField?.value)
+      : JSON.stringify(optionField?.value);
+
+    React.useEffect(() => {
+      delete readRowHeights.current[optionName];
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [valueKey]);
     const originalValue = useContextSelector(CompactRowContext, (v) => v.originalValue);
     const availableOptions = useContextSelector(CompactRowContext, (v) => v.availableOptions);
     const requiredGroupsInfo = useContextSelector(CompactRowContext, (v) => v.requiredGroupsInfo);
