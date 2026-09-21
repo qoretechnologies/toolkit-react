@@ -1057,6 +1057,78 @@ export const CompactRowCancelEdit: Story = {
   },
 };
 
+export const CompactRowReadOnlyIsAWayIn: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A read-only row opens nothing by itself — it shows everything it has. Where the consumer says the field is editable somewhere else (`onReadOnlyActivate`), the row becomes the way in to that place and announces it: a button role, keyboard handling, a pointer cursor, and an accessible name that says what the click DOES ("Edit Cookie Name") rather than just naming the field. A reader clicking a value they want to change has said exactly what they want; answering with silence teaches them the surface is broken.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    readOnly: true,
+    minColumnWidth: '360px',
+    value: { cookie_name: { type: 'string', value: 'my-cookie' } },
+    options: {
+      cookie_name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Cookie Name',
+        short_desc: 'Cookie name for cookie authentication',
+      },
+    },
+    onReadOnlyActivate: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    await waitFor(() =>
+      expect(canvasElement.querySelector('[data-field="cookie_name"]')).toBeTruthy()
+    );
+
+    const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]')!;
+    // It reads as a control, not as text that happens to respond.
+    expect(row.getAttribute('role')).toBe('button');
+    expect(row.getAttribute('aria-label')).toBe('Edit Cookie Name');
+    expect(row.getAttribute('tabindex')).toBe('0');
+
+    fireEvent.click(row);
+    await waitFor(() => expect((args as any).onReadOnlyActivate).toHaveBeenCalledWith('cookie_name'));
+
+    // And it still does not open an editor in place — the point is that the
+    // editing happens where the consumer sent it.
+    expect(canvasElement.querySelector('.readfirst-row-editing')).toBeNull();
+  },
+};
+
+export const CompactRowReadOnlyStaysInertWithoutAWayIn: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same read-only row with nowhere to send the reader. It stays inert: no button role, no focus stop, no cursor — because a control that does nothing is worse than plain text, and a read-only form with no editor behind it is a perfectly ordinary thing.',
+      },
+    },
+  },
+  args: {
+    ...(CompactRowReadOnlyIsAWayIn.args as any),
+    onReadOnlyActivate: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() =>
+      expect(canvasElement.querySelector('[data-field="cookie_name"]')).toBeTruthy()
+    );
+
+    const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]')!;
+    expect(row.getAttribute('role')).toBeNull();
+    expect(row.getAttribute('tabindex')).toBeNull();
+
+    fireEvent.click(row);
+    // Nothing opens, and nothing is claimed to have happened.
+    expect(canvasElement.querySelector('.readfirst-row-editing')).toBeNull();
+  },
+};
+
 export const CompactRowReleasesItsOpeningFloor: Story = {
   parameters: {
     docs: {

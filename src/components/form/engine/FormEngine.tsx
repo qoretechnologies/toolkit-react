@@ -840,6 +840,20 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   onOptionsLoaded?: (options: IQorusFormSchema) => void;
   recordRequiresSearchOptions?: boolean;
   readOnly?: boolean;
+  /**
+   * What a click on a READ-ONLY row does, when there is somewhere to send it.
+   *
+   * A read-only row opens nothing by default — it shows everything it has and
+   * answers a click with silence, which is right when the form is the only
+   * place the value exists. Where the same field IS editable somewhere else,
+   * that silence is a dead end: the reader clicking a value they want to
+   * change has said exactly what they want.
+   *
+   * Given this, each row becomes the way in to that place and announces it —
+   * it takes a button's role, keyboard handling and cursor. Omit it and
+   * nothing changes.
+   */
+  onReadOnlyActivate?: (optionName: string) => void;
   allowTemplates?: boolean;
   /**
    * The form's SHARED template vocabulary — config items, system properties —
@@ -1243,6 +1257,7 @@ const FormEngineImpl = ({
   onOptionsLoaded,
   recordRequiresSearchOptions,
   readOnly,
+  onReadOnlyActivate,
   allowTemplates = true,
   interfaceContext,
   templateFieldProps,
@@ -3212,6 +3227,7 @@ const FormEngineImpl = ({
     () => ({
       templates: templates.value,
       readOnly,
+      onReadOnlyActivate,
       commitMode,
       expandMode,
       options,
@@ -3362,6 +3378,7 @@ const FormEngineImpl = ({
     }),
     [
       readOnly,
+      onReadOnlyActivate,
       validityData,
       readFirstAttentionCount,
       readFirstCompletion,

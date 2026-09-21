@@ -210,6 +210,10 @@ export const CompactRow = memo(
     );
     const setFocusedEditing = useContextSelector(CompactRowContext, (v) => v.setFocusedEditing);
     const readRowHeights = useContextSelector(CompactRowContext, (v) => v.readRowHeights);
+    const onReadOnlyActivate = useContextSelector(
+      CompactRowContext,
+      (v) => v.onReadOnlyActivate
+    );
 
     /**
      * The floor recorded when a row is opened lasts until the author changes
@@ -2108,8 +2112,16 @@ export const CompactRow = memo(
       // with `readOnly` handed down (an id in a greyed-out input, a choice
       // that could still be changed); then into a read view of the same
       // value — which showed nothing the row could not show itself once it
-      // stopped truncating. So it shows everything, and opens nothing.
+      // stopped truncating. So it shows everything, and opens nothing HERE.
+      //
+      // Where the consumer says the field is editable somewhere else, the row
+      // is the way in to that place: a reader clicking a value they want to
+      // change has said exactly what they want, and answering with silence
+      // teaches them the surface is broken.
       if (fieldDisabled || readOnly) {
+        if (readOnly && !fieldDisabled) {
+          onReadOnlyActivate?.(optionName);
+        }
         return;
       }
       const target = event?.currentTarget as HTMLElement | undefined;
@@ -2176,19 +2188,30 @@ export const CompactRow = memo(
       : dotStatus === 'todo' ? cWarning
       : dotStatus === 'set' ? cSuccess || cInfo
       : undefined;
+    /* A read-only row is a control only when the consumer gave it somewhere to
+       go. Then it takes a button's role, focus and keyboard handling, because
+       a thing that acts on a click has to be reachable without a mouse and has
+       to announce what it does — and "Edit X", not "X", is what it does. */
+    const readOnlyIsAWayIn = !!readOnly && !fieldDisabled && !!onReadOnlyActivate;
+    const actsOnClick = !readOnly || readOnlyIsAWayIn;
+
     const row = (
       <div
         key={optionName}
         data-field={optionName}
-        role={readOnly ? undefined : 'button'}
-        tabIndex={readOnly ? undefined : 0}
-        aria-label={readOnly ? undefined : label}
-        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        role={actsOnClick ? 'button' : undefined}
+        tabIndex={actsOnClick ? 0 : undefined}
+        aria-label={
+          readOnlyIsAWayIn ? `Edit ${label}`
+          : readOnly ? undefined
+          : label
+        }
+        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${readOnlyIsAWayIn ? ' readfirst-row-way-in' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
-        style={stripeStyle}
-        onClick={readOnly ? undefined : activate}
+        style={readOnlyIsAWayIn ? { ...stripeStyle, cursor: 'pointer' } : stripeStyle}
+        onClick={actsOnClick ? activate : undefined}
         onKeyDown={
-          readOnly ? undefined : (
+          !actsOnClick ? undefined : (
             (event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
