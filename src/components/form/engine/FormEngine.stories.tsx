@@ -1059,6 +1059,12 @@ export const CompactRowCancelEdit: Story = {
 
 export const CompactRowReadOnlyIsAWayIn: Story = {
   parameters: {
+    /* Nothing to SEE here: what this story asserts is a role, a focus stop, a
+       cursor and an accessible name — none of which a pixel capture records,
+       so the frame is an ordinary read-only row either way. Rejected on qlip
+       build #212 as "visually empty / not worth snapshotting"; the story stays
+       because the behaviour it pins is the point. */
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1103,6 +1109,12 @@ export const CompactRowReadOnlyIsAWayIn: Story = {
 
 export const CompactRowReadOnlyStaysInertWithoutAWayIn: Story = {
   parameters: {
+    /* Nothing to SEE here: what this story asserts is a role, a focus stop, a
+       cursor and an accessible name — none of which a pixel capture records,
+       so the frame is an ordinary read-only row either way. Rejected on qlip
+       build #212 as "visually empty / not worth snapshotting"; the story stays
+       because the behaviour it pins is the point. */
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -8912,6 +8924,14 @@ export const CompactRowOpensItsPicker: Story = {
     // ONE click, and the choices the author came for are in front of them.
     await _testsWaitForText('Row count');
     await _testsWaitForText('Raises error');
+
+    /* ...in ONE picker. The collection modal is rendered beside the trigger
+       rather than as one of its branches, so it is not mutually exclusive with
+       the anchored list, and `forceDropdown` defaults to true — so asking for
+       the choices used to open a dialog ON TOP of the list, both offering the
+       same five items. Asserting the items alone did not catch it: they were
+       present twice. Reported on qlip build #212. */
+    await _testsWaitForTextToNotExist('Select from items');
   },
 };
 

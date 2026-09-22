@@ -122,11 +122,7 @@ export const SelectFormField = memo(
     );
 
     const rowAsksForTheChoices = useContext(RowOpenPickerContext);
-    useEffect(() => {
-      if (rowAsksForTheChoices) {
-        setCollectionOpen(true);
-      }
-    }, [rowAsksForTheChoices]);
+
 
     useEffect(() => {
       setItems(fixItems(rawItems));
@@ -213,6 +209,22 @@ export const SelectFormField = memo(
     const hasItemsWithDesc = useCallback((data: ISelectFormFieldItem[]) => {
       return data.some((item) => item.desc || item.short_desc);
     }, []);
+    /* Which picker this control actually draws, on the SAME condition the
+       trigger below is chosen by. The collection modal is rendered beside that
+       trigger rather than as one of its branches, so it is not mutually
+       exclusive with the anchored list — and `forceDropdown` DEFAULTS TO TRUE,
+       which makes the list the usual trigger. Opening the collection for every
+       row that asked for its choices therefore put a dialog on top of a
+       dropdown, both listing the same items, for a single click. Reported on
+       qlip build #212: "Should this really open both the dropdown and the
+       modal dialog?" */
+    const picksFromTheCollection = !asMenu && hasItemsWithDesc(items) && !forceDropdown;
+
+    useEffect(() => {
+      if (rowAsksForTheChoices && picksFromTheCollection) {
+        setCollectionOpen(true);
+      }
+    }, [rowAsksForTheChoices, picksFromTheCollection]);
 
     const hasItemsWithError = useCallback((data: ISelectFormFieldItem[]) => {
       return data.some(
