@@ -123,6 +123,21 @@ const formatList = (items: unknown[], schema?: TQorusFormFieldSchema): string =>
   return parts.length ? parts.join(', ') : pluralize(items.length, 'item');
 };
 
+/** "datasource · omquser · /bb_local": the provider's kind, its name and its
+ *  path, as the picker shows them. A read row must say WHICH provider a value
+ *  is, and "11 fields" said only how many keys describe it. Undefined when the
+ *  value is not shaped like a provider, so the caller falls through. */
+export const formatDataProviderValue = (value: unknown): string | undefined => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const { type, name, path } = value as { type?: unknown; name?: unknown; path?: unknown };
+  const parts = [type, name, path].filter(
+    (part): part is string => typeof part === 'string' && part.trim() !== ''
+  );
+  return parts.length ? parts.join(' · ') : undefined;
+};
+
 /** Summarise a hash/object by its field count ("2 fields"), or "Set" when empty. */
 const fieldCountLabel = (obj: object): string => {
   const keys = Object.keys(obj);
@@ -711,6 +726,15 @@ export const formatOptionValue = (
     }
     if (parsed !== undefined && parsed !== null && typeof parsed !== 'object') {
       return String(parsed);
+    }
+  }
+
+  // A provider is an object, but the count of its keys is not what the reader
+  // asked: name it. (The structured preview under the row shows the keys.)
+  if (type === 'data-provider') {
+    const provider = formatDataProviderValue(value);
+    if (provider) {
+      return provider;
     }
   }
 

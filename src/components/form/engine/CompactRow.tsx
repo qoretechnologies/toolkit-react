@@ -86,6 +86,17 @@ import { TFieldWithOwnTemplates } from './rendererTypes';
  */
 const isMultilineMarkdown = (value: string): boolean => value.trim().includes('\n');
 
+// Types that are not hashes by declaration but hold a plain object as their
+// value, and so get the hash row's structured preview under their summary.
+// Kept explicit: a `schema` or `richtext` value is an object too, and each of
+// those already has a preview of its own.
+const OBJECT_VALUED_PREVIEW_TYPES = new Set([
+  'data-provider',
+  'options',
+  'system-options',
+  'processor-mappings',
+]);
+
 // Types whose editors are too tall/nested to edit in-row — these keep the edit
 // card; `arg_schema` and operator fields are excluded separately.
 const COMPACT_COMPLEX_TYPES = new Set([
@@ -1853,7 +1864,7 @@ export const CompactRow = memo(
     // A hash row reveals its sub-fields as read-only sub-rows under a "view
     // more" disclosure; the row itself still expands the real editor on click.
     /* An EXPRESSION is not a hash, whatever shape it is stored in.
-    
+
        `{is_expression: true, value: {exp, args}}` is hash-shaped, so a field
        holding one earned the structured inset and the row printed the syntax
        tree — `is_expression true / value / exp + / args 1 2` — directly under a
@@ -1861,13 +1872,25 @@ export const CompactRow = memo(
        STORED, not what it is; the row's line is the whole value, and the
        expression editor is where its parts are looked at. Same exclusion, and
        for the same reason, as `schema-definition` beside it. */
+    const isExpression = getExpressionAst(optionField) !== undefined;
+    const isPlainHashType =
+      (valueType === 'hash' || valueType === 'free-hash') &&
+      (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition' &&
+      !isExpression;
+    // A row of another declared type whose VALUE is an object (a data provider,
+    // an options hash) gets the same preview: its summary line names the thing,
+    // and the preview shows what it is made of. "11 fields" told the reader
+    // neither, and read as a string that happened to say "fields". The
+    // expression exclusion holds here too: a value stored as an AST is an
+    // expression whatever its declared type.
+    const isObjectValuedType =
+      OBJECT_VALUED_PREVIEW_TYPES.has(valueType) &&
+      !!optionField?.value &&
+      typeof optionField.value === 'object' &&
+      !Array.isArray(optionField.value) &&
+      !isExpression;
     const hashEntries =
-      (
-        !hidden &&
-        (valueType === 'hash' || valueType === 'free-hash') &&
-        (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition' &&
-        getExpressionAst(optionField) === undefined
-      ) ?
+      !hidden && (isPlainHashType || isObjectValuedType) ?
         getHashEntries(optionField, schema)
       : [];
     // A LIST OF HASHES/objects gets the same expandable structured preview a hash
