@@ -20,7 +20,7 @@
  * teardown and failed CI with `ReferenceError: window is not defined` while
  * passing locally.
  */
-import { render, waitFor } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FetchContext } from '../src/contexts/FetchContext';
 import { useFetch } from '../src/hooks/useFetch/useFetch';
@@ -56,6 +56,24 @@ const renderProbe = (url: string, get: ReturnType<typeof vi.fn>) => {
   return seen;
 };
 
+/**
+ * Waits for the in-flight `load()` to land its state updates inside the test.
+ *
+ * Every case here mounts a hook that fetches on mount, so asserting and returning
+ * leaves that request in flight. It then resolves after this file's environment has
+ * been torn down, react-dom reaches for `window` inside `dispatchSetState`, and
+ * vitest reports an unhandled `ReferenceError: window is not defined` - the same
+ * hazard the note above records for provider listeners, arriving by a second route.
+ * It passes locally and fails in CI, because whether the timer beats teardown is a
+ * race, so the wait is on the request's OWN promise rather than on any duration.
+ */
+const settle = async (get: ReturnType<typeof vi.fn>) => {
+  await waitFor(() => expect(get).toHaveBeenCalled());
+  await act(async () => {
+    await Promise.allSettled(get.mock.results.map((r) => r.value));
+  });
+};
+
 /** Exactly what `query` stores for a resolved GET. */
 const seedCache = (url: string, data: unknown) =>
   ReqraftQueryClient.setQueryData([reqraftCacheKey({ url })], { data, ok: true, status: 200 });
@@ -77,6 +95,7 @@ describe('useFetch with a warm cache', () => {
     // them, not just the last, or the flash passes unnoticed.
     await waitFor(() => expect(seen.loading.length).toBeGreaterThan(0));
     expect(seen.loading.some((l) => l === true)).toBe(false);
+    await settle(get);
   });
 
   it('hands back the cached data on the very first render', async () => {
@@ -86,6 +105,7 @@ describe('useFetch with a warm cache', () => {
     const seen = renderProbe('/system/qorus-type-info', get);
 
     expect(seen.data[0]).toEqual(CATALOGUE);
+    await settle(get);
   });
 
   it('still reports loading when there is nothing cached', async () => {
@@ -98,6 +118,7 @@ describe('useFetch with a warm cache', () => {
     const seen = renderProbe('/system/uncached-thing', get as never);
 
     expect(seen.loading.some((l) => l === true)).toBe(true);
+    await settle(get);
   });
 
   it('still revalidates a cached resource', async () => {
@@ -107,7 +128,7 @@ describe('useFetch with a warm cache', () => {
     const get = vi.fn(async () => ({ ok: true, data: CATALOGUE }));
     renderProbe('/system/qorus-type-info', get);
 
-    await waitFor(() => expect(get).toHaveBeenCalled());
+    await settle(get);
   });
 
   it('does not treat a cached FAILURE as an answer', async () => {
@@ -125,5 +146,6 @@ describe('useFetch with a warm cache', () => {
     const seen = renderProbe('/system/broken', get as never);
 
     expect(seen.loading.some((l) => l === true)).toBe(true);
+    await settle(get);
   });
 });
