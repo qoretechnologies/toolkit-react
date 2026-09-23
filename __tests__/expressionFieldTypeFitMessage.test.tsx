@@ -11,7 +11,7 @@
 //
 // Every analysis below is what the Qorus `/lsp` handler returned for the text.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -82,10 +82,16 @@ const analysedAs = (type: string, text: string, analysis: Record<string, unknown
 };
 
 /* Settled once the analysis has been asked for and a render has passed — the
-   absence cases would otherwise pass before the answer arrived. */
+   absence cases would otherwise pass before the answer arrived.
+
+   The second half used to be a 50ms sleep. That is a bet that a render fits in
+   50ms of WALL CLOCK, which is true on an idle machine and not inside a loaded
+   143-file run — the shape that makes a test pass alone and fail in the suite.
+   `act` flushes the pending effects and microtasks instead, which is the thing
+   the sleep was approximating, and it takes exactly as long as the work does. */
 const settle = async () => {
   await waitFor(() => expect(parseCalls).toBeGreaterThan(0), { timeout: 5000 });
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await act(async () => {});
 };
 
 describe('the type-fit message', () => {

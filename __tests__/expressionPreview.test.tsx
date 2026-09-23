@@ -1,7 +1,7 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { forwardRef, useImperativeHandle, useState } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * What the Preview box is allowed to say.
@@ -88,7 +88,28 @@ beforeEach(() => {
   renderedText = '';
   serializedText = '1 + 2';
   parseSucceeds = true;
+  vi.useFakeTimers({ shouldAdvanceTime: true });
 });
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+/* The field debounces its parse by `PARSE_DEBOUNCE_MS` (300) before the Preview
+   can appear, so the "stays hidden" cases have to get past that window to mean
+   anything. They used to sleep 1200ms of wall clock each, which is both slow
+   and a bet on an idle machine — and its failure mode is silent: under load the
+   debounce fires after the assertion and the test proves nothing.
+
+   The clock is jumped instead. `shouldAdvanceTime` leaves `waitFor` working
+   normally; this moves past the debounce exactly and instantly. */
+const PARSE_DEBOUNCE_MS = 300;
+
+const pastTheParseDebounce = async () => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(PARSE_DEBOUNCE_MS * 2);
+  });
+};
 
 describe('the Preview box', () => {
   it('shows a rendering that differs from the typed text', async () => {
@@ -106,7 +127,7 @@ describe('the Preview box', () => {
     await waitFor(() => expect(editor().value).toBe('1 + 2'));
     // Waited out rather than asserted instantly: the box is debounced, so an
     // immediate check would pass before it had a chance to appear.
-    await new Promise((r) => setTimeout(r, 1200));
+    await pastTheParseDebounce();
     expect(previewShown()).toBe(false);
   });
 
@@ -119,7 +140,7 @@ describe('the Preview box', () => {
     render(<Harness />);
 
     await waitFor(() => expect(editor().value).toBe('"$local:name" == "John"'));
-    await new Promise((r) => setTimeout(r, 1200));
+    await pastTheParseDebounce();
     expect(previewShown()).toBe(false);
   });
 
@@ -144,7 +165,7 @@ describe('the Preview box', () => {
 
     await waitFor(() => expect(previewShown()).toBe(false), { timeout: 4000 });
     // And it must not reappear once the debounce settles.
-    await new Promise((r) => setTimeout(r, 1200));
+    await pastTheParseDebounce();
     expect(previewShown()).toBe(false);
   });
 });

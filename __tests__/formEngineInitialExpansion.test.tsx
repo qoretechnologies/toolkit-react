@@ -1,6 +1,5 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';
-import { useEffect, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
@@ -74,33 +73,42 @@ describe('FormEngine initial expansion', () => {
     expect(isExpanded('cases')).toBe(true);
   });
 
+  /* The second piece of the schema is delivered by re-rendering with it, NOT by
+     a timer. This test used to hold `options` in state and swap it from a
+     `setTimeout(..., 20)`, which made it a race between a wall-clock timer and
+     `waitFor`'s own budget: it passed run-alone and failed inside the 143-file
+     suite, where a loaded worker can stall the event loop past both. A schema
+     that "arrives late" is just a new `options` prop, and the test can hand it
+     over itself — so nothing here depends on how busy the machine is. */
   it('opens a caller-named row that only reaches the schema after first paint', async () => {
     // A server-driven schema arrives in pieces. The row the caller named can be
     // in the second piece, and the address does not stop being an address
     // because the field was slow.
-    const Late = () => {
-      const [options, setOptions] = useState<Record<string, unknown>>({ title: SCHEMA['title'] });
-      useEffect(() => {
-        const id = setTimeout(() => setOptions(SCHEMA as never), 20);
-        return () => clearTimeout(id);
-      }, []);
-      return (
-        <ReqoreUIProvider>
-          <FetchContext.Provider value={fetchContext}>
-            <FormEngine
-              compact
-              name='test'
-              value={{} as never}
-              options={options as never}
-              initialExpandedOptions={['cases']}
-              expandFirstRequired
-              onChange={vi.fn()}
-            />
-          </FetchContext.Provider>
-        </ReqoreUIProvider>
-      );
-    };
-    render(<Late />);
+    const Late = ({ options }: { options: Record<string, unknown> }) => (
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='test'
+            value={{} as never}
+            options={options as never}
+            initialExpandedOptions={['cases']}
+            expandFirstRequired
+            onChange={vi.fn()}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+
+    const { rerender } = render(<Late options={{ title: SCHEMA['title'] }} />);
+
+    /* The first piece really does lack the named row — asserted, so the test
+       cannot pass by the row having been there all along. */
+    await waitFor(() => expect(isExpanded('title')).toBe(true));
+    expect(document.querySelector('[data-field="cases"]')).toBeNull();
+
+    rerender(<Late options={SCHEMA} />);
+
     await waitFor(() => expect(document.querySelector('[data-field="cases"]')).toBeTruthy());
     await waitFor(() => expect(isExpanded('cases')).toBe(true));
   });

@@ -6,10 +6,10 @@
 // re-reads the stored value, so a DOM-only assertion would pass just as
 // happily against a field that stored nothing at all.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { render, waitFor } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const probe = vi.fn();
 
@@ -96,6 +96,24 @@ const renderTypedField = async (
   return onChange;
 };
 
+/* The component debounces its parse by `PARSE_DEBOUNCE_MS` (300) before it
+   asks the server anything. The negative cases below — "never asks", "does not
+   ask again" — have to get PAST that window to mean anything, and they used to
+   do it by sleeping 700ms of wall clock. That is a bet on how busy the machine
+   is, and its failure mode is the quiet one: under load the debounce fires
+   after the assertion and the test passes having proved nothing.
+
+   The clock is jumped instead. `shouldAdvanceTime` keeps `waitFor` and
+   `userEvent` working normally; this just moves past the debounce exactly,
+   instantly, and identically on every machine. */
+const PARSE_DEBOUNCE_MS = 300;
+
+const pastTheParseDebounce = async () => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(PARSE_DEBOUNCE_MS * 2);
+  });
+};
+
 /** The "Use as expression" button, or `null` when nothing is being offered. */
 const offer = (): Element | null => document.querySelector('.dpql-detected-offer');
 
@@ -116,6 +134,11 @@ const storedExpression = (onChange: ReturnType<typeof vi.fn>): any =>
 
 beforeEach(() => {
   probe.mockReset();
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('DPQL typed into a plain field', () => {
@@ -124,8 +147,7 @@ describe('DPQL typed into a plain field', () => {
 
     await renderTypedField('hello world');
 
-    // Give the debounce more than its window to fire.
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    await pastTheParseDebounce();
 
     expect(probe).not.toHaveBeenCalled();
   });
@@ -136,7 +158,7 @@ describe('DPQL typed into a plain field', () => {
     const onChange = await renderTypedField('a > b');
 
     await waitFor(() => expect(probe).toHaveBeenCalled());
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await act(async () => {});
 
     expect(storedExpression(onChange)).toBeUndefined();
     expect(offer()).toBeNull();
@@ -171,7 +193,7 @@ describe('DPQL typed into a plain field', () => {
     await userEvent.click(document.querySelector('.dpql-detected-dismiss') as HTMLElement);
 
     await waitFor(() => expect(offer()).toBeNull());
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    await pastTheParseDebounce();
 
     expect(offer()).toBeNull();
     expect(storedExpression(onChange)).toBeUndefined();

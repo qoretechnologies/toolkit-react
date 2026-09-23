@@ -39,7 +39,7 @@
  * red, which is the property these tests exist to have.
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { render, waitFor } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import { useEffect, useRef, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -113,8 +113,9 @@ describe('a form does not echo the value it was given', () => {
       </ReqoreUIProvider>
     );
 
-    // Give every effect a chance to run and emit before asserting silence.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    /* Flush every effect, rather than betting silence fits in 50ms of wall
+       clock — the bet that passes alone and fails in a loaded suite. */
+    await act(async () => {});
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -138,9 +139,11 @@ describe('a form does not echo the value it was given', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalled());
     const afterFirst = onChange.mock.calls.length;
 
-    // The parent applies what it was told, exactly as a controlled host does.
-    // That echo must end the exchange rather than start another round.
-    await new Promise((resolve) => setTimeout(resolve, 80));
+    /* The parent applies what it was told, exactly as a controlled host does.
+       That echo must end the exchange rather than start another round. `act`
+       runs the cascade to exhaustion, so a second round would be counted here
+       rather than raced against a timer. */
+    await act(async () => {});
     expect(onChange.mock.calls.length).toBe(afterFirst);
   });
 });
@@ -220,7 +223,12 @@ describe('two writers sharing one value reach a fixed point', () => {
       />
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    /* Wait for the OUTCOME, not for 400ms. The fixed point is reached when the
+       other writer's value is the one standing; how long that takes is the
+       machine's business, not the test's. */
+    await waitFor(() => expect(last.cases?.value?.[0]?.enriched).toBe(true));
+    // ...and let any further exchange run itself out before counting writes.
+    await act(async () => {});
 
     // The other writer's value survived...
     expect(last.cases?.value?.[0]?.enriched).toBe(true);
