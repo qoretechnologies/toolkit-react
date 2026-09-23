@@ -1432,42 +1432,18 @@
     yaml "^2.3.1"
     zustand "^5.0.3"
 
-"@qoretechnologies/reqraft@^0.7.0":
-  version "0.7.15"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqraft/-/reqraft-0.7.15.tgz#eea8729833a04d30eec47a12d4bf3e0de47ef9fb"
-  integrity sha512-1DL3PZbjAV2c1zZ6N+CGvEd/GPmqZTLqnyYmcDGwCCBfoQua+SDXqGo8UGY2oHJVHCr5j1IHA4UfTygnM+X3Cg==
+"@qoretechnologies/ts-toolkit@^0.5.82":
+  version "0.5.82"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/ts-toolkit/-/ts-toolkit-0.5.82.tgz#bd63574a9e41a30d9926c0d3ffd421c728d73dee"
+  integrity sha512-0Y9h1qXaUPmWhxXSNNyXh7xcVVGHf6qSl4Ac8uBgWkiOu4w8gxnaSgOsGZ+7gRutaIUt78+M8TAPitTkCgBjYQ==
   dependencies:
-    "@tanstack/react-query" "4"
-    classnames "^2.2.6"
-    cronstrue "^2.50.0"
-    epoch-timeago "^1.1.9"
-    filesize "^10.1.6"
-    js-yaml "^4.1.0"
-    lodash "^4.17.21"
-    nanoid "^5.1.5"
-    polished "^4.2.2"
-    react-color "^2.19.3"
-    react-dropzone "^14.3.5"
-    react-markdown "^9.0.1"
-    react-use "^17.6.0"
-    scheduler "^0.23.0"
-    styled-components "^5.3.6"
-    thenby "^1.3.4"
-    use-context-selector "^1.4.1"
-    zustand "^5.0.3"
-
-"@qoretechnologies/ts-toolkit@^0.5.80":
-  version "0.5.80"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/ts-toolkit/-/ts-toolkit-0.5.80.tgz#925fe878448dfd13ed32d958d893acdbb2b84ace"
-  integrity sha512-L/DyQyDnz9WydCgzsVwwFruCu2hbq23LmRkO2T6d0fDVkfmRL8xYEiBMbJ/Qdiow/MOnFPEyTY7p5Yd6aFESsA==
-  dependencies:
-    "@qoretechnologies/reqraft" "^0.7.0"
     async "^3.2.4"
     cron-validator "^1.3.1"
     js-yaml "^4.1.0"
     lodash "^4.17.21"
     openapi-types "^12.1.3"
     qs "^6.11.0"
+    react-dropzone "^14.3.5"
     react-markdown "^8.0.4"
 
 "@radix-ui/number@1.1.1":

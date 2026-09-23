@@ -79,11 +79,14 @@ export type { IQorusAllowedValue };
 /**
  * An allowed value, with the keys reqraft's pickers read.
  *
- * Declared here rather than imported whole because reqraft installs ts-toolkit
- * `^0.5.80`, which carries none of them yet — the same precedent
- * `IConditionalFieldMessage` set for a field's conditional messages. Every key
- * is optional, so a plain `IQorusAllowedValue` still is one; all three collapse
- * into the imported type once 0.5.83 publishes and reqraft can move its pin.
+ * ts-toolkit 0.5.82 now declares all three on `IQorusAllowedValue`, so this is no
+ * longer a placeholder waiting on a publish. It stays because two of the three are
+ * WIDER here on purpose: the shared types are JSON-pure, since a form schema has to
+ * survive the wire, while reqraft renders in React and lets a consumer hand it a
+ * live `React.ElementType` for a tooltip's content or an action. Collapsing onto the
+ * shared type would quietly take that away from every consumer. `depends_on` is the
+ * same shape either way. Every key is optional, so a plain `IQorusAllowedValue` still
+ * is one.
  */
 export interface IReqraftAllowedValue extends IQorusAllowedValue {
   /** Offered only while every entry holds — a FIELD's `depends_on`, one level down. */

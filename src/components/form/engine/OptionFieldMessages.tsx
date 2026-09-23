@@ -142,12 +142,12 @@ export const describeDependencies = (
 /**
  * An allowed VALUE, as far as being offered is concerned.
  *
- * Declared here rather than imported, for the same reason
- * {@link IConditionalFieldMessage} above is: reqraft installs ts-toolkit
- * `^0.5.80`, whose `IQorusAllowedValue` carries no `depends_on` and whose
- * `IQorusFormFieldMessage` carries no `when`/`unless`. The shapes are the ones
- * ts-toolkit 0.5.83 publishes, so both collapse to an import of
- * `IQorusAllowedValue` and nothing else once reqraft can move its pin.
+ * ts-toolkit 0.5.82 carries both `IQorusAllowedValue.depends_on` and
+ * `IQorusFormFieldMessage.when` / `unless`, so this no longer waits on a publish.
+ * It remains its own shape because it states only what DECIDING AVAILABILITY needs —
+ * three keys out of the twenty an allowed value can carry — so a caller that has
+ * only those three can be answered, and the predicate cannot quietly start reading
+ * a fourth.
  */
 export interface IAllowedValueAvailabilityInput {
   /**

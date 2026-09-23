@@ -102,7 +102,6 @@ import {
   TCompactSort,
 } from './compactToolbarContext';
 import {
-  IConditionalFieldMessage,
   OptionFieldMessages,
   getAllowedValueAvailability,
   getShownSchemaMessages,
@@ -157,8 +156,7 @@ export type TOperatorValue = TQorusFormOperatorValue;
  * either, the message is static and always shown, which is what every existing
  * consumer gets.
  */
-export interface IOptionFieldMessage
-  extends IQorusFormFieldMessage, Pick<IConditionalFieldMessage, 'when' | 'unless'> {}
+export type IOptionFieldMessage = IQorusFormFieldMessage;
 /** `T` without `K`, member by member — `Omit` on a union collapses the union. */
 type TDistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 /**

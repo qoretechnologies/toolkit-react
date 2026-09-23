@@ -79,10 +79,11 @@ interface IFieldValidationProps {
    * The inclusive bounds a numeric field accepts — read only by the `int`, `float`
    * and `number` validators.
    *
-   * Declared here rather than imported for the same reason `IConditionalFieldMessage`
-   * and `IReqraftAllowedValue` are: reqraft installs ts-toolkit `^0.5.80`, whose form
-   * field schema carries neither key. Both collapse into the imported type once
-   * ts-toolkit publishes them and reqraft can move its pin.
+   * Declared here rather than imported because ts-toolkit still does not carry them:
+   * 0.5.82 added the allowed-value and message members reqraft was waiting on, but
+   * `IQorusFormFieldSchemaBase` has no numeric bound. These two collapse into the
+   * imported type once it does — unlike the allowed-value shapes, which stay local
+   * for a reason of their own.
    *
    * The server declares a bound only where that same bound is already enforced on the
    * write (`MetaFieldInfo::min_value`), so refusing a value here turns an error the
