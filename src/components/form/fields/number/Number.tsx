@@ -13,6 +13,17 @@ export interface INumberFormFieldProps extends Omit<IReqoreInputProps, 'value' |
   onChange?: (value: number | string) => void;
   /** Template values selectable from a focus dropdown (IDE `NumberField` parity). */
   templates?: IReqoreFormTemplates;
+  /**
+   * The inclusive bounds the schema declares for this field (`MetaFieldInfo::min_value`).
+   *
+   * Taken under the schema's own names rather than the input's `min` / `max` because the
+   * field descriptor is spread onto this component whole, so these arrive here anyway —
+   * naming them is what keeps them off the DOM node, where React would warn about an
+   * unknown attribute, and lets the spinner agree with the validator instead of offering
+   * steps the form is about to refuse.
+   */
+  min_value?: number;
+  max_value?: number;
 }
 
 export const NumberFormField = ({
@@ -21,6 +32,8 @@ export const NumberFormField = ({
   type = 'int',
   value,
   templates,
+  min_value,
+  max_value,
   ...rest
 }: INumberFormFieldProps) => {
   const [localValue, setLocalValue] = useState<number | string>(value ?? '');
@@ -78,6 +91,16 @@ export const NumberFormField = ({
 
   const handleItemSelect = useCallback((item) => setLocalValue(item.value), []);
 
+  // The schema's bounds under the names the input uses. Omitted entirely when the schema
+  // declares none, so an undeclared bound stays undeclared rather than becoming `min={0}`.
+  const bounds = useMemo(
+    () => ({
+      ...(typeof min_value === 'number' ? { min: min_value } : {}),
+      ...(typeof max_value === 'number' ? { max: max_value } : {}),
+    }),
+    [min_value, max_value]
+  );
+
   // IDE `NumberField` parity: with templates the input is wrapped in a
   // focus-opened dropdown of the template values.
   if (templates?.items) {
@@ -94,6 +117,7 @@ export const NumberFormField = ({
         onChange={handleInputChange}
         type='number'
         step={type === 'int' ? 1 : 0.1}
+        {...bounds}
         onClearClick={handleResetClick}
         focusRules={focusRules}
         {...TemplatesListProps}
@@ -112,6 +136,7 @@ export const NumberFormField = ({
       onClearClick={handleResetClick}
       focusRules={focusRules}
       {...rest}
+      {...bounds}
     />
   );
 };

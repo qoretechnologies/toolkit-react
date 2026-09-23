@@ -75,6 +75,23 @@ interface IFieldValidationProps {
    *  mapped onto the corresponding `has_to_be_*` flags. */
   rules?: string[];
   validation_regex?: string;
+  /**
+   * The inclusive bounds a numeric field accepts — read only by the `int`, `float`
+   * and `number` validators.
+   *
+   * Declared here rather than imported for the same reason `IConditionalFieldMessage`
+   * and `IReqraftAllowedValue` are: reqraft installs ts-toolkit `^0.5.80`, whose form
+   * field schema carries neither key. Both collapse into the imported type once
+   * ts-toolkit publishes them and reqraft can move its pin.
+   *
+   * The server declares a bound only where that same bound is already enforced on the
+   * write (`MetaFieldInfo::min_value`), so refusing a value here turns an error the
+   * author would otherwise meet on save into one they meet while the field is still on
+   * screen. It never enforces the bound, and it never refuses a value the server would
+   * have accepted.
+   */
+  min_value?: number;
+  max_value?: number;
   required_groups?: string[];
   optionSchema?: IQorusFormSchema;
   /** The sibling option VALUES, for required-group and dependency checks.
@@ -173,6 +190,41 @@ const withContext = (result: IValidationResult, context?: string): IValidationRe
 
 const resultFromBoolean = (isValid: boolean, reason: string): IValidationResult =>
   isValid ? validResult() : invalidResult(reason);
+
+/**
+ * Whether the value is a number at all — the check the `number` and `float` cases both
+ * make before any bound is read. Shared because the two differ only in the wording of
+ * the refusal, and a predicate that drifted between them would leave one of the pair
+ * accepting what the other refuses.
+ */
+const isNumericValue = (value: any): boolean =>
+  !isNaN(value) && (getTypeFromValue(value) === 'float' || getTypeFromValue(value) === 'int');
+
+/**
+ * The schema-declared range for a value that is already the right kind of number.
+ *
+ * Both bounds are inclusive and either may stand alone — the server declares only the
+ * side it can point at an enforcing line for, so a count with a floor and no ceiling
+ * arrives with `min_value` alone. A bound that is not a finite number is ignored rather
+ * than treated as zero: a schema that says nothing must not refuse everything.
+ *
+ * Kept out of the type checks above it so the reason a value is refused says which
+ * thing is wrong — "must be a whole number" and "must be at least 1" are different
+ * corrections, and collapsing them into one message makes the author guess.
+ */
+const checkNumericBounds = (value: any, field?: IFieldValidationProps): IValidationResult => {
+  const num = Number(value);
+  const min = field?.min_value;
+  const max = field?.max_value;
+
+  if (typeof min === 'number' && Number.isFinite(min) && num < min) {
+    return invalidResult(`Value must be ${min} or more`);
+  }
+  if (typeof max === 'number' && Number.isFinite(max) && num > max) {
+    return invalidResult(`Value must be ${max} or less`);
+  }
+  return validResult();
+};
 
 const isRichTextWithoutValue = (value: any): boolean => {
   return (
@@ -574,21 +626,21 @@ export const _validateField = (
       return valid ? validResult() : invalidResult(undefined, reasons);
     }
     case 'number': {
-      return resultFromBoolean(
-        !isNaN(value) && (getTypeFromValue(value) === 'float' || getTypeFromValue(value) === 'int'),
-        'Value must be a number'
-      );
+      if (!isNumericValue(value)) {
+        return invalidResult('Value must be a number');
+      }
+      return checkNumericBounds(value, field);
     }
     case 'int':
-      return resultFromBoolean(
-        !Number.isNaN(value) && getTypeFromValue(value) === 'int',
-        'Value must be an integer'
-      );
+      if (!(!Number.isNaN(value) && getTypeFromValue(value) === 'int')) {
+        return invalidResult('Value must be an integer');
+      }
+      return checkNumericBounds(value, field);
     case 'float':
-      return resultFromBoolean(
-        !isNaN(value) && (getTypeFromValue(value) === 'float' || getTypeFromValue(value) === 'int'),
-        'Value must be a float'
-      );
+      if (!isNumericValue(value)) {
+        return invalidResult('Value must be a float');
+      }
+      return checkNumericBounds(value, field);
     case 'select-array':
     case 'multi-select':
     case 'array':
