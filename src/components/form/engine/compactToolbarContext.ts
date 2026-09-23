@@ -35,7 +35,7 @@ export interface ICompactToolbarContext {
   // Completion meter
   invalidCount: number;
   attentionCount: number;
-  completion: { set: number; total: number; pct: number };
+  completion: { set: number; done: number; total: number; pct: number };
   // Invalid-fields banner (pinned in the sticky header)
   showInvalidOnly: boolean;
   onToggleInvalidOnly: () => void;

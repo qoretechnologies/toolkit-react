@@ -60,6 +60,24 @@ describe('dpqlEditor helpers', () => {
       });
     });
 
+    it('keeps a dotted path in one reference', () => {
+      const [paragraph] = plainTextToSlate('$local:order.id == 1');
+      expect(paragraph.children[0]).toMatchObject({ type: 'tag', value: '$local:order.id' });
+      expect(paragraph.children[1]).toMatchObject({ text: ' == 1' });
+    });
+
+    it('ends a reference where a method is called on it', () => {
+      // The server's readable rendering of `ends-with` on two references. The
+      // path grammar allows dots, so `.endsWith` used to join the first chip.
+      const [paragraph] = plainTextToSlate('$local:str.endsWith($local:order.id, true)');
+      expect(paragraph.children).toMatchObject([
+        { type: 'tag', value: '$local:str' },
+        { text: '.endsWith(' },
+        { type: 'tag', value: '$local:order.id' },
+        { text: ', true)' },
+      ]);
+    });
+
     it('handles mixed content with tags and text', () => {
       const result = plainTextToSlate('@name == $config:min AND @age > 18');
       const children = result[0].children;

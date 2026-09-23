@@ -159,3 +159,41 @@ export const isOptionInterfaceUiType = (type: unknown): type is TOptionInterface
 
 export const isKnownQorusUiType = (type: unknown): type is TKnownQorusUiType =>
   typeof type === 'string' && knownQorusUiTypeSet.has(type);
+
+/** The spellings that mean "no concrete type" wherever they appear. */
+export const UNTYPED_OPTION_TYPES = ['any', 'auto'] as const;
+
+export type TUntypedOptionType = (typeof UNTYPED_OPTION_TYPES)[number];
+
+const untypedOptionTypeSet = new Set<string>(UNTYPED_OPTION_TYPES);
+
+/**
+ * `auto` and `any` declare no type: they say the AUTHOR chooses one, and the
+ * chosen type is recorded beside the value, not in the schema. A reader that
+ * takes the schema's word therefore learns nothing about what the value has to
+ * look like — `validateField` handles these two by auto-detecting from the
+ * value, which accepts whatever is there.
+ *
+ * This list lives here, with the rest of the type vocabulary, rather than in
+ * `engine/typeChoices` where it started: a helper cannot import from a
+ * component, and the rule was already spelled out by hand in seven other
+ * places.
+ */
+export const isUntypedOptionType = (type: unknown): type is TUntypedOptionType =>
+  typeof type === 'string' && untypedOptionTypeSet.has(type);
+
+/**
+ * The type a declaration is READ as when it names several.
+ *
+ * A data provider option that accepts more than one type is served with them as
+ * a list (`DataProvider::getInfoAsData()`), and the form renders such an option
+ * as the first of them (`FormEngine`'s `getType`). Every other reader of a
+ * declared type has to answer from the same entry, or the row is rendered as
+ * one type and judged as another — the rule was spelled out by hand in four
+ * places, each slightly differently, and the odd one out silently answered
+ * "no type at all" for every multi-type option.
+ */
+export const firstDeclaredType = (type: unknown): string | undefined => {
+  const declared = Array.isArray(type) ? type[0] : type;
+  return typeof declared === 'string' ? declared : undefined;
+};

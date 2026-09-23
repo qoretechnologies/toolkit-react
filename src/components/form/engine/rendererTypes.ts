@@ -1,4 +1,37 @@
-import { TQorusType } from '@qoretechnologies/ts-toolkit';
+import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { firstDeclaredType } from '../../../helpers/optionUiTypes';
+
+/**
+ * A field schema that carries a template list of its own.
+ *
+ * `templates` is deliberately NOT added to `TQorusFormFieldSchema`: that type is
+ * owned by ts-toolkit and shared with consumers that have no notion of a form
+ * engine, so the capability is read through this narrow view instead of widening
+ * the shared type from here. A schema that sets it is offering a list scoped to
+ * one field rather than to the whole form.
+ */
+export type TFieldWithOwnTemplates = {
+  templates?: IReqoreFormTemplates;
+  /**
+   * The token grammar this field's value is WRITTEN in.
+   *
+   * A host may spell a reference in a grammar that is not reqraft's — a Qorus
+   * test writes `$._case.mode`, which has no `$key:` in it at all — and a field
+   * that speaks one says so here, exactly as it hands down its own `templates`.
+   * Declaring it on the schema is what lets every surface that draws the value
+   * agree about it, instead of printing the raw token the author never typed.
+   *
+   * Both directions read it: the read-only renderings
+   * (`templateTextSegments`) and the rich-text editor a row opens
+   * (`templateTextToNodes`, through `RichTextFormField`'s `templateToken`
+   * prop). They resolve references with the same code, so a row and the editor
+   * it opens cannot disagree about what one is.
+   *
+   * A `RegExp` or its source: a schema that crossed a serialization boundary
+   * carries the string.
+   */
+  templateToken?: RegExp | string;
+};
 
 /**
  * A schema entry carries two type-ish keys with different jobs:
@@ -42,6 +75,15 @@ export const BUILT_IN_RENDERER_ONLY_UI_TYPES: readonly string[] = [
 ];
 
 /**
+ * A `ui_type` as the predicate takes it: any name, not only a `TQorusType`.
+ * The names it exists to recognise are open-ended — `cron` is not a
+ * `TQorusType`, and neither is an editor a consumer declares — so typing the
+ * argument as the shared union made the predicate uncallable for exactly the
+ * values it is for.
+ */
+export type TRendererTypeName = string | readonly string[];
+
+/**
  * Build the renderer-only predicate for one FormEngine instance.
  *
  * Consumers inject their own editors through `componentOverrides`, so the set of
@@ -52,11 +94,13 @@ export const BUILT_IN_RENDERER_ONLY_UI_TYPES: readonly string[] = [
  */
 export const createRendererOnlyUiTypeCheck = (
   extraTypes?: readonly string[]
-): ((type?: TQorusType | TQorusType[]) => boolean) => {
+): ((type?: TRendererTypeName) => boolean) => {
   const known = new Set<string>([...BUILT_IN_RENDERER_ONLY_UI_TYPES, ...(extraTypes ?? [])]);
 
-  return (type?: TQorusType | TQorusType[]): boolean =>
-    typeof type === 'string' && known.has(type);
+  return (type?: TRendererTypeName): boolean => {
+    const declared = firstDeclaredType(type);
+    return declared !== undefined && known.has(declared);
+  };
 };
 
 /** The default predicate — built-ins only, for module-scope callers with no props. */

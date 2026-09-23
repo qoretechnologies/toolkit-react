@@ -1,6 +1,6 @@
 import { ReqoreP, ReqorePanel } from '@qoretechnologies/reqore';
 import { GAP_FROM_SIZE, TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
 // Styled primitives for the compact (read-first) rows and their editor cards.
 // Shared between FormEngine and the extracted CompactRow component.
@@ -64,7 +64,31 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   /** True when the toolbar renders no search row (hidden via `compactToolbar`,
    *  self-hidden on a single-option form, or no toolbar at all). */
   $tightHeader?: boolean;
+  /** True when the status boxes inside pin their headers. */
+  $stickyBoxes?: boolean;
 }>`
+  /* The wrapper must not clip, or nothing INSIDE it can pin.
+  
+     ReqorePanel sets its wrapper to \`overflow: hidden\` unless its own header
+     is sticky — and a clipping box is a scrollport, so a status box header
+     inside it resolves against the wrapper instead of the page and stops
+     pinning. That coupling is right for the panel's own header and wrong for
+     its descendants': a host that turns this form's toolbar off (a two-field
+     form inside a longer page, where a pinned search bar is the biggest thing
+     on screen and the least useful) was silently turning the box headers off
+     with it.
+  
+     The clip is the panel's rounded corners, and this panel is transparent and
+     border-less — \`flat raised minimal\`, no background of its own — so there
+     is nothing for it to clip. */
+  ${({ $stickyBoxes }) =>
+    $stickyBoxes ?
+      css`
+        &&& {
+          overflow: visible;
+        }
+      `
+    : ''}
   > .reqore-panel-title {
     /* The blur + translateZ exist only to make the STICKY top-level toolbar ghost
        content beneath it; a nested sub-form's header isn't sticky, so skip them
@@ -154,7 +178,12 @@ export const StyledGroupHeaderLine = styled.span<{ $color: string }>`
 // a barely-there accent border + a ~5%-opacity tint, NOT the loud intent border a
 // stock ReqorePanel draws. `$accent` is the box's theme colour (warning/success/
 // muted).
-export const StyledStatusBox = styled(ReqorePanel)<{ $accent: string; $bg?: string }>`
+export const StyledStatusBox = styled(ReqorePanel)<{
+  $accent: string;
+  $bg?: string;
+  /** The page's own background, for the PINNED header — see below. */
+  $surface?: string;
+}>`
   &&& {
     border: 1px solid ${({ $accent }) => `${$accent}33`};
     /* $bg lets the muted "Optional" box opt into a darker, recessed surface
@@ -162,6 +191,31 @@ export const StyledStatusBox = styled(ReqorePanel)<{ $accent: string; $bg?: stri
     background: ${({ $accent, $bg }) => $bg || `${$accent}1f`};
     border-radius: 10px;
   }
+
+  /* A PINNED header needs a surface of its own.
+  
+     The box's tint lives on the wrapper, behind the header, and a \`minimal\`
+     panel header is transparent — which is right while the header sits in the
+     flow over its own box, and wrong the moment it pins, because the rows then
+     scroll THROUGH it. Reqore's backdrop blur softens them but a 12% tint over
+     moving text still reads as two overlaid labels.
+  
+     So repaint the pinned header as the box looks at rest: an opaque layer of
+     the page background with the box's own translucent tint composited on top,
+     which is exactly what the eye sees where the box meets the page. The
+     Optional box already carries an opaque \`$bg\`, so that is used as-is.
+  
+     Only when \`$surface\` is supplied — i.e. only on a form that pins at all —
+     so an unpinned box is pixel-identical to before. */
+  ${({ $surface, $accent, $bg }) =>
+    $surface ?
+      css`
+        &&& > .reqore-panel-title {
+          background-color: ${$bg || $surface};
+          ${$bg ? '' : `background-image: linear-gradient(${$accent}1f, ${$accent}1f);`}
+        }
+      `
+    : ''}
 `;
 
 // "One of the below is required" cluster box — wraps the members of an unmet

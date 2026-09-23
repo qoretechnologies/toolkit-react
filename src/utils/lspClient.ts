@@ -90,6 +90,12 @@ class LspSharedConnection {
   private pending = new Map<number, IPendingRequest>();
   private readonly clients = new Set<ReqraftLspClient>();
   private initPromise: Promise<void> | null = null;
+  /**
+   * Fails the handshake in flight, if there is one. Every way this connection
+   * stops — released, reset, or given up by its socket — goes through it, so
+   * no `connect()` caller is ever left waiting on a socket that is gone.
+   */
+  private failHandshake: ((err: Error) => void) | null = null;
 
   connected = false;
   capabilities: ILspServerCapabilities | null = null;
@@ -106,8 +112,15 @@ class LspSharedConnection {
       return this.initPromise;
     }
 
-    this.initPromise = new Promise<void>((resolve, reject) => {
+    const attempt = new Promise<void>((resolve, reject) => {
       let initialConnect = true;
+
+      this.failHandshake = (err) => {
+        if (initialConnect) {
+          initialConnect = false;
+          reject(err);
+        }
+      };
 
       this.rws = new ReqraftWebSocket({
         url: this.url,
@@ -144,6 +157,7 @@ class LspSharedConnection {
               }
               if (initialConnect) {
                 initialConnect = false;
+                this.failHandshake = null;
                 // Awaiting clients self-notify ready in their connect().
                 resolve();
               } else {
@@ -219,17 +233,42 @@ class LspSharedConnection {
         onError: () => {
           // onClose fires after onError; rejection happens there.
         },
+        onReconnectFailed: () => {
+          this.giveUp();
+        },
       });
     });
+    this.initPromise = attempt;
 
     // Reset on failure so connect() can be retried with a clean slate —
     // close() also drops the dead socket, which would otherwise leak when
-    // a retry stacks a fresh ReqraftWebSocket on top of it.
-    this.initPromise.catch(() => {
-      this.close();
+    // a retry stacks a fresh ReqraftWebSocket on top of it. Only for THIS
+    // attempt: by the time the rejection lands a client may already have
+    // started the next one, and closing that would kill a live socket.
+    attempt.catch(() => {
+      if (this.initPromise === attempt) {
+        this.close();
+      }
     });
 
-    return this.initPromise;
+    return attempt;
+  }
+
+  /**
+   * The socket has stopped reconnecting. Without this the connection would
+   * stay registered around a dead socket for as long as any client holds it —
+   * which, for the page-lifetime render client, is forever: a first handshake
+   * that never completed kept every later `connect()` waiting on it, and one
+   * that had completed kept reporting the dead socket as ready. Fail whatever
+   * is waiting and forget the socket, so the next `connect()` dials afresh.
+   */
+  private giveUp(): void {
+    this.clients.forEach((c) => c._forgetConnect());
+    this.close(
+      new Error(
+        `LSP connection to ${this.url} gave up after ${this.config.maxReconnectTries} reconnect attempts`
+      )
+    );
   }
 
   /** @internal Test hook — close and forget every shared connection. */
@@ -242,13 +281,19 @@ class LspSharedConnection {
   release(client: ReqraftLspClient): void {
     this.clients.delete(client);
     if (this.clients.size === 0) {
-      LspSharedConnection.registry.delete(this.url);
+      // A reset may already have replaced this connection for the url.
+      if (LspSharedConnection.registry.get(this.url) === this) {
+        LspSharedConnection.registry.delete(this.url);
+      }
       this.close();
     }
   }
 
-  private close(): void {
+  private close(reason: Error = new Error('Client disconnected')): void {
     this.initPromise = null;
+    const failHandshake = this.failHandshake;
+    this.failHandshake = null;
+    failHandshake?.(reason);
     if (this.rws) {
       // Disable reconnect before cleanup to prevent zombie reconnect timers.
       this.rws.options.reconnect = false;
@@ -374,18 +419,30 @@ export class ReqraftLspClient {
         this
       );
     }
-    this.connectPromise = this.conn
+    const attempt: Promise<void> = this.conn
       .connect()
       .then(() => {
         this.readyCallback?.(true);
       })
       .catch((err) => {
-        // Allow a retry after failure.
-        this.connectPromise = null;
+        // Allow a retry after failure — unless one has already started.
+        if (this.connectPromise === attempt) {
+          this.connectPromise = null;
+        }
         this.readyCallback?.(false);
         throw err;
       });
-    return this.connectPromise;
+    this.connectPromise = attempt;
+    return attempt;
+  }
+
+  /**
+   * @internal The shared connection gave up on its socket. Drop the cached
+   * handshake so the next `connect()` dials again instead of resolving from
+   * a socket that no longer exists.
+   */
+  _forgetConnect(): void {
+    this.connectPromise = null;
   }
 
   /**

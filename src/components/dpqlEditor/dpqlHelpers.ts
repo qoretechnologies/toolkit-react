@@ -11,8 +11,12 @@ import { ISlateConverter, ISlateElement, ISlateText, TSlateNode } from '../smart
 // Template values without braces match only word chars and dots (not quotes,
 // parens, etc.); the `(?<![.\w])` lookbehind on `@` prevents matching inside
 // an email-like string.
+//
+// A dot that starts a method call ends the value: the server's readable
+// rendering writes `ends-with` as `$local:str.endsWith($local:p, true)`, and a
+// path that took every dot turned `str.endsWith` into one reference.
 const TOKEN_PATTERN = new RegExp(
-  `(\\$\\w+:(?:\\{[^}]*\\}|[\\w.]+))|((?<![.\\w])@\\w+(?:\\.\\w+)*)`,
+  `(\\$\\w+:(?:\\{[^}]*\\}|(?:\\w|\\.(?!\\w+\\())+))|((?<![.\\w])@\\w+(?:\\.\\w+)*)`,
   'g'
 );
 
@@ -81,6 +85,21 @@ export function plainTextToSlate(text: string): ISlateElement[] {
     }
     return { type: 'paragraph' as const, children };
   });
+}
+
+/**
+ * `text` as a DPQL editor draws it: a reference is its chip, so the quotes a
+ * chip is drawn over do not show. `"$local:name" == "John"` and
+ * `$local:name == "John"` read the same.
+ */
+export function dpqlDisplayedText(text: string): string {
+  return plainTextToSlate(text)
+    .map((paragraph) =>
+      paragraph.children
+        .map((node) => ('text' in node ? node.text : String((node as ISlateElement).value ?? '')))
+        .join('')
+    )
+    .join('\n');
 }
 
 function createTagElement(

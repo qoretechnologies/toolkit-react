@@ -39,6 +39,21 @@ export type TCodePreviewRenderer = (props: {
 export interface ICompactRowContext {
   // Props / config
   readOnly?: boolean;
+  /**
+   * What a click on a READ-ONLY row should do, when the consumer has somewhere
+   * to send it.
+   *
+   * A read-only row is not a control, so by default it opens nothing: it shows
+   * everything it has and answers a click with silence. That is right when
+   * there is nowhere else to go, and a dead end when there is — a reader
+   * clicking a value they want to change is telling you exactly what they want,
+   * and being ignored teaches them the surface is broken.
+   *
+   * Given this, the row becomes the way in to wherever that field IS editable,
+   * and says so: it takes a button's role and keyboard handling. Without it
+   * nothing changes, so a read-only form with no editor behind it stays inert.
+   */
+  onReadOnlyActivate?: (optionName: string) => void;
   commitMode: 'immediate' | 'batched';
   expandMode: 'single' | 'multi';
 
@@ -54,12 +69,6 @@ export interface ICompactRowContext {
   // display name in the read-first chip.
   templates?: IReqoreFormTemplates;
   expandedOptions: string[];
-  // Name of the field the engine expanded programmatically for
-  // `autoFocusFirstRequired`. CompactRow focuses this one with `preventScroll`
-  // so an off-screen / below-the-fold form is never scrolled into view on
-  // mount. A ref (not state) so it's current when the 60ms focus timer fires,
-  // regardless of render batching.
-  autoFocusNameRef?: MutableRefObject<string | undefined>;
   highlightedOptions: string[];
   flashedOptions: string[];
   infoPanelOverrides: Record<string, boolean>;

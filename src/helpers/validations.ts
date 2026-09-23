@@ -75,6 +75,24 @@ interface IFieldValidationProps {
    *  mapped onto the corresponding `has_to_be_*` flags. */
   rules?: string[];
   validation_regex?: string;
+  /**
+   * The inclusive bounds a numeric field accepts — read only by the `int`, `float`
+   * and `number` validators.
+   *
+   * Declared here rather than imported because ts-toolkit still does not carry them:
+   * 0.5.82 added the allowed-value and message members reqraft was waiting on, but
+   * `IQorusFormFieldSchemaBase` has no numeric bound. These two collapse into the
+   * imported type once it does — unlike the allowed-value shapes, which stay local
+   * for a reason of their own.
+   *
+   * The server declares a bound only where that same bound is already enforced on the
+   * write (`MetaFieldInfo::min_value`), so refusing a value here turns an error the
+   * author would otherwise meet on save into one they meet while the field is still on
+   * screen. It never enforces the bound, and it never refuses a value the server would
+   * have accepted.
+   */
+  min_value?: number;
+  max_value?: number;
   required_groups?: string[];
   optionSchema?: IQorusFormSchema;
   /** The sibling option VALUES, for required-group and dependency checks.
@@ -173,6 +191,41 @@ const withContext = (result: IValidationResult, context?: string): IValidationRe
 
 const resultFromBoolean = (isValid: boolean, reason: string): IValidationResult =>
   isValid ? validResult() : invalidResult(reason);
+
+/**
+ * Whether the value is a number at all — the check the `number` and `float` cases both
+ * make before any bound is read. Shared because the two differ only in the wording of
+ * the refusal, and a predicate that drifted between them would leave one of the pair
+ * accepting what the other refuses.
+ */
+const isNumericValue = (value: any): boolean =>
+  !isNaN(value) && (getTypeFromValue(value) === 'float' || getTypeFromValue(value) === 'int');
+
+/**
+ * The schema-declared range for a value that is already the right kind of number.
+ *
+ * Both bounds are inclusive and either may stand alone — the server declares only the
+ * side it can point at an enforcing line for, so a count with a floor and no ceiling
+ * arrives with `min_value` alone. A bound that is not a finite number is ignored rather
+ * than treated as zero: a schema that says nothing must not refuse everything.
+ *
+ * Kept out of the type checks above it so the reason a value is refused says which
+ * thing is wrong — "must be a whole number" and "must be at least 1" are different
+ * corrections, and collapsing them into one message makes the author guess.
+ */
+const checkNumericBounds = (value: any, field?: IFieldValidationProps): IValidationResult => {
+  const num = Number(value);
+  const min = field?.min_value;
+  const max = field?.max_value;
+
+  if (typeof min === 'number' && Number.isFinite(min) && num < min) {
+    return invalidResult(`Value must be ${min} or more`);
+  }
+  if (typeof max === 'number' && Number.isFinite(max) && num > max) {
+    return invalidResult(`Value must be ${max} or less`);
+  }
+  return validResult();
+};
 
 const isRichTextWithoutValue = (value: any): boolean => {
   return (
@@ -574,21 +627,21 @@ export const _validateField = (
       return valid ? validResult() : invalidResult(undefined, reasons);
     }
     case 'number': {
-      return resultFromBoolean(
-        !isNaN(value) && (getTypeFromValue(value) === 'float' || getTypeFromValue(value) === 'int'),
-        'Value must be a number'
-      );
+      if (!isNumericValue(value)) {
+        return invalidResult('Value must be a number');
+      }
+      return checkNumericBounds(value, field);
     }
     case 'int':
-      return resultFromBoolean(
-        !Number.isNaN(value) && getTypeFromValue(value) === 'int',
-        'Value must be an integer'
-      );
+      if (!(!Number.isNaN(value) && getTypeFromValue(value) === 'int')) {
+        return invalidResult('Value must be an integer');
+      }
+      return checkNumericBounds(value, field);
     case 'float':
-      return resultFromBoolean(
-        !isNaN(value) && (getTypeFromValue(value) === 'float' || getTypeFromValue(value) === 'int'),
-        'Value must be a float'
-      );
+      if (!isNumericValue(value)) {
+        return invalidResult('Value must be a float');
+      }
+      return checkNumericBounds(value, field);
     case 'select-array':
     case 'multi-select':
     case 'array':
@@ -1064,14 +1117,39 @@ export const _validateField = (
         }
       }
 
-      if (parsedData) {
-        return withContext(
-          validateFieldWithResult(getTypeFromValue(parsedData), value),
-          'Auto-detected type is invalid'
-        );
+      /* A FALSY value is not an ABSENT one. `null`, `0`, `false` and `""` are
+         all values an author may hold in an `auto`/`any` field — a test
+         assertion expecting a count of zero, a flag that is off, or a blank
+         string — and the truthiness gate that used to stand here refused every
+         one of them as *"Value is empty"*. It surfaced on an assertion's
+         Expected Value holding `null`: opening it reported *"Value for argument
+         1 ("any") is invalid: Value is empty"* on the value the author had
+         deliberately chosen. Only `undefined` is actually empty.
+
+         `null` and `""` are answered here rather than delegated, for two
+         different reasons: `getTypeFromValue(null)` answers `auto`, which would
+         re-enter this very branch, and the `string` validator rejects `""`
+         because that is the rule for a REQUIRED text field — a different
+         question from whether an untyped field may hold a blank string. */
+      if (parsedData === undefined) {
+        return invalidResult('Value is empty');
       }
 
-      return invalidResult('Value is empty');
+      if (parsedData === null || parsedData === '') {
+        return validResult();
+      }
+
+      /* Validate what was PARSED, against the type detected from the same
+         parse. Validating the raw `value` instead made the two disagree
+         whenever parsing changed the shape: typing `1` into an `auto` field
+         parsed to the number 1, detected `int`, and then validated the STRING
+         "1" against it — "Value must be an integer", on a value that is one.
+         The author saw their field go invalid on the first character they
+         typed. */
+      return withContext(
+        validateFieldWithResult(getTypeFromValue(parsedData), parsedData),
+        'Auto-detected type is invalid'
+      );
     }
     case 'processor': {
       if (!value || !value['processor-input-type'] || !value['processor-output-type']) {
@@ -1295,6 +1373,22 @@ export const _validateField = (
             continue;
           }
 
+          /* An option whose dependencies are not fulfilled is not part of this
+             object, so it cannot make the object invalid.
+
+             The form already takes that view — it HIDES such an option — and
+             the two disagreeing is a trap with no way out of it: a test whose
+             subject moved from a versioned kind to a service keeps the
+             `subject_iface_version` it no longer has a field for, and Submit
+             goes dead naming an option that is nowhere on screen. Nulling the
+             value does not help either, because a null is still a value the
+             loop reaches.
+
+             A REQUIRED option with unfulfilled dependencies is unaffected:
+             `getUnresolvedRequiredOptions` above reports it as `dependency`
+             before this loop runs, and it is the only owner of that question.
+             This branch was therefore only ever able to fail an option the
+             author could not see and did not need. */
           if (
             (optionSchema?.[option] as TQorusFormFieldSchema)?.depends_on &&
             !hasAllDependenciesFullfilled(
@@ -1303,7 +1397,7 @@ export const _validateField = (
               optionSchema
             )
           ) {
-            return invalidResult(`Option ${option} dependencies are not fulfilled`);
+            continue;
           }
 
           const optionResult =
@@ -1512,6 +1606,31 @@ export const _validateField = (
         const argDefinition = expressionDefinition.varargs
           ? expressionDefinition.args[0]
           : expressionDefinition.args[index];
+        /* The argument's name for the message.
+        
+           `display_name` is what a catalogue MAY carry; the served one carries
+           `name`, so every message about an argument read "argument 1
+           ("undefined") is invalid" and named a field that does not exist. */
+        const argLabel =
+          argDefinition?.display_name ?? argDefinition?.name ?? `argument ${index + 1}`;
+
+        /* An explicit null is a VALUE, and DPQL says so: `null` is a literal
+           that parses, serializes and round-trips like any other.
+        
+           Treated as a missing one, it made "this returns no value"
+           unsayable. Typing `null` into the text editor produces the literal
+           expression `{exp: "value", args: [null]}`; the visual view then
+           called it invalid and refused to render a summary, and a raw null
+           argument crashed the validator outright on `argValue.type`. Reported
+           from the live IDE by an author with no other way to assert that a
+           service method returns nothing.
+        
+           Only an EXPLICIT null counts. An argument that is simply absent, or
+           an envelope holding `undefined`, is still missing — which is the
+           distinction the author is making when they write it. */
+        if (argValue === null || (isObject(argValue) && (argValue as any).value === null)) {
+          continue;
+        }
 
         if (!argValue?.value && !argDefinition?.required) {
           continue;
@@ -1526,30 +1645,34 @@ export const _validateField = (
           if (!result.isValid) {
             return withContext(
               result,
-              `Sub-expression for argument ${index + 1} ("${argDefinition?.display_name}") is invalid`
+              `Sub-expression for argument ${index + 1} ("${argLabel}") is invalid`
             );
           }
 
           continue;
         }
 
-        // A slot with no operand at all is a missing value, not a crash:
-        // judge it as an empty value of the type the catalogue expects.
-        const result = validateFieldWithResult(
-          argValue?.type ?? argDefinition?.ui_type,
-          argValue?.value,
-          {
-            expressions,
-            allowed_values: argDefinition?.allowed_values,
-            element_allowed_values: argDefinition?.element_allowed_values,
-            has_to_have_value: argDefinition?.required,
-          }
-        );
+        /* A slot with no operand at all is judged as what it is — a missing
+           value — rather than read for a `type` it does not have.
+
+           An operand that HOLDS something is judged by the envelope's own type,
+           or — when the envelope carries none (a raw parse operand widened
+           without a `ui_type`, a slot reset by a type change) — by the type the
+           catalogue declares. Without that fallback `_validateField` refuses it
+           for "Missing type" however right the value is. */
+        const operandType =
+          argValue?.type ?? (argValue?.value === undefined ? undefined : argDefinition?.ui_type);
+        const result = validateFieldWithResult(operandType, argValue?.value, {
+          expressions,
+          allowed_values: argDefinition?.allowed_values,
+          element_allowed_values: argDefinition?.element_allowed_values,
+          has_to_have_value: argDefinition?.required,
+        });
 
         if (!result.isValid) {
           return withContext(
             result,
-            `Value for argument ${index + 1} ("${argDefinition?.display_name}") is invalid`
+            `Value for argument ${index + 1} ("${argLabel}") is invalid`
           );
         }
       }
@@ -1818,19 +1941,28 @@ export const getUnresolvedRequiredOptions = (
 /**
  * Split a dependency entry into the sibling it names and how its value is compared.
  *
- * Three forms: `name` (the sibling must simply have a value), `name=value` (it must
- * have exactly that value) and `name!=value` (it must have a value, and not that
- * one). The negative form is what lets a field say it applies to every variant of a
- * record but one — spelling that as an `any-of` list of every other variant is both
- * unreadable in the "Depends on" lock and silently wrong the moment a variant is
- * added.
+ * Four forms: `name` (the sibling must simply have a value), `!name` (it must have
+ * none), `name=value` (it must have exactly that value) and `name!=value` (it must
+ * have a value, and not that one). The negative comparison is what lets a field say
+ * it applies to every variant of a record but one — spelling that as an `any-of`
+ * list of every other variant is both unreadable in the "Depends on" lock and
+ * silently wrong the moment a variant is added.
  *
  * `!=` deliberately requires the sibling to be answered: "not X" is a statement about
  * an answer, so an unanswered sibling does not satisfy it and the field stays locked.
+ *
+ * `!name` is the form that statement cannot make. Two options that exclude one
+ * another (a converter that reads NodeSet2 and one that writes OpenAPI 3) each
+ * apply only while the OTHER has not been answered at all, and `name!=value` cannot
+ * say that: it requires an answer. Being a predicate like any other, it composes
+ * with the AND of the top-level entries and the OR of a nested list for free.
+ *
+ * `!` binds to the whole entry, so `!name` never carries a value; `!=` is checked
+ * first, which is what keeps `name!=value` from being read as a leading `!`.
  */
 export const parseDependency = (
   dependency: string
-): { name: string; op?: '=' | '!='; value?: string } => {
+): { name: string; op?: '=' | '!=' | '!'; value?: string } => {
   const neqIdx = dependency.indexOf('!=');
   if (neqIdx !== -1) {
     return {
@@ -1849,8 +1981,24 @@ export const parseDependency = (
     };
   }
 
+  if (dependency.startsWith('!')) {
+    return { name: dependency.substring(1), op: '!' };
+  }
+
   return { name: dependency };
 };
+
+/** Whether the named sibling currently holds a value this form accepts. */
+const siblingHasValue = (
+  name: string,
+  options: TQorusForm,
+  optionsSchema?: IQorusFormSchema
+): boolean =>
+  validateField(options?.[name]?.type, options?.[name]?.value, {
+    ...(optionsSchema?.[name] as unknown as IFieldValidationProps),
+    options,
+    optionSchema: optionsSchema,
+  });
 
 /** Whether one dependency entry holds against the current form values. */
 const isDependencyFulfilled = (
@@ -1860,6 +2008,15 @@ const isDependencyFulfilled = (
 ): boolean => {
   const { name, op, value } = parseDependency(dependency);
 
+  if (op === '!') {
+    // "Has no value" is true of a field the form has not materialized at all —
+    // there is nothing there to be the value. So an absent sibling satisfies
+    // this, exactly as it satisfies the bare form below: neither has an answer
+    // to judge, and a mutual exclusion that locked both halves until one of
+    // them was added would offer the author no way in.
+    return !options?.[name] || !siblingHasValue(name, options, optionsSchema);
+  }
+
   if (op) {
     const optValue = options?.[name]?.value;
     if (optValue == null) {
@@ -1868,17 +2025,12 @@ const isDependencyFulfilled = (
     return op === '=' ? String(optValue) === value : String(optValue) !== value;
   }
 
-  return options?.[name]
-    ? validateField(options[name].type, options[name].value, {
-        ...(optionsSchema?.[name] as unknown as IFieldValidationProps),
-        options,
-        optionSchema: optionsSchema,
-      })
-    : true;
+  return options?.[name] ? siblingHasValue(name, options, optionsSchema) : true;
 };
 
 export const hasAllDependenciesFullfilled = (
-  dependencies: string[] | string[][],
+  /** Every entry must hold; a nested list is an ANY of its entries. Mixed freely. */
+  dependencies: ReadonlyArray<string | readonly string[]>,
   options: TQorusForm,
   optionsSchema?: IQorusFormSchema
 ): boolean => {
@@ -1886,20 +2038,20 @@ export const hasAllDependenciesFullfilled = (
     return true;
   }
 
-  return dependencies.every((dependency: string | string[]) => {
+  return dependencies.every((dependency) => {
     // A nested list is an ANY. It used to look each entry up as a whole form-field
     // name, so a `name=value` entry inside one found no field and returned `true`
     // unconditionally — the any-of group was satisfied by anything at all, while
     // CompactRow's lock rendered those same entries as real comparisons. Both halves
     // now go through one parser, so the grammar cannot mean two things.
     if (isArray(dependency)) {
-      return (dependency as string[]).some((dep) =>
+      return (dependency as readonly string[]).some((dep) =>
         isDependencyFulfilled(dep, options, optionsSchema)
       );
     }
 
     return isString(dependency)
-      ? isDependencyFulfilled(dependency as string, options, optionsSchema)
+      ? isDependencyFulfilled(dependency, options, optionsSchema)
       : true;
   });
 };

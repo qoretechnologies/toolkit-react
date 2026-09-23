@@ -12,11 +12,14 @@ import { TReqoreSelectItem } from '@qoretechnologies/reqore/dist/components/Sele
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { isEqual, size } from 'lodash';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { RowOpenPickerContext } from '../../engine/rowOpenPicker';
 import {
   getSelectItemShortDescription,
+  getSelectItemUnavailability,
   ISelectFieldCollectionItem,
   SelectFieldCollection,
+  UNAVAILABLE_ITEM_CLASS,
 } from './SelectCollection';
 
 export type ISelectFormFieldItem = ISelectFieldCollectionItem;
@@ -99,6 +102,27 @@ export const SelectFormField = memo(
   }: ISelectFormFieldProps) => {
     const [items, setItems] = useState<ISelectFormFieldItem[]>(fixItems(rawItems));
     const [collectionOpen, setCollectionOpen] = useState(false);
+    // Reqore owns the anchored list's open state; this mirrors it so the
+    // trigger can say `aria-expanded` truthfully.
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+
+    /* A compact row the author opened into THIS control asks it to show the
+       choices, instead of drawing a closed trigger that reprints the value the
+       collapsed row had just printed (see `RowOpenPickerContext`). A rising
+       edge, so closing the list again does not fight the instruction. */
+    // Composed rather than replaced: `rest` is spread onto the dropdown and a
+    // caller may already be watching it.
+    const callerToggle = (rest as { onToggleChange?: (open: boolean) => void }).onToggleChange;
+    const handleDropdownToggle = useCallback(
+      (open: boolean) => {
+        setDropdownOpen(open);
+        callerToggle?.(open);
+      },
+      [callerToggle]
+    );
+
+    const rowAsksForTheChoices = useContext(RowOpenPickerContext);
+
 
     useEffect(() => {
       setItems(fixItems(rawItems));
@@ -133,15 +157,37 @@ export const SelectFormField = memo(
     }, [predicate, items]);
 
     const reqoreItems: IReqoreDropdownItem[] = useMemo(() => {
-      return filteredItems.map((item) => ({
-        label: item.display_name || valueToShow(item.value),
-        description: getItemDescription(item.value) as string,
-        value: item.value,
-        selected: isEqual(item.value, value),
-        intent: item.intent,
-        disabled: item.disabled,
-        onClick: () => handleSelectClick(item),
-      }));
+      return filteredItems.map((item) => {
+        /* The dropdown used to drop `messages` on the floor, so a value refused
+           with a reason arrived here as a row that simply would not respond.
+           The reason leads the description — a reader who has just been refused
+           a choice is looking for why, not for what the value would have
+           done. */
+        const unavailable = getSelectItemUnavailability(item);
+        const description = getItemDescription(item.value) as string;
+
+        return {
+          label: item.display_name || valueToShow(item.value),
+          description:
+            unavailable ?
+              [unavailable.title, unavailable.content, description].filter(Boolean).join(' — ')
+            : description,
+          /* Read in full on hover, however narrow the list is. */
+          tooltip: unavailable ? unavailable.content : undefined,
+          icon: unavailable ? ('LockLine' as const) : undefined,
+          value: item.value,
+          selected: isEqual(item.value, value),
+          intent: item.intent,
+          className: unavailable ? UNAVAILABLE_ITEM_CLASS : undefined,
+          /* Dimmed through reqore's own effect, and never through `disabled`:
+             that applies `DisabledElement` (`pointer-events: none`), which
+             takes the tooltip with it — the only place the whole reason fits.
+             The row is made inert by having no handler, as in the collection. */
+          effect: unavailable ? { opacity: 0.55 } : undefined,
+          style: unavailable ? { cursor: 'not-allowed' } : undefined,
+          onClick: unavailable ? undefined : () => handleSelectClick(item),
+        };
+      });
     }, [JSON.stringify(filteredItems), value]) as IReqoreDropdownItem[];
 
     const getItemShortDescription = useCallback(
@@ -163,6 +209,22 @@ export const SelectFormField = memo(
     const hasItemsWithDesc = useCallback((data: ISelectFormFieldItem[]) => {
       return data.some((item) => item.desc || item.short_desc);
     }, []);
+    /* Which picker this control actually draws, on the SAME condition the
+       trigger below is chosen by. The collection modal is rendered beside that
+       trigger rather than as one of its branches, so it is not mutually
+       exclusive with the anchored list — and `forceDropdown` DEFAULTS TO TRUE,
+       which makes the list the usual trigger. Opening the collection for every
+       row that asked for its choices therefore put a dialog on top of a
+       dropdown, both listing the same items, for a single click. Reported on
+       qlip build #212: "Should this really open both the dropdown and the
+       modal dialog?" */
+    const picksFromTheCollection = !asMenu && hasItemsWithDesc(items) && !forceDropdown;
+
+    useEffect(() => {
+      if (rowAsksForTheChoices && picksFromTheCollection) {
+        setCollectionOpen(true);
+      }
+    }, [rowAsksForTheChoices, picksFromTheCollection]);
 
     const hasItemsWithError = useCallback((data: ISelectFormFieldItem[]) => {
       return data.some(
@@ -264,14 +326,40 @@ export const SelectFormField = memo(
 
     const creatableItems = useMemo<TReqoreSelectItem[]>(
       () =>
-        filteredItems.map((item) => ({
-          value: valueToShow(item.value) as string,
-          label: item.display_name || (valueToShow(item.value) as string),
-          description: getItemDescription(item.value) as string,
-          disabled: item.disabled,
-          intent: item.intent,
-          wrap: true,
-        })),
+        filteredItems.map((item) => {
+          /* The same shape as `reqoreItems` above, for the same reason: this
+             branch passed the item's `disabled` straight to reqore, which
+             applies `DisabledElement` (`pointer-events: none`) and takes the
+             row's tooltip with it — so a value refused WITH a reason arrived
+             as a row that would not respond and would not explain.
+
+             What refuses it here is `handleCreatableChange`, because reqore
+             owns this list's selection and there is no per-row handler to
+             withhold. Against the 0.74.x we pin, `readOnly` marks the row and
+             does not yet refuse it; once the pin moves to a reqore whose list
+             declines a read-only row, the row refuses itself and the guard
+             below becomes a second lock on the same door. */
+          const unavailable = getSelectItemUnavailability(item);
+          const description = getItemDescription(item.value) as string;
+
+          return {
+            value: valueToShow(item.value) as string,
+            label: item.display_name || (valueToShow(item.value) as string),
+            description:
+              unavailable ?
+                [unavailable.title, unavailable.content, description].filter(Boolean).join(' — ')
+              : description,
+            /* Read in full on hover, which `disabled` would have made
+               unreachable. */
+            tooltip: unavailable ? unavailable.content : undefined,
+            icon: unavailable ? ('LockLine' as const) : undefined,
+            className: unavailable ? UNAVAILABLE_ITEM_CLASS : undefined,
+            effect: unavailable ? { opacity: 0.55 } : undefined,
+            readOnly: !!unavailable,
+            intent: item.intent,
+            wrap: true,
+          };
+        }),
       [filteredItems, getItemDescription]
     );
 
@@ -285,6 +373,17 @@ export const SelectFormField = memo(
         // the value the caller gave us — its own shape intact. Only a value
         // the author created is a string of their own making.
         const offered = filteredItems.find((item) => valueToShow(item.value) === next);
+
+        /* Where the refusal actually lands for this branch — see
+           `creatableItems`. A value the form will not accept is not accepted
+           however it was reached: by clicking its row, by pressing Enter on
+           it, or by typing its text into a creatable field, which is the same
+           value by another route. Clearing is never the answer: `next ===
+           undefined` above is the author clearing it themselves. */
+        if (offered && getSelectItemUnavailability(offered)) {
+          return;
+        }
+
         onChange?.(offered ? offered.value : next);
       },
       [filteredItems, onChange]
@@ -399,15 +498,36 @@ export const SelectFormField = memo(
         )}
         {asMenu ?
           <ReqoreMenu>
-            {filteredItems.map((item) => (
-              <ReqoreMenuItem
-                key={valueToShow(item.value)}
-                label={item.display_name || valueToShow(item.value)}
-                disabled={item.disabled}
-                intent={item.intent}
-                onClick={() => handleSelectClick(item)}
-              />
-            ))}
+            {filteredItems.map((item) => {
+              /* This branch owns its handler, so it gets the full shape: no
+                 `disabled` (that is `DisabledElement`, which would take the
+                 row's tooltip with it), no handler, the reason printed under
+                 the name and readable on hover, and `readOnly` for the cursor.
+                 Dropping the handler is what makes the row inert. */
+              const unavailable = getSelectItemUnavailability(item);
+              const description = getSelectItemShortDescription(item);
+
+              return (
+                <ReqoreMenuItem
+                  key={valueToShow(item.value)}
+                  label={item.display_name || valueToShow(item.value)}
+                  description={
+                    unavailable ?
+                      [unavailable.title, unavailable.content, description]
+                        .filter(Boolean)
+                        .join(' — ')
+                    : description
+                  }
+                  tooltip={unavailable ? unavailable.content : undefined}
+                  icon={unavailable ? 'LockLine' : undefined}
+                  className={unavailable ? UNAVAILABLE_ITEM_CLASS : undefined}
+                  effect={unavailable ? { opacity: 0.55 } : undefined}
+                  readOnly={!!unavailable}
+                  intent={item.intent}
+                  onClick={unavailable ? undefined : () => handleSelectClick(item)}
+                />
+              );
+            })}
           </ReqoreMenu>
         : hasItemsWithDesc(items) && !forceDropdown ?
           <ReqoreButton
@@ -430,6 +550,14 @@ export const SelectFormField = memo(
             badge={itemCount}
             {...getIcon(items, value)}
             rightIcon={showRightIcon ? 'ExpandUpDownLine' : undefined}
+            /* What this control IS: a trigger that opens the picker dialog, not
+               a place the value can be typed. Assistive technology has always
+               needed this, and a compact row's opening reads it too — a row the
+               author opened lands them in the list rather than on a closed
+               trigger reprinting the value the read row already showed
+               (`isClosedPickerTrigger`). */
+            aria-haspopup='dialog'
+            aria-expanded={collectionOpen}
             onClick={(e) => {
               e.stopPropagation();
               setCollectionOpen(true);
@@ -446,6 +574,15 @@ export const SelectFormField = memo(
           </ReqoreButton>
         : <ReqoreDropdown
             {...(rest as any)}
+            /* Same declaration as the dialog trigger above, for the anchored
+               list this branch draws instead. `onToggleChange` keeps
+               `aria-expanded` honest — reqore owns the popover's open state. */
+            aria-haspopup='listbox'
+            aria-expanded={dropdownOpen}
+            onToggleChange={handleDropdownToggle}
+            // Reqore opens the anchored list when this turns true, on mount or
+            // later — so the same instruction serves both pickers.
+            isDefaultOpen={rowAsksForTheChoices}
             items={reqoreItems}
             listCustomTheme={{
               main: '#010811',

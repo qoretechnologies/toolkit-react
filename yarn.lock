@@ -1391,15 +1391,15 @@
   resolved "https://registry.npmjs.org/@popperjs/core/-/core-2.11.8.tgz"
   integrity sha512-P1st0aksCrn9sGZhp8GMYwBnQsbvAWsZAX44oXNNvLHGqAOcoVxmjZiohstwQ7SqKnbR47akdNi+uleWD8+g6A==
 
-"@qoretechnologies/qlip@^0.1.3-beta.20260724071501":
-  version "0.1.3-beta.20260724071501"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/qlip/-/qlip-0.1.3-beta.20260724071501.tgz#19117eb1737581f3acddc0bc5bda2c7c7dcf1738"
-  integrity sha512-SGRDzB1ayO27FvlrJIsUR57ATHntnBDyuW7HaFJ0eTzwLfS9GQwBOich8qA+55gIg6wtrYVKlhq1At89pdQVKA==
+"@qoretechnologies/qlip@^0.1.3-beta.20260908110821":
+  version "0.1.3-beta.20260908110821"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/qlip/-/qlip-0.1.3-beta.20260908110821.tgz#d3218009d1abe5e1b168f50d1215dcc9f2f87460"
+  integrity sha512-6xDo1saO6pBakS2gvgbLtADobPrsU/k8+YUWVSypTFofEQU3UkEejpEFHzVEFEF5HZEWrSviXx2t3cpiAiqOww==
 
-"@qoretechnologies/reqore@^0.74.1":
-  version "0.74.1"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.74.1.tgz#26df1b8c091b2009281737c0445d889f29d41b0c"
-  integrity sha512-d0GfxsFbk90taYBLZdYL8R2RY5W8clzJzQPL+fvYoLUziqk+nJ6N85wA9cW2XDok/Ri8rQZvQworyjpUea5aXg==
+"@qoretechnologies/reqore@^0.76.2":
+  version "0.76.2"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqore/-/reqore-0.76.2.tgz#954904ed5715c48d9e0ef584cf868479be288f88"
+  integrity sha512-/vK8owqn0L2Tjr6/MmT7wuZv4sKKq+cmhUues8Jyw8aX9vpNtduLTaRGLbzGvD2AJArUgoIoR9GDV/DlxWUg/A==
   dependencies:
     "@emotion/is-prop-valid" "^1.2.1"
     "@internationalized/date" "^3.5.3"
@@ -1432,42 +1432,18 @@
     yaml "^2.3.1"
     zustand "^5.0.3"
 
-"@qoretechnologies/reqraft@^0.7.0":
-  version "0.7.15"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/reqraft/-/reqraft-0.7.15.tgz#eea8729833a04d30eec47a12d4bf3e0de47ef9fb"
-  integrity sha512-1DL3PZbjAV2c1zZ6N+CGvEd/GPmqZTLqnyYmcDGwCCBfoQua+SDXqGo8UGY2oHJVHCr5j1IHA4UfTygnM+X3Cg==
+"@qoretechnologies/ts-toolkit@^0.5.82":
+  version "0.5.82"
+  resolved "https://registry.yarnpkg.com/@qoretechnologies/ts-toolkit/-/ts-toolkit-0.5.82.tgz#bd63574a9e41a30d9926c0d3ffd421c728d73dee"
+  integrity sha512-0Y9h1qXaUPmWhxXSNNyXh7xcVVGHf6qSl4Ac8uBgWkiOu4w8gxnaSgOsGZ+7gRutaIUt78+M8TAPitTkCgBjYQ==
   dependencies:
-    "@tanstack/react-query" "4"
-    classnames "^2.2.6"
-    cronstrue "^2.50.0"
-    epoch-timeago "^1.1.9"
-    filesize "^10.1.6"
-    js-yaml "^4.1.0"
-    lodash "^4.17.21"
-    nanoid "^5.1.5"
-    polished "^4.2.2"
-    react-color "^2.19.3"
-    react-dropzone "^14.3.5"
-    react-markdown "^9.0.1"
-    react-use "^17.6.0"
-    scheduler "^0.23.0"
-    styled-components "^5.3.6"
-    thenby "^1.3.4"
-    use-context-selector "^1.4.1"
-    zustand "^5.0.3"
-
-"@qoretechnologies/ts-toolkit@^0.5.80":
-  version "0.5.80"
-  resolved "https://registry.yarnpkg.com/@qoretechnologies/ts-toolkit/-/ts-toolkit-0.5.80.tgz#925fe878448dfd13ed32d958d893acdbb2b84ace"
-  integrity sha512-L/DyQyDnz9WydCgzsVwwFruCu2hbq23LmRkO2T6d0fDVkfmRL8xYEiBMbJ/Qdiow/MOnFPEyTY7p5Yd6aFESsA==
-  dependencies:
-    "@qoretechnologies/reqraft" "^0.7.0"
     async "^3.2.4"
     cron-validator "^1.3.1"
     js-yaml "^4.1.0"
     lodash "^4.17.21"
     openapi-types "^12.1.3"
     qs "^6.11.0"
+    react-dropzone "^14.3.5"
     react-markdown "^8.0.4"
 
 "@radix-ui/number@1.1.1":

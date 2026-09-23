@@ -9,6 +9,7 @@ import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/tes
 import { useState } from 'react';
 import { sleep } from '../../../../../__tests__/utils';
 import { StoryMeta } from '../../../../types';
+import { templateChipLabel } from '../../../../helpers/templateText';
 import { mockExpressions } from '../mockExpressions';
 import { IExpression } from '../types';
 import { ExpressionBuilder } from './index';
@@ -643,14 +644,38 @@ export const VariableArgumentsCanBeAdded: Story = {
 const CONCAT_OPERANDS = ['first', 'second', 'third'];
 const OPERAND_LITERALS = [...CONCAT_OPERANDS, 'plain', '$local:some-richtext'];
 
+/**
+ * What an operand field holds. A text operand is edited in the chip editor
+ * (these stories offer templates), so it is read from the editable field; a
+ * template chip in it shows the name these stories' templates give the
+ * reference ("Richtext Template"), read back as the reference it names.
+ */
+const readOperand = (field: HTMLElement): string => {
+  if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+    return field.value;
+  }
+  const shown = (field.textContent ?? '').replace(/\uFEFF/g, '').trim();
+  return (
+    OPERAND_LITERALS.find(
+      (literal) => literal === shown || templateChipLabel(localTemplates as never, literal) === shown
+    ) ?? shown
+  );
+};
+
+/** Every operand editor's text, in DOM order (no number or position inputs). */
+const operandTexts = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>('.expression textarea, .expression [contenteditable="true"]')
+  ).map(readOperand);
+
 /** Seeded operand values in DOM order — only the seeded ones, so stray fields don't count. */
 const operandValues = () =>
   Array.from(
-    document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-      '.expression textarea, .expression input'
+    document.querySelectorAll<HTMLElement>(
+      '.expression textarea, .expression input, .expression [contenteditable="true"]'
     )
   )
-    .map((field) => field.value)
+    .map(readOperand)
     .filter((value) => OPERAND_LITERALS.includes(value));
 
 const count = (selector: string) => document.querySelectorAll(selector).length;
@@ -698,7 +723,7 @@ export const ConcatExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"). By default each operand gets a drag grip and a "Move Argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
+          'Renders a "concat" varargs expression with three string operands ("first", "second", "third"), each edited in the chip editor a string field with templates now uses — a contenteditable box rather than a textarea, so a template reference in an operand reads as its name. By default each operand gets a drag grip and a "Move Argument" section in its ⋮ menu — opened and expanded here on the second operand to show "Move before / after / to start / to end" and, at three operands, a "Move to position" caption with a single "2nd" position dropdown beside it, opened to show 1st / 2nd / 3rd.',
       },
     },
   },
@@ -743,7 +768,7 @@ export const ReorderLongConcat: Story = {
     docs: {
       description: {
         story:
-          'Renders a seven-operand "concat": typing 6 and Enter into the second operand\'s "Move to position" field moves it to sixth, "More → 7th" moves it last, and the menu is then reopened on that operand with "Move Argument" expanded and "More" open — the strip shows the segments 1–4, the number field for 5–7 with its arrow, and the list 5th / 6th / 7th with 7th (the current position) disabled.',
+          'Renders a seven-operand "concat": typing 6 and Enter into the second operand\'s "Move to position" field moves it to sixth, "More → 7th" moves it last, and the menu is then reopened on that operand with "Move Argument" expanded and "More" open — the strip shows the segments 1–4, the number field for 5–7 with its arrow, and the list 5th / 6th / 7th with 7th (the current position) disabled. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -765,11 +790,7 @@ export const ReorderLongConcat: Story = {
     await fireEvent.keyDown(field, { key: 'Enter' });
     await waitFor(
       () =>
-        expect(
-          Array.from(
-            document.querySelectorAll<HTMLTextAreaElement>('.expression textarea')
-          ).map((t) => t.value)
-        ).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'second', 'seventh']),
+        expect(operandTexts()).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'second', 'seventh']),
       { timeout: 10000 }
     );
 
@@ -780,11 +801,7 @@ export const ReorderLongConcat: Story = {
     await clickSelector('.expression-arg-move-to-7');
     await waitFor(
       () =>
-        expect(
-          Array.from(
-            document.querySelectorAll<HTMLTextAreaElement>('.expression textarea')
-          ).map((t) => t.value)
-        ).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'second']),
+        expect(operandTexts()).toEqual(['first', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'second']),
       { timeout: 10000 }
     );
     expect(context.args.onChange).toHaveBeenLastCalledWith(
@@ -815,7 +832,7 @@ export const ReorderViaOverflowMenu: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with only the ⋮ menu surface (no grip) and reorders it through the "Move Argument" section: "Move to start" on the third operand, "Move after" on the operand that is now second, then "3rd" from the "Move to position" dropdown on the first — the order goes first/second/third → third/first/second → third/second/first → second/first/third, each move closes its menu, and onChange reports the reordered args.',
+          'Renders the "concat" expression with only the ⋮ menu surface (no grip) and reorders it through the "Move Argument" section: "Move to start" on the third operand, "Move after" on the operand that is now second, then "3rd" from the "Move to position" dropdown on the first — the order goes first/second/third → third/first/second → third/second/first → second/first/third, each move closes its menu, and onChange reports the reordered args. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -854,7 +871,7 @@ export const ReorderViaDragHandle: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with a drag grip before each operand and no "Move Argument" section in the ⋮ menu. Dragging the third operand onto the first puts it first — the order becomes third/first/second.',
+          'Renders the "concat" expression with a drag grip before each operand and no "Move Argument" section in the ⋮ menu. Dragging the third operand onto the first puts it first — the order becomes third/first/second. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1145,7 +1162,7 @@ export const ReorderViaPositionPicker: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with each operand\'s position ("1st", "2nd", "3rd") as a dropdown before its field. Picking "1st" on the third operand moves it to the front — the order becomes third/first/second.',
+          'Renders the "concat" expression with each operand\'s position ("1st", "2nd", "3rd") as a dropdown before its field. Picking "1st" on the third operand moves it to the front — the order becomes third/first/second. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1175,7 +1192,7 @@ export const ReorderAllSurfaces: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with every reorder surface at once — a drag grip and a position dropdown before each operand, plus the "Move Argument" section in the ⋮ menu, opened and expanded on the second operand.',
+          'Renders the "concat" expression with every reorder surface at once — a drag grip and a position dropdown before each operand, plus the "Move Argument" section in the ⋮ menu, opened and expanded on the second operand. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1197,7 +1214,7 @@ export const ReorderDisabled: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with reordering turned off — no grip, no position dropdown, and the ⋮ menu (opened on the second operand) has no "Move Argument" section; only the remove buttons remain.',
+          'Renders the "concat" expression with reordering turned off — no grip, no position dropdown, and the ⋮ menu (opened on the second operand) has no "Move Argument" section; only the remove buttons remain. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },
@@ -1222,7 +1239,7 @@ export const ReorderOnPhone: Story = {
     docs: {
       description: {
         story:
-          'Renders the phone presentation of the "concat" expression with every reorder surface — the operands stack into a column, each keeps its grip and position dropdown, and the ⋮ menu (opened and expanded on the second operand) still carries the "Move Argument" section, so reordering needs no hover or drag.',
+          'Renders the phone presentation of the "concat" expression with every reorder surface — the operands stack into a column, each keeps its grip and position dropdown, and the ⋮ menu (opened and expanded on the second operand) still carries the "Move Argument" section, so reordering needs no hover or drag. Each string operand is edited in the chip editor a field with templates now uses — a contenteditable box rather than a textarea, which is why the operand boxes are narrower than they were.',
       },
     },
   },

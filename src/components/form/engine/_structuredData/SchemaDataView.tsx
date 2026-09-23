@@ -5,11 +5,14 @@ import {
   ReqoreP,
   ReqoreTag,
 } from '@qoretechnologies/reqore';
+import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import {
   IQorusFormField,
   IQorusFormSchema,
   TQorusFormFieldSchema,
 } from '@qoretechnologies/ts-toolkit';
+import { IRichtextSegment } from '../../../../helpers/common';
+import { templateTextSegments } from '../../../../helpers/templateText';
 import React from 'react';
 import styled from 'styled-components';
 import { useContextSelector } from 'use-context-selector';
@@ -24,12 +27,15 @@ import {
   fieldLabel,
   findAllowedValueOption,
   formatOptionValue,
+  getAllowedValueIcon,
   getAllowedValueImage,
   isCodeField,
   orderedKeys,
   recordIdentity,
   titleKeyFor,
 } from '../readFirst';
+import { TemplateText } from '../../fields/template/TemplateText';
+import { TFieldWithOwnTemplates } from '../rendererTypes';
 import { isEmptyUiEnvelope, isUiEncodedValue } from './structuredData';
 
 /**
@@ -343,6 +349,32 @@ const labelColumn = (value: unknown, schema: IQorusFormSchema): string => {
 const isNavigableUrl = (value: unknown): value is string =>
   typeof value === 'string' && /^(https?|wss?|ftps?):\/\//i.test(value);
 
+/**
+ * The reference chips inside a formatted value — none when it holds no
+ * reference at all.
+ *
+ * The preview is the SAME value the row above draws, one level down, and it
+ * reached the mono cell as a raw string: a sub-field holding
+ * `$._case.mode != 'simulate'` read as a chip on the row and as the engine's
+ * own spelling in the inset beneath it, which is a row disagreeing with itself
+ * about what its value is.
+ *
+ * A field's OWN list and grammar win where it declares them — the same
+ * precedence the rows use — falling back to the form's shared catalogue.
+ */
+const referenceSegments = (
+  text: unknown,
+  templates: IReqoreFormTemplates | undefined,
+  fieldSchema?: TQorusFormFieldSchema
+): IRichtextSegment[] => {
+  if (typeof text !== 'string' || !text) {
+    return [];
+  }
+  const own = fieldSchema as TFieldWithOwnTemplates | undefined;
+  const segments = templateTextSegments(text, own?.templates ?? templates, own?.templateToken);
+  return segments.some((segment) => segment.kind === 'tag') ? segments : [];
+};
+
 /** One field's value, rendered the way its row above renders it. */
 const FieldValue = ({
   field,
@@ -356,7 +388,11 @@ const FieldValue = ({
   const formatted = formatOptionValue(field, fieldSchema);
   // An allowed value that carries a logo shows it here too, exactly as the row
   // above does — the preview is the same value, so it gets the same treatment.
+  // An option marked with an ICON rather than a logo gets the same, for the same
+  // reason: the mark is how a list of bare words is told apart, and dropping it
+  // here would make the preview disagree with the row it previews.
   const image = getAllowedValueImage(field.value, fieldSchema);
+  const icon = getAllowedValueIcon(field.value, fieldSchema);
 
   // Data reads in mono; a chosen label does not.
   //
@@ -367,6 +403,13 @@ const FieldValue = ({
   // dress up a label as a value. Resolving through `allowed_values` is what
   // separates the two, and it is the same lookup that produced the text.
   const isChosenLabel = !!findAllowedValueOption(field.value, fieldSchema);
+
+  /* Read from context, like the code renderer above: a level is arbitrarily
+     deep, and the form's catalogue is a property of the form rather than of any
+     one level. See `referenceSegments`. */
+  const templates = useContextSelector(CompactRowContext, (v) => v.templates);
+  const fieldTemplates = (fieldSchema as TFieldWithOwnTemplates | undefined)?.templates ?? templates;
+  const segments = isNavigableUrl(field.value) ? [] : referenceSegments(formatted, templates, fieldSchema);
 
   return (
     <StyledRowValue $color={color}>
@@ -387,6 +430,12 @@ const FieldValue = ({
               size='14px'
               style={{ flexShrink: 0, marginRight: 6, verticalAlign: 'middle' }}
             />
+          : icon ?
+            <ReqoreIcon
+              icon={icon as any}
+              size='14px'
+              style={{ flexShrink: 0, marginRight: 6, verticalAlign: 'middle' }}
+            />
           : null}
           {isNavigableUrl(field.value) ?
             // The address IS the link — it used to render as inert text with a
@@ -403,11 +452,34 @@ const FieldValue = ({
             >
               {formatted}
             </ReqoreLink>
+          : segments.length ?
+            // `full`: the preview is where a value that the row had to cut is
+            // shown whole, so its chips wrap rather than clipping.
+            <TemplateText segments={segments} templates={fieldTemplates} full />
           : formatted}
         </span>
       }
     </StyledRowValue>
   );
+};
+
+/**
+ * A value with no field schema of its own — a bare entry in a list, a level
+ * that turned out to be a scalar. It still reads as prose with named chips
+ * where it holds references, because a reference is not more raw for having
+ * arrived without a schema.
+ */
+const ScalarText = ({
+  text,
+  templates,
+}: {
+  text: string;
+  templates: IReqoreFormTemplates | undefined;
+}) => {
+  const segments = referenceSegments(text, templates);
+  return segments.length ?
+      <TemplateText segments={segments} templates={templates} full />
+    : <>{text}</>;
 };
 
 /** One described hash: its fields as label/value pairs in the shared columns. */
@@ -547,6 +619,9 @@ const SchemaLevel = ({
   colors: ISchemaDataViewProps['colors'];
 }) => {
   const inner = unwrap(value);
+  // Same reason as `FieldValue`: a heading and a bare list entry are values too,
+  // and a reference in one reads as a name everywhere else in the form.
+  const templates = useContextSelector(CompactRowContext, (v) => v.templates);
 
   if (Array.isArray(inner)) {
     return (
@@ -567,6 +642,14 @@ const SchemaLevel = ({
                       if (!identity) {
                         return null;
                       }
+                      // An item is headed by one of its own fields, so the
+                      // heading is that field's value and reads like it: a case
+                      // named by a reference is named by the reference's NAME.
+                      const titleSegments = referenceSegments(
+                        identity.text,
+                        templates,
+                        schema[identity.key] as TQorusFormFieldSchema | undefined
+                      );
                       return (
                         <StyledItemTitle
                           className='schema-view-item-title'
@@ -578,7 +661,9 @@ const SchemaLevel = ({
                           $accent={colors.accent}
                           title={identity.label}
                         >
-                          {identity.text}
+                          {titleSegments.length ?
+                            <TemplateText segments={titleSegments} templates={templates} full />
+                          : identity.text}
                         </StyledItemTitle>
                       );
                     })()}
@@ -595,7 +680,10 @@ const SchemaLevel = ({
                       className='options-readfirst-valuetext schema-view-data'
                       style={{ fontFamily: MONO_FONT_STACK }}
                     >
-                      {formatOptionValue({ value: record } as IQorusFormField)}
+                      <ScalarText
+                        text={formatOptionValue({ value: record } as IQorusFormField)}
+                        templates={templates}
+                      />
                     </span>
                   </StyledRowValue>
                 }
@@ -613,7 +701,10 @@ const SchemaLevel = ({
 
   return (
     <ReqoreP size='small' style={{ color: colors.key }}>
-      {formatOptionValue({ value: inner } as IQorusFormField)}
+      <ScalarText
+        text={formatOptionValue({ value: inner } as IQorusFormField)}
+        templates={templates}
+      />
     </ReqoreP>
   );
 };

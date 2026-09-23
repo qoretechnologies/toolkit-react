@@ -253,6 +253,27 @@ Concrete plumbing:
   `SELECT * FROM users WHERE name = "Alice"` is replaced with a
   valid DPQL expression (e.g. `1 == 1` or `2026 - 2024 == 2`).
 
+**The server holds the text the editor shows** *(revised 2026-09-14)*. The
+server colours and diagnoses its own copy of the document, so two things must
+stay true, and neither did for a value set from outside rather than typed:
+
+- **Every value reaches the server.** `SmartEditor` passes each `value` to
+  `session.didChange`, which sends only text the server does not already hold,
+  and holds text set before the document opened for `didOpen`. Before, only
+  typing was sent and `didOpen` carried the text at mount, so a Preview that
+  follows the author was coloured for text it no longer showed.
+- **Offsets use the tree the editor holds.** Slate normalises a value set from
+  outside — a leading chip gains an empty text leaf before it — without
+  changing its text, so `value` does not change. `SmartEditor` adopts every
+  tree the editor reports as the one token, diagnostic and signature offsets
+  are computed against. Before, it kept the pre-normalisation tree and every
+  offset pointed one leaf off: a Text view seeded with
+  `"$local:name" == "John"` was never highlighted.
+
+Guarded by `__tests__/smartEditor/sessionKeepsServerText.test.ts` and the
+`ExpressionField` story *Via Form Engine Text Mode*, which asserts the seeded
+text is coloured.
+
 **Surface area.**
 `src/utils/lspClient.ts` (legend capture, ~10 lines),
 `src/utils/lspClient.types.ts` (new `ILspSemanticTokensLegend` /

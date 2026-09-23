@@ -10,6 +10,7 @@ import { renderExpressionToText } from '../expressions/renderExpressionToText';
 import { IExpressionValue } from '../expressions/types';
 import yaml from 'js-yaml';
 import { formatTimeoutValue, richtextToString } from '../../../helpers/common';
+import { firstDeclaredType } from '../../../helpers/optionUiTypes';
 
 /** "N noun" with naive pluralisation ("1 item", "2 items"). */
 const pluralize = (count: number, noun: string): string =>
@@ -224,7 +225,7 @@ export const shouldAutoCollapseCompactAllowedValueOption = (
  * user chooses either boolean value in compact mode, the choice is complete
  * and the inline editor can close without a separate confirmation. */
 export const isCompactBooleanOption = (schema: TQorusFormFieldSchema | undefined): boolean => {
-  const type = (schema?.ui_type || schema?.type)?.toLowerCase();
+  const type = firstDeclaredType(schema?.ui_type || schema?.type)?.toLowerCase();
   return type === 'bool' || type === 'boolean';
 };
 
@@ -314,6 +315,31 @@ export const getAllowedValueImage = (
 ): string | undefined => {
   const match = findAllowedOption(value, schema);
   return (match?.image as string) || undefined;
+};
+
+/**
+ * The selected option's ICON, when it carries one and no logo — for the value
+ * cell.
+ *
+ * The same idea as {@link getAllowedValueImage} and read for the same reason:
+ * an option's mark belongs beside the value it names. Only images were rendered,
+ * so a picker whose entries are distinguished by ICON — an interface-kind list
+ * where every entry is a bare word, `Service`, `Job`, `Qog` — showed each mark
+ * while choosing and then dropped it the moment the row went read-only, which is
+ * the surface a reader spends the most time on.
+ *
+ * The image wins where an option has both: a logo is the more specific mark, and
+ * an icon standing behind it is a fallback rather than a second thing to draw.
+ */
+export const getAllowedValueIcon = (
+  value: unknown,
+  schema?: TQorusFormFieldSchema
+): string | undefined => {
+  const match = findAllowedOption(value, schema);
+  if (!match || match.image) {
+    return undefined;
+  }
+  return (match.icon as string) || undefined;
 };
 
 /** Clamp an RGB channel to a 0–255 integer. */
@@ -556,6 +582,36 @@ export const summariseMarkdown = (value: unknown): string => {
   return capSummary(prose);
 };
 
+/**
+ * The expression AST a field holds, whichever shape it arrived in.
+ *
+ * An expression arrives in TWO shapes, and only the flat one used to be
+ * checked. At runtime the editor writes the flag onto the option
+ * (`{ is_expression: true, value: ast }`); a value read back from a saved draft
+ * carries the envelope NESTED (`{ value: { is_expression: true, value: ast } }`)
+ * with no flag on the option at all. Missing the nested shape sent a reloaded
+ * expression to the generic formatter, which printed the AST — the row showed
+ * `is_expression true / value / exp + / args 1 2` where the expression should
+ * be.
+ *
+ * Exported because the SUMMARY is not the only place that has to know. The AST
+ * is how an expression is stored, not what it is, so nothing may draw it as
+ * data: `CompactRow` asks this before deciding a hash-shaped value has earned a
+ * structured inset. Answering it in one place is what keeps the row's two
+ * halves — the line and the inset under it — talking about the same value.
+ */
+export const getExpressionAst = (option?: {
+  is_expression?: boolean;
+  value?: unknown;
+}): IExpressionValue | undefined =>
+  option?.is_expression ? (option?.value as IExpressionValue | undefined)
+  : (
+    (option?.value as { is_expression?: boolean; value?: IExpressionValue } | undefined)
+      ?.is_expression
+  ) ?
+    (option?.value as { value?: IExpressionValue }).value
+  : undefined;
+
 export const formatOptionValue = (
   option?: IQorusFormField,
   schema?: TQorusFormFieldSchema
@@ -572,11 +628,13 @@ export const formatOptionValue = (
     return '••••••';
   }
 
-  if (option?.is_expression) {
+  const expressionAst = getExpressionAst(option);
+
+  if (expressionAst !== undefined) {
     // Offline summary of the {exp,args} AST already in the form value — the
     // same client-side renderer the editor's "Explain" seam falls back to when
     // the LSP is unreachable. The drill-in editor shows the canonical DPQL.
-    return renderExpressionToText(option?.value as IExpressionValue | undefined) || 'Expression';
+    return renderExpressionToText(expressionAst) || 'Expression';
   }
 
   // schema-definition is stored as a hash envelope; summarise it as the schema
@@ -792,7 +850,10 @@ export const getOptionGroupLabel = (
 /** Completion summary for the read-first progress meter. */
 export interface IReadFirstCompletion {
   total: number;
+  /** Fields holding a value, whether or not anything is wrong with it. */
   set: number;
+  /** Fields holding a value that nothing is flagging — what the meter fills. */
+  done: number;
   pct: number;
 }
 
@@ -831,14 +892,33 @@ export const getReadFirstBucket = (status: TReadFirstStatus): 'attention' | 'set
 
 /** Count how many of the shown options have a value set, for the progress meter. */
 export const getReadFirstCompletion = (
-  shownOptions: Record<string, IQorusFormField | undefined> = {}
+  shownOptions: Record<string, IQorusFormField | undefined> = {},
+  /**
+   * Whether the form flags this field as needing attention. Optional: without
+   * it the meter falls back to counting values alone, which is what a caller
+   * with no bucketing of its own can honestly say.
+   */
+  needsAttention?: (name: string) => boolean
 ): IReadFirstCompletion => {
   const names = Object.keys(shownOptions);
   const total = names.length;
-  const set = names.filter((name) => !isOptionValueEmpty(shownOptions[name]?.value)).length;
-  const pct = total ? Math.round((set / total) * 100) : 0;
+  const hasValue = (name: string) => !isOptionValueEmpty(shownOptions[name]?.value);
+  const set = names.filter(hasValue).length;
+  /* "Set" and "needs attention" are not opposites. A field can hold a value and
+     still be wrong — one that fails validation, or one the host has flagged
+     because something INSIDE it is unfinished — and counting those as progress
+     is how a form comes to report 100% while the box beneath it says a field
+     needs attention.
 
-  return { total, set, pct };
+     It also cost the meter its amber run: the bar draws attention from `set%`
+     onward, so a field counted in both pushed that run past the right edge,
+     where `overflow: hidden` swallowed it. The one visual signal that something
+     was outstanding was the one thing the double-count hid. */
+  const done =
+    needsAttention ? names.filter((name) => hasValue(name) && !needsAttention(name)).length : set;
+  const pct = total ? Math.round((done / total) * 100) : 0;
+
+  return { total, set, done, pct };
 };
 
 /** What the "first field to fix" selector needs to know about one field.

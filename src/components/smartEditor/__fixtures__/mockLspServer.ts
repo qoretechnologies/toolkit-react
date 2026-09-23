@@ -2,8 +2,10 @@
 // (heartbeat, initialize, document tracking, request dispatch); story files
 // register only their language-specific handlers.
 import { Client, Server } from 'mock-socket';
+import { storySocketUrl } from '../../../stories/storyNetwork';
 
-export const MOCK_LSP_URL = `wss://hq.qoretechnologies.com:8092/lsp?token=${process.env.REACT_APP_QORUS_TOKEN}`;
+/** Where `ReqraftLspClient` dials by default, on the instance stories use. */
+export const MOCK_LSP_URL = storySocketUrl('lsp');
 
 // LSP-standard 16-type / 6-modifier legend, as the real Qorus server
 // advertises in `initialize` (qorus/Classes/QorusLspWebSocketHandler.qc:847).
@@ -76,31 +78,69 @@ export interface IMockLspServer {
   received: IMockLspMessage[];
   connectionCount: number;
   getOpenConnectionCount: () => number;
-  // Most-recent document text from didOpen / didChange.
+  // Most-recent document text from didOpen / didChange, whichever document.
   documentText: string;
+  /**
+   * The text of every open document, by URI. Clients share ONE socket per
+   * endpoint and open a document each — an editor and several read-only
+   * renderings at once — so a per-document answer (semantic tokens) must read
+   * its own document, not whichever one changed last.
+   */
+  textOf: (uri?: string) => string;
   delays: Record<string, number>;
   notify: (method: string, params: unknown) => void;
   close: () => void;
 }
 
+/* One mock per URL at a time. `.storybook/preview.tsx` starts a default DPQL
+   language server for every story, and a story that needs its own handlers
+   creates a server on the same URL; mock-socket refuses a second server there,
+   so creating one replaces whichever is listening. */
+const activeServers = new Map<string, IMockLspServer>();
+
 export const createMockLspServer = (
   url: string,
   options: IMockLspServerOptions = {}
 ): IMockLspServer => {
+  // No connection reset here: `.storybook/preview.tsx` resets the shared LSP
+  // connections (and the expression render client) before every story, which
+  // covers stories that never create a mock server as well as those that do.
+  activeServers.get(url)?.close();
   const server = new Server(url);
   const sockets: Client[] = [];
+  const documents = new Map<string, string>();
+  let closed = false;
   const lsp: IMockLspServer = {
     received: [],
     connectionCount: 0,
     getOpenConnectionCount: () => sockets.filter((socket) => socket.readyState === 1).length,
     documentText: '',
+    textOf: (uri) => (uri !== undefined && documents.has(uri) ? documents.get(uri)! : lsp.documentText),
     delays: { ...options.delays },
     notify: (method, params) =>
       sockets.forEach((socket) =>
         socket.send(JSON.stringify({ jsonrpc: '2.0', method, params }))
       ),
-    close: () => server.close(),
+    close: () => {
+      /* Once only. mock-socket finds clients by URL, not by server, so closing a
+         server that was already replaced would close its REPLACEMENT's clients
+         — and the default server is closed twice when a story replaces it: once
+         on replacement, once in the preview's teardown. */
+      if (closed) {
+        return;
+      }
+      closed = true;
+      if (activeServers.get(url) === lsp) {
+        activeServers.delete(url);
+      }
+      server.close();
+      // `close()` drops the clients but leaves mock-socket's WebSocket installed
+      // on the page; only `stop()` puts the real one back. Without it a story
+      // that reaches a real server (`parameters.live`) dials the mock instead.
+      server.stop();
+    },
   };
+  activeServers.set(url, lsp);
 
   server.on('connection', (socket) => {
     lsp.connectionCount++;
@@ -119,14 +159,23 @@ export const createMockLspServer = (
       }
       lsp.received.push(msg);
 
+      const uri = msg.params?.textDocument?.uri;
       if (msg.method === 'textDocument/didOpen') {
         lsp.documentText = msg.params?.textDocument?.text ?? '';
+        if (uri !== undefined) {
+          documents.set(uri, lsp.documentText);
+        }
       } else if (msg.method === 'textDocument/didChange') {
         // The client sends a single full-document content change.
         const change = msg.params?.contentChanges?.[0];
         if (change && typeof change.text === 'string') {
           lsp.documentText = change.text;
+          if (uri !== undefined) {
+            documents.set(uri, change.text);
+          }
         }
+      } else if (msg.method === 'textDocument/didClose' && uri !== undefined) {
+        documents.delete(uri);
       }
 
       const handler = options.handlers?.[msg.method];

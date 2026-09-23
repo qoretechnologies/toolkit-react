@@ -1,8 +1,9 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { FormEngine } from '../src/components/form/engine/FormEngine';
+import { FormEngine, IOptionsSchema } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
 const queryMock = vi.fn();
 vi.mock('../src/utils/fetch', async (importOriginal) => ({
@@ -10,12 +11,7 @@ vi.mock('../src/utils/fetch', async (importOriginal) => ({
   query: (...args: unknown[]) => queryMock(...args),
 }));
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /**
  * `absorb_fields` — a field rendering a sibling inside its own container.
@@ -28,7 +24,7 @@ const fetchContext = {
  * loses only its row.
  */
 
-const OPTIONS = {
+const OPTIONS: IOptionsSchema = {
   language: {
     type: 'string',
     ui_type: 'string',
@@ -45,7 +41,7 @@ const OPTIONS = {
     absorb_fields: ['language'],
   },
   other: { type: 'string', ui_type: 'string', display_name: 'Something Else' },
-} as never;
+};
 
 const VALUE = {
   language: { type: 'string', value: 'qore' },
@@ -53,7 +49,7 @@ const VALUE = {
   other: { type: 'string', value: 'x' },
 } as never;
 
-const renderForm = (options: never = OPTIONS, value: never = VALUE) =>
+const renderForm = (options: IOptionsSchema = OPTIONS, value: never = VALUE) =>
   render(
     <ReqoreUIProvider>
       <FetchContext.Provider value={fetchContext}>
@@ -102,10 +98,10 @@ describe('a field that absorbs a sibling', () => {
   });
 
   it('leaves the field alone when nothing absorbs it', async () => {
-    const withoutAbsorb = {
-      ...(OPTIONS as never as Record<string, unknown>),
+    const withoutAbsorb: IOptionsSchema = {
+      ...OPTIONS,
       source: { type: 'string', ui_type: 'long-string', display_name: 'Source Code' },
-    } as never;
+    };
     const { container } = renderForm(withoutAbsorb);
 
     await waitFor(() => expect(rowFor(container, 'language')).toBeTruthy());
@@ -113,15 +109,15 @@ describe('a field that absorbs a sibling', () => {
 
   it('ignores a declaration naming a field that does not exist', async () => {
     // A schema that names a missing sibling must not make anything disappear.
-    const bogus = {
-      ...(OPTIONS as never as Record<string, unknown>),
+    const bogus: IOptionsSchema = {
+      ...OPTIONS,
       source: {
         type: 'string',
         ui_type: 'long-string',
         display_name: 'Source Code',
         absorb_fields: ['nope'],
       },
-    } as never;
+    };
     const { container } = renderForm(bogus);
 
     await waitFor(() => expect(rowFor(container, 'source')).toBeTruthy());

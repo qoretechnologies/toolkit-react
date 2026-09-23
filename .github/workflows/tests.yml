@@ -2,10 +2,16 @@
 
 name: Pull Request Tests
 
-# Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the develop branch
+# Runs for pull requests into develop, and for develop itself after every push.
+# pull_request alone left develop untested (the push trigger was dropped in 2021
+# alongside the first release workflow, which never ran tests either), and GitHub
+# does not run pull_request workflows for a PR it cannot merge — a conflicting PR
+# goes untested for as long as it stays conflicting.
 on:
   pull_request:
+    branches:
+      - develop
+  push:
     branches:
       - develop
 
@@ -50,6 +56,8 @@ jobs:
       # Minor and major changes are skipped, not judged: those are deliberate and this
       # check has no way to know how many are intended.
       - name: Check the version was bumped exactly once
+        # Per PR only: on a push to develop the merge-base is the pushed commit.
+        if: github.event_name == 'pull_request'
         run: |
           git fetch origin develop --quiet
           BASE=$(git merge-base origin/develop HEAD)
@@ -163,7 +171,8 @@ jobs:
           DISCORD_AVATAR: "https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true"
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: ":white_check_mark: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} *succeeded*, install the canary version via `yarn add @qoretechnologies/reqraft@${{ steps.bump.outputs.version }}`."
+          # A push to develop has no PR to link and no canary to install.
+          args: "${{ github.event_name == 'pull_request' && format(':white_check_mark: Tests run #{0} for [PR]({1}) triggered by {2} *succeeded*, install the canary version via `yarn add @qoretechnologies/reqraft@{3}`.', github.run_number, github.event.pull_request.html_url, github.triggering_actor, steps.bump.outputs.version) || format(':white_check_mark: Tests run #{0} for [develop @ {1}]({2}/{3}/commit/{4}) triggered by {5} *succeeded*.', github.run_number, github.sha, github.server_url, github.repository, github.sha, github.triggering_actor) }}"
         if: success()
 
       # Notify discord if failure
@@ -174,7 +183,7 @@ jobs:
           DISCORD_AVATAR: "https://github.com/qoretechnologies/qorus-vscode/blob/95ad81fa8654fe83bb41f68f4de42ae088298e59/public/q-symbol-small.png?raw=true"
         uses: Ilshidur/action-discord@0.3.2
         with:
-          args: ":exclamation: Tests run #${{ github.run_number }} for [PR](${{ github.event.pull_request.html_url }}) triggered by ${{ github.triggering_actor }} *failed*!"
+          args: "${{ github.event_name == 'pull_request' && format(':exclamation: Tests run #{0} for [PR]({1}) triggered by {2} *failed*!', github.run_number, github.event.pull_request.html_url, github.triggering_actor) || format(':exclamation: Tests run #{0} for [develop @ {1}]({2}/{3}/commit/{4}) triggered by {5} *failed*!', github.run_number, github.sha, github.server_url, github.repository, github.sha, github.triggering_actor) }}"
         if: failure()
 
       - name: Discord notification safe to restart

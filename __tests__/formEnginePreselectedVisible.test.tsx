@@ -4,13 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { getReadFirstBucket, getReadFirstStatus } from '../src/components/form/engine/readFirst';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /**
  * `preselected` means "display the option by default when a new form is loaded,

@@ -29,6 +29,8 @@ debug-storybook.log
 
 # Per-agent local-only config (Claude Preview launch, etc.)
 .claude/launch.json
+# Agent worktrees: whole checkouts of this repo, never part of a commit
+.claude/worktrees/
 qlip/
 
 # Local cache of the instruction-files repo path (per-dev, not committed)

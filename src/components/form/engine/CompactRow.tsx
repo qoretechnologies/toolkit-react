@@ -10,8 +10,9 @@ import {
   ReqoreTagGroup,
 } from '@qoretechnologies/reqore';
 import { IReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
+import { RowMenuContext, useRowMenuRegistry } from './rowMenuContext';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
-import { resolveOptionActions } from './optionActions';
+import { optionActionAsMenuItem, resolveOptionActions, splitOptionActions } from './optionActions';
 import {
   IQorusFormField,
   IQorusFormSchema,
@@ -24,16 +25,11 @@ import size from 'lodash/size';
 import React, { memo } from 'react';
 import { useContextSelector } from 'use-context-selector';
 import { hasAllDependenciesFullfilled, parseDependency } from '../../../helpers/validations';
-import {
-  findTemplate,
-  getTemplateTagStyle,
-  isValueTemplate,
-  describeTemplateReference,
-  splitTemplateTokens,
-  TTemplateMeta,
-} from '../../../helpers/templates';
+import { findTemplate, isValueTemplate } from '../../../helpers/templates';
 import { getDefaultValue, richtextToSegments, richtextToString } from '../../../helpers/common';
+import { hasTemplateText, templateTextSegments } from '../../../helpers/templateText';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
+import { TemplateText } from '../fields/template/TemplateText';
 import { describeCodeSize, formatCodeChars, formatCodeLines } from '../../codeSize';
 import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
@@ -57,6 +53,8 @@ import {
   StyledStatusDot,
 } from './compactRowStyles';
 import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMessages';
+import { findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
+import { RowOpenPickerContext } from './rowOpenPicker';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
 import { query } from '../../../utils/fetch';
 import {
@@ -64,6 +62,7 @@ import {
   findAllowedValueOption,
   formatBytes,
   formatOptionValue,
+  getAllowedValueIcon,
   getAllowedValueImage,
   getFileSize,
   getHashEntries,
@@ -72,8 +71,11 @@ import {
   isFixedCompactAllowedValueOption,
   isOptionValueEmpty,
   optionHasImages,
+  getExpressionAst,
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
+import { DpqlRendering } from '../expressions/DpqlRendering';
+import { TFieldWithOwnTemplates } from './rendererTypes';
 
 /**
  * Does this markdown value have more document in it than one row can show?
@@ -130,12 +132,6 @@ const COMPACT_SINGLE_VALUE_TYPES = new Set([
   'timeout',
   'method-name',
 ]);
-
-// How many consumer-injected actions may sit inline in a row before the rest
-// overflow into the row's menu. A row's action slot shares space with the
-// value; an unbounded button strip would squeeze the value out, and the
-// consumer controls how many actions it injects.
-const MAX_INLINE_OPTION_ACTIONS = 2;
 
 // One read-first row: label | value | action collapsed; the real editor (the
 // classic renderOption) expanded. `hidden` = search-surfaced optional —
@@ -202,7 +198,6 @@ export const CompactRow = memo(
     const isExpanded = useContextSelector(CompactRowContext, (v) =>
       v.expandedOptions.includes(optionName)
     );
-    const autoFocusNameRef = useContextSelector(CompactRowContext, (v) => v.autoFocusNameRef);
     const isHighlighted = useContextSelector(CompactRowContext, (v) =>
       v.highlightedOptions.includes(optionName)
     );
@@ -215,6 +210,44 @@ export const CompactRow = memo(
     );
     const setFocusedEditing = useContextSelector(CompactRowContext, (v) => v.setFocusedEditing);
     const readRowHeights = useContextSelector(CompactRowContext, (v) => v.readRowHeights);
+    const onReadOnlyActivate = useContextSelector(
+      CompactRowContext,
+      (v) => v.onReadOnlyActivate
+    );
+
+    /**
+     * The floor recorded when a row is opened lasts until the author changes
+     * something.
+     *
+     * `activate()` measures the row as it was READ and pins that as the
+     * editing row's `min-height`, so opening a row cannot yank the content
+     * below it up under the pointer. That is right for the transition and
+     * wrong for the rest of the session: a row that was tall because it
+     * carried a warning keeps that height after the author fixes the very
+     * thing the warning was about, leaving a large empty box where the
+     * explanation used to be — reported as "the chip is removed, but the
+     * vertical size of the option remains the same".
+     *
+     * Released on the first change to the value, which is exactly the moment
+     * the author has acted and the row should settle to what it now holds.
+     * Nothing is yanked by that: the author caused it and is looking at it.
+     *
+     * Keyed on a STRING rather than the value itself. A form value is often a
+     * fresh object on every render (`{source, value}` for a reference), so a
+     * dependency on its identity would drop the floor on the first re-render
+     * and the transition it exists for would never be smoothed at all.
+     */
+    const valueKey =
+      optionField?.value === null || typeof optionField?.value !== 'object' ?
+        String(optionField?.value)
+      : JSON.stringify(optionField?.value);
+
+    /* `valueKey` alone, deliberately - see above. No eslint-disable: this repo
+       does not load `react-hooks`, so a suppression for a rule that is not
+       there is itself an error, and the pre-push lint refuses the push. */
+    React.useEffect(() => {
+      delete readRowHeights.current[optionName];
+    }, [valueKey]);
     const originalValue = useContextSelector(CompactRowContext, (v) => v.originalValue);
     const availableOptions = useContextSelector(CompactRowContext, (v) => v.availableOptions);
     const requiredGroupsInfo = useContextSelector(CompactRowContext, (v) => v.requiredGroupsInfo);
@@ -255,27 +288,6 @@ export const CompactRow = memo(
 
     // Value-cell content: colour adds a swatch, file an icon + size; hash keeps
     // its "N fields" summary (sub-fields reveal beneath the row).
-    /**
-     * Flattens the line breaks in one prose segment of a richtext SUMMARY.
-     *
-     * The read-first row is a single line: every other value type reaches it
-     * through `whiteSpace: 'nowrap'`, which collapses newlines for free. The
-     * richtext branch is the only one that opts into `'pre'` — it has to, or the
-     * spaces that separate a word from the chip beside it are dropped — and `pre`
-     * also honours the newlines, which `nowrap` would have eaten.
-     *
-     * So a genuinely multi-line value (an alert rule's Gmail message body is five
-     * `\n`-separated lines) gave each segment after the first a blank first line.
-     * The wrapper centres its items, so a two-line-tall box centred against
-     * one-line chips put every word 12px below the chip beside it, and the row
-     * read as a staircase. Measured on supah: prose boxes 30px against 14px chips.
-     *
-     * A space, not nothing: consecutive prose segments are merged before they get
-     * here, so a value with a break and no chip between its lines would otherwise
-     * lose the word boundary entirely.
-     */
-    const collapseSummaryBreaks = (text: string): string => text.replace(/\s*\r?\n\s*/g, ' ');
-
     const renderReadFirstValue = (
       field: IQorusFormField,
       schema: TQorusFormFieldSchema | undefined,
@@ -298,6 +310,43 @@ export const CompactRow = memo(
         full ?
           { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
         : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+
+      /* A row has to SAY when its value is an expression.
+      
+         Reported from the live IDE: an author accepted the *Use as expression*
+         offer on one field and not on the other, and the two rows read exactly
+         the same - `1 + 2` and `2 + 1`, both plain text - so there was no way
+         to tell which had been converted. The assertion then compared the
+         string `"1 + 2"` against the number `3` and the author had no way to
+         see why.
+      
+         The same Σ the expression editor uses, so the mark means the same thing
+         wherever it appears. */
+      const withExpressionMarker = (rendered: React.ReactNode): React.ReactNode => {
+        if (!(field as { is_expression?: boolean })?.is_expression) {
+          return rendered;
+        }
+
+        return (
+          <span style={{ ...wrapStyle, gap: 4 }}>
+            <ReqoreIcon
+              icon='Functions'
+              size='tiny'
+              /* A stable hook: reqore renders every icon as a bare
+                 `.reqore-icon`, so without this there is nothing to select the
+                 mark by — in a test or in a consumer's stylesheet. */
+              className='reqraft-expression-marker'
+              /* Opacity through `effect`, which is how this repo dims a reqore
+                 component (see the card's `short_desc` below); only the flex
+                 rule, which reqore has no prop for, stays inline. */
+              effect={{ opacity: 0.7 }}
+              style={{ flexShrink: 0 }}
+              tooltip='This value is an expression'
+            />
+            {rendered}
+          </span>
+        );
+      };
 
       if (valueType === 'rgbcolor') {
         const swatch = colorToCss(field?.value);
@@ -349,6 +398,52 @@ export const CompactRow = memo(
             label={formatted}
           />
         );
+      }
+
+      // A test's cases read as CHIPS here, the same as the names in the table
+      // this row opens (`CasesTable`, qorus-ide). `test-cases` is a
+      // renderer-only ui_type, so it reached none of the branches above and
+      // fell through to the generic summary, which flattens the array of case
+      // hashes to a comma-joined string — "case_1, resolved_expected_values".
+      // A case name is an identifier the author types into `$.` references and
+      // skip conditions, and a chip is how the rest of the product writes an
+      // identifier down; the table already agreed, so the collapsed row was the
+      // only surface still printing them as prose.
+      //
+      // `intent` is a FILL, which is what a tag is — the hazard the other
+      // branches warn about is only ever using an intent as a TEXT colour.
+      //
+      // Falls through to the plain summary unless EVERY entry yields a name: a
+      // partly-chipped row would read as though the unnamed cases were missing.
+      if (valueType === 'test-cases' && Array.isArray(field?.value)) {
+        const caseNames = (field.value as unknown[]).map((item) => {
+          const name = (item as { name?: unknown } | null | undefined)?.name;
+          return typeof name === 'string' ? name.trim() : '';
+        });
+        if (caseNames.length > 0 && caseNames.every((name) => name !== '')) {
+          return (
+            <ReqoreControlGroup
+              gapSize='tiny'
+              verticalAlign='center'
+              // An editable row is ONE line: further chips clip with the row
+              // instead of growing it. A read-only row is the only rendering
+              // the value gets, so it wraps and shows every case.
+              wrap={full}
+              style={full ? undefined : { minWidth: 0, overflow: 'hidden' }}
+            >
+              {caseNames.map((name, index) => (
+                <ReqoreTag
+                  key={`${name}-${index}`}
+                  className='options-readfirst-case-tag'
+                  size='small'
+                  minimal
+                  intent='info'
+                  label={name}
+                />
+              ))}
+            </ReqoreControlGroup>
+          );
+        }
       }
 
       // Code-editor read summary: replace the truncated string with a chip
@@ -418,15 +513,43 @@ export const CompactRow = memo(
         );
       }
 
+      // The same, for an option whose mark is an ICON rather than a logo. Only
+      // images were drawn here, so a list whose entries are told apart by their
+      // icon — every interface kind is a bare word, `Service`, `Job`, `Qog` —
+      // showed the mark while choosing and lost it the moment the row went
+      // read-only, which is where a reader spends most of their time.
+      const allowedIcon = getAllowedValueIcon(field?.value, schema);
+      if (allowedIcon) {
+        return (
+          <span style={wrapStyle}>
+            <ReqoreIcon icon={allowedIcon as any} size='16px' style={{ flexShrink: 0 }} />
+            <span style={textStyle}>{formatted}</span>
+          </span>
+        );
+      }
+
       // Template value ($local:…): the read-only template picker — the SAME chip
       // TemplateField renders when disabled, so a template reads identically here
       // and in the editor (qorus-ide intent scheme: info / qorus purple).
+      //
+      // A field may also declare templates OF ITS OWN, and a value drawn from
+      // that list is just as much a template even when it does not look like
+      // `$name:key` — `isValueTemplate` is a guess at the shape of the built-in
+      // grammar, and a host's own grammar (a Qorus test's `$.order.id`) fails it.
+      // Asking the field's list whether it CONTAINS the value settles it without
+      // guessing at syntax, and hands back the entry whose label the chip prints,
+      // so a reference reads as the name it was chosen by here as well as in the
+      // editor rather than as a raw path.
+      const ownTemplates = (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates;
+      // The grammar the field declares its references in, when it speaks one of
+      // its own — the same schema key its rich-text editor is given.
+      const templateGrammar = (schema as TFieldWithOwnTemplates | undefined)?.templateToken;
       if (
         typeof field?.value === 'string' &&
         !(field as { is_expression?: boolean }).is_expression &&
-        isValueTemplate(field.value)
+        (isValueTemplate(field.value) || !!findTemplate(ownTemplates ?? {}, field.value))
       ) {
-        return <ReadOnlyTemplateTag value={field.value} templates={templates} size='small' />;
+        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} size='small' />;
       }
 
       // A LIST whose elements are rich-text envelopes is a list of strings, so it
@@ -449,81 +572,48 @@ export const CompactRow = memo(
       if (valueType === 'richtext' && Array.isArray(field?.value)) {
         const segments = richtextToSegments(field.value as never);
         if (segments.some((segment) => segment.kind === 'tag')) {
-          return (
-            <span style={{ ...wrapStyle, gap: 4, overflow: 'hidden' }}>
-              {segments.map((segment, index) =>
-                segment.kind === 'tag' ?
-                  <ReqoreTag
-                    key={index}
-                    size='tiny'
-                    // The chip's label has to be the same size as the prose it is
-                    // embedded in. The wrapper centres boxes, so two different text
-                    // sizes centred against each other cannot share a baseline, and
-                    // the chips visibly float above the words. Inheriting the row's
-                    // size makes centring align the baselines too, at whatever font
-                    // size the consuming app uses.
-                    style={{ fontSize: 'inherit' }}
-                    icon='ExchangeDollarLine'
-                    label={segment.text || segment.value}
-                    tooltip={segment.value}
-                    {...getTemplateTagStyle(
-                      (templates ? findTemplate(templates, segment.value || '') : undefined)
-                        ?.metadata as TTemplateMeta | undefined
-                    )}
-                  />
-                : <span key={index} style={{ whiteSpace: full ? 'pre-wrap' : 'pre' }}>
-                    {full ? segment.text : collapseSummaryBreaks(segment.text)}
-                  </span>
-              )}
-            </span>
-          );
+          return <TemplateText segments={segments} templates={ownTemplates} full={full} />;
         }
       }
 
-      // An expression summarises to one line of text, and a template reference
-      // inside it printed as its own raw token — `$data:{…}` renders a value as
-      // code where a name belongs. Chip every reference here, on the richtext
-      // branch's pattern above, so the wrapper (`trim(`…`)`) still reads as the
-      // text it is while the reference reads as a name.
-      //
-      // Unconditionally: a surface with no catalogue (the Automation Hub
-      // template preview never fetches one) still shows the reference's own
-      // path, which is the point — a conditional chip is no chip at all
-      // exactly where the raw token looks worst.
+      // An expression reads as DPQL wherever it is shown without being edited:
+      // the same rendering its Explain panel and Preview use — monospace,
+      // coloured by the language server, template references as chips — so a
+      // collapsed row and the editor it opens never disagree about what the
+      // value looks like. See `DpqlRendering`.
       if ((field as { is_expression?: boolean })?.is_expression && formatted) {
-        const segments = splitTemplateTokens(formatted);
-        const named = segments.map((segment) =>
-          segment.kind === 'token' ?
-            { ...segment, ...describeTemplateReference(templates, segment.text) }
-          : segment
+        return withExpressionMarker(
+          <span style={{ minWidth: 0, flex: '1 1 auto', ...(full ? {} : { overflow: 'hidden' }) }}>
+            <DpqlRendering text={formatted} templates={ownTemplates} />
+          </span>
         );
-
-        if (named.some((segment) => segment.kind === 'token')) {
-          return (
-            <span style={{ ...wrapStyle, gap: 4, overflow: 'hidden' }}>
-              {named.map((segment, index) =>
-                segment.kind === 'token' ?
-                  <ReqoreTag
-                    key={index}
-                    size='tiny'
-                    // Inherit the row's font size so the chip shares a baseline
-                    // with the text around it — see the richtext branch above.
-                    style={{ fontSize: 'inherit' }}
-                    icon='ExchangeDollarLine'
-                    label={segment.label}
-                    tooltip={segment.text}
-                    {...getTemplateTagStyle(segment.item?.metadata as TTemplateMeta | undefined)}
-                  />
-                : <span key={index} style={{ whiteSpace: full ? 'pre-wrap' : 'pre' }}>
-                    {segment.text}
-                  </span>
-              )}
-            </span>
-          );
-        }
       }
 
-      return full ? <span style={textStyle}>{formatted}</span> : formatted;
+      /* A value that MENTIONS a reference rather than being one.
+      
+         The branch above answers "is this value a template?", and a predicate is
+         not: `$._case.mode != 'simulate'` is a comparison the author wrote with a
+         reference inside it. So it fell all the way through to the plain string
+         and the row printed the engine's own spelling of a value the author had
+         picked by name — the one thing the template mechanism exists to stop.
+         Reported against the Skip-when field of a test case, where the list
+         above the drawer already named it and the drawer contradicted it.
+      
+         Drawn from `formatted` rather than from the raw value, so everything the
+         formatter already did — a joined list, a sensitive value's dots — still
+         holds, and only the references inside the resulting line become chips.
+         The author's own text around them survives exactly as typed. */
+      const templateSegments =
+        typeof formatted === 'string' && formatted ?
+          templateTextSegments(formatted, ownTemplates, templateGrammar)
+        : [];
+      if (templateSegments.some((segment) => segment.kind === 'tag')) {
+        return withExpressionMarker(
+          <TemplateText segments={templateSegments} templates={ownTemplates} full={full} />
+        );
+      }
+
+      return withExpressionMarker(full ? <span style={textStyle}>{formatted}</span> : formatted);
     };
 
     const schema = options?.[optionName];
@@ -540,37 +630,15 @@ export const CompactRow = memo(
       [availableOptions?.[optionName], optionActions, optionName, schema]
     );
     // Which injected actions stay as inline buttons, and which move into the
-    // overflow menu. Everything collapses on touch / narrow viewports — a
-    // hover-gated button is unreachable without a hover — and anything past the
-    // inline cap overflows regardless, so a consumer injecting ten actions can
-    // never push the row's value out of view.
+    // overflow menu — see `splitOptionActions`.
     const [inlineOptionActions, menuOptionActions] = React.useMemo<
       [IReqorePanelAction[], IReqorePanelAction[]]
     >(
-      () =>
-        collapseOptionActions ?
-          [[], injectedOptionActions]
-        : [
-            injectedOptionActions.slice(0, MAX_INLINE_OPTION_ACTIONS),
-            injectedOptionActions.slice(MAX_INLINE_OPTION_ACTIONS),
-          ],
+      () => splitOptionActions(injectedOptionActions, !!collapseOptionActions),
       [collapseOptionActions, injectedOptionActions]
     );
     const injectedOptionActionMenuItems = React.useMemo<IReqoreDropdownItem[]>(
-      () =>
-        menuOptionActions.map(
-          (action, index) =>
-            ({
-              // A panel action labels itself with `label`, but an icon-only one
-              // (the IDE's AI-assist button) carries its name in the tooltip —
-              // a menu row has no hover affordance to fall back on.
-              label: action.label ?? action.tooltip ?? `Action ${index + 1}`,
-              icon: action.icon,
-              intent: action.intent,
-              disabled: action.disabled,
-              onClick: () => action.onClick?.(),
-            }) as IReqoreDropdownItem
-        ),
+      () => menuOptionActions.map(optionActionAsMenuItem),
       [menuOptionActions]
     );
     const renderInjectedOptionAction = (
@@ -627,8 +695,23 @@ export const CompactRow = memo(
     const changed = !hidden && !readOnly && hasOptionChanged(optionField?.value, optionName);
     // "Has a value" = set to anything non-empty. Drives the edit-row Clear
     // button and the cluster node's filled state (see `memberSet`).
+    /* "Is there anything to clear?" — this predicate has exactly one job, and
+       both of its uses are the Clear-value button.
+    
+       An empty list is not a value. `[]` is neither `undefined`, `null` nor `''`,
+       so a field whose last item had just been removed went on offering to clear
+       it, and the confirmation asked whether to clear nothing. A test's cases
+       table is where this shows: delete the last case and a red clear-all sat
+       above an empty table, guarding a no-op.
+    
+       Deliberately arrays only. An empty hash is arguable — "present but empty"
+       can be a real state for a hash — and nothing has demonstrated the same
+       defect there, so widening this predicate would be a guess. */
     const hasValue =
-      optionField?.value !== undefined && optionField?.value !== null && optionField?.value !== '';
+      optionField?.value !== undefined &&
+      optionField?.value !== null &&
+      optionField?.value !== '' &&
+      !(Array.isArray(optionField.value) && optionField.value.length === 0);
     // Required-group membership shows a PERSISTENT chip on every member: amber
     // "One of" while the group is unmet (tap → flash siblings), then a muted-green
     // resolution once satisfied — "Covers" on the field that satisfied it,
@@ -705,7 +788,7 @@ export const CompactRow = memo(
       : (schema?.ui_type as string) || (schema?.type as string)) ?? '';
     // Scalars edit in place inside the row; complex fields (tall or nested
     // editors) still open the expanded card below.
-    const inlineEditable =
+    const inlineEditableNow =
       !readOnly &&
       !schema?.arg_schema &&
       !(operators && size(operators)) &&
@@ -715,22 +798,160 @@ export const CompactRow = memo(
       !optionHasImages(schema) &&
       !COMPACT_COMPLEX_TYPES.has(editType);
 
-    // Auto-focus the editor's first input when a field is opened, so you can type
-    // straight away (matches the prototype's tap-to-edit feel).
+    /* Which of the two editors a row gets is settled when the row OPENS.
+     *
+     * Every term above reads the VALUE or a schema derived from it, so the
+     * answer can change while the author is inside the control — and the two
+     * branches are different subtrees, so a changed answer does not restyle
+     * the editor, it unmounts one and mounts the other. Everything the old one
+     * held goes with it: what was typed, the caret, and any state the editor
+     * keeps about how it was entered.
+     *
+     * `is_expression` is the term that actually fires, and it fires on the one
+     * interaction that exists to keep the author where they are: accepting
+     * "Use as expression" is the moment the value becomes an expression, and
+     * the expression shell opens on its Text view precisely because the author
+     * has just written the expression as text. The remount discarded that and
+     * dropped them into the visual builder, so the sentence they had typed was
+     * nowhere on screen. Clicking Text then appeared to work and bounced back,
+     * because the next value change remounted the row again.
+     *
+     * So the row keeps the editor it opened with for as long as it is open,
+     * and asks the question again when it is next opened — the same trade
+     * `editEntryValue` above makes for a different reason, and the one
+     * qorus-ide's `referenceEditorLatch` makes for this exact one. A field that
+     * already holds an expression when it is opened still gets the card; it is
+     * only a field that BECOMES one under the author that stays put.
+     *
+     * Held in a ref and settled during render rather than in an effect: an
+     * effect lands one render late, and one render late is a visible flash of
+     * the wrong editor — which is the thing being fixed.
+     */
+    const inlineEditableLatch = React.useRef<boolean | undefined>(undefined);
+    /* Whether THIS opening was the author asking to change the value.
+     *
+     * A click (or Enter/Space) on a closed row means "let me edit this"; a row
+     * opened by the form itself — `initialExpandedOptions` from an address, the
+     * first-attention row, a diagram opening the step it is showing — means
+     * "here it is". Only the first answers the question the picker answers, so
+     * only the first opens one (see the caret effect below). A ref, because it
+     * is read by the effect that runs after the open and must not itself cause
+     * a render. */
+    const openedByAuthor = React.useRef(false);
+    if (!isExpanded) {
+      inlineEditableLatch.current = undefined;
+    } else if (inlineEditableLatch.current === undefined) {
+      inlineEditableLatch.current = inlineEditableNow;
+    }
+    const inlineEditable = isExpanded ? !!inlineEditableLatch.current : inlineEditableNow;
+
+    /* The author's intent survives until the row is closed again, and no longer.
+     *
+     * An EFFECT, keyed on the row actually closing, rather than a line in the
+     * render body: between the click and the row opening there is a committed
+     * render that still reads `expandedOptions` without this row in it (the
+     * context propagates a beat after the handler runs), and clearing the flag
+     * on every collapsed render cleared it in that gap — the picker then never
+     * opened, which is the defect this whole mechanism exists to fix. Keyed on
+     * `isExpanded`, the transient render is not a change and the effect does
+     * not run; a genuine collapse is, and it does. */
+    React.useEffect(() => {
+      if (!isExpanded) {
+        openedByAuthor.current = false;
+      }
+    }, [isExpanded]);
+
+    /* The instruction the row gives its editor when it opens into a picker.
+     *
+     * State, not a call on the control: reqore's popover binds its own click
+     * listener in an effect keyed on the trigger element arriving, so a
+     * synthetic click dispatched from the row's own effect lands before
+     * anything is listening and does nothing at all. The editor opening itself
+     * from a prop has no such ordering to lose. */
+    const [openThePicker, setOpenThePicker] = React.useState(false);
+    React.useEffect(() => {
+      // One shot: true for the commit the editor acts on, false again after.
+      if (openThePicker) {
+        setOpenThePicker(false);
+      }
+    }, [openThePicker]);
+
+    // Put the caret in the row's editor when the row opens, so the reader can
+    // answer straight away (the prototype's tap-to-edit feel) — and so
+    // `autoFocusFirstRequired` means what it says.
+    //
+    // Whatever control the row OFFERS: `findRowFocusTarget` knows a pick-one is
+    // a set of `[tabindex]` checkboxes and a selector is a `<button>`, which a
+    // text-only scan skipped — so the engine opened the right row and the caret
+    // never moved. That is most of the first questions a form asks.
+    //
+    // The row is revealed before the caret lands in it, `block: 'nearest'` on
+    // the ROW. A caret nobody can see is not a caret: a form opened by a click
+    // usually mounts below the fold, and focusing something 700px down changes
+    // nothing on screen while the next keystroke goes somewhere invisible.
+    // `nearest` is by spec a no-op for a row already in view, so a form on
+    // screen never jumps, and it is the row that carries the label saying what
+    // the question is. A caller that wants the row opened WITHOUT the caret
+    // has `expandFirstRequired` for exactly that.
+    //
+    // A MutationObserver, not a timer: a host editor that resolves a catalogue
+    // before it can draw a control mounts it several commits after this effect
+    // runs, and there is no fixed time to wait for it — the control appearing
+    // IS the event. The 60ms timer this replaces missed every such editor, and
+    // fired too early or too late for every other one. One shot, and it gives
+    // up the moment the caret belongs to someone outside this row, so it can
+    // never pull a reader out of a control they moved into themselves.
     const editorRef = React.useRef<HTMLDivElement>(null);
+    const rowRef = React.useRef<HTMLDivElement>(null);
     React.useEffect(() => {
       if (!isExpanded) return undefined;
-      const id = window.setTimeout(() => {
-        const el = editorRef.current?.querySelector<HTMLElement>(
-          'input:not([type="hidden"]):not([disabled]), textarea, [contenteditable="true"]'
-        );
-        // A user-driven expand scrolls the just-opened editor into view; the
-        // programmatic `autoFocusFirstRequired` expand must NOT — otherwise an
-        // off-screen / below-the-fold form scrolls itself into view on mount.
-        el?.focus(autoFocusNameRef?.current === optionName ? { preventScroll: true } : undefined);
-      }, 60);
-      return () => window.clearTimeout(id);
-    }, [isExpanded, optionName, autoFocusNameRef]);
+      const editor = editorRef.current;
+      if (!editor) return undefined;
+      let settled = false;
+      const takeCaret = (): boolean => {
+        if (settled) return true;
+        const active = document.activeElement as HTMLElement | null;
+        if (active && active !== document.body && !rowRef.current?.contains(active)) {
+          // Someone else holds the caret — a field the reader moved into while
+          // this row's editor was still arriving. Leave it where it is.
+          settled = true;
+          return true;
+        }
+        const control = findRowFocusTarget(editor);
+        if (!control) return false;
+        // Optional call: jsdom does not implement `scrollIntoView`.
+        rowRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        // `preventScroll`, because the reveal above has already put the row
+        // where it belongs; letting focus scroll as well moves it twice.
+        control.focus({ preventScroll: true });
+        /* …and if the control the row offers is a PICKER, open it.
+         *
+         * A closed picker prints the value it holds, which is exactly what the
+         * read row printed — so the row opened, nothing on screen changed, and
+         * changing the value still cost a second click. Read-first is the
+         * COLLAPSED row's job; an open row is the editor.
+         *
+         * Narrow on purpose, and each term is a case where read-first is still
+         * right: only a row the author opened themselves (a form that opens a
+         * row to SHOW it must not throw a list over it), only an inline scalar
+         * row (a complex field opens a card that is a form in its own right —
+         * its first control is one of several and nobody asked for it), and
+         * only a control that declares itself a picker, so nothing else is
+         * ever clicked on the author's behalf. */
+        if (openedByAuthor.current && inlineEditable && isClosedPickerTrigger(control)) {
+          openedByAuthor.current = false;
+          setOpenThePicker(true);
+        }
+        settled = true;
+        return true;
+      };
+      if (takeCaret() || typeof MutationObserver === 'undefined') return undefined;
+      const observer = new MutationObserver(() => {
+        if (takeCaret()) observer.disconnect();
+      });
+      observer.observe(editor, { childList: true, subtree: true });
+      return () => observer.disconnect();
+    }, [isExpanded, optionName, inlineEditable]);
 
     // What the field held when it was opened — the baseline Cancel restores.
     //
@@ -1061,6 +1282,19 @@ export const CompactRow = memo(
     // stacks children flush, and the class rule that used to carry a 4px gap
     // never reached this element at all — which is why two messages read as one
     // two-tone block with no space between them.
+    /* A message is PROSE, so it is drawn by the host's prose renderer.
+    
+       `markdownRendererContext` says this package renders markdown "in exactly
+       one place — a field's description". That was one place short: a schema
+       message is written by the same author, in the same dialect, and it landed
+       here as a raw string. A Qorus warning reading "Give that step a **Fixture
+       Output**" showed the asterisks, and every reference inside it stayed a raw
+       `$.` path where the editor two lines above renders it as a named chip.
+    
+       `compact` for the same reason the row inset asks for it: this is a strip
+       inside a row, never a page, and markdown authored as a document opens with
+       a heading that would outgrow the field label above it. Without a host
+       renderer the string is drawn as it always was. */
     const renderInfoStrip = (m: TInfoMsg, index: number) => (
       <ReqoreMessage
         key={`${m.content}-${index}`}
@@ -1071,7 +1305,9 @@ export const CompactRow = memo(
         title={m.title}
         style={{ marginBottom: 8 }}
       >
-        {m.content}
+        {markdownRenderer && typeof m.content === 'string' ?
+          markdownRenderer({ value: m.content, compact: true })
+        : m.content}
       </ReqoreMessage>
     );
     const reasonColor = (intent?: string) =>
@@ -1107,6 +1343,9 @@ export const CompactRow = memo(
           onMouseLeave: () => setHighlightedOptions([]),
         }
       : {};
+
+    // Items the EDITOR inside this row published — see `rowMenuContext`.
+    const { rowMenu, items: editorMenuItems } = useRowMenuRegistry();
 
     // Secondary edit actions tuck into a "More" (⋮) menu so the card header stays
     // calm: Fullscreen always, plus Remove field for a removable option. Rendered
@@ -1144,6 +1383,10 @@ export const CompactRow = memo(
           // wholesale on touch) land here — this row already has a menu, so they
           // reuse it rather than adding a second one beside it.
           ...injectedOptionActionMenuItems,
+          // ...and for the same reason, so do the editor's own actions. Without
+          // this an editor with affordances of its own had to draw a second ⋮
+          // inside the value cell, beside this one.
+          ...editorMenuItems,
         ]}
       />
     );
@@ -1218,6 +1461,7 @@ export const CompactRow = memo(
         const editingRow = (
           <div
             key={optionName}
+            ref={rowRef}
             data-field={optionName}
             className='readfirst-row readfirst-row-editing options-readfirst-inline options-readfirst-value'
             style={
@@ -1316,7 +1560,17 @@ export const CompactRow = memo(
                   editor they belong to — the language you are writing in is
                   read before the code, not after it. */}
               {absorbedNodes}
-              {renderOption(optionName, optionField, 'small', true)}
+              {/* The editor may publish into THIS row's ⋮ — see `rowMenuContext`.
+                  Only the editors rendered in the row are given the channel: the
+                  fullscreen modal below has no row menu on screen, so an editor
+                  there keeps drawing its own control. */}
+              {/* Scoped to the row's OWN editor: the absorbed siblings above
+                  are other fields, which this row did not open. */}
+              <RowOpenPickerContext.Provider value={openThePicker}>
+                <RowMenuContext.Provider value={rowMenu}>
+                  {renderOption(optionName, optionField, 'small', true)}
+                </RowMenuContext.Provider>
+              </RowOpenPickerContext.Provider>
             </div>
             <StyledRowActions>
               {draftChip}
@@ -1556,7 +1810,9 @@ export const CompactRow = memo(
                   longDescriptionShownByDefault
                 />
               : null}
-              {renderOption(optionName, optionField)}
+              <RowMenuContext.Provider value={rowMenu}>
+                {renderOption(optionName, optionField)}
+              </RowMenuContext.Provider>
             </FocusedEditing>
           </div>
         </StyledEditCard>
@@ -1596,11 +1852,21 @@ export const CompactRow = memo(
     ];
     // A hash row reveals its sub-fields as read-only sub-rows under a "view
     // more" disclosure; the row itself still expands the real editor on click.
+    /* An EXPRESSION is not a hash, whatever shape it is stored in.
+    
+       `{is_expression: true, value: {exp, args}}` is hash-shaped, so a field
+       holding one earned the structured inset and the row printed the syntax
+       tree — `is_expression true / value / exp + / args 1 2` — directly under a
+       summary line that already read `1 + 2`. The AST is how an expression is
+       STORED, not what it is; the row's line is the whole value, and the
+       expression editor is where its parts are looked at. Same exclusion, and
+       for the same reason, as `schema-definition` beside it. */
     const hashEntries =
       (
         !hidden &&
         (valueType === 'hash' || valueType === 'free-hash') &&
-        (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition'
+        (schema as { ui_type?: string } | undefined)?.ui_type !== 'schema-definition' &&
+        getExpressionAst(optionField) === undefined
       ) ?
         getHashEntries(optionField, schema)
       : [];
@@ -1647,6 +1913,35 @@ export const CompactRow = memo(
       valueType === 'richtext' &&
       Array.isArray(optionField?.value) &&
       richtextToSegments(optionField.value as never).some((segment) => segment.kind === 'tag');
+    /* The same pair, for a value that IS one template rather than prose with
+       templates embedded in it. `showsTemplateChips` above closed the richtext
+       case and left this one open: a chosen reference renders as
+       `ReadOnlyTemplateTag`, which carries its own popover, while the row went
+       on setting a native `title` holding the raw reference. Hovering fired
+       both — two tooltips in two places, and the one that says something useful
+       is not the one a screenshot captures. */
+    const showsTemplateTag =
+      !hidden &&
+      typeof optionField?.value === 'string' &&
+      !(optionField as { is_expression?: boolean } | undefined)?.is_expression &&
+      (isValueTemplate(optionField.value) ||
+        !!findTemplate(
+          (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates ?? {},
+          optionField.value
+        ));
+    /* And once more for a value that only MENTIONS references — a predicate, a
+       greeting with a name in it. The row draws those as prose plus chips too,
+       so a native `title` would hover the raw spelling of exactly what the chips
+       replaced, and each chip's own popover would fire alongside it. */
+    const showsTemplateText =
+      !hidden &&
+      !showsTemplateTag &&
+      !!formatted &&
+      hasTemplateText(
+        formatted,
+        (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates,
+        (schema as TFieldWithOwnTemplates | undefined)?.templateToken
+      );
     // Markdown reads the same way for the same reason: the row itself can only
     // show a line of text, and for markdown that line is the SOURCE — the reader
     // gets `## ` and `**` where the point of the value is what it looks like
@@ -1749,9 +2044,16 @@ export const CompactRow = memo(
       return {
         name: depName,
         exists: !!options?.[depName],
-        label: !op ? depLabel : `${depLabel} ${op === '=' ? '=' : '≠'} ${expected}`,
+        // `!name` compares against nothing — it is satisfied by the sibling
+        // being unanswered — so it says so, rather than going through the
+        // comparison template and reading `Name ≠ undefined`.
+        label:
+          op === '!' ? `${depLabel} unset`
+          : !op ? depLabel
+          : `${depLabel} ${op === '=' ? '=' : '≠'} ${expected}`,
         fulfilled:
-          !op ? !isOptionValueEmpty(depValue)
+          op === '!' ? isOptionValueEmpty(depValue)
+          : !op ? !isOptionValueEmpty(depValue)
           : depValue == null ? false
           : op === '=' ? String(depValue) === expected
           : String(depValue) !== expected,
@@ -1812,14 +2114,26 @@ export const CompactRow = memo(
       // with `readOnly` handed down (an id in a greyed-out input, a choice
       // that could still be changed); then into a read view of the same
       // value — which showed nothing the row could not show itself once it
-      // stopped truncating. So it shows everything, and opens nothing.
+      // stopped truncating. So it shows everything, and opens nothing HERE.
+      //
+      // Where the consumer says the field is editable somewhere else, the row
+      // is the way in to that place: a reader clicking a value they want to
+      // change has said exactly what they want, and answering with silence
+      // teaches them the surface is broken.
       if (fieldDisabled || readOnly) {
+        if (readOnly && !fieldDisabled) {
+          onReadOnlyActivate?.(optionName);
+        }
         return;
       }
       const target = event?.currentTarget as HTMLElement | undefined;
       if (target?.classList?.contains('readfirst-row')) {
         readRowHeights.current[optionName] = Math.round(target.getBoundingClientRect().height);
       }
+      // The author asked for this one — so the row opens all the way (a picker
+      // opens its list rather than reprinting the value as a closed trigger).
+      // Only when it is OPENING: the same handler collapses an open row.
+      openedByAuthor.current = !isExpanded;
       // Optional fields aren't "added" — every one is editable in place. Opening a
       // not-yet-set field just expands its editor (with an empty value); it joins
       // the form's output the moment a value is set (and moves to Set / Needs
@@ -1876,19 +2190,30 @@ export const CompactRow = memo(
       : dotStatus === 'todo' ? cWarning
       : dotStatus === 'set' ? cSuccess || cInfo
       : undefined;
+    /* A read-only row is a control only when the consumer gave it somewhere to
+       go. Then it takes a button's role, focus and keyboard handling, because
+       a thing that acts on a click has to be reachable without a mouse and has
+       to announce what it does — and "Edit X", not "X", is what it does. */
+    const readOnlyIsAWayIn = !!readOnly && !fieldDisabled && !!onReadOnlyActivate;
+    const actsOnClick = !readOnly || readOnlyIsAWayIn;
+
     const row = (
       <div
         key={optionName}
         data-field={optionName}
-        role={readOnly ? undefined : 'button'}
-        tabIndex={readOnly ? undefined : 0}
-        aria-label={readOnly ? undefined : label}
-        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        role={actsOnClick ? 'button' : undefined}
+        tabIndex={actsOnClick ? 0 : undefined}
+        aria-label={
+          readOnlyIsAWayIn ? `Edit ${label}`
+          : readOnly ? undefined
+          : label
+        }
+        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${readOnlyIsAWayIn ? ' readfirst-row-way-in' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
-        style={stripeStyle}
-        onClick={readOnly ? undefined : activate}
+        style={readOnlyIsAWayIn ? { ...stripeStyle, cursor: 'pointer' } : stripeStyle}
+        onClick={actsOnClick ? activate : undefined}
         onKeyDown={
-          readOnly ? undefined : (
+          !actsOnClick ? undefined : (
             (event) => {
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
@@ -1960,6 +2285,8 @@ export const CompactRow = memo(
               !showCodePreview &&
               !showMarkdownPreview &&
               !showsTemplateChips &&
+              !showsTemplateTag &&
+              !showsTemplateText &&
               typeof formatted === 'string'
             ) ?
               formatted

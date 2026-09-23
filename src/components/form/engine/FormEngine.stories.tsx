@@ -1,11 +1,17 @@
-import { ReqoreInput } from '@qoretechnologies/reqore';
+import {
+  ReqoreButton,
+  ReqoreInput,
+  ReqoreP,
+  ReqoreTag,
+  ReqoreTagGroup,
+  ReqoreVerticalSpacer,
+} from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react-vite';
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
-import { defaultQorusTypes } from '../../../hooks/useQorusTypes';
 import {
   _testsChangeRichText,
   _testsChangeStringField,
@@ -19,7 +25,6 @@ import {
   _testsWaitForTextToNotExist,
   sleep,
 } from '../../../stories/Tests/utils';
-import { startDpqlMockLsp } from '../expressions/dpqlMockLsp';
 import { mockExpressions } from '../expressions/mockExpressions';
 import { mockPopulatedDefinition } from '../fields/schema-definition/mockDefinition';
 import { defaultMarkdownRenderer } from '../fields/markdown/MarkdownView';
@@ -92,29 +97,9 @@ const meta: Meta<typeof FormEngine> = {
     chromatic: {
       viewports: [2560],
     },
-    // `useQorusTypes` resolves the type catalogue as `size(data) ? data : defaultQorusTypes`,
-    // so a reachable, authenticated instance *replaces* the built-in list rather than
-    // supplementing it. These stories never opt into live data (no `live: true`), but the
-    // request fires anyway — which made `Option With Any Type` pass locally (401 → built-in
-    // list, so "Boolean" exists) and fail in CI, where the token is valid and the server's
-    // list decides the labels. Pin the catalogue so the type names the plays click are ours.
-    mockData: [
-      {
-        // `query()` builds `${instance}api/latest/${url}`, and the hook's url is
-        // `/system/qorus-type-info` — hence the doubled slash. Both spellings are listed
-        // so the mock keeps matching if that leading slash is ever dropped.
-        url: 'https://hq.qoretechnologies.com:8092/api/latest//system/qorus-type-info',
-        method: 'GET',
-        status: 200,
-        response: defaultQorusTypes,
-      },
-      {
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/system/qorus-type-info',
-        method: 'GET',
-        status: 200,
-        response: defaultQorusTypes,
-      },
-    ],
+    // The type catalogue the plays click through (`Option With Any Type` picks
+    // "Boolean") is pinned for every story by the global mocks in
+    // `src/stories/storyNetwork.ts`.
   },
   render: ({ value, onChange, ...rest }: IFormEngineProps) => {
     const [val, setValue] = useState(value);
@@ -191,11 +176,17 @@ export const Basic: Story = {
     value: basicFormValue,
   },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-
-    await waitFor(() => expect(canvas.getAllByDisplayValue('$local:test')[0]).toBeInTheDocument(), {
-      timeout: 10000,
-    });
+    // The template option's `$local:test` reads as the name the form's
+    // templates give it, as a chip in its editor.
+    await waitFor(
+      () =>
+        expect(
+          Array.from(canvasElement.querySelectorAll('[contenteditable="true"] .reqore-tag')).some((chip) =>
+            chip.textContent?.includes('Test (local)')
+          )
+        ).toBe(true),
+      { timeout: 10000 }
+    );
     await waitFor(
       () =>
         expect(
@@ -299,19 +290,62 @@ export const OptionalOpened: Story = {
   },
 };
 
+/** Opens one option row's ⋯ menu. */
+const openOptionRowMenu = async (nth = 0) => {
+  await _testsClickButton({ selector: '.options-item-more', nth });
+};
+
+/**
+ * A row's own actions stay inside the row.
+ *
+ * They used to float: a bar portalled above the hovered row, which on the
+ * first row landed on the form's own header buttons and made them
+ * unclickable — and a bar that only appears on hover is out of reach on a
+ * phone. The row's secondary actions now live in its ⋯ menu.
+ */
+export const RowActionsStayInTheRow: Story = {
+  ...Basic,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the Basic FormEngine, hovers its first option and opens that option's ⋯ menu. No action bar floats over the form's header when the row is hovered; the row's secondary actions — Focused editing among them — are listed in its menu, where they can be reached without a hover.",
+      },
+    },
+  },
+  play: async (args) => {
+    await Basic.play!(args);
+    const firstRow = document.querySelectorAll<HTMLElement>('.system-option')[0];
+    // The row draws its own actions, in its own header, before anyone hovers
+    // it. A floating bar is only ever drawn elsewhere, and only on a hover.
+    const more = await waitFor(
+      () => {
+        const button = firstRow.querySelector<HTMLElement>('.options-item-more');
+        expect(button).toBeTruthy();
+        return button!;
+      },
+      { timeout: 10000 }
+    );
+    await userEvent.hover(firstRow);
+    await expect(document.querySelector('.reqore-panel-floating-actions')).toBeNull();
+    await userEvent.click(more);
+    await _testsWaitForText('Focused editing');
+  },
+};
+
 export const FocusedEditing: Story = {
   ...Basic,
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the Basic FormEngine, hovers an option and clicks its fullscreen action — the Focused Editing modal opens over that single field.',
+          "Renders the Basic FormEngine, opens an option's ⋯ menu and picks Focused editing — the Focused Editing modal opens over that single field.",
       },
     },
   },
   play: async (args) => {
     await Basic.play!(args);
-    await userEvent.hover(document.querySelectorAll('.system-option')[0]);
+    await openOptionRowMenu(0);
     await _testsClickButton({ selector: '.options-item-fullscreen', nth: 0 });
     await _testsWaitForText('Focused Editing');
   },
@@ -341,7 +375,7 @@ export const ValueCanBeRemoved: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine holding a text option and a file option, both with values. Hovering each row and clicking its remove action clears the value and marks the row as revertable.',
+          "Renders FormEngine holding a text option and a file option, both with values. Picking Remove value from each row's ⋯ menu clears the value, and the row's menu then offers Revert changes.",
       },
     },
   },
@@ -370,20 +404,44 @@ export const ValueCanBeRemoved: Story = {
   },
   play: async () => {
     await _testsWaitForText('Click here to upload a different file');
-    await userEvent.hover(document.querySelectorAll('.system-option')[0]);
-    await waitFor(() => expect(document.querySelector('.options-item-remove')).toBeTruthy(), {
-      timeout: 10000,
-    });
+    // The first row's value goes, and its menu now offers the way back.
+    await openOptionRowMenu(0);
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
+    await openOptionRowMenu(0);
     await waitFor(() => expect(document.querySelectorAll('.options-item-revert').length).toBe(1), {
       timeout: 10000,
     });
-    await userEvent.hover(document.querySelectorAll('.system-option')[1]);
-    await waitFor(() => expect(document.querySelector('.options-item-remove')).toBeTruthy(), {
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelectorAll('.options-item-revert').length).toBe(0), {
       timeout: 10000,
     });
+    // Then the second row's.
+    await openOptionRowMenu(1);
     await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
     await _testsWaitForTextToNotExist('Click here to upload a different file');
+  },
+};
+
+/**
+ * A phone reaches a row's actions through its ⋯ menu: there is no hover to
+ * reveal anything, and no bar floating over the row above.
+ */
+export const RowActionsOnAPhone: Story = {
+  ...ValueCanBeRemoved,
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          "Renders a text option and a file option, both with values, at phone width with the first option's ⋯ menu open — Focused editing and Remove value are listed there, reachable without a hover.",
+      },
+    },
+  },
+  play: async () => {
+    await _testsWaitForText('Click here to upload a different file');
+    await openOptionRowMenu(0);
+    await _testsWaitForText('Focused editing');
+    await _testsWaitForText('Remove value');
   },
 };
 
@@ -393,13 +451,14 @@ export const ChangeCanBeReverted: Story = {
     docs: {
       description: {
         story:
-          'Renders the ValueCanBeRemoved fixture after both values are removed, then clicks the per-row revert action — the file value comes back.',
+          "Renders the ValueCanBeRemoved fixture after both values are removed, then picks Revert changes from the file row's ⋯ menu — the file value comes back.",
       },
     },
   },
   play: async (args) => {
     await ValueCanBeRemoved.play!(args);
-    await _testsClickButton({ selector: '.options-item-revert', nth: 1 });
+    await openOptionRowMenu(1);
+    await _testsClickButton({ selector: '.options-item-revert', nth: 0 });
     await _testsWaitForText('Click here to upload a different file');
   },
 };
@@ -510,11 +569,11 @@ export const OptionDependsOnOptionOrAnotherOption: Story = {
     });
 
     await _testsWaitForText(
-      'This field is disabled because some dependencies are not fulfilled: "Required Option 2", "Required Option 5"'
+      'This field is disabled because some dependencies are not fulfilled: ("Required Option 2" or "Required Option 5")'
     );
     await _testsChangeRichText('I have value', 5);
     await _testsWaitForTextToNotExist(
-      'This field is disabled because some dependencies are not fulfilled: "Required Option 2", "Required Option 5"'
+      'This field is disabled because some dependencies are not fulfilled: ("Required Option 2" or "Required Option 5")'
     );
   },
 };
@@ -582,7 +641,7 @@ export const OptionWithAnyType: Story = {
     docs: {
       description: {
         story:
-          'Renders four options typed as any with templates enabled — empty ones show a Select Template dropdown, the pre-typed number field renders as a Number input and the operator can switch types via the More menu.',
+          'Renders four options typed as any with templates enabled — empty ones show a Select Template dropdown, the pre-typed number field renders as a Number input and the operator can switch types via the More menu. That menu holds one group, "Set Custom Value", so it opens already expanded and the data types are one click away rather than two.',
       },
     },
   },
@@ -644,9 +703,10 @@ export const OptionWithAnyType: Story = {
     await _testsClickButton({ label: 'Richtext Template' });
 
     // Open the ... menu on the 4th field (optionWithAnyTypeToChangeToTemplateToCustomData)
-    // and switch it to a specific custom type (Boolean).
+    // and switch it to a specific custom type (Boolean). The type rows are
+    // reachable straight from the menu: "Set Custom Value" is its only group,
+    // so that section opens itself rather than asking for a click first.
     await _testsOpenTemplateMenu(4);
-    await _testsClickButton({ label: 'Set Custom Value' });
     await _testsClickButton({ label: 'Boolean' });
   },
 };
@@ -992,6 +1052,154 @@ export const CompactRowCancelEdit: Story = {
         expect(
           canvasElement.querySelector('[data-field="cookie_name"]')?.textContent ?? ''
         ).toContain('my-cookie'),
+      { timeout: 5000 }
+    );
+  },
+};
+
+export const CompactRowReadOnlyIsAWayIn: Story = {
+  parameters: {
+    /* Nothing to SEE here: what this story asserts is a role, a focus stop, a
+       cursor and an accessible name — none of which a pixel capture records,
+       so the frame is an ordinary read-only row either way. Rejected on qlip
+       build #212 as "visually empty / not worth snapshotting"; the story stays
+       because the behaviour it pins is the point. */
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'A read-only row opens nothing by itself — it shows everything it has. Where the consumer says the field is editable somewhere else (`onReadOnlyActivate`), the row becomes the way in to that place and announces it: a button role, keyboard handling, a pointer cursor, and an accessible name that says what the click DOES ("Edit Cookie Name") rather than just naming the field. A reader clicking a value they want to change has said exactly what they want; answering with silence teaches them the surface is broken.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    readOnly: true,
+    minColumnWidth: '360px',
+    value: { cookie_name: { type: 'string', value: 'my-cookie' } },
+    options: {
+      cookie_name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Cookie Name',
+        short_desc: 'Cookie name for cookie authentication',
+      },
+    },
+    onReadOnlyActivate: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    await waitFor(() =>
+      expect(canvasElement.querySelector('[data-field="cookie_name"]')).toBeTruthy()
+    );
+
+    const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]')!;
+    // It reads as a control, not as text that happens to respond.
+    expect(row.getAttribute('role')).toBe('button');
+    expect(row.getAttribute('aria-label')).toBe('Edit Cookie Name');
+    expect(row.getAttribute('tabindex')).toBe('0');
+
+    fireEvent.click(row);
+    await waitFor(() => expect((args as any).onReadOnlyActivate).toHaveBeenCalledWith('cookie_name'));
+
+    // And it still does not open an editor in place — the point is that the
+    // editing happens where the consumer sent it.
+    expect(canvasElement.querySelector('.readfirst-row-editing')).toBeNull();
+  },
+};
+
+export const CompactRowReadOnlyStaysInertWithoutAWayIn: Story = {
+  parameters: {
+    /* Nothing to SEE here: what this story asserts is a role, a focus stop, a
+       cursor and an accessible name — none of which a pixel capture records,
+       so the frame is an ordinary read-only row either way. Rejected on qlip
+       build #212 as "visually empty / not worth snapshotting"; the story stays
+       because the behaviour it pins is the point. */
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The same read-only row with nowhere to send the reader. It stays inert: no button role, no focus stop, no cursor — because a control that does nothing is worse than plain text, and a read-only form with no editor behind it is a perfectly ordinary thing.',
+      },
+    },
+  },
+  args: {
+    ...(CompactRowReadOnlyIsAWayIn.args as any),
+    onReadOnlyActivate: undefined,
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() =>
+      expect(canvasElement.querySelector('[data-field="cookie_name"]')).toBeTruthy()
+    );
+
+    const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]')!;
+    expect(row.getAttribute('role')).toBeNull();
+    expect(row.getAttribute('tabindex')).toBeNull();
+
+    fireEvent.click(row);
+    // Nothing opens, and nothing is claimed to have happened.
+    expect(canvasElement.querySelector('.readfirst-row-editing')).toBeNull();
+  },
+};
+
+export const CompactRowReleasesItsOpeningFloor: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opening a row pins the height it had while being READ, so the click cannot yank the content below it up under the pointer. That floor is for the transition only: it is released the moment the author changes the value. Without the release, a row that was tall because it carried a warning kept that height after the author fixed the very thing the warning was about — reported as "the chip is removed, but the vertical size of the option remains the same", leaving a large empty box where the explanation had been.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: { cookie_name: { type: 'string', value: 'my-cookie' } },
+    options: {
+      cookie_name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Cookie Name',
+        short_desc: 'Cookie name for cookie authentication',
+        // A message is what makes a read row tall enough for the stuck floor
+        // to be visible rather than merely present.
+        messages: [
+          {
+            intent: 'warning',
+            title: 'This name is not one the browser will keep',
+            content:
+              'A cookie name may not contain a space, a comma or a semicolon. Rename it, and this notice goes away — and so should the space it took up.',
+          },
+        ],
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() =>
+      expect(canvasElement.querySelector('[data-field="cookie_name"]')).toBeTruthy()
+    );
+    fireEvent.click(canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]')!);
+
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy());
+
+    /* Opening pins the read height. Asserted on the inline style rather than
+       on the measured height: jsdom lays nothing out, so a height comparison
+       here would pass on any code at all. */
+    const editing = canvasElement.querySelector<HTMLElement>('.readfirst-row-editing');
+    expect(editing!.style.minHeight).not.toBe('');
+
+    const input = canvasElement.querySelector<HTMLInputElement>(
+      '[data-field="cookie_name"] input, [data-field="cookie_name"] textarea'
+    );
+    expect(input).toBeTruthy();
+    fireEvent.change(input!, { target: { value: 'changed-cookie' } });
+
+    // ...and the author changing the value releases it, so the row can settle
+    // to whatever it now holds.
+    await waitFor(
+      () => {
+        const still = canvasElement.querySelector<HTMLElement>('.readfirst-row-editing');
+        expect(still?.style.minHeight ?? '').toBe('');
+      },
       { timeout: 5000 }
     );
   },
@@ -1544,6 +1752,119 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
   },
 };
 
+/**
+ * Counts how often the inheritance bag it is handed becomes a DIFFERENT object
+ * while the value in it never changes — the cost of a prop built inline.
+ */
+const InheritedScopeProbe = ({ inheritedFromParent }: any) => {
+  const renders = useRef(0);
+  const identities = useRef(0);
+  const lastBag = useRef<unknown>(undefined);
+  renders.current += 1;
+  if (lastBag.current !== inheritedFromParent) {
+    identities.current += 1;
+    lastBag.current = inheritedFromParent;
+  }
+  return (
+    <ReqoreTagGroup>
+      <ReqoreTag labelKey='renders' label={`${renders.current}`} />
+      <ReqoreTag
+        labelKey='bag identities'
+        label={`${identities.current}`}
+        intent={identities.current > 1 ? 'danger' : 'success'}
+      />
+      <ReqoreTag labelKey='language' label={`${inheritedFromParent?.language ?? 'none'}`} />
+    </ReqoreTagGroup>
+  );
+};
+
+/**
+ * Re-renders the form on demand, the way a host does on every keystroke
+ * somewhere else on the page.
+ */
+const InheritedScopeHarness = (args: any) => {
+  const [tick, setTick] = useState(0);
+  return (
+    <>
+      <ReqoreButton id='rerender-the-form' onClick={() => setTick((current) => current + 1)}>
+        Re-render the form ({tick})
+      </ReqoreButton>
+      <ReqoreVerticalSpacer height={10} />
+      <FormEngine {...args} />
+    </>
+  );
+};
+
+// The bag a field forwards to any sub-form it hosts is a PROP, and it used to be
+// built inline — `{ ...inheritedFromParent, ...resolveInheritProps(...) }` — so
+// every field got a NEW object on every render of the form, including the
+// majority that declare no `inherit_props` at all and were handed
+// `{ ...(undefined ?? {}) }`. A memoised field re-renders on an unequal prop, so
+// this churn re-rendered every field of every form the engine draws, forever,
+// over a value that never changed (it surfaced as `Template field kind Updated
+// because: {inheritedFromParent}` repeating in the console). The probe below
+// counts the bag's identities: it must stay at 1 however often the form renders.
+export const CompactInheritedScopeKeepsItsIdentity: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Re-renders a form whose fields inherit a scope from their parent — the inheritance bag each field is handed stays the same object, so a field that receives it is not re-rendered over a value that never changed.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    name: 'inherited-scope',
+    inheritedFromParent: { language: 'qore' },
+    value: {
+      kind: { type: 'string', value: 'service' },
+      body: { type: 'string', value: 'sub my_method() {}' },
+    },
+    options: {
+      kind: {
+        type: 'string',
+        ui_type: 'scope-probe',
+        display_name: 'Kind',
+        short_desc: 'Declares no inherit_props — it forwards the bag it was handed',
+      },
+      body: {
+        type: 'string',
+        ui_type: 'scope-probe',
+        display_name: 'Body',
+        short_desc: 'Declares inherit_props — its bag is a merge, made once',
+        inherit_props: { subjectKind: 'kind' },
+      },
+    } as unknown as IOptionsSchema,
+    componentOverrides: { 'scope-probe': InheritedScopeProbe },
+    initialExpandedOptions: ['kind', 'body'],
+  },
+  render: (args) => <InheritedScopeHarness {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getAllByText('renders').length).toBe(2), { timeout: 10000 });
+
+    const identityCounts = () =>
+      Array.from(canvasElement.querySelectorAll('.reqore-tag'))
+        .filter((tag) => (tag.textContent ?? '').startsWith('bag identities'))
+        .map((tag) => (tag.textContent ?? '').replace('bag identities', ''));
+
+    const before = identityCounts();
+    expect(before).toEqual(['1', '1']);
+
+    // Render the form again, three times over, with nothing about the fields
+    // changed.
+    await _testsClickButton({ selector: '#rerender-the-form' });
+    await _testsClickButton({ selector: '#rerender-the-form' });
+    await _testsClickButton({ selector: '#rerender-the-form' });
+    await _testsWaitForText('Re-render the form (3)');
+
+    // Every field was handed the SAME bag each time.
+    expect(identityCounts()).toEqual(['1', '1']);
+  },
+};
+
 // The companion above deliberately stops at the collapsed summary, which is
 // exactly where this bug hid: nothing expanded a list-of-hash row inside a
 // compact form. `compact` is destructured out of AutoFormField's `...rest`, so
@@ -1750,12 +2071,15 @@ export const DependantsResetWhenParentChanges: Story = {
 
     await sleep(500);
 
+    // The engine clears a dependant to `undefined`. This read `''` while an
+    // emptied text field reported '' on its own after the reset, which is not
+    // the engine's value and marked untouched forms as changed.
     await expect(args.onChange).toHaveBeenLastCalledWith(
       'test',
       expect.objectContaining({
         optionWithDependents: { type: 'long-string', value: 'My value changed' },
         anotherDependent: { type: 'long-string', value: 'My value will not change' },
-        dependent1: { type: 'long-string', value: '' },
+        dependent1: { type: 'long-string', value: undefined },
         dependent2: { type: 'hash', value: undefined },
       }),
       undefined
@@ -4364,7 +4688,7 @@ const FieldTypeCatalogGroups: Record<string, IFormEngineGroup> = {
  * summary of the `{exp,args}` AST (`renderExpressionToText`); drilling in opens
  * the full `ExpressionField` in the card — the Visual builder (catalogue offline
  * via `mockExpressions`) plus the Text/DPQL editor, whose seed + Explain are
- * served by the in-test `dpqlMockLsp`. No instance/LSP required.
+ * served by the story language server every story gets. No instance required.
  */
 export const CompactExpressions: Story = {
   // chromatic off: ends with the live ExpressionField editor (Text mode) open.
@@ -4404,65 +4728,61 @@ export const CompactExpressions: Story = {
     } as unknown as IOptions,
   },
   play: async () => {
-    const stop = startDpqlMockLsp();
-    try {
-      // Read-first: the offline DPQL summary of the AST — the literals read as
-      // the text they are, and the template reference reads as a chip rather
-      // than as its raw `$local:name` token inside the string.
-      await waitFor(() => {
-        const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
-          tag.textContent?.includes('$local:name')
-        );
-        expect(chip, 'the reference in the summary renders as a chip').toBeTruthy();
-      });
-      await _testsWaitForText('" == "John"');
+    // Read-first: the summary of the AST reads as DPQL, through the same
+    // rendering the Explain panel and Preview use — the template reference a
+    // chip rather than its raw `$local:name` token, the literal as the text it is.
+    await waitFor(() => {
+      const summary = document.querySelector(
+        '.readfirst-row[data-field="condition"] .dpql-rendering'
+      );
+      expect(summary, 'the collapsed row renders its summary as DPQL').toBeTruthy();
+      expect(summary?.textContent).toContain('local: name');
+      expect(summary?.textContent).toContain('== "John"');
+    });
 
-      // Drill in → the card hosts the ExpressionField (Visual builder).
-      await fireEvent.click(
-        document.querySelector('.readfirst-row[data-field="condition"]') as HTMLElement
-      );
-      await waitFor(
-        () =>
-          expect(
-            document.querySelector('.options-readfirst-card[data-field="condition"] .expression')
-          ).toBeInTheDocument(),
-        { timeout: 10000 }
-      );
-      // The builder resolves the operator from the offline catalogue.
-      await _testsWaitForText('Logical Equals');
+    // Drill in → the card hosts the ExpressionField (Visual builder).
+    await fireEvent.click(
+      document.querySelector('.readfirst-row[data-field="condition"]') as HTMLElement
+    );
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('.options-readfirst-card[data-field="condition"] .expression')
+        ).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
+    // The builder resolves the operator from the offline catalogue.
+    await _testsWaitForText('Logical Equals');
 
-      // Text/DPQL tab — seeded from the AST via the mock LSP (dpql/serialize).
-      const textBtn = Array.from(
-        document.querySelectorAll(
-          '.options-readfirst-card[data-field="condition"] .expression-field button'
-        )
-      ).find((b) => b.textContent?.trim() === 'Text') as HTMLElement;
-      await fireEvent.click(textBtn);
-      await waitFor(
-        () =>
-          expect(
-            document.querySelector(
-              '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
-            )
-          ).toBeInTheDocument(),
-        { timeout: 10000 }
-      );
+    // Text/DPQL tab — seeded from the AST via the mock LSP (dpql/serialize).
+    const textBtn = Array.from(
+      document.querySelectorAll(
+        '.options-readfirst-card[data-field="condition"] .expression-field button'
+      )
+    ).find((b) => b.textContent?.trim() === 'Text') as HTMLElement;
+    await fireEvent.click(textBtn);
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
+          )
+        ).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
 
-      // The "Parsed" line is the single live rendering of the AST (over the
-      // mock dpql/renderExpression) — it reflects the seeded expression. The
-      // separate Text-mode "Explain" button was dropped; Parsed is canonical.
-      await waitFor(
-        () =>
-          expect(
-            document.querySelector(
-              '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
-            )?.textContent
-          ).toContain('John'),
-        { timeout: 10000 }
-      );
-    } finally {
-      stop();
-    }
+    // The "Parsed" line is the single live rendering of the AST (over the
+    // mock dpql/renderExpression) — it reflects the seeded expression. The
+    // separate Text-mode "Explain" button was dropped; Parsed is canonical.
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
+          )?.textContent
+        ).toContain('John'),
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -5242,15 +5562,18 @@ export const CompactFieldTypes: Story = {
     // than a raw hash key-count.
     await _testsWaitForText('512MiB');
     await _testsWaitForText(/example_customer_addresses/);
-    // Expression field → read-first shows the offline DPQL summary of the AST,
-    // with the template reference inside it chipped rather than printed raw.
+    // Expression field → read-first shows the offline DPQL summary of the AST
+    // as DPQL, with the template reference inside it chipped rather than
+    // printed raw.
     await waitFor(() => {
-      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
-        tag.textContent?.includes('$local:name')
+      const summary = document.querySelector('.readfirst-row[data-field="expr"] .dpql-rendering');
+      const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
+        tag.textContent?.includes('name')
       );
       expect(chip, 'the reference in the summary renders as a chip').toBeTruthy();
+      expect(summary?.textContent).toContain('== "John"');
+      expect(summary?.textContent).not.toContain('$local:name');
     });
-    await _testsWaitForText('" == "John"');
     await expect(document.querySelectorAll('.options-readfirst-card')).toHaveLength(0);
 
     // A hash renders its read-first preview (the structured tree by default)
@@ -6572,15 +6895,13 @@ export const CompactAutoFocusTargetsInvalidFilledField: Story = {
   },
 };
 
-// DEMO / manual-test story: the first "needs attention" field is a BOOLEAN,
-// whose compact editor is a `<div tabindex=0>` (ReqoreCheckbox) — NOT an
-// input/textarea/contenteditable that CompactRow's focus selector matches. Both
-// `enabled` and `name` are required and unset, so both need attention; `enabled`
-// is first. Open this in Storybook to see the UX: autofocus TARGETS the boolean
-// (its row expands) and does NOT skip ahead to the focusable `name` field — but
-// no element inside actually receives keyboard focus, so the caret is left
-// nowhere. (This is the non-text-editor focus gap; kept as a playground rather
-// than a hard assertion until we decide how CompactRow should focus such rows.)
+// The first "needs attention" field is a BOOLEAN, whose compact editor is a
+// focusable icon (ReqoreCheckbox) — not an input/textarea/contenteditable. Both
+// `enabled` and `name` are required and unset, so both need attention;
+// `enabled` is first. The row's scan used to look for text controls alone, so
+// autofocus targeted the boolean, opened its row, and left the caret nowhere —
+// this story was the playground that documented the gap. The row now focuses
+// whatever control it offers, so the caret is ON the boolean.
 const CompactNonFocusableFirstSchema: Record<string, TCompactField> = {
   enabled: {
     type: 'bool',
@@ -6609,7 +6930,7 @@ export const CompactAutoFocusNonFocusableFirstField: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with autoFocus enabled where the first needs-attention field is a boolean (not focusable) — the autofocus skips it and opens the next focusable field instead.',
+          'Renders a compact form with autoFocus enabled where the first needs-attention field is a boolean, whose editor is not a text box — the caret lands on the boolean itself rather than being left nowhere.',
       },
     },
   },
@@ -6622,11 +6943,149 @@ export const CompactAutoFocusNonFocusableFirstField: Story = {
     autoFocusFirstRequired: true,
   },
   play: async () => {
-    // Smoke: both required-but-unset fields render (both land in "needs
-    // attention"), with the boolean first. Focus behaviour is intentionally left
-    // for manual observation — see the note above.
     await _testsWaitForText('Enabled');
     await _testsWaitForText('Name');
+
+    // The caret is inside the boolean's row — the field the engine targeted.
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        expect(document.querySelector('[data-field="enabled"]')?.contains(active!)).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+    // On the control itself, which is not a text box: that is the whole case.
+    const active = document.activeElement as HTMLElement;
+    expect(['INPUT', 'TEXTAREA']).not.toContain(active.tagName);
+    // It did not settle for the focusable text field further down instead.
+    expect(document.querySelector('[data-field="name"]')?.contains(active)).toBe(false);
+  },
+};
+
+// The first question most forms ask is "which kind?", and a pick-one is a set
+// of buttons: with ≤ 3 candidates the engine renders reqore checkboxes, which
+// are focusable icons rather than inputs. The engine opened this row and the
+// caret stayed on whatever opened the form.
+const CompactPickOneFirstSchema: Record<string, TCompactField> = {
+  kind: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Kind',
+    short_desc: 'Which kind of interface is this? — the first required question',
+    required: true,
+    preselected: true,
+    group: 'general',
+    allowed_values: [
+      { display_name: 'Service', value: { type: 'string', value: 'service' } },
+      { display_name: 'Job', value: { type: 'string', value: 'job' } },
+      { display_name: 'Workflow', value: { type: 'string', value: 'workflow' } },
+    ],
+  } as TCompactField,
+  name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Name',
+    short_desc: 'A text field — comes second',
+    required: true,
+    preselected: true,
+    group: 'general',
+  },
+};
+
+export const CompactAutoFocusPickOneFirstQuestion: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with autoFocus enabled whose first required question is a pick-one — the caret lands on the first choice, so the answer can be given from the keyboard.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactPickOneFirstSchema as IOptionsSchema,
+    value: {},
+    groups: CompactGroups,
+    autoFocusFirstRequired: true,
+  },
+  play: async () => {
+    await _testsWaitForText('Service');
+
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        expect(document.querySelector('[data-field="kind"]')?.contains(active!)).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+    const active = document.activeElement as HTMLElement;
+    // The control the row actually offers: a choice, not a text box.
+    expect(['INPUT', 'TEXTAREA']).not.toContain(active.tagName);
+    expect(active.getAttribute('tabindex')).toBe('0');
+  },
+};
+
+/**
+ * A host editor that cannot draw its control on the first frame — it resolves
+ * its catalogue first, the way the IDE's connection and interface selectors do.
+ * The row the engine opens is empty for the first commits, and the control is
+ * the LAST thing to arrive.
+ */
+const LateMountingEditor = () => {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setReady(true), 400);
+    return () => clearTimeout(timer);
+  }, []);
+  return ready ?
+      <ReqoreButton className='late-editor-control'>Choose a connection…</ReqoreButton>
+    : <ReqoreP effect={{ opacity: 0.5 }}>Loading connections…</ReqoreP>;
+};
+
+const CompactLateEditorSchema = {
+  connection: {
+    type: 'string',
+    // A host `ui_type`: the editor is injected, exactly as the IDE injects its
+    // connection and interface selectors.
+    ui_type: 'late-editor',
+    display_name: 'Connection',
+    short_desc: 'A host editor that resolves its catalogue before it can draw a control',
+    required: true,
+  },
+} as unknown as IOptionsSchema;
+
+export const CompactAutoFocusLateMountingEditor: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a compact form whose first required question is drawn by a host editor that mounts its control after the form has rendered — the caret follows the control when it arrives, instead of being spent on a row that was still empty.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: CompactLateEditorSchema,
+    value: {},
+    autoFocusFirstRequired: true,
+    componentOverrides: { 'late-editor': LateMountingEditor },
+  },
+  render: (args) => <FormEngine {...(args as IFormEngineProps)} />,
+  play: async () => {
+    // Nothing to focus yet: the row is open and its editor is still loading.
+    await _testsWaitForText('Loading connections…');
+    expect(document.activeElement).toBe(document.body);
+
+    await _testsWaitForText('Choose a connection…');
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        expect(active?.closest('.late-editor-control')).toBeTruthy();
+      },
+      { timeout: 10000 }
+    );
   },
 };
 
@@ -7179,10 +7638,10 @@ export const CompactListOfHashReadsInSchemaWordsMobile: Story = {
 };
 
 /**
- * The read-first summary of an EXPRESSION: it renders to one line of text, and
- * a template reference inside it used to print as its own raw token — the same
- * reference the editor shows as a named chip. This is the Save Reply row of the
- * Discord assistant template, whose value is
+ * The read-first summary of an EXPRESSION: it reads as DPQL, and a template
+ * reference inside it used to print as its own raw token — the same reference
+ * the editor shows as a named chip. This is the Save Reply row of the Discord
+ * assistant template, whose value is
  * `trim($data:{dc_ai_reply.choices[0].message.content})`.
  */
 export const CompactExpressionTemplateChips: Story = {
@@ -7190,7 +7649,7 @@ export const CompactExpressionTemplateChips: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact read-first row whose value is an expression wrapping a template reference — the reference renders as a named chip inside the summary text (trim("Choices[0].message.content")) rather than as its raw $data token.',
+          'Renders a compact read-first row whose value is an expression wrapping a template reference — the summary reads as DPQL and the reference inside it is a chip named from the form\'s template catalogue, trim(Choices[0].message.content), rather than its raw $data token or its path.',
       },
     },
     chromatic: { disable: true },
@@ -7241,20 +7700,20 @@ export const CompactExpressionTemplateChips: Story = {
       onChange={fn()}
     />
   ),
-  play: async () => {
-    // The summary keeps its literal text…
-    await _testsWaitForText('trim("', undefined, 1);
-    // …and the reference inside it is a named chip, not the raw token.
+  play: async ({ canvasElement }) => {
     await waitFor(() => {
-      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
+      const summary = canvasElement.querySelector('.readfirst-row .dpql-rendering');
+      // The summary keeps its literal text…
+      expect(summary?.textContent, 'the row summarises the expression as DPQL').toContain('trim(');
+      // …and the reference inside it is a chip named from the catalogue.
+      const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
         tag.textContent?.includes('Choices[0].message.content')
       );
       expect(chip, 'the reference renders as a named chip in the summary').toBeTruthy();
+      // Named, so neither the raw token nor the path it resolves.
+      expect(summary?.textContent).not.toContain('$data:{');
+      expect(summary?.textContent).not.toContain('dc_ai_reply');
     });
-    const raw = Array.from(document.querySelectorAll('.readfirst-row')).filter((row) =>
-      row.textContent?.includes('$data:{')
-    );
-    expect(raw, 'the row prints no raw token').toHaveLength(0);
   },
 };
 
@@ -7269,7 +7728,7 @@ export const CompactExpressionWithoutCatalogue: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact read-first row whose value is an expression wrapping a template reference, with no templates supplied — the reference still renders as a chip carrying its own path (dc_ai_reply.choices[0].message.content) rather than the raw $data token.',
+          'Renders a compact read-first row whose value is an expression wrapping a template reference, with no templates supplied — the summary reads as DPQL and the reference still renders as a chip carrying its own path (data: dc_ai_reply.choices[0].message.content) rather than the raw $data token.',
       },
     },
     chromatic: { disable: true },
@@ -7304,18 +7763,16 @@ export const CompactExpressionWithoutCatalogue: Story = {
       onChange={fn()}
     />
   ),
-  play: async () => {
-    await _testsWaitForText('trim("', undefined, 1);
+  play: async ({ canvasElement }) => {
     await waitFor(() => {
-      const chip = Array.from(document.querySelectorAll('.reqore-tag')).find((tag) =>
+      const summary = canvasElement.querySelector('.readfirst-row .dpql-rendering');
+      expect(summary?.textContent, 'the row summarises the expression as DPQL').toContain('trim(');
+      const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
         tag.textContent?.includes('dc_ai_reply.choices[0].message.content')
       );
       expect(chip, 'the reference chips even with no catalogue').toBeTruthy();
+      expect(summary?.textContent, 'the row prints no raw token').not.toContain('$data:{');
     });
-    const raw = Array.from(document.querySelectorAll('.readfirst-row')).filter((row) =>
-      row.textContent?.includes('$data:{')
-    );
-    expect(raw, 'the row prints no raw token').toHaveLength(0);
   },
 };
 
@@ -7469,12 +7926,39 @@ export const CompactToolbarTrimmed: Story = {
   },
 };
 
-export const CompactCollapseListLeavesLoneOptionalOpen: Story = {
+export const CompactLoneOptionalStaysOpenByDefault: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          "Renders an all-optional compact form with an explicit `compactCollapsedGroups={['optional']}` — the Optional box stays open anyway, because it is the whole form and collapsing it would render a titled card containing one collapsed strip and nothing else. The invariant outranks the consumer's collapse list.",
+          'Renders an all-optional compact form with NO `compactCollapsedGroups` — the Optional box is the whole form, so it stays open. Collapsing the only box would render a titled card containing one collapsed strip and nothing else, which reads as broken rather than as tidy. This is the default half of the contract; its pair below is what an explicit collapse list changes.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      alpha: { type: 'string', ui_type: 'string', display_name: 'Alpha' },
+      beta: { type: 'string', ui_type: 'string', display_name: 'Beta' },
+    } as unknown as IOptionsSchema,
+    value: {} as IOptions,
+  },
+  play: async () => {
+    // No collapse list was passed, so the invariant holds and the rows are on
+    // screen with no click.
+    await expectBoxOpen('Optional');
+    await _testsWaitForText('Alpha');
+    await _testsWaitForText('Beta');
+  },
+};
+
+export const CompactCollapseListCollapsesLoneOptional: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the same all-optional form with an explicit `compactCollapsedGroups={['optional']}` — and this time the Optional box IS collapsed. Passing the prop waives the \"never collapse the sole box\" invariant: it is a default, not a law. A host that supplies its own heading and explanation around the form — a run-options panel headed \"Change a setting for this run\", say — has already told the reader what the card is, and has asked for the settings to start folded away. The default (the story above) is unchanged for every caller that says nothing.",
       },
     },
   },
@@ -7489,10 +7973,9 @@ export const CompactCollapseListLeavesLoneOptionalOpen: Story = {
     compactCollapsedGroups: ['optional'],
   },
   play: async () => {
-    // The lone Optional box is open — its rows are on screen with no click.
-    await expectBoxOpen('Optional');
-    await _testsWaitForText('Alpha');
-    await _testsWaitForText('Beta');
+    // The caller asked for it folded, so it is folded even though it is the
+    // only box: `ReqorePanel` unmounts collapsed content, so the rows are gone.
+    await expectBoxCollapsed('Optional');
   },
 };
 
@@ -7829,5 +8312,655 @@ export const CompactNoMaxFieldsShown: Story = {
   play: async ({ canvasElement }) => {
     await _testsWaitForText('Foxtrot');
     expect(canvasElement.querySelector('.readfirst-more-row')).toBeNull();
+  },
+};
+
+/**
+ * A test's cases read as chips on the collapsed row.
+ *
+ * `test-cases` is a renderer-only `ui_type`, so it reached none of the typed
+ * branches in `renderReadFirstValue` and fell through to the generic summary,
+ * which flattens the array of case hashes to `"case_1, resolved_expected_values"`.
+ * The table the row opens already draws each name as a chip, so the collapsed
+ * row was the only surface still printing an identifier as prose.
+ *
+ * The fall-throughs are the point of the other two fields: chips are all-or-
+ * nothing, because a partly-chipped row reads as though the unnamed cases were
+ * missing entirely.
+ */
+export const CompactRowTestCaseChips: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a collapsed `test-cases` row: every case name is a chip, matching the cases table the row opens. A value whose entries are not all named, and an empty value, keep the plain summary instead — chips are all-or-nothing.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {
+      cases: {
+        type: 'list',
+        value: [
+          { name: 'case_1', desc: 'the happy path' },
+          { name: 'resolved_expected_values', desc: 'reference resolution' },
+        ],
+      },
+      mixed: {
+        type: 'list',
+        value: [{ name: 'case_1' }, { desc: 'a case that has no name yet' }],
+      },
+      none: { type: 'list', value: [] },
+    },
+    // Cast for the same reason the markdown/cron/dpql stories need one: a
+    // renderer-only `ui_type` names an EDITOR, and ts-toolkit's `TQorusType`
+    // enumerates STORAGE types, so it has no member for one.
+    options: {
+      cases: { type: 'list', ui_type: 'test-cases', display_name: 'Cases' },
+      mixed: { type: 'list', ui_type: 'test-cases', display_name: 'Mixed' },
+      none: { type: 'list', ui_type: 'test-cases', display_name: 'None' },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    // (a) Every case name is a chip, in order.
+    await waitFor(
+      () => {
+        const chips = canvasElement.querySelectorAll(
+          '[data-field="cases"] .options-readfirst-case-tag'
+        );
+        expect(chips.length).toBe(2);
+        expect(Array.from(chips).map((chip) => chip.textContent?.trim())).toEqual([
+          'case_1',
+          'resolved_expected_values',
+        ]);
+      },
+      { timeout: 5000 }
+    );
+
+    // (b) …and the comma-joined prose they replace is gone. Asserting the text
+    //     rather than only the chip count: the first cut rendered the chips
+    //     BESIDE the summary, which is the same identifiers twice.
+    const casesText =
+      canvasElement
+        .querySelector('[data-field="cases"] .options-readfirst-valuetext')
+        ?.textContent?.trim() ?? '';
+    expect(casesText).not.toContain('case_1,');
+
+    // (c) NEGATIVE: one entry has no name, so no entry is chipped — a
+    //     half-chipped row would read as though that case were missing.
+    const mixedRow = canvasElement.querySelector('[data-field="mixed"]');
+    expect(mixedRow?.querySelectorAll('.options-readfirst-case-tag').length).toBe(0);
+
+    // (d) NEGATIVE: an empty value is not a SET value, so it never reaches
+    //     this branch at all — its row sits in the collapsed optional group and
+    //     is not in the DOM. Counting canvas-wide says the same thing more
+    //     strongly than probing for a row that does not exist: the only chips
+    //     on the whole form are the two named cases, so neither the unnamed nor
+    //     the empty field contributed one.
+    expect(canvasElement.querySelectorAll('.options-readfirst-case-tag').length).toBe(2);
+  },
+};
+
+/**
+ * Clear-value is offered only when there is something to clear.
+ *
+ * `[]` is neither `undefined`, `null` nor `''`, so a list field whose last item
+ * had just been removed went on showing the red clear button, and confirming it
+ * cleared nothing. It is visible wherever a list field stays open — a test's
+ * cases table sits above exactly such a button once its last case is deleted.
+ *
+ * Both fields here are lists with the same schema; only the value differs, so
+ * the button's presence is decided by the value alone.
+ */
+export const ClearValueOnlyWhenThereIsAValue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A list field with items offers Clear value; the same field with an empty list does not, because there is nothing to clear.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    /* Both rows OPEN, because that is where this button lives. A collapsed list
+       row shows no clear at all — the inline one is only for editors with no
+       clear of their own (bools, fixed-choice pickers) — so the button under
+       test is the expanded card's, which is what a consumer that opens a field
+       by default puts permanently on screen. */
+    initialExpandedOptions: ['filled', 'emptied'],
+    value: {
+      filled: { type: 'list', value: ['alpha', 'beta'] },
+      emptied: { type: 'list', value: [] },
+    },
+    options: {
+      /* Both REQUIRED, like a test's `cases`. An unset optional field folds
+         into the collapsed Optional box and is not in the DOM at all, so an
+         empty list only stays on screen — where this button can be misclicked —
+         when the field is one the form insists on. */
+      filled: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'string',
+        display_name: 'Filled',
+        required: true,
+      },
+      emptied: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'string',
+        display_name: 'Emptied',
+        required: true,
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () => {
+        expect(canvasElement.querySelector('[data-field="filled"]')).toBeTruthy();
+      },
+      { timeout: 5000 }
+    );
+
+    // (a) items present -> the clear button is offered
+    const filled = canvasElement.querySelector('[data-field="filled"]');
+    expect(filled?.querySelectorAll('.options-readfirst-clear').length).toBe(1);
+
+    // (b) empty list -> nothing to clear, so no button and no dialog to reach
+    const emptied = canvasElement.querySelector('[data-field="emptied"]');
+    expect(emptied).toBeTruthy();
+    expect(emptied?.querySelectorAll('.options-readfirst-clear').length).toBe(0);
+  },
+};
+
+/**
+ * A creatable picker is ONE control, not two.
+ *
+ * `rendersCreatableValueSelect` exists so that exactly one of the two renderers
+ * draws the value: the chip picker holds it and offers the candidates, and the
+ * raw editor stands down. It asked for `type === 'string'` — but a picker field
+ * declares a storage type (`*string`) AND a `ui_type` (`select-string`), and by
+ * the time the schema arrives the two are flattened to `type: 'select-string'`.
+ * So neither renderer stood down: the picker drew the value, and the
+ * saved-and-suggested list drew the same candidates again beneath it.
+ *
+ * It showed on a test's service-method step, where Service and Method offered
+ * 183 and 7 values twice over in two controls that set one value each.
+ */
+export const CreatablePickerIsOneControl: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A creatable select-string with candidates renders a single picker that both holds the value and offers the list — not a picker plus a second "Saved & Suggested Values" control listing the same items.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['method'],
+    value: { method: { type: 'select-string', value: 'init' } },
+    options: {
+      method: {
+        type: 'select-string',
+        ui_type: 'select-string',
+        display_name: 'Method',
+        required: true,
+        allowed_values_creatable: true,
+        allowed_values: [
+          { display_name: 'init', value: { type: 'string', value: 'init' } },
+          { display_name: 'start', value: { type: 'string', value: 'start' } },
+          { display_name: 'stop', value: { type: 'string', value: 'stop' } },
+        ],
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="method"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // The value is still shown and still editable — one control, not none.
+    expect(row.textContent).toContain('init');
+
+    // …and the second way to set the same field is gone. Asserting the label
+    // rather than a count: it is what the duplicate control announces itself as,
+    // and what a reader saw twice.
+    expect(row.textContent).not.toContain('Saved & Suggested Values');
+  },
+};
+
+/**
+ * A chosen template hovers ONCE, and says what the value is.
+ *
+ * Two defects met on the same row. The chip carries its own popover and the row
+ * carried a native `title` as well, so hovering fired both — in two places, and
+ * only the popover appears in a screenshot, which is what makes the pair hard to
+ * report. `showsTemplateChips` had already closed this for prose with templates
+ * embedded in it; a value that IS one template was left open.
+ *
+ * And both of them showed the reference — `$._case.title` — which is the
+ * grammar's business, not the author's. The catalogue already carries what they
+ * want: the entry's name and the prose describing it. The reference stays in the
+ * field's own help and in the picker, where it is genuinely needed.
+ */
+export const TemplateValueHoversOnceAndDescribesItself: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A row whose value is a chosen template shows one hover — the chip’s own — carrying the value’s name and description rather than the raw reference, and the row adds no second browser tooltip.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: { expected: { type: 'string', value: '$._case.title' } },
+    options: {
+      expected: {
+        type: 'string',
+        display_name: 'Expected Value',
+        supports_templates: true,
+        templates: {
+          items: [
+            {
+              label: 'Values this case captures',
+              items: [
+                {
+                  value: '$._case.title',
+                  label: 'title (this case)',
+                  description: 'A short line naming what this case verifies. (string)',
+                },
+              ],
+            },
+          ],
+        },
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="expected"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // (a) The row draws the friendly name, not the reference.
+    expect(row.textContent).toContain('title (this case)');
+
+    // (b) ONE hover on the value. The row must not add a native `title`
+    //     alongside the chip's own popover — the label keeps its own, which is
+    //     a different element and a different thing to say.
+    const nativeTitles = Array.from(row.querySelectorAll('[title]')).map((el) =>
+      el.getAttribute('title')
+    );
+    expect(nativeTitles).not.toContain('$._case.title');
+  },
+};
+
+/** The grammar a Qorus test writes its references in — `$.step.field`, which
+ *  carries no `$key:` and so matches none of reqraft's own token grammar. */
+const SKIP_WHEN_GRAMMAR = /(\$\.[A-Za-z_][\w]*(?:(?:\.[A-Za-z_][\w]*)|(?:\[\d+\]))*)/g;
+
+/** What that case's own picker offers, and the names it offers them under. */
+const SKIP_WHEN_TEMPLATES = {
+  items: [
+    {
+      label: 'Values this case captures',
+      items: [
+        {
+          value: '$._case.mode',
+          label: 'mode (this case)',
+          description: 'How this case runs — live, or simulated. (string)',
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * A value that MENTIONS a reference reads as a sentence, not as a token.
+ *
+ * The story above closed the case where the value IS one template. This is the
+ * one next to it, and it is the shape a condition actually arrives in: a
+ * comparison the author wrote with a reference inside it. It matched neither the
+ * whole-value template branch nor the rich-text one, so it fell all the way
+ * through to the plain string and the row printed `$._case.mode != 'simulate'` —
+ * the engine's spelling of a value the author had picked by name, on a surface
+ * whose only job is to show them what they wrote.
+ *
+ * Reported against a test case's **Skip when** field, where the case list above
+ * the drawer already named the reference and the drawer beneath it did not.
+ *
+ * Both halves matter. The reference becomes the chip the picker offered; the
+ * comparison is the author's own text and survives exactly as typed.
+ */
+export const AValueThatMentionsATemplateReadsAsOne: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A row whose value holds a reference inside the author’s own text — a skip-when predicate — draws the reference as the chip the picker names it by and leaves the comparison beside it exactly as written, instead of printing the raw token.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {
+      skip_when: { type: 'string', value: "$._case.mode != 'simulate'" },
+      // The same value one level down, so the row's own line and the preview it
+      // opens are compared against each other in one story.
+      guard: {
+        type: 'hash',
+        value: { when: { type: 'string', value: "$._case.mode != 'simulate'" } },
+      },
+    },
+    options: {
+      skip_when: {
+        type: 'string',
+        display_name: 'Skip when',
+        supports_templates: true,
+        // The grammar this host writes its references in — `$.step.field`, which
+        // carries no `$key:` and so matches none of reqraft's own token grammar.
+        // A field that speaks one says so, exactly as it hands down its list.
+        templateToken: SKIP_WHEN_GRAMMAR,
+        templates: SKIP_WHEN_TEMPLATES,
+      },
+      guard: {
+        type: 'hash',
+        display_name: 'Guard',
+        arg_schema: {
+          when: {
+            type: 'string',
+            display_name: 'When',
+            supports_templates: true,
+            templateToken: SKIP_WHEN_GRAMMAR,
+            templates: SKIP_WHEN_TEMPLATES,
+          },
+        },
+      },
+    } as never,
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="skip_when"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // (a) The reference wears the name it was chosen by, on a chip.
+    const chip = await waitFor(() => {
+      const el = row.querySelector('.reqraft-template-chip');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    expect(chip.textContent).toContain('mode (this case)');
+
+    // (b) The author's comparison is still there, word for word.
+    expect(row.textContent).toContain("!= 'simulate'");
+
+    // (c) And the engine's own spelling is nowhere on the row — not in its text,
+    //     and not in a native tooltip hovering the very thing the chip replaced.
+    expect(row.textContent).not.toContain('$._case.mode');
+    const nativeTitles = Array.from(row.querySelectorAll('[title]')).map((el) =>
+      el.getAttribute('title')
+    );
+    expect(nativeTitles.some((title) => title?.includes('$._case.mode'))).toBe(false);
+
+    // (d) The schema preview under the hash row is the same value one level
+    //     down, and it used to reach the mono cell as a raw string — a row
+    //     disagreeing with its own inset about what its value is.
+    const preview = await waitFor(() => {
+      const el = canvasElement.querySelector('[data-field="guard"] .schema-data-view');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    expect(preview.querySelector('.reqraft-template-chip')?.textContent).toContain(
+      'mode (this case)'
+    );
+    expect(preview.textContent).toContain("!= 'simulate'");
+    expect(preview.textContent).not.toContain('$._case.mode');
+  },
+};
+
+/**
+ * The editor a row opens recognises the SAME references the row does.
+ *
+ * The story above asserts the two READ surfaces — the collapsed row and the
+ * schema preview under a hash row. Neither of them opens anything, and the
+ * editor was the surface that disagreed: `templateTextSegments` took the
+ * field's declared grammar, while `templateTextToNodes` had no grammar
+ * parameter at all and knew only reqraft's built-in `$key:{path}`. So a host's
+ * own spelling was a named chip on the row and raw text the moment the author
+ * clicked it — the same defect as before, pointing the other way.
+ *
+ * Both now resolve references through one `lineReferenceSpans`, and the field's
+ * `templateToken` reaches the editor as a prop. This opens the row and asserts
+ * the chip is still a chip, with the author's comparison beside it.
+ */
+export const AHostGrammarSurvivesTheEditorTheRowOpens: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opens the Skip when row whose field declares its own token grammar — the reference stays the chip the picker names it by inside the editor, with the author’s comparison beside it, instead of reverting to its raw spelling.',
+      },
+    },
+  },
+  args: {
+    ...AValueThatMentionsATemplateReadsAsOne.args,
+    /* A SECOND reference the catalogue does not list. It is the one that
+       separates the two mechanisms: `$._case.mode` is an offered value and
+       would be found by matching the catalogue's literals alone, while
+       `$._case.attempt` exists only as far as the declared grammar says it
+       does. A surface that has not been given the grammar draws one chip
+       here and the raw spelling of the other. */
+    value: {
+      skip_when: {
+        type: 'string',
+        value: "$._case.mode != 'simulate' && $._case.attempt == 1",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[data-field="skip_when"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 5000 }
+    );
+
+    // The collapsed row draws BOTH — the named one and the one only the
+    // grammar knows the extent of.
+    await waitFor(() =>
+      expect(
+        Array.from(row.querySelectorAll('.reqraft-template-chip')).map((chip) =>
+          chip.textContent?.trim()
+        )
+      ).toEqual(['mode (this case)', '$._case.attempt'])
+    );
+
+    // Open the row.
+    fireEvent.click(row);
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy(), {
+      timeout: 5000,
+    });
+
+    // The editor draws the same reference as the same name.
+    const editor = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>(
+          '[data-field="skip_when"] [contenteditable="true"]'
+        );
+        expect(el).toBeTruthy();
+        return el!;
+      },
+      { timeout: 10000 }
+    );
+    await waitFor(
+      () =>
+        expect(
+          Array.from(editor.querySelectorAll('.reqore-tag')).map((chip) => chip.textContent?.trim())
+        ).toEqual(['mode (this case)', '$._case.attempt']),
+      { timeout: 10000 }
+    );
+
+    // And the comparison the author wrote is beside them, unchanged — while
+    // the engine's own spelling of the NAMED reference is nowhere in the
+    // editor. (`$._case.attempt` has no name to wear: an unnamed reference is
+    // its own honest label, and it is a chip either way.)
+    expect(editor.textContent).toContain("!= 'simulate'");
+    expect(editor.textContent).toContain('== 1');
+    expect(editor.textContent).not.toContain('$._case.mode');
+  },
+};
+
+/**
+ * A choice whose author has to click twice to change it.
+ *
+ * Read-first is the collapsed row's job: the row prints the value, and clicking
+ * it mounts the editor. A PICKER's editor is a closed trigger printing that
+ * same value — so the row opened, nothing on screen changed, and the author had
+ * to click again to see the list. Reported on a test case's Kind row:
+ * "clicking on a closed option like 'Kind' opens the option, but the same
+ * chosen value is displayed … the user has to click twice to edit the option".
+ *
+ * A row the AUTHOR opens now opens its picker with it. A row the FORM opens
+ * still does not — see `CompactInitialExpandedOptions` and
+ * `CompactAutoFocusFirstRequired`, where the host is showing a row rather than
+ * asking the question, and a list thrown over it would cover what it came to
+ * show.
+ */
+const CompactPickerRowSchema: Record<string, TCompactField> = {
+  kind: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Kind',
+    short_desc: 'Which kind of assertion is this?',
+    required: true,
+    preselected: true,
+    group: 'general',
+    allowed_values: [
+      {
+        display_name: 'Process coverage',
+        short_desc: 'Which Qorus process ran the code',
+        value: { type: 'string', value: 'process_coverage' },
+      },
+      {
+        display_name: 'Log match',
+        short_desc: 'A line the run had to log',
+        value: { type: 'string', value: 'log_match' },
+      },
+      {
+        display_name: 'Value equals',
+        short_desc: 'A captured value, compared',
+        value: { type: 'string', value: 'value_equals' },
+      },
+      {
+        display_name: 'Row count',
+        short_desc: 'How many rows a query returned',
+        value: { type: 'string', value: 'row_count' },
+      },
+      {
+        display_name: 'Raises error',
+        short_desc: 'The error the step had to raise',
+        value: { type: 'string', value: 'raises_error' },
+      },
+    ],
+  } as TCompactField,
+  name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Name',
+    short_desc: 'A text field — its editor is the text box itself',
+    required: true,
+    preselected: true,
+    group: 'general',
+  },
+};
+
+export const CompactRowOpensItsPicker: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicking a closed row whose value is a choice lands the author in the list of choices, in one click, instead of opening the row onto a closed picker showing the value it already had.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    options: CompactPickerRowSchema as IOptionsSchema,
+    value: { kind: { type: 'string', value: 'log_match' } },
+    groups: CompactGroups,
+  },
+  play: async () => {
+    await _testsWaitForText('Kind');
+    // Read-first: the row prints the chosen kind, and no other kind is on screen.
+    await _testsWaitForTextToNotExist('Row count');
+
+    await _testsClickButton({ selector: '[data-field="kind"].readfirst-row' });
+
+    // ONE click, and the choices the author came for are in front of them.
+    await _testsWaitForText('Row count');
+    await _testsWaitForText('Raises error');
+
+    /* ...in ONE picker. The collection modal is rendered beside the trigger
+       rather than as one of its branches, so it is not mutually exclusive with
+       the anchored list, and `forceDropdown` defaults to true — so asking for
+       the choices used to open a dialog ON TOP of the list, both offering the
+       same five items. Asserting the items alone did not catch it: they were
+       present twice. Reported on qlip build #212. */
+    await _testsWaitForTextToNotExist('Select from items');
+  },
+};
+
+export const CompactTextRowOpensItsTextBox: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The other half of the same rule: a row whose editor is a text box opens straight into it with the caret, and opens nothing over the form.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    options: CompactPickerRowSchema as IOptionsSchema,
+    value: { name: { type: 'string', value: 'the assertion' } },
+    groups: CompactGroups,
+  },
+  play: async () => {
+    await _testsWaitForText('Name');
+    await _testsClickButton({ selector: '[data-field="name"].readfirst-row' });
+
+    await waitFor(() => {
+      const active = document.activeElement as HTMLElement;
+      expect(['INPUT', 'TEXTAREA']).toContain(active.tagName);
+      expect(document.querySelector('[data-field="name"]')?.contains(active)).toBe(true);
+    });
+    // Nothing was opened over the form — the text box IS the editor.
+    expect(document.querySelector('.reqraft-select-dialog')).toBeNull();
   },
 };

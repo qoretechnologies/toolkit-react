@@ -264,9 +264,19 @@ export const AutoComponent: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField over an untyped (`auto`) field that accepts templates. While the field is empty it opens on the template selector rather than the data-type picker, so the author can say which value they mean before answering how it is stored.',
+          'Renders TemplateField over an untyped (`auto`) field that accepts templates. While the field is empty it opens on an editor to type into, which offers the templates — never on a data-type picker, so the author can write the value they mean without answering how it is stored.',
       },
     },
+  },
+  play: async ({ canvasElement }) => {
+    /* The editor itself, not a class: TemplateField puts `.template-selector`
+       on every control it draws, the data-type picker included, so asserting
+       the class passed while the story showed "Please select data type". */
+    await waitFor(() => expect(canvasElement.querySelector('[contenteditable="true"]')).toBeTruthy(), {
+      timeout: 5000,
+    });
+    expect(canvasElement.textContent).not.toContain('Please select data type');
+    expect(canvasElement.textContent).not.toContain('Select Template');
   },
 };
 
@@ -674,7 +684,7 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches to the $local:id template value inside the template-offering input (plain word tokens stay typeable; only braced context refs chip).',
+          'Renders TemplateField for a string, opens the templates popover and clicks the Interface ID template — the field switches to template mode, where the $local:id reference is a chip named Interface ID inside an editor that can still be typed into.',
       },
     },
   },
@@ -684,9 +694,16 @@ export const TemplateCanBeSelected: StoryObj<typeof meta> = {
     await ShowsTemplatesListForString.play({ canvasElement, ...rest });
     await _testsClickButton({ label: 'Interface ID' });
 
-    await sleep(100);
-
-    await expect(canvas.getByDisplayValue('$local:id')).toBeInTheDocument();
+    // The chosen reference reads as the name it was chosen by, in an editor
+    // that can still be typed into — not as its spelling.
+    await waitFor(
+      () => {
+        const chip = canvasElement.querySelector('.template-selector [contenteditable="true"] .reqore-tag');
+        expect(chip?.textContent).toContain('Interface ID');
+      },
+      { timeout: 5000 }
+    );
+    await expect(canvas.queryByDisplayValue('$local:id')).toBeNull();
   },
 };
 
@@ -991,14 +1008,73 @@ export const EmptyAnyOpensOnTemplates: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'An untyped, empty field that accepts templates opens showing the template selector rather than a data-type picker.',
+          'An untyped, empty field that accepts templates opens on an editor to type into, which offers the templates — never on a data-type picker.',
       },
     },
   },
   play: async ({ canvasElement }) => {
-    await waitFor(() =>
-      expect(canvasElement.querySelector('.template-selector')).toBeTruthy()
+    /* The editor itself, not a class: TemplateField puts `.template-selector`
+       on every control it draws, the data-type picker included, so asserting
+       the class passed while the story showed "Please select data type". */
+    await waitFor(() => expect(canvasElement.querySelector('[contenteditable="true"]')).toBeTruthy(), {
+      timeout: 5000,
+    });
+    expect(canvasElement.textContent).not.toContain('Please select data type');
+    expect(canvasElement.textContent).not.toContain('Select Template');
+  },
+};
+
+/** A string mixing text with template references, as template mode edits it. */
+const templateReferencesInText: StoryObj<typeof meta> = {
+  args: {
+    type: 'string',
+    defaultType: 'string',
+    defaultInternalType: 'string',
+    value: 'Interface $local:id failed at $timestamp:now',
+  },
+  play: async ({ canvasElement }) => {
+    const editor = await waitFor(
+      () => {
+        const element = canvasElement.querySelector<HTMLElement>('.template-selector [contenteditable="true"]');
+        expect(element).toBeTruthy();
+        return element!;
+      },
+      { timeout: 5000 }
     );
+    // Each reference is its catalogue name; the text between them is untouched.
+    await waitFor(() =>
+      expect(Array.from(editor.querySelectorAll('.reqore-tag')).map((chip) => chip.textContent?.trim())).toEqual([
+        'Interface ID',
+        'Current Timestamp',
+      ])
+    );
+    expect(editor.textContent).toContain('failed at');
+    expect(editor.textContent).not.toContain('$local:id');
+  },
+};
+
+export const TemplateReferencesInText: StoryObj<typeof meta> = {
+  ...templateReferencesInText,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField holding the string "Interface $local:id failed at $timestamp:now". Template mode draws each reference as a chip named from the catalogue (Interface ID, Current Timestamp) inside an editor that can still be typed into; the text between them reads as typed.',
+      },
+    },
+  },
+};
+
+export const TemplateReferencesInTextOnPhone: StoryObj<typeof meta> = {
+  ...templateReferencesInText,
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Renders the same string with two template references at phone width (390px): the named chips and the text around them wrap inside the editor rather than overflowing it.',
+      },
+    },
   },
 };
 
@@ -1021,7 +1097,7 @@ export const AnyWithLiteralOpensOnTheValue: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'An untyped field holding a literal keeps showing that literal — only an empty one defaults to the template selector.',
+          'An untyped field holding a literal keeps showing that literal — only an empty one defaults to the template selector. Where the field offers templates that editor is the chip editor (a contenteditable box), not a textarea, so the literal appears there.',
       },
     },
   },
@@ -1031,12 +1107,15 @@ export const AnyWithLiteralOpensOnTheValue: StoryObj<typeof meta> = {
     // a control that renders either way, so it says nothing about which view is
     // active.
     await waitFor(() => {
-      const held = [
-        ...canvasElement.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
-          'input, textarea'
-        ),
-      ].some((el) => el.value === 'already-typed');
-      expect(held).toBe(true);
+      // Its editor may be a field or, where templates are offered, the chip editor.
+      const shown = [
+        ...canvasElement.querySelectorAll<HTMLElement>('input, textarea, [contenteditable="true"]'),
+      ].map((el) =>
+        el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ?
+          el.value
+        : (el.textContent ?? '').replace(/\uFEFF/g, '').trim()
+      );
+      expect(shown).toContain('already-typed');
     });
   },
 };

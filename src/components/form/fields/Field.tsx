@@ -2,7 +2,6 @@ import {
   IReqoreLabelProps,
   ReqoreCheckbox,
   ReqoreControlGroup,
-  ReqoreSkeleton,
   ReqoreSpan,
 } from '@qoretechnologies/reqore';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
@@ -26,7 +25,15 @@ import { ReqraftObjectFormField } from './object/Object';
 import { RichTextFormField } from './rich-text/RichText';
 import { rendersCreatableValueSelect } from './allowed-values/AllowedValues';
 import { SelectFormField } from './select/Select';
-import { getSelectItemShortDescription } from './select/SelectCollection';
+import {
+  getSelectItemShortDescription,
+  getSelectItemUnavailability,
+  ISelectFieldCollectionItem,
+  ISelectFieldCollectionItemAction,
+  TSelectFieldCollectionItemTooltip,
+  UNAVAILABLE_ITEM_CLASS,
+} from './select/SelectCollection';
+import { useAllowedValueAvailability } from '../engine/OptionFieldMessages';
 import { StringFormField } from './string/String';
 import { ArrayAutoField } from './array/ArrayAutoField';
 import { AutoFormField } from './auto/AutoFormField';
@@ -38,6 +45,7 @@ import { IDataSchemaDefinition } from './schema-definition/types';
 // Direct import — circular dep (FormEngine → TemplateField → FormField → FormEngine) is safe
 // because modules are all loaded before any component renders
 import { FormEngine } from '../engine/FormEngine';
+import { FormFieldsSkeleton } from '../engine/FormFieldsSkeleton';
 
 /** Soft Qore types (softint, softstring, …) render as their concrete base —
  * the soft/hard distinction is value-level, not UI. */
@@ -67,6 +75,27 @@ const mapQorusTypeToFormFieldType = (type: string): TFormFieldType => {
 
 // Re-export for consumers who need to construct allowed values
 export type { IQorusAllowedValue };
+
+/**
+ * An allowed value, with the keys reqraft's pickers read.
+ *
+ * ts-toolkit 0.5.82 now declares all three on `IQorusAllowedValue`, so this is no
+ * longer a placeholder waiting on a publish. It stays because two of the three are
+ * WIDER here on purpose: the shared types are JSON-pure, since a form schema has to
+ * survive the wire, while reqraft renders in React and lets a consumer hand it a
+ * live `React.ElementType` for a tooltip's content or an action. Collapsing onto the
+ * shared type would quietly take that away from every consumer. `depends_on` is the
+ * same shape either way. Every key is optional, so a plain `IQorusAllowedValue` still
+ * is one.
+ */
+export interface IReqraftAllowedValue extends IQorusAllowedValue {
+  /** Offered only while every entry holds — a FIELD's `depends_on`, one level down. */
+  depends_on?: (string | string[])[];
+  /** A tooltip on the value's whole row in the picker. */
+  tooltip?: TSelectFieldCollectionItemTooltip;
+  /** Affordances inline with the value's name, where the row already has the height. */
+  title_actions?: ISelectFieldCollectionItemAction[];
+}
 
 export interface IFormFieldProps<T extends TFormFieldType = TFormFieldType> extends Omit<
   IQorusFormFieldSchemaBase,
@@ -345,7 +374,8 @@ export const FormField = <T extends TFormFieldType>({
 
       case 'hash': {
         if (argSchemaLoading) {
-          return <ReqoreSkeleton height='80px' />;
+          // A hash renders a nested FORM, so it waits in the shape of one.
+          return <FormFieldsSkeleton rows={2} />;
         }
         if (finalArgSchema) {
           return (
@@ -522,23 +552,47 @@ export const FormField = <T extends TFormFieldType>({
     }
   };
 
+  /* Resolved once for the whole list, against the form this field stands in:
+     the value's own `depends_on`, and a refusal the server had already decided.
+     Values that gate on nothing cost nothing — see the hook. */
+  const availability = useAllowedValueAvailability(allowed_values as IReqraftAllowedValue[]);
+
   /**
    * Maps an IQorusAllowedValue to the shape SelectFormField / checkboxes expect.
    * The actual selectable value lives at item.value.value (the wrapper has type metadata).
+   *
+   * The list used to be a whitelist of eleven keys, which silently dropped the
+   * row affordances (`tooltip`, `title_actions`) and `metadata` — so a host that
+   * built them, as the IDE's kind picker does, had to hand its items straight to
+   * `SelectFormField` and bypass this renderer altogether to keep them.
    */
-  const mapAllowedValue = (item: IQorusAllowedValue) => ({
-    display_name: item.display_name,
-    short_desc: item.short_desc,
-    desc: item.desc,
-    icon: item.icon,
-    image: item.image,
-    badge: item.badge as TReqoreBadge,
-    intent: item.intent,
-    disabled: item.disabled,
-    messages: item.messages,
-    actions: item.actions,
-    value: item.value?.value,
-  });
+  const mapAllowedValue = (item: IQorusAllowedValue, index = -1): ISelectFieldCollectionItem => {
+    const extended = item as IReqraftAllowedValue;
+    const resolved = availability[index];
+
+    return {
+      display_name: item.display_name,
+      short_desc: item.short_desc,
+      desc: item.desc,
+      icon: item.icon,
+      image: item.image,
+      badge: item.badge as TReqoreBadge,
+      intent: item.intent,
+      messages: item.messages,
+      actions: item.actions,
+      title_actions: extended.title_actions,
+      tooltip: extended.tooltip,
+      metadata: item.metadata,
+      // Both sources of a refusal end up here, as one state: the click handler
+      // is dropped and the reason is printed, whichever of them decided.
+      disabled: item.disabled || resolved?.available === false,
+      unavailable:
+        resolved && !resolved.available ?
+          { title: resolved.title, content: resolved.reason as string, intent: resolved.intent }
+        : undefined,
+      value: item.value?.value,
+    };
+  };
 
   /**
    * Renders the allowed-values picker.
@@ -607,17 +661,45 @@ export const FormField = <T extends TFormFieldType>({
           {allowed_values.map((item, index) => {
             const itemValue = item.value?.value;
             const checked = isEqual(value, itemValue);
+            const mapped = mapAllowedValue(item, index);
+            const unavailable = getSelectItemUnavailability(mapped);
             return (
               <ReqoreCheckbox
                 margin='right'
                 key={index}
                 label={item.display_name ?? JSON.stringify(itemValue)}
-                tooltip={getSelectItemShortDescription(mapAllowedValue(item))}
-                disabled={item.disabled}
+                tooltip={getSelectItemShortDescription(mapped)}
+                /* The reason is IN the row, not only on its hover: a checkbox
+                   has no body to bury it in, and a hover is the one affordance
+                   a touch screen and a keyboard never reach. */
+                description={unavailable?.content}
+                className={unavailable ? UNAVAILABLE_ITEM_CLASS : undefined}
+                /* Never reqore's `disabled` — it applies `DisabledElement`
+                   (`pointer-events: none`), which would take the tooltip with
+                   it. Dropping the handler is what makes the box inert; the
+                   `disabled` this used to pass was the ITEM's, and it was the
+                   one path in the picker family that destroyed its own
+                   explanation. */
+                /* `labelEffect`, not `effect`: a non-switch `ReqoreCheckbox`
+                   destructures `effect` out and never applies it — it reaches
+                   only the switch rendering — so the dimming this asked for
+                   never appeared at all. And the NAME is the right thing to
+                   dim: `description` carries the reason, and a reason has to
+                   stay readable. Same rule the collection rows follow. */
+                labelEffect={unavailable ? { opacity: 0.55 } : undefined}
+                /* `cursor: not-allowed` from reqore's own `ReadOnlyElement`
+                   rather than a hand-rolled inline style. It leaves the
+                   pointer events intact, which is what the tooltip is read
+                   through; it does NOT withhold `onClick`, but this row
+                   already withholds it below, so it is purely additive. */
+                readOnly={!!unavailable}
+                uncheckedIcon={unavailable ? 'LockLine' : undefined}
                 checked={checked}
                 intent={checked ? 'info' : undefined}
-                onClick={() =>
-                  handleChange((checked ? undefined : itemValue) as TFormFieldValueType<T>)
+                onClick={
+                  unavailable ? undefined : (
+                    () => handleChange((checked ? undefined : itemValue) as TFormFieldValueType<T>)
+                  )
                 }
               />
             );

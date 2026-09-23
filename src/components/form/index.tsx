@@ -24,8 +24,12 @@ export * from './fields/string/String';
 export * from './fields/template/ExampleValueModal';
 export * from './fields/template/TemplateField';
 export * from './engine/FormEngine';
+export * from './engine/FormFieldsSkeleton';
 export * from './engine/optionActions';
 export * from './engine/rendererTypes';
+// A host's own editor is a compact row's editor too, so the instruction a row
+// gives when the AUTHOR opens it into a picker is part of the public surface.
+export * from './engine/rowOpenPicker';
 export * from './expressions/types';
 export * from './expressions/useExpressions';
 // Named (not wildcard) so the `_resetRenderExpressionTransportForTests`

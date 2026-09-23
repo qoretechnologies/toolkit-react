@@ -6,13 +6,9 @@ import { MarkdownRendererContext } from '../src/components/Description/markdownR
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { summariseMarkdown } from '../src/components/form/engine/readFirst';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 const DESC = 'Supported keys are `permissions` and `any_permissions`.\n\n## Overrides\n\nSee below.';
 
@@ -78,7 +74,7 @@ describe('FormEngine markdownRenderer', () => {
 
     const { container, findAllByTestId } = render(
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as never}>
+        <FetchContext.Provider value={fetchContext}>
           <FormEngine
             compact
             name='auth'
@@ -124,7 +120,7 @@ describe('read-first markdown', () => {
   const renderMarkdownRow = (props: Record<string, unknown> = {}) =>
     render(
       <ReqoreUIProvider>
-        <FetchContext.Provider value={fetchContext as never}>
+        <FetchContext.Provider value={fetchContext}>
           <FormEngine
             compact
             name='markdown'

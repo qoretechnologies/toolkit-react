@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import { fireEvent, within } from 'storybook/test';
 import { storiesStorageMock } from '../../../__tests__/ mock';
 import { testsWaitForText } from '../../../__tests__/utils';
+import { storyApiUrl } from '../../stories/storyNetwork';
 import { StoryMeta } from '../../types';
 import { useReqraftStorage } from './useStorage';
 
@@ -44,7 +45,7 @@ export const DefaultValue: Story = {
     },
     mockData: [
       {
-        url: 'https://hq.qoretechnologies.com:8092/api/latest/users?action=current',
+        url: storyApiUrl('users?action=current'),
         method: 'GET',
         status: 200,
         response: {},

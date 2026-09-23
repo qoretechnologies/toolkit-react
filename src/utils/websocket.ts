@@ -18,6 +18,21 @@ export interface IReqraftWebSocketConfig {
   tokenOverride?: string;
 }
 
+/**
+ * The URL a socket for `path` dials on `instance`: `http(s)` becomes `ws(s)`,
+ * and the token, when there is one, rides in the query. The single definition —
+ * story mocks build their URLs with it too, so they cannot drift from it.
+ */
+export const buildReqraftSocketUrl = (instance: string, path: string, token?: string): string => {
+  let wsUrl = instance.replace('http', 'ws');
+
+  if (wsUrl.endsWith('/')) {
+    wsUrl = wsUrl.slice(0, -1);
+  }
+
+  return `${wsUrl}/${path}${token ? `?token=${token}` : ''}`;
+};
+
 export class ReqraftWebSocketsManager {
   public static defaultConfig: IReqraftWebSocketConfig = {
     reconnect: true,
@@ -108,15 +123,11 @@ export class ReqraftWebSocket {
   }
 
   private getSocketUrl() {
-    let wsUrl = fetchConfig.instance.replace('http', 'ws');
-
-    if (wsUrl.endsWith('/')) {
-      wsUrl = wsUrl.slice(0, -1);
-    }
-
-    const token = this.options.tokenOverride || fetchConfig.instanceToken;
-
-    return `${wsUrl}/${this.options.url}${token ? `?token=${token}` : ''}`;
+    return buildReqraftSocketUrl(
+      fetchConfig.instance,
+      this.options.url,
+      this.options.tokenOverride || fetchConfig.instanceToken
+    );
   }
 
   public connect() {

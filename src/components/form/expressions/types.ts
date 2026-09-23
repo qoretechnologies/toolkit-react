@@ -2,7 +2,7 @@
 // Types for the expression subsystem. A Qorus expression is an AST
 // `{ exp, args }`; DPQL is its text serialization (dpql/parse ↔
 // dpql/serialize). A field stores it as `is_expression: true` + the AST.
-import { TQorusType } from '@qoretechnologies/ts-toolkit';
+import { TQorusExpressionReturnType } from '@qoretechnologies/ts-toolkit';
 
 /** The AST: an expression name plus its argument list. */
 export interface IExpressionValue {
@@ -65,9 +65,24 @@ export interface IExpressionSchema {
   display_name: string;
   short_desc: string;
   desc: string;
-  return_type: TQorusType;
+  /**
+   * What the expression evaluates to.
+   *
+   * Not a plain `TQorusType`: the server names a container's element type inline,
+   * so `list<string>` and `hash<auto>` are ordinary answers here and a narrower
+   * type would refuse the catalogue the server actually serves. Taken from
+   * ts-toolkit rather than restated, so the two cannot drift.
+   */
+  return_type: TQorusExpressionReturnType;
   ui_return_type: string;
   symbol: string;
+  /**
+   * How the server's readable rendering (`dpql/renderExpression`) spells this
+   * expression, when not by its symbol: `$arg[n]` is an argument, `$symbol` the
+   * symbol, `$args` all arguments, and `${arg[n] ? set : unset}` reads the
+   * argument or its `default_value` — e.g. `$arg[0].startsWith($arg[1], $arg[2])`.
+   */
+  render_template?: string;
   /** Server type code (operator/function); not a reliable infix discriminator. */
   type: number;
   /** `1` normal, `2` logical group (AND/OR). */

@@ -4,6 +4,7 @@ import styled from 'styled-components';
 
 import { thinScrollbar } from '../../helpers/scrollbar';
 import { StoryMeta } from '../../types';
+import type { IInterfaceReference, TTicketMessageAuthor } from '../supportTicket/meta';
 import { ITicketThreadMessage, TicketThread } from './TicketThread';
 
 /* The drawer body's scroll area — the thin Qorus scrollbar rather than the platform

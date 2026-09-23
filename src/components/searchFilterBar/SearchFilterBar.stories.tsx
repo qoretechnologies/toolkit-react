@@ -19,9 +19,9 @@ const meta = {
         icon: 'Filter3Line' as const,
         label: 'Any status',
         items: [
-          { label: 'Any status', value: 'any', selected: true },
-          { label: 'Open', value: 'open' },
-          { label: 'Resolved', value: 'resolved' },
+          { label: 'Any status', selected: true, onClick: fn() },
+          { label: 'Open', onClick: fn() },
+          { label: 'Resolved', onClick: fn() },
         ],
       },
     ],

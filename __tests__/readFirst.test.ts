@@ -6,12 +6,14 @@
  * Breaking the implementation must cause at least one test to fail.
  */
 
+import type { TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import {
   colorToCss,
   formatBytes,
   formatColorValue,
   formatFileValue,
   formatOptionValue,
+  getAllowedValueIcon,
   getAllowedValueImage,
   getFirstAttentionOptionName,
   getHashEntries,
@@ -45,10 +47,11 @@ describe('isOptionValueEmpty', () => {
 });
 
 describe('shouldAutoCollapseCompactAllowedValueOption', () => {
-  const fixedChoiceSchema = {
+  const fixedChoiceSchema: TQorusFormFieldSchema = {
     type: 'string',
-    allowed_values: [{ value: 'api', display_name: 'API' }],
-  } as never;
+    ui_type: 'string',
+    allowed_values: [{ value: { type: 'string', value: 'api' }, display_name: 'API' }],
+  };
 
   it('identifies fixed allowed-value fields that do not need a Done confirmation', () => {
     expect(isFixedCompactAllowedValueOption(fixedChoiceSchema)).toBe(true);
@@ -56,11 +59,9 @@ describe('shouldAutoCollapseCompactAllowedValueOption', () => {
       isFixedCompactAllowedValueOption({
         ...fixedChoiceSchema,
         allowed_values_creatable: true,
-      } as never)
+      })
     ).toBe(false);
-    expect(
-      isFixedCompactAllowedValueOption({ ...fixedChoiceSchema, arg_schema: {} } as never)
-    ).toBe(false);
+    expect(isFixedCompactAllowedValueOption({ ...fixedChoiceSchema, arg_schema: {} })).toBe(false);
   });
 
   it('auto-collapses fixed allowed-value selections', () => {
@@ -74,7 +75,7 @@ describe('shouldAutoCollapseCompactAllowedValueOption', () => {
   it('does not auto-collapse creatable allowed-value fields', () => {
     expect(
       shouldAutoCollapseCompactAllowedValueOption(
-        { ...fixedChoiceSchema, allowed_values_creatable: true } as never,
+        { ...fixedChoiceSchema, allowed_values_creatable: true },
         'custom'
       )
     ).toBe(false);
@@ -82,10 +83,9 @@ describe('shouldAutoCollapseCompactAllowedValueOption', () => {
 
   it('does not auto-collapse multiselect fields', () => {
     expect(
-      shouldAutoCollapseCompactAllowedValueOption(
-        { ...fixedChoiceSchema, multiselect: true } as never,
-        ['api']
-      )
+      shouldAutoCollapseCompactAllowedValueOption({ ...fixedChoiceSchema, multiselect: true }, [
+        'api',
+      ])
     ).toBe(false);
   });
 });
@@ -95,6 +95,14 @@ describe('shouldAutoCollapseCompactOption', () => {
     expect(isCompactBooleanOption({ type: 'bool' } as never)).toBe(true);
     expect(isCompactBooleanOption({ ui_type: 'boolean' } as never)).toBe(true);
     expect(isCompactBooleanOption({ type: 'string' } as never)).toBe(false);
+  });
+
+  it('reads a type the server sends as a list by its first entry', () => {
+    // A data provider option can accept several types, and the server sends
+    // them as a list (`DataProvider::getInfoAsData()`); calling `toLowerCase`
+    // on that list threw and took the form to the error boundary.
+    expect(isCompactBooleanOption({ type: ['bool', 'string'] } as never)).toBe(true);
+    expect(isCompactBooleanOption({ type: ['string', 'bool'] } as never)).toBe(false);
   });
 
   it('auto-collapses explicit true and false choices but not an unset boolean', () => {
@@ -125,9 +133,7 @@ describe('formatOptionValue', () => {
       formatOptionValue({ type: 'string', value: 'hunter2' }, { sensitive: true } as never)
     ).toBe('••••••');
     // Empty sensitive values still show as empty (the "Not set" placeholder).
-    expect(formatOptionValue({ type: 'string', value: '' }, { sensitive: true } as never)).toBe(
-      ''
-    );
+    expect(formatOptionValue({ type: 'string', value: '' }, { sensitive: true } as never)).toBe('');
   });
 
   // Regression: a `richtext` ui_type option can hold a plain scalar (set
@@ -181,9 +187,9 @@ describe('formatOptionValue', () => {
 
   it('joins list item names', () => {
     expect(formatOptionValue({ type: 'list', value: ['a', 'b', 'c'] })).toBe('a, b, c');
-    expect(
-      formatOptionValue({ type: 'list', value: [{ name: 'one' }, { value: 'two' }] })
-    ).toBe('one, two');
+    expect(formatOptionValue({ type: 'list', value: [{ name: 'one' }, { value: 'two' }] })).toBe(
+      'one, two'
+    );
   });
 
   it('summarises a list of unnameable objects by count', () => {
@@ -210,9 +216,9 @@ describe('formatOptionValue', () => {
   });
 
   it('marks expression values', () => {
-    expect(
-      formatOptionValue({ type: 'string', value: 'anything', is_expression: true })
-    ).toBe('Expression');
+    expect(formatOptionValue({ type: 'string', value: 'anything', is_expression: true })).toBe(
+      'Expression'
+    );
   });
 
   it('summarises a hash object by its field count', () => {
@@ -444,7 +450,9 @@ describe('getHashEntries', () => {
     expect(getAllowedValueImage('qore', enumSchema as never)).toBe('q.png');
     // reqraft allowed_values shape still resolves label + image
     const avSchema = {
-      allowed_values: [{ value: { type: 'string', value: 'x' }, display_name: 'X', image: 'x.png' }],
+      allowed_values: [
+        { value: { type: 'string', value: 'x' }, display_name: 'X', image: 'x.png' },
+      ],
     };
     expect(formatOptionValue({ type: 'string', value: 'x' } as never, avSchema as never)).toBe('X');
     expect(getAllowedValueImage('x', avSchema as never)).toBe('x.png');
@@ -471,14 +479,23 @@ describe('getHashEntries', () => {
   it('summarises a schema-definition as the schema name + table count', () => {
     const def = { schema: { name: 'orders_db' }, tables: { orders: {}, lines: {} } };
     expect(
-      formatOptionValue({ type: 'hash', value: def } as never, { ui_type: 'schema-definition' } as never)
+      formatOptionValue(
+        { type: 'hash', value: def } as never,
+        { ui_type: 'schema-definition' } as never
+      )
     ).toBe('orders_db · 2 tables');
     // no tables → name only; no name → generic marker
     expect(
-      formatOptionValue({ type: 'hash', value: { schema: { name: 's' } } } as never, { ui_type: 'schema-definition' } as never)
+      formatOptionValue(
+        { type: 'hash', value: { schema: { name: 's' } } } as never,
+        { ui_type: 'schema-definition' } as never
+      )
     ).toBe('s');
     expect(
-      formatOptionValue({ type: 'hash', value: {} } as never, { ui_type: 'schema-definition' } as never)
+      formatOptionValue(
+        { type: 'hash', value: {} } as never,
+        { ui_type: 'schema-definition' } as never
+      )
     ).toBe('Schema');
   });
 
@@ -536,7 +553,7 @@ describe('getReadFirstCompletion', () => {
   });
 
   it('reports 0% for an empty form', () => {
-    expect(getReadFirstCompletion({})).toEqual({ total: 0, set: 0, pct: 0 });
+    expect(getReadFirstCompletion({})).toEqual({ total: 0, set: 0, done: 0, pct: 0 });
   });
 
   it('rounds the percentage', () => {
@@ -704,7 +721,10 @@ describe('formatOptionValue for a multi-select', () => {
     // a value the server accepts but this schema does not describe must still
     // be visible — silently dropping it would read as "not set"
     expect(
-      formatOptionValue({ type: 'select-array', value: ['PO_REQUIRE_TYPES', 'PO_LEGACY'] } as never, schema)
+      formatOptionValue(
+        { type: 'select-array', value: ['PO_REQUIRE_TYPES', 'PO_LEGACY'] } as never,
+        schema
+      )
     ).toBe('Require Types, PO_LEGACY');
   });
 
@@ -721,9 +741,9 @@ describe('formatOptionValue for a multi-select', () => {
       ],
     } as never;
 
-    expect(formatOptionValue({ type: 'list', value: ['orders', 'batch'] } as never, listSchema)).toBe(
-      'Orders, Batch'
-    );
+    expect(
+      formatOptionValue({ type: 'list', value: ['orders', 'batch'] } as never, listSchema)
+    ).toBe('Orders, Batch');
     // stored as typed envelopes rather than bare strings
     expect(
       formatOptionValue(
@@ -732,17 +752,94 @@ describe('formatOptionValue for a multi-select', () => {
       )
     ).toBe('Orders');
     // a value the list does not describe stays visible
-    expect(formatOptionValue({ type: 'list', value: ['orders', 'other'] } as never, listSchema)).toBe(
-      'Orders, other'
-    );
+    expect(
+      formatOptionValue({ type: 'list', value: ['orders', 'other'] } as never, listSchema)
+    ).toBe('Orders, other');
   });
 
   it('leaves a list with no allowed values alone', () => {
     expect(
-      formatOptionValue({ type: 'list', value: ['one', 'two'] } as never, {
-        type: 'list',
-        element_type: 'string',
-      } as never)
+      formatOptionValue(
+        { type: 'list', value: ['one', 'two'] } as never,
+        {
+          type: 'list',
+          element_type: 'string',
+        } as never
+      )
     ).toBe('one, two');
+  });
+});
+
+describe('the mark beside a chosen option', () => {
+  const kinds = {
+    allowed_values: [
+      { value: { type: 'string', value: 'service' }, display_name: 'Service', icon: 'ServerLine' },
+      {
+        value: { type: 'string', value: 'fsm' },
+        display_name: 'Qog',
+        icon: 'FlowChart',
+        image: '/Qog.svg',
+      },
+      { value: { type: 'string', value: 'plain' }, display_name: 'Plain' },
+    ],
+  };
+
+  /* A picker whose entries are told apart by their ICON showed the mark while
+     choosing and lost it the moment the row went read-only — and read-only is
+     the surface a reader spends the most time on. */
+  it('reads the icon of an option that has one', () => {
+    expect(getAllowedValueIcon('service', kinds as never)).toBe('ServerLine');
+  });
+
+  /* A logo is the more specific mark and the icon behind it is a fallback, not
+     a second thing to draw — so the image path keeps the option and the icon
+     path stands down. */
+  it('stands down for an option that carries a logo', () => {
+    expect(getAllowedValueImage('fsm', kinds as never)).toBe('/Qog.svg');
+    expect(getAllowedValueIcon('fsm', kinds as never)).toBeUndefined();
+  });
+
+  it('reads nothing for an option with no mark, and for no match at all', () => {
+    expect(getAllowedValueIcon('plain', kinds as never)).toBeUndefined();
+    expect(getAllowedValueIcon('nope', kinds as never)).toBeUndefined();
+    expect(getAllowedValueIcon('service', undefined)).toBeUndefined();
+  });
+
+  it('resolves an enum item the same way it resolves an allowed value', () => {
+    const enumSchema = { items: [{ value: 'qore', title: 'Qore', icon: 'CodeLine' }] };
+    expect(getAllowedValueIcon('qore', enumSchema as never)).toBe('CodeLine');
+  });
+});
+
+describe('getReadFirstCompletion with a needs-attention verdict', () => {
+  const OPTIONS = {
+    title: { type: 'string', value: 'Order intake' },
+    cases: { type: 'list', value: [1] },
+    notes: { type: 'string', value: undefined },
+  } as never;
+
+  it('counts a set-but-flagged field as set, and not as done', () => {
+    const result = getReadFirstCompletion(OPTIONS, (name) => name === 'cases');
+    expect(result.total).toBe(3);
+    expect(result.set).toBe(2);
+    expect(result.done).toBe(1);
+    expect(result.pct).toBe(33);
+  });
+
+  /* The bar draws the amber run from `done%` onward and makes it `attention%`
+     wide, so the two runs must fit inside the track together. While `done`
+     counted a flagged field, they did not, and the amber run was clipped away
+     by the meter's own `overflow: hidden` — the outstanding work was invisible
+     precisely when there was some. */
+  it('leaves the attention run room inside the track', () => {
+    const needsAttention = (name: string) => name === 'cases' || name === 'notes';
+    const result = getReadFirstCompletion(OPTIONS, needsAttention);
+    const attention = Object.keys(OPTIONS).filter(needsAttention).length;
+    expect(result.done + attention).toBeLessThanOrEqual(result.total);
+  });
+
+  it('falls back to counting values when no verdict is supplied', () => {
+    const result = getReadFirstCompletion(OPTIONS);
+    expect(result.done).toBe(result.set);
   });
 });

@@ -3,6 +3,7 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
 const queryMock = vi.fn();
 vi.mock('../src/utils/fetch', async (importOriginal) => ({
@@ -10,12 +11,7 @@ vi.mock('../src/utils/fetch', async (importOriginal) => ({
   query: (...args: unknown[]) => queryMock(...args),
 }));
 
-const fetchContext = {
-  get: vi.fn(async () => ({ ok: true, data: [] })),
-  post: vi.fn(async () => ({ ok: true, data: [] })),
-  put: vi.fn(async () => ({ ok: true, data: [] })),
-  del: vi.fn(async () => ({ ok: true, data: [] })),
-};
+const fetchContext = emptyFetchContext();
 
 /**
  * Getting out of an open field without keeping what you typed.

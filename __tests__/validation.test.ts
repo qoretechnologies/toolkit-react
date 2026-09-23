@@ -1271,3 +1271,53 @@ describe('expression with an empty operand slot', () => {
     expect(validateField('expression', value, { expressions: addition })).toBe(true);
   });
 });
+
+// ─── expression: an operand envelope with no `type` ───────────────────────────
+
+describe('expression argument whose envelope carries no type', () => {
+  /* An operand envelope does not always carry a `type`: a raw parse operand
+     widened without a `ui_type`, or a slot reset by a type change, arrives as
+     `{ value }` alone. `_validateField` refuses a missing type outright
+     ("Missing type"), so without the catalogue's declared `ui_type` as the
+     fallback every such operand is reported invalid however right it is — the
+     expression cannot be saved and the message names no field the author can
+     fix. */
+  const optionalInt = [
+    {
+      name: 'maybe-int',
+      min_args: 1,
+      args: [{ name: 'int', display_name: 'Optional value', ui_type: 'int', required: false }],
+    },
+  ] as any[];
+
+  const expression = (arg: unknown) => ({
+    is_expression: true,
+    value: { exp: 'maybe-int', args: [arg] },
+  });
+
+  it('judges it by the type the catalogue declares, so a right value is accepted', () => {
+    expect(
+      validateField('expression', expression({ value: 12 }), { expressions: optionalInt })
+    ).toBe(true);
+  });
+
+  it('still rejects a wrong value, naming the type rather than its absence', () => {
+    const result = validateFieldWithResult('expression', expression({ value: 'twelve' }), {
+      expressions: optionalInt,
+    });
+
+    expect(result.isValid).toBe(false);
+    expect(result.reason ?? '').toContain('argument 1');
+    expect(result.reason ?? '').toContain('integer');
+  });
+
+  it('prefers the operand\'s own type when it has one', () => {
+    // The catalogue's type is the FALLBACK. An operand stored as a string —
+    // a template, say — is judged as the string it is, not against the slot.
+    expect(
+      validateField('expression', expression({ type: 'string', value: 'twelve' }), {
+        expressions: optionalInt,
+      })
+    ).toBe(true);
+  });
+});
