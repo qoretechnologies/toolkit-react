@@ -8964,3 +8964,59 @@ export const CompactTextRowOpensItsTextBox: Story = {
     expect(document.querySelector('.reqraft-select-dialog')).toBeNull();
   },
 };
+
+/** The reported case behind the object-value preview: the Qog variables editor,
+ *  read-only, with a data-provider variable selected. Its "Initial value" row
+ *  used to read `11 fields` — a count that looks like a string and says nothing
+ *  about WHICH provider the value is. */
+const ReadOnlyDataProviderSchema = {
+  name: { type: 'string', ui_type: 'string', display_name: 'Name' },
+  value: { type: 'data-provider', ui_type: 'data-provider', display_name: 'Initial value' },
+} as never;
+
+const ReadOnlyDataProviderValue = {
+  name: { type: 'string', value: 'var2' },
+  value: {
+    type: 'data-provider',
+    value: {
+      type: 'datasource',
+      name: 'omquser',
+      transaction_management: true,
+      path: '/bb_local',
+      supports_read: true,
+      descriptions: ['Record-based data provider for db table `public.bb_local`'],
+    },
+  },
+} as never;
+
+export const CompactReadOnlyDataProvider: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A read-only row whose value is a data provider names it — "datasource · omquser · /bb_local", the kind, the name and the path as the picker shows them — instead of counting its keys ("11 fields", which read as a string that happened to say "fields"). The keys themselves sit one disclosure away in the same structured preview a hash row has. The string row beside it stays one line: the preview follows the shape of the value, not the read mode.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    readOnly: true,
+    name: 'variable',
+    options: ReadOnlyDataProviderSchema,
+    value: ReadOnlyDataProviderValue,
+  },
+  play: async () => {
+    await _testsWaitForText('datasource · omquser · /bb_local');
+    const row = (name: string) =>
+      document.querySelector(`.readfirst-row[data-field="${name}"]`) as HTMLElement;
+    // The summary names the provider; the count is gone.
+    expect(row('value').textContent).not.toContain('fields');
+    // Its keys are one disclosure away, as they are for a hash.
+    await waitFor(() =>
+      expect(row('value').querySelector('.options-readfirst-structured')).toBeTruthy()
+    );
+    expect(row('value').textContent).toContain('bb_local');
+    // The counterweight: a scalar row gets no preview.
+    expect(row('name').querySelector('.options-readfirst-structured')).toBeNull();
+  },
+};

@@ -11,6 +11,7 @@ import {
   colorToCss,
   formatBytes,
   formatColorValue,
+  formatDataProviderValue,
   formatFileValue,
   formatOptionValue,
   getAllowedValueIcon,
@@ -124,6 +125,38 @@ describe('formatOptionValue', () => {
   it('formats booleans as Yes / No', () => {
     expect(formatOptionValue({ type: 'bool', value: true })).toBe('Yes');
     expect(formatOptionValue({ type: 'bool', value: false })).toBe('No');
+  });
+
+  it('names a data provider instead of counting its keys', () => {
+    // The variables editor showed "11 fields" for a datasource provider — a
+    // count that read as a string and said nothing about WHICH provider.
+    const provider = {
+      type: 'datasource',
+      name: 'omquser',
+      transaction_management: true,
+      record_requires_search_options: false,
+      path: '/bb_local',
+      supports_read: true,
+      supports_update: true,
+      supports_create: true,
+      supports_delete: true,
+      supports_messages: 'NONE',
+      descriptions: ['Record-based data provider for db table `public.bb_local`'],
+    };
+    expect(formatOptionValue({ type: 'data-provider', value: provider })).toBe(
+      'datasource · omquser · /bb_local'
+    );
+    // Without a path the line is the kind and the name; a provider with no
+    // recognisable shape falls back to the field count rather than to nothing.
+    expect(formatDataProviderValue({ type: 'factory', name: 'wsclient' })).toBe(
+      'factory · wsclient'
+    );
+    expect(formatDataProviderValue({ foo: 1 })).toBeUndefined();
+    expect(formatOptionValue({ type: 'data-provider', value: { foo: 1, bar: 2 } })).toBe(
+      '2 fields'
+    );
+    // A plain hash keeps its count: that row has the structured preview to say more.
+    expect(formatOptionValue({ type: 'hash', value: { a: 1, b: 2 } })).toBe('2 fields');
   });
 
   // Security: a sensitive option (password/token) must never leak its value
