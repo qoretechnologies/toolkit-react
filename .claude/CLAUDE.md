@@ -307,7 +307,7 @@ yarn build:test         # Type-check without emit
 | `src/components/form/` | Form field components |
 | `src/components/log/` | Log display component |
 | `src/components/menu/` | Navigation menu component |
-| `src/tracking/` | First-party tracking, consent and A/B testing (`core/` no DOM, `browser/`, `react/`); how-to in `design/TRACKING.md` |
+| `src/tracking/` | First-party tracking, consent and A/B testing (`core/` no DOM, `browser/`, `react/`, and `ui/`: the A/B test card and overlay on Reqore); how-to in `design/TRACKING.md` |
 | `src/types/` | Shared TypeScript types |
 | `__tests__/` | Vitest unit tests (jsdom) |
 

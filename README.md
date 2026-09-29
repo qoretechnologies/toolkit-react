@@ -166,7 +166,7 @@ const tracking = createBrowserTracker({
 </TrackingProvider>;
 ```
 
-`@qoretechnologies/reqraft/dist/tracking` loads nothing else from Reqraft; the same names are exported from the package root. Config, consent, `useExperiment`, `trackClick` / `trackSection` markup, `createMemoryTracker` for tests and the server contract: [design/TRACKING.md](design/TRACKING.md).
+`@qoretechnologies/reqraft/dist/tracking` loads nothing else from Reqraft; the same names are exported from the package root. The A/B test UI every product shows (`<ExperimentsOverlay>`, `<ExperimentCard>`, `useExperimentsAdmin`) is in `@qoretechnologies/reqraft/dist/tracking/ui`. Config, consent, `useExperiment`, `trackClick` / `trackSection` markup, `createMemoryTracker` for tests and the server contract: [design/TRACKING.md](design/TRACKING.md).
 
 Clients on the same LSP endpoint share ONE underlying WebSocket — each `ReqraftLspClient` is a per-document facade over the shared connection, multiplexed by document URI (the server keys language sessions per document), so N editors cost one socket. Auto-reconnect re-opens every document on the shared socket, 15s request timeout, request/response correlation by `id`, pending requests rejected on close. A `connect()` never outlives its socket: once the socket exhausts `maxReconnectTries`, a handshake still waiting rejects, and the next `connect()` — from that client or any other — dials again, so an editor opened after an outage connects once the server is back, without a page reload. Document URIs should be opaque and client-generated — per the Qonsole LSP contract they must not contain session tokens, usernames, sandbox identifiers, or other secrets that end up in server logs.
 

@@ -49,7 +49,7 @@ The module has three layers, and each only imports the ones above it:
 | browser | `src/tracking/browser/` | the only code that touches `window` / `document`: transport (`sendBeacon` → `fetch` keepalive), storage, listeners, `IntersectionObserver` on sections, delegated clicks |
 | react | `src/tracking/react/` | `<TrackingProvider>`, `useTracker`, `useConsent`, `useExperiment`, `<Experiment>` |
 
-Plus `markup.ts` (`trackClick`, `trackSection`) and `testing.ts` (`createMemoryTracker`).
+Plus `markup.ts` (`trackClick`, `trackSection`) and `testing.ts` (`createMemoryTracker`). The A/B test UI (the card and the overlay, on Reqore) is a fourth layer, `src/tracking/ui/`, with its own entry (§8); the engine never imports it.
 
 ## 3. Configure one tracker per app
 
@@ -208,3 +208,71 @@ Options: `config` (any config field; `property` defaults to `test`), `consent`, 
 Unit tests: `__tests__/tracking/` (hashing vectors, assignment, consent gating, batching,
 sections, page views, sign-up links, concluded winners, the in-app switch, product config,
 the React bindings, and the layer rules).
+
+## 8. The A/B test UI: embed the overlay
+
+The same A/B test controls every product shows, built on Reqore, in their own entry so the engine
+stays light:
+
+```ts
+import { ExperimentsOverlay, ExperimentCard, useExperimentsAdmin } from '@qoretechnologies/reqraft/dist/tracking/ui';
+```
+
+| Export | What |
+|---|---|
+| `<ExperimentsOverlay>` | Finds every `<Experiment>` on the page (its `data-experiment` marker) and draws a dashed outline and an "A/B test · <name>" handle at its corner. Hover, keyboard focus or a click opens the test's card, anchored to the element: it scrolls and resizes with it and flips above or below the handle to stay in view. ✕, Esc and a click outside close it. An ended test shows "Winner live · code clean-up pending" instead. |
+| `<ExperimentCard>` | One test: name, status tag and ✕; the verdict; one row per version (visitors, conversion, chance to beat the original, a bar, "Shown" / "Original" tags; the whole row shows that version, Enter / Space too; minimal Accept, Remove at the far end); the footer's optional "Open in …" link and Start / Resume (solid), Pause, Stop. N versions: past three and a half rows the list scrolls inside the card. Every action asks first (Reqore's confirm dialog) and notifies what happened. |
+| `useExperimentsAdmin(options)` | Optional: the list and the actions from the qorus-api routes. |
+| `createExperimentsAdminClient(options)` | The same without React. |
+| `placeCard`, `cardReducer`, `versionRows`, `verdictLine`, `versionsMaxHeight`, … | The plain logic behind them, for tests and custom UIs. |
+
+Both components are driven by props only: the data is the qorus-api editor / admin list (an array of
+`{ experiment, results }`: the admin experiment object with `status`, `variants`, `phase`,
+`phases`, `history`, `winner`, and the results object with `verdict_text` and the per-metric
+numbers), and every action is a callback that may return a promise (the button shows busy until it
+settles, and a rejection's message is shown). An action whose callback is not given does not
+appear. Neither makes a request of its own.
+
+```tsx
+import { ExperimentsOverlay, useExperimentsAdmin } from '@qoretechnologies/reqraft/dist/tracking/ui';
+
+const AbTestsLayer = ({ visible }: { visible: boolean }) => {
+  const admin = useExperimentsAdmin({
+    listUrl: '/qorus-cloud/editor/experiments?property=ide', // actions go to …/experiments/<key>/<action>
+    headers: { Authorization: `Bearer ${editorToken}` },      // or leave it to a proxy
+    enabled: visible,
+  });
+  return (
+    <ExperimentsOverlay
+      visible={visible}                     // the product's "hide editor elements"
+      tests={admin.tests}
+      loadError={admin.error}
+      onAccept={admin.accept}
+      onRemove={admin.remove}
+      onStart={admin.start}
+      onPause={admin.pause}
+      onStop={admin.stop}
+      detailsUrl={(key) => `${ADMIN_PORTAL}/analytics?dashboard=tracking&experiment=${key}`}
+      actorLabels={{ 'ide-editor': 'in the IDE' }}
+      topInset={() => document.querySelector('header')?.getBoundingClientRect().bottom ?? 0}
+    />
+  );
+};
+```
+
+- Mount it inside `<TrackingProvider>`: then clicking a version's row uses the tracker's in-app
+  switch (`tracker.experiments.setEditorOverride`, this browser only, never logged), and after
+  an action the page shows what visitors see now (the switch is cleared and the tracker reloads
+  the definitions). Pass `onShow` / `onSettled` to do something else.
+- `exclude` (a selector) skips markers inside the product's own UI (e.g. its preview frames);
+  markers inside the overlay itself are always skipped.
+- The same overlay works inside a phone-preview iframe: mount it in the frame's page too. The
+  switch is shared through `localStorage`, so both follow it.
+- `useExperimentsAdmin` reloads the list every minute (`refreshMs`) and after every action; its
+  errors explain a 401 / 403 as a missing or wrong key. `actionUrl` and `createUrl` change the
+  routes; `fetch` replaces the transport.
+- The card on its own: `<ExperimentCard experimentKey="signup-cta" test={entry} shown="a" codeVariants={['a', 'b']} onShow={…} onAccept={…} … />`.
+
+Stories: `Tracking/Experiment Card` (draft, running with two and five versions, paused, concluded,
+no data yet, not on the server, the confirm step on Remove) and `Tracking/Experiments Overlay`
+(anchored, flipped above near the bottom, hidden), each in dark, light and phone.
