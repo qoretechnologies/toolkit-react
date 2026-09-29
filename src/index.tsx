@@ -77,3 +77,6 @@ export * from './components/ticketThread';
 export * from './components/ticketReferences';
 export * from './components/searchFilterBar';
 export * from './components/codeSize';
+// First-party tracking, consent and A/B testing (design/TRACKING.md). Also importable
+// on its own, without the rest of Reqraft: `@qoretechnologies/reqraft/dist/tracking`.
+export * from './tracking';

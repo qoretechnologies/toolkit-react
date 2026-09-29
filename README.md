@@ -148,6 +148,26 @@ client.onNotification('qonsole/sessionStateChanged', (params) => { /* … */ });
 client.disconnect();
 ```
 
+## Tracking, consent and A/B testing
+
+First-party analytics with a consent gate and client-side A/B testing, for any Qore web app. The core is plain TypeScript with no DOM, the browser layer attaches the listeners, and the React bindings sit on top. Everything product-specific comes in through config; the server keeps each product's data separate by `property`.
+
+```tsx
+import { createBrowserTracker, Experiment, TrackingProvider } from '@qoretechnologies/reqraft/dist/tracking';
+
+const tracking = createBrowserTracker({
+  property: 'ide',
+  endpoint: '/qorus-cloud/collect',
+  experimentsEndpoint: '/qorus-cloud/experiments',
+});
+
+<TrackingProvider tracker={tracking.tracker} attach={tracking.attach} location={pathname + search}>
+  <Experiment id='signup-cta' variants={{ a: <Current />, b: <New /> }} />
+</TrackingProvider>;
+```
+
+`@qoretechnologies/reqraft/dist/tracking` loads nothing else from Reqraft; the same names are exported from the package root. Config, consent, `useExperiment`, `trackClick` / `trackSection` markup, `createMemoryTracker` for tests and the server contract: [design/TRACKING.md](design/TRACKING.md).
+
 Clients on the same LSP endpoint share ONE underlying WebSocket — each `ReqraftLspClient` is a per-document facade over the shared connection, multiplexed by document URI (the server keys language sessions per document), so N editors cost one socket. Auto-reconnect re-opens every document on the shared socket, 15s request timeout, request/response correlation by `id`, pending requests rejected on close. A `connect()` never outlives its socket: once the socket exhausts `maxReconnectTries`, a handshake still waiting rejects, and the next `connect()` — from that client or any other — dials again, so an editor opened after an outage connects once the server is back, without a page reload. Document URIs should be opaque and client-generated — per the Qonsole LSP contract they must not contain session tokens, usernames, sandbox identifiers, or other secrets that end up in server logs.
 
 ## Community
