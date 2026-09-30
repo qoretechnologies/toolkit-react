@@ -105,38 +105,65 @@ const soft = (intent: TTagIntent) => ({ intent, appearance: 'soft' as const });
 type THighlight = 'winner' | 'leading' | undefined;
 
 const ROW_GAP = 6;
+/** Below this width (the versions list, px) the footer's link drops its words for its icon. */
+const NARROW_CARD = 400;
 /** Room around the rows for the leader's glow, taken from the card's own padding. */
 const GLOW_ROOM = 6;
 
 /**
- * The leading version, and more so the winner: a glow in the success colour around the row and
- * a wash of it from the left. Static (nothing animates), drawn over the row without taking the
- * pointer, and in the theme's own success colour, so it reads on dark and light.
+ * How a version's row stands out, drawn around and over the row without taking the pointer:
+ *
+ * - the version this page shows: an inset ring and a flat wash in the info colour (the row itself
+ *   keeps no intent, so its actions stay neutral);
+ * - the leading version: a ring and a soft glow in the success colour, and a wash from the left;
+ * - the winner (a likely-winner verdict or an ended test's winner): the same, clearly stronger.
+ *
+ * Static (nothing animates, so there is nothing for reduced motion to stop), and in the theme's
+ * own intent colours, so it reads on dark and light.
  */
-const StyledVersion = styled.div<{ $highlight: THighlight; $color: string; $radius: number }>`
+const StyledVersion = styled.div<{
+  $highlight: THighlight;
+  $shown: boolean;
+  $success: string;
+  $info: string;
+  $radius: number;
+}>`
   position: relative;
   border-radius: ${({ $radius }) => $radius}px;
-  ${({ $highlight, $color }) =>
-    $highlight === 'winner' ?
-      `box-shadow: 0 0 0 1px ${rgba($color, 0.9)}, 0 0 14px ${rgba($color, 0.45)};`
-    : $highlight === 'leading' ?
-      `box-shadow: 0 0 0 1px ${rgba($color, 0.45)}, 0 0 8px ${rgba($color, 0.2)};`
-    : ''}
+  box-shadow: ${({ $highlight, $success }) =>
+    [
+      $highlight === 'winner' ?
+        `0 0 0 1px ${rgba($success, 0.95)}, 0 0 18px ${rgba($success, 0.4)}`
+      : null,
+      $highlight === 'leading' ?
+        `0 0 0 1px ${rgba($success, 0.5)}, 0 0 10px ${rgba($success, 0.18)}`
+      : null,
+    ]
+      .filter(Boolean)
+      .join(', ') || 'none'};
 
-  ${({ $highlight, $color }) =>
-    $highlight ?
-      `&::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        border-radius: inherit;
-        pointer-events: none;
-        background: linear-gradient(100deg, ${rgba($color, $highlight === 'winner' ? 0.24 : 0.12)} 0%, ${rgba(
-          $color,
-          $highlight === 'winner' ? 0.08 : 0.04
-        )} 45%, ${rgba($color, 0)} 75%);
-      }`
-    : ''}
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    /* The shown version's ring sits over the row (an inset shadow on the wrapper would be
+       painted under the row's own background). */
+    box-shadow: ${({ $shown, $info }) => ($shown ? `inset 0 0 0 1px ${rgba($info, 0.85)}` : 'none')};
+    background: ${({ $highlight, $shown, $success, $info }) =>
+      [
+        $highlight ?
+          `linear-gradient(100deg, ${rgba($success, $highlight === 'winner' ? 0.26 : 0.13)} 0%, ${rgba(
+            $success,
+            $highlight === 'winner' ? 0.08 : 0.04
+          )} 45%, ${rgba($success, 0)} 75%)`
+        : null,
+        $shown ? `linear-gradient(${rgba($info, 0.1)}, ${rgba($info, 0.1)})` : null,
+      ]
+        .filter(Boolean)
+        .join(', ') || 'none'};
+  }
 `;
 
 // Layout only: the versions scroll inside the card past three and a half rows.
@@ -203,6 +230,16 @@ export const ExperimentCard = ({
   const confirmAction = useReqoreProperty('confirmAction');
   const addNotification = useReqoreProperty('addNotification');
   const theme = useReqoreTheme();
+  // The card's own width, not the window's: it lives in a narrow overlay on a wide page.
+  const [narrow, setNarrow] = useState(false);
+  const versionsList = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = versionsList.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => setNarrow(el.offsetWidth < NARROW_CARD));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const light = (() => {
     try {
       return getLuminance(theme.main) > 0.5;
@@ -338,11 +375,14 @@ export const ExperimentCard = ({
   };
 
   const footer: IReqorePanelBottomAction[] = [];
-  if (detailsUrl) {
+  // A test the analytics service does not know has no analytics to open.
+  if (detailsUrl && entry) {
     footer.push({
       position: 'left',
       icon: 'ExternalLinkLine',
-      label: detailsLabel,
+      // In a narrow card it is the icon alone (with its tooltip and name), so the footer fits one row.
+      label: narrow ? undefined : detailsLabel,
+      'aria-label': detailsLabel,
       responsive: false,
       ...quiet(),
       tooltip: 'This test’s details (a new tab)',
@@ -457,6 +497,7 @@ export const ExperimentCard = ({
       </ReqoreP>
       <ReqoreVerticalSpacer height={6} />
       <StyledVersions
+        ref={versionsList}
         $max={listMax}
         role='list'
         aria-label='Versions'
@@ -486,14 +527,6 @@ export const ExperimentCard = ({
               icon: 'BarChartBoxLine',
               label: 'Show analytics',
               ...quiet(),
-              // Neutral: the card's own surface, not the tint of the row it sits on (the shown row is blue).
-              customTheme: { main: theme.main },
-              ...(light ?
-                {
-                  effect: { color: 'main:darken:25' as const, weight: 'thick' as const },
-                  iconColor: 'main:darken:25' as const,
-                }
-              : {}),
               tooltip: `Show analytics for “${r.name}” (a new tab)`,
               'aria-label': `Show analytics for ${r.name}`,
               onClick: () => window.open(analytics, '_blank', 'noopener'),
@@ -542,14 +575,15 @@ export const ExperimentCard = ({
               data-highlight={highlight}
               aria-current={isShown || undefined}
               $highlight={highlight}
-              $color={theme.intents?.success ?? '#4a7110'}
+              $shown={isShown}
+              $success={theme.intents?.success}
+              $info={theme.intents?.info}
               $radius={RADIUS_FROM_SIZE.small}
             >
               <ReqoreEntityRow
                 size='small'
                 rounded
-                flat={!isShown}
-                intent={isShown ? 'info' : undefined}
+                flat
                 label={r.name}
                 badge={badges}
                 description={numbersLine(r, metric?.name, status)}

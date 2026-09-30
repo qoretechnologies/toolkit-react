@@ -225,10 +225,11 @@ const notSetUp: Story = {
       )
     ).toBe(false);
     await expect(c.queryByLabelText(/Show analytics/)).toBeNull();
+    await expect(buttonWith(canvasElement, 'Open in admin portal')).toBeFalsy();
   },
 };
 const NOT_SET_UP_TEXT =
-  'Renders a test that is in the page\'s code but not registered in the analytics service yet: the "Not set up" tag, the words "ask the Designer to set it up", its versions from the code (switchable, without numbers), and no Accept, Remove, analytics or lifecycle buttons.';
+  'Renders a test that is in the page\'s code but not registered in the analytics service yet: the "Not set up" tag, the words "ask the Designer to set it up", its versions from the code (switchable, without numbers), and no Accept, Remove, analytics links or lifecycle buttons.';
 export const NotSetUp = variant(notSetUp, NOT_SET_UP_TEXT, 'Dark');
 export const NotSetUpLight = variant(notSetUp, NOT_SET_UP_TEXT, 'Light');
 export const NotSetUpPhone = variant(notSetUp, NOT_SET_UP_TEXT, 'Phone');
