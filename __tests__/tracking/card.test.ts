@@ -16,6 +16,9 @@ import {
   versionRows,
   versionsMaxHeight,
   winnerNote,
+  sortVersionRows,
+  leadingVersion,
+  helpSections,
 } from '../../src/tracking/ui/card';
 import { createExperimentsAdminClient, ExperimentsAdminError } from '../../src/tracking/ui/client';
 import type { IExperimentEntry as IEditorEntry } from '../../src/tracking/ui/types';
@@ -100,7 +103,9 @@ describe('verdictLine', () => {
     expect(verdictLine(entry())).toBe('Too early to tell.');
     expect(verdictLine(entry({ status: 'draft' }, null))).toBe('Not started yet: press Start test to split visitors between the versions.');
     expect(verdictLine(entry({ status: 'concluded', winner: 'b' }))).toBe('Finished: Problem wizard won, and every visitor now sees it.');
-    expect(verdictLine(undefined)).toMatch(/not set up on the server yet/);
+    expect(verdictLine(undefined)).toMatch(/in the page's code but isn't set up yet: ask the Designer/);
+    expect(verdictLine(undefined, { unreachable: true })).toMatch(/Can't reach the analytics service/);
+    expect(verdictLine(undefined, { notSetUpText: 'Ask ops.' })).toBe('Ask ops.');
   });
 });
 
@@ -128,7 +133,8 @@ describe('bars, verdict colour and status tag', () => {
     expect(verdictIntent(undefined)).toBe('muted');
     expect(statusTag(entry({ phase: 2 }))).toMatchObject({ label: 'Running · phase 2', intent: 'success' });
     expect(statusTag(entry({ status: 'draft' }, null)).label).toBe('Draft');
-    expect(statusTag(undefined).label).toBe('Not on the server');
+    expect(statusTag(undefined).label).toBe('Not set up');
+    expect(statusTag(undefined, true)).toMatchObject({ label: 'No connection', intent: 'warning' });
   });
 });
 
@@ -298,5 +304,59 @@ describe('the admin client', () => {
     const err = await createExperimentsAdminClient({ listUrl: LIST, fetch: r.doFetch }).remove('hero-input', 'a').catch((e) => e);
     expect(err).toBeInstanceOf(ExperimentsAdminError);
     expect(err).toMatchObject({ status: 409, code: 'last-variant', message: '"hero-input" has only one version' });
+  });
+});
+
+describe('order and the leader', () => {
+  const five = entry(
+    {
+      variants: ['a', 'b', 'c', 'd'].map((key, i) => ({ key, name: `V${key}`, weight: 0.25, control: i === 0 })),
+    },
+    {
+      metrics: [
+        {
+          key: 'goal',
+          name: 'Goal',
+          role: 'primary',
+          variants: [
+            { variant: 'a', exposed: 100, converters: 10, rate: 0.1, chance_to_beat: null },
+            { variant: 'b', exposed: 100, converters: 15, rate: 0.15, chance_to_beat: 0.8 },
+            { variant: 'c', exposed: 300, converters: 30, rate: 0.1, chance_to_beat: 0.5 },
+          ],
+        },
+      ],
+    }
+  );
+
+  it('sorts best conversion first, ties by visitors, versions without numbers last in their order', () => {
+    expect(sortVersionRows(versionRows(five, [])).map((r) => r.key)).toEqual(['b', 'c', 'a', 'd']);
+  });
+
+  it('marks the best-converting version as leading, and nobody on a tie or without numbers', () => {
+    expect(leadingVersion(five, versionRows(five, []))).toEqual({ key: 'b', kind: 'leading' });
+    const tie = versionRows(five, []).map((r) => (r.key === 'b' ? { ...r, conversion: 0.1 } : r));
+    expect(leadingVersion(five, tie)).toBeNull();
+    expect(leadingVersion(undefined, versionRows(undefined, ['a', 'b']))).toBeNull();
+  });
+
+  it('names a winner for a likely-winner verdict or an ended test', () => {
+    const likely = entry({}, { verdict: 'likely-winner', winner_variant: 'b' });
+    expect(leadingVersion(likely, versionRows(likely, []))).toEqual({ key: 'b', kind: 'winner' });
+    const ended = entry({ status: 'concluded', winner: 'a' });
+    expect(leadingVersion(ended, versionRows(ended, []))).toEqual({ key: 'a', kind: 'winner' });
+  });
+});
+
+describe('the help', () => {
+  it('explains the buttons, the split, the numbers, the too-early rule and a test that is not set up', () => {
+    const text = JSON.stringify(helpSections(entry({ min_sample: { per_variant: 500, days: 14 }, traffic: 0.5 })));
+    expect(text).toMatch(/Accept ends the test/);
+    expect(text).toMatch(/Remove \(the bin icon\)/);
+    expect(text).toMatch(/Pause shows everyone the original/);
+    expect(text).toMatch(/50% of the visitors who allow analytics/);
+    expect(text).toMatch(/Chance to beat the original/);
+    expect(text).toMatch(/at least 500 visitors and 14 days/);
+    expect(text).toMatch(/Not set up yet/);
+    expect(JSON.stringify(helpSections(undefined))).toMatch(/at least 200 visitors and 7 days/);
   });
 });

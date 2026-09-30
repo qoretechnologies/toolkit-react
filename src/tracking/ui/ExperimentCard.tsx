@@ -1,6 +1,8 @@
 import {
   ReqoreCallout,
   ReqoreEntityRow,
+  ReqoreH4,
+  ReqoreModal,
   ReqoreP,
   ReqorePanel,
   ReqoreProgress,
@@ -17,6 +19,7 @@ import { getLuminance } from 'polished';
 import {
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -32,10 +35,13 @@ import {
   canStart,
   canStop,
   confirmCopy,
+  helpSections,
+  leadingVersion,
   lifecycleCopy,
   numbersLine,
   phaseNote,
   primaryMetric,
+  sortVersionRows,
   statusTag,
   verdictIntent,
   verdictLine,
@@ -53,18 +59,26 @@ export interface IExperimentCardProps {
   test?: IExperimentEntry | null;
   /** The card's title. Default: the experiment's name, else its key. */
   name?: string;
-  /** The version this page shows now: its row is marked "Shown". */
+  /** The version this page shows now: its row takes the info colour (and `aria-current`). */
   shown?: string;
   /** The versions the page's code renders (`data-variants`); a server version outside it cannot be shown. */
   codeVariants?: string[];
   /** The room the card has (px): the versions scroll inside when it is short. */
   maxHeight?: number;
-  /** Why the numbers could not be loaded. */
+  /** Why the list could not be loaded (the analytics service cannot be reached). */
   loadError?: string | null;
   /** An "Open in …" link at the start of the footer (a new tab). */
   detailsUrl?: string | null;
   /** The link's label. Default `Open in admin portal`. */
   detailsLabel?: string;
+  /** One version's analytics (a new tab): a "Show analytics" action on each row; none without it. */
+  versionDetailsUrl?: (variant: string) => string | null | undefined;
+  /** Where the full analytics live, in the help's words. Default `the admin portal`. */
+  analyticsLabel?: string;
+  /** Best first (conversion on the primary metric, then visitors). Default true. */
+  sort?: boolean;
+  /** The words for a test that is in the page's code but not set up in the analytics service yet. */
+  notSetUpText?: string;
   /** Who removed a version, in words, by the history's `actor` (`{ 'landing-editor': 'in the editor' }`). */
   actorLabels?: Record<string, string>;
   /** Asks before Accept, Remove, Start, Pause and Stop (Reqore's confirm dialog). Default true. */
@@ -133,6 +147,10 @@ export const ExperimentCard = ({
   loadError,
   detailsUrl,
   detailsLabel = 'Open in admin portal',
+  versionDetailsUrl,
+  analyticsLabel = 'the admin portal',
+  sort = true,
+  notSetUpText,
   actorLabels,
   confirm = true,
   notify = true,
@@ -156,6 +174,7 @@ export const ExperimentCard = ({
     }
   })();
   const [busy, setBusy] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [rowHeight, setRowHeight] = useState(0);
   const firstRow = useRef<HTMLDivElement>(null);
   const mounted = useRef(true);
@@ -166,12 +185,25 @@ export const ExperimentCard = ({
     []
   );
 
-  const rows = versionRows(entry, codeVariants);
+  const unreachable = !entry && !!loadError;
+  const codeKey = codeVariants.join(',');
+  // The order is decided when the data arrives (a refresh), never while the user works in the card.
+  const order = useMemo(() => {
+    const all = versionRows(entry, codeVariants);
+    return (sort ? sortVersionRows(all) : all).map((r) => r.key);
+    // `codeVariants` is followed by its keys, not its identity.
+  }, [entry, codeKey, sort]);
+  const unsorted = versionRows(entry, codeVariants);
+  const rows = order
+    .map((key) => unsorted.find((r) => r.key === key))
+    .filter(Boolean)
+    .concat(unsorted.filter((r) => !order.includes(r.key)));
+  const leader = leadingVersion(entry, rows);
   const bars = barValues(rows);
   const metric = primaryMetric(entry?.results);
   const status = entry?.experiment.status;
   const title = name || entry?.experiment.name || experimentKey;
-  const tag = statusTag(entry);
+  const tag = statusTag(entry, unreachable);
   const note = phaseNote(entry, actorLabels);
   const busyOn = (action: string, variant = '') => busy === `${action}:${variant}`;
 
@@ -189,10 +221,13 @@ export const ExperimentCard = ({
   }, []);
 
   // Minimal buttons tint their text from the intent, too pale on a light theme: a deeper shade there.
-  const quiet = (intent?: 'success' | 'warning' | 'danger') => ({
+  const quiet = (intent?: 'success' | 'warning' | 'danger' | 'info') => ({
     minimal: true,
     ...(light && intent ?
-      { effect: { color: `${intent}:darken:2` as const, weight: 'thick' as const } }
+      {
+        effect: { color: `${intent}:darken:2` as const, weight: 'thick' as const },
+        iconColor: `${intent}:darken:2` as const,
+      }
     : {}),
   });
 
@@ -348,18 +383,26 @@ export const ExperimentCard = ({
       onClose={onClose}
       closeTooltip='Close (Esc)'
       closeButtonProps={{ 'aria-label': 'Close the test card', minimal: true } as never}
+      actions={[
+        {
+          icon: 'QuestionLine',
+          minimal: true,
+          flat: true,
+          tooltip: 'How A/B tests work',
+          'aria-label': 'How A/B tests work',
+          onClick: () => setHelpOpen(true),
+        } as never,
+      ]}
       bottomActions={footer.length ? footer : undefined}
     >
       <ReqoreCallout
         size='small'
         flat
         icon='LineChartLine'
-        intent={loadError && !entry ? 'warning' : verdictIntent(entry)}
+        intent={unreachable ? 'warning' : verdictIntent(entry)}
         effect={{ weight: 500 }}
       >
-        {loadError && !entry ?
-          `Could not load the test's numbers: ${loadError}`
-        : verdictLine(entry)}
+        {verdictLine(entry, { unreachable, notSetUpText })}
       </ReqoreCallout>
       {note && (
         <>
@@ -383,13 +426,31 @@ export const ExperimentCard = ({
         {rows.map((r, i) => {
           const isShown = r.key === shown;
           const badges: TReqoreBadge[] = [];
-          if (isShown) badges.push({ label: 'Shown', icon: 'EyeLine', effect: solid('info') });
+          if (leader?.key === r.key) {
+            badges.push(
+              leader.kind === 'winner' ?
+                { label: 'Winner', icon: 'TrophyLine', effect: solid('success') }
+              : { label: 'Leading', icon: 'ArrowUpLine', effect: solid('success') }
+            );
+          }
           if (r.control) badges.push({ label: 'Original', icon: 'HomeLine' });
           if (!r.inCode)
             badges.push({ label: 'Not in the code', icon: 'AlertLine', effect: solid('warning') });
           // The whole row shows its version; Accept and Remove stop the click (Reqore's row actions do).
           const showable = !!onShow && r.inCode && !isShown;
           const actions: IReqoreEntityRowAction[] = [];
+          const analytics = entry ? versionDetailsUrl?.(r.key) : null;
+          if (analytics) {
+            actions.push({
+              size: 'small',
+              icon: 'BarChartBoxLine',
+              intent: 'info',
+              ...quiet('info'),
+              tooltip: `Show analytics for “${r.name}” (a new tab)`,
+              'aria-label': `Show analytics for ${r.name}`,
+              onClick: () => window.open(analytics, '_blank', 'noopener'),
+            } as IReqoreEntityRowAction);
+          }
           if (entry && onAccept) {
             actions.push({
               size: 'small',
@@ -411,16 +472,18 @@ export const ExperimentCard = ({
               size: 'small',
               icon: 'DeleteBinLine',
               intent: 'danger',
-              label: 'Remove',
               ...quiet('danger'),
+              'aria-label': `Remove version ${r.name}`,
               // At the far end of the row, away from Accept, so it is not clicked by accident.
               style: { marginLeft: 'auto' },
               disabled: !remove || !!busy,
               loading: busyOn('remove', r.key),
               tooltip:
-                remove ? `Drop “${r.name}” from the test` : 'This version cannot be removed now',
+                remove ?
+                  `Remove version: drop “${r.name}” from the test`
+                : 'This version cannot be removed now',
               onClick: () => act('remove', r.key),
-            });
+            } as IReqoreEntityRowAction);
           }
           return (
             <div
@@ -482,10 +545,37 @@ export const ExperimentCard = ({
         <>
           <ReqoreVerticalSpacer height={8} />
           <ReqoreP size='small' effect={{ opacity: 0.7 }}>
-            Start, Accept and Remove appear once the test is set up on the server.
+            {unreachable ?
+              'Start, Accept and Remove come back once the analytics service answers.'
+            : 'Start, Accept and Remove appear once the test is set up.'}
           </ReqoreP>
         </>
       )}
+      <ReqoreModal
+        isOpen={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        label='How A/B tests work'
+        icon='QuestionLine'
+        width='640px'
+        blur={2}
+        className='reqraft-experiment-help'
+      >
+        {helpSections(entry, analyticsLabel).map((section) => (
+          <div key={section.title}>
+            <ReqoreH4>{section.title}</ReqoreH4>
+            <ReqoreVerticalSpacer height={4} />
+            {section.paragraphs.map((text) => (
+              <div key={text}>
+                <ReqoreP size='small' effect={{ weight: 500 }}>
+                  {text}
+                </ReqoreP>
+                <ReqoreVerticalSpacer height={6} />
+              </div>
+            ))}
+            <ReqoreVerticalSpacer height={14} />
+          </div>
+        ))}
+      </ReqoreModal>
     </ReqorePanel>
   );
 };

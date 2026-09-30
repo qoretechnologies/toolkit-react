@@ -203,7 +203,7 @@ Options: `config` (any config field; `property` defaults to `test`), `consent`, 
 `start` (the clock), `seed` (localStorage before the tracker starts). In a story, pass
 `m.tracker` to `<TrackingProvider>` without `attach`; seed the experiments cache
 (`KEYS.experimentsCache`) so the first render already has the definitions — see
-`src/tracking/react/Experiment.stories.tsx`.
+`src/tracking/ui/ExperimentsOverlay.stories.tsx`.
 
 Unit tests: `__tests__/tracking/` (hashing vectors, assignment, consent gating, batching,
 sections, page views, sign-up links, concluded winners, the in-app switch, product config,
@@ -221,7 +221,7 @@ import { ExperimentsOverlay, ExperimentCard, useExperimentsAdmin } from '@qorete
 | Export | What |
 |---|---|
 | `<ExperimentsOverlay>` | Finds every `<Experiment>` on the page (its `data-experiment` marker) and draws a dashed outline and an "A/B test · <name>" handle at its corner. Hover, keyboard focus or a click opens the test's card, anchored to the element: it scrolls and resizes with it and flips above or below the handle to stay in view. ✕, Esc and a click outside close it. An ended test shows "Winner live · code clean-up pending" instead. |
-| `<ExperimentCard>` | One test: name, status tag and ✕; the verdict; one row per version (visitors, conversion, chance to beat the original, a bar, "Shown" / "Original" tags; the whole row shows that version, Enter / Space too; minimal Accept, Remove at the far end); the footer's optional "Open in …" link and Start / Resume (solid), Pause, Stop. N versions: past three and a half rows the list scrolls inside the card. Every action asks first (Reqore's confirm dialog) and notifies what happened. |
+| `<ExperimentCard>` | One test: name, status tag, a "?" help and ✕; the verdict; one row per version, best first (conversion on the primary metric, then visitors; re-sorted only when new data arrives), the best one tagged "Leading", or "Winner" for a likely winner or an ended test's winner, the original tagged "Original". A row shows visitors, conversion, chance to beat the original and a bar; the shown version is the info-coloured row (`aria-current`); the whole row shows that version (Enter / Space too). Row actions: a chart icon for that version's analytics (`versionDetailsUrl`), minimal Accept, and a bin icon (Remove) at the far end. Footer: the optional "Open in …" link and Start / Resume (solid), Pause, Stop. Past three and a half rows the list scrolls inside the card. Every action asks first (Reqore's confirm dialog) and notifies what happened. |
 | `useExperimentsAdmin(options)` | Optional: the list and the actions from the qorus-api routes. |
 | `createExperimentsAdminClient(options)` | The same without React. |
 | `placeCard`, `cardReducer`, `versionRows`, `verdictLine`, `versionsMaxHeight`, … | The plain logic behind them, for tests and custom UIs. |
@@ -264,6 +264,16 @@ const AbTestsLayer = ({ visible }: { visible: boolean }) => {
   switch (`tracker.experiments.setEditorOverride`, this browser only, never logged), and after
   an action the page shows what visitors see now (the switch is cleared and the tracker reloads
   the definitions). Pass `onShow` / `onSettled` to do something else.
+- `versionDetailsUrl={(key, variant) => \`${ADMIN_PORTAL}/analytics?dashboard=tracking&experiment=${key}&variant=${variant}\`}`
+  adds the per-version "Show analytics" action (the admin portal opens the test with that version
+  expanded); without it the action is hidden. `detailsUrl` stays for the whole test.
+- The "?" opens a dialog explaining the test for a marketer: every button, how visitors are split
+  and counted, reading the verdict and the chance to beat, the too-early rule (the test's
+  `min_sample`, 200 visitors per version and 7 days by default), a test that is not set up, and
+  where the full analytics are (`analyticsLabel`).
+- A test that is in the page's code (`<Experiment>`) but not registered in the analytics service
+  yet shows "Not set up" and asks to have it set up (`notSetUpText` changes the words); when the list
+  cannot be loaded (`loadError`) it shows "No connection" instead.
 - `exclude` (a selector) skips markers inside the product's own UI (e.g. its preview frames);
   markers inside the overlay itself are always skipped.
 - The same overlay works inside a phone-preview iframe: mount it in the frame's page too. The
@@ -274,5 +284,7 @@ const AbTestsLayer = ({ visible }: { visible: boolean }) => {
 - The card on its own: `<ExperimentCard experimentKey="signup-cta" test={entry} shown="a" codeVariants={['a', 'b']} onShow={…} onAccept={…} … />`.
 
 Stories: `Tracking/Experiment Card` (draft, running with two and five versions, paused, concluded,
-no data yet, not on the server, the confirm step on Remove) and `Tracking/Experiments Overlay`
-(anchored, flipped above near the bottom, hidden), each in dark, light and phone.
+no data yet, not set up, no connection, the confirm step on Remove, the help) and
+`Tracking/Experiments Overlay` (anchored, flipped above near the bottom, hidden), each in dark,
+light and phone. The visually empty ones (hidden, the phone flip) run as tests without a Qlip
+snapshot (`parameters.qlip.skip`).

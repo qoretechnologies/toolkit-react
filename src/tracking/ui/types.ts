@@ -45,6 +45,12 @@ export interface IAdminExperiment {
   /** Every state change, oldest first. */
   history?: IAdminExperimentEvent[];
   metrics?: { primary?: string; guardrails?: string[]; secondary?: string[] };
+  /** Share of visitors in the test, 0..1. */
+  traffic?: number;
+  /** The too-early gate: every version needs `per_variant` visitors and `days` must pass (default 200, 7). */
+  min_sample?: { per_variant: number; days: number };
+  started_at?: string | null;
+  ended_at?: string | null;
 }
 
 export interface IResultsVariant {

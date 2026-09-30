@@ -56,6 +56,12 @@ export interface IExperimentsOverlayProps {
   detailsUrl?: (key: string) => string | null | undefined;
   /** The link's label. Default `Open in admin portal`. */
   detailsLabel?: string;
+  /** One version's analytics (the rows' "Show analytics"); hidden when absent or it returns nothing. */
+  versionDetailsUrl?: (key: string, variant: string) => string | null | undefined;
+  /** Where the full analytics live, in the help's words. Default `the admin portal`. */
+  analyticsLabel?: string;
+  /** The words for a test that is in the page's code but not set up in the analytics service yet. */
+  notSetUpText?: string;
   /** Who removed a version, in words, by the history's `actor`. */
   actorLabels?: Record<string, string>;
   /** The part of the viewport a sticky header covers (px, or read on every render). Default 0. */
@@ -182,6 +188,9 @@ export const ExperimentsOverlay = ({
   onSettled,
   detailsUrl,
   detailsLabel,
+  versionDetailsUrl,
+  analyticsLabel,
+  notSetUpText,
   actorLabels,
   topInset = 0,
   exclude,
@@ -403,6 +412,11 @@ export const ExperimentsOverlay = ({
                   loadError={loadError}
                   detailsUrl={detailsUrl?.(m.key)}
                   detailsLabel={detailsLabel}
+                  versionDetailsUrl={
+                    versionDetailsUrl ? (variant) => versionDetailsUrl(m.key, variant) : undefined
+                  }
+                  analyticsLabel={analyticsLabel}
+                  notSetUpText={notSetUpText}
                   actorLabels={actorLabels}
                   onClose={() => dispatch({ type: 'close' })}
                   onShow={show ? (variant) => show(m.key, variant) : undefined}

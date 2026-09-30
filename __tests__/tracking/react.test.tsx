@@ -66,6 +66,41 @@ describe('<Experiment>', () => {
   });
 });
 
+describe('<Experiment> reasons', () => {
+  const reasonOf = (container: HTMLElement) => (container.firstElementChild as HTMLElement).dataset;
+  const mount = async (options: Parameters<typeof createMemoryTracker>[0]) => {
+    const m = createMemoryTracker(options);
+    m.tracker.start();
+    await m.advance(0);
+    const { container } = render(
+      <TrackingProvider tracker={m.tracker} location='/'>
+        <Experiment id='hero-input' variants={variants} />
+      </TrackingProvider>
+    );
+    return { m, container };
+  };
+
+  it('serves the control outside the traffic share, without an exposure', async () => {
+    const { m, container } = await mount({ consent: 'granted', vid: 'visitor-1', experiments: [{ ...CTA, traffic: 0 }] });
+    expect(reasonOf(container)).toMatchObject({ variant: 'a', experimentReason: 'not-enrolled' });
+    await act(() => m.advance(5000));
+    expect(m.sent.flatMap((s) => s.batch.events).some((e) => e.type === 'exposure')).toBe(false);
+  });
+
+  it('shows a preview link\'s version without consent, never logged', async () => {
+    const { container } = await mount({ experiments: [CTA], page: { search: '?qa_variant=hero-input:b' } });
+    expect(screen.getByText('Challenger')).toBeTruthy();
+    expect(reasonOf(container)).toMatchObject({ variant: 'b', experimentReason: 'preview' });
+  });
+
+  it('shows an ended test\'s winner to everybody', async () => {
+    const { container } = await mount({
+      experiments: [{ key: 'hero-input', status: 'concluded', winner: 'b' } as unknown as IExperimentDefinition],
+    });
+    expect(reasonOf(container)).toMatchObject({ variant: 'b', experimentReason: 'concluded' });
+  });
+});
+
 describe('useConsent', () => {
   it('reads unknown outside a provider, and follows the answer inside one', () => {
     const { unmount } = render(<ConsentState />);

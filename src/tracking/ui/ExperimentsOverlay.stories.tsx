@@ -2,7 +2,7 @@ import { ReqoreP, ReqorePanel } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { expect, fireEvent, fn, waitFor, within } from 'storybook/test';
-import { EXPERIMENT_KEY, RUNNING_TWO, variant } from '../../stories/tracking';
+import { EXPERIMENT_KEY, noSnapshot, RUNNING_TWO, variant } from '../../stories/tracking';
 import { StoryMeta } from '../../types';
 import { KEYS } from '../core/types';
 import { Experiment } from '../react/Experiment';
@@ -63,7 +63,10 @@ const meta = {
     onPause: fn(async () => undefined),
     onStop: fn(async () => undefined),
     onSettled: fn(async () => undefined),
-    detailsUrl: (key: string) => `https://example.com/analytics?experiment=${key}`,
+    detailsUrl: (key: string) =>
+      `https://example.com/analytics?dashboard=tracking&experiment=${key}`,
+    versionDetailsUrl: (key: string, v: string) =>
+      `https://example.com/analytics?dashboard=tracking&experiment=${key}&variant=${v}`,
   },
 } as StoryMeta<typeof Page>;
 
@@ -119,14 +122,17 @@ const flipped: Story = {
       .closest('[data-experiment-float]')!
       .getBoundingClientRect();
     // Once measured, the card ends just above the handle.
-    await waitFor(() => expect(cardFloat(doc)!.getBoundingClientRect().bottom).toBeLessThanOrEqual(handle.top));
+    await waitFor(() =>
+      expect(cardFloat(doc)!.getBoundingClientRect().bottom).toBeLessThanOrEqual(handle.top)
+    );
   },
 };
 const FLIPPED_TEXT =
   'Renders the tested element at the foot of the window with its card open: there is no room below, so the card flips above the handle.';
 export const FlipsAboveNearTheBottom = variant(flipped, FLIPPED_TEXT, 'Dark');
 export const FlipsAboveNearTheBottomLight = variant(flipped, FLIPPED_TEXT, 'Light');
-export const FlipsAboveNearTheBottomPhone = variant(flipped, FLIPPED_TEXT, 'Phone');
+// Visually empty at phone height: runs as a test, no snapshot.
+export const FlipsAboveNearTheBottomPhone = noSnapshot(variant(flipped, FLIPPED_TEXT, 'Phone'));
 
 // ── hidden ─────────────────────────────────────────────────────────
 
@@ -143,6 +149,7 @@ const hidden: Story = {
 };
 const HIDDEN_TEXT =
   'Renders the same page with the overlay hidden (`visible={false}`, an editor\'s "hide editor elements"): the tested element shows as visitors see it, with no outline, handle or card.';
-export const Hidden = variant(hidden, HIDDEN_TEXT, 'Dark');
-export const HiddenLight = variant(hidden, HIDDEN_TEXT, 'Light');
-export const HiddenPhone = variant(hidden, HIDDEN_TEXT, 'Phone');
+// Nothing of the overlay to see: they run as tests, without snapshots.
+export const Hidden = noSnapshot(variant(hidden, HIDDEN_TEXT, 'Dark'));
+export const HiddenLight = noSnapshot(variant(hidden, HIDDEN_TEXT, 'Light'));
+export const HiddenPhone = noSnapshot(variant(hidden, HIDDEN_TEXT, 'Phone'));

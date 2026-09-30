@@ -75,9 +75,24 @@ const nameOf = (entry: IExperimentEntry, key: string | null | undefined) =>
   (key ? versionName(key) : 'a version');
 
 /** The verdict in plain words: the server's sentence when it sends one. */
-export const verdictLine = (entry: IExperimentEntry | undefined): string => {
-  if (!entry)
-    return 'This test is not set up on the server yet: you can switch versions here, but there are no numbers.';
+/** The test is in the page's code, but the analytics service does not know it (or cannot be reached). */
+export const NOT_SET_UP_TEXT =
+  "This test is in the page's code but isn't set up yet: ask the Designer to set it up. Until then you can switch versions here, but nothing is counted.";
+export const UNREACHABLE_TEXT =
+  "Can't reach the analytics service right now, so there are no numbers and no test controls. You can still switch versions here; try again in a minute.";
+
+/**
+ * The verdict in plain words: the server's sentence when it sends one. Without a server entry:
+ * `unreachable` (the list could not be loaded) or not set up yet (`notSetUpText`).
+ */
+export const verdictLine = (
+  entry: IExperimentEntry | undefined,
+  {
+    unreachable = false,
+    notSetUpText = NOT_SET_UP_TEXT,
+  }: { unreachable?: boolean; notSetUpText?: string } = {}
+): string => {
+  if (!entry) return unreachable ? UNREACHABLE_TEXT : notSetUpText;
   const { experiment: e, results } = entry;
   if (results?.verdict_text) return results.verdict_text;
   if (e.status === 'concluded')
@@ -155,9 +170,14 @@ export type TStatusIntent = 'success' | 'warning' | 'danger' | 'muted';
 
 /** The status tag: its words (with the phase after a removal), its icon and its colour. */
 export const statusTag = (
-  entry: IExperimentEntry | undefined
+  entry: IExperimentEntry | undefined,
+  unreachable = false
 ): { label: string; icon: string; intent: TStatusIntent } => {
-  if (!entry) return { label: 'Not on the server', icon: 'QuestionLine', intent: 'muted' };
+  if (!entry) {
+    return unreachable ?
+        { label: 'No connection', icon: 'WifiOffLine', intent: 'warning' }
+      : { label: 'Not set up', icon: 'QuestionLine', intent: 'muted' };
+  }
   const { status, phase } = entry.experiment;
   const label = `${STATUS_LABEL[status] ?? status}${phase && phase > 1 ? ` · phase ${phase}` : ''}`;
   switch (status) {
@@ -320,4 +340,125 @@ export const versionsMaxHeight = ({
   const threeAndHalf = VISIBLE_VERSIONS * rowHeight + Math.floor(VISIBLE_VERSIONS) * gap;
   const cap = Math.max(rowHeight, Math.min(threeAndHalf, available));
   return all <= cap ? null : Math.round(cap);
+};
+
+// ── order and the leader ─────────────────────────────────────────────────────────
+
+/**
+ * Best first: conversion on the primary metric, then visitors; versions without numbers keep
+ * their order at the end. Stable: equal versions keep the server's order.
+ */
+export const sortVersionRows = (rows: IVersionRow[]): IVersionRow[] =>
+  rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const ca = a.row.visitors ? (a.row.conversion ?? -1) : -1;
+      const cb = b.row.visitors ? (b.row.conversion ?? -1) : -1;
+      if (cb !== ca) return cb - ca;
+      const va = a.row.visitors ?? -1;
+      const vb = b.row.visitors ?? -1;
+      if (vb !== va) return vb - va;
+      return a.index - b.index;
+    })
+    .map(({ row }) => row);
+
+/**
+ * The version to highlight: the winner when the test ended with one or the verdict is a likely
+ * winner, otherwise the one converting best so far ("Leading"). Null while nothing is counted,
+ * or when the best conversion is shared.
+ */
+export const leadingVersion = (
+  entry: IExperimentEntry | undefined,
+  rows: IVersionRow[]
+): { key: string; kind: 'winner' | 'leading' } | null => {
+  const e = entry?.experiment;
+  if (e?.status === 'concluded' && e.winner) return { key: e.winner, kind: 'winner' };
+  if (entry?.results?.verdict === 'likely-winner' && entry.results.winner_variant) {
+    return { key: entry.results.winner_variant, kind: 'winner' };
+  }
+  const counted = rows.filter((r) => r.visitors && r.conversion != null && r.conversion > 0);
+  if (!counted.length) return null;
+  const best = Math.max(...counted.map((r) => r.conversion as number));
+  const top = counted.filter((r) => r.conversion === best);
+  return top.length === 1 ? { key: top[0].key, kind: 'leading' } : null;
+};
+
+// ── the help ─────────────────────────────────────────────────────────────────────
+
+export const DEFAULT_MIN_SAMPLE = { per_variant: 200, days: 7 };
+
+export interface IHelpSection {
+  title: string;
+  paragraphs: string[];
+}
+
+/** What the card's "?" explains, in plain words for a marketer. */
+export const helpSections = (
+  entry: IExperimentEntry | undefined,
+  analyticsLabel = 'the admin portal'
+): IHelpSection[] => {
+  const min = entry?.experiment.min_sample ?? DEFAULT_MIN_SAMPLE;
+  const traffic = entry?.experiment.traffic;
+  const share =
+    traffic != null && traffic < 1 ?
+      `${Math.round(traffic * 100)}% of the visitors who allow analytics`
+    : 'every visitor who allows analytics';
+  return [
+    {
+      title: 'What this is',
+      paragraphs: [
+        'An A/B test shows different versions of this part of the page to different visitors and counts which version gets more of them to do what you want (the goal, for example starting a sign-up).',
+        'The "Original" is what the page showed before the test. The others are the new versions being tried.',
+      ],
+    },
+    {
+      title: 'The buttons',
+      paragraphs: [
+        'Click a version (or press Enter on it) to see it on this page. Only you see it, only in this browser, and it is never counted.',
+        "Show analytics (the chart icon) opens that version's numbers in " +
+          analyticsLabel +
+          '; the link in the footer opens the whole test.',
+        "Accept ends the test with that version as the winner: from then on every visitor sees it, and a developer removes the other versions' code later.",
+        'Remove (the bin icon) drops a version from the test. The counting starts again with the remaining versions, so their numbers restart from zero. When only one version would be left, it becomes the winner.',
+        'Start test begins splitting visitors and counting. Pause shows everyone the original and stops counting until you Resume. Stop ends the test without a winner, for good.',
+        'Every one of these asks you to confirm first.',
+      ],
+    },
+    {
+      title: 'How visitors are split and counted',
+      paragraphs: [
+        `While the test runs, ${share} is put into one version at random and keeps seeing that same version on every visit. Visitors who decline analytics always see the original and are not counted.`,
+        'A visitor is counted for a version once they have actually seen this part of the page. A conversion is counted when that visitor later reaches the goal.',
+      ],
+    },
+    {
+      title: 'Reading the numbers',
+      paragraphs: [
+        'Each version shows its visitors, its conversion (the share of its visitors who reached the goal) and a bar comparing it with the best version. The versions are sorted best first; "Leading" marks the one converting best so far.',
+        '"Chance to beat the original" is how likely that version really converts better than the original, given the numbers so far. 50% means we cannot tell them apart; 95% or more is a likely winner, marked "Winner"; 5% or less means it is likely worse.',
+        'The line at the top is the verdict in plain words: too early, a likely winner, likely worse, or no clear difference.',
+      ],
+    },
+    {
+      title: 'When you can trust the result',
+      paragraphs: [
+        `Early numbers jump around. The verdict stays "too early" until every version has at least ${min.per_variant} visitors and ${min.days} days have passed since the test started; only then is a winner named.`,
+        'If visitors are not split between the versions as set up, the verdict says the numbers cannot be trusted: that points to a tracking problem, not to a better version.',
+        'Removing a version starts a new count (a new phase), so only the numbers since then are shown.',
+      ],
+    },
+    {
+      title: 'Not set up yet?',
+      paragraphs: [
+        "A test can exist in the page's code before anyone registers it in the analytics service. Until it is set up (ask the Designer), you can switch its versions here, but nothing is counted and there are no numbers or controls.",
+        'When the analytics service cannot be reached, the card says so; the page itself works as usual and every visitor sees the original.',
+      ],
+    },
+    {
+      title: 'The full analytics',
+      paragraphs: [
+        `Every test and every version has its own page in ${analyticsLabel}: the numbers over time, the other goals, and how the test changed.`,
+      ],
+    },
+  ];
 };

@@ -195,3 +195,12 @@ export const NO_DATA_YET: IExperimentEntry = {
     ['b', 0, 0, null],
   ]),
 };
+
+/** Runs the story as a test but takes no Qlip snapshot (a visually empty state). */
+export const noSnapshot = <S extends object>(story: S): S => {
+  const base = story as S & { parameters?: Record<string, any> };
+  return {
+    ...story,
+    parameters: { ...base.parameters, qlip: { ...base.parameters?.qlip, skip: true } },
+  };
+};

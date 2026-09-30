@@ -37,6 +37,12 @@ export {
   canStop,
   confirmCopy,
   count,
+  DEFAULT_MIN_SAMPLE,
+  helpSections,
+  leadingVersion,
+  NOT_SET_UP_TEXT,
+  sortVersionRows,
+  UNREACHABLE_TEXT,
   lifecycleCopy,
   numbersLine,
   percent,
@@ -52,7 +58,7 @@ export {
   VISIBLE_VERSIONS,
   winnerNote,
 } from './card';
-export type { IConfirmCopy, IVersionRow, TStatusIntent } from './card';
+export type { IConfirmCopy, IHelpSection, IVersionRow, TStatusIntent } from './card';
 export type {
   IAdminExperiment,
   IAdminExperimentEvent,
