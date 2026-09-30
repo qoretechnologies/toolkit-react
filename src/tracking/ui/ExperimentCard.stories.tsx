@@ -70,7 +70,7 @@ const draft: Story = {
   },
 };
 const DRAFT_TEXT =
-  'Renders the card of a draft test with two versions: the "Draft" tag, the "not started" verdict, both rows without numbers, each with a chart icon (the version\'s analytics), Accept and a bin icon (Remove) at the far end, and Start test as the only solid button.';
+  'Renders the card of a draft test with two versions: the "Draft" tag, the "not started" verdict, both rows without numbers, each with "Show analytics", Accept and a bin icon (Remove) at the far end, and Start test as the only solid button.';
 export const Draft = variant(draft, DRAFT_TEXT, 'Dark');
 export const DraftLight = variant(draft, DRAFT_TEXT, 'Light');
 export const DraftPhone = variant(draft, DRAFT_TEXT, 'Phone');
@@ -87,6 +87,8 @@ const runningTwo: Story = {
     await expect(order(canvasElement)).toEqual(['b', 'a']);
     await expect(within(row(canvasElement, 'b')).getByText('Winner')).toBeInTheDocument();
     await expect(within(row(canvasElement, 'a')).getByText('Original')).toBeInTheDocument();
+    await expect(row(canvasElement, 'b').dataset.highlight).toBe('winner');
+    await expect(c.getAllByText('Show analytics')).toHaveLength(2);
     await expect(c.queryByText('Shown')).toBeNull();
     // The shown version is marked by its colour and for assistive tech.
     await expect(row(canvasElement, 'a').getAttribute('aria-current')).toBe('true');
@@ -109,7 +111,7 @@ const runningTwo: Story = {
   },
 };
 const RUNNING_TWO_TEXT =
-  'Renders a running test with two versions, best first: "Short copy" (the likely winner, tagged "Winner") above the "Original". Each row shows visitors, conversion, chance to beat and a bar, a chart icon for its analytics, Accept and a bin icon; the shown version is the blue row. Clicking the other row (or Enter on it) shows it; ✕ closes the card.';
+  'Renders a running test with two versions, best first: "Short copy", the likely winner, tagged "Winner" and lit by a green glow and wash, above the "Original". Tags are soft pills. Each row shows visitors, conversion, chance to beat and a bar, "Show analytics", Accept and a bin icon; the shown version is the blue row. Clicking the other row (or Enter on it) shows it; ✕ closes the card.';
 export const RunningTwoVersions = variant(runningTwo, RUNNING_TWO_TEXT, 'Dark');
 export const RunningTwoVersionsLight = variant(runningTwo, RUNNING_TWO_TEXT, 'Light');
 export const RunningTwoVersionsPhone = variant(runningTwo, RUNNING_TWO_TEXT, 'Phone');
@@ -125,13 +127,16 @@ const runningFive: Story = {
     // Best conversion first; the leader is tagged while it is too early for a winner.
     await expect(order(canvasElement)).toEqual(['b', 'd', 'a', 'c', 'e']);
     await expect(within(row(canvasElement, 'b')).getByText('Leading')).toBeInTheDocument();
+    await expect(row(canvasElement, 'b').dataset.highlight).toBe('leading');
+    // A long title stays on one line; the full name is in its title attribute.
+    await expect(c.getByTitle('Pricing page headline')).toBeInTheDocument();
     // Three and a half rows are visible; the rest scroll inside the card.
     const list = canvasElement.querySelector('.reqraft-experiment-versions') as HTMLElement;
     await waitFor(() => expect(list.scrollHeight).toBeGreaterThan(list.clientHeight + 10));
   },
 };
 const RUNNING_FIVE_TEXT =
-  'Renders a running test with five versions sorted best first, the best one tagged "Leading": three and a half rows are visible and the list scrolls inside the card for the rest.';
+  'Renders a running test with five versions sorted best first, the best one tagged "Leading" with a softer glow than a winner\'s: three and a half rows are visible and the list scrolls inside the card for the rest.';
 export const RunningFiveVersions = variant(runningFive, RUNNING_FIVE_TEXT, 'Dark');
 export const RunningFiveVersionsLight = variant(runningFive, RUNNING_FIVE_TEXT, 'Light');
 export const RunningFiveVersionsPhone = variant(runningFive, RUNNING_FIVE_TEXT, 'Phone');
@@ -177,7 +182,7 @@ const concluded: Story = {
   },
 };
 const CONCLUDED_TEXT =
-  'Renders an ended test whose winner (Short copy) is live: the "Ended" tag, the final verdict, the winner first with a "Winner" tag and the blue shown colour, a chart icon on every version for its analytics, and no lifecycle buttons; Accept and Remove are disabled.';
+  'Renders an ended test whose winner (Short copy) is live: the "Ended" tag, the final verdict, the winner first with a "Winner" tag, the winner\'s glow and the blue shown colour, "Show analytics" on every version, and no lifecycle buttons; Accept and Remove are disabled.';
 export const Concluded = variant(concluded, CONCLUDED_TEXT, 'Dark');
 export const ConcludedLight = variant(concluded, CONCLUDED_TEXT, 'Light');
 export const ConcludedPhone = variant(concluded, CONCLUDED_TEXT, 'Phone');

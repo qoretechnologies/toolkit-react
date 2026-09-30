@@ -11,11 +11,11 @@ import {
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import type { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
-import type { IReqoreEffect } from '@qoretechnologies/reqore/dist/components/Effect';
 import type { IReqoreEntityRowAction } from '@qoretechnologies/reqore/dist/components/EntityRow';
 import type { IReqorePanelBottomAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import type { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
-import { getLuminance } from 'polished';
+import { RADIUS_FROM_SIZE } from '@qoretechnologies/reqore/dist/constants/sizes';
+import { getLuminance, rgba } from 'polished';
 import {
   useEffect,
   useLayoutEffect,
@@ -97,13 +97,47 @@ export interface IExperimentCardProps {
   onClose?: () => void;
 }
 
-// Solid tags: a badge with only an intent is a minimal tag, unreadable on a light theme.
-const solid = (intent: 'success' | 'warning' | 'danger' | 'muted' | 'info'): IReqoreEffect => ({
-  gradient: { colors: { 0: intent, 100: `${intent}:darken:1` } },
-  weight: 'bold',
-});
+type TTagIntent = 'success' | 'warning' | 'danger' | 'muted' | 'info';
+
+// Soft tags: an outlined pill over a wash of its colour, readable on dark and light themes.
+const soft = (intent: TTagIntent) => ({ intent, appearance: 'soft' as const });
+
+type THighlight = 'winner' | 'leading' | undefined;
 
 const ROW_GAP = 6;
+/** Room around the rows for the leader's glow, taken from the card's own padding. */
+const GLOW_ROOM = 6;
+
+/**
+ * The leading version, and more so the winner: a glow in the success colour around the row and
+ * a wash of it from the left. Static (nothing animates), drawn over the row without taking the
+ * pointer, and in the theme's own success colour, so it reads on dark and light.
+ */
+const StyledVersion = styled.div<{ $highlight: THighlight; $color: string; $radius: number }>`
+  position: relative;
+  border-radius: ${({ $radius }) => $radius}px;
+  ${({ $highlight, $color }) =>
+    $highlight === 'winner' ?
+      `box-shadow: 0 0 0 1px ${rgba($color, 0.9)}, 0 0 14px ${rgba($color, 0.45)};`
+    : $highlight === 'leading' ?
+      `box-shadow: 0 0 0 1px ${rgba($color, 0.45)}, 0 0 8px ${rgba($color, 0.2)};`
+    : ''}
+
+  ${({ $highlight, $color }) =>
+    $highlight ?
+      `&::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        background: linear-gradient(100deg, ${rgba($color, $highlight === 'winner' ? 0.24 : 0.12)} 0%, ${rgba(
+          $color,
+          $highlight === 'winner' ? 0.08 : 0.04
+        )} 45%, ${rgba($color, 0)} 75%);
+      }`
+    : ''}
+`;
 
 // Layout only: the versions scroll inside the card past three and a half rows.
 const StyledVersions = styled.div<{ $max: number | null }>`
@@ -115,6 +149,9 @@ const StyledVersions = styled.div<{ $max: number | null }>`
   overflow-x: hidden;
   overscroll-behavior: contain;
   min-width: 0;
+  /* Room for the leader's glow, taken back from the card's padding so the rows keep their width. */
+  margin: 0 -${GLOW_ROOM}px;
+  padding: ${GLOW_ROOM}px;
 
   /* The rows take the card's width, never their content's, padding included: a host page
      without a global border-box reset would otherwise push each row past the card's edge. */
@@ -372,9 +409,10 @@ export const ExperimentCard = ({
   return (
     <ReqorePanel
       className='reqraft-experiment-card'
-      label={title}
+      label={<span title={title}>{title}</span>}
+      labelMaxLines={1}
       icon='FlaskLine'
-      badge={{ label: tag.label, icon: tag.icon as IReqoreIconName, effect: solid(tag.intent) }}
+      badge={{ label: tag.label, icon: tag.icon as IReqoreIconName, ...soft(tag.intent) }}
       size='small'
       rounded
       flat={false}
@@ -425,17 +463,18 @@ export const ExperimentCard = ({
       >
         {rows.map((r, i) => {
           const isShown = r.key === shown;
+          const highlight: THighlight = leader?.key === r.key ? leader.kind : undefined;
           const badges: TReqoreBadge[] = [];
           if (leader?.key === r.key) {
             badges.push(
               leader.kind === 'winner' ?
-                { label: 'Winner', icon: 'TrophyLine', effect: solid('success') }
-              : { label: 'Leading', icon: 'ArrowUpLine', effect: solid('success') }
+                { label: 'Winner', icon: 'TrophyLine', ...soft('success') }
+              : { label: 'Leading', icon: 'ArrowUpLine', ...soft('success') }
             );
           }
-          if (r.control) badges.push({ label: 'Original', icon: 'HomeLine' });
+          if (r.control) badges.push({ label: 'Original', icon: 'HomeLine', ...soft('muted') });
           if (!r.inCode)
-            badges.push({ label: 'Not in the code', icon: 'AlertLine', effect: solid('warning') });
+            badges.push({ label: 'Not in the code', icon: 'AlertLine', ...soft('warning') });
           // The whole row shows its version; Accept and Remove stop the click (Reqore's row actions do).
           const showable = !!onShow && r.inCode && !isShown;
           const actions: IReqoreEntityRowAction[] = [];
@@ -444,8 +483,16 @@ export const ExperimentCard = ({
             actions.push({
               size: 'small',
               icon: 'BarChartBoxLine',
-              intent: 'info',
-              ...quiet('info'),
+              label: 'Show analytics',
+              ...quiet(),
+              // Neutral: the card's own surface, not the tint of the row it sits on (the shown row is blue).
+              customTheme: { main: theme.main },
+              ...(light ?
+                {
+                  effect: { color: 'main:darken:25' as const, weight: 'thick' as const },
+                  iconColor: 'main:darken:25' as const,
+                }
+              : {}),
               tooltip: `Show analytics for “${r.name}” (a new tab)`,
               'aria-label': `Show analytics for ${r.name}`,
               onClick: () => window.open(analytics, '_blank', 'noopener'),
@@ -486,12 +533,16 @@ export const ExperimentCard = ({
             } as IReqoreEntityRowAction);
           }
           return (
-            <div
+            <StyledVersion
               role='listitem'
               key={r.key}
               ref={i === 0 ? firstRow : undefined}
               data-version={r.key}
+              data-highlight={highlight}
               aria-current={isShown || undefined}
+              $highlight={highlight}
+              $color={theme.intents?.success ?? '#4a7110'}
+              $radius={RADIUS_FROM_SIZE.small}
             >
               <ReqoreEntityRow
                 size='small'
@@ -537,7 +588,7 @@ export const ExperimentCard = ({
                   }
                 : {})}
               />
-            </div>
+            </StyledVersion>
           );
         })}
       </StyledVersions>
