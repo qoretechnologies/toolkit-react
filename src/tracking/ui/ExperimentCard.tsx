@@ -409,7 +409,8 @@ export const ExperimentCard = ({
   return (
     <ReqorePanel
       className='reqraft-experiment-card'
-      label={<span title={title}>{title}</span>}
+      label={title}
+      showLabelTooltip
       labelMaxLines={1}
       icon='FlaskLine'
       badge={{ label: tag.label, icon: tag.icon as IReqoreIconName, ...soft(tag.intent) }}

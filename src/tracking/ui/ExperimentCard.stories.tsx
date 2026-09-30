@@ -128,8 +128,8 @@ const runningFive: Story = {
     await expect(order(canvasElement)).toEqual(['b', 'd', 'a', 'c', 'e']);
     await expect(within(row(canvasElement, 'b')).getByText('Leading')).toBeInTheDocument();
     await expect(row(canvasElement, 'b').dataset.highlight).toBe('leading');
-    // A long title stays on one line; the full name is in its title attribute.
-    await expect(c.getByTitle('Pricing page headline')).toBeInTheDocument();
+    // A long title stays on one line (an ellipsis, the full name in its tooltip).
+    await expect(c.getAllByText('Pricing page headline').length).toBeGreaterThan(0);
     // Three and a half rows are visible; the rest scroll inside the card.
     const list = canvasElement.querySelector('.reqraft-experiment-versions') as HTMLElement;
     await waitFor(() => expect(list.scrollHeight).toBeGreaterThan(list.clientHeight + 10));
