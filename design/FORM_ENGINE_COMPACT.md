@@ -91,6 +91,16 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   the fields that scheme has appear. **Only the not-yet-added ones** — a field that already holds a
   value stays listed when its dependency later stops holding, rendered `readfirst-row-disabled` with the
   reason, so a value still being submitted is visible and removable instead of silently orphaned.
+- **A field locked by an unmet `depends_on` does not need attention.** A `required` (or one-of
+  `required_groups`) field that is listed but locked is not required while it is locked: the status
+  (`getOptionStatus`) and box (`getOptionBucket`) treat it as optional, so it waits in the Optional box,
+  locked, with what unlocks it, and is not in "Needs attention", the header's attention count or the
+  first-attention autofocus target. Its messages say what unlocks it, not "This field is required"
+  (`getOptionFieldMessages`). The field it depends on carries its own status, and that field is what
+  the author has to do next. Once the dependency holds and the field is still empty, it needs attention
+  again. Form validity (`onValidityChange`, the Draft badge) is unchanged: a locked required field
+  still leaves the form incomplete. Stories: `CompactLockedRequiredNeedsNoAttention`,
+  `CompactUnlockedRequiredNeedsAttention`.
 - **Sticky-top toolbar.** The completion meter + search + Fields menu are wrapped in a `position: sticky;
   top: 0` header (opaque background masks rows scrolling beneath), so filtering and adding optional fields
   stay reachable while scrolling a long form. (Replaced an earlier bottom "Additional options" bar that, as

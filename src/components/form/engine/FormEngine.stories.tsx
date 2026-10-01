@@ -2153,6 +2153,108 @@ export const CompactWithholdsFieldsWithUnmetDependencies: Story = {
   },
 };
 
+/** A check whose kind decides which of the rest apply — the guided check's shape. */
+const lockedRequiredCheckOptions = {
+  kind: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Kind',
+    short_desc: 'What the check compares',
+    preselected: true,
+    allowed_values: [
+      { value: { type: 'string', value: 'equals' }, display_name: 'Equals' },
+      { value: { type: 'string', value: 'between' }, display_name: 'Between' },
+      { value: { type: 'string', value: 'exists' }, display_name: 'Exists' },
+    ],
+  },
+  expected: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Expected value',
+    short_desc: 'Applies once a kind is picked',
+    required: true,
+    depends_on: ['kind'],
+  },
+  min: {
+    type: 'int',
+    ui_type: 'int',
+    display_name: 'Minimum',
+    short_desc: 'Applies to Between alone',
+    required: true,
+    depends_on: ['kind=between'],
+  },
+  max: {
+    type: 'int',
+    ui_type: 'int',
+    display_name: 'Maximum',
+    short_desc: 'Applies to Between alone',
+    required: true,
+    depends_on: ['kind=between'],
+  },
+} as IOptionsSchema;
+
+export const CompactLockedRequiredNeedsNoAttention: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a check whose Expected value, Minimum and Maximum are required but locked until a kind is picked. A locked field is not listed under "Needs attention": the author can do nothing with it yet. Each stays on the form, locked, among the optional fields, saying what unlocks it. With no kind picked, nothing needs attention.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: lockedRequiredCheckOptions,
+    value: {} as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('Expected value');
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.readfirst-row[data-field="expected"] .options-readfirst-lock-deps'
+          )
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+    await expect(document.querySelector('[data-field="min"]')).toBeTruthy();
+    await expect(document.querySelector('[data-field="max"]')).toBeTruthy();
+    await _testsWaitForTextToNotExist('Needs attention');
+  },
+};
+
+export const CompactUnlockedRequiredNeedsAttention: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same check with the kind set to Between. Every field that kind unlocks is required and empty, so Expected value, Minimum and Maximum are all listed under "Needs attention".',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: lockedRequiredCheckOptions,
+    value: { kind: { type: 'string', value: 'between' } } as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('Needs attention');
+    const attention = [...document.querySelectorAll('.options-readfirst-group')].find((group) =>
+      (group.textContent || '').startsWith('Needs attention')
+    );
+    await expect(attention).toBeTruthy();
+    for (const field of ['expected', 'min', 'max']) {
+      await waitFor(
+        () => expect(attention!.querySelector(`[data-field="${field}"]`)).toBeTruthy(),
+        { timeout: 10000 }
+      );
+    }
+  },
+};
+
 export const CompactConditionalMessage: Story = {
   parameters: {
     docs: {
@@ -2616,6 +2718,21 @@ const _expandOptionalBox = async () => {
   }
 };
 
+/**
+ * Put one row of the Optional box on screen: open the box, and its "N more
+ * optional fields" fold if the row is behind it. A required field locked by an
+ * unmet dependency waits here rather than under "Needs attention", and a box
+ * that shows its preselected rows folds the rest.
+ */
+const _revealOptionalRow = async (field: string) => {
+  await _expandOptionalBox();
+  const row = () => document.querySelector(`.readfirst-row[data-field="${field}"]`);
+  if (!row()) {
+    await _testsClickButton({ selector: '.options-readfirst-more' });
+  }
+  await waitFor(() => expect(row()).toBeTruthy(), { timeout: 10000 });
+};
+
 // CompactSchema plus one optional (non-preselected) field, to exercise the
 // "Fields" menu add / select-all / reset actions.
 const CompactFieldsMenuSchema: Record<string, TCompactField> = {
@@ -2955,7 +3072,9 @@ export const CompactBasic: Story = {
     ).toBeFalsy();
 
     // Dependency locks are navigable: the lock's popover lists the blockers
-    // with their state; clicking one scrolls to + flashes it.
+    // with their state; clicking one scrolls to + flashes it. The locked row is
+    // required, but locked it needs no attention, so it waits in Optional.
+    await _revealOptionalRow('optionWithShortDescription');
     const depLock = document.querySelector(
       '.readfirst-row[data-field="optionWithShortDescription"] .options-readfirst-lock-deps'
     ) as HTMLElement;
@@ -6468,7 +6587,9 @@ export const CompactShowcase: Story = {
     await expect(document.querySelectorAll('.options-readfirst-info-panel').length).toBeGreaterThan(
       0
     );
-    // The unmet-dependency hint surfaces on the dependent field's row.
+    // The unmet-dependency hint surfaces on the dependent field's row — locked,
+    // so in the Optional box rather than under "Needs attention".
+    await _revealOptionalRow('optionWithShortDescription');
     await _testsWaitForText(
       'This field is disabled because some dependencies are not fulfilled: "basicOption"'
     );

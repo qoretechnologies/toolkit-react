@@ -2487,7 +2487,14 @@ const FormEngineImpl = ({
       // sub-form it summarises said 0/3 set.
       const empty = isOptionValueEmpty(value) || isUnsetSchemaHash(value, schema);
       const reqGroups = (schema?.required_groups as string[] | undefined) || [];
-      const required = !!(schema?.required || reqGroups.length);
+      // Required only while it applies. A field locked by an unmet `depends_on`
+      // renders disabled with what unlocks it; nothing the author can do to it
+      // is a next step — the next step is the field it depends on, which carries
+      // its own status. Counting it here put a guided check's locked Path /
+      // Minimum / Maximum under "Needs attention" before its kind was even
+      // picked. The moment the dependency holds, it is required again.
+      const required =
+        !dependencyLockedNames.includes(name) && !!(schema?.required || reqGroups.length);
       const covered =
         empty &&
         reqGroups.some((g) => {
@@ -2512,11 +2519,15 @@ const FormEngineImpl = ({
       isOptionValid,
       requiredGroupsInfo,
       schemaMsgIntent,
+      dependencyLockedNames,
     ]
   );
   const getOptionBucket = useCallback(
     (name: string, hidden = false): 'attention' | 'set' | 'optional' => {
-      if (!hidden) {
+      // A locked one-of member cannot be the one that satisfies its group, so it
+      // does not travel with the group into "Needs attention"; its own status
+      // (not required while locked) decides its box.
+      if (!hidden && !dependencyLockedNames.includes(name)) {
         const reqGroups = (options?.[name]?.required_groups as string[] | undefined) || [];
         if (reqGroups.length) {
           return reqGroups.some((g) => !requiredGroupsInfo.satisfiedBy[g]) ? 'attention' : 'set';
@@ -2524,7 +2535,7 @@ const FormEngineImpl = ({
       }
       return getReadFirstBucket(getOptionStatus(name, hidden));
     },
-    [JSON.stringify(options), requiredGroupsInfo, getOptionStatus]
+    [JSON.stringify(options), requiredGroupsInfo, getOptionStatus, dependencyLockedNames]
   );
   // How many fields are in the "Needs attention" box — drives the header link.
   const readFirstAttentionCount = useMemo(
