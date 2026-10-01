@@ -45,13 +45,16 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   agreed fallback ("big fields still render a form"). Changes flow through the same
   `handleValueChange` → debounced `onChange` pipeline in both paths — the engine never persists;
   *when* to apply the emitted value (immediate vs batched commit) is the consumer's contract.
-- **Completion meter + Draft/Ready badge.** A single inline bar at the top — Draft/Ready badge |
+- **Completion meter + Incomplete/Ready status.** A single inline bar at the top — Incomplete/Ready status |
   `N / M fields set` | track (fills remaining) | `%` — matching the IDE's restyled completion strip.
   The badge is the IDE restyled-hero convention (`RestyledFields`): a minimal small `ReqoreTag`,
-  **Draft** (warning, `EditLine`) while any field is invalid/required-unset, **Ready** (success,
-  `CheckLine`) once everything validates — driven by the same validity data as the invalid-fields
-  banner; hidden in `readOnly`. Like the IDE's, it signals form *readiness*, not unsaved changes —
-  unsaved-change state is the per-row **↺** / "Revert all changes". (Product save convention for
+  **Incomplete** (warning) while any field is invalid, required-unset or needs attention, **Ready**
+  (success) once everything validates — driven by the same validity data as the invalid-fields
+  banner; hidden in `readOnly`. It signals form *readiness*, not unsaved changes, which is why the
+  not-ready state is never called "Draft": a form nobody has touched can be Incomplete, and **Draft**
+  means unsaved changes — the batched mode's per-row chip, and nothing else. Unsaved-change state is
+  that chip and the per-row **↺** / "Revert all changes". (`VariantCalmTable`'s meter uses the same
+  two words.) (Product save convention for
   context: creator forms auto-save to a *draft* via the IDE's `useInterfaceDraft` — debounced
   auto-draft + explicit Submit — so compact inline edits are draft-persisted by the consumer with no
   extra engine work.)
@@ -98,8 +101,13 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   first-attention autofocus target. Its messages say what unlocks it, not "This field is required"
   (`getOptionFieldMessages`). The field it depends on carries its own status, and that field is what
   the author has to do next. Once the dependency holds and the field is still empty, it needs attention
-  again. Form validity (`onValidityChange`, the Draft badge) is unchanged: a locked required field
-  still leaves the form incomplete. Stories: `CompactLockedRequiredNeedsNoAttention`,
+  again. The same rule holds for form validity (`onValidityChange`, the Incomplete/Ready status,
+  `showInvalidOptionsOnly`): an EMPTY locked field does not apply, so it does not make the form
+  incomplete — otherwise a check of kind Equals could never be saved because Minimum, required for
+  Between alone, is empty, and a form whose only gaps are fields nobody can fill in would read
+  Incomplete with nothing under "Needs attention". A value a locked field still holds is validated
+  as before. (`getUnresolvedRequiredOptions`, which decides whether a form is needed at all before
+  any is shown, still reports a locked required option as unresolved, reason `dependency`.) Stories: `CompactLockedRequiredNeedsNoAttention`,
   `CompactUnlockedRequiredNeedsAttention`.
 - **Sticky-top toolbar.** The completion meter + search + Fields menu are wrapped in a `position: sticky;
   top: 0` header (opaque background masks rows scrolling beneath), so filtering and adding optional fields

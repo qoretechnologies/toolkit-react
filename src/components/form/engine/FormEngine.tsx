@@ -2324,10 +2324,13 @@ const FormEngineImpl = ({
 
   const isOptionValid = useCallback(
     (optionName: string, type: TQorusType, optionValue: any) => {
+      const isEmpty = optionValue === undefined || optionValue === '';
+      // An empty field locked by an unmet `depends_on` does not apply, so it is
+      // not missing — the same rule the read-first status follows.
       if (
-        !options?.[optionName]?.required &&
-        !options?.[optionName]?.required_groups &&
-        (optionValue === undefined || optionValue === '')
+        isEmpty &&
+        ((!options?.[optionName]?.required && !options?.[optionName]?.required_groups) ||
+          dependencyLockedNames.includes(optionName))
       ) {
         return true;
       }
@@ -2342,7 +2345,12 @@ const FormEngineImpl = ({
         isFunction: (availableOptions?.[optionName] as { is_expression?: boolean })?.is_expression,
       } as any);
     },
-    [JSON.stringify(options), JSON.stringify(availableOptions), JSON.stringify(localValue.fields)]
+    [
+      JSON.stringify(options),
+      JSON.stringify(availableOptions),
+      JSON.stringify(localValue.fields),
+      dependencyLockedNames,
+    ]
   );
 
   const getValidityData = useCallback((): IFormValidityData => {
@@ -2366,7 +2374,17 @@ const FormEngineImpl = ({
 
         let validation: IValidationResult;
 
-        if (!isRequired && !hasRequiredGroups && isEmpty) {
+        /* A required field locked by an unmet `depends_on` does not apply
+           while it is locked: it is not in "Needs attention", and an empty one
+           does not make the form incomplete either. Otherwise a check whose
+           kind is Equals could never be saved, because Minimum — required for
+           Between alone — is empty; and a form whose only gaps are fields
+           nobody can fill in would say Incomplete with nothing to act on. A
+           locked field that still HOLDS a value is validated as before. */
+        if (
+          isEmpty &&
+          ((!isRequired && !hasRequiredGroups) || dependencyLockedNames.includes(optionName))
+        ) {
           validation = { isValid: true, reasons: [] };
         } else {
           validation = validateFieldWithResult(getType(type), optionValue, {
@@ -2404,6 +2422,7 @@ const FormEngineImpl = ({
     JSON.stringify(options),
     JSON.stringify(operators),
     JSON.stringify(localValue.fields),
+    dependencyLockedNames,
   ]);
 
   const validityData = useMemo(() => getValidityData(), [getValidityData]);

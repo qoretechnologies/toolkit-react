@@ -75,7 +75,7 @@ const StyledMeter = styled.div<{
     background: ${({ $att_c }) => $att_c};
   }
 `;
-// One shared text size for the whole summary line, so "Draft", "1/6 set" and
+// One shared text size for the whole summary line, so "Incomplete", "1/6 set" and
 // "N need attention" all read at the same scale (no chips, no size jumps).
 const StyledSummary = styled.span<{ $color?: string }>`
   font-size: 13px;
@@ -164,8 +164,13 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
               {/* "Ready" is a claim about the whole form, so anything the form
                   is asking for withdraws it — a value that fails validation and
                   a field the host has flagged alike. Saying Ready beside
-                  "1 need attention" made the word mean nothing. */}
-              {invalidCount || attentionCount ? 'Draft' : 'Ready'}
+                  "1 need attention" made the word mean nothing.
+
+                  The other state is "Incomplete", not "Draft": it is about
+                  what the form still lacks, and a form nobody has touched can
+                  lack things. "Draft" means unsaved changes and belongs to the
+                  batched mode's per-row chip alone. */}
+              {invalidCount || attentionCount ? 'Incomplete' : 'Ready'}
             </StyledSummary>
             <StyledSummary style={{ opacity: 0.5 }}>
               · {completion.set}/{completion.total} set

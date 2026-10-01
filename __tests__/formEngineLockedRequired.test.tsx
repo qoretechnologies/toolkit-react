@@ -174,6 +174,115 @@ describe('a required field locked by its dependency does not need attention', ()
   });
 });
 
+describe('a locked required field and the completeness status', () => {
+  const header = async (container: HTMLElement) => {
+    await waitFor(() =>
+      expect(container.querySelector('.options-readfirst-completion')).toBeTruthy()
+    );
+    return container.querySelector('.options-readfirst-completion')!.textContent || '';
+  };
+
+  it('reads Ready, and reports the form valid, when only locked fields are empty', async () => {
+    // The kind is optional and unset, so nothing the author can fill in is
+    // missing: the locked fields do not apply. Incomplete with nothing under
+    // "Needs attention" would ask for something the form does not let them do.
+    const onValidityChange = vi.fn();
+    const { container } = render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='check'
+            value={{} as never}
+            options={CHECK}
+            onChange={vi.fn()}
+            onValidityChange={onValidityChange}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    const text = await header(container);
+    expect(text).toContain('Ready');
+    expect(text).not.toContain('Incomplete');
+    expect(text).not.toContain('need attention');
+    await waitFor(() => expect(onValidityChange).toHaveBeenLastCalledWith(true, expect.anything()));
+  });
+
+  it('can be complete while a field for another kind is locked and empty', async () => {
+    // Equals with its expected value: Minimum applies to Between alone, so it
+    // must not hold the form back.
+    const onValidityChange = vi.fn();
+    const { container } = render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='check'
+            value={
+              {
+                kind: { type: 'string', value: 'equals' },
+                expected: { type: 'string', value: '42' },
+              } as never
+            }
+            options={CHECK}
+            onChange={vi.fn()}
+            onValidityChange={onValidityChange}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    expect(await header(container)).toContain('Ready');
+    await waitFor(() => expect(onValidityChange).toHaveBeenLastCalledWith(true, expect.anything()));
+  });
+
+  it('reads Incomplete once the dependency unlocks an empty required field', async () => {
+    const onValidityChange = vi.fn();
+    const { container } = render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='check'
+            value={{ kind: { type: 'string', value: 'between' } } as never}
+            options={CHECK}
+            onChange={vi.fn()}
+            onValidityChange={onValidityChange}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    const text = await header(container);
+    expect(text).toContain('Incomplete');
+    expect(text).not.toContain('Ready');
+    expect(text).not.toContain('Draft');
+    await waitFor(() =>
+      expect(onValidityChange).toHaveBeenLastCalledWith(false, expect.anything())
+    );
+  });
+
+  it('still validates a value a locked field holds', async () => {
+    // Only an EMPTY locked field is waived. A value is still checked.
+    const onValidityChange = vi.fn();
+    render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='check'
+            value={{ min: { type: 'int', value: 'not a number' } } as never}
+            options={CHECK}
+            onChange={vi.fn()}
+            onValidityChange={onValidityChange}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    await waitFor(() =>
+      expect(onValidityChange).toHaveBeenLastCalledWith(false, expect.anything())
+    );
+  });
+});
+
 describe("a locked required field's messages", () => {
   const messages = (value: Record<string, unknown>) =>
     getOptionFieldMessages({

@@ -20,6 +20,7 @@ import {
   isOptionValueEmpty,
 } from '../readFirst';
 import { isValueTemplate } from '../../../../helpers/templates';
+import { hasAllDependenciesFullfilled } from '../../../../helpers/validations';
 
 export type TVariantStatus =
   | 'set' // has a valid value
@@ -153,8 +154,13 @@ export function buildVariantGroups(
     const empty = isOptionValueEmpty(field?.value);
     const ownGroups: string[] = schema?.required_groups || [];
     // Member of a one-of group that nobody has satisfied yet.
-    const inUnmetGroup = ownGroups.some((k) => reqGroups[k] && !reqGroups[k].satisfied);
-    const required = !!schema?.required;
+    // A field locked by an unmet `depends_on` does not apply yet, so it is
+    // neither required nor part of an unmet group — the engine's rule.
+    const locked =
+      !!schema?.depends_on && !hasAllDependenciesFullfilled(schema.depends_on, values, options);
+    const inUnmetGroup =
+      !locked && ownGroups.some((k) => reqGroups[k] && !reqGroups[k].satisfied);
+    const required = !locked && !!schema?.required;
 
     let status: TVariantStatus;
     let reason: string | undefined;
@@ -183,7 +189,8 @@ export function buildVariantGroups(
       label: (schema?.display_name as string) || name,
       shortDesc: schema?.short_desc,
       longDesc: schema?.desc,
-      required: required || ownGroups.length > 0,
+      // The asterisk still marks it: it is required once it applies.
+      required: !!schema?.required || ownGroups.length > 0,
       readOnly: !!schema?.readonly,
       status,
       reason,

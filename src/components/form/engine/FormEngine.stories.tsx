@@ -2198,7 +2198,7 @@ export const CompactLockedRequiredNeedsNoAttention: Story = {
     docs: {
       description: {
         story:
-          'Renders a check whose Expected value, Minimum and Maximum are required but locked until a kind is picked. A locked field is not listed under "Needs attention": the author can do nothing with it yet. Each stays on the form, locked, among the optional fields, saying what unlocks it. With no kind picked, nothing needs attention.',
+          'Renders a check whose Expected value, Minimum and Maximum are required but locked until a kind is picked. A locked field is not listed under "Needs attention": the author can do nothing with it yet. Each stays on the form, locked, among the optional fields, saying what unlocks it. With no kind picked, nothing needs attention and the header reads Ready: the locked fields do not apply yet.',
       },
     },
   },
@@ -2222,6 +2222,10 @@ export const CompactLockedRequiredNeedsNoAttention: Story = {
     await expect(document.querySelector('[data-field="min"]')).toBeTruthy();
     await expect(document.querySelector('[data-field="max"]')).toBeTruthy();
     await _testsWaitForTextToNotExist('Needs attention');
+    // Nothing the author can fill in is missing, so the form is Ready — the
+    // locked fields do not apply until a kind is picked.
+    await _testsWaitForText('Ready');
+    await _testsWaitForTextToNotExist('Incomplete');
   },
 };
 
@@ -2230,7 +2234,7 @@ export const CompactUnlockedRequiredNeedsAttention: Story = {
     docs: {
       description: {
         story:
-          'Renders the same check with the kind set to Between. Every field that kind unlocks is required and empty, so Expected value, Minimum and Maximum are all listed under "Needs attention".',
+          'Renders the same check with the kind set to Between. Every field that kind unlocks is required and empty, so Expected value, Minimum and Maximum are all listed under "Needs attention" and the header reads Incomplete (never Draft: nothing has been changed).',
       },
     },
   },
@@ -2242,6 +2246,8 @@ export const CompactUnlockedRequiredNeedsAttention: Story = {
   },
   play: async () => {
     await _testsWaitForText('Needs attention');
+    await _testsWaitForText('Incomplete');
+    await _testsWaitForTextToNotExist('Draft');
     const attention = [...document.querySelectorAll('.options-readfirst-group')].find((group) =>
       (group.textContent || '').startsWith('Needs attention')
     );
@@ -2902,9 +2908,10 @@ export const CompactReadOnly: Story = {
   },
   play: async () => {
     await _testsWaitForText('order-fulfilment');
-    // Nothing that reports progress: no meter, no Draft/Ready, no boxes.
+    // Nothing that reports progress: no meter, no Incomplete/Ready, no boxes.
     expect(document.querySelector('.options-readfirst-completion')).toBeNull();
     expect(document.querySelector('.options-readfirst-group')).toBeNull();
+    await _testsWaitForTextToNotExist('Incomplete');
     await _testsWaitForTextToNotExist('Draft');
     await _testsWaitForTextToNotExist('Needs attention');
     await _testsWaitForTextToNotExist('Optional');
@@ -3041,9 +3048,10 @@ export const CompactBasic: Story = {
     value: basicFormValue,
   },
   play: async () => {
-    // Unresolved required/invalid fields → the header shows the Draft badge
-    // (the IDE restyled-hero convention).
-    await _testsWaitForText('Draft');
+    // Unresolved required/invalid fields → the header says Incomplete. Never
+    // "Draft": nobody has changed this form, and Draft means unsaved changes.
+    await _testsWaitForText('Incomplete');
+    await _testsWaitForTextToNotExist('Draft');
     // Several asserted/clicked fields (Disabled option, …) are empty optionals in
     // the collapsed Optional box — open it so they're on screen.
     await _expandOptionalBox();
@@ -3731,7 +3739,7 @@ export const CompactSensitive: Story = {
 };
 
 // `rules: ['valid_identifier']` flows from the schema into validation: a bad
-// identifier marks the form invalid (banner + Draft badge).
+// identifier marks the form invalid (banner + Incomplete status).
 export const CompactValidIdentifierRule: Story = {
   parameters: {
     docs: {
@@ -3760,7 +3768,7 @@ export const CompactValidIdentifierRule: Story = {
     await _testsWaitForText('1-bad-identifier');
     // The rules-driven validation marks the form as needing attention — the
     // dedicated "Needs attention" box (and the header link) signal it.
-    await _testsWaitForText('Draft');
+    await _testsWaitForText('Incomplete');
     await _testsWaitForText('Needs attention');
   },
 };
@@ -5920,12 +5928,12 @@ export const CompactRequiredGroups: Story = {
     value: {} as IOptions,
   },
   play: async () => {
-    // All three members show the required placeholder + the Draft badge. The two
+    // All three members show the required placeholder + the Incomplete status. The two
     // contiguous members (byHost/byFile in Connection) cluster into a rail, which
     // carries the grouping in place of a chip; only the lone member (byUrl in
     // General) keeps a "One of" chip — so exactly one chip, not three.
     await _testsWaitForTextsCount('—', undefined, 3);
-    await _testsWaitForText('Draft');
+    await _testsWaitForText('Incomplete');
     await _testsWaitForTextsCount('One of', undefined, 1);
 
     // The chip is a ReqoreDropdown listing the siblings; selecting one flashes
@@ -5980,7 +5988,7 @@ export const CompactRequiredGroups: Story = {
     await _testsClickButton({ selector: '.options-readfirst-done' });
     await _testsWaitForText('https://example.com');
 
-    // One fulfilled member satisfies the group → the badge flips to Ready and the
+    // One fulfilled member satisfies the group → the status flips to Ready and the
     // Once satisfied: the filled member keeps a "Covers" chip; the empty siblings
     // show their "Covered by 'By URL'" note INLINE (not a chip), and no "One of"
     // remains. So exactly one required-group chip stays (the coverer's).
