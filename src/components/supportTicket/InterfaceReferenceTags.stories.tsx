@@ -3,6 +3,14 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { StoryMeta } from '../../types';
 import { InterfaceReferenceTags } from './InterfaceReferenceTags';
 import { IInterfaceReference } from './meta';
+import {
+  STORY_APP_LOGO,
+  STORY_BROKEN_IMAGE,
+  STORY_QOG_IMAGE,
+  storyBrokenKindMark,
+  storyKindMark,
+} from './__fixtures__/kindMarks';
+import { whenImageSettled } from './useLoadedImages';
 
 // Several references, including two of the same kind (workflow), as `{kind, name}`
 // snapshots — no `resolveInterfaceIcon` is passed, so the built-in per-kind default
@@ -167,5 +175,83 @@ export const Empty: Story = {
     // nothing — no header text, no chips.
     await expect(within(canvasElement).queryByText('References')).not.toBeInTheDocument();
     await expect(within(canvasElement).queryByText('order-sync:1.2')).not.toBeInTheDocument();
+  },
+};
+
+const QOG_REFERENCES: IInterfaceReference[] = [
+  { interface_kind: 'fsm', interface_name: 'order-flow', reference_id: 'q1' },
+  {
+    interface_kind: 'fsm',
+    interface_name: 'telegram-intake',
+    reference_id: 'q2',
+    logo: STORY_APP_LOGO,
+  },
+  { interface_kind: 'service', interface_name: 'notification-svc', reference_id: 'q3' },
+];
+
+const chipImages = (canvasElement: HTMLElement) =>
+  Array.from(canvasElement.querySelectorAll('.reqore-tag img')).map((img) =>
+    img.getAttribute('src')
+  );
+
+export const KindImage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders references with a host resolver that gives a Qog an image (the green mark) and a font icon fallback. The plain Qog shows the image; the app-triggered Qog keeps its stored trigger-app logo, because by default a reference's own logo comes first; the service has no image and shows its font icon.",
+      },
+    },
+  },
+  args: { references: QOG_REFERENCES, resolveInterfaceIcon: storyKindMark },
+  async play({ canvasElement }) {
+    await waitFor(() =>
+      expect(chipImages(canvasElement).sort()).toEqual([STORY_APP_LOGO, STORY_QOG_IMAGE].sort())
+    );
+  },
+};
+
+export const KindImagePreferred: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same references with preferKindImage: the kind image comes before a reference\'s own logo, so both Qogs show the green Qog mark and the service keeps its font icon.',
+      },
+    },
+  },
+  args: {
+    references: QOG_REFERENCES,
+    resolveInterfaceIcon: storyKindMark,
+    preferKindImage: true,
+  },
+  async play({ canvasElement }) {
+    await waitFor(() =>
+      expect(chipImages(canvasElement)).toEqual([STORY_QOG_IMAGE, STORY_QOG_IMAGE])
+    );
+  },
+};
+
+export const KindImageFailsToLoad: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a Qog reference whose kind image cannot load: the chip keeps the font icon instead of drawing a broken picture.',
+      },
+    },
+  },
+  args: {
+    references: [QOG_REFERENCES[0]],
+    resolveInterfaceIcon: storyBrokenKindMark,
+    preferKindImage: true,
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('order-flow')).toBeInTheDocument();
+    // Once the load has failed, no picture is drawn.
+    await whenImageSettled(STORY_BROKEN_IMAGE);
+    await expect(chipImages(canvasElement)).toEqual([]);
+    await expect(canvasElement.querySelector('.reqore-tag .reqore-icon')).toBeTruthy();
   },
 };

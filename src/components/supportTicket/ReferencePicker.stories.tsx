@@ -4,6 +4,13 @@ import { ComponentProps, useState } from 'react';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { StoryMeta } from '../../types';
 import { InterfaceReferenceTags } from './InterfaceReferenceTags';
+import {
+  STORY_BROKEN_IMAGE,
+  STORY_QOG_IMAGE,
+  storyBrokenKindMark,
+  storyKindMark,
+} from './__fixtures__/kindMarks';
+import { whenImageSettled } from './useLoadedImages';
 import { IInterfaceReference } from './meta';
 import { ReferencePicker, TReferencePickerItem } from './ReferencePicker';
 import { TicketReplyBox } from './TicketReplyBox';
@@ -515,5 +522,49 @@ export const AboveTheComposer: Story = {
       expect(missingOption(canvas, 'invoice-export:2.0')).not.toBeInTheDocument()
     );
     await expect(canvas.getAllByText('order-sync:1.2').length).toBeGreaterThan(0);
+  },
+};
+
+const menuImages = (canvasElement: HTMLElement) =>
+  Array.from(canvasElement.querySelectorAll('.reqore-menu-item img')).map((img) =>
+    img.getAttribute('src')
+  );
+
+export const KindImage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the picker with a host resolver that gives Qogs an image: the Qogs kind and each Qog in the list show the green Qog mark; every other kind keeps its font icon.',
+      },
+    },
+  },
+  decorators: [darkTheme],
+  render: () => <Hosted initialKind='qog' resolveInterfaceIcon={storyKindMark} />,
+  async play({ canvasElement }) {
+    // the Qogs kind row plus its four interfaces
+    await waitFor(() =>
+      expect(menuImages(canvasElement).filter((src) => src === STORY_QOG_IMAGE)).toHaveLength(5)
+    );
+  },
+};
+
+export const KindImageFailsToLoad: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the picker with a Qog image that cannot load: the Qogs kind and its interfaces keep the font icon instead of a broken picture.',
+      },
+    },
+  },
+  decorators: [darkTheme],
+  render: () => <Hosted initialKind='qog' resolveInterfaceIcon={storyBrokenKindMark} />,
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await canvas.findByRole('button', { name: 'telegram-intake' });
+    // Once the load has failed, no picture is drawn.
+    await whenImageSettled(STORY_BROKEN_IMAGE);
+    await expect(menuImages(canvasElement)).toEqual([]);
   },
 };
