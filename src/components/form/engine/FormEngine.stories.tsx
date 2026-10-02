@@ -2730,13 +2730,55 @@ const _expandOptionalBox = async () => {
  * unmet dependency waits here rather than under "Needs attention", and a box
  * that shows its preselected rows folds the rest.
  */
-const _revealOptionalRow = async (field: string) => {
+const _revealOptionalRow = async (field: string): Promise<{ refold: () => Promise<void> }> => {
   await _expandOptionalBox();
   const row = () => document.querySelector(`.readfirst-row[data-field="${field}"]`);
-  if (!row()) {
+  const opensFold = !row();
+  if (opensFold) {
     await _testsClickButton({ selector: '.options-readfirst-more' });
   }
   await waitFor(() => expect(row()).toBeTruthy(), { timeout: 10000 });
+  return {
+    /** Close the fold again if this opened it, so the form is laid out as before. */
+    refold: async () => {
+      if (opensFold) {
+        await fireEvent.click(document.querySelector('.options-readfirst-more') as HTMLElement);
+        await waitFor(() => expect(row()).toBeNull(), { timeout: 10000 });
+      }
+    },
+  };
+};
+
+/** Every scrolled element in the page, with its scroll offsets. */
+const _scrollPositions = () =>
+  new Map(
+    [document.scrollingElement, ...Array.from(document.querySelectorAll('*'))]
+      .filter((element): element is Element => !!element)
+      .map((element) => [element, [element.scrollTop, element.scrollLeft] as const])
+  );
+
+/**
+ * Run `check` and leave the page scrolled exactly as it was. Opening a box or a
+ * fold to reach a row moves focus and scrolls the frame, and a story whose
+ * snapshot is its reference frame must not end somewhere else.
+ */
+const _withoutScrolling = async (check: () => Promise<void>) => {
+  const before = _scrollPositions();
+  await check();
+  const elements = [document.scrollingElement, ...Array.from(document.querySelectorAll('*'))];
+  for (const element of elements) {
+    if (!element) {
+      continue;
+    }
+    const [top, left] = before.get(element) ?? [0, 0];
+    if (element.scrollTop !== top || element.scrollLeft !== left) {
+      element.scrollTop = top;
+      element.scrollLeft = left;
+    }
+  }
+  (document.activeElement as HTMLElement | null)?.blur?.();
+  const top = before.get(document.scrollingElement as Element)?.[0] ?? 0;
+  await waitFor(() => expect(document.scrollingElement?.scrollTop ?? 0).toBe(top));
 };
 
 // CompactSchema plus one optional (non-preselected) field, to exercise the
@@ -3082,7 +3124,7 @@ export const CompactBasic: Story = {
     // Dependency locks are navigable: the lock's popover lists the blockers
     // with their state; clicking one scrolls to + flashes it. The locked row is
     // required, but locked it needs no attention, so it waits in Optional.
-    await _revealOptionalRow('optionWithShortDescription');
+    const lockedRow = await _revealOptionalRow('optionWithShortDescription');
     const depLock = document.querySelector(
       '.readfirst-row[data-field="optionWithShortDescription"] .options-readfirst-lock-deps'
     ) as HTMLElement;
@@ -3111,6 +3153,10 @@ export const CompactBasic: Story = {
       { timeout: 10000 }
     );
     await fireEvent.click(depLock); // close the popover
+    // Fold the Optional box's extra rows back, so the rest of the play (and the
+    // captured frame) sees the form laid out as before; once unlocked, the row
+    // moves to Needs attention and is on screen again.
+    await lockedRow.refold();
 
     // Fulfilling the dependency UNLOCKS the dependent row and flashes it.
     await _testsClickText('basicOption');
@@ -6596,11 +6642,29 @@ export const CompactShowcase: Story = {
       0
     );
     // The unmet-dependency hint surfaces on the dependent field's row — locked,
-    // so in the Optional box rather than under "Needs attention".
-    await _revealOptionalRow('optionWithShortDescription');
-    await _testsWaitForText(
-      'This field is disabled because some dependencies are not fulfilled: "basicOption"'
+    // so in the Optional box rather than under "Needs attention". Not under
+    // Needs attention is a DOM fact; reaching the row means opening the
+    // Optional box's fold, which scrolls, so the frame is put back afterwards:
+    // this story's snapshot is the form's top.
+    const attentionBox = Array.from(document.querySelectorAll('.options-readfirst-group')).find(
+      (group) => (group.textContent || '').startsWith('Needs attention')
     );
+    await expect(
+      attentionBox?.querySelector('[data-field="optionWithShortDescription"]')
+    ).toBeFalsy();
+    await _withoutScrolling(async () => {
+      const lockedRow = await _revealOptionalRow('optionWithShortDescription');
+      const optionalBox = Array.from(document.querySelectorAll('.options-readfirst-group')).find(
+        (group) => (group.textContent || '').startsWith('Optional')
+      );
+      await expect(
+        optionalBox?.querySelector('[data-field="optionWithShortDescription"]')
+      ).toBeTruthy();
+      await _testsWaitForText(
+        'This field is disabled because some dependencies are not fulfilled: "basicOption"'
+      );
+      await lockedRow.refold();
+    });
     // ONE info mechanism: no subtitle lines, no badge — just the panel + ⓘ.
     await expect(document.querySelectorAll('.options-readfirst-subtitle')).toHaveLength(0);
     await expect(document.querySelectorAll('.options-readfirst-info-badge')).toHaveLength(0);
