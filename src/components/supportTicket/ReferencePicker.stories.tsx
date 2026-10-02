@@ -525,6 +525,10 @@ export const AboveTheComposer: Story = {
   },
 };
 
+/* The kinds for the image stories: Qogs first, then a few font-icon kinds to
+ * compare against. */
+const IMAGE_KINDS = ['qog', 'workflow', 'service', 'job'];
+
 const menuImages = (canvasElement: HTMLElement) =>
   Array.from(canvasElement.querySelectorAll('.reqore-menu-item img')).map((img) =>
     img.getAttribute('src')
@@ -540,12 +544,20 @@ export const KindImage: Story = {
     },
   },
   decorators: [darkTheme],
-  render: () => <Hosted initialKind='qog' resolveInterfaceIcon={storyKindMark} />,
+  // A short kind list with Qogs first, so the Qogs kind and its mark sit at the
+  // top of the column in the captured frame rather than below its fold.
+  render: () => (
+    <Hosted kinds={IMAGE_KINDS} initialKind='qog' resolveInterfaceIcon={storyKindMark} />
+  ),
   async play({ canvasElement }) {
     // the Qogs kind row plus its four interfaces
     await waitFor(() =>
       expect(menuImages(canvasElement).filter((src) => src === STORY_QOG_IMAGE)).toHaveLength(5)
     );
+    // the Qogs kind is the first kind row, so it is in the frame
+    await expect(
+      canvasElement.querySelector('.reqore-menu-item')?.querySelector('img')?.getAttribute('src')
+    ).toBe(STORY_QOG_IMAGE);
   },
 };
 
@@ -559,7 +571,9 @@ export const KindImageFailsToLoad: Story = {
     },
   },
   decorators: [darkTheme],
-  render: () => <Hosted initialKind='qog' resolveInterfaceIcon={storyBrokenKindMark} />,
+  render: () => (
+    <Hosted kinds={IMAGE_KINDS} initialKind='qog' resolveInterfaceIcon={storyBrokenKindMark} />
+  ),
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await canvas.findByRole('button', { name: 'telegram-intake' });
