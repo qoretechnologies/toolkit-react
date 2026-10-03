@@ -53,7 +53,6 @@ import {
   fixOperatorValue,
   getDefaultValue,
   insertAtIndex,
-  richtextHasTag,
   richtextToString,
 } from '../../../helpers/common';
 import {
@@ -77,7 +76,6 @@ import {
   ITemplateFieldProps,
   TCustomTemplateItems,
   TemplateField,
-  isValueTemplate,
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
 import { FormFieldsSkeleton } from './FormFieldsSkeleton';
@@ -116,7 +114,6 @@ import { OptionsHelpDialog } from './OptionsHelpDialog';
 import { firstDeclaredType, isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
   TReadFirstStatus,
-  findAllowedValueOption,
   getFirstAttentionOptionName,
   getOptionGroup,
   getOptionGroupLabel,
@@ -523,24 +520,15 @@ export const fixOptions = (
         (fixedValue[name] as IQorusFormField)?.value === undefined
       ) {
         obj = option.default_value as IQorusFormField;
-      } else if (
-        option.default_view === 'expression' &&
-        (fixedValue[name] as IQorusFormField)?.value === undefined
-      ) {
-        // A field the schema declares as opening in expression mode starts as an
-        // EMPTY expression, not as its raw default. `isDefaultFunction` already
-        // makes the renderer open that way, so without this the data disagreed
-        // with what the operator was looking at: an expression editor whose
-        // value was still the plain default, and no `is_expression` on the field
-        // until the first edit.
-        obj = {
-          type,
-          value: {
-            args: [],
-          },
-          is_expression: true,
-        };
       } else {
+        // A field declared with `default_view: 'expression'` is NOT seeded with
+        // an empty expression here. This runs on every load, so a seed written
+        // here changed a saved object merely by opening it: an existing Qog
+        // state gained `{args: []}` the moment its panel opened, and the editor
+        // autosaved a draft nobody made. The renderer already opens such a
+        // field in expression mode from the schema (`isDefaultFunction`), the
+        // first edit stores `is_expression`, and a host that creates a NEW
+        // object seeds the expression itself, at creation.
         obj = {
           type,
           value:
@@ -597,39 +585,15 @@ export const fixOptions = (
         };
       }
 
-      // A value that is not one of the declared choices is dropped. What counts
-      // as "one of the choices" is `findAllowedValueOption` — the same predicate
-      // the read-first row uses to LABEL a value — because a value the row can
-      // name is by definition a value the form must keep. Inlining a narrower
-      // test here (envelope and `name`, but not a bare `value`) silently erased
-      // every value declared the bare way: the collapsed row still showed its
-      // display name while the editor showed "—" and the value never reached
-      // the submitted data.
-      // `allowed_values: []` is NOT "no value is permitted" — it is the server
-      // saying it has no reference values to offer right now (the app-action
-      // catalogue ships exactly that, with an
-      // `option_reference_values_unavailable` message attached). An empty array
-      // is truthy, so testing the array itself made every such option erase the
-      // operator's stored value on the first render, before the
-      // connection-refreshed schema arrived to say otherwise — and the emptied
-      // form then autosaved over the draft, so the value was gone for good.
-      // Only an option that actually declares choices can have a value that is
-      // not one of them.
-      // An expression and a document holding a template tag are resolved when the interface runs, so they are
-      // never one of the choices and are never judged against them; erasing them lost a configured value the
-      // moment the choices arrived.
-      if (
-        newOption.value !== undefined &&
-        !newOption.is_expression &&
-        !richtextHasTag(newOption.value) &&
-        options?.[optionName]?.allowed_values?.length &&
-        !findAllowedValueOption(newOption.value, options?.[optionName]) &&
-        !isValueTemplate(newOption.value) &&
-        !options?.[optionName]?.multiselect &&
-        !options?.[optionName]?.allowed_values_creatable
-      ) {
-        newOption.value = undefined;
-      }
+      // A value that is not one of the declared choices is KEPT. It used to be
+      // dropped here, on load, and the dropped value was three times a real
+      // one — a bare-declared choice, a document naming a choice, a value whose
+      // choices had not arrived yet — that the emptied form then autosaved, so
+      // it was gone for good. Whether a value is one of the choices is now the
+      // validator's question (`getUnlistedChoiceReason`, asked through
+      // `validateFieldWithResult`): such a field is invalid, sits under "Needs
+      // attention" saying which value is not a choice, and the form reports
+      // itself invalid so the host blocks submitting it.
 
       if (
         newOption.value &&

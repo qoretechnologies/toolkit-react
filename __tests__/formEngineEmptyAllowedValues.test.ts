@@ -17,6 +17,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { fixOptions } from '../src/components/form/engine/FormEngine';
+import { validateFieldWithResult } from '../src/helpers/validations';
 
 const option = (extra: Record<string, unknown> = {}) => ({
   type: 'string',
@@ -49,10 +50,18 @@ describe('fixOptions with an empty allowed_values', () => {
     expect(out.to).toEqual({ type: 'list', value: ['ops@example.com'] });
   });
 
-  it('still drops a value that is outside a NON-empty allowed_values', () => {
-    // The behaviour the empty-array case was overreaching from: a real set of
-    // choices still rejects a value that is not one of them, which is how
-    // changing a connection clears a channel belonging to the previous one.
+  it('keeps a value that is outside a NON-empty allowed_values, and it is invalid', () => {
+    // A real set of choices rejects a value that is not one of them — by
+    // making the field INVALID, not by erasing the value. Erasing it lost real
+    // values on load, and the emptied form was then autosaved. A channel left
+    // over from a previous connection now stays visible, flagged, until the
+    // author picks one of the new channels.
+    const schema = {
+      channel: option({
+        display_name: 'Channel',
+        allowed_values: [{ display_name: 'Ops', value: { type: 'string', value: 'ops' } }],
+      }),
+    } as any;
     const out = fixOptions(
       { channel: 'gone' },
       {
@@ -62,7 +71,24 @@ describe('fixOptions with an empty allowed_values', () => {
         }),
       } as any
     );
-    expect((out.channel as any).value).toBeUndefined();
+    expect((out.channel as any).value).toBe('gone');
+    expect(
+      validateFieldWithResult('string', (out.channel as any).value, schema.channel)
+    ).toMatchObject({ isValid: false, reason: '"gone" is not one of the choices' });
+  });
+
+  it('judges no value against an EMPTY allowed_values — unknown is not invalid', () => {
+    expect(
+      validateFieldWithResult('string', 'ops@example.com', option({ allowed_values: [] }) as any)
+        .isValid
+    ).toBe(true);
+    expect(
+      validateFieldWithResult(
+        'list',
+        ['ops@example.com'],
+        option({ type: 'list', ui_type: 'list', allowed_values: [] }) as any
+      ).isValid
+    ).toBe(true);
   });
 
   it('still keeps a value that IS one of a non-empty allowed_values', () => {
@@ -97,17 +123,16 @@ describe('fixOptions with an empty allowed_values', () => {
 });
 
 /**
- * A field declared to open in expression mode starts as an EMPTY expression.
+ * A field declared to open in expression mode is NOT seeded on load.
  *
- * `isDefaultFunction` already makes the renderer open such a field in
- * expression mode from the schema alone, so seeding the value keeps the DATA
- * agreeing with what the operator sees: without it the expression editor is
- * showing a plain default value, and the field carries no `is_expression` until
- * the first edit.
- *
- * Ported from the IDE's copy of `fixOptions` when the two were consolidated —
- * reqraft's is now the only implementation, so this behaviour has to live here
- * or it is silently lost for every form that had it.
+ * `fixOptions` runs every time a form loads, so a seed written here changed a
+ * saved object merely by opening it: an existing Qog state's required
+ * `where_cond` gained `{args: []}` the moment its panel opened, and the editor
+ * autosaved a draft ("Fix to update") nobody had made. The renderer opens such
+ * a field in expression mode from the schema alone (`isDefaultFunction`); the
+ * host seeds the empty expression when it CREATES a new object. These tests
+ * replace the ones that asserted the seed (toolkit-react 7db7f48), which
+ * encoded the behaviour that caused the phantom edit.
  */
 describe('fixOptions with default_view: expression', () => {
   const schema = (extra: Record<string, unknown> = {}) =>
@@ -121,11 +146,35 @@ describe('fixOptions with default_view: expression', () => {
       },
     }) as never;
 
-  it('seeds an empty expression when the field has no value', () => {
-    expect(fixOptions({}, schema()).threshold).toMatchObject({
-      value: { args: [] },
-      is_expression: true,
-    });
+  it('does not seed an expression when the field has no value', () => {
+    const out = fixOptions({}, schema()).threshold as { value?: unknown; is_expression?: boolean };
+    expect(out.value).toBeUndefined();
+    expect(out.is_expression).toBeUndefined();
+  });
+
+  it('leaves the field required and empty, which is invalid', () => {
+    const out = fixOptions({}, schema()).threshold as { value?: unknown };
+    expect(
+      validateFieldWithResult('int', out.value, {
+        has_to_have_value: true,
+        required: true,
+      } as any).isValid
+    ).toBe(false);
+  });
+
+  it('round-trips without change: fixing the fixed value adds nothing', () => {
+    const once = fixOptions({}, schema());
+    expect(fixOptions(once as never, schema())).toEqual(once);
+  });
+
+  it('keeps a stored expression unchanged', () => {
+    const stored = { threshold: { type: 'int', value: { exp: 'ADD', args: [1, 2] }, is_expression: true } };
+    expect(fixOptions(stored as never, schema()).threshold).toEqual(stored.threshold);
+  });
+
+  it('keeps a stored empty expression unchanged', () => {
+    const stored = { threshold: { type: 'int', value: { args: [] }, is_expression: true } };
+    expect(fixOptions(stored as never, schema()).threshold).toEqual(stored.threshold);
   });
 
   it('leaves an existing value alone', () => {
