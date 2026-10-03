@@ -1869,8 +1869,13 @@ const FormEngineImpl = ({
           ) ?
             schemaType
           : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
+        // A field reports back the type it was drawn as, which for a renderer-only editor (markdown, cron,
+        // dpql, ...) is the editor's name rather than the type the value is stored as. Storing that name
+        // sent a description as `{type: "markdown"}`, which the server decodes by type and so parsed as
+        // YAML. A type picked for an untyped field is never renderer-only, so it still wins.
+        const emittedType = _type && !isRendererOnly(_type as TQorusType) ? _type : undefined;
         const type =
-          _type ||
+          emittedType ||
           getTypeAndCanBeNull(resolvedSchemaType, options?.[optionName]?.allowed_values).type;
 
         if (!(fields as TQorusForm)[optionName]) {
