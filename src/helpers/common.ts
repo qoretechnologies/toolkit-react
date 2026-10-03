@@ -93,6 +93,20 @@ export const getDefaultValue = (schema?: TQorusFormFieldSchema): unknown | undef
   return undefined;
 };
 
+/**
+ * Whether a rich-text document contains a template tag (a `$local:...`-style reference drawn as a chip).
+ *
+ * Such a value is resolved when the interface runs, so it can never be one of a field's fixed choices and must
+ * not be judged against them.
+ */
+export const richtextHasTag = (richtext: unknown): boolean => {
+  const walk = (node: any): boolean =>
+    !!node &&
+    typeof node === 'object' &&
+    (node.type === 'tag' || (Array.isArray(node.children) && node.children.some(walk)));
+  return Array.isArray(richtext) && richtext.some(walk);
+};
+
 export const richtextToString = (richtext: IReqoreRichTextEditorProps['value']): string => {
   // A `richtext` ui_type option can still hold a plain scalar value (set
   // programmatically or loaded from the server before the editor ever touched

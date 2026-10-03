@@ -53,6 +53,7 @@ import {
   fixOperatorValue,
   getDefaultValue,
   insertAtIndex,
+  richtextHasTag,
   richtextToString,
 } from '../../../helpers/common';
 import {
@@ -614,8 +615,13 @@ export const fixOptions = (
       // form then autosaved over the draft, so the value was gone for good.
       // Only an option that actually declares choices can have a value that is
       // not one of them.
+      // An expression and a document holding a template tag are resolved when the interface runs, so they are
+      // never one of the choices and are never judged against them; erasing them lost a configured value the
+      // moment the choices arrived.
       if (
         newOption.value !== undefined &&
+        !newOption.is_expression &&
+        !richtextHasTag(newOption.value) &&
         options?.[optionName]?.allowed_values?.length &&
         !findAllowedValueOption(newOption.value, options?.[optionName]) &&
         !isValueTemplate(newOption.value) &&

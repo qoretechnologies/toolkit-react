@@ -293,6 +293,10 @@ export const findAllowedValueOption = (
       (value as Record<string, unknown>).value
     : value;
 
+  // A rich-text document is its text: a field with fixed choices can hold the document an editor wrote
+  // (for example while its choices could not be loaded), and the document for "Case" is the choice "Case".
+  const text = Array.isArray(stored) ? richtextToString(stored as never) : undefined;
+
   return options.find(
     (option) =>
       option?.value?.value === value ||
@@ -300,7 +304,9 @@ export const findAllowedValueOption = (
       option?.name === value ||
       option?.value?.value === stored ||
       option?.value === stored ||
-      option?.name === stored
+      option?.name === stored ||
+      (text !== undefined &&
+        (option?.value?.value === text || option?.value === text || option?.name === text))
   );
 };
 
