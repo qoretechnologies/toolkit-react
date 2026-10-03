@@ -1,17 +1,24 @@
 import { ReqoreControlGroup, ReqoreP, ReqoreTag } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
-import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { ComponentProps } from 'react';
-import { defaultInterfaceIcon, IInterfaceReference } from './meta';
+import {
+  defaultInterfaceIcon,
+  IInterfaceReference,
+  toInterfaceKindMark,
+  TResolveInterfaceIcon,
+} from './meta';
+import { useLoadedImages } from './useLoadedImages';
 
 export interface IInterfaceReferenceTagsProps {
   references?: IInterfaceReference[];
   /** Optional leading label, e.g. "References" in a ticket header. Omitted (the
    *  default) inside the thread, where the chips sit under a message. */
   label?: string;
-  /** Resolve a per-kind icon. Consumers with their own icon vocabulary (the IDE)
+  /** Resolve a per-kind icon: a font icon, or a mark `{ icon, image }` whose image
+   *  (e.g. the Qog logo) is drawn once it loads, with the font icon before that and
+   *  instead of it if it fails. Consumers with their own icon vocabulary (the IDE)
    *  pass one; when omitted the built-in per-kind default is used. */
-  resolveInterfaceIcon?: (kind: string) => IReqoreIconName;
+  resolveInterfaceIcon?: TResolveInterfaceIcon;
   /** Open a referenced interface; chips are static (informational) when omitted —
    *  e.g. the staff view, which can't reach the customer's instance. */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
@@ -32,6 +39,21 @@ export interface IInterfaceReferenceTagsProps {
    *  qogs list does. When this (or the reference's own `logo`) returns a value, the
    *  chip shows the image in place of the kind icon. */
   resolveInterfaceImage?: (reference: IInterfaceReference) => string | undefined;
+  /**
+   * Which image a chip draws when there is more than one:
+   *
+   * - `false` (the default): the reference's own image first — its stored `logo`,
+   *   then `resolveInterfaceImage` — and the kind's image (from
+   *   `resolveInterfaceIcon`) only when it has neither. This is how chips have
+   *   always looked: an app-triggered Qog shows its trigger app's logo.
+   * - `true`: the kind's image first, then the reference's own. For a host that
+   *   draws every interface of a kind with one mark (the IDE's green Qog), so a
+   *   Qog reads as a Qog whatever app triggers it.
+   *
+   * Either way the kind's font icon shows until the chosen image loads, and
+   * instead of it if it cannot.
+   */
+  preferKindImage?: boolean;
 }
 
 /**
@@ -51,11 +73,22 @@ export const InterfaceReferenceTags = ({
   intent,
   customTheme,
   resolveInterfaceImage,
+  preferKindImage = false,
 }: IInterfaceReferenceTagsProps) => {
+  const resolveIcon = resolveInterfaceIcon ?? defaultInterfaceIcon;
+  const marks = (references ?? []).map((reference) => {
+    const mark = toInterfaceKindMark(resolveIcon(reference.interface_kind));
+    const own = reference.logo ?? resolveInterfaceImage?.(reference);
+    return {
+      reference,
+      icon: mark.icon,
+      image: preferKindImage ? (mark.image ?? own) : (own ?? mark.image),
+    };
+  });
+  const isLoaded = useLoadedImages(marks.map(({ image }) => image));
   if (!references?.length) {
     return null;
   }
-  const resolveIcon = resolveInterfaceIcon ?? defaultInterfaceIcon;
   return (
     <ReqoreControlGroup verticalAlign='center' wrap gapSize='small'>
       {label ? (
@@ -63,18 +96,18 @@ export const InterfaceReferenceTags = ({
           {label}
         </ReqoreP>
       ) : null}
-      {references.map((reference) => {
-        // an app-triggered qog shows the trigger app's logo (stored, or resolved by
-        // a viewer with the app catalogue); everything else shows its kind glyph.
-        const image = reference.logo ?? resolveInterfaceImage?.(reference);
+      {marks.map(({ reference, icon, image }) => {
+        // The chosen image (see `preferKindImage`) once it has loaded; the kind's
+        // font icon until then, and if it fails.
+        const loaded = isLoaded(image);
         return (
           <ReqoreTag
             key={
               reference.reference_id ??
               `${reference.interface_kind}:${reference.interface_name}`
             }
-            icon={image ? undefined : resolveIcon(reference.interface_kind)}
-            leftIconProps={image ? { image } : undefined}
+            icon={icon}
+            leftIconProps={loaded ? { image } : undefined}
             labelKey={reference.interface_kind}
             label={reference.interface_name}
             size={size}

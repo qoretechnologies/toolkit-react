@@ -11,6 +11,7 @@ import { IExpressionValue } from '../expressions/types';
 import yaml from 'js-yaml';
 import { formatTimeoutValue, richtextToString } from '../../../helpers/common';
 import { firstDeclaredType } from '../../../helpers/optionUiTypes';
+import { findAllowedValueOption } from '../../../helpers/allowedValues';
 
 /** "N noun" with naive pluralisation ("1 item", "2 items"). */
 const pluralize = (count: number, noun: string): string =>
@@ -253,56 +254,11 @@ export const shouldAutoCollapseCompactOption = (
 
 /**
  * Prefer the matching allowed_values entry's display_name (fallback `name`)
- * over the raw stored value.
- *
- * A LIST carries its options under `element_allowed_values` — they constrain
- * each element, not the list itself — so a multi-select that was missing here
- * printed what it stores rather than what you picked: `orders, batch` for
- * fields whose picker reads "Orders, Batch". The gap shows worst exactly where
- * allowed values earn their keep, since the stored form is often not readable
- * at all (a permission code, `PO_REQUIRE_TYPES`, an app-specific id).
- *
- * Exported (as `findAllowedValueOption`) because the form engine's value
- * validation has to answer the SAME question — "is this stored value one of the
- * declared choices?" — and answering it differently loses data. An
- * `allowed_values` entry is written three ways: an envelope (`{value: {type,
- * value}}`), a bare value (`{value: 'default'}`) or a named entry
- * (`{name: 'default'}`). This has always accepted all three; the engine's
- * clearing guard accepted only the first and the third, so a schema using the
- * bare form had its value ERASED on load while this function went on rendering
- * the display name for it — the row read "Default RBAC" collapsed and "—" when
- * opened, and the value was gone from the submitted data.
+ * over the raw stored value. The predicate lives in `helpers/allowedValues`,
+ * where the validator uses it too, so a value the row can name is exactly a
+ * value the form accepts.
  */
-export const findAllowedValueOption = (
-  value: unknown,
-  schema?: TQorusFormFieldSchema
-): any | undefined => {
-  const s = schema as
-    { allowed_values?: any[]; element_allowed_values?: any[]; items?: any[] } | undefined;
-  const options =
-    (s?.allowed_values?.length && s.allowed_values) ||
-    (s?.element_allowed_values?.length && s.element_allowed_values) ||
-    s?.items;
-  if (!options?.length) {
-    return undefined;
-  }
-  // A stored element can be the bare value or the typed `{type, value}`
-  // envelope the form engine round-trips; match either against either.
-  const stored =
-    value && typeof value === 'object' && 'value' in (value as Record<string, unknown>) ?
-      (value as Record<string, unknown>).value
-    : value;
-
-  return options.find(
-    (option) =>
-      option?.value?.value === value ||
-      option?.value === value ||
-      option?.name === value ||
-      option?.value?.value === stored ||
-      option?.value === stored ||
-      option?.name === stored
-  );
-};
+export { findAllowedValueOption };
 
 const getAllowedValueLabel = (
   value: unknown,

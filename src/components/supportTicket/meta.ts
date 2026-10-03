@@ -144,6 +144,27 @@ const DEFAULT_INTERFACE_ICONS: Record<string, IReqoreIconName> = {
 export const defaultInterfaceIcon = (kind: string): IReqoreIconName =>
   DEFAULT_INTERFACE_ICONS[kind] ?? 'CodeBoxLine';
 
+/**
+ * An interface kind's mark: a font icon, and optionally an image (e.g. the green
+ * Qog logo). The font icon is what shows while the image loads, and instead of it
+ * when there is none or it cannot load. Same shape as qorus-ide's
+ * `interfaceKindMark()`, so the IDE can return that directly.
+ */
+export interface IInterfaceKindMark {
+  icon: IReqoreIconName;
+  image?: string;
+}
+
+/** What a `resolveInterfaceIcon` may return: a font icon, or a mark with an image. */
+export type TInterfaceKindIcon = IReqoreIconName | IInterfaceKindMark;
+
+/** Resolve the icon for an interface kind (see `TInterfaceKindIcon`). */
+export type TResolveInterfaceIcon = (kind: string) => TInterfaceKindIcon;
+
+/** A resolver's answer as a mark, so callers handle one shape. */
+export const toInterfaceKindMark = (icon: TInterfaceKindIcon): IInterfaceKindMark =>
+  typeof icon === 'string' ? { icon } : icon;
+
 // The reading name for each interface kind. The kind id (`value-map`, `ai-collection`)
 // is a wire value — it's what a host fetches with and what gets stored on the reference
 // — so it must never be what the user reads. These are plural because they name a

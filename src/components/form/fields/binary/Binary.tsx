@@ -2,6 +2,7 @@ import { ReqoreControlGroup, ReqoreTextarea } from '@qoretechnologies/reqore';
 import { IReqoreTextareaProps } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { ChangeEvent, memo, useCallback, useEffect, useState } from 'react';
 import { useDebounce } from 'react-use';
+import { useEmittedValues } from '../emittedValues';
 import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
 
 export interface IReqraftBinaryFormFieldProps extends Omit<IReqoreTextareaProps, 'onChange' | 'value'> {
@@ -28,8 +29,14 @@ const stripDataUrlPrefix = (dataUrl: string): string => {
 export const ReqraftBinaryFormField = memo(
   ({ value, onChange, ...rest }: IReqraftBinaryFormFieldProps) => {
     const [localValue, setLocalValue] = useState<string>(value ?? '');
+    // The parent's echo of an emit still in flight is not a change: copying it
+    // over the local value lost what was typed since. See `EmittedValues`.
+    const emitted = useEmittedValues<string | undefined>();
 
     useEffect(() => {
+      if (emitted.isEcho(value)) {
+        return;
+      }
       if (value !== localValue) {
         setLocalValue(value ?? '');
       }
@@ -38,6 +45,7 @@ export const ReqraftBinaryFormField = memo(
     useDebounce(
       () => {
         if (localValue !== value) {
+          emitted.record(localValue);
           onChange?.(localValue);
         }
       },
@@ -53,6 +61,7 @@ export const ReqraftBinaryFormField = memo(
       (file?: IFileFormFieldValue) => {
         const base64 = stripDataUrlPrefix(file?.content ?? '');
         setLocalValue(base64);
+        emitted.record(base64);
         onChange?.(base64);
       },
       [onChange]
@@ -67,6 +76,7 @@ export const ReqraftBinaryFormField = memo(
           onChange={handleChange}
           onClearClick={() => {
             setLocalValue('');
+            emitted.record('');
             onChange?.('');
           }}
           placeholder='Base64-encoded binary value'

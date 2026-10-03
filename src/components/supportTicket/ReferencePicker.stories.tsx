@@ -4,6 +4,13 @@ import { ComponentProps, useState } from 'react';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { StoryMeta } from '../../types';
 import { InterfaceReferenceTags } from './InterfaceReferenceTags';
+import {
+  STORY_BROKEN_IMAGE,
+  STORY_QOG_IMAGE,
+  storyBrokenKindMark,
+  storyKindMark,
+} from './__fixtures__/kindMarks';
+import { whenImageSettled } from './useLoadedImages';
 import { IInterfaceReference } from './meta';
 import { ReferencePicker, TReferencePickerItem } from './ReferencePicker';
 import { TicketReplyBox } from './TicketReplyBox';
@@ -515,5 +522,63 @@ export const AboveTheComposer: Story = {
       expect(missingOption(canvas, 'invoice-export:2.0')).not.toBeInTheDocument()
     );
     await expect(canvas.getAllByText('order-sync:1.2').length).toBeGreaterThan(0);
+  },
+};
+
+/* The kinds for the image stories: Qogs first, then a few font-icon kinds to
+ * compare against. */
+const IMAGE_KINDS = ['qog', 'workflow', 'service', 'job'];
+
+const menuImages = (canvasElement: HTMLElement) =>
+  Array.from(canvasElement.querySelectorAll('.reqore-menu-item img')).map((img) =>
+    img.getAttribute('src')
+  );
+
+export const KindImage: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the picker with a host resolver that gives Qogs an image: the Qogs kind and each Qog in the list show the green Qog mark; every other kind keeps its font icon.',
+      },
+    },
+  },
+  decorators: [darkTheme],
+  // A short kind list with Qogs first, so the Qogs kind and its mark sit at the
+  // top of the column in the captured frame rather than below its fold.
+  render: () => (
+    <Hosted kinds={IMAGE_KINDS} initialKind='qog' resolveInterfaceIcon={storyKindMark} />
+  ),
+  async play({ canvasElement }) {
+    // the Qogs kind row plus its four interfaces
+    await waitFor(() =>
+      expect(menuImages(canvasElement).filter((src) => src === STORY_QOG_IMAGE)).toHaveLength(5)
+    );
+    // the Qogs kind is the first kind row, so it is in the frame
+    await expect(
+      canvasElement.querySelector('.reqore-menu-item')?.querySelector('img')?.getAttribute('src')
+    ).toBe(STORY_QOG_IMAGE);
+  },
+};
+
+export const KindImageFailsToLoad: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the picker with a Qog image that cannot load: the Qogs kind and its interfaces keep the font icon instead of a broken picture.',
+      },
+    },
+  },
+  decorators: [darkTheme],
+  render: () => (
+    <Hosted kinds={IMAGE_KINDS} initialKind='qog' resolveInterfaceIcon={storyBrokenKindMark} />
+  ),
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await canvas.findByRole('button', { name: 'telegram-intake' });
+    // Once the load has failed, no picture is drawn.
+    await whenImageSettled(STORY_BROKEN_IMAGE);
+    await expect(menuImages(canvasElement)).toEqual([]);
   },
 };

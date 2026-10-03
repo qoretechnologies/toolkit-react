@@ -60,7 +60,7 @@ describe('the completion header', () => {
   it('does not call a form Ready while a field needs attention', async () => {
     renderForm(SCHEMA_WITH_FLAGGED_FIELD);
     const text = await header();
-    expect(text).toContain('Draft');
+    expect(text).toContain('Incomplete');
     expect(text).not.toContain('Ready');
     expect(text).toContain('1 need attention');
   });
@@ -72,6 +72,30 @@ describe('the completion header', () => {
     expect(text).toContain('2/2 set');
     expect(text).toContain('50%');
     expect(text).not.toContain('100%');
+  });
+
+  it('calls an untouched form that lacks a required value Incomplete, never Draft', async () => {
+    // "Draft" means unsaved changes (the batched mode's row chip). A form
+    // nobody has changed has none, however much it still lacks.
+    render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='iface'
+            value={{} as never}
+            options={SCHEMA_CLEAN}
+            onChange={vi.fn()}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    const text = await header();
+    expect(text).toContain('Incomplete');
+    expect(text).not.toContain('Draft');
+    expect(text).not.toContain('Ready');
+    expect(text).toContain('0/2 set');
+    expect(text).toContain('2 need attention');
   });
 
   it('still reads Ready at 100% when nothing is flagged', async () => {

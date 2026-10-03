@@ -23,8 +23,11 @@ import { ImageLightbox } from '../imageLightbox';
 import {
   defaultInterfaceIcon,
   IInterfaceReference,
+  toInterfaceKindMark,
+  TResolveInterfaceIcon,
   TTicketViewerRole,
 } from '../supportTicket/meta';
+import { useLoadedImages } from '../supportTicket/useLoadedImages';
 import type { ITicketThreadAttachment, ITicketThreadMessage } from '../ticketThread/TicketThread';
 
 /*
@@ -74,8 +77,13 @@ export interface ITicketReferencesProps {
    *  Omitted ⇒ the action is not offered. It is also omitted per-row for anything filed
    *  against the ticket itself rather than a reply, which has no message to reveal. */
   onShowInChat?: (messageId: string) => void;
-  /** resolve a per-kind icon for a referenced interface (the IDE passes its own vocabulary) */
-  resolveInterfaceIcon?: (kind: string) => IReqoreIconName;
+  /** resolve a per-kind icon for a referenced interface (the IDE passes its own
+   *  vocabulary): a font icon, or a mark `{ icon, image }` whose image is drawn once
+   *  it loads, with the font icon before that and instead of it if it fails */
+  resolveInterfaceIcon?: TResolveInterfaceIcon;
+  /** Draw the kind's image ahead of a reference's own logo; see `preferKindImage` on
+   *  `InterfaceReferenceTags`. Off by default. */
+  preferKindImage?: boolean;
   loading?: boolean;
 }
 
@@ -415,6 +423,7 @@ export const TicketReferences = ({
   onInterfaceClick,
   onShowInChat,
   resolveInterfaceIcon,
+  preferKindImage = false,
   loading,
 }: ITicketReferencesProps) => {
   // references: ticket-level + every message's, deduped. Rendered as rows carrying
@@ -433,6 +442,17 @@ export const TicketReferences = ({
     [references, messages]
   );
   const resolveIcon = resolveInterfaceIcon ?? defaultInterfaceIcon;
+  /* Each reference's icon: the kind's font icon, and the image chosen by the same
+     precedence as the chips (`preferKindImage`), drawn once it has loaded. */
+  const markOf = (reference: IInterfaceReference) => {
+    const mark = toInterfaceKindMark(resolveIcon(reference.interface_kind));
+    const own = reference.logo;
+    return {
+      icon: mark.icon,
+      image: preferKindImage ? (mark.image ?? own) : (own ?? mark.image),
+    };
+  };
+  const isImageLoaded = useLoadedImages(allRefs.map((reference) => markOf(reference).image));
 
   /**
    * The trailing controls for a row: its primary action, plus a "three dots" menu when
@@ -768,17 +788,17 @@ export const TicketReferences = ({
               the group's size reaches every row (ControlGroup/index.tsx:436) */}
           <ReqoreControlGroup vertical fluid gapSize='small' size='small'>
             {visibleRefs.map((reference) => {
-              // an app-triggered qog carries its trigger app's logo; everything else
-              // shows its kind glyph — the same vocabulary the reference chips use.
-              const image = reference.logo;
+              // the same vocabulary and precedence as the reference chips: the kind's
+              // font icon, and the chosen image once it has loaded
+              const { icon, image } = markOf(reference);
               return (
                 <ReqoreEntityRow
                   key={
                     reference.reference_id ??
                     `${reference.interface_kind}:${reference.interface_name}`
                   }
-                  icon={image ? undefined : resolveIcon(reference.interface_kind)}
-                  iconImage={image}
+                  icon={icon}
+                  iconImage={isImageLoaded(image) ? image : undefined}
                   label={reference.interface_name}
                   metadata={
                     <ReqoreTextEffect effect={META_EFFECT}>

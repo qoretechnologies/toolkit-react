@@ -21,6 +21,7 @@ import { ImageLightbox } from '../imageLightbox';
 import {
   IInterfaceReference,
   InterfaceReferenceTags,
+  TResolveInterfaceIcon,
   TTicketMessageAuthor,
   TTicketViewerRole,
 } from '../supportTicket';
@@ -84,10 +85,15 @@ export interface ITicketThreadProps {
    * where a consumer hasn't wired it. Non-image attachments never use it.
    */
   fetchAttachmentUrl?: (attachmentId: string) => Promise<string>;
-  /** resolve a per-kind icon for a referenced interface. Consumers with their own
-   *  icon vocabulary (e.g. the qorus-ide IDE) pass one; when omitted, a built-in
+  /** resolve a per-kind icon for a referenced interface: a font icon, or a mark
+   *  `{ icon, image }` whose image (e.g. the Qog logo) is drawn once it loads, with
+   *  the font icon before that and instead of it if it fails. Consumers with their
+   *  own icon vocabulary (e.g. the qorus-ide IDE) pass one; when omitted, a built-in
    *  per-kind default is used so every surface shows consistent chips. */
-  resolveInterfaceIcon?: (kind: string) => IReqoreIconName;
+  resolveInterfaceIcon?: TResolveInterfaceIcon;
+  /** Draw the kind's image ahead of a reference's own logo on the reference chips;
+   *  see `preferKindImage` on `InterfaceReferenceTags`. Off by default. */
+  preferKindImage?: boolean;
   /** open a referenced interface; reference chips are static when omitted (e.g. the staff
    *  view, which can't reach the customer's instance, leaves this out). */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
@@ -557,6 +563,7 @@ export const TicketThread = ({
   onDownloadAttachment,
   fetchAttachmentUrl,
   resolveInterfaceIcon,
+  preferKindImage,
   onInterfaceClick,
   ticketReferences,
 }: ITicketThreadProps) => {
@@ -694,6 +701,7 @@ export const TicketThread = ({
                       customTheme={ACCENT}
                       references={refsFor(message)}
                       resolveInterfaceIcon={resolveInterfaceIcon}
+                      preferKindImage={preferKindImage}
                       onInterfaceClick={onInterfaceClick}
                     />
                   </div>

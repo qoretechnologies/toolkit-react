@@ -17,9 +17,10 @@ import {
   ReqoreVerticalSpacer,
   useReqoreProperty,
 } from '@qoretechnologies/reqore';
-import { map, size } from 'lodash';
+import { isEqual, map, size } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useDebounce } from 'react-use';
+import { useEmittedValues } from '../emittedValues';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 // Direct imports — the cycle (ArrayAuto → TemplateField/auto → ArrayAuto) is
@@ -81,12 +82,20 @@ export const ArrayAuto = ({
     ...rest,
   });
 
+  // The parent's echo of an emit still in flight is not a change: copying it
+  // over the local list lost what was edited since. See `EmittedValues`.
+  const emitted = useEmittedValues<unknown>(isEqual);
+
   useEffect(() => {
+    if (emitted.isEcho(value)) {
+      return;
+    }
     setLocalValue(value);
   }, [JSON.stringify(value)]);
 
   useDebounce(
     () => {
+      emitted.record(localValue);
       onChange?.(name, localValue);
     },
     300,

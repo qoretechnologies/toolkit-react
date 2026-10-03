@@ -112,7 +112,9 @@ const Meter = ({ form }: { form: TVariantForm }) => {
             color: (s.attention ? c.warning : c.success) as never,
           }}
         >
-          {s.attention ? 'Draft' : 'Ready'}
+          {/* What the form lacks, not whether it has unsaved changes:
+              "Draft" is the batched mode's per-row chip alone. */}
+          {s.attention ? 'Incomplete' : 'Ready'}
         </ReqoreP>
         <span>
           {s.set} of {s.total} set

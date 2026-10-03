@@ -284,8 +284,11 @@ export const QogTriggerAppLogo: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('telegram-intake')).toBeInTheDocument();
-    // the trigger-app / stored-logo qogs render their app logo image
-    await expect(canvasElement.innerHTML).toContain('data:image');
+    // the trigger-app / stored-logo qogs render their app logo image once it has
+    // loaded (the qog glyph stands in until then)
+    await waitFor(() =>
+      expect(canvasElement.querySelectorAll('.reqore-tag img').length).toBe(3)
+    );
   },
 };
 

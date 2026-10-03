@@ -52,7 +52,8 @@ vi.mock('@qoretechnologies/reqore', () => ({
   useReqoreProperty: () => vi.fn(),
 }));
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import {
   ArrayAutoField,
   IArrayAutoFieldProps,
@@ -359,5 +360,75 @@ describe('ArrayAutoField complex mode', () => {
     renderField({ type: 'hash', value: [] });
 
     expect(screen.getByText(/Add new item/)).toBeTruthy();
+  });
+});
+
+// ─── the echo of its own emit ─────────────────────────────────────────────────
+
+describe('ArrayAutoField and the echo of its own emit', () => {
+  /* The field reports its list 300 ms after the last edit, and the parent hands
+     it back after a delay of its own. Copying that echo over the local list
+     dropped an item added in between. */
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const addItem = (text: string) => {
+    fireEvent.change(screen.getByTestId('array-input'), { target: { value: text } });
+    const confirmBtn = q('.array-auto-compact-confirm') as HTMLButtonElement;
+    expect(confirmBtn.disabled).toBe(false);
+    fireEvent.click(confirmBtn);
+  };
+  const elapse = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+
+  let setExternal: (value: unknown[]) => void = () => undefined;
+  const Parent = ({ onEmit }: { onEmit: (value: unknown[]) => void }) => {
+    const [value, setValue] = useState<unknown[]>([]);
+    setExternal = setValue;
+    return (
+      <ArrayAutoField
+        name='test'
+        type='string'
+        value={value}
+        renderItem={stringRenderItem}
+        onChange={(_name, next) => {
+          onEmit(next as unknown[]);
+          setTimeout(() => setValue(next as unknown[]), 200);
+        }}
+      />
+    );
+  };
+
+  it('keeps an item added while the echo of the previous list is in flight', async () => {
+    const onEmit = vi.fn();
+    render(<Parent onEmit={onEmit} />);
+
+    addItem('a');
+    // Past the field's debounce (300 ms), so ['a'] is out, and just before the
+    // parent echoes it (200 ms later): 'b' has not been reported when it lands.
+    await elapse(450);
+    expect(onEmit).toHaveBeenLastCalledWith(['a']);
+    addItem('b');
+    // The echo of ['a'] lands now; 'b' must survive it.
+    await elapse(100);
+    expect(qa('.array-auto-compact-tag').length).toBe(2);
+    await elapse(1400);
+
+    expect(qa('.array-auto-compact-tag').length).toBe(2);
+    expect(onEmit).toHaveBeenLastCalledWith(['a', 'b']);
+  });
+
+  it('applies a list changed from outside', async () => {
+    render(<Parent onEmit={vi.fn()} />);
+    addItem('a');
+    await elapse(1500);
+
+    act(() => setExternal(['x', 'y', 'z']));
+    await elapse(100);
+
+    expect(qa('.array-auto-compact-tag').length).toBe(3);
   });
 });

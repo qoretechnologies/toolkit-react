@@ -819,9 +819,12 @@ function AutoField<T = any>({
                 );
               }
 
+              // the multi-select reads each item's `{type, value}` envelope itself, as Field.tsx gives it;
+              // handing it the unwrapped values left every choice `undefined`, so a pick stored an empty
+              // element and drew an "undefined" chip
               return (
                 <MultiSelectFormField
-                  items={mappedAllowedValues}
+                  items={rest.element_allowed_values}
                   value={formatFromServerValue(value)}
                   onChange={(selected) => {
                     handleChange(name, formatToServerValue(selected));

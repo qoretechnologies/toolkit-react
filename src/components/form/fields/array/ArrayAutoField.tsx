@@ -8,10 +8,11 @@ import {
   useReqoreProperty,
 } from '@qoretechnologies/reqore';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
-import { map, size } from 'lodash';
+import { isEqual, map, size } from 'lodash';
 import { recordIdentity } from '../../engine/readFirst';
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
+import { useEmittedValues } from '../emittedValues';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 
 export interface IArrayAutoFieldProps {
@@ -77,12 +78,20 @@ export const ArrayAutoField = memo(
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const inputKeyRef = useRef(0);
 
+    // The parent's echo of an emit still in flight is not a change: copying it
+    // over the local list lost what was edited since. See `EmittedValues`.
+    const emitted = useEmittedValues<unknown>(isEqual);
+
     useEffect(() => {
+      if (emitted.isEcho(value)) {
+        return;
+      }
       setLocalValue(value);
     }, [JSON.stringify(value)]);
 
     useDebounce(
       () => {
+        emitted.record(localValue);
         onChange(name, localValue);
       },
       300,
