@@ -35,6 +35,7 @@ import { validateField, validateFieldWithResult } from '../../../../helpers/vali
 import { IQorusTypeObject, useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useReqraftStorage } from '../../../../hooks/useStorage/useStorage';
 import { usePhoneViewport } from '../../../../hooks/usePhoneViewport';
+import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { useTemplates } from '../../../../hooks/useTemplates';
 import { AutoFormField as auto } from '../../fields/auto/AutoFormField';
 import { SelectFormField as Select } from '../../fields/select/Select';
@@ -152,6 +153,7 @@ export const Expression = ({
   componentOverrides,
   ...props
 }: IExpressionProps) => {
+  const coarsePointer = useCoarsePointer();
   const types = useQorusTypes();
   const [showSummary, setShowSummary] = useState(false);
   const [confirmDialogData, setConfirmDialogData] = useState<
@@ -892,7 +894,10 @@ export const Expression = ({
       contentStyle={{
         overflowX: 'hidden',
       }}
-      floatingActions
+      // with a mouse, the actions float above the panel while it is hovered; a finger cannot hover, and a
+      // tap left them floating over what is above - the Visual / Text switch, where a tap meant for
+      // Text hit "Remove this expression" - so on a touch device they stay in the panel's own bar
+      floatingActions={!coarsePointer}
       actions={[
         // SEAM (reqraft): the IDE renders `AiAssistanceAction` first here;
         // consumers inject it (or anything else) via `extraActions`.
