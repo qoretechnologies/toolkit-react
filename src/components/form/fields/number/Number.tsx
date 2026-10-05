@@ -3,6 +3,7 @@ import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Inpu
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useDebounce } from 'react-use';
+import { useEmittedValues } from '../emittedValues';
 // Const-only usage at render time — the cycle (Number → TemplateField → Number)
 // is safe the same way Field → AutoFormField → Field is.
 import { TemplatesListProps } from '../template/TemplateField';
@@ -37,8 +38,14 @@ export const NumberFormField = ({
   ...rest
 }: INumberFormFieldProps) => {
   const [localValue, setLocalValue] = useState<number | string>(value ?? '');
+  // The parent's echo of an emit still in flight is not a change: copying it
+  // over the local value lost what was typed since. See `EmittedValues`.
+  const emitted = useEmittedValues<number | string | undefined>();
 
   useEffect(() => {
+    if (emitted.isEcho(value)) {
+      return;
+    }
     if (value !== localValue) {
       setLocalValue(value ?? '');
     }
@@ -47,6 +54,7 @@ export const NumberFormField = ({
   useDebounce(
     () => {
       if (localValue !== value) {
+        emitted.record(localValue);
         onChange?.(localValue);
       }
     },
@@ -75,6 +83,7 @@ export const NumberFormField = ({
 
   const handleResetClick = useCallback((): void => {
     setLocalValue(0);
+    emitted.record(0);
     onChange?.(0);
   }, [onChange]);
 

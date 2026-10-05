@@ -113,6 +113,23 @@ describe('shouldAutoCollapseCompactOption', () => {
     expect(shouldAutoCollapseCompactOption(schema, false)).toBe(true);
     expect(shouldAutoCollapseCompactOption(schema, undefined)).toBe(false);
   });
+
+  it('keeps an expression open while it is built, on a boolean or a fixed-choice field', () => {
+    const bool = { type: 'bool', ui_type: 'bool' } as never;
+    const fixed = {
+      type: 'string',
+      ui_type: 'string',
+      allowed_values: [{ value: 'api', display_name: 'API' }],
+    } as never;
+    // the operation chosen, its arguments still to be filled in
+    const building = { exp: '>', args: [{ type: 'int' }, { type: 'int' }] };
+
+    expect(shouldAutoCollapseCompactOption(bool, building, true)).toBe(false);
+    expect(shouldAutoCollapseCompactOption(fixed, building, true)).toBe(false);
+    // a value still completes the row
+    expect(shouldAutoCollapseCompactOption(bool, true, false)).toBe(true);
+    expect(shouldAutoCollapseCompactOption(fixed, 'api', false)).toBe(true);
+  });
 });
 
 describe('formatOptionValue', () => {

@@ -285,6 +285,41 @@ describe('query', () => {
     expect(result.errorBody).toBeUndefined();
   });
 
+  it('reports a failure even when the response has no reason phrase (HTTP/2)', async () => {
+    // HTTP/2 carries no reason phrase, so `statusText` is ''. An empty `error`
+    // read as success to every caller testing it, and a failed request looked
+    // like one that never finished.
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ err: 'AUTHORIZATION-ERROR', desc: 'no permission' }), {
+        status: 403,
+        statusText: '',
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    const result = await query<any>({
+      url: 'aut/business-impact/dashboard',
+      queryClient: freshClient(),
+    });
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe(403);
+    expect(result.error).toBe('HTTP 403');
+    expect(result.errorBody?.err).toBe('AUTHORIZATION-ERROR');
+  });
+
+  it('keeps the reason phrase when the response has one', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('upstream exploded', { status: 500, statusText: 'Server Error' })
+    );
+    const result = await query<any>({ url: 'users', queryClient: freshClient() });
+    expect(result.error).toBe('Server Error');
+  });
+
+  it('sets no error on a successful response', async () => {
+    const result = await query<any>({ url: 'users', queryClient: freshClient() });
+    expect(result.ok).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+
   it('keeps data as an empty object for a body that is not JSON', async () => {
     fetchMock.mockResolvedValue(new Response('', { status: 200 }));
     const result = await query<any>({ url: 'users', queryClient: freshClient() });

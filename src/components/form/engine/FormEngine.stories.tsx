@@ -2153,6 +2153,114 @@ export const CompactWithholdsFieldsWithUnmetDependencies: Story = {
   },
 };
 
+/** A check whose kind decides which of the rest apply — the guided check's shape. */
+const lockedRequiredCheckOptions = {
+  kind: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Kind',
+    short_desc: 'What the check compares',
+    preselected: true,
+    allowed_values: [
+      { value: { type: 'string', value: 'equals' }, display_name: 'Equals' },
+      { value: { type: 'string', value: 'between' }, display_name: 'Between' },
+      { value: { type: 'string', value: 'exists' }, display_name: 'Exists' },
+    ],
+  },
+  expected: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Expected value',
+    short_desc: 'Applies once a kind is picked',
+    required: true,
+    depends_on: ['kind'],
+  },
+  min: {
+    type: 'int',
+    ui_type: 'int',
+    display_name: 'Minimum',
+    short_desc: 'Applies to Between alone',
+    required: true,
+    depends_on: ['kind=between'],
+  },
+  max: {
+    type: 'int',
+    ui_type: 'int',
+    display_name: 'Maximum',
+    short_desc: 'Applies to Between alone',
+    required: true,
+    depends_on: ['kind=between'],
+  },
+} as IOptionsSchema;
+
+export const CompactLockedRequiredNeedsNoAttention: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a check whose Expected value, Minimum and Maximum are required but locked until a kind is picked. A locked field is not listed under "Needs attention": the author can do nothing with it yet. Each stays on the form, locked, among the optional fields, saying what unlocks it. With no kind picked, nothing needs attention and the header reads Ready: the locked fields do not apply yet.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: lockedRequiredCheckOptions,
+    value: {} as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('Expected value');
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.readfirst-row[data-field="expected"] .options-readfirst-lock-deps'
+          )
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+    await expect(document.querySelector('[data-field="min"]')).toBeTruthy();
+    await expect(document.querySelector('[data-field="max"]')).toBeTruthy();
+    await _testsWaitForTextToNotExist('Needs attention');
+    // Nothing the author can fill in is missing, so the form is Ready — the
+    // locked fields do not apply until a kind is picked.
+    await _testsWaitForText('Ready');
+    await _testsWaitForTextToNotExist('Incomplete');
+  },
+};
+
+export const CompactUnlockedRequiredNeedsAttention: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same check with the kind set to Between. Every field that kind unlocks is required and empty, so Expected value, Minimum and Maximum are all listed under "Needs attention" and the header reads Incomplete (never Draft: nothing has been changed).',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: lockedRequiredCheckOptions,
+    value: { kind: { type: 'string', value: 'between' } } as IOptions,
+  },
+  play: async () => {
+    await _testsWaitForText('Needs attention');
+    await _testsWaitForText('Incomplete');
+    await _testsWaitForTextToNotExist('Draft');
+    const attention = [...document.querySelectorAll('.options-readfirst-group')].find((group) =>
+      (group.textContent || '').startsWith('Needs attention')
+    );
+    await expect(attention).toBeTruthy();
+    for (const field of ['expected', 'min', 'max']) {
+      await waitFor(
+        () => expect(attention!.querySelector(`[data-field="${field}"]`)).toBeTruthy(),
+        { timeout: 10000 }
+      );
+    }
+  },
+};
+
 export const CompactConditionalMessage: Story = {
   parameters: {
     docs: {
@@ -2616,6 +2724,63 @@ const _expandOptionalBox = async () => {
   }
 };
 
+/**
+ * Put one row of the Optional box on screen: open the box, and its "N more
+ * optional fields" fold if the row is behind it. A required field locked by an
+ * unmet dependency waits here rather than under "Needs attention", and a box
+ * that shows its preselected rows folds the rest.
+ */
+const _revealOptionalRow = async (field: string): Promise<{ refold: () => Promise<void> }> => {
+  await _expandOptionalBox();
+  const row = () => document.querySelector(`.readfirst-row[data-field="${field}"]`);
+  const opensFold = !row();
+  if (opensFold) {
+    await _testsClickButton({ selector: '.options-readfirst-more' });
+  }
+  await waitFor(() => expect(row()).toBeTruthy(), { timeout: 10000 });
+  return {
+    /** Close the fold again if this opened it, so the form is laid out as before. */
+    refold: async () => {
+      if (opensFold) {
+        await fireEvent.click(document.querySelector('.options-readfirst-more') as HTMLElement);
+        await waitFor(() => expect(row()).toBeNull(), { timeout: 10000 });
+      }
+    },
+  };
+};
+
+/** Every scrolled element in the page, with its scroll offsets. */
+const _scrollPositions = () =>
+  new Map(
+    [document.scrollingElement, ...Array.from(document.querySelectorAll('*'))]
+      .filter((element): element is Element => !!element)
+      .map((element) => [element, [element.scrollTop, element.scrollLeft] as const])
+  );
+
+/**
+ * Run `check` and leave the page scrolled exactly as it was. Opening a box or a
+ * fold to reach a row moves focus and scrolls the frame, and a story whose
+ * snapshot is its reference frame must not end somewhere else.
+ */
+const _withoutScrolling = async (check: () => Promise<void>) => {
+  const before = _scrollPositions();
+  await check();
+  const elements = [document.scrollingElement, ...Array.from(document.querySelectorAll('*'))];
+  for (const element of elements) {
+    if (!element) {
+      continue;
+    }
+    const [top, left] = before.get(element) ?? [0, 0];
+    if (element.scrollTop !== top || element.scrollLeft !== left) {
+      element.scrollTop = top;
+      element.scrollLeft = left;
+    }
+  }
+  (document.activeElement as HTMLElement | null)?.blur?.();
+  const top = before.get(document.scrollingElement as Element)?.[0] ?? 0;
+  await waitFor(() => expect(document.scrollingElement?.scrollTop ?? 0).toBe(top));
+};
+
 // CompactSchema plus one optional (non-preselected) field, to exercise the
 // "Fields" menu add / select-all / reset actions.
 const CompactFieldsMenuSchema: Record<string, TCompactField> = {
@@ -2785,9 +2950,10 @@ export const CompactReadOnly: Story = {
   },
   play: async () => {
     await _testsWaitForText('order-fulfilment');
-    // Nothing that reports progress: no meter, no Draft/Ready, no boxes.
+    // Nothing that reports progress: no meter, no Incomplete/Ready, no boxes.
     expect(document.querySelector('.options-readfirst-completion')).toBeNull();
     expect(document.querySelector('.options-readfirst-group')).toBeNull();
+    await _testsWaitForTextToNotExist('Incomplete');
     await _testsWaitForTextToNotExist('Draft');
     await _testsWaitForTextToNotExist('Needs attention');
     await _testsWaitForTextToNotExist('Optional');
@@ -2924,9 +3090,10 @@ export const CompactBasic: Story = {
     value: basicFormValue,
   },
   play: async () => {
-    // Unresolved required/invalid fields → the header shows the Draft badge
-    // (the IDE restyled-hero convention).
-    await _testsWaitForText('Draft');
+    // Unresolved required/invalid fields → the header says Incomplete. Never
+    // "Draft": nobody has changed this form, and Draft means unsaved changes.
+    await _testsWaitForText('Incomplete');
+    await _testsWaitForTextToNotExist('Draft');
     // Several asserted/clicked fields (Disabled option, …) are empty optionals in
     // the collapsed Optional box — open it so they're on screen.
     await _expandOptionalBox();
@@ -2955,7 +3122,9 @@ export const CompactBasic: Story = {
     ).toBeFalsy();
 
     // Dependency locks are navigable: the lock's popover lists the blockers
-    // with their state; clicking one scrolls to + flashes it.
+    // with their state; clicking one scrolls to + flashes it. The locked row is
+    // required, but locked it needs no attention, so it waits in Optional.
+    const lockedRow = await _revealOptionalRow('optionWithShortDescription');
     const depLock = document.querySelector(
       '.readfirst-row[data-field="optionWithShortDescription"] .options-readfirst-lock-deps'
     ) as HTMLElement;
@@ -2984,6 +3153,10 @@ export const CompactBasic: Story = {
       { timeout: 10000 }
     );
     await fireEvent.click(depLock); // close the popover
+    // Fold the Optional box's extra rows back, so the rest of the play (and the
+    // captured frame) sees the form laid out as before; once unlocked, the row
+    // moves to Needs attention and is on screen again.
+    await lockedRow.refold();
 
     // Fulfilling the dependency UNLOCKS the dependent row and flashes it.
     await _testsClickText('basicOption');
@@ -3612,7 +3785,7 @@ export const CompactSensitive: Story = {
 };
 
 // `rules: ['valid_identifier']` flows from the schema into validation: a bad
-// identifier marks the form invalid (banner + Draft badge).
+// identifier marks the form invalid (banner + Incomplete status).
 export const CompactValidIdentifierRule: Story = {
   parameters: {
     docs: {
@@ -3641,7 +3814,7 @@ export const CompactValidIdentifierRule: Story = {
     await _testsWaitForText('1-bad-identifier');
     // The rules-driven validation marks the form as needing attention — the
     // dedicated "Needs attention" box (and the header link) signal it.
-    await _testsWaitForText('Draft');
+    await _testsWaitForText('Incomplete');
     await _testsWaitForText('Needs attention');
   },
 };
@@ -5801,12 +5974,12 @@ export const CompactRequiredGroups: Story = {
     value: {} as IOptions,
   },
   play: async () => {
-    // All three members show the required placeholder + the Draft badge. The two
+    // All three members show the required placeholder + the Incomplete status. The two
     // contiguous members (byHost/byFile in Connection) cluster into a rail, which
     // carries the grouping in place of a chip; only the lone member (byUrl in
     // General) keeps a "One of" chip — so exactly one chip, not three.
     await _testsWaitForTextsCount('—', undefined, 3);
-    await _testsWaitForText('Draft');
+    await _testsWaitForText('Incomplete');
     await _testsWaitForTextsCount('One of', undefined, 1);
 
     // The chip is a ReqoreDropdown listing the siblings; selecting one flashes
@@ -5861,7 +6034,7 @@ export const CompactRequiredGroups: Story = {
     await _testsClickButton({ selector: '.options-readfirst-done' });
     await _testsWaitForText('https://example.com');
 
-    // One fulfilled member satisfies the group → the badge flips to Ready and the
+    // One fulfilled member satisfies the group → the status flips to Ready and the
     // Once satisfied: the filled member keeps a "Covers" chip; the empty siblings
     // show their "Covered by 'By URL'" note INLINE (not a chip), and no "One of"
     // remains. So exactly one required-group chip stays (the coverer's).
@@ -6468,10 +6641,30 @@ export const CompactShowcase: Story = {
     await expect(document.querySelectorAll('.options-readfirst-info-panel').length).toBeGreaterThan(
       0
     );
-    // The unmet-dependency hint surfaces on the dependent field's row.
-    await _testsWaitForText(
-      'This field is disabled because some dependencies are not fulfilled: "basicOption"'
+    // The unmet-dependency hint surfaces on the dependent field's row — locked,
+    // so in the Optional box rather than under "Needs attention". Not under
+    // Needs attention is a DOM fact; reaching the row means opening the
+    // Optional box's fold, which scrolls, so the frame is put back afterwards:
+    // this story's snapshot is the form's top.
+    const attentionBox = Array.from(document.querySelectorAll('.options-readfirst-group')).find(
+      (group) => (group.textContent || '').startsWith('Needs attention')
     );
+    await expect(
+      attentionBox?.querySelector('[data-field="optionWithShortDescription"]')
+    ).toBeFalsy();
+    await _withoutScrolling(async () => {
+      const lockedRow = await _revealOptionalRow('optionWithShortDescription');
+      const optionalBox = Array.from(document.querySelectorAll('.options-readfirst-group')).find(
+        (group) => (group.textContent || '').startsWith('Optional')
+      );
+      await expect(
+        optionalBox?.querySelector('[data-field="optionWithShortDescription"]')
+      ).toBeTruthy();
+      await _testsWaitForText(
+        'This field is disabled because some dependencies are not fulfilled: "basicOption"'
+      );
+      await lockedRow.refold();
+    });
     // ONE info mechanism: no subtitle lines, no badge — just the panel + ⓘ.
     await expect(document.querySelectorAll('.options-readfirst-subtitle')).toHaveLength(0);
     await expect(document.querySelectorAll('.options-readfirst-info-badge')).toHaveLength(0);

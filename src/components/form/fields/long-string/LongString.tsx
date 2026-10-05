@@ -7,6 +7,7 @@ import {
   hasLineBreak,
   isSingleLineStringType,
 } from '../../../../helpers/singleLineString';
+import { useEmittedValues } from '../emittedValues';
 
 export interface ILongStringFormFieldProps extends Omit<IReqoreTextareaProps, 'onChange'> {
   value?: string;
@@ -38,24 +39,41 @@ export const LongStringFormField = ({
      and reporting that difference marked every form holding an empty text
      field as changed before anyone typed. */
   const lastEmittedRef = useRef<string>(value ?? '');
+  /* The emits the parent has not handed back yet. Its echo of an earlier one
+     arrives while the next keys are being typed, and copying it over the text
+     lost them ("ship-order" typed 150 ms apart became "shp-order"). An echo is
+     the parent catching up, not a change; see `EmittedValues`. */
+  const emitted = useEmittedValues<string>();
+
+  const emit = useCallback(
+    (next: string) => {
+      lastEmittedRef.current = next;
+      emitted.record(next);
+      onChange?.(next);
+    },
+    [onChange, emitted]
+  );
 
   useEffect(() => {
-    if ((value ?? '') !== localValue) {
-      setLocalValue(value ?? '');
+    const incoming = value ?? '';
+    if (emitted.isEcho(incoming)) {
+      return;
+    }
+    if (incoming !== localValue) {
+      setLocalValue(incoming);
     }
     // A value from outside is not something to report back to whoever sent it.
-    lastEmittedRef.current = value ?? '';
+    lastEmittedRef.current = incoming;
   }, [value]);
 
   useDebounce(
     () => {
       if (localValue !== lastEmittedRef.current) {
-        lastEmittedRef.current = localValue;
-        onChange?.(localValue);
+        emit(localValue);
       }
     },
     100,
-    [localValue, onChange]
+    [localValue, emit]
   );
 
   const singleLine = isSingleLineStringType(type);
@@ -87,9 +105,11 @@ export const LongStringFormField = ({
 
   const handleClearClick = useCallback(() => {
     setLocalValue('');
-    onChange?.('');
+    // Reported at once, and recorded like any emit, so the debounce does not
+    // report it a second time and its echo is not mistaken for a change.
+    emit('');
     onClearClick?.();
-  }, [onChange, onClearClick]);
+  }, [emit, onClearClick]);
 
   return (
     <ReqoreTextarea

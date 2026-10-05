@@ -86,3 +86,30 @@ describe('TemplateField and the row menu', () => {
     expect(publishers.size).toBe(1);
   });
 });
+
+describe('an editor that takes templates into its own text', () => {
+  it('offers no template mode to switch to', () => {
+    const registerRowMenuItems = vi.fn();
+    render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <RowMenuContext.Provider value={{ registerRowMenuItems, unregisterRowMenuItems: vi.fn() }}>
+            <TemplateField
+              name='text'
+              type={'text-with-templates' as never}
+              templateAwareUiTypes={['text-with-templates']}
+              allowTemplates
+              templates={TEMPLATES as never}
+              filterTemplatesByType={false}
+              onChange={vi.fn()}
+              component={Probe as never}
+            />
+          </RowMenuContext.Provider>
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    const [, key, items] = registerRowMenuItems.mock.calls.at(-1)!;
+    expect(key).not.toContain('template');
+    expect(items.map((item: { label: string }) => item.label)).not.toContain('Use Template');
+  });
+});

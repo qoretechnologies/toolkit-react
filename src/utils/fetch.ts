@@ -12,6 +12,10 @@ export interface IReqraftFetchResponse<T> {
   data: T;
   ok: boolean;
   code?: number;
+  /**
+   * Set on every non-ok response: the HTTP reason phrase, or `HTTP <status>`
+   * when there is none (always the case over HTTP/2).
+   */
   error?: any;
   /**
    * The parsed error body on a non-ok response, when the server sent JSON.
@@ -335,7 +339,12 @@ export async function query<T>({
       data: requestData.data,
       ok: false,
       code: requestData.status,
-      error: requestData.statusText,
+      // Never empty: HTTP/2 has no reason phrase, so `statusText` is always ''
+      // there, and an empty `error` reads as "no error" to every caller that
+      // tests it for truthiness - `useFetch` consumers then saw a failed request
+      // as one still loading, forever (a 403 left a dashboard panel on its
+      // skeleton).
+      error: requestData.statusText || `HTTP ${requestData.status}`,
       // Only when the body really was JSON: `data` is `{}` for a non-JSON body,
       // and an empty object masquerading as a parsed error tells a caller
       // nothing while looking like it did.

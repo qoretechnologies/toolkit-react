@@ -8,6 +8,7 @@ import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import { isEqual, size } from 'lodash';
 import { KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
+import { useEmittedValues } from '../emittedValues';
 import { flattenToSingleLine, hasLineBreak } from '../../../../helpers/singleLineString';
 import {
   renderTemplateItemDescriptions,
@@ -129,8 +130,15 @@ export const RichTextFormField = memo(({
      document from it would hand the editor a new tree on every keystroke —
      which it answers by replacing its content and moving the cursor to the end. */
   const lastTextRef = useRef(isText ? String(value ?? '') : '');
+  /* The parent's echo of an emit still in flight is not a change. It arrives
+     while the next keys are typed, and rebuilding the document from it threw
+     them away. See `EmittedValues`. */
+  const emitted = useEmittedValues<unknown>(isEqual);
 
   useEffect(() => {
+    if (emitted.isEcho(isText ? String(value ?? '') : value)) {
+      return;
+    }
     if (isText) {
       const text = String(value ?? '');
       if (text !== lastTextRef.current) {
@@ -148,11 +156,13 @@ export const RichTextFormField = memo(({
     () => {
       if (isText) {
         if (lastTextRef.current !== String(value ?? '')) {
+          emitted.record(lastTextRef.current);
           onChange?.(lastTextRef.current);
         }
         return;
       }
       if (!isEqual(localValue, value)) {
+        emitted.record(localValue);
         onChange?.(localValue);
       }
     },

@@ -6,7 +6,6 @@ import {
   ReqoreSpinner,
 } from '@qoretechnologies/reqore';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
-import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { thinScrollbar } from '../../helpers/scrollbar';
@@ -15,7 +14,10 @@ import {
   defaultInterfaceIcon,
   defaultInterfaceKindLabel,
   IInterfaceReference,
+  toInterfaceKindMark,
+  TResolveInterfaceIcon,
 } from './meta';
+import { useLoadedImages } from './useLoadedImages';
 
 /*
  * The interface browser: kinds on one side, the selected kind's interfaces on the
@@ -227,9 +229,11 @@ export interface IReferencePickerProps {
   onRemove?: (reference: IInterfaceReference) => void;
   /** the whole picker is inert (e.g. a reply is in flight) */
   disabled?: boolean;
-  /** Per-kind icon. Consumers with their own icon vocabulary (the IDE) pass one; the
+  /** Per-kind icon: a font icon, or a mark `{ icon, image }` whose image (e.g. the Qog
+   *  logo) is drawn once it loads, with the font icon before that and instead of it if
+   *  it fails. Consumers with their own icon vocabulary (the IDE) pass one; the
    *  built-in per-kind default is used when omitted. */
-  resolveInterfaceIcon?: (kind: string) => IReqoreIconName;
+  resolveInterfaceIcon?: TResolveInterfaceIcon;
   /**
    * Per-kind reading name — "Value maps" for `value-map`. The kind id is a wire value
    * and never reaches the user; this is what does. Search matches both, so typing
@@ -401,11 +405,28 @@ export const ReferencePicker = ({
      still own the scroll and the layout; the menus render transparent inside them.
      Only menu items go inside a `ReqoreMenu`: it clones every child with its own props,
      so a spinner or a note nested in one would be handed props it can't take. */
+  /* A kind's icon on a menu item: its font icon, and its image (the Qog logo) once
+     that has loaded — never a broken picture while it loads or if it fails. */
+  const kindMarks = new Map(
+    Array.from(new Set([...visibleKinds, kind].filter(Boolean) as string[])).map((option) => [
+      option,
+      toInterfaceKindMark(resolveInterfaceIcon(option)),
+    ])
+  );
+  const isImageLoaded = useLoadedImages(Array.from(kindMarks.values()).map((mark) => mark.image));
+  const kindIconProps = (option: string) => {
+    const mark = kindMarks.get(option) ?? toInterfaceKindMark(resolveInterfaceIcon(option));
+    return {
+      icon: mark.icon,
+      leftIconProps: isImageLoaded(mark.image) ? { image: mark.image } : undefined,
+    };
+  };
+
   const kindItems = visibleKinds.map((option) => (
     <ReqoreMenuItem
       key={option}
       className={matchesKind(option) ? undefined : DIMMED_CLASS}
-      icon={resolveInterfaceIcon(option)}
+      {...kindIconProps(option)}
       label={resolveKindLabel(option)}
       selected={option === kind}
       disabled={disabled}
@@ -452,7 +473,7 @@ export const ReferencePicker = ({
             <ReqoreMenuItem
               key={name}
               className={isPicked ? PICKED_CLASS : undefined}
-              icon={resolveInterfaceIcon(kind)}
+              {...kindIconProps(kind)}
               rightIcon={isPicked ? 'CheckLine' : 'AddLine'}
               label={name}
               description={description}

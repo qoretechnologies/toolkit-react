@@ -358,6 +358,9 @@ export const getOptionFieldMessages = ({
 }: IOptionFieldMessagesProps): IReqoreTagProps[] => {
   const optionSchema = schema[name];
   const result: IReqoreTagProps[] = [];
+  const locked =
+    !!optionSchema?.depends_on &&
+    !hasAllDependenciesFullfilled(optionSchema.depends_on, allOptions, schema);
 
   if (option.value || option.value === false || option.value === 0 || option.value === null) {
     /* A concrete type the VALUE carries beats an untyped schema.
@@ -392,7 +395,9 @@ export const getOptionFieldMessages = ({
       });
     }
   } else {
-    if (optionSchema?.required && !untouched) {
+    // A locked field is not asked for: the dependency message below says what
+    // unlocks it, and until then there is nothing to fill in.
+    if (optionSchema?.required && !untouched && !locked) {
       result.push({ label: 'This field is required', intent: 'danger' });
     }
 
@@ -413,10 +418,7 @@ export const getOptionFieldMessages = ({
     }
   }
 
-  if (
-    optionSchema?.depends_on &&
-    !hasAllDependenciesFullfilled(optionSchema.depends_on, allOptions, schema)
-  ) {
+  if (locked) {
     const dependsOn = describeDependencies(optionSchema.depends_on, schema);
 
     result.push({

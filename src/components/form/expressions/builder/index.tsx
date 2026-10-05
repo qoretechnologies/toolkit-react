@@ -24,13 +24,18 @@ import { darken, rgba } from 'polished';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { moveItem } from '../../../../helpers/common';
-import { areQorusTypesCompatible, getArgumentType } from '../../../../helpers/expressions';
+import {
+  areQorusTypesCompatible,
+  expressionFitsReturnType,
+  getArgumentType,
+} from '../../../../helpers/expressions';
 import { addMissingExpressionArgs } from '../argumentPresence';
 import { findTemplate } from '../../../../helpers/templates';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
 import { IQorusTypeObject, useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useReqraftStorage } from '../../../../hooks/useStorage/useStorage';
 import { usePhoneViewport } from '../../../../hooks/usePhoneViewport';
+import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { useTemplates } from '../../../../hooks/useTemplates';
 import { AutoFormField as auto } from '../../fields/auto/AutoFormField';
 import { SelectFormField as Select } from '../../fields/select/Select';
@@ -148,6 +153,7 @@ export const Expression = ({
   componentOverrides,
   ...props
 }: IExpressionProps) => {
+  const coarsePointer = useCoarsePointer();
   const types = useQorusTypes();
   const [showSummary, setShowSummary] = useState(false);
   const [confirmDialogData, setConfirmDialogData] = useState<
@@ -594,6 +600,15 @@ export const Expression = ({
   const defaultItems = useMemo(
     () =>
       expressions.value
+        // a condition (a field or an operand that must be true or false) offers the operations that
+        // give true or false; a group's members are its own business, and the operation already chosen
+        // stays, so a stored mismatch can be seen and fixed
+        .filter(
+          (exp) =>
+            isChild ||
+            exp.name === value?.value?.exp ||
+            expressionFitsReturnType(returnType as string | string[] | undefined, exp)
+        )
         .map((exp) => ({
           name: exp.name,
           value: exp.name,
@@ -612,7 +627,7 @@ export const Expression = ({
               ? !exp.from_server
               : true
         ),
-    [JSON.stringify(expressions.value), serverExpression, level]
+    [JSON.stringify(expressions.value), serverExpression, level, isChild, returnType, value?.value?.exp]
   );
 
   // SEAM (reqraft): reqraft's `SelectFormField` calls `onChange(value)` with
@@ -879,7 +894,10 @@ export const Expression = ({
       contentStyle={{
         overflowX: 'hidden',
       }}
-      floatingActions
+      // with a mouse, the actions float above the panel while it is hovered; a finger cannot hover, and a
+      // tap left them floating over what is above - the Visual / Text switch, where a tap meant for
+      // Text hit "Remove this expression" - so on a touch device they stay in the panel's own bar
+      floatingActions={!coarsePointer}
       actions={[
         // SEAM (reqraft): the IDE renders `AiAssistanceAction` first here;
         // consumers inject it (or anything else) via `extraActions`.

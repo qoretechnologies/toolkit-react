@@ -132,6 +132,8 @@ export function useLspSession(
 
     c.onReady(setIsReady);
 
+    // the session ends when the editor goes: a connection it closes itself has not failed
+    let disposed = false;
     c.connect()
       .then(() => {
         // Initialize completed — mirror the captured server
@@ -152,12 +154,18 @@ export function useLspSession(
         setIsReady(true);
       })
       .catch((err) => {
+        if (disposed) {
+          // the editor went before the connection opened (Text mode left again, a form closed): it was
+          // closed on purpose, which is not a failure to report
+          return;
+        }
         // eslint-disable-next-line no-console
         console.error('[LSP session] Connect failed:', err);
         setIsReady(false);
       });
 
     return () => {
+      disposed = true;
       c.disconnect();
       clientRef.current = null;
       serverTextRef.current = null;

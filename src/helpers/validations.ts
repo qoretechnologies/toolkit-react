@@ -16,6 +16,7 @@ import { isOptionInterfaceUiType } from './optionUiTypes';
 import { getListElementValue, getOptionsFromRequiredGroups } from './options';
 import { IProviderType, TVariableActionValue, maybeBuildOptionProvider } from './providerValue';
 import { getTemplateKey, getTemplateValue, isValueTemplate } from './templates';
+import { getUnlistedChoiceReason } from './allowedValues';
 
 /** The five cron fields, in order, as a schedule hash may name them. */
 const CRON_FIELDS: [string, string][] = [
@@ -307,6 +308,21 @@ export const _validateField = (
     ) {
       return validResult();
     }
+  }
+
+  // A value that is not one of the field's fixed choices is INVALID — never
+  // erased. The form used to drop such a value when the choices arrived, and
+  // three times the dropped value was a real one (a document naming a choice,
+  // a bare-declared choice, a value whose choices had not loaded yet) that the
+  // emptied form then saved. Keeping it and saying why it cannot be submitted
+  // leaves the author to decide. Templates and expression values returned
+  // above; `allowed_values: []` and creatable choices are not judged. An
+  // `expression` is never judged either: the expression branch above recurses
+  // here with the field's schema (choices included) and the AST as the value.
+  const unlistedChoiceReason =
+    type === 'expression' ? undefined : getUnlistedChoiceReason(value, field);
+  if (unlistedChoiceReason) {
+    return invalidResult(unlistedChoiceReason);
   }
 
   // An interface type names another Qorus object by its name, so a non-empty

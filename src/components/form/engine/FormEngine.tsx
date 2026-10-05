@@ -76,7 +76,6 @@ import {
   ITemplateFieldProps,
   TCustomTemplateItems,
   TemplateField,
-  isValueTemplate,
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
 import { FormFieldsSkeleton } from './FormFieldsSkeleton';
@@ -115,7 +114,6 @@ import { OptionsHelpDialog } from './OptionsHelpDialog';
 import { firstDeclaredType, isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
   TReadFirstStatus,
-  findAllowedValueOption,
   getFirstAttentionOptionName,
   getOptionGroup,
   getOptionGroupLabel,
@@ -522,24 +520,15 @@ export const fixOptions = (
         (fixedValue[name] as IQorusFormField)?.value === undefined
       ) {
         obj = option.default_value as IQorusFormField;
-      } else if (
-        option.default_view === 'expression' &&
-        (fixedValue[name] as IQorusFormField)?.value === undefined
-      ) {
-        // A field the schema declares as opening in expression mode starts as an
-        // EMPTY expression, not as its raw default. `isDefaultFunction` already
-        // makes the renderer open that way, so without this the data disagreed
-        // with what the operator was looking at: an expression editor whose
-        // value was still the plain default, and no `is_expression` on the field
-        // until the first edit.
-        obj = {
-          type,
-          value: {
-            args: [],
-          },
-          is_expression: true,
-        };
       } else {
+        // A field declared with `default_view: 'expression'` is NOT seeded with
+        // an empty expression here. This runs on every load, so a seed written
+        // here changed a saved object merely by opening it: an existing Qog
+        // state gained `{args: []}` the moment its panel opened, and the editor
+        // autosaved a draft nobody made. The renderer already opens such a
+        // field in expression mode from the schema (`isDefaultFunction`), the
+        // first edit stores `is_expression`, and a host that creates a NEW
+        // object seeds the expression itself, at creation.
         obj = {
           type,
           value:
@@ -596,34 +585,15 @@ export const fixOptions = (
         };
       }
 
-      // A value that is not one of the declared choices is dropped. What counts
-      // as "one of the choices" is `findAllowedValueOption` — the same predicate
-      // the read-first row uses to LABEL a value — because a value the row can
-      // name is by definition a value the form must keep. Inlining a narrower
-      // test here (envelope and `name`, but not a bare `value`) silently erased
-      // every value declared the bare way: the collapsed row still showed its
-      // display name while the editor showed "—" and the value never reached
-      // the submitted data.
-      // `allowed_values: []` is NOT "no value is permitted" — it is the server
-      // saying it has no reference values to offer right now (the app-action
-      // catalogue ships exactly that, with an
-      // `option_reference_values_unavailable` message attached). An empty array
-      // is truthy, so testing the array itself made every such option erase the
-      // operator's stored value on the first render, before the
-      // connection-refreshed schema arrived to say otherwise — and the emptied
-      // form then autosaved over the draft, so the value was gone for good.
-      // Only an option that actually declares choices can have a value that is
-      // not one of them.
-      if (
-        newOption.value !== undefined &&
-        options?.[optionName]?.allowed_values?.length &&
-        !findAllowedValueOption(newOption.value, options?.[optionName]) &&
-        !isValueTemplate(newOption.value) &&
-        !options?.[optionName]?.multiselect &&
-        !options?.[optionName]?.allowed_values_creatable
-      ) {
-        newOption.value = undefined;
-      }
+      // A value that is not one of the declared choices is KEPT. It used to be
+      // dropped here, on load, and the dropped value was three times a real
+      // one — a bare-declared choice, a document naming a choice, a value whose
+      // choices had not arrived yet — that the emptied form then autosaved, so
+      // it was gone for good. Whether a value is one of the choices is now the
+      // validator's question (`getUnlistedChoiceReason`, asked through
+      // `validateFieldWithResult`): such a field is invalid, sits under "Needs
+      // attention" saying which value is not a choice, and the form reports
+      // itself invalid so the host blocks submitting it.
 
       if (
         newOption.value &&
@@ -1869,8 +1839,13 @@ const FormEngineImpl = ({
           ) ?
             schemaType
           : schemaType || ((fields[optionName] as IQorusFormField)?.type as TQorusType);
+        // A field reports back the type it was drawn as, which for a renderer-only editor (markdown, cron,
+        // dpql, ...) is the editor's name rather than the type the value is stored as. Storing that name
+        // sent a description as `{type: "markdown"}`, which the server decodes by type and so parsed as
+        // YAML. A type picked for an untyped field is never renderer-only, so it still wins.
+        const emittedType = _type && !isRendererOnly(_type as TQorusType) ? _type : undefined;
         const type =
-          _type ||
+          emittedType ||
           getTypeAndCanBeNull(resolvedSchemaType, options?.[optionName]?.allowed_values).type;
 
         if (!(fields as TQorusForm)[optionName]) {
@@ -1969,7 +1944,15 @@ const FormEngineImpl = ({
 
         onSingleOptionsChange?.(optionName, updatedValue[optionName]);
 
-        if (compact && !readOnly && shouldAutoCollapseCompactOption(options?.[optionName], val)) {
+        if (
+          compact &&
+          !readOnly &&
+          shouldAutoCollapseCompactOption(
+            options?.[optionName],
+            val,
+            !!(updatedValue[optionName] as { is_expression?: boolean } | undefined)?.is_expression
+          )
+        ) {
           setExpandedOptions((prev) => prev.filter((name) => name !== optionName));
         }
 
@@ -2324,10 +2307,13 @@ const FormEngineImpl = ({
 
   const isOptionValid = useCallback(
     (optionName: string, type: TQorusType, optionValue: any) => {
+      const isEmpty = optionValue === undefined || optionValue === '';
+      // An empty field locked by an unmet `depends_on` does not apply, so it is
+      // not missing — the same rule the read-first status follows.
       if (
-        !options?.[optionName]?.required &&
-        !options?.[optionName]?.required_groups &&
-        (optionValue === undefined || optionValue === '')
+        isEmpty &&
+        ((!options?.[optionName]?.required && !options?.[optionName]?.required_groups) ||
+          dependencyLockedNames.includes(optionName))
       ) {
         return true;
       }
@@ -2342,7 +2328,12 @@ const FormEngineImpl = ({
         isFunction: (availableOptions?.[optionName] as { is_expression?: boolean })?.is_expression,
       } as any);
     },
-    [JSON.stringify(options), JSON.stringify(availableOptions), JSON.stringify(localValue.fields)]
+    [
+      JSON.stringify(options),
+      JSON.stringify(availableOptions),
+      JSON.stringify(localValue.fields),
+      dependencyLockedNames,
+    ]
   );
 
   const getValidityData = useCallback((): IFormValidityData => {
@@ -2366,7 +2357,17 @@ const FormEngineImpl = ({
 
         let validation: IValidationResult;
 
-        if (!isRequired && !hasRequiredGroups && isEmpty) {
+        /* A required field locked by an unmet `depends_on` does not apply
+           while it is locked: it is not in "Needs attention", and an empty one
+           does not make the form incomplete either. Otherwise a check whose
+           kind is Equals could never be saved, because Minimum — required for
+           Between alone — is empty; and a form whose only gaps are fields
+           nobody can fill in would say Incomplete with nothing to act on. A
+           locked field that still HOLDS a value is validated as before. */
+        if (
+          isEmpty &&
+          ((!isRequired && !hasRequiredGroups) || dependencyLockedNames.includes(optionName))
+        ) {
           validation = { isValid: true, reasons: [] };
         } else {
           validation = validateFieldWithResult(getType(type), optionValue, {
@@ -2404,6 +2405,7 @@ const FormEngineImpl = ({
     JSON.stringify(options),
     JSON.stringify(operators),
     JSON.stringify(localValue.fields),
+    dependencyLockedNames,
   ]);
 
   const validityData = useMemo(() => getValidityData(), [getValidityData]);
@@ -2487,7 +2489,14 @@ const FormEngineImpl = ({
       // sub-form it summarises said 0/3 set.
       const empty = isOptionValueEmpty(value) || isUnsetSchemaHash(value, schema);
       const reqGroups = (schema?.required_groups as string[] | undefined) || [];
-      const required = !!(schema?.required || reqGroups.length);
+      // Required only while it applies. A field locked by an unmet `depends_on`
+      // renders disabled with what unlocks it; nothing the author can do to it
+      // is a next step — the next step is the field it depends on, which carries
+      // its own status. Counting it here put a guided check's locked Path /
+      // Minimum / Maximum under "Needs attention" before its kind was even
+      // picked. The moment the dependency holds, it is required again.
+      const required =
+        !dependencyLockedNames.includes(name) && !!(schema?.required || reqGroups.length);
       const covered =
         empty &&
         reqGroups.some((g) => {
@@ -2512,11 +2521,15 @@ const FormEngineImpl = ({
       isOptionValid,
       requiredGroupsInfo,
       schemaMsgIntent,
+      dependencyLockedNames,
     ]
   );
   const getOptionBucket = useCallback(
     (name: string, hidden = false): 'attention' | 'set' | 'optional' => {
-      if (!hidden) {
+      // A locked one-of member cannot be the one that satisfies its group, so it
+      // does not travel with the group into "Needs attention"; its own status
+      // (not required while locked) decides its box.
+      if (!hidden && !dependencyLockedNames.includes(name)) {
         const reqGroups = (options?.[name]?.required_groups as string[] | undefined) || [];
         if (reqGroups.length) {
           return reqGroups.some((g) => !requiredGroupsInfo.satisfiedBy[g]) ? 'attention' : 'set';
@@ -2524,7 +2537,7 @@ const FormEngineImpl = ({
       }
       return getReadFirstBucket(getOptionStatus(name, hidden));
     },
-    [JSON.stringify(options), requiredGroupsInfo, getOptionStatus]
+    [JSON.stringify(options), requiredGroupsInfo, getOptionStatus, dependencyLockedNames]
   );
   // How many fields are in the "Needs attention" box — drives the header link.
   const readFirstAttentionCount = useMemo(

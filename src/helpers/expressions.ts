@@ -100,3 +100,28 @@ export const areQorusTypesCompatible = (
   // If none of the types are compatible return false
   return false;
 };
+
+/**
+ * Whether an operation is offered where its result must be of `returnType`: a condition (`bool`) is
+ * built from the operations that give true or false, not from every operation the server has.
+ *
+ * Only a condition narrows the list. Any other type keeps every operation: a value of one type is often
+ * made from an operation that gives another (text from rich text, a number from an int), and the
+ * mismatch message after the choice says when it does not fit.  An operation whose result is known
+ * only once it is built (`any`, or the type of its first argument) is offered everywhere.
+ */
+export const expressionFitsReturnType = (
+  returnType: string | string[] | undefined,
+  expression: { ui_return_type?: string; return_type_first_arg?: boolean }
+): boolean => {
+  const types = isArray(returnType) ? returnType : returnType ? [returnType] : [];
+  const condition = types.length > 0 && types.every((type) => /^\*?(bool|boolean)$/.test(type));
+  if (!condition) {
+    return true;
+  }
+  const result = expression.ui_return_type;
+  if (expression.return_type_first_arg || !result || result === 'any' || result === 'auto') {
+    return true;
+  }
+  return /^\*?(bool|boolean)$/.test(result);
+};
