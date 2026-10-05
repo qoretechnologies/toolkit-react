@@ -196,7 +196,7 @@ describe('the operations offered for a type', () => {
 
 describe('text or a date', () => {
   it('is what a condition cannot be', () => {
-    for (const t of ['string', 'softstring', '*string', 'richtext', 'date', 'softdate', '*date']) {
+    for (const t of ['string', 'softstring', '*string', 'richtext', 'date', 'softdate', '*date', 'time', '*time']) {
       expect(isTextOrDateType(t)).toBe(true);
     }
     for (const t of ['bool', 'int', 'number', 'float', 'list', 'hash', 'binary', 'any', '*int', 'data']) {
