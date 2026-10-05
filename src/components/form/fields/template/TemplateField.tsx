@@ -803,7 +803,10 @@ const TemplateFieldImpl = memo(
       }
     }, [JSON.stringify(templateValue)]);
 
-    const showTemplateToggle = allowCustomValues && allowTemplates && !rest.arg_schema;
+    // an editor that takes templates into its own text has no template mode to switch to: "Use Template"
+    // there emptied the field and showed nothing in its place
+    const showTemplateToggle =
+      allowCustomValues && allowTemplates && !rest.arg_schema && !editorHandlesTemplates;
 
     // Only a BRACED context ref (`$data:{…}` — machine-written, nobody types
     // one) renders as the picker chip (named via `resolveTemplateLabel`)
