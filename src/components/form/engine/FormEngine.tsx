@@ -1944,7 +1944,15 @@ const FormEngineImpl = ({
 
         onSingleOptionsChange?.(optionName, updatedValue[optionName]);
 
-        if (compact && !readOnly && shouldAutoCollapseCompactOption(options?.[optionName], val)) {
+        if (
+          compact &&
+          !readOnly &&
+          shouldAutoCollapseCompactOption(
+            options?.[optionName],
+            val,
+            !!(updatedValue[optionName] as { is_expression?: boolean } | undefined)?.is_expression
+          )
+        ) {
           setExpandedOptions((prev) => prev.filter((name) => name !== optionName));
         }
 

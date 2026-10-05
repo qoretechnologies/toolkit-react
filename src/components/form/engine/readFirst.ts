@@ -245,10 +245,23 @@ export const isCompactBooleanOption = (schema: TQorusFormFieldSchema | undefined
   return type === 'bool' || type === 'boolean';
 };
 
+/**
+ * Whether a change completes a compact row, so its editor can close.
+ *
+ * Only a VALUE does: Yes or No, or one of a fixed list. An expression is
+ * built one step at a time - an operation, then each of its arguments - and
+ * every step is a change; closing the editor on the first one left a bool
+ * field's condition at `null > null`, with no way to fill in its arguments
+ * short of opening the row again for each of them.
+ *
+ * @param isExpression the row now holds an expression (`is_expression`)
+ */
 export const shouldAutoCollapseCompactOption = (
   schema: TQorusFormFieldSchema | undefined,
-  value: unknown
+  value: unknown,
+  isExpression?: boolean
 ): boolean =>
+  !isExpression &&
   !isOptionValueEmpty(value) &&
   (isCompactBooleanOption(schema) || isFixedCompactAllowedValueOption(schema));
 
