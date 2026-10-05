@@ -169,8 +169,11 @@ describe('the operations offered for a type', () => {
     }
   });
 
-  it('a list of types takes an operation that gives any of them', () => {
-    expect(expressionFitsReturnType(['int', 'number'], size)).toBe(true);
+  it('only a condition narrows the list: any other type keeps every operation', () => {
+    expect(expressionFitsReturnType('string', join)).toBe(true);
+    expect(expressionFitsReturnType('string', size)).toBe(true);
+    expect(expressionFitsReturnType(['int', 'number'], greater)).toBe(true);
     expect(expressionFitsReturnType(['bool'], size)).toBe(false);
+    expect(expressionFitsReturnType('*bool', greater)).toBe(true);
   });
 });

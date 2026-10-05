@@ -598,10 +598,9 @@ export const Expression = ({
   const defaultItems = useMemo(
     () =>
       expressions.value
-        // an expression gives the type of the place it is in (a field, or an operand): a condition
-        // offers the operations that give true or false, the same rule the mismatch message applies
-        // after the choice. A group's members are its own business, and the operation already chosen
-        // stays, so a stored mismatch can be seen and fixed.
+        // a condition (a field or an operand that must be true or false) offers the operations that
+        // give true or false; a group's members are its own business, and the operation already chosen
+        // stays, so a stored mismatch can be seen and fixed
         .filter(
           (exp) =>
             isChild ||
