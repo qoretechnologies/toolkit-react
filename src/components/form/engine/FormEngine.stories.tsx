@@ -3242,7 +3242,7 @@ export const CompactReadOnlyRichText: Story = {
     docs: {
       description: {
         story:
-          'Renders the CompactBasic fixture with readOnly enabled — the Rich Text row reads as its text with its template chip and mounts no editor, the Template row reads as a chip showing the resolved template name (never the raw $local reference), and clicking either opens nothing.',
+          'Renders the CompactBasic fixture with readOnly enabled — the Rich Text row reads as its text with its template chip and mounts no editor, the Template row reads as a chip showing the resolved template name (never the raw $local reference), and clicking either opens nothing. Validation messages show as they do in an editable form.',
       },
     },
     chromatic: { disable: true },
@@ -3253,10 +3253,10 @@ export const CompactReadOnlyRichText: Story = {
   },
   play: async () => {
     await _testsWaitForText('Rich Text option');
-    // Editor verdicts stay in the editor: the fixture's invalid value and its
-    // dependency-locked field print no "fix this" hint in a read view.
-    await _testsWaitForTextToNotExist('Text value is empty');
-    await _testsWaitForTextToNotExist('dependencies are not fulfilled');
+    // A read view says what is wrong with the record, as an editable one does:
+    // the fixture's invalid value and its empty required fields say so.
+    await _testsWaitForText('Text value is empty');
+    await _testsWaitForText('This field is required');
 
     const row = (name: string) => document.querySelector(`.readfirst-row[data-field="${name}"]`);
     // Richtext: the text and its chip, no Slate.
@@ -3290,8 +3290,8 @@ export const CompactReadOnlyRichText: Story = {
 // Read mode as a fact sheet. Every kind of value the engine can hold, set,
 // plus one optional field nobody set (`notes`) and one required field nobody
 // set (`owner`): the first must not appear at all, the second appears unset
-// with no amber. Every value is drawn in full in the row itself; nothing on
-// the page is a control.
+// with no amber and says it is required. Every value is drawn in full in the
+// row itself; nothing on the page is a control.
 const ReadModeSchema: Record<string, TCompactField> = {
   id: {
     type: 'string',
@@ -3415,7 +3415,7 @@ export const CompactReadOnlyValues: Story = {
     docs: {
       description: {
         story:
-          'Read-only as a fact sheet, not a disabled editor: no completion meter, no Needs attention / Set / Optional boxes, no required asterisks; an optional field nobody set is not listed, a required one nobody set reads as unset without the amber; every value is drawn in full in its row — long text wrapped under a Show more cap, the whole code block, every field of the hash, the chosen option with its description — and no row is a control: nothing is a button, and a click opens nothing.',
+          'Read-only as a fact sheet, not a disabled editor: no completion meter, no Needs attention / Set / Optional boxes, no required asterisks; an optional field nobody set is not listed, a required one nobody set reads as unset without the amber and says "This field is required"; every value is drawn in full in its row — long text wrapped under a Show more cap, the whole code block, every field of the hash, the chosen option with its description — and no row is a control: nothing is a button, and a click opens nothing.',
       },
     },
     chromatic: { disable: true },
@@ -3440,13 +3440,16 @@ export const CompactReadOnlyValues: Story = {
     await _testsWaitForTextToNotExist('Optional');
     // An optional field nobody set is not listed at all…
     await _testsWaitForTextToNotExist('Notes');
-    // …a required one nobody set is, as unset, with no amber dot.
+    // …a required one nobody set is, as unset, with no amber dot, and says so.
     await _testsWaitForText('Owner');
     expect(
       document.querySelector(
         '.readfirst-row[data-field="owner"] .options-readfirst-statusdot-slot > *'
       )
     ).toBeNull();
+    expect(document.querySelector('.readfirst-row[data-field="owner"]')?.textContent).toContain(
+      'This field is required'
+    );
 
     const row = (name: string) =>
       document.querySelector(`.readfirst-row[data-field="${name}"]`) as HTMLElement;
@@ -9278,6 +9281,76 @@ export const ToolSelectorsAreNotJudgedAsChoices: Story = {
       expect(calls.length).toBeGreaterThan(0);
       const [, data] = calls[calls.length - 1] as [boolean, IFormValidityData];
       expect(data.invalidFields.map((field) => field.fieldName)).toEqual(['channel']);
+    });
+  },
+};
+
+const RequiredMessageSchema = {
+  title: { type: 'string', display_name: 'Title', required: true },
+  owner: { type: 'string', display_name: 'Owner', required: true },
+  kind: {
+    type: 'string',
+    display_name: 'Kind',
+    allowed_values: [
+      { display_name: 'Inbound', value: { type: 'string', value: 'inbound' } },
+      { display_name: 'Outbound', value: { type: 'string', value: 'outbound' } },
+    ],
+  },
+};
+
+export const ANewFormSaysWhatIsRequired: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A brand-new form with two empty required fields. Each says "This field is required" from the start, including the first one, which opens for editing, without waiting for the author to visit it.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    options: RequiredMessageSchema as IOptionsSchema,
+    value: {},
+    expandFirstRequired: true,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('Needs attention');
+    await waitFor(() => {
+      const title = canvasElement.querySelector('[data-field="title"]');
+      const owner = canvasElement.querySelector('[data-field="owner"]');
+      expect(title?.textContent).toContain('This field is required');
+      expect(owner?.textContent).toContain('This field is required');
+    });
+  },
+};
+
+export const AReadOnlyFormShowsWhatIsWrong: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A read-only form shows the same validation messages as an editable one: the empty required Title and Owner say "This field is required", and Kind says its stored value is not one of the choices. Each empty value slot keeps its plain "—", so each requirement is stated once.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    readOnly: true,
+    minColumnWidth: '360px',
+    options: RequiredMessageSchema as IOptionsSchema,
+    value: { kind: { type: 'string', value: 'sideways' } },
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('"sideways" is not one of the choices');
+    await waitFor(() => {
+      const title = canvasElement.querySelector('[data-field="title"]');
+      expect(title?.textContent).toContain('This field is required');
+      expect(title?.textContent?.split('This field is required')).toHaveLength(2);
+      expect(title?.querySelector('.options-readfirst-valuetext')?.textContent).toBe('—');
+      expect(canvasElement.querySelector('[data-field="owner"]')?.textContent).toContain(
+        'This field is required'
+      );
     });
   },
 };

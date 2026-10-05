@@ -334,21 +334,6 @@ export interface IOptionFieldMessagesProps {
    * reqraft's built-in editors are known.
    */
   isRendererOnly?: (type?: any) => boolean;
-  /**
-   * The reader has not edited this field in this session.
-   *
-   * An error is a report that something went WRONG. "This field is required"
-   * under a field nobody has been in yet reports nothing: the form is empty
-   * because it is new. The requirement is already carried three other ways —
-   * the asterisk on the label, the Needs-attention box the row sits in, and the
-   * completion meter — so the message waits until the reader has been in the
-   * field and left it empty, which IS a thing that went wrong.
-   *
-   * Only the plain required message is held back. A value that fails
-   * validation, an unmet required GROUP and a locked dependency are all facts
-   * about what the form currently holds, and they show immediately.
-   */
-  untouched?: boolean;
 }
 
 /**
@@ -363,7 +348,6 @@ export const getOptionFieldMessages = ({
   allOptions,
   getType,
   isRendererOnly,
-  untouched,
 }: IOptionFieldMessagesProps): IReqoreTagProps[] => {
   const optionSchema = schema[name];
   const result: IReqoreTagProps[] = [];
@@ -405,9 +389,10 @@ export const getOptionFieldMessages = ({
       });
     }
   } else {
-    // A locked field is not asked for: the dependency message below says what
+    // An empty required field says so from the start, on a new form too. A
+    // locked field is not asked for: the dependency message below says what
     // unlocks it, and until then there is nothing to fill in.
-    if (optionSchema?.required && !untouched && !locked) {
+    if (optionSchema?.required && !locked) {
       result.push({ label: 'This field is required', intent: 'danger' });
     }
 
@@ -453,7 +438,6 @@ export const OptionFieldMessages = ({
   allOptions,
   getType,
   isRendererOnly,
-  untouched,
 }: IOptionFieldMessagesProps) => {
   const messages: IReqoreTagProps[] = useMemo(
     () =>
@@ -464,7 +448,6 @@ export const OptionFieldMessages = ({
         allOptions,
         getType,
         isRendererOnly,
-        untouched,
       }),
     [
       JSON.stringify(schema),
@@ -472,7 +455,6 @@ export const OptionFieldMessages = ({
       JSON.stringify(allOptions),
       name,
       isRendererOnly,
-      untouched,
     ]
   );
 
