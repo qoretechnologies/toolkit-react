@@ -24,7 +24,11 @@ import { darken, rgba } from 'polished';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { moveItem } from '../../../../helpers/common';
-import { areQorusTypesCompatible, getArgumentType } from '../../../../helpers/expressions';
+import {
+  areQorusTypesCompatible,
+  expressionFitsReturnType,
+  getArgumentType,
+} from '../../../../helpers/expressions';
 import { addMissingExpressionArgs } from '../argumentPresence';
 import { findTemplate } from '../../../../helpers/templates';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
@@ -594,6 +598,16 @@ export const Expression = ({
   const defaultItems = useMemo(
     () =>
       expressions.value
+        // an expression gives the type of the place it is in (a field, or an operand): a condition
+        // offers the operations that give true or false, the same rule the mismatch message applies
+        // after the choice. A group's members are its own business, and the operation already chosen
+        // stays, so a stored mismatch can be seen and fixed.
+        .filter(
+          (exp) =>
+            isChild ||
+            exp.name === value?.value?.exp ||
+            expressionFitsReturnType(returnType as string | string[] | undefined, exp)
+        )
         .map((exp) => ({
           name: exp.name,
           value: exp.name,
@@ -612,7 +626,7 @@ export const Expression = ({
               ? !exp.from_server
               : true
         ),
-    [JSON.stringify(expressions.value), serverExpression, level]
+    [JSON.stringify(expressions.value), serverExpression, level, isChild, returnType, value?.value?.exp]
   );
 
   // SEAM (reqraft): reqraft's `SelectFormField` calls `onChange(value)` with

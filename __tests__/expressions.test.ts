@@ -5,6 +5,7 @@ import {
 } from '../src/components/form/expressions/types';
 import {
   areQorusTypesCompatible,
+  expressionFitsReturnType,
   argumentMatchesType,
   getArgumentType,
 } from '../src/helpers/expressions';
@@ -140,5 +141,36 @@ describe('auto is the other spelling of any', () => {
     // `any`. A misspelled or unsupported type must still answer false, or the
     // filter would stop filtering anything at all.
     expect(areQorusTypesCompatible('not-a-type', 'string')).toBe(false);
+  });
+});
+
+describe('the operations offered for a type', () => {
+  const greater = { ui_return_type: 'bool' };
+  const size = { ui_return_type: 'number' };
+  const join = { ui_return_type: 'richtext' };
+  const plus = { ui_return_type: 'any', return_type_first_arg: true };
+  const unknown = {};
+
+  it('a condition is built from the operations that give true or false', () => {
+    expect(expressionFitsReturnType('bool', greater)).toBe(true);
+    expect(expressionFitsReturnType('bool', size)).toBe(false);
+    expect(expressionFitsReturnType('bool', join)).toBe(false);
+  });
+
+  it('keeps an operation whose result is known only once it is built', () => {
+    expect(expressionFitsReturnType('bool', plus)).toBe(true);
+    expect(expressionFitsReturnType('bool', unknown)).toBe(true);
+    expect(expressionFitsReturnType('bool', { ui_return_type: 'auto' })).toBe(true);
+  });
+
+  it('offers everything where anything is taken', () => {
+    for (const anyType of [undefined, 'any', 'auto', 'context', [] as string[]]) {
+      expect(expressionFitsReturnType(anyType, size)).toBe(true);
+    }
+  });
+
+  it('a list of types takes an operation that gives any of them', () => {
+    expect(expressionFitsReturnType(['int', 'number'], size)).toBe(true);
+    expect(expressionFitsReturnType(['bool'], size)).toBe(false);
   });
 });
