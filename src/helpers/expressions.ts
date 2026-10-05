@@ -102,8 +102,17 @@ export const areQorusTypesCompatible = (
 };
 
 /**
+ * Whether a type is text or a date: what a condition cannot be. A condition is evaluated by its
+ * truthiness, so a number (0 or not), a list or hash (empty or not), binary data and an untyped result
+ * all decide it; text and dates do not say plainly what is meant, and are compared explicitly instead
+ * (`@status == "open"`, `@note != ""`).
+ */
+export const isTextOrDateType = (type: string): boolean =>
+  /^(string|richtext|date)$/.test(type.replace(/^\*/, '').replace(/^soft/, ''));
+
+/**
  * Whether an operation is offered where its result must be of `returnType`: a condition (`bool`) is
- * built from the operations that give true or false, not from every operation the server has.
+ * built from the operations whose result decides it, which is any result but text or a date.
  *
  * Only a condition narrows the list. Any other type keeps every operation: a value of one type is often
  * made from an operation that gives another (text from rich text, a number from an int), and the
@@ -123,5 +132,5 @@ export const expressionFitsReturnType = (
   if (expression.return_type_first_arg || !result || result === 'any' || result === 'auto') {
     return true;
   }
-  return /^\*?(bool|boolean)$/.test(result);
+  return !isTextOrDateType(result);
 };

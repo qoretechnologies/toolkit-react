@@ -600,8 +600,9 @@ export const Expression = ({
   const defaultItems = useMemo(
     () =>
       expressions.value
-        // a condition (a field or an operand that must be true or false) offers the operations that
-        // give true or false; a group's members are its own business, and the operation already chosen
+        // a condition (a field or an operand that must be true or false) offers the operations whose
+        // result decides it - any but text or a date, which are compared explicitly; a group's members
+        // are its own business, and the operation already chosen
         // stays, so a stored mismatch can be seen and fixed
         .filter(
           (exp) =>
