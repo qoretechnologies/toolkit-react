@@ -2326,6 +2326,9 @@ const FormEngineImpl = ({
         // The expression flag lives on the field value, not the schema — so an
         // expression value is validated as an expression, not the base type.
         isFunction: (availableOptions?.[optionName] as { is_expression?: boolean })?.is_expression,
+        // A field drawn by a bespoke editor (the consumer's own included) is
+        // not judged against `allowed_values` as fixed choices.
+        hasOwnEditor: isRendererOnly(options?.[optionName]?.ui_type as TQorusType),
       } as any);
     },
     [
@@ -2333,6 +2336,7 @@ const FormEngineImpl = ({
       JSON.stringify(availableOptions),
       JSON.stringify(localValue.fields),
       dependencyLockedNames,
+      isRendererOnly,
     ]
   );
 
@@ -2377,6 +2381,7 @@ const FormEngineImpl = ({
             ...options?.[optionName],
             // The expression flag lives on the field value, not the schema.
             isFunction: (option as { is_expression?: boolean }).is_expression,
+            hasOwnEditor: isRendererOnly(options?.[optionName]?.ui_type as TQorusType),
           } as any);
         }
 
@@ -3154,6 +3159,7 @@ const FormEngineImpl = ({
             name={optionName}
             option={{ type: resolvedType, ...other }}
             getType={getTypeForOption}
+            isRendererOnly={isRendererOnly}
             untouched={!touchedOptionsRef.current.has(optionName)}
           />
           {operators && size(operators) && size(other.op) ?
@@ -3266,6 +3272,7 @@ const FormEngineImpl = ({
       handleOptionLabelClick,
       removeSelectedOption,
       getTypeForOption,
+      isRendererOnly,
       isOptionValid,
       confirmAction,
       optionActions,
@@ -3313,6 +3320,7 @@ const FormEngineImpl = ({
       handleOptionLabelClick,
       removeSelectedOption,
       getTypeForOption,
+      isRendererOnly,
       isOptionValid,
       confirmAction,
       optionActions,

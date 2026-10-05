@@ -278,6 +278,7 @@ export const CompactRow = memo(
       (v) => v.removeSelectedOption
     );
     const getTypeForOption = useContextSelector(CompactRowContext, (v) => v.getTypeForOption);
+    const isRendererOnly = useContextSelector(CompactRowContext, (v) => v.isRendererOnly);
     const confirmAction = useContextSelector(CompactRowContext, (v) => v.confirmAction);
     const optionActions = useContextSelector(CompactRowContext, (v) => v.optionActions);
     const collapseOptionActions = useContextSelector(
@@ -1227,6 +1228,7 @@ export const CompactRow = memo(
           name: optionName,
           allOptions: availableOptions,
           getType: getTypeForOption,
+          isRendererOnly,
         })
           // The empty required field's value slot already reads "Required — not
           // set", so the plain required message would duplicate it.

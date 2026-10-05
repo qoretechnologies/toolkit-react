@@ -353,3 +353,163 @@ describe('FormEngine with a value that is not a choice', () => {
     expect(data.invalidFields[0].validation.reason).toBe('"gone" is not one of the choices');
   });
 });
+
+/**
+ * The AI endpoint's Tools field, as the qorus-ide delivers it: `ui_type:
+ * 'tool-catalog'` draws a bespoke editor that stores tool SELECTORS (`*`,
+ * `system:*`, a connection, `connection/tool`), while the host hangs the tool
+ * catalogue's SOURCES (fetched by the field's `get_message`) on
+ * `allowed_values` for that editor to browse. The sources are not the values
+ * the field may hold, so the server's own default `["*"]` must not be flagged.
+ */
+const TOOL_SOURCES = [
+  { display_name: 'Qorus system tools', value: { type: 'string', value: 'system' } },
+  { display_name: 'salesforce-prod', value: { type: 'string', value: 'salesforce-prod' } },
+];
+
+const toolsField = (extra: Record<string, unknown> = {}) => ({
+  type: 'list',
+  display_name: 'Tools',
+  ui_type: 'tool-catalog',
+  element_type: 'string',
+  default_value: { type: 'tool-catalog', value: ['*'] },
+  preselected: true,
+  required: true,
+  get_message: { action: 'creator-get-objects', object_type: 'tool-catalog' },
+  return_message: {
+    action: 'creator-return-objects',
+    object_type: 'tool-catalog',
+    return_value: 'objects',
+  },
+  allowed_values: TOOL_SOURCES,
+  ...extra,
+});
+
+describe('a field drawn by a bespoke editor is not judged against allowed_values', () => {
+  it('accepts every tool selector, none of which is a catalogue source', () => {
+    for (const value of [
+      ['*'],
+      ['system:*'],
+      ['system:*', 'salesforce-prod'],
+      ['system:*', 'jira-eng/create_issue'],
+      { type: 'tool-catalog', value: ['*'] },
+    ]) {
+      expect(getUnlistedChoices(value, toolsField())).toEqual([]);
+      expect(getUnlistedChoiceReason(value, toolsField())).toBeUndefined();
+    }
+  });
+
+  it('accepts a consumer editor the form declares as its own', () => {
+    const field = { ...toolsField({ ui_type: 'host-tool-picker' }), hasOwnEditor: true };
+    expect(getUnlistedChoiceReason(['*'], field)).toBeUndefined();
+  });
+
+  it('NEGATIVE: the same choices drawn by the choice picker are still a closed set', () => {
+    // no bespoke editor: a multi-select over the same entries flags `*`
+    expect(
+      getUnlistedChoiceReason(['*'], toolsField({ ui_type: undefined, multiselect: true }))
+    ).toBe('"*" is not one of the choices');
+    // and an undeclared ui_type is not taken for a bespoke editor
+    expect(getUnlistedChoiceReason(['*'], toolsField({ ui_type: 'host-tool-picker' }))).toBe(
+      '"*" is not one of the choices'
+    );
+    // a plain closed-choice field still flags its value
+    expect(getUnlistedChoiceReason('gone', channelField({ hasOwnEditor: false }))).toBe(
+      '"gone" is not one of the choices'
+    );
+  });
+
+  it('validateField and the field message agree', () => {
+    expect(validateField('list', ['*'], { has_to_have_value: true, ...toolsField() } as any)).toBe(
+      true
+    );
+    const schema = { tools: toolsField() } as any;
+    const messages = getOptionFieldMessages({
+      schema,
+      option: { type: 'tool-catalog', value: ['system:*'] },
+      name: 'tools',
+      allOptions: { tools: { type: 'tool-catalog', value: ['system:*'] } },
+      getType: (type: string) => type as never,
+    } as any);
+    expect(messages.map((m) => m.label)).not.toContainEqual(
+      expect.stringContaining('not one of the choices')
+    );
+  });
+
+  it('the field message honours a consumer-declared editor', () => {
+    const schema = { tools: toolsField({ ui_type: 'host-tool-picker' }) } as any;
+    const args = {
+      schema,
+      option: { type: 'list', value: ['*'] },
+      name: 'tools',
+      allOptions: { tools: { type: 'list', value: ['*'] } },
+      getType: (type: string) => type as never,
+    } as any;
+    // without the predicate the undeclared editor's value is judged...
+    expect(getOptionFieldMessages(args).map((m) => m.label)).toContain(
+      '"*" is not one of the choices'
+    );
+    // ...and with it, it is not
+    expect(
+      getOptionFieldMessages({
+        ...args,
+        isRendererOnly: (type?: string) => type === 'host-tool-picker',
+      }).map((m) => m.label)
+    ).not.toContain('"*" is not one of the choices');
+  });
+});
+
+describe('FormEngine with a tool-catalog field', () => {
+  const renderForm = (options: never, value: never, extra: Record<string, unknown> = {}) => {
+    const onValidityChange = vi.fn();
+    const utils = render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='endpoint'
+            value={value}
+            options={options}
+            onChange={vi.fn()}
+            onValidityChange={onValidityChange}
+            {...extra}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    return { ...utils, onValidityChange };
+  };
+
+  const lastValidity = (fn: ReturnType<typeof vi.fn>) => fn.mock.calls[fn.mock.calls.length - 1];
+
+  it('the default ["*"] leaves the form valid and nothing needs attention', async () => {
+    const { container, onValidityChange } = renderForm(
+      { tools: toolsField() } as never,
+      { tools: { type: 'tool-catalog', value: ['*'] } } as never
+    );
+    await waitFor(() => expect(onValidityChange).toHaveBeenCalled());
+    expect(lastValidity(onValidityChange)[0]).toBe(true);
+    expect(container.textContent).not.toContain('not one of the choices');
+  });
+
+  it('a consumer editor declared in rendererOnlyUiTypes is not judged either', async () => {
+    const { onValidityChange } = renderForm(
+      { tools: toolsField({ ui_type: 'host-tool-picker' }) } as never,
+      { tools: { type: 'list', value: ['system:*'] } } as never,
+      { rendererOnlyUiTypes: ['host-tool-picker'] }
+    );
+    await waitFor(() => expect(onValidityChange).toHaveBeenCalled());
+    expect(lastValidity(onValidityChange)[0]).toBe(true);
+  });
+
+  it('NEGATIVE: an undeclared editor over the same choices is still judged', async () => {
+    const { onValidityChange } = renderForm(
+      { tools: toolsField({ ui_type: 'host-tool-picker' }) } as never,
+      { tools: { type: 'list', value: ['system:*'] } } as never
+    );
+    await waitFor(() => expect(onValidityChange).toHaveBeenCalled());
+    const [isValid, data] = lastValidity(onValidityChange);
+    expect(isValid).toBe(false);
+    expect(data.invalidFields[0].validation.reason).toBe('"system:*" is not one of the choices');
+  });
+});

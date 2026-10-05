@@ -327,6 +327,14 @@ export interface IOptionFieldMessagesProps {
   name: string;
   getType: (type: string) => string;
   /**
+   * Whether a `ui_type` names a bespoke editor, the consumer's own included.
+   *
+   * Such a field's `allowed_values` are not fixed choices (the editor decides
+   * what a value means), so a value is not judged against them. Without it only
+   * reqraft's built-in editors are known.
+   */
+  isRendererOnly?: (type?: any) => boolean;
+  /**
    * The reader has not edited this field in this session.
    *
    * An error is a report that something went WRONG. "This field is required"
@@ -354,6 +362,7 @@ export const getOptionFieldMessages = ({
   name,
   allOptions,
   getType,
+  isRendererOnly,
   untouched,
 }: IOptionFieldMessagesProps): IReqoreTagProps[] => {
   const optionSchema = schema[name];
@@ -386,6 +395,7 @@ export const getOptionFieldMessages = ({
         // config never reached the validator.
         ...(optionSchema as object),
         optionSchema: schema,
+        hasOwnEditor: !!isRendererOnly?.(optionSchema?.ui_type),
       }
     );
     if (!validationData.isValid) {
@@ -442,11 +452,28 @@ export const OptionFieldMessages = ({
   name,
   allOptions,
   getType,
+  isRendererOnly,
   untouched,
 }: IOptionFieldMessagesProps) => {
   const messages: IReqoreTagProps[] = useMemo(
-    () => getOptionFieldMessages({ schema, option, name, allOptions, getType, untouched }),
-    [JSON.stringify(schema), JSON.stringify(option), JSON.stringify(allOptions), name, untouched]
+    () =>
+      getOptionFieldMessages({
+        schema,
+        option,
+        name,
+        allOptions,
+        getType,
+        isRendererOnly,
+        untouched,
+      }),
+    [
+      JSON.stringify(schema),
+      JSON.stringify(option),
+      JSON.stringify(allOptions),
+      name,
+      isRendererOnly,
+      untouched,
+    ]
   );
 
   if (!size(messages)) {

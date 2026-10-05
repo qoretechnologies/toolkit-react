@@ -9213,3 +9213,71 @@ export const CompactReadOnlyDataProvider: Story = {
     expect(row('name').querySelector('.options-readfirst-structured')).toBeNull();
   },
 };
+
+/** The AI endpoint's Tools field as the Qorus IDE hands it to the form: a
+ *  `tool-catalog` editor storing tool SELECTORS, with the tool catalogue's
+ *  SOURCES (fetched by its `get_message`) hung on `allowed_values`. */
+const AiEndpointToolsSchema = {
+  tools: {
+    type: 'list',
+    display_name: 'Tools',
+    short_desc: 'Which tools the AI can call during chat',
+    ui_type: 'tool-catalog',
+    element_type: 'string',
+    default_value: { type: 'tool-catalog', value: ['*'] },
+    preselected: true,
+    required: true,
+    get_message: { action: 'creator-get-objects', object_type: 'tool-catalog' },
+    return_message: {
+      action: 'creator-return-objects',
+      object_type: 'tool-catalog',
+      return_value: 'objects',
+    },
+    allowed_values: [
+      { display_name: 'Qorus system tools', value: { type: 'string', value: 'system' } },
+      { display_name: 'salesforce-prod', value: { type: 'string', value: 'salesforce-prod' } },
+    ],
+  },
+  channel: {
+    type: 'string',
+    display_name: 'Channel',
+    required: true,
+    allowed_values: [
+      { display_name: 'Ops', value: { type: 'string', value: 'ops' } },
+      { display_name: 'Dev', value: { type: 'string', value: 'dev' } },
+    ],
+  },
+};
+
+export const ToolSelectorsAreNotJudgedAsChoices: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "An AI endpoint's Tools field holds the server's default, `*` (all tools), and needs no attention: its tool-catalog editor stores selectors, and the catalogue sources listed beside it are not choices the value must be one of. The Channel field below has fixed choices and a value that is none of them, so it alone needs attention.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    options: AiEndpointToolsSchema as IOptionsSchema,
+    value: {
+      tools: { type: 'tool-catalog', value: ['*'] },
+      channel: { type: 'string', value: 'gone' },
+    },
+  },
+  play: async ({ args }) => {
+    await _testsWaitForText('Tools');
+    // The closed-choice field still flags its value...
+    await _testsWaitForText('"gone" is not one of the choices');
+    // ...and the selector is never reported as a value that is not a choice.
+    await _testsWaitForTextToNotExist('"*" is not one of the choices');
+    await waitFor(() => {
+      const calls = (args.onValidityChange as ReturnType<typeof fn>).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      const [, data] = calls[calls.length - 1] as [boolean, IFormValidityData];
+      expect(data.invalidFields.map((field) => field.fieldName)).toEqual(['channel']);
+    });
+  },
+};

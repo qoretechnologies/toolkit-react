@@ -98,6 +98,8 @@ export interface ICompactRowContext {
   handleOptionLabelClick: (optionName: string) => void;
   removeSelectedOption: (optionName: string) => void;
   getTypeForOption: (type: string) => string;
+  /** Whether a `ui_type` names a bespoke editor, reqraft's or the consumer's own. */
+  isRendererOnly?: (type?: any) => boolean;
   isOptionValid: (optionName: string, type: any, optionValue: any) => boolean;
   confirmAction: ReturnType<typeof useReqoreProperty<'confirmAction'>>;
 
