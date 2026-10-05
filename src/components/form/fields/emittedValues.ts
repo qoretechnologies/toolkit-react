@@ -37,6 +37,14 @@ export class EmittedValues<T> {
   }
 
   /**
+   * Whether `incoming` is one of the emits still in flight, without acknowledging anything: for a render,
+   * which may run more than once for one value, while `isEcho` is called once the value is committed.
+   */
+  includes(incoming: T): boolean {
+    return this.pending.some((value) => this.equals(value, incoming));
+  }
+
+  /**
    * Whether `incoming` is the echo of an emit still in flight. An echo
    * acknowledges that emit and every earlier one; anything else clears the
    * in-flight list, because the parent has a value of its own.

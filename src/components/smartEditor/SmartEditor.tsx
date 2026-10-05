@@ -31,6 +31,7 @@ import React, {
 import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
+import { useEmittedValues } from '../form/fields/emittedValues';
 import { defaultSlateConverter, expandSnippet, lspPositionToOffset } from './helpers';
 import { MarkdownDoc } from './MarkdownDoc';
 import { COMPLETION_KIND_INTENTS, SMART_EDITOR_OVERLAY_EFFECT } from './styling';
@@ -359,9 +360,25 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       enabled: enableHover,
     });
 
+    /* What the editor has reported and the host has not handed back yet. A host can hand an emit back
+       after the next key is already in the editor - one that debounces, or a render that lands between
+       two keys - and that stale value is not a change: rebuilding the document from it replaced the text
+       and put the caret at its end, so the next key followed the stale text (`name` typed came out
+       `nae`). See `EmittedValues`. */
+    const emitted = useEmittedValues<string>();
+    /* The value the host last handed down. The editor re-renders between keys for its own reasons (it
+       has just reported a new tree), and the host has not caught up then: the value it still holds is
+       not a change either. */
+    // nothing until the first value is committed, so the server is sent the first value too
+    const committedValueRef = useRef<string | undefined>(undefined);
+
     const slateValue = useMemo(() => {
-      // Reuse the cache when `value` is just the editor's own typing echo.
-      if (slateValueRef.current !== null && value === lastPlainTextRef.current) {
+      // Reuse the cache unless the host handed down something new: the same value again, the editor's
+      // own typing echo - the latest, or one still in flight - is not
+      if (
+        slateValueRef.current !== null &&
+        (value === committedValueRef.current || value === lastPlainTextRef.current || emitted.includes(value))
+      ) {
         return slateValueRef.current;
       }
       const next = converter.toSlateNodes(value);
@@ -376,8 +393,14 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
        this one; typing already sent its text, and is not resent. */
     const { didChange: syncDocument } = session;
     useEffect(() => {
+      // the echo of an emit is acknowledged, and is not sent: the server already has the newer text
+      // typing sent; anything else is a change from outside
+      if (committedValueRef.current === value) return;
+      committedValueRef.current = value;
+      if (emitted.isEcho(value)) return;
+      lastPlainTextRef.current = value;
       syncDocument(value);
-    }, [syncDocument, value]);
+    }, [syncDocument, value, emitted]);
 
     const diagnosticDecorate = useLspDiagnosticDecorations(
       session.diagnostics,
@@ -486,6 +509,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
         if (plainText !== lastPlainTextRef.current) {
           lastPlainTextRef.current = plainText;
+          emitted.record(plainText);
           // CRITICAL: the next render's `value` equals `lastPlainTextRef` (the
           // typing echo), so `slateValue`'s cache returns the live nodes set
           // above — leave them stale and downstream hooks (signature help,
@@ -499,7 +523,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           autocomplete.onSlateChange(editorRef.current as any, newNodes);
         }
       },
-      [onChange, session, readOnly, autocomplete, converter]
+      [onChange, session, readOnly, autocomplete, converter, emitted]
     );
 
     // Replace mode: open the dropdown at the chip's DOM rect (not the
