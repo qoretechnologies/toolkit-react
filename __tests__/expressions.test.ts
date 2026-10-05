@@ -6,6 +6,7 @@ import {
 import {
   areQorusTypesCompatible,
   expressionFitsReturnType,
+  isConditionType,
   isTextOrDateType,
   argumentMatchesType,
   getArgumentType,
@@ -201,5 +202,17 @@ describe('text or a date', () => {
     for (const t of ['bool', 'int', 'number', 'float', 'list', 'hash', 'binary', 'any', '*int', 'data']) {
       expect(isTextOrDateType(t)).toBe(false);
     }
+  });
+});
+
+describe('a place that takes a condition', () => {
+  it('is one whose result must be true or false', () => {
+    expect(isConditionType('bool')).toBe(true);
+    expect(isConditionType('*boolean')).toBe(true);
+    expect(isConditionType(['bool'])).toBe(true);
+    expect(isConditionType(['bool', 'int'])).toBe(false);
+    expect(isConditionType('int')).toBe(false);
+    expect(isConditionType(undefined)).toBe(false);
+    expect(isConditionType([])).toBe(false);
   });
 });

@@ -28,6 +28,8 @@ import {
   areQorusTypesCompatible,
   expressionFitsReturnType,
   getArgumentType,
+  isConditionType,
+  isTextOrDateType,
 } from '../../../../helpers/expressions';
 import { addMissingExpressionArgs } from '../argumentPresence';
 import { findTemplate } from '../../../../helpers/templates';
@@ -595,7 +597,11 @@ export const Expression = ({
         expressionReturnType === 'any' ||
         areQorusTypesCompatible(returnType, expressionReturnType) ||
         returnType === expressionReturnType ||
-        !returnType);
+        !returnType) ||
+    // a condition is decided by any result but text or a date
+    (isConditionType(returnType as string | string[] | undefined) &&
+      !!expressionReturnType &&
+      !isTextOrDateType(expressionReturnType));
 
   const defaultItems = useMemo(
     () =>
@@ -1284,7 +1290,14 @@ export const Expression = ({
             intent='danger'
             size='tiny'
             wrap
-            label={`This expression returns ${types.getTypeDisplayName(expressionReturnType) || 'nothing'} but the expected return type is ${expectedReturnTypeText}. Please select an expression that returns ${expectedReturnTypeText} or wrap this expression inside another one that does.`}
+            label={
+              isConditionType(returnType as string | string[] | undefined) &&
+              !!expressionReturnType &&
+              isTextOrDateType(expressionReturnType)
+                ? // a condition that gives text or a date: say how to make it one
+                  `A condition can't give ${types.getTypeDisplayName(expressionReturnType)}: compare it explicitly, for example @status == "open" or @note != "".`
+                : `This expression returns ${types.getTypeDisplayName(expressionReturnType) || 'nothing'} but the expected return type is ${expectedReturnTypeText}. Please select an expression that returns ${expectedReturnTypeText} or wrap this expression inside another one that does.`
+            }
           />
         </>
       )}

@@ -110,6 +110,12 @@ export const areQorusTypesCompatible = (
 export const isTextOrDateType = (type: string): boolean =>
   /^(string|richtext|date)$/.test(type.replace(/^\*/, '').replace(/^soft/, ''));
 
+/** Whether a place takes a condition: its result must be true or false (`bool`, or a list of only that). */
+export const isConditionType = (returnType: string | string[] | undefined): boolean => {
+  const types = isArray(returnType) ? returnType : returnType ? [returnType] : [];
+  return types.length > 0 && types.every((type) => /^\*?(bool|boolean)$/.test(type));
+};
+
 /**
  * Whether an operation is offered where its result must be of `returnType`: a condition (`bool`) is
  * built from the operations whose result decides it, which is any result but text or a date.
@@ -123,9 +129,7 @@ export const expressionFitsReturnType = (
   returnType: string | string[] | undefined,
   expression: { ui_return_type?: string; return_type_first_arg?: boolean }
 ): boolean => {
-  const types = isArray(returnType) ? returnType : returnType ? [returnType] : [];
-  const condition = types.length > 0 && types.every((type) => /^\*?(bool|boolean)$/.test(type));
-  if (!condition) {
+  if (!isConditionType(returnType)) {
     return true;
   }
   const result = expression.ui_return_type;
