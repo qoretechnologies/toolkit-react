@@ -496,43 +496,17 @@ export function useLspAutocomplete(
     return () => document.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen, filteredItems, close, selectItem]);
 
-  const onSlateChangeImpl = useCallback(
-    (
-      editor: BaseEditor & ReactEditor & HistoryEditor,
-      nodes: ISlateElement[]
-    ) => {
-      editorRef.current = editor;
-      if (!editor.selection || !isReady) {
-        // Don't tear down replace mode just because the click that
-        // opened it momentarily left the selection null — clicking a
-        // void inline can do that.
-        if (replacingChipPathRef.current) return;
+  /**
+   * Opens, narrows or closes the completions for what the editor holds at its caret, after a content
+   * edit: a trigger character just typed, typing inside a sigil token, narrowing an open list, or
+   * autosuggest inside a bare identifier.
+   */
+  const completeAtCaret = useCallback(
+    (editor: BaseEditor & ReactEditor & HistoryEditor, nodes: ISlateElement[]) => {
+      if (!editor.selection) {
         close();
         return;
       }
-      // `onChange` fires for content edits AND selection-only changes
-      // (cursor moves, click-to-focus). Only OPEN on content edits — else
-      // clicking after a trigger char (e.g. the space in `/list services `)
-      // pops the dropdown without the user typing. An all-`set_selection`
-      // op batch is selection-only.
-      const isContentChange = editor.operations.some(
-        (op) => op.type !== 'set_selection'
-      );
-      if (!isContentChange) {
-        // Replace mode anchors on a chip; the selection echo from the
-        // opening click must not close it (outside-click handler does).
-        if (isOpen && !replacingChipPathRef.current) {
-          close();
-        }
-        return;
-      }
-      // A content edit in replace mode means the user typed instead of
-      // picking a replacement — fall back to normal flow.
-      if (replacingChipPathRef.current) {
-        close();
-        return;
-      }
-
       const { anchor } = editor.selection;
       const plainText = converter.fromSlateNodes(nodes);
       const cursorOffset = converter.selectionToOffset(
@@ -604,17 +578,70 @@ export function useLspAutocomplete(
 
       close();
     },
-    [
-      isReady,
-      isOpen,
-      close,
-      findTokenStart,
-      positionTrigger,
-      requestCompletions,
-      triggerCharacters,
-      converter,
-    ]
+    [isOpen, close, findTokenStart, positionTrigger, requestCompletions, triggerCharacters, converter]
   );
+
+  /* An edit made before the session is ready - typing `$` or `@` while the connection is still being
+     made, or its context bound - would otherwise be dropped: the list is closed and nothing asks again,
+     so the trigger the author typed never opens anything. The editor is kept, and once the session is
+     ready the completions are asked for what it holds then, as for a chip click (see
+     `pendingChipRequestRef`). */
+  const pendingTypingRef = useRef<(BaseEditor & ReactEditor & HistoryEditor) | null>(null);
+
+  const onSlateChangeImpl = useCallback(
+    (
+      editor: BaseEditor & ReactEditor & HistoryEditor,
+      nodes: ISlateElement[]
+    ) => {
+      editorRef.current = editor;
+      if (!editor.selection || !isReady) {
+        // Don't tear down replace mode just because the click that
+        // opened it momentarily left the selection null — clicking a
+        // void inline can do that.
+        if (replacingChipPathRef.current) return;
+        // a content edit before the session is ready is answered once it is (see `pendingTypingRef`)
+        if (editor.selection && editor.operations.some((op) => op.type !== 'set_selection')) {
+          pendingTypingRef.current = editor;
+        }
+        close();
+        return;
+      }
+      pendingTypingRef.current = null;
+      // `onChange` fires for content edits AND selection-only changes
+      // (cursor moves, click-to-focus). Only OPEN on content edits — else
+      // clicking after a trigger char (e.g. the space in `/list services `)
+      // pops the dropdown without the user typing. An all-`set_selection`
+      // op batch is selection-only.
+      const isContentChange = editor.operations.some(
+        (op) => op.type !== 'set_selection'
+      );
+      if (!isContentChange) {
+        // Replace mode anchors on a chip; the selection echo from the
+        // opening click must not close it (outside-click handler does).
+        if (isOpen && !replacingChipPathRef.current) {
+          close();
+        }
+        return;
+      }
+      // A content edit in replace mode means the user typed instead of
+      // picking a replacement — fall back to normal flow.
+      if (replacingChipPathRef.current) {
+        close();
+        return;
+      }
+
+      completeAtCaret(editor, nodes);
+    },
+    [isReady, isOpen, close, completeAtCaret]
+  );
+
+  // Answer an edit made before the session was ready, for what the editor holds now.
+  useEffect(() => {
+    const editor = pendingTypingRef.current;
+    if (!isReady || !editor) return;
+    pendingTypingRef.current = null;
+    completeAtCaret(editor, editor.children as ISlateElement[]);
+  }, [isReady, completeAtCaret]);
   onSlateChangeImplRef.current = onSlateChangeImpl;
 
   const onItemSelect = useCallback(
