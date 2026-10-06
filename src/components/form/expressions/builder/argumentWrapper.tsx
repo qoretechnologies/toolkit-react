@@ -6,6 +6,7 @@ import {
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { memo } from 'react';
+import styled from 'styled-components';
 import { ordinal } from '../../../../helpers/common';
 import {
   IExpression,
@@ -14,6 +15,26 @@ import {
   TExpressionReorderSurface,
 } from '../types';
 import { ExpressionBuilderArgumentLabel } from './argumentLabel';
+
+/**
+ * An operand's field row: the field (a value or a field reference, its clear button, its ⋮ menu) shrinks
+ * with a narrow row. A control group that is not fluid does not shrink, and a field is several of them
+ * nested, so in a narrow column - not only on a phone, where operands are fluid - the field kept its
+ * natural width and its ⋮ was cut off at the expression's edge or hung past it. The value gives way, down
+ * to its own least width, and the controls beside it stay in the row.
+ */
+const StyledOperandField = styled.div`
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+
+  .reqore-control-group {
+    flex-shrink: 1;
+    min-width: 0;
+    max-width: 100%;
+  }
+`;
 
 export interface IExpressionBuilderArgumentWrapperProps {
   children: React.ReactNode;
@@ -184,7 +205,8 @@ export const ExpressionBuilderArgumentWrapper = memo(
         size='small'
         className='expression-arg'
         {...dragProps}
-        style={{ flexShrink: 1, ...dragProps.style }}
+        // at most the width of the expression it is in: a narrow column shrinks its field instead
+        style={{ flexShrink: 1, minWidth: 0, maxWidth: '100%', ...dragProps.style }}
       >
         <ExpressionBuilderArgumentLabel
           arg={arg}
@@ -197,7 +219,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
             line of its own above a full-width field. */}
         <ReqoreControlGroup verticalAlign='flex-start' wrap={!fluid} fluid>
           {reorder && renderReorderControls()}
-          {children}
+          <StyledOperandField className='expression-arg-field'>{children}</StyledOperandField>
           {hasMultipleArgs && (
             <ReqoreButton
               compact

@@ -1134,6 +1134,50 @@ export const NestedFitsNarrowColumn: Story = {
 };
 
 /**
+ * The controls of the operands (a value or a field, its clear button, its `⋮` menu) that reach past their
+ * operand's row, or a row past its expression: none should, or a control is cut off or hangs outside.
+ */
+const operandControlsPastTheirRow = () =>
+  [...document.querySelectorAll<HTMLElement>('.expression-arg')].flatMap((row) => {
+    const box = row.getBoundingClientRect();
+    const panel = (row.closest('.expression') as HTMLElement).getBoundingClientRect();
+    const right = Math.min(box.right, panel.right);
+    return [...row.querySelectorAll<HTMLElement>('button, input, .reqore-tag')]
+      .filter((control) => control.closest('.expression-arg') === row && control.getBoundingClientRect().width > 0)
+      .map((control) => ({
+        control: control.className.split(' ').filter((c) => !/^sc-/.test(c)).pop() ?? control.tagName,
+        over: Math.round(control.getBoundingClientRect().right - right),
+      }))
+      .filter(({ over }) => over > 0);
+  });
+
+/** The same condition's operands - a field and a number each - in a column narrowed to 186px. */
+export const OperandsFitNarrowColumn: Story = {
+  args: NestedFitsNarrowColumn.args,
+  decorators: NestedFitsNarrowColumn.decorators,
+  parameters: {
+    qlip: { viewport: { width: 320, height: 800 } },
+    docs: {
+      description: {
+        story:
+          'Renders the nested "AND" condition in a column narrowed from 320px to 186px - what a 320px screen leaves a condition in a form - and shown at 186px: each operand\'s value or field, its clear button and its ⋮ menu stay inside the operand\'s row, the field shortened to fit.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(expressionCount()).toBe(2), { timeout: 10000 });
+    const column = canvasElement.querySelector('.narrow-column') as HTMLElement;
+    for (const width of NARROW_COLUMNS) {
+      column.style.width = `${width}px`;
+      await waitFor(
+        () => expect({ width, past: operandControlsPastTheirRow() }).toEqual({ width, past: [] }),
+        { timeout: 10000 }
+      );
+    }
+  },
+};
+
+/**
  * On a phone the remove action leaves the operand row for its ⋮ menu. The play
  * runs at the runner's desktop viewport, where the inline buttons are the
  * route, and leaves the second operand's menu open; the capture, taken at
