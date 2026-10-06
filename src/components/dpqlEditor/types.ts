@@ -44,6 +44,9 @@ export interface IDpqlParseResult {
   }>;
 }
 
+/** A record's fields for `dpql/setContext`: each field's type (or types) and an optional description. */
+export type TDpqlFields = Record<string, { type: string | string[]; desc?: string }>;
+
 export interface IDpqlEditorProps {
   /** Current value as plain DPQL text. */
   value: string;
@@ -60,6 +63,13 @@ export interface IDpqlEditorProps {
   recordType?: string;
   /** Additional `dpql/setContext` options (forwarded as `options`). */
   options?: Record<string, any>;
+  /**
+   * The record's fields, for a record no data provider has (a sheet contract's columns and added fields):
+   * each field's type - a Qore type name, or a list of them for a field that may hold any of them - and an
+   * optional description. Sent as `fields` on `dpql/setContext` and at `didOpen`; completion, validation and
+   * hover then offer them. With a provider too, the provider's fields are replaced.
+   */
+  fields?: TDpqlFields;
   /**
    * FSM action code, surfaced to the server as `action_code` in `didOpen`
    * metadata. Used to derive search-context semantics for the editor

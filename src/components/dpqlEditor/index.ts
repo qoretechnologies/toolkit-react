@@ -9,6 +9,7 @@ export type {
   ISlateElement,
   ISlateText,
   TSlateNode,
+  TDpqlFields,
 } from './types';
 export { dpqlProbe } from './dpqlProbe';
 export type { IDpqlProbeResult } from './dpqlProbe';
