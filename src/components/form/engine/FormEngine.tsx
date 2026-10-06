@@ -42,6 +42,7 @@ import { shouldMarkAsExpression } from '../expressions/argumentPresence';
 import { offersTypeChoices } from './typeChoices';
 import { optionRowActions, resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
+import { revealRow } from './revealRow';
 import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last, uniq } from 'lodash';
 import map from 'lodash/map';
 import reduce from 'lodash/reduce';
@@ -1520,8 +1521,15 @@ const FormEngineImpl = ({
         const target = compactWrapNodeRef.current?.querySelector<HTMLElement>(
           `.readfirst-row[data-field="${optionNames[0]}"]`
         );
-        if (typeof target?.scrollIntoView === 'function') {
-          target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        // Only when it is not already in view, and never under a pinned box
+        // header: `block: 'center'` scrolled a row that was in plain sight and
+        // centred it against the whole scrollport, so the header pinned at the
+        // top was drawn over it (see `revealRow`).
+        if (target) {
+          revealRow(
+            target,
+            window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches ? 'auto' : 'smooth'
+          );
         }
       });
     }

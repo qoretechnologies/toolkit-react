@@ -9354,3 +9354,161 @@ export const AReadOnlyFormShowsWhatIsWrong: Story = {
     });
   },
 };
+
+/** A form taller than its 400px scroller: one empty required field, a required
+ *  Owner that is set, and a dozen set fields below them. */
+const MovedRowSchema: IOptionsSchema = {
+  title: { type: 'string', display_name: 'Title', required: true },
+  owner: { type: 'string', display_name: 'Owner', required: true },
+  ...Object.fromEntries(
+    Array.from({ length: 12 }, (_, index) => [
+      `detail${index + 1}`,
+      { type: 'string', display_name: `Detail ${index + 1}` },
+    ])
+  ),
+};
+const MovedRowValue: IOptions = {
+  owner: { type: 'string', value: 'ops-team' },
+  ...Object.fromEntries(
+    Array.from({ length: 12 }, (_, index) => [
+      `detail${index + 1}`,
+      { type: 'string', value: `value ${index + 1}` },
+    ])
+  ),
+};
+
+/** Renders the form with buttons that change a value from outside it, the way a
+ *  host's save or a server update does — which is what moves a collapsed row. */
+const MovedRowRender = ({ onChange, ...rest }: IFormEngineProps) => {
+  const [val, setValue] = useState<IOptions>(MovedRowValue);
+  return (
+    <>
+      <button type='button' onClick={() => setValue((v) => ({ ...v, title: { type: 'string', value: 'Quarterly report' } }))}>
+        Fill title
+      </button>
+      <button type='button' onClick={() => setValue((v) => ({ ...v, owner: { type: 'string', value: '' } }))}>
+        Clear owner
+      </button>
+      <div style={{ height: 400, overflow: 'hidden', display: 'flex', flexFlow: 'column' }}>
+        <FormEngine
+          {...rest}
+          value={val}
+          onChange={(_n, v, m) => {
+            setValue(v as IOptions);
+            onChange?.(_n, v, m);
+          }}
+        />
+      </div>
+    </>
+  );
+};
+
+/** Counts `scrollIntoView` calls on rows while a play runs. */
+const watchRowScrolls = () => {
+  const original = HTMLElement.prototype.scrollIntoView;
+  const scrolled: string[] = [];
+  HTMLElement.prototype.scrollIntoView = function (this: HTMLElement, arg?: boolean | ScrollIntoViewOptions) {
+    scrolled.push(this.getAttribute('data-field') || '');
+    return original.call(this, arg);
+  };
+  return { scrolled, restore: () => (HTMLElement.prototype.scrollIntoView = original) };
+};
+
+const movedRowScroller = () =>
+  document.querySelector<HTMLElement>('.options-readfirst-scroll')!;
+const clickHostButton = (label: string) =>
+  fireEvent.click([...document.querySelectorAll('button')].find((b) => b.textContent === label)!);
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+export const AMovedRowInViewIsNotScrolled: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Title is empty, so it sits under Needs attention. "Fill title" sets it from outside the form, and the row moves into Set, where it is already in plain view. The form follows the row with a flash but does not scroll, because nothing needs bringing into view.',
+      },
+    },
+  },
+  render: MovedRowRender,
+  args: {
+    compact: true,
+    compactScroll: 'own' as const,
+    minColumnWidth: '300px',
+    options: MovedRowSchema,
+  },
+  play: async () => {
+    await _testsWaitForText('Needs attention');
+    const watch = watchRowScrolls();
+    try {
+      const scroller = movedRowScroller();
+      const before = scroller.scrollTop;
+      clickHostButton('Fill title');
+      // The move is followed by a flash in the frame the reveal runs in: wait
+      // for it, then one more frame so the reveal has certainly run.
+      await waitFor(() =>
+        expect(document.querySelector('.readfirst-row-flash[data-field="title"]')).toBeTruthy()
+      );
+      await nextFrame();
+      expect(watch.scrolled).not.toContain('title');
+      expect(scroller.scrollTop).toBe(before);
+    } finally {
+      watch.restore();
+    }
+  },
+};
+
+export const AMovedRowLandsClearOfThePinnedHeader: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The form is scrolled to its end, then "Clear owner" empties Owner, so its row moves up into Needs attention, out of view. The form scrolls the least distance that shows it, and the row stops just below the pinned "Needs attention" header instead of underneath it.',
+      },
+    },
+  },
+  render: MovedRowRender,
+  args: {
+    compact: true,
+    compactScroll: 'own' as const,
+    minColumnWidth: '300px',
+    options: MovedRowSchema,
+  },
+  play: async () => {
+    await _testsWaitForText('Detail 12');
+    const scroller = movedRowScroller();
+    const scrollEnd = () =>
+      new Promise<void>((resolve) =>
+        scroller.addEventListener('scrollend', () => resolve(), { once: true })
+      );
+    // Even an instant scroll ends with a `scrollend`; consume it here, or it
+    // would be taken for the end of the reveal below.
+    const atBottom = scrollEnd();
+    scroller.scrollTop = scroller.scrollHeight;
+    await atBottom;
+    expect(scroller.scrollTop).toBeGreaterThan(0);
+    const watch = watchRowScrolls();
+    try {
+      // The reveal is a smooth scroll; its end is the `scrollend` event, armed
+      // before the click so it cannot be missed.
+      const scrolled = scrollEnd();
+      clickHostButton('Clear owner');
+      await waitFor(() => expect(watch.scrolled).toContain('owner'));
+      await scrolled;
+      const row = document.querySelector<HTMLElement>('.readfirst-row[data-field="owner"]')!;
+      const attention = [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')].find(
+        (group) => (group.textContent || '').startsWith('Needs attention')
+      )!;
+      const header = attention.querySelector<HTMLElement>(':scope > .reqore-panel-title')!;
+      const rowRect = row.getBoundingClientRect();
+      const viewRect = scroller.getBoundingClientRect();
+      // Clear of the pinned header — and right below it, the least scroll that
+      // shows the row, not centred in the scroller — and inside the scroller.
+      const headerBottom = header.getBoundingClientRect().bottom;
+      expect(rowRect.top).toBeGreaterThanOrEqual(headerBottom - 1);
+      expect(rowRect.top).toBeLessThanOrEqual(headerBottom + 2);
+      expect(rowRect.bottom).toBeLessThanOrEqual(viewRect.bottom + 1);
+    } finally {
+      watch.restore();
+    }
+  },
+};

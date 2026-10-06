@@ -35,6 +35,7 @@ import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
+import { revealRow } from './revealRow';
 import {
   StyledActionSlot,
   StyledCardHeading,
@@ -931,8 +932,11 @@ export const CompactRow = memo(
         }
         const control = findRowFocusTarget(editor);
         if (!control) return false;
-        // Optional call: jsdom does not implement `scrollIntoView`.
-        rowRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        // The least scroll that shows the row clear of the pinned box header,
+        // and none when it is already in view (see `revealRow`).
+        if (rowRef.current) {
+          revealRow(rowRef.current, 'auto');
+        }
         // `preventScroll`, because the reveal above has already put the row
         // where it belongs; letting focus scroll as well moves it twice.
         control.focus({ preventScroll: true });
