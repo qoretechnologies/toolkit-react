@@ -1345,6 +1345,11 @@ export const ExpressionBuilder = ({
   reorder,
 }: IExpressionBuilderProps) => {
   const templates = useTemplates(!isChild, localTemplates);
+  /* A builder nested in a group does not resolve templates again: its parent hands it the resolved ones.
+     `useTemplates` gives a nested builder none, and they were what it handed on, so every comparison in
+     an AND/OR group had no templates - its field pickers had nothing to offer and were drawn disabled,
+     and the operands read as read-only. */
+  const resolvedTemplates = isChild ? localTemplates : templates.value;
   const theme = useReqoreTheme();
   const [showSummary, setShowSummary] = useState(false);
   const _expressions = useExpressions({
@@ -1481,7 +1486,7 @@ export const ExpressionBuilder = ({
               <React.Fragment key={index}>
                 <ExpressionBuilder
                   value={arg}
-                  localTemplates={templates.value}
+                  localTemplates={resolvedTemplates}
                   isChild
                   path={`${path ? `${path}.` : ''}value.args.${index}`}
                   level={level + 1}
@@ -1517,7 +1522,7 @@ export const ExpressionBuilder = ({
   return (
     <ReqoreErrorBoundary>
       <Expression
-        localTemplates={templates.value}
+        localTemplates={resolvedTemplates}
         value={value}
         isChild={isChild}
         type={type}

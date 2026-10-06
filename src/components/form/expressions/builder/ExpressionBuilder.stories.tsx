@@ -1061,9 +1061,29 @@ const titlesPastTheirPanel = () =>
 /** The column a 320px screen leaves the condition, and narrower ones a form's indents leave it. */
 const NARROW_COLUMNS = [320, 280, 240, 200, 186];
 
+/**
+ * The order's fields, for the narrow-column stories: the operands refer to them, and a field picker
+ * whose value is not among its templates has nothing to offer - it is drawn disabled, and the operand
+ * reads as read-only.
+ */
+const orderTemplates = {
+  label: 'Order',
+  items: [
+    {
+      label: 'Order',
+      badge: 'Order',
+      items: [
+        { label: 'Quantity', badge: 'int', value: '$local:quantity' },
+        { label: 'Price', badge: 'int', value: '$local:price' },
+      ],
+    },
+  ],
+} as any;
+
 /** A comparison with the longest operation name nested in an "AND" group, in a column it can narrow. */
 export const NestedFitsNarrowColumn: Story = {
   args: {
+    localTemplates: orderTemplates,
     value: {
       is_expression: true,
       value: {
@@ -1111,6 +1131,10 @@ export const NestedFitsNarrowColumn: Story = {
   },
   play: async ({ canvasElement }) => {
     await waitFor(() => expect(expressionCount()).toBe(2), { timeout: 10000 });
+    // editable: every control of the operands can be used (a field picker with nothing to offer is disabled)
+    expect(
+      [...canvasElement.querySelectorAll<HTMLButtonElement>('.expression-arg button')].filter((b) => b.disabled).map((b) => b.textContent)
+    ).toEqual([]);
     const column = canvasElement.querySelector('.narrow-column') as HTMLElement;
     // as narrow as a 320px screen leaves the condition, and narrower
     for (const width of NARROW_COLUMNS) {
@@ -1166,6 +1190,10 @@ export const OperandsFitNarrowColumn: Story = {
   },
   play: async ({ canvasElement }) => {
     await waitFor(() => expect(expressionCount()).toBe(2), { timeout: 10000 });
+    // editable: the operands' controls are all usable, so their narrow layout is the editing one
+    expect(
+      [...canvasElement.querySelectorAll<HTMLButtonElement>('.expression-arg button')].filter((b) => b.disabled).map((b) => b.textContent)
+    ).toEqual([]);
     const column = canvasElement.querySelector('.narrow-column') as HTMLElement;
     for (const width of NARROW_COLUMNS) {
       column.style.width = `${width}px`;
