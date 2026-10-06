@@ -22,10 +22,11 @@ import { ExpressionBuilderArgumentLabel } from './argumentLabel';
  * nested, so in a narrow column - not only on a phone, where operands are fluid - the field kept its
  * natural width and its ⋮ was cut off at the expression's edge or hung past it. The value gives way, down
  * to its own least width, and the controls beside it stay in the row.
+ *
+ * The row's own control group, styled - not a wrapper inside it: a control group hands its size to its
+ * children, and a wrapper between them drew the field at the normal size instead of the row's small one.
  */
-const StyledOperandField = styled.div`
-  display: flex;
-  flex: 1 1 auto;
+const StyledOperandFieldRow = styled(ReqoreControlGroup)`
   min-width: 0;
   max-width: 100%;
 
@@ -217,9 +218,9 @@ export const ExpressionBuilderArgumentWrapper = memo(
         {/* A fluid operand is a phone row: grip, field and `⋮` share it, and
             the field takes what is left; wrapping would put the grip on a
             line of its own above a full-width field. */}
-        <ReqoreControlGroup verticalAlign='flex-start' wrap={!fluid} fluid>
+        <StyledOperandFieldRow verticalAlign='flex-start' wrap={!fluid} fluid className='expression-arg-field'>
           {reorder && renderReorderControls()}
-          <StyledOperandField className='expression-arg-field'>{children}</StyledOperandField>
+          {children}
           {hasMultipleArgs && (
             <ReqoreButton
               compact
@@ -235,7 +236,7 @@ export const ExpressionBuilderArgumentWrapper = memo(
               disabled={readOnly}
             />
           )}
-        </ReqoreControlGroup>
+        </StyledOperandFieldRow>
       </ReqoreControlGroup>
     );
   }
