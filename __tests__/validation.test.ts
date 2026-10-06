@@ -5,6 +5,7 @@
  * Breaking the implementation must cause at least one test to fail.
  */
 
+import { getRequiredOptionMessage } from '../src/helpers/options';
 import {
   getTypeFromValue,
   hasAllDependenciesFullfilled,
@@ -13,6 +14,7 @@ import {
   validateField,
   validateFieldWithResult,
   validateOptionWithRequiredGroups,
+  unsatisfiedRequiredGroups,
 } from '../src/helpers/validations';
 
 // ─── richtext ──────────────────────────────────────────────────────────────────
@@ -740,6 +742,37 @@ describe('validateOptionWithRequiredGroups', () => {
     } as any;
     const options: any = {};
     expect(validateOptionWithRequiredGroups(options, schema, ['G1'])).toBe(false);
+  });
+});
+
+describe('an option in several required groups', () => {
+  // Options 1-4 are one group (one of them is enough); 4 is also in a second group with 5.
+  const schema = {
+    opt1: { type: 'string', ui_type: 'string', display_name: 'One', required_groups: ['G1'] },
+    opt2: { type: 'string', ui_type: 'string', display_name: 'Two', required_groups: ['G1'] },
+    opt4: { type: 'string', ui_type: 'string', display_name: 'Four', required_groups: ['G1', 'G2'] },
+    opt5: { type: 'string', ui_type: 'string', display_name: 'Five', required_groups: ['G2'] },
+  } as any;
+
+  it('is satisfied only when each of its groups has a value', () => {
+    // the first group has one, the second none: 4 is still needed, or 5
+    const options: any = { opt2: { type: 'string', value: 'x' } };
+    expect(validateOptionWithRequiredGroups(options, schema, ['G1', 'G2'])).toBe(false);
+    expect(validateOptionWithRequiredGroups(options, schema, ['G2'])).toBe(false);
+    expect(validateOptionWithRequiredGroups(options, schema, ['G1'])).toBe(true);
+    // 5 settles the second group
+    const both: any = { opt2: { type: 'string', value: 'x' }, opt5: { type: 'string', value: 'y' } };
+    expect(validateOptionWithRequiredGroups(both, schema, ['G1', 'G2'])).toBe(true);
+    // 4 alone settles both
+    expect(validateOptionWithRequiredGroups({ opt4: { type: 'string', value: 'z' } } as any, schema, ['G1', 'G2'])).toBe(true);
+  });
+
+  it('names only the options that would settle what is missing', () => {
+    const options: any = { opt2: { type: 'string', value: 'x' } };
+    expect(unsatisfiedRequiredGroups(options, schema, ['G1', 'G2'])).toEqual(['G2']);
+    expect(getRequiredOptionMessage(schema, unsatisfiedRequiredGroups(options, schema, ['G1', 'G2']), 'opt4')).toBe(
+      'This field or Five is required'
+    );
   });
 });
 
