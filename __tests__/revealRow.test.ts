@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   findScrollContainer,
   getPinnedChromeHeight,
+  getRevealClearance,
   isRowInView,
   revealRow,
 } from '../src/components/form/engine/revealRow';
@@ -104,6 +105,17 @@ describe('revealRow', () => {
     setRect(row, 590, 30);
     expect(revealRow(row, 'auto')).toBe(true);
     expect(scrollIntoView.mock.calls[0][0]).toMatchObject({ block: 'nearest', behavior: 'auto' });
+  });
+
+  it("counts the scroller's top padding, which a sticky top is measured from", () => {
+    const { scroller, row } = buildForm();
+    scroller.style.paddingTop = '16px';
+    expect(getRevealClearance(row)).toBe(124);
+    // clear of the scrollport edge + 108, but still under the header pinned at
+    // the padded edge + 108
+    setRect(row, 215, 30);
+    expect(revealRow(row)).toBe(true);
+    expect(row.style.scrollMarginTop).toBe('124px');
   });
 
   it('ignores headers that are not pinned', () => {

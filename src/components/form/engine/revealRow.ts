@@ -67,8 +67,26 @@ export const getPinnedChromeHeight = (element: HTMLElement): number => {
   return clearance;
 };
 
-/** Whether the whole of `element` is visible below the pinned chrome above it. */
-export const isRowInView = (element: HTMLElement, pinnedChrome: number): boolean => {
+/**
+ * How far below the top edge of the row's scrollport the pinned chrome reaches.
+ *
+ * A sticky `top` is measured from the scrollport's top edge INSET BY ITS
+ * PADDING, while `scrollIntoView` and `scroll-margin-top` align against the
+ * edge itself. Leaving the padding out put an opened row 16px under its box
+ * header inside a padded host scroller (the Storybook canvas, and any panel
+ * with padding).
+ */
+export const getRevealClearance = (element: HTMLElement): number => {
+  const container = findScrollContainer(element);
+  const inset = container ? parseFloat(getComputedStyle(container).paddingTop) || 0 : 0;
+  return inset + getPinnedChromeHeight(element);
+};
+
+/**
+ * Whether the whole of `element` is visible below `clearance` (measured from
+ * the top edge of its scrollport, see {@link getRevealClearance}).
+ */
+export const isRowInView = (element: HTMLElement, clearance: number): boolean => {
   const container = findScrollContainer(element);
   const viewTop = container ? container.getBoundingClientRect().top + container.clientTop : 0;
   const viewBottom =
@@ -76,7 +94,7 @@ export const isRowInView = (element: HTMLElement, pinnedChrome: number): boolean
       viewTop + container.clientHeight
     : window.innerHeight || document.documentElement.clientHeight;
   const rect = element.getBoundingClientRect();
-  return rect.top >= viewTop + pinnedChrome && rect.bottom <= viewBottom;
+  return rect.top >= viewTop + clearance && rect.bottom <= viewBottom;
 };
 
 /**
@@ -95,11 +113,11 @@ export const revealRow = (element: HTMLElement, behavior: ScrollBehavior = 'smoo
   if (typeof element.scrollIntoView !== 'function') {
     return false;
   }
-  const pinnedChrome = getPinnedChromeHeight(element);
-  if (isRowInView(element, pinnedChrome)) {
+  const clearance = getRevealClearance(element);
+  if (isRowInView(element, clearance)) {
     return false;
   }
-  element.style.scrollMarginTop = `${pinnedChrome}px`;
+  element.style.scrollMarginTop = `${clearance}px`;
   element.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior });
   return true;
 };
