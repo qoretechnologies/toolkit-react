@@ -96,6 +96,38 @@ const openTypePicker = async (canvasElement: HTMLElement, label?: string) => {
   );
 };
 
+/**
+ * Closes the open type picker the way an author does — a click outside the
+ * list (reqore's popover closes on an outside click; Escape could discard an
+ * edit) — and waits until the list is gone.
+ */
+const closeTypePicker = async (popover: HTMLElement) => {
+  await userEvent.click(document.body);
+  await waitFor(
+    () => {
+      expect(popover.isConnected).toBe(false);
+      expect(document.querySelector('.reqore-popover-content')).toBeNull();
+    },
+    { timeout: 10000 }
+  );
+};
+
+/**
+ * Nothing (an open list) covers the control: it is on top at its centre and
+ * across its width — a full-width editor's centre is clear of a narrow list
+ * anchored at its left, so the centre alone would not show it.
+ */
+const expectUncovered = async (control: HTMLElement) => {
+  const box = control.getBoundingClientRect();
+  for (const fraction of [0.1, 0.3, 0.5, 0.7, 0.9]) {
+    const hit = document.elementFromPoint(
+      box.left + box.width * fraction,
+      box.top + box.height / 2
+    );
+    await expect(hit !== null && (hit === control || control.contains(hit))).toBe(true);
+  }
+};
+
 const expectOffered = async (popover: HTMLElement, labels: string[]) => {
   await waitFor(
     () => {
@@ -565,6 +597,10 @@ export const AutoDoesNotChangeTypeBackToAuto: Story = {
   async play({ canvasElement }) {
     const popover = await openTypePicker(canvasElement, 'Text');
     await expectOffered(popover, IMMEDIATE_TYPE_NAMES);
+    // End on what the story is about: the text value, still in its editor.
+    await closeTypePicker(popover);
+    const editor = await within(canvasElement).findByDisplayValue('test');
+    await expectUncovered(editor);
   },
 };
 
@@ -609,6 +645,11 @@ export const SavedSoftTypeEditsAsItsBase: Story = {
     await expect(canvas.queryByText('Unknown type!')).not.toBeInTheDocument();
     const popover = await openTypePicker(canvasElement, 'Integer');
     await expectOffered(popover, IMMEDIATE_TYPE_NAMES);
+    // End on what the story is about: the integer editor, holding 5.
+    await closeTypePicker(popover);
+    const input = await canvas.findByDisplayValue('5');
+    await expect(input.tagName).toBe('INPUT');
+    await expectUncovered(input);
   },
 };
 
