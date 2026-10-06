@@ -41,7 +41,14 @@ export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorag
   } = currentUserStore();
 
   useEffectOnce(() => {
-    loadCurrentUser();
+    /* A user that cannot be loaded - no token (401), another origin the instance
+       refuses (CORS), no such endpoint (404) - is a state the store keeps
+       (`error`, `errorData`), and the page renders without one. The promise was
+       dropped, so the failure was an unhandled rejection: Storybook marked a story
+       wrapped in this provider as errored whenever it landed first. */
+    loadCurrentUser().catch((error: unknown) => {
+      console.warn('Reqraft: the current user could not be loaded', error);
+    });
   });
 
   const { load } = useFetch({
