@@ -110,12 +110,17 @@ describe('a declared numeric bound', () => {
 // ─── the input ────────────────────────────────────────────────────────────────
 
 describe('the number input', () => {
-  it('offers the declared bounds to the spinner', () => {
+  it('is typed freely, on a numeric keyboard, and leaves the bounds to the validator', () => {
+    // A number input dropped every character that is not part of a number, so a template or an expression
+    // could not be typed into a numeric field (David's review of qorus#646). The field is a text input now,
+    // with a numeric keyboard; it has no spinner, so the bounds are the validator's alone (above).
     render(<NumberFormField value={5} min_value={1} max_value={10} onChange={vi.fn()} />);
 
     const input = screen.getByTestId('input');
-    expect(input.getAttribute('min')).toBe('1');
-    expect(input.getAttribute('max')).toBe('10');
+    expect(input.getAttribute('type')).toBe('text');
+    expect(input.getAttribute('inputmode')).toBe('numeric');
+    expect(input.hasAttribute('min')).toBe(false);
+    expect(input.hasAttribute('max')).toBe(false);
   });
 
   it('keeps the schema spelling off the DOM node', () => {
@@ -140,11 +145,9 @@ describe('the number input', () => {
     expect(input.hasAttribute('max')).toBe(false);
   });
 
-  it('declares only the side the schema declares', () => {
-    render(<NumberFormField value={5} min_value={1} onChange={vi.fn()} />);
+  it('asks for a decimal keyboard on a float field', () => {
+    render(<NumberFormField type='float' value={0.5} min_value={0.25} onChange={vi.fn()} />);
 
-    const input = screen.getByTestId('input');
-    expect(input.getAttribute('min')).toBe('1');
-    expect(input.hasAttribute('max')).toBe(false);
+    expect(screen.getByTestId('input').getAttribute('inputmode')).toBe('decimal');
   });
 });

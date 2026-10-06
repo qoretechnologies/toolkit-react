@@ -575,7 +575,7 @@ export const Timeout: Story = {
 
     const input = await canvas.findByDisplayValue('45');
     await expect(input).toBeInTheDocument();
-    await expect(input).toHaveAttribute('type', 'number');
+    await expect(input).toHaveAttribute('inputmode', 'numeric');
     await expect(canvas.getByText('seconds')).toBeInTheDocument();
     await expect(canvas.queryByText('Unknown type!')).not.toBeInTheDocument();
   },

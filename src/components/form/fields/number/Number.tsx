@@ -27,6 +27,22 @@ export interface INumberFormFieldProps extends Omit<IReqoreInputProps, 'value' |
   max_value?: number;
 }
 
+/** A whole number as typed: an optional sign and digits. */
+const WHOLE_NUMBER = /^[-+]?\d+$/;
+/** A decimal number as typed: an optional sign, digits with a point, and an exponent. */
+const DECIMAL_NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
+
+/**
+ * What a typed text is: the number it writes, or - when it writes none - the text as typed. A field of a
+ * number type is typed freely (David's review of qorus#646): a template (`$local:x`) or an expression
+ * (`@qty * 2`) is taken up by the field around it, and anything else is kept as typed for the form to flag
+ * as not a number. `parseInt` cut `12abc` to 12 without a word.
+ */
+export const typedNumber = (text: string, type: 'int' | 'float'): number | string => {
+  const trimmed = text.trim();
+  return (type === 'int' ? WHOLE_NUMBER : DECIMAL_NUMBER).test(trimmed) ? Number(trimmed) : text;
+};
+
 export const NumberFormField = ({
   onChange,
   autoFocus,
@@ -37,7 +53,10 @@ export const NumberFormField = ({
   max_value,
   ...rest
 }: INumberFormFieldProps) => {
-  const [localValue, setLocalValue] = useState<number | string>(value ?? '');
+  // What is shown is what was typed; what the form gets is the number it writes, or the text when it writes
+  // none. Showing the number instead dropped a decimal point mid-typing: `10.` is 10, and `10.9` became `109`.
+  const [text, setText] = useState<string>(value === undefined || value === null ? '' : String(value));
+  const localValue = text === '' ? '' : typedNumber(text, type);
   // The parent's echo of an emit still in flight is not a change: copying it
   // over the local value lost what was typed since. See `EmittedValues`.
   const emitted = useEmittedValues<number | string | undefined>();
@@ -47,7 +66,7 @@ export const NumberFormField = ({
       return;
     }
     if (value !== localValue) {
-      setLocalValue(value ?? '');
+      setText(value === undefined || value === null ? '' : String(value));
     }
   }, [value]);
 
@@ -62,17 +81,9 @@ export const NumberFormField = ({
     [localValue, onChange]
   );
 
-  const handleChange = useCallback(
-    (rawValue: number | string): void => {
-      if (rawValue === '' || rawValue === '-' || rawValue === '-.') {
-        setLocalValue(rawValue);
-        return;
-      }
-      const parsed = type === 'int' ? parseInt(rawValue as string, 10) : parseFloat(rawValue as string);
-      setLocalValue(isNaN(parsed) ? rawValue : parsed);
-    },
-    [type]
-  );
+  const handleChange = useCallback((rawValue: number | string): void => {
+    setText(String(rawValue));
+  }, []);
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>): void => {
@@ -82,7 +93,7 @@ export const NumberFormField = ({
   );
 
   const handleResetClick = useCallback((): void => {
-    setLocalValue(0);
+    setText('0');
     emitted.record(0);
     onChange?.(0);
   }, [onChange]);
@@ -98,17 +109,12 @@ export const NumberFormField = ({
     [autoFocus]
   );
 
-  const handleItemSelect = useCallback((item) => setLocalValue(item.value), []);
+  const handleItemSelect = useCallback((item) => setText(String(item.value)), []);
 
-  // The schema's bounds under the names the input uses. Omitted entirely when the schema
-  // declares none, so an undeclared bound stays undeclared rather than becoming `min={0}`.
-  const bounds = useMemo(
-    () => ({
-      ...(typeof min_value === 'number' ? { min: min_value } : {}),
-      ...(typeof max_value === 'number' ? { max: max_value } : {}),
-    }),
-    [min_value, max_value]
-  );
+  // The schema's bounds are the form's to check (a text input has no min or max); they are named in the
+  // props only to keep them off the DOM node.
+  void min_value;
+  void max_value;
 
   // IDE `NumberField` parity: with templates the input is wrapped in a
   // focus-opened dropdown of the template values.
@@ -121,12 +127,13 @@ export const NumberFormField = ({
         icon='MoneyDollarCircleLine'
         items={templates?.items}
         filterable
-        value={localValue}
+        value={text}
         onItemSelect={handleItemSelect}
         onChange={handleInputChange}
-        type='number'
-        step={type === 'int' ? 1 : 0.1}
-        {...bounds}
+        // typed freely: a number input drops what is not part of a number, so a template or an expression
+        // could not be typed; the keyboard is still a numeric one
+        type='text'
+        inputMode={type === 'int' ? 'numeric' : 'decimal'}
         onClearClick={handleResetClick}
         focusRules={focusRules}
         {...TemplatesListProps}
@@ -138,14 +145,14 @@ export const NumberFormField = ({
     <ReqoreInput
       fluid
       icon='MoneyDollarCircleLine'
-      value={localValue}
+      value={text}
       onChange={handleInputChange}
-      type='number'
-      step={type === 'int' ? 1 : 0.1}
+      // typed freely, on a numeric keyboard (see above)
+      type='text'
+      inputMode={type === 'int' ? 'numeric' : 'decimal'}
       onClearClick={handleResetClick}
       focusRules={focusRules}
       {...rest}
-      {...bounds}
     />
   );
 };

@@ -26,9 +26,10 @@ vi.mock('@qoretechnologies/reqore', async (importOriginal) => ({
       <button data-testid='clear' onClick={onClearClick} />
     </>
   ),
-  ReqoreInput: ({ value, onChange }: { value?: string | number; onChange?: (e: unknown) => void }) => (
-    <input data-testid='input' value={String(value ?? '')} onChange={onChange} />
-  ),
+  ReqoreInput: (props: { value?: string | number; onChange?: (e: unknown) => void; type?: string; inputMode?: string }) => {
+    numberInputProps = props;
+    return <input data-testid='input' value={String(props.value ?? '')} onChange={props.onChange} />;
+  },
   ReqoreControlGroup: ({ children }: { children?: unknown }) => <>{children}</>,
 }));
 
@@ -40,6 +41,9 @@ import { ReqraftBinaryFormField } from '../src/components/form/fields/binary/Bin
 import { EmittedValues } from '../src/components/form/fields/emittedValues';
 import { LongStringFormField } from '../src/components/form/fields/long-string/LongString';
 import { NumberFormField } from '../src/components/form/fields/number/Number';
+
+/** What the number field last gave its input. */
+let numberInputProps: { type?: string; inputMode?: string } = {};
 
 /** The parent's own debounce: it echoes each value back this long after it heard it. */
 const PARENT_ECHO_MS = 120;
@@ -191,6 +195,81 @@ describe('NumberFormField and the echo of its own emit', () => {
     await act(() => vi.advanceTimersByTimeAsync(500));
 
     expect((screen.getByTestId('input') as HTMLInputElement).value).toBe('5');
+  });
+});
+
+describe('NumberFormField takes whatever is typed', () => {
+  // A typed field is typed freely (David's review of qorus#646): a `number` input dropped every character that
+  // is not part of a number, so a template (`$local:x`) or an expression (`@qty * 2`) could not be typed into a
+  // whole-number field, and parseInt quietly cut `12abc` to 12.
+  const emitted: unknown[] = [];
+  const Parent = ({ type = 'int' as 'int' | 'float' }) => {
+    const [value, setValue] = useState<number | string | undefined>(undefined);
+    return (
+      <NumberFormField
+        type={type}
+        value={value}
+        onChange={(next) => {
+          emitted.push(next);
+          setTimeout(() => setValue(next), PARENT_ECHO_MS);
+        }}
+      />
+    );
+  };
+  const typeAll = async (text: string) => {
+    fireEvent.change(screen.getByTestId('input'), { target: { value: text } });
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+  };
+
+  beforeEach(() => {
+    emitted.length = 0;
+  });
+
+  it('is a text field with a numeric keyboard, not a number input that drops characters', () => {
+    render(<Parent />);
+    // the stand-in renders the props the field passes to the input
+    expect(numberInputProps.type).toBe('text');
+    expect(numberInputProps.inputMode).toBe('numeric');
+  });
+
+  it('emits a whole number as a number, and what is not one as typed, to be flagged', async () => {
+    render(<Parent />);
+    await typeAll('42');
+    expect(emitted.at(-1)).toBe(42);
+    await typeAll('12abc');
+    // kept as typed, not cut to 12: the form says it is not a whole number
+    expect(emitted.at(-1)).toBe('12abc');
+    expect((screen.getByTestId('input') as HTMLInputElement).value).toBe('12abc');
+    await typeAll('1.5');
+    expect(emitted.at(-1)).toBe('1.5');
+  });
+
+  it('passes a template or an expression on as typed, for the field to take it as one', async () => {
+    render(<Parent />);
+    await typeAll('$local:quantity');
+    expect(emitted.at(-1)).toBe('$local:quantity');
+    await typeAll('@qty * 2');
+    expect(emitted.at(-1)).toBe('@qty * 2');
+  });
+
+  it('keeps a decimal point typed before its digits', async () => {
+    // `10.` is the number 10: showing the number instead of the text dropped the point, and `10.9` typed key
+    // by key came out as `109`
+    render(<Parent type='float' />);
+    await typeSlowly('input', '10.9', 150);
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect((screen.getByTestId('input') as HTMLInputElement).value).toBe('10.9');
+    expect(emitted.at(-1)).toBe(10.9);
+  });
+
+  it('reads a decimal number, a sign and an exponent in a float field', async () => {
+    render(<Parent type='float' />);
+    await typeAll('-1.25');
+    expect(emitted.at(-1)).toBe(-1.25);
+    await typeAll('2e3');
+    expect(emitted.at(-1)).toBe(2000);
+    await typeAll('1,5');
+    expect(emitted.at(-1)).toBe('1,5');
   });
 });
 
