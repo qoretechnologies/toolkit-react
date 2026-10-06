@@ -6,6 +6,8 @@ import {
 import {
   areQorusTypesCompatible,
   expressionFitsReturnType,
+  isConditionType,
+  isTextOrDateType,
   argumentMatchesType,
   getArgumentType,
 } from '../src/helpers/expressions';
@@ -147,14 +149,28 @@ describe('auto is the other spelling of any', () => {
 describe('the operations offered for a type', () => {
   const greater = { ui_return_type: 'bool' };
   const size = { ui_return_type: 'number' };
+  const count = { ui_return_type: 'int' };
   const join = { ui_return_type: 'richtext' };
+  const lower = { ui_return_type: 'string' };
+  const today = { ui_return_type: 'date' };
+  const split = { ui_return_type: 'list' };
   const plus = { ui_return_type: 'any', return_type_first_arg: true };
   const unknown = {};
 
-  it('a condition is built from the operations that give true or false', () => {
+  it('a condition is built from any operation whose result decides it: not text, not a date', () => {
     expect(expressionFitsReturnType('bool', greater)).toBe(true);
-    expect(expressionFitsReturnType('bool', size)).toBe(false);
+    // a number, a list, a hash, binary data decide a condition by their truthiness
+    expect(expressionFitsReturnType('bool', size)).toBe(true);
+    expect(expressionFitsReturnType('bool', count)).toBe(true);
+    expect(expressionFitsReturnType('bool', split)).toBe(true);
+    expect(expressionFitsReturnType('bool', { ui_return_type: 'hash' })).toBe(true);
+    expect(expressionFitsReturnType('bool', { ui_return_type: 'binary' })).toBe(true);
+    expect(expressionFitsReturnType('bool', { ui_return_type: '*int' })).toBe(true);
+    // text and dates are compared explicitly instead
     expect(expressionFitsReturnType('bool', join)).toBe(false);
+    expect(expressionFitsReturnType('bool', lower)).toBe(false);
+    expect(expressionFitsReturnType('bool', today)).toBe(false);
+    expect(expressionFitsReturnType('bool', { ui_return_type: '*softstring' })).toBe(false);
   });
 
   it('keeps an operation whose result is known only once it is built', () => {
@@ -165,15 +181,38 @@ describe('the operations offered for a type', () => {
 
   it('offers everything where anything is taken', () => {
     for (const anyType of [undefined, 'any', 'auto', 'context', [] as string[]]) {
-      expect(expressionFitsReturnType(anyType, size)).toBe(true);
+      expect(expressionFitsReturnType(anyType, lower)).toBe(true);
     }
   });
 
   it('only a condition narrows the list: any other type keeps every operation', () => {
     expect(expressionFitsReturnType('string', join)).toBe(true);
     expect(expressionFitsReturnType('string', size)).toBe(true);
-    expect(expressionFitsReturnType(['int', 'number'], greater)).toBe(true);
-    expect(expressionFitsReturnType(['bool'], size)).toBe(false);
-    expect(expressionFitsReturnType('*bool', greater)).toBe(true);
+    expect(expressionFitsReturnType(['int', 'number'], lower)).toBe(true);
+    expect(expressionFitsReturnType(['bool'], lower)).toBe(false);
+    expect(expressionFitsReturnType('*bool', today)).toBe(false);
+  });
+});
+
+describe('text or a date', () => {
+  it('is what a condition cannot be', () => {
+    for (const t of ['string', 'softstring', '*string', 'richtext', 'date', 'softdate', '*date', 'time', '*time']) {
+      expect(isTextOrDateType(t)).toBe(true);
+    }
+    for (const t of ['bool', 'int', 'number', 'float', 'list', 'hash', 'binary', 'any', '*int', 'data']) {
+      expect(isTextOrDateType(t)).toBe(false);
+    }
+  });
+});
+
+describe('a place that takes a condition', () => {
+  it('is one whose result must be true or false', () => {
+    expect(isConditionType('bool')).toBe(true);
+    expect(isConditionType('*boolean')).toBe(true);
+    expect(isConditionType(['bool'])).toBe(true);
+    expect(isConditionType(['bool', 'int'])).toBe(false);
+    expect(isConditionType('int')).toBe(false);
+    expect(isConditionType(undefined)).toBe(false);
+    expect(isConditionType([])).toBe(false);
   });
 });

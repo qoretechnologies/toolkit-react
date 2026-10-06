@@ -23,6 +23,7 @@ import {
   _testsWaitForText,
   _testsWaitForTextsCount,
   _testsWaitForTextToNotExist,
+  _testsWithViewport,
   sleep,
 } from '../../../stories/Tests/utils';
 import { mockExpressions } from '../expressions/mockExpressions';
@@ -2934,6 +2935,99 @@ export const CompactWithPanelProps: Story = {
   },
 };
 
+/**
+ * The outside-dressed panel, its toolbar and its rows all fit the width they
+ * are given: nothing scrolls sideways, the label, the host's action and the
+ * toolbar are on screen, and every row's label and value lie inside the form.
+ */
+const assertPanelPropsFitNarrowWidth = async (canvasElement: HTMLElement) => {
+  await _testsWaitForText('Connection settings');
+  await _testsWaitForText('order-fulfilment');
+  const form = canvasElement.querySelector<HTMLElement>('.options-readfirst-scroll')!;
+  await waitFor(() => expect(form.querySelector('.readfirst-narrow')).toBeTruthy());
+  const formRect = form.getBoundingClientRect();
+  // No sideways scroll: not the page, not the form.
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+    document.documentElement.clientWidth
+  );
+  expect(form.scrollWidth).toBeLessThanOrEqual(form.clientWidth + 1);
+  const inside = (element: Element | null, what: string) => {
+    expect(element, what).toBeTruthy();
+    const rect = element!.getBoundingClientRect();
+    expect(rect.width, `${what} is drawn`).toBeGreaterThan(0);
+    expect(rect.left, `${what} starts inside the form`).toBeGreaterThanOrEqual(formRect.left - 1);
+    expect(rect.right, `${what} ends inside the form`).toBeLessThanOrEqual(formRect.right + 1);
+  };
+  // The panel chrome supplied from outside, and the engine's own toolbar.
+  const panelTitle = [...canvasElement.querySelectorAll<HTMLElement>('.reqore-panel-title')].find(
+    (title) => (title.textContent || '').includes('Connection settings')
+  )!;
+  inside(panelTitle, 'the panel header');
+  // The label keeps its width: squeezed to nothing was how it went missing.
+  inside(panelTitle.querySelector('.reqore-panel-title-label-row'), 'the panel label');
+  expect(
+    panelTitle.querySelector('.reqore-panel-title-label-row')!.getBoundingClientRect().width
+  ).toBeGreaterThan(100);
+  inside(
+    [...panelTitle.querySelectorAll('.reqore-button')].find((button) =>
+      (button.textContent || '').includes('Docs')
+    ) ?? null,
+    'the Docs action'
+  );
+  inside(form.querySelector('.options-readfirst-completion'), 'the completion meter');
+  // Every row's label and value.
+  const rows = [...form.querySelectorAll<HTMLElement>('.readfirst-row')];
+  expect(rows.length).toBeGreaterThan(0);
+  for (const row of rows) {
+    inside(row, `row ${row.dataset.field}`);
+  }
+};
+
+export const CompactWithPanelPropsPhone: Story = {
+  ...CompactWithPanelProps,
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Compact With Panel Props on a 390px phone: the dressed panel header, its Docs action, the toolbar and every row fit the screen, the rows stack their values under their names, and nothing scrolls sideways.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // The capture is taken at 390px after the play; the play narrows the
+    // viewport itself so it asserts the layout that is captured.
+    await _testsWithViewport(390, 844, async (narrowed) => {
+      await _testsWaitForText('Connection settings');
+      if (narrowed) {
+        await assertPanelPropsFitNarrowWidth(canvasElement);
+      }
+    });
+  },
+};
+
+export const CompactWithPanelPropsNarrow: Story = {
+  ...CompactWithPanelProps,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Compact With Panel Props in a 360px column on a wide screen (a side panel or drawer): the same narrow layout as on a phone, decided by the width the form is given rather than by the screen.',
+      },
+    },
+  },
+  decorators: [
+    (StoryComponent: React.ComponentType) => (
+      <div style={{ maxWidth: 360, margin: '0 auto', border: '1px dashed #ffffff22' }}>
+        <StoryComponent />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await assertPanelPropsFitNarrowWidth(canvasElement);
+  },
+};
+
 export const CompactReadOnly: Story = {
   parameters: {
     docs: {
@@ -3242,7 +3336,7 @@ export const CompactReadOnlyRichText: Story = {
     docs: {
       description: {
         story:
-          'Renders the CompactBasic fixture with readOnly enabled — the Rich Text row reads as its text with its template chip and mounts no editor, the Template row reads as a chip showing the resolved template name (never the raw $local reference), and clicking either opens nothing.',
+          'Renders the CompactBasic fixture with readOnly enabled — the Rich Text row reads as its text with its template chip and mounts no editor, the Template row reads as a chip showing the resolved template name (never the raw $local reference), and clicking either opens nothing. Validation messages show as they do in an editable form.',
       },
     },
     chromatic: { disable: true },
@@ -3253,10 +3347,10 @@ export const CompactReadOnlyRichText: Story = {
   },
   play: async () => {
     await _testsWaitForText('Rich Text option');
-    // Editor verdicts stay in the editor: the fixture's invalid value and its
-    // dependency-locked field print no "fix this" hint in a read view.
-    await _testsWaitForTextToNotExist('Text value is empty');
-    await _testsWaitForTextToNotExist('dependencies are not fulfilled');
+    // A read view says what is wrong with the record, as an editable one does:
+    // the fixture's invalid value and its empty required fields say so.
+    await _testsWaitForText('Text value is empty');
+    await _testsWaitForText('This field is required');
 
     const row = (name: string) => document.querySelector(`.readfirst-row[data-field="${name}"]`);
     // Richtext: the text and its chip, no Slate.
@@ -3290,8 +3384,8 @@ export const CompactReadOnlyRichText: Story = {
 // Read mode as a fact sheet. Every kind of value the engine can hold, set,
 // plus one optional field nobody set (`notes`) and one required field nobody
 // set (`owner`): the first must not appear at all, the second appears unset
-// with no amber. Every value is drawn in full in the row itself; nothing on
-// the page is a control.
+// with no amber and says it is required. Every value is drawn in full in the
+// row itself; nothing on the page is a control.
 const ReadModeSchema: Record<string, TCompactField> = {
   id: {
     type: 'string',
@@ -3415,7 +3509,7 @@ export const CompactReadOnlyValues: Story = {
     docs: {
       description: {
         story:
-          'Read-only as a fact sheet, not a disabled editor: no completion meter, no Needs attention / Set / Optional boxes, no required asterisks; an optional field nobody set is not listed, a required one nobody set reads as unset without the amber; every value is drawn in full in its row — long text wrapped under a Show more cap, the whole code block, every field of the hash, the chosen option with its description — and no row is a control: nothing is a button, and a click opens nothing.',
+          'Read-only as a fact sheet, not a disabled editor: no completion meter, no Needs attention / Set / Optional boxes, no required asterisks; an optional field nobody set is not listed, a required one nobody set reads as unset without the amber and says "This field is required"; every value is drawn in full in its row — long text wrapped under a Show more cap, the whole code block, every field of the hash, the chosen option with its description — and no row is a control: nothing is a button, and a click opens nothing.',
       },
     },
     chromatic: { disable: true },
@@ -3440,13 +3534,16 @@ export const CompactReadOnlyValues: Story = {
     await _testsWaitForTextToNotExist('Optional');
     // An optional field nobody set is not listed at all…
     await _testsWaitForTextToNotExist('Notes');
-    // …a required one nobody set is, as unset, with no amber dot.
+    // …a required one nobody set is, as unset, with no amber dot, and says so.
     await _testsWaitForText('Owner');
     expect(
       document.querySelector(
         '.readfirst-row[data-field="owner"] .options-readfirst-statusdot-slot > *'
       )
     ).toBeNull();
+    expect(document.querySelector('.readfirst-row[data-field="owner"]')?.textContent).toContain(
+      'This field is required'
+    );
 
     const row = (name: string) =>
       document.querySelector(`.readfirst-row[data-field="${name}"]`) as HTMLElement;
@@ -9213,3 +9310,396 @@ export const CompactReadOnlyDataProvider: Story = {
     expect(row('name').querySelector('.options-readfirst-structured')).toBeNull();
   },
 };
+
+/** The AI endpoint's Tools field as the Qorus IDE hands it to the form: a
+ *  `tool-catalog` editor storing tool SELECTORS, with the tool catalogue's
+ *  SOURCES (fetched by its `get_message`) hung on `allowed_values`. */
+const AiEndpointToolsSchema = {
+  tools: {
+    type: 'list',
+    display_name: 'Tools',
+    short_desc: 'Which tools the AI can call during chat',
+    ui_type: 'tool-catalog',
+    element_type: 'string',
+    default_value: { type: 'tool-catalog', value: ['*'] },
+    preselected: true,
+    required: true,
+    get_message: { action: 'creator-get-objects', object_type: 'tool-catalog' },
+    return_message: {
+      action: 'creator-return-objects',
+      object_type: 'tool-catalog',
+      return_value: 'objects',
+    },
+    allowed_values: [
+      { display_name: 'Qorus system tools', value: { type: 'string', value: 'system' } },
+      { display_name: 'salesforce-prod', value: { type: 'string', value: 'salesforce-prod' } },
+    ],
+  },
+  channel: {
+    type: 'string',
+    display_name: 'Channel',
+    required: true,
+    allowed_values: [
+      { display_name: 'Ops', value: { type: 'string', value: 'ops' } },
+      { display_name: 'Dev', value: { type: 'string', value: 'dev' } },
+    ],
+  },
+};
+
+export const ToolSelectorsAreNotJudgedAsChoices: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "An AI endpoint's Tools field holds the server's default, `*` (all tools), and needs no attention: its tool-catalog editor stores selectors, and the catalogue sources listed beside it are not choices the value must be one of. The Channel field below has fixed choices and a value that is none of them, so it alone needs attention.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    options: AiEndpointToolsSchema as IOptionsSchema,
+    value: {
+      tools: { type: 'tool-catalog', value: ['*'] },
+      channel: { type: 'string', value: 'gone' },
+    },
+  },
+  play: async ({ args }) => {
+    await _testsWaitForText('Tools');
+    // The closed-choice field still flags its value...
+    await _testsWaitForText('"gone" is not one of the choices');
+    // ...and the selector is never reported as a value that is not a choice.
+    await _testsWaitForTextToNotExist('"*" is not one of the choices');
+    await waitFor(() => {
+      const calls = (args.onValidityChange as ReturnType<typeof fn>).mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      const [, data] = calls[calls.length - 1] as [boolean, IFormValidityData];
+      expect(data.invalidFields.map((field) => field.fieldName)).toEqual(['channel']);
+    });
+  },
+};
+
+const RequiredMessageSchema = {
+  title: { type: 'string', display_name: 'Title', required: true },
+  owner: { type: 'string', display_name: 'Owner', required: true },
+  kind: {
+    type: 'string',
+    display_name: 'Kind',
+    allowed_values: [
+      { display_name: 'Inbound', value: { type: 'string', value: 'inbound' } },
+      { display_name: 'Outbound', value: { type: 'string', value: 'outbound' } },
+    ],
+  },
+};
+
+export const ANewFormSaysWhatIsRequired: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A brand-new form with two empty required fields. Each says "This field is required" from the start, including the first one, which opens for editing, without waiting for the author to visit it.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    options: RequiredMessageSchema as IOptionsSchema,
+    value: {},
+    expandFirstRequired: true,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('Needs attention');
+    await waitFor(() => {
+      const title = canvasElement.querySelector('[data-field="title"]');
+      const owner = canvasElement.querySelector('[data-field="owner"]');
+      expect(title?.textContent).toContain('This field is required');
+      expect(owner?.textContent).toContain('This field is required');
+    });
+  },
+};
+
+export const AReadOnlyFormShowsWhatIsWrong: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A read-only form shows the same validation messages as an editable one: the empty required Title and Owner say "This field is required", and Kind says its stored value is not one of the choices. Each empty value slot keeps its plain "—", so each requirement is stated once.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    readOnly: true,
+    minColumnWidth: '360px',
+    options: RequiredMessageSchema as IOptionsSchema,
+    value: { kind: { type: 'string', value: 'sideways' } },
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('"sideways" is not one of the choices');
+    await waitFor(() => {
+      const title = canvasElement.querySelector('[data-field="title"]');
+      expect(title?.textContent).toContain('This field is required');
+      expect(title?.textContent?.split('This field is required')).toHaveLength(2);
+      expect(title?.querySelector('.options-readfirst-valuetext')?.textContent).toBe('—');
+      expect(canvasElement.querySelector('[data-field="owner"]')?.textContent).toContain(
+        'This field is required'
+      );
+    });
+  },
+};
+
+/** A form taller than its 400px scroller: one empty required field, a required
+ *  Owner that is set, and a dozen set fields below them. */
+const MovedRowSchema: IOptionsSchema = {
+  title: { type: 'string', display_name: 'Title', required: true },
+  owner: { type: 'string', display_name: 'Owner', required: true },
+  ...Object.fromEntries(
+    Array.from({ length: 12 }, (_, index) => [
+      `detail${index + 1}`,
+      { type: 'string', display_name: `Detail ${index + 1}` },
+    ])
+  ),
+};
+const MovedRowValue: IOptions = {
+  owner: { type: 'string', value: 'ops-team' },
+  ...Object.fromEntries(
+    Array.from({ length: 12 }, (_, index) => [
+      `detail${index + 1}`,
+      { type: 'string', value: `value ${index + 1}` },
+    ])
+  ),
+};
+
+/** Renders the form with buttons that change a value from outside it, the way a
+ *  host's save or a server update does — which is what moves a collapsed row. */
+const MovedRowRender = ({ onChange, ...rest }: IFormEngineProps) => {
+  const [val, setValue] = useState<IOptions>(MovedRowValue);
+  return (
+    <>
+      <button type='button' onClick={() => setValue((v) => ({ ...v, title: { type: 'string', value: 'Quarterly report' } }))}>
+        Fill title
+      </button>
+      <button type='button' onClick={() => setValue((v) => ({ ...v, owner: { type: 'string', value: '' } }))}>
+        Clear owner
+      </button>
+      <div style={{ height: 400, overflow: 'hidden', display: 'flex', flexFlow: 'column' }}>
+        <FormEngine
+          {...rest}
+          value={val}
+          onChange={(_n, v, m) => {
+            setValue(v as IOptions);
+            onChange?.(_n, v, m);
+          }}
+        />
+      </div>
+    </>
+  );
+};
+
+/** Counts `scrollIntoView` calls on rows while a play runs. */
+const watchRowScrolls = () => {
+  const original = HTMLElement.prototype.scrollIntoView;
+  const scrolled: string[] = [];
+  HTMLElement.prototype.scrollIntoView = function (this: HTMLElement, arg?: boolean | ScrollIntoViewOptions) {
+    scrolled.push(this.getAttribute('data-field') || '');
+    return original.call(this, arg);
+  };
+  return { scrolled, restore: () => (HTMLElement.prototype.scrollIntoView = original) };
+};
+
+const movedRowScroller = () =>
+  document.querySelector<HTMLElement>('.options-readfirst-scroll')!;
+const clickHostButton = (label: string) =>
+  fireEvent.click([...document.querySelectorAll('button')].find((b) => b.textContent === label)!);
+const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+export const AMovedRowInViewIsNotScrolled: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Title is empty, so it sits under Needs attention. "Fill title" sets it from outside the form, and the row moves into Set, where it is already in plain view. The form follows the row with a flash but does not scroll, because nothing needs bringing into view.',
+      },
+    },
+  },
+  render: MovedRowRender,
+  args: {
+    compact: true,
+    compactScroll: 'own' as const,
+    minColumnWidth: '300px',
+    options: MovedRowSchema,
+  },
+  play: async () => {
+    await _testsWaitForText('Needs attention');
+    const watch = watchRowScrolls();
+    try {
+      const scroller = movedRowScroller();
+      const before = scroller.scrollTop;
+      clickHostButton('Fill title');
+      // The move is followed by a flash in the frame the reveal runs in: wait
+      // for it, then one more frame so the reveal has certainly run.
+      await waitFor(() =>
+        expect(document.querySelector('.readfirst-row-flash[data-field="title"]')).toBeTruthy()
+      );
+      await nextFrame();
+      expect(watch.scrolled).not.toContain('title');
+      expect(scroller.scrollTop).toBe(before);
+    } finally {
+      watch.restore();
+    }
+  },
+};
+
+export const AMovedRowLandsClearOfThePinnedHeader: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The form is scrolled to its end, then "Clear owner" empties Owner, so its row moves up into Needs attention, out of view. The form scrolls the least distance that shows it, and the row stops just below the pinned "Needs attention" header instead of underneath it.',
+      },
+    },
+  },
+  render: MovedRowRender,
+  args: {
+    compact: true,
+    compactScroll: 'own' as const,
+    minColumnWidth: '300px',
+    options: MovedRowSchema,
+  },
+  play: async () => {
+    await _testsWaitForText('Detail 12');
+    const scroller = movedRowScroller();
+    const scrollEnd = () =>
+      new Promise<void>((resolve) =>
+        scroller.addEventListener('scrollend', () => resolve(), { once: true })
+      );
+    // Even an instant scroll ends with a `scrollend`; consume it here, or it
+    // would be taken for the end of the reveal below.
+    const atBottom = scrollEnd();
+    scroller.scrollTop = scroller.scrollHeight;
+    await atBottom;
+    expect(scroller.scrollTop).toBeGreaterThan(0);
+    const watch = watchRowScrolls();
+    try {
+      // The reveal is a smooth scroll; its end is the `scrollend` event, armed
+      // before the click so it cannot be missed.
+      const scrolled = scrollEnd();
+      clickHostButton('Clear owner');
+      await waitFor(() => expect(watch.scrolled).toContain('owner'));
+      await scrolled;
+      const row = document.querySelector<HTMLElement>('.readfirst-row[data-field="owner"]')!;
+      const attention = [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')].find(
+        (group) => (group.textContent || '').startsWith('Needs attention')
+      )!;
+      const header = attention.querySelector<HTMLElement>(':scope > .reqore-panel-title')!;
+      const rowRect = row.getBoundingClientRect();
+      const viewRect = scroller.getBoundingClientRect();
+      // Clear of the pinned header — and right below it, the least scroll that
+      // shows the row, not centred in the scroller — and inside the scroller.
+      const headerBottom = header.getBoundingClientRect().bottom;
+      expect(rowRect.top).toBeGreaterThanOrEqual(headerBottom - 1);
+      expect(rowRect.top).toBeLessThanOrEqual(headerBottom + 2);
+      expect(rowRect.bottom).toBeLessThanOrEqual(viewRect.bottom + 1);
+    } finally {
+      watch.restore();
+    }
+  },
+};
+
+/**
+ * Scrolls the form so the end of its Needs attention box passes up through the
+ * pinned toolbar, and asserts at each step that the toolbar stays on top: the
+ * box header pinned below it is pushed up as its box scrolls away, and must
+ * slide UNDER the toolbar, never over it. Each step waits on `scrollend`.
+ */
+const assertBoxHeaderSlidesUnderToolbar = async (scroller: HTMLElement) => {
+  await _testsWaitForText('Needs attention');
+  const toolbar = document.querySelector<HTMLElement>(
+    '.options-readfirst-scroll > .reqore-panel > .reqore-panel-title'
+  )!;
+  const box = [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')].find(
+    (group) => (group.textContent || '').startsWith('Needs attention')
+  )!;
+  const header = box.querySelector<HTMLElement>(':scope > .reqore-panel-title')!;
+  const scrollBy = async (delta: number) => {
+    const ended = new Promise<void>((resolve) =>
+      scroller.addEventListener('scrollend', () => resolve(), { once: true })
+    );
+    scroller.scrollTop += delta;
+    await ended;
+  };
+  // Box fully in view first: its header sits clear below the toolbar.
+  expect(header.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+    toolbar.getBoundingClientRect().bottom - 1
+  );
+  // Bring the end of the box up to the toolbar's bottom edge, then past it.
+  await scrollBy(box.getBoundingClientRect().bottom - toolbar.getBoundingClientRect().bottom);
+  for (const step of [12, 12, 12]) {
+    await scrollBy(step);
+    const toolbarRect = toolbar.getBoundingClientRect();
+    const headerRect = header.getBoundingClientRect();
+    // Where the pushed-up header and the toolbar overlap, the toolbar is on top.
+    const overlapTop = Math.max(toolbarRect.top, headerRect.top);
+    const overlapBottom = Math.min(toolbarRect.bottom, headerRect.bottom);
+    expect(overlapBottom).toBeGreaterThan(overlapTop);
+    const hit = document.elementFromPoint(
+      toolbarRect.left + toolbarRect.width / 2,
+      (overlapTop + overlapBottom) / 2
+    );
+    expect(toolbar.contains(hit), 'the toolbar is painted over the box header').toBe(true);
+  }
+};
+
+const StickyBoxesSchema: IOptionsSchema = {
+  ...MovedRowSchema,
+  summary: { type: 'string', display_name: 'Summary', required: true },
+  reviewer: { type: 'string', display_name: 'Reviewer', required: true },
+};
+
+const stickyBoxesStory = (layout: 'own' | 'host' | 'padded-host'): Story => ({
+  parameters: {
+    docs: {
+      description: {
+        story: `${
+          layout === 'own' ? 'The form owns its scroller'
+          : layout === 'host' ? 'The host scrolls the form'
+          : 'A padded host scrolls the form'
+        }. Scrolling the end of the Needs attention box up past the pinned toolbar pushes the box's pinned header up with it, and the header slides under the toolbar: the toolbar stays fully visible.`,
+      },
+    },
+  },
+  render: ({ value, ...rest }: IFormEngineProps) => (
+    <div
+      data-testid='sticky-host'
+      style={{
+        height: 420,
+        overflow: layout === 'own' ? 'hidden' : 'auto',
+        padding: layout === 'padded-host' ? 20 : 0,
+        display: 'flex',
+        flexFlow: 'column',
+      }}
+    >
+      <FormEngine {...rest} value={value} />
+    </div>
+  ),
+  args: {
+    compact: true,
+    compactScroll: layout === 'own' ? 'own' : 'host',
+    minColumnWidth: '300px',
+    options: StickyBoxesSchema,
+    value: MovedRowValue,
+  },
+  play: async () => {
+    await _testsWaitForText('Detail 12');
+    const scroller =
+      layout === 'own' ?
+        document.querySelector<HTMLElement>('.options-readfirst-scroll')!
+      : document.querySelector<HTMLElement>('[data-testid="sticky-host"]')!;
+    await assertBoxHeaderSlidesUnderToolbar(scroller);
+  },
+});
+
+export const BoxHeaderSlidesUnderToolbarOwnScroll: Story = stickyBoxesStory('own');
+export const BoxHeaderSlidesUnderToolbarHostScroll: Story = stickyBoxesStory('host');
+export const BoxHeaderSlidesUnderToolbarPaddedHost: Story = stickyBoxesStory('padded-host');

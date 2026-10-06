@@ -147,7 +147,14 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
   const attentionPct = completion.total ? (attentionCount / completion.total) * 100 : 0;
 
   return (
-    <ReqoreControlGroup {...reqoreProps} vertical fluid fixed={false} gapSize='big'>
+    <ReqoreControlGroup
+      {...reqoreProps}
+      className='options-readfirst-toolbar'
+      vertical
+      fluid
+      fixed={false}
+      gapSize='big'
+    >
       {/* No completion in a read-only form. The meter answers "how much is
           left to do", and a reader can do none of it: "4/6 set · 67%" over a
           form nobody can fill in is a progress report on somebody else's

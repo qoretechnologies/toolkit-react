@@ -9,6 +9,7 @@
  */
 import { TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import isEqual from 'lodash/isEqual';
+import { isRendererOnlyUiType } from '../components/form/engine/rendererTypes';
 import { richtextHasTag, richtextToString } from './common';
 import { getListElementValue } from './options';
 import { isValueTemplate } from './templates';
@@ -109,7 +110,31 @@ export interface IChoiceFieldSchema {
   /** Set when the value is an expression, which is resolved at run time. */
   isFunction?: boolean;
   is_expression?: boolean;
+  /** The editor the field is drawn with; see {@link hasOwnEditor}. */
+  ui_type?: string | readonly string[];
+  /**
+   * Set by a form that knows the field is drawn by a bespoke editor of the
+   * consumer's own (one it declared in `rendererOnlyUiTypes`), which reqraft's
+   * built-in list cannot name.
+   */
+  hasOwnEditor?: boolean;
 }
+
+/**
+ * Does a bespoke editor, rather than reqraft's choice picker, draw this field?
+ *
+ * Then the editor alone decides what a value means, and `allowed_values` is not
+ * a closed set of values the field may hold. The AI endpoint's Tools field is
+ * the case that proved it: its `tool-catalog` editor stores SELECTORS -- `*` for
+ * every tool, `system:*`, a connection name, `connection/tool` -- and the host
+ * hangs the tool catalogue's SOURCES on `allowed_values` for the editor to
+ * browse. Judging the selectors against the sources flagged the server's own
+ * default, `["*"]`, as "not one of the choices", so no chat endpoint could be
+ * published with it. The server says the same: a custom `ui_type` "defines its
+ * own value shape".
+ */
+const hasOwnEditor = (field: IChoiceFieldSchema): boolean =>
+  !!field.hasOwnEditor || isRendererOnlyUiType(field.ui_type);
 
 /**
  * The parts of a stored value that are not among the field's fixed choices.
@@ -121,14 +146,22 @@ export interface IChoiceFieldSchema {
  *   all of which are resolved when the interface runs;
  * - `allowed_values: []` — the server has no choices to offer right now, which
  *   is "unknown", not "nothing is allowed";
- * - creatable choices, where any value may be added.
+ * - creatable choices, where any value may be added;
+ * - a field drawn by a bespoke editor (a renderer-only `ui_type` such as
+ *   `tool-catalog`), whose values are whatever that editor says they are.
  *
  * A single-valued field is judged as a whole. A multi-select field, and a list
  * whose elements are constrained by `element_allowed_values`, are judged per
  * element, so the answer names exactly the elements that are not choices.
  */
 export const getUnlistedChoices = (value: unknown, field?: IChoiceFieldSchema): unknown[] => {
-  if (!field || isEmptyChoiceValue(value) || field.isFunction || field.is_expression) {
+  if (
+    !field ||
+    isEmptyChoiceValue(value) ||
+    field.isFunction ||
+    field.is_expression ||
+    hasOwnEditor(field)
+  ) {
     return [];
   }
 

@@ -18,16 +18,34 @@ const fetchContext = emptyFetchContext();
 describe('FormEngine moved-field flash scoping', () => {
   const scrolledTo: HTMLElement[] = [];
   const originalScrollIntoView = Element.prototype.scrollIntoView;
+  const originalRect = Element.prototype.getBoundingClientRect;
+  /** Where a moved row sits, viewport-relative; jsdom has no layout of its own. */
+  let rowTop = 0;
 
   beforeEach(() => {
     scrolledTo.length = 0;
+    rowTop = window.innerHeight + 200;
     Element.prototype.scrollIntoView = function (this: HTMLElement) {
       scrolledTo.push(this);
     } as typeof Element.prototype.scrollIntoView;
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      const top = this.classList.contains('readfirst-row') ? rowTop : 0;
+      return {
+        top,
+        bottom: top + 30,
+        height: 30,
+        left: 0,
+        right: 0,
+        width: 0,
+        x: 0,
+        y: top,
+      } as DOMRect;
+    };
   });
 
   afterEach(() => {
     Element.prototype.scrollIntoView = originalScrollIntoView;
+    Element.prototype.getBoundingClientRect = originalRect;
   });
 
   const guildSchema: IOptionsSchema = {
@@ -73,5 +91,23 @@ describe('FormEngine moved-field flash scoping', () => {
     for (const target of scrolledTo) {
       expect(formB.contains(target)).toBe(true);
     }
+  });
+
+  it('does not scroll to a moved row that is already in view', async () => {
+    rowTop = 100;
+    const { rerender } = render(engines({}));
+    await waitFor(() =>
+      expect(document.querySelectorAll('.readfirst-row[data-field="guild"]')).toHaveLength(2)
+    );
+
+    rerender(engines({ guild: { type: 'string', value: 'My Dev Server' } }));
+
+    // The move is followed (the row flashes) in the frame the reveal runs in;
+    // wait for that frame deterministically, then check no scroll was asked for.
+    await waitFor(() =>
+      expect(document.querySelector('.readfirst-row-flash[data-field="guild"]')).toBeTruthy()
+    );
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    expect(scrolledTo).toHaveLength(0);
   });
 });

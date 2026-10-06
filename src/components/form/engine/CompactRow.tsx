@@ -35,6 +35,7 @@ import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
+import { revealRow } from './revealRow';
 import {
   StyledActionSlot,
   StyledCardHeading,
@@ -278,6 +279,7 @@ export const CompactRow = memo(
       (v) => v.removeSelectedOption
     );
     const getTypeForOption = useContextSelector(CompactRowContext, (v) => v.getTypeForOption);
+    const isRendererOnly = useContextSelector(CompactRowContext, (v) => v.isRendererOnly);
     const confirmAction = useContextSelector(CompactRowContext, (v) => v.confirmAction);
     const optionActions = useContextSelector(CompactRowContext, (v) => v.optionActions);
     const collapseOptionActions = useContextSelector(
@@ -930,8 +932,11 @@ export const CompactRow = memo(
         }
         const control = findRowFocusTarget(editor);
         if (!control) return false;
-        // Optional call: jsdom does not implement `scrollIntoView`.
-        rowRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        // The least scroll that shows the row clear of the pinned box header,
+        // and none when it is already in view (see `revealRow`).
+        if (rowRef.current) {
+          revealRow(rowRef.current, 'auto');
+        }
         // `preventScroll`, because the reveal above has already put the row
         // where it belongs; letting focus scroll as well moves it twice.
         control.focus({ preventScroll: true });
@@ -1214,24 +1219,23 @@ export const CompactRow = memo(
           })
         ) as TInfoMsg[])
       : [];
-    // Validation verdicts and dependency hints are the editor's: "text value
-    // is empty", "disabled until X is set" tell someone what to do next, and
-    // a reader has no next. A read-only row states the value and leaves it.
-    // The default-value note below is different — it says what applies when
-    // nothing is set, which is a fact about the record — and stays.
+    // A row states what is wrong with what it holds, read-only or not: "This
+    // field is required" under an empty required field, a value that is not a
+    // choice, an unmet dependency. A read-only reader is often the one who has
+    // to get the record fixed, and a view that hides why it is incomplete
+    // leaves them guessing. The value slot of an empty field keeps its plain
+    // "—" (or the default it falls back to), so the message is the only place
+    // the requirement is said: once, and the same way in both modes.
     const fieldMessages: TInfoMsg[] =
-      infoActive && !readOnly ?
+      infoActive ?
         getOptionFieldMessages({
           schema: options || {},
           option: optionField || ({} as IQorusFormField),
           name: optionName,
           allOptions: availableOptions,
           getType: getTypeForOption,
-        })
-          // The empty required field's value slot already reads "Required — not
-          // set", so the plain required message would duplicate it.
-          .filter((m) => m.label !== 'This field is required')
-          .map((m) => ({ intent: m.intent as string, content: String(m.label) }))
+          isRendererOnly,
+        }).map((m) => ({ intent: m.intent as string, content: String(m.label) }))
       : [];
     // TWO display channels, matching the Focus prototype:
     //  • dedicated schema `messages` → prominent coloured PANELS below the row;
@@ -1586,9 +1590,7 @@ export const CompactRow = memo(
             <StyledRowActions>
               {draftChip}
               {/* No Required tag here: while editing, the editor's own
-                  OptionFieldMessages strip below already says it — showing
-                  both was redundant. The tag stays on READ rows, where no
-                  message strip is visible. */}
+                  OptionFieldMessages strip below already says it. */}
               {editRowRevertButton}
               {cancelEditButton}
               {clearValueButton}
@@ -2526,9 +2528,9 @@ export const CompactRow = memo(
               the right, so the ⓘ sits at the same x on every row. Revert is shown
               whenever a field has changed; delete reveals on hover. */}
           {/* No generic invalid/required chip: the intent stripe + the field's
-              own message already flag invalidity, and an empty required field's
-              value slot reads "Required — not set". Only the required-GROUP chip
-              (One of / Covers) stays — it carries info nothing else does. */}
+              own message ("This field is required" for an empty required field)
+              already flag it. Only the required-GROUP chip (One of / Covers)
+              stays — it carries info nothing else does. */}
           {/* Railed (clustered) members: the rail conveys the grouping, so drop
               the "One of"/"Covers" chip — keep only "Covered by <X>", the one fact
               the rail can't show. Non-clustered members (split-across-panels or

@@ -327,20 +327,13 @@ export interface IOptionFieldMessagesProps {
   name: string;
   getType: (type: string) => string;
   /**
-   * The reader has not edited this field in this session.
+   * Whether a `ui_type` names a bespoke editor, the consumer's own included.
    *
-   * An error is a report that something went WRONG. "This field is required"
-   * under a field nobody has been in yet reports nothing: the form is empty
-   * because it is new. The requirement is already carried three other ways —
-   * the asterisk on the label, the Needs-attention box the row sits in, and the
-   * completion meter — so the message waits until the reader has been in the
-   * field and left it empty, which IS a thing that went wrong.
-   *
-   * Only the plain required message is held back. A value that fails
-   * validation, an unmet required GROUP and a locked dependency are all facts
-   * about what the form currently holds, and they show immediately.
+   * Such a field's `allowed_values` are not fixed choices (the editor decides
+   * what a value means), so a value is not judged against them. Without it only
+   * reqraft's built-in editors are known.
    */
-  untouched?: boolean;
+  isRendererOnly?: (type?: any) => boolean;
 }
 
 /**
@@ -354,7 +347,7 @@ export const getOptionFieldMessages = ({
   name,
   allOptions,
   getType,
-  untouched,
+  isRendererOnly,
 }: IOptionFieldMessagesProps): IReqoreTagProps[] => {
   const optionSchema = schema[name];
   const result: IReqoreTagProps[] = [];
@@ -386,6 +379,7 @@ export const getOptionFieldMessages = ({
         // config never reached the validator.
         ...(optionSchema as object),
         optionSchema: schema,
+        hasOwnEditor: !!isRendererOnly?.(optionSchema?.ui_type),
       }
     );
     if (!validationData.isValid) {
@@ -395,9 +389,10 @@ export const getOptionFieldMessages = ({
       });
     }
   } else {
-    // A locked field is not asked for: the dependency message below says what
+    // An empty required field says so from the start, on a new form too. A
+    // locked field is not asked for: the dependency message below says what
     // unlocks it, and until then there is nothing to fill in.
-    if (optionSchema?.required && !untouched && !locked) {
+    if (optionSchema?.required && !locked) {
       result.push({ label: 'This field is required', intent: 'danger' });
     }
 
@@ -442,11 +437,25 @@ export const OptionFieldMessages = ({
   name,
   allOptions,
   getType,
-  untouched,
+  isRendererOnly,
 }: IOptionFieldMessagesProps) => {
   const messages: IReqoreTagProps[] = useMemo(
-    () => getOptionFieldMessages({ schema, option, name, allOptions, getType, untouched }),
-    [JSON.stringify(schema), JSON.stringify(option), JSON.stringify(allOptions), name, untouched]
+    () =>
+      getOptionFieldMessages({
+        schema,
+        option,
+        name,
+        allOptions,
+        getType,
+        isRendererOnly,
+      }),
+    [
+      JSON.stringify(schema),
+      JSON.stringify(option),
+      JSON.stringify(allOptions),
+      name,
+      isRendererOnly,
+    ]
   );
 
   if (!size(messages)) {
