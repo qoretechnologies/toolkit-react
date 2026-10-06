@@ -3834,6 +3834,16 @@ const FormEngineImpl = ({
                   // Keeps the wrapper from clipping, which is what a pinned box
                   // header inside it needs — see StyledCompactPanel.
                   $stickyBoxes={compactStickyBoxHeaders && !compactNested}
+                  // A narrow header the consumer dressed stacks its toolbar
+                  // under the label and actions (see StyledCompactPanel).
+                  $stackHeader={
+                    compactNarrow &&
+                    !!(
+                      compactPanelProps?.label ||
+                      compactPanelProps?.icon ||
+                      compactPanelProps?.actions?.length
+                    )
+                  }
                   flat
                   raised
                   minimal

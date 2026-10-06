@@ -66,6 +66,9 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   $tightHeader?: boolean;
   /** True when the status boxes inside pin their headers. */
   $stickyBoxes?: boolean;
+  /** True when a narrow form's header carries a consumer's label, icon or
+   *  actions beside the toolbar, which then has to take a line of its own. */
+  $stackHeader?: boolean;
 }>`
   /* The wrapper must not clip, or nothing INSIDE it can pin.
   
@@ -86,6 +89,37 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
       css`
         &&& {
           overflow: visible;
+        }
+      `
+    : ''}
+  /* A NARROW header dressed by the consumer (\`compactPanelProps\` label, icon
+     or actions) stacks: the label and the consumer's actions share the first
+     line, and the toolbar takes the whole second line.
+
+     ReqorePanel lays its header out as one unwrapping row — the label, then an
+     action group that never shrinks. The toolbar is one of those actions and
+     is as wide as the form, so at phone width the label was squeezed to
+     nothing and the consumer's own action was pushed past the panel's edge and
+     clipped. Flattening the action group (\`display: contents\`) lets its
+     members wrap with the label, and \`order\` moves the toolbar after them. */
+  ${({ $stackHeader }) =>
+    $stackHeader ?
+      css`
+        && > .reqore-panel-title {
+          flex-wrap: wrap;
+          row-gap: ${GAP_FROM_SIZE.normal}px;
+        }
+        && > .reqore-panel-title > .reqore-panel-title-header {
+          flex: 1 1 0;
+          min-width: 0;
+        }
+        && > .reqore-panel-title > .reqore-control-group {
+          display: contents;
+        }
+        && > .reqore-panel-title .options-readfirst-toolbar {
+          order: 1;
+          flex: 1 1 100%;
+          min-width: 0;
         }
       `
     : ''}

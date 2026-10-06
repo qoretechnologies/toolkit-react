@@ -23,6 +23,7 @@ import {
   _testsWaitForText,
   _testsWaitForTextsCount,
   _testsWaitForTextToNotExist,
+  _testsWithViewport,
   sleep,
 } from '../../../stories/Tests/utils';
 import { mockExpressions } from '../expressions/mockExpressions';
@@ -2931,6 +2932,99 @@ export const CompactWithPanelProps: Story = {
     await _testsWaitForText('Docs');
     // …and the engine's own toolbar + rows are untouched by it.
     await _testsWaitForText('order-fulfilment');
+  },
+};
+
+/**
+ * The outside-dressed panel, its toolbar and its rows all fit the width they
+ * are given: nothing scrolls sideways, the label, the host's action and the
+ * toolbar are on screen, and every row's label and value lie inside the form.
+ */
+const assertPanelPropsFitNarrowWidth = async (canvasElement: HTMLElement) => {
+  await _testsWaitForText('Connection settings');
+  await _testsWaitForText('order-fulfilment');
+  const form = canvasElement.querySelector<HTMLElement>('.options-readfirst-scroll')!;
+  await waitFor(() => expect(form.querySelector('.readfirst-narrow')).toBeTruthy());
+  const formRect = form.getBoundingClientRect();
+  // No sideways scroll: not the page, not the form.
+  expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(
+    document.documentElement.clientWidth
+  );
+  expect(form.scrollWidth).toBeLessThanOrEqual(form.clientWidth + 1);
+  const inside = (element: Element | null, what: string) => {
+    expect(element, what).toBeTruthy();
+    const rect = element!.getBoundingClientRect();
+    expect(rect.width, `${what} is drawn`).toBeGreaterThan(0);
+    expect(rect.left, `${what} starts inside the form`).toBeGreaterThanOrEqual(formRect.left - 1);
+    expect(rect.right, `${what} ends inside the form`).toBeLessThanOrEqual(formRect.right + 1);
+  };
+  // The panel chrome supplied from outside, and the engine's own toolbar.
+  const panelTitle = [...canvasElement.querySelectorAll<HTMLElement>('.reqore-panel-title')].find(
+    (title) => (title.textContent || '').includes('Connection settings')
+  )!;
+  inside(panelTitle, 'the panel header');
+  // The label keeps its width: squeezed to nothing was how it went missing.
+  inside(panelTitle.querySelector('.reqore-panel-title-label-row'), 'the panel label');
+  expect(
+    panelTitle.querySelector('.reqore-panel-title-label-row')!.getBoundingClientRect().width
+  ).toBeGreaterThan(100);
+  inside(
+    [...panelTitle.querySelectorAll('.reqore-button')].find((button) =>
+      (button.textContent || '').includes('Docs')
+    ) ?? null,
+    'the Docs action'
+  );
+  inside(form.querySelector('.options-readfirst-completion'), 'the completion meter');
+  // Every row's label and value.
+  const rows = [...form.querySelectorAll<HTMLElement>('.readfirst-row')];
+  expect(rows.length).toBeGreaterThan(0);
+  for (const row of rows) {
+    inside(row, `row ${row.dataset.field}`);
+  }
+};
+
+export const CompactWithPanelPropsPhone: Story = {
+  ...CompactWithPanelProps,
+  parameters: {
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'Compact With Panel Props on a 390px phone: the dressed panel header, its Docs action, the toolbar and every row fit the screen, the rows stack their values under their names, and nothing scrolls sideways.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // The capture is taken at 390px after the play; the play narrows the
+    // viewport itself so it asserts the layout that is captured.
+    await _testsWithViewport(390, 844, async (narrowed) => {
+      await _testsWaitForText('Connection settings');
+      if (narrowed) {
+        await assertPanelPropsFitNarrowWidth(canvasElement);
+      }
+    });
+  },
+};
+
+export const CompactWithPanelPropsNarrow: Story = {
+  ...CompactWithPanelProps,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Compact With Panel Props in a 360px column on a wide screen (a side panel or drawer): the same narrow layout as on a phone, decided by the width the form is given rather than by the screen.',
+      },
+    },
+  },
+  decorators: [
+    (StoryComponent: React.ComponentType) => (
+      <div style={{ maxWidth: 360, margin: '0 auto', border: '1px dashed #ffffff22' }}>
+        <StoryComponent />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await assertPanelPropsFitNarrowWidth(canvasElement);
   },
 };
 
