@@ -1214,7 +1214,6 @@ export const Expression = ({
                       componentOverrides={componentOverrides}
                       // SEAM (reqraft): same as the first operand above.
                       extraActions={extraActions}
-                      noSoft
                       level={level + 1}
                       allowFunctions={!arg?.allowed_values && !arg?.element_allowed_values}
                       isFunction={rest[index]?.is_expression}

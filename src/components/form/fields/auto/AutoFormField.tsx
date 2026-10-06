@@ -12,7 +12,7 @@ import {
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
 import { TQorusFormFieldSchema, TQorusType } from '@qoretechnologies/ts-toolkit';
-import { isEqual, size } from 'lodash';
+import { isEqual, size, uniqBy } from 'lodash';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import useMount from 'react-use/lib/useMount';
@@ -97,6 +97,10 @@ export interface IAutoFieldProps
   level?: number;
   defaultType?: IQorusType;
   defaultInternalType?: IQorusType;
+  /**
+   * @deprecated Inert: the type picker never offers a soft type (see
+   * `getImmediateValueTypes`). Kept so existing callers still compile.
+   */
   noSoft?: boolean;
 
   /** SEAM: inert in reqraft — saved-values storage is IDE-only. */
@@ -134,7 +138,17 @@ export interface IAutoFieldProps
   [key: string]: any;
 }
 
-export const DefaultNoSoftTypes = [
+/**
+ * The types the picker offers for a value typed into this field.
+ *
+ * No Qore soft type (`softint`, `softstring`, `softlist`, …) is among them. A
+ * soft type is a DECLARATION: it says that whatever a variable or parameter is
+ * given is converted to the base type. A value typed in here is already a
+ * literal of the type its editor makes, so there is nothing to convert and no
+ * editor of its own to draw — the picker used to offer them anyway, and each
+ * one drew "Unknown type!".
+ */
+export const getImmediateValueTypes = (): { name: IQorusType; display_name: string }[] => [
   { name: 'bool', display_name: 'True/False' },
   { name: 'date', display_name: 'Date' },
   { name: 'string', display_name: 'Text' },
@@ -146,6 +160,21 @@ export const DefaultNoSoftTypes = [
   { name: 'rgbcolor', display_name: 'RGB Color' },
 ];
 
+/** @deprecated Use `getImmediateValueTypes()`; every picker now offers this list. */
+export const DefaultNoSoftTypes = getImmediateValueTypes();
+
+/**
+ * The type a value is EDITED as: a soft type is edited as its base type.
+ *
+ * A soft type still reaches this field from data saved before the picker
+ * stopped offering them, and from a declared type the server sends (an option
+ * or a config item declared `softint`). It is shown and edited as the base
+ * type it converts to, so that value keeps its editor; the declared type
+ * itself is left as it is and is what the field reports back.
+ */
+export const editorTypeOf = <T extends string | undefined | null>(type: T): T =>
+  (typeof type === 'string' && /^soft[a-z]/.test(type) ? type.slice(4) : type) as T;
+
 function AutoField<T = any>({
   name,
   onChange,
@@ -155,7 +184,8 @@ function AutoField<T = any>({
   defaultInternalType,
   requestFieldData,
   type,
-  noSoft,
+  // Inert (deprecated); destructured so it does not land in `...rest`.
+  noSoft, // eslint-disable-line @typescript-eslint/no-unused-vars
   path,
   arg_schema,
   compact,
@@ -185,9 +215,11 @@ function AutoField<T = any>({
   ...rest
 }: IAutoFieldProps & T) {
   const [currentType, setType] = useState<IQorusType>(defaultInternalType || null);
-  const [currentInternalType, setInternalType] = useState<IQorusType>(
+  const [storedInternalType, setInternalType] = useState<IQorusType>(
     defaultInternalType || 'any'
   );
+  // What the value is edited as; see `editorTypeOf`.
+  const currentInternalType = editorTypeOf(storedInternalType);
   const [isSetToNull, setIsSetToNull] = useState<boolean>(false);
   const [finalArgSchema, setFinalArgSchema] = useState<IOptionsSchema>(
     typeof arg_schema === 'string' ? undefined : arg_schema
@@ -203,7 +235,6 @@ function AutoField<T = any>({
     defaultInternalType,
     requestFieldData,
     type,
-    noSoft,
     path,
     arg_schema,
     column,
@@ -288,7 +319,7 @@ function AutoField<T = any>({
   });
 
   useUpdateEffect(() => {
-    if (defaultType && currentInternalType !== defaultType) {
+    if (defaultType && storedInternalType !== defaultType) {
       setType(defaultType);
       setInternalType(defaultType);
     }
@@ -1055,26 +1086,23 @@ function AutoField<T = any>({
         currentType === 'auto' ||
         currentType === 'any'));
 
-  const types =
-    allowedTypes ||
-    (!noSoft
-      ? [
-          { value: 'bool' },
-          { value: 'softbool' },
-          { value: 'date' },
-          { value: 'string' },
-          { value: 'softstring' },
-          { value: 'binary' },
-          { value: 'float' },
-          { value: 'softfloat' },
-          { value: 'list' },
-          { value: 'softlist' },
-          { value: 'hash' },
-          { value: 'int' },
-          { value: 'softint' },
-          { value: 'rgbcolor' },
-        ]
-      : DefaultNoSoftTypes);
+  // A caller's own list is offered as the editors it names, so a soft type in
+  // it is offered once, as its base type.
+  const types = allowedTypes
+    ? uniqBy(
+        allowedTypes.map((allowed) => {
+          const name = editorTypeOf(allowed.name);
+          return {
+            ...allowed,
+            name,
+            display_name:
+              allowed.display_name ||
+              getImmediateValueTypes().find((type) => type.name === name)?.display_name,
+          };
+        }),
+        'name'
+      )
+    : getImmediateValueTypes();
 
   if (error) {
     return <ReqoreMessage intent='danger'>{error}</ReqoreMessage>;
@@ -1102,6 +1130,9 @@ function AutoField<T = any>({
             minimal={rest.minimal}
             size={rest.size}
             items={types as ISelectFormFieldItem[]}
+            /* A count on a fixed list of types says nothing the open list
+               does not; the IDE's picker shows none either. */
+            hideItemCount
             value={currentInternalType}
             onChange={(value) => {
               handleTypeChange(name, value as IQorusType);

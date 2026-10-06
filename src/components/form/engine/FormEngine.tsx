@@ -3108,7 +3108,6 @@ const FormEngineImpl = ({
             }
             key={optionName}
             arg_schema={options?.[optionName]?.arg_schema}
-            noSoft={!!rest?.options}
             value={expressionAwareValue}
             isFunction={optionHoldsExpression(other)}
             isDefaultFunction={options?.[optionName]?.default_view === 'expression'}
