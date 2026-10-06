@@ -584,7 +584,7 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with a required option that depends on Required Option 2 alone — filling Required Option 2 clears the disabled note.',
+          'Renders FormEngine with a required option that depends on Required Option 2 alone — filling Required Option 2 clears the disabled note. Option 2 settles the first required group, but the second (Required Option 4 or 5) is still empty, so options 4, 5 and 6 need attention: 3 fields.',
       },
     },
   },
@@ -614,6 +614,11 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
     await _testsWaitForTextToNotExist(
       'This field is disabled because some dependencies are not fulfilled: "Required Option 2"'
     );
+    // Option 2 settles the first group; the second (4 or 5) is still empty, and 6 is required: 4, 5 and 6
+    // need attention, and 4 names only what would settle its empty group
+    await _testsWaitForText('3 fields are not valid and require attention. Click here to only show invalid fields.');
+    await _testsWaitForText('This field or Required Option 5 is required');
+    await _testsWaitForText('This field or Required Option 4 is required');
   },
 };
 
