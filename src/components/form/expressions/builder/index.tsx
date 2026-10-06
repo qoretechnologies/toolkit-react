@@ -878,7 +878,9 @@ export const Expression = ({
           icon='Functions'
           placeholder='Select operation'
           fluid={false}
-          fixed={true}
+          // shrinks with a narrow panel, its name shortened, rather than holding the panel open
+          fixed={false}
+          style={{ minWidth: 0, maxWidth: '100%' }}
           flat
           // The operation catalogue is long and every entry carries a description,
           // so it belongs in the searchable collection modal rather than an inline
@@ -895,6 +897,10 @@ export const Expression = ({
       }
       style={{
         marginLeft: isChild ? 10 : undefined,
+        // indented, it is as wide as what is left of the group's width: at its full width the indent
+        // pushed it - and the actions floating above it on hover - past the group and a narrow screen
+        maxWidth: isChild ? 'calc(100% - 10px)' : undefined,
+        minWidth: 0,
         borderStyle: 'dashed',
         flexShrink: 1,
       }}
@@ -1429,6 +1435,9 @@ export const ExpressionBuilder = ({
           label={isChild ? (value.value.exp === '||' ? 'OR group' : 'AND group') : 'IF group'}
           style={{
             marginLeft: isChild ? 10 : 0,
+            // a nested group too: its indent is taken out of its width, not added past it
+            maxWidth: isChild ? 'calc(100% - 10px)' : undefined,
+            minWidth: 0,
           }}
           actions={[
             {
