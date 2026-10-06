@@ -1105,7 +1105,7 @@ export const NestedFitsNarrowColumn: Story = {
     docs: {
       description: {
         story:
-          'Renders two "Logical Greater Than Or Equal" comparisons nested in an "AND" group, in a 320px column: each nested expression is indented and stays inside the group, its operation name shortened to fit, so the actions that float above it on hover stay on the screen.',
+          'Renders two "Logical Greater Than Or Equal" comparisons nested in an "AND" group, in a column narrowed from 320px to 186px - what a 320px screen leaves a condition in a form - and shown at 186px: each nested expression is indented and stays inside the group, its operation name shortened to fit, so the actions that float above it on hover stay on the screen.',
       },
     },
   },
