@@ -9512,3 +9512,100 @@ export const AMovedRowLandsClearOfThePinnedHeader: Story = {
     }
   },
 };
+
+/**
+ * Scrolls the form so the end of its Needs attention box passes up through the
+ * pinned toolbar, and asserts at each step that the toolbar stays on top: the
+ * box header pinned below it is pushed up as its box scrolls away, and must
+ * slide UNDER the toolbar, never over it. Each step waits on `scrollend`.
+ */
+const assertBoxHeaderSlidesUnderToolbar = async (scroller: HTMLElement) => {
+  await _testsWaitForText('Needs attention');
+  const toolbar = document.querySelector<HTMLElement>(
+    '.options-readfirst-scroll > .reqore-panel > .reqore-panel-title'
+  )!;
+  const box = [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')].find(
+    (group) => (group.textContent || '').startsWith('Needs attention')
+  )!;
+  const header = box.querySelector<HTMLElement>(':scope > .reqore-panel-title')!;
+  const scrollBy = async (delta: number) => {
+    const ended = new Promise<void>((resolve) =>
+      scroller.addEventListener('scrollend', () => resolve(), { once: true })
+    );
+    scroller.scrollTop += delta;
+    await ended;
+  };
+  // Box fully in view first: its header sits clear below the toolbar.
+  expect(header.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+    toolbar.getBoundingClientRect().bottom - 1
+  );
+  // Bring the end of the box up to the toolbar's bottom edge, then past it.
+  await scrollBy(box.getBoundingClientRect().bottom - toolbar.getBoundingClientRect().bottom);
+  for (const step of [12, 12, 12]) {
+    await scrollBy(step);
+    const toolbarRect = toolbar.getBoundingClientRect();
+    const headerRect = header.getBoundingClientRect();
+    // Where the pushed-up header and the toolbar overlap, the toolbar is on top.
+    const overlapTop = Math.max(toolbarRect.top, headerRect.top);
+    const overlapBottom = Math.min(toolbarRect.bottom, headerRect.bottom);
+    expect(overlapBottom).toBeGreaterThan(overlapTop);
+    const hit = document.elementFromPoint(
+      toolbarRect.left + toolbarRect.width / 2,
+      (overlapTop + overlapBottom) / 2
+    );
+    expect(toolbar.contains(hit), 'the toolbar is painted over the box header').toBe(true);
+  }
+};
+
+const StickyBoxesSchema: IOptionsSchema = {
+  ...MovedRowSchema,
+  summary: { type: 'string', display_name: 'Summary', required: true },
+  reviewer: { type: 'string', display_name: 'Reviewer', required: true },
+};
+
+const stickyBoxesStory = (layout: 'own' | 'host' | 'padded-host'): Story => ({
+  parameters: {
+    docs: {
+      description: {
+        story: `${
+          layout === 'own' ? 'The form owns its scroller'
+          : layout === 'host' ? 'The host scrolls the form'
+          : 'A padded host scrolls the form'
+        }. Scrolling the end of the Needs attention box up past the pinned toolbar pushes the box's pinned header up with it, and the header slides under the toolbar: the toolbar stays fully visible.`,
+      },
+    },
+  },
+  render: ({ value, ...rest }: IFormEngineProps) => (
+    <div
+      data-testid='sticky-host'
+      style={{
+        height: 420,
+        overflow: layout === 'own' ? 'hidden' : 'auto',
+        padding: layout === 'padded-host' ? 20 : 0,
+        display: 'flex',
+        flexFlow: 'column',
+      }}
+    >
+      <FormEngine {...rest} value={value} />
+    </div>
+  ),
+  args: {
+    compact: true,
+    compactScroll: layout === 'own' ? 'own' : 'host',
+    minColumnWidth: '300px',
+    options: StickyBoxesSchema,
+    value: MovedRowValue,
+  },
+  play: async () => {
+    await _testsWaitForText('Detail 12');
+    const scroller =
+      layout === 'own' ?
+        document.querySelector<HTMLElement>('.options-readfirst-scroll')!
+      : document.querySelector<HTMLElement>('[data-testid="sticky-host"]')!;
+    await assertBoxHeaderSlidesUnderToolbar(scroller);
+  },
+});
+
+export const BoxHeaderSlidesUnderToolbarOwnScroll: Story = stickyBoxesStory('own');
+export const BoxHeaderSlidesUnderToolbarHostScroll: Story = stickyBoxesStory('host');
+export const BoxHeaderSlidesUnderToolbarPaddedHost: Story = stickyBoxesStory('padded-host');

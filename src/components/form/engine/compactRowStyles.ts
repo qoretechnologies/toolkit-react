@@ -97,6 +97,14 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
       $nested ? '' : (
         'backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transform: translateZ(0);'
       )}
+    /* Above the status-box headers, which pin just below this toolbar. A
+       pinned header cannot leave its own box, so when the end of a box
+       scrolls up past the toolbar it pushes the header up with it — and with
+       both at ReqorePanel's sticky z-index the header, later in the
+       document, slid OVER the toolbar and covered the search and the
+       meter. One step higher and it slides under the toolbar's blur
+       instead. Nested sub-forms pin nothing, so they keep the default. */
+    ${({ $nested }) => ($nested ? '' : 'z-index: 3;')}
     padding-top: ${GAP_FROM_SIZE[HEADER_GAP]}px;
     /* A header with a SEARCH ROW keeps the \`big\` gap below it — a tall
        interactive control earns separation from the content it filters. A
