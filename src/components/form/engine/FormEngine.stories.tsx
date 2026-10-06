@@ -610,9 +610,24 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
     await _testsWaitForText(
       'This field is disabled because some dependencies are not fulfilled: "Required Option 2"'
     );
-    await _testsChangeRichText('I have value', 2);
+    // typed into Required Option 2 once it has the focus, and every character kept: waiting on the field's
+    // own state, not on time, so the picture is of the settled form (a capture taken mid-update lost
+    // characters - "I he value")
+    const editor = document.querySelectorAll<HTMLElement>('div.system-option [contenteditable="true"]')[1];
+    await userEvent.click(editor);
+    await waitFor(() => expect(editor.contains(document.activeElement)).toBe(true));
+    await userEvent.keyboard('I have value');
+    await waitFor(() => expect(editor.textContent).toBe('I have value'));
     await _testsWaitForTextToNotExist(
       'This field is disabled because some dependencies are not fulfilled: "Required Option 2"'
+    );
+    // Required Option 6, unlocked, is empty: it says it is required
+    await waitFor(() =>
+      expect(
+        [...document.querySelectorAll('.system-option')].some(
+          (row) => row.textContent?.includes('Required Option 6') && row.textContent?.includes('This field is required')
+        )
+      ).toBe(true)
     );
     // Option 2 settles the first group; the second (4 or 5) is still empty, and 6 is required: 4, 5 and 6
     // need attention, and 4 names only what would settle its empty group
