@@ -200,12 +200,19 @@ export const WithSimpleValue: Story = {
     docs: {
       description: {
         story:
-          'Renders the ExpressionBuilder holding a single "contains" expression with three arguments — the card shows the operation and each operand slot.',
+          'Renders the ExpressionBuilder holding a single "contains" expression with three arguments — the card shows the operation and each operand slot. Each text value is 150px wide, the one holding a template as well as the one holding text: in a row with room, a text field is no narrower than that.',
       },
     },
   },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitFor(() =>
+      expect(
+        [...document.querySelectorAll<HTMLElement>('.expression-arg [data-slate-editor]')].map((editor) =>
+          Math.round((editor.closest('.reqore-panel') as HTMLElement).getBoundingClientRect().width)
+        )
+      ).toEqual([150, 150])
+    );
   },
 };
 

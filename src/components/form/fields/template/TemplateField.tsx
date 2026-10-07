@@ -1691,10 +1691,17 @@ const TemplateFieldImpl = memo(
                width, pushing the ⋮ past an operand's row in a narrow column. */
             fixed={false}
             fluid
-            // and may be narrower than a free text field's 150px: an operand in a narrow column is
+            /* 150px wide, as a free text field is, wider for what it holds, and narrower only where its
+               row has less room - an operand in a narrow column - as a number's input is: a fixed
+               150px minimum held it at full width there. */
             panelProps={{
               ...(rest as { panelProps?: object }).panelProps,
-              style: { ...(rest as { panelProps?: { style?: object } }).panelProps?.style, minWidth: 0 },
+              style: {
+                ...(rest as { panelProps?: { style?: object } }).panelProps?.style,
+                width: '150px',
+                maxWidth: '100%',
+                minWidth: 'fit-content',
+              },
             }}
             aria-label={fieldAriaLabel}
           />
