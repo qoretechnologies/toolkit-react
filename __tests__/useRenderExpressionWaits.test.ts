@@ -80,4 +80,30 @@ describe('useRenderExpression', () => {
     await expect(result.current.renderRich({} as never)).resolves.toBeNull();
     expect(client.connect).not.toHaveBeenCalled();
   });
+
+  it('asks nothing for an expression with a part not filled in yet', async () => {
+    // ">" with its first operand switched to Use Expression, nothing chosen, and its second empty:
+    // the stories' stand-in server threw on it, the real one writes its operands as hashes
+    client.connect.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useRenderExpression());
+
+    await expect(
+      result.current.renderRich({ exp: '>', args: [{ is_expression: true, value: { args: [null] } }, {}] } as never)
+    ).resolves.toBeNull();
+    expect(client.customRequest).not.toHaveBeenCalled();
+  });
+
+  it("asks for a custom Text value's template, not its rich-text document", async () => {
+    client.connect.mockResolvedValue(undefined);
+    client.customRequest.mockResolvedValue({ rendered: '@pos > 1', richtext: null });
+    const { result } = renderHook(() => useRenderExpression());
+    const richtext = [
+      { type: 'paragraph', children: [{ text: '' }, { type: 'tag', value: '$record:{pos}', label: 'pos', children: [{ text: '' }] }, { text: '' }] },
+    ];
+
+    await result.current.renderRich({ exp: '>', args: [{ type: 'richtext', value: richtext }, { type: 'int', value: 1 }] } as never);
+    expect(client.customRequest).toHaveBeenCalledWith('dpql/renderExpression', {
+      expression: { exp: '>', args: [{ type: 'auto', value: '$record:{pos}' }, { type: 'int', value: 1 }] },
+    });
+  });
 });
