@@ -57,7 +57,7 @@ import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMes
 import { findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
 import { RowOpenPickerContext } from './rowOpenPicker';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
-import { query } from '../../../utils/fetch';
+import { queryUnlessCancelled } from '../../../utils/queryUnlessCancelled';
 import {
   colorToCss,
   findAllowedValueOption,
@@ -1038,13 +1038,14 @@ export const CompactRow = memo(
       }
       let cancelled = false;
       (async () => {
-        const response = await query<IQorusFormSchema>({
+        const response = await queryUnlessCancelled<IQorusFormSchema>({
           url: `dataprovider/arg_schemas/${argSchemaId}`,
           method: 'GET',
         });
         // A failed fetch is not an error state here: the preview simply stays the
-        // untyped tree, which is what it was before the schema view existed.
-        if (!cancelled && response.ok) {
+        // untyped tree, which is what it was before the schema view existed. Nor
+        // is an abandoned one (no response).
+        if (!cancelled && response?.ok) {
           setResolvedArgSchema(response.data as IQorusFormSchema);
         }
       })();

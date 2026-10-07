@@ -25,7 +25,7 @@ import {
   maybeParseYaml,
 } from '../../../../helpers/validations';
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
-import { query } from '../../../../utils/fetch';
+import { isQueryCancelled, query } from '../../../../utils/fetch';
 import { DpqlEditor } from '../../../dpqlEditor';
 import { FormEngine, IOptionsSchema } from '../../engine/FormEngine';
 import {
@@ -276,6 +276,11 @@ function AutoField<T = any>({
             setError(schema.error ?? `The schema "${arg_schema}" could not be loaded.`);
           }
         } catch (fetchError) {
+          // abandoned (the query cache was cleared mid-flight), not refused:
+          // there is no schema that "could not be loaded" to report
+          if (isQueryCancelled(fetchError)) {
+            return;
+          }
           setError(
             fetchError instanceof Error ?
               fetchError.message

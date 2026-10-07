@@ -2,7 +2,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { useMemo } from 'react';
 import { useAsyncRetry } from 'react-use';
 import { buildTemplates, ITemplatesPayload } from '../helpers/templates';
-import { query } from '../utils/fetch';
+import { queryUnlessCancelled } from '../utils/queryUnlessCancelled';
 
 export interface IUseTemplates {
   loading: boolean;
@@ -70,12 +70,14 @@ export const useTemplates = (
         return cached;
       }
 
-      const serverTemplates = await query<ITemplatesPayload>({
+      const serverTemplates = await queryUnlessCancelled<ITemplatesPayload>({
         url: `system/getContextData?interface_context=${interfaceContext}`,
         method: 'PUT',
       });
 
-      if (serverTemplates.ok) {
+      // An abandoned request (no response) is not an `error` for the caller to
+      // show; nothing is cached, so the next mount asks again.
+      if (serverTemplates?.ok) {
         const templates = buildTemplates(serverTemplates.data) ?? {};
 
         TemplatesCache.set(interfaceContext!, templates);
