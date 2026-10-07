@@ -20,6 +20,7 @@ import { TDpqlFields } from '../../dpqlEditor/types';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
 import { DpqlRendering } from './DpqlRendering';
 import { IExpression, IExpressionSchema, IExpressionValue, TExpressionReorder } from './types';
+import { incompleteExpressionText, serializableExpression } from './textOfExpression';
 import { useExpressions } from './useExpressions';
 import { useRenderExpression } from './useRenderExpression';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
@@ -329,7 +330,20 @@ export const ExpressionField = memo(
       }
       if (seededRef.current || userTypedRef.current) return undefined;
       if (!ast?.exp) return undefined;
-      const seedAst = ast;
+      /* Only what DPQL can write is serialized. An operand whose operation is not
+         chosen yet, or that is not filled in, has no text; handed to serialize as
+         it was, it came back as the server's (or a stand-in's) rendering of a hash:
+         `{args=(null)} > {type=int}`. The Text view shows the expression with a hole
+         for each part not filled in instead - `… > …`, as the row's summary does -
+         and serialize gets custom Text values as the strings or templates they are. */
+      const seedAst = serializableExpression(ast);
+      if (!seedAst) {
+        const holes = incompleteExpressionText(ast, expressions);
+        seededRef.current = true;
+        setText(holes);
+        setAstText(holes);
+        return undefined;
+      }
       let cancelled = false;
       let timer: ReturnType<typeof setTimeout> | null = null;
       let tries = 0;
@@ -349,7 +363,7 @@ export const ExpressionField = memo(
         cancelled = true;
         if (timer) clearTimeout(timer);
       };
-    }, [mode, ast]);
+    }, [mode, ast, expressions]);
 
     // Switch to Text: the seeding effect above serializes the AST once
     // the editor's session is up.

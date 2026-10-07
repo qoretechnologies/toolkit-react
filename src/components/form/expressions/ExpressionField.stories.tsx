@@ -659,6 +659,37 @@ export const TextMode: Story = {
   },
 };
 
+/** A comparison built in the Visual view and left unfinished, seen in the Text view. */
+export const TextModeOfAnUnfinishedExpression: Story = {
+  args: {
+    value: {
+      is_expression: true,
+      // ">" with its first operand switched to "Use Expression", nothing chosen, and its second empty
+      value: { exp: '>', args: [{ value: { args: [null] }, is_expression: true }, {}] },
+    },
+    defaultMode: 'text',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text mode over a comparison left unfinished in the Visual view: an operand switched to Use Expression with no operation chosen, and an empty one. The text shows a hole for each, "… > …", as the row summary does.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[contenteditable="true"]');
+        expect(el?.textContent).toBe('… > …');
+      },
+      { timeout: 6000 }
+    );
+    expect(canvasElement.textContent).not.toContain('[object Object]');
+    await waitForLspIdle(canvasElement);
+  },
+};
+
 /**
  * A plain `bool` field with `supports_expressions` and no value — starts as
  * the normal field; the "Use Expression" toggle (More menu) switches it.
