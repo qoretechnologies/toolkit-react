@@ -867,8 +867,11 @@ const TemplateFieldImpl = memo(
           /* Emptying the text leaves the field where an empty field lands. For
              an untyped field that is THIS editor: switching to custom mode here
              mounted a different editor in its place, so deleting the last
-             character lost the cursor. */
-          if (!(emptyLandsOnTemplates && allowTemplates)) {
+             character lost the cursor. A field written as text (a whole number, a
+             number, a yes/no) is the same: deleting the template in it left a
+             different, empty editor in its place, and what was typed next went
+             nowhere. */
+          if (!((emptyLandsOnTemplates || templateSupportsCustomValues) && allowTemplates)) {
             setIsTemplate(false);
           }
           setTemplateValue(null);
@@ -877,7 +880,7 @@ const TemplateFieldImpl = memo(
           setTemplateValue(val);
         }
       },
-      [name, onChange, emptyLandsOnTemplates, allowTemplates]
+      [name, onChange, emptyLandsOnTemplates, templateSupportsCustomValues, allowTemplates]
     );
 
     const handleTemplateTextChange = useCallback(

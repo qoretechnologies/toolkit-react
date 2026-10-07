@@ -609,20 +609,26 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField holding a $config:boolean template value, a chip in the text field the value is written in. Deleting the chip clears the template and the underlying boolean checkbox is shown instead.',
+          'Renders TemplateField holding a $config:boolean template value, a chip in the text field the value is written in. Deleting the chip clears the value and leaves the text field, the cursor in it, for what is written next; the yes/no checkbox is one menu item away: "Use Custom Value" in the ⋮ menu.',
       },
     },
   },
-  play: async () => {
+  play: async ({ canvasElement }) => {
     // the template is a chip in the text field the yes/no value is written in; deleted, the field is empty
-    // and shows its own control again
+    // and still the text field
     const editor = await waitFor(() => {
       const el = document.querySelector<HTMLElement>('[data-slate-editor]');
       expect(el).toBeTruthy();
       return el as HTMLElement;
     });
     await userEvent.type(editor, '{Backspace}{Backspace}');
-
+    await waitFor(() => expect(editor.textContent?.replace(/\uFEFF/g, '').trim()).toBe(''));
+    expect(editor.isConnected).toBe(true);
+    expect(document.querySelector('.reqore-checkbox')).toBeNull();
+    // the checkbox, from the menu
+    const buttons = canvasElement.querySelectorAll<HTMLElement>('button');
+    await userEvent.click(buttons[buttons.length - 1]);
+    await userEvent.click(await screen.findByText('Use Custom Value'));
     await waitFor(() => expect(document.querySelector('.reqore-checkbox')).toBeInTheDocument());
   },
 };
@@ -1302,6 +1308,39 @@ export const WrittenAsTextNumberWithATemplate: StoryObj<typeof meta> = {
   },
 };
 
+export const WrittenAsTextNumberEmptiedKeepsItsField: StoryObj<typeof meta> = {
+  args: {
+    type: 'int',
+    value: '$record:{pos}',
+    allowTemplates: true,
+    allowCustomValues: true,
+    componentFromType: true,
+    templates: recordTemplates as any,
+  },
+  render: WrittenAsText,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a whole-number field holding the template pos, whose chip is deleted: the field is empty, and it is still the text field the author is writing in, with the cursor in it, so the number typed next is the value.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editor = await textField(canvasElement);
+    await waitFor(() => expect(editor.textContent).toContain('pos'));
+    await userEvent.click(editor);
+    await userEvent.keyboard('{Backspace}{Backspace}');
+    await waitFor(() => expect(held(canvasElement).value).toBeNull());
+    await sleep(300);
+    // the same text field, the cursor still in it: no other editor was put in its place
+    expect(editor.isConnected).toBe(true);
+    expect(editor.contains(document.activeElement) || editor === document.activeElement).toBe(true);
+    await userEvent.keyboard('7');
+    await waitFor(() => expect(held(canvasElement)).toEqual({ value: 7, type: 'int' }));
+  },
+};
+
 export const WrittenAsTextExpressionDetected: StoryObj<typeof meta> = {
   args: {
     type: 'any',
@@ -1412,5 +1451,46 @@ export const WrittenAsTextDateKeepsItsControl: StoryObj<typeof meta> = {
     await userEvent.click(item);
     await waitFor(() => expect(held(canvasElement).value).toBe('$record:{liefertermin}'));
     await waitFor(() => expect(canvasElement.textContent).toContain('liefertermin'));
+  },
+};
+
+export const WrittenAsTextNumberPicksATemplate: StoryObj<typeof meta> = {
+  args: {
+    type: 'int',
+    allowTemplates: true,
+    allowCustomValues: true,
+    componentFromType: true,
+    templates: recordTemplates as any,
+  },
+  render: WrittenAsText,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an empty whole-number field that takes templates. It is typed freely; the template pos chosen from the list its first click opens is the value, a chip in the text field the value is then written in, and text written after it is written around it.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const input = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLInputElement>('input');
+      expect(el).toBeTruthy();
+      return el as HTMLInputElement;
+    });
+    await userEvent.click(input);
+    const item = await waitFor(() => {
+      const el = [...document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')].find((i) =>
+        i.textContent?.includes('pos')
+      );
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(item);
+    const editor = await textField(canvasElement);
+    await waitFor(() => expect(held(canvasElement)).toEqual({ value: '$record:{pos}', type: 'int' }));
+    await waitFor(() => expect(editor.textContent).toContain('pos'));
+    await sleep(500);
+    // nothing took it away again
+    expect(held(canvasElement)).toEqual({ value: '$record:{pos}', type: 'int' });
   },
 };
