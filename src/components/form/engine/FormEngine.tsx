@@ -3270,9 +3270,26 @@ const FormEngineImpl = ({
   // The closure surface the extracted CompactRow reads through context. Refs and
   // setters are stable; the state/memo/handler fields change identity as they do
   // today, so a row re-renders exactly when its inputs do.
+  /* An open field is held in the box it was opened in, so finishing an edit does not remount it elsewhere
+     and take the focus (see `stableBucketOf`). Held, it says where it now belongs - otherwise a value
+     already right sat under "Needs attention" until ✓ was pressed, with nothing saying why (David's review
+     of qorus#646). Keyed by option name: the box it moves to when closed. */
+  const heldOptionsKey = JSON.stringify(
+    Object.fromEntries(
+      expandedOptions
+        .map((name) => [name, settledBucket.current[name], getOptionBucket(name)] as const)
+        .filter(([, held, now]) => !!held && held !== now)
+        .map(([name, , now]) => [name, now])
+    )
+  );
+  const heldOptions = useMemo<Record<string, 'attention' | 'set' | 'optional'>>(
+    () => JSON.parse(heldOptionsKey),
+    [heldOptionsKey]
+  );
   const compactRowContextValue = useMemo<ICompactRowContext>(
     () => ({
       templates: templates.value,
+      heldOptions,
       readOnly,
       onReadOnlyActivate,
       commitMode,
@@ -3322,6 +3339,7 @@ const FormEngineImpl = ({
     }),
     [
       templates.value,
+      heldOptions,
       readOnly,
       commitMode,
       expandMode,

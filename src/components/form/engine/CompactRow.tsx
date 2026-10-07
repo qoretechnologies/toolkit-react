@@ -166,6 +166,9 @@ export const richtextItemText = (item: unknown): string | undefined =>
     richtextToString((item as { value?: Parameters<typeof richtextToString>[0] }).value)
   : undefined;
 
+/** The status boxes by name, as their headers say them. */
+const BOX_NAMES = { attention: 'Needs attention', set: 'Set', optional: 'Optional' } as const;
+
 export const CompactRow = memo(
   ({
     optionName,
@@ -210,6 +213,8 @@ export const CompactRow = memo(
     const isExpanded = useContextSelector(CompactRowContext, (v) =>
       v.expandedOptions.includes(optionName)
     );
+    // the box this open field moves to when it is closed, when that is not the one it is shown in
+    const movesTo = useContextSelector(CompactRowContext, (v) => v.heldOptions?.[optionName]);
     const isHighlighted = useContextSelector(CompactRowContext, (v) =>
       v.highlightedOptions.includes(optionName)
     );
@@ -1245,6 +1250,7 @@ export const CompactRow = memo(
     const panelMessages = schemaMessages;
     const inlineMessages: TInfoMsg[] = [
       ...fieldMessages,
+
       ...(infoActive && schema?.default_value_desc ?
         [
           {
@@ -1587,6 +1593,18 @@ export const CompactRow = memo(
                   {renderOption(optionName, optionField, 'small', true)}
                 </RowMenuContext.Provider>
               </RowOpenPickerContext.Provider>
+              {/* Why a value already right is still in this box: an open field stays where it was opened
+                  (moving it would take the focus), and says where it goes when it is closed. */}
+              {movesTo ?
+                <ReqoreP
+                  size='small'
+                  className='options-readfirst-moves-to'
+                  intent={movesTo === 'attention' ? 'warning' : 'success'}
+                  style={{ marginTop: 4 }}
+                >
+                  {`Moves to "${BOX_NAMES[movesTo]}" when you close it (✓)`}
+                </ReqoreP>
+              : null}
             </div>
             <StyledRowActions>
               {draftChip}

@@ -1078,6 +1078,49 @@ export const CompactRowCancelEdit: Story = {
   },
 };
 
+export const CompactRowSaysWhereItMoves: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with a required field left empty, in Needs attention. Opened and filled in, it stays where it is while it is open (moving it would take the focus), and says it moves to Set when it is closed; closed, it is in Set.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {},
+    options: {
+      cookie_name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Cookie Name',
+        required: true,
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const row = () => canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
+    await waitFor(() => expect(row()).toBeTruthy());
+    fireEvent.click(row()!);
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy());
+    expect(canvasElement.textContent).not.toContain('Moves to');
+    const input = canvasElement.querySelector<HTMLInputElement>(
+      '[data-field="cookie_name"] input, [data-field="cookie_name"] textarea'
+    );
+    fireEvent.change(input!, { target: { value: 'session' } });
+    // filled in, it says where it goes - and stays put, the editor still open
+    await waitFor(() => expect(canvasElement.textContent).toContain('Moves to "Set" when you close it (✓)'), {
+      timeout: 5000,
+    });
+    expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy();
+    fireEvent.click(canvasElement.querySelector<HTMLElement>('.options-readfirst-done')!);
+    await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeNull());
+    expect(canvasElement.textContent).not.toContain('Moves to');
+  },
+};
+
 export const CompactRowReadOnlyIsAWayIn: Story = {
   parameters: {
     /* Nothing to SEE here: what this story asserts is a role, a focus stop, a

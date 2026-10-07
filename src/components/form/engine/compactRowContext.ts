@@ -69,6 +69,8 @@ export interface ICompactRowContext {
   // display name in the read-first chip.
   templates?: IReqoreFormTemplates;
   expandedOptions: string[];
+  /** Open fields held in the box they were opened in, with the box each moves to when it is closed. */
+  heldOptions?: Record<string, 'attention' | 'set' | 'optional'>;
   highlightedOptions: string[];
   flashedOptions: string[];
   infoPanelOverrides: Record<string, boolean>;
