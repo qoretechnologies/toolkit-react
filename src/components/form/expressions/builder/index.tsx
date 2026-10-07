@@ -521,9 +521,16 @@ export const Expression = ({
   }, [onValueChange, path]);
 
   const firstArgSchema = selectedExpression?.args[0];
+  /* An empty untyped operand is of the type the catalogue declares for it, as the other operands are:
+     falling back to the builder's own type gave the first value of a condition (the builder's `bool`)
+     or of an untyped builder (`context`) a type it is not, which rendered as "Unknown type!" once an
+     untyped operand was written as text. */
   const firstParamType = firstArgument?.is_expression
     ? firstArgSchema?.ui_type
-    : firstArgument?.type || type || 'context';
+    : firstArgument?.type ||
+      (isUntypedOptionType(firstArgSchema?.ui_type) ? firstArgSchema?.ui_type : undefined) ||
+      type ||
+      'context';
   let restOfArgs = selectedExpression?.args.slice(1);
   const argCount = size(value.value?.args);
   const canReorderArgs =
