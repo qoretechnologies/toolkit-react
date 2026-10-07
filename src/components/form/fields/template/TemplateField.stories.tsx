@@ -1392,12 +1392,14 @@ export const WrittenAsTextNullStaysAValue: StoryObj<typeof meta> = {
 export const WrittenAsTextAllowedValues: StoryObj<typeof meta> = {
   args: {
     type: 'string',
+    component: auto,
     allowTemplates: true,
     allowCustomValues: true,
     templates: recordTemplates as any,
     allowed_values: [
-      { name: 'open', value: 'open' },
-      { name: 'closed', value: 'closed' },
+      // as a form's allowed values carry them: each value with its type
+      { name: 'open', display_name: 'Open', value: { type: 'string', value: 'open' } },
+      { name: 'closed', display_name: 'Closed', value: { type: 'string', value: 'closed' } },
     ] as any,
   },
   render: WrittenAsText,
@@ -1405,13 +1407,16 @@ export const WrittenAsTextAllowedValues: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders a field with fixed choices (open, closed) that also takes templates: it keeps its list of choices - it is not written as text, since anything else written would not be one of them.',
+          'Renders a field with fixed choices (Open, Closed) that also takes templates: it keeps its list of choices, each named - it is not written as text, since anything else written would not be one of them. Choosing Closed gives closed.',
       },
     },
   },
   async play({ canvasElement }) {
-    await sleep(300);
+    const closed = await within(canvasElement).findByText('Closed');
+    expect(within(canvasElement).getByText('Open')).toBeTruthy();
     expect(canvasElement.querySelector('[data-slate-editor]')).toBeNull();
+    await userEvent.click(closed.closest('.reqore-checkbox') as HTMLElement);
+    await waitFor(() => expect(held(canvasElement).value).toBe('closed'));
   },
 };
 
