@@ -4,7 +4,11 @@
 // can wait uses it: Explain and the Text view's Preview wait for the server's
 // `dpql/renderExpression` (see `useRenderExpression`). Pure: no
 // transport/socket import, so it stays out of the LSP/nanoid dependency graph.
+import { expressionOperand } from './expressionOperands';
 import { IExpression, IExpressionSchema, IExpressionValue } from './types';
+
+/** How a part not filled in yet is written: an operation not chosen, a value not given. */
+export const EXPRESSION_HOLE = '…';
 
 /** A symbol made only of non-word characters renders infix (`a == b`). */
 const isOperatorSymbol = (symbol?: string): boolean =>
@@ -109,15 +113,28 @@ const renderInContext = (
   // parentheses and commas already delimit its arguments.
   const isInfix = isLogicalGroup || (args.length === 2 && isOperatorSymbol(symbol));
 
-  const parts = args.map((arg: IExpression, argn: number) =>
-    arg?.is_expression && arg.value?.exp
-      ? renderInContext(
-          arg.value,
-          expressions,
-          isInfix ? argumentContext(value.exp as string, argn) : PREC_LOOSEST
-        )
-      : renderLiteral(arg?.value)
-  );
+  /* Each operand as what it holds (expressionOperands): a custom Text value is the
+     template or the words in it, and one not filled in yet - an operation not chosen,
+     a value not given - is a hole, not `null` and not the editor's rich-text document. */
+  const parts = args.map((raw: IExpression, argn: number) => {
+    const arg = expressionOperand(raw) as IExpression | undefined;
+    if (arg === undefined) return EXPRESSION_HOLE;
+    if (arg?.is_expression && arg.value?.exp) {
+      return renderInContext(
+        arg.value,
+        expressions,
+        isInfix ? argumentContext(value.exp as string, argn) : PREC_LOOSEST
+      );
+    }
+    if (arg && typeof arg === 'object' && 'exp' in arg) {
+      return renderInContext(
+        arg as IExpressionValue,
+        expressions,
+        isInfix ? argumentContext(value.exp as string, argn) : PREC_LOOSEST
+      );
+    }
+    return renderLiteral(arg && typeof arg === 'object' && 'value' in arg ? arg.value : arg);
+  });
 
   if (!isInfix) {
     return `${symbol}(${parts.join(', ')})`;

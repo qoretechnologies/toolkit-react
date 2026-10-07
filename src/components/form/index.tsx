@@ -35,6 +35,12 @@ export * from './expressions/useExpressions';
 // Named (not wildcard) so the `_resetRenderExpressionTransportForTests`
 // test hook stays out of the public package surface.
 export { renderExpressionToText, useRenderExpression } from './expressions/useRenderExpression';
+export {
+  expressionOperand,
+  expressionWithOperands,
+  isExpressionComplete,
+} from './expressions/expressionOperands';
+export { EXPRESSION_HOLE } from './expressions/renderExpressionToText';
 export type {
   IRenderedExpression,
   IUseRenderExpressionResult,

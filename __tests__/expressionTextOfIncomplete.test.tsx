@@ -36,6 +36,7 @@ vi.mock('../src/components/dpqlEditor', () => ({
 }));
 
 import { ExpressionField } from '../src/components/form/expressions/ExpressionField';
+import { renderExpressionToText } from '../src/components/form/expressions/renderExpressionToText';
 import { incompleteExpressionText, serializableExpression } from '../src/components/form/expressions/textOfExpression';
 import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
@@ -138,5 +139,18 @@ describe('what DPQL can write', () => {
         ],
       })
     ).toBe('@pos > … && …');
+  });
+});
+
+describe('the read-first summary of an expression', () => {
+  it('writes a custom Text value as what it holds, and a part not filled in as a hole', () => {
+    expect(renderExpressionToText(TEXT_TEMPLATES as any)).toBe('"$record:{bestellnummer}" > "$record:{pos}"');
+    expect(renderExpressionToText(USE_EXPRESSION_UNCHOSEN as any)).toBe('… > …');
+    expect(
+      renderExpressionToText({
+        exp: '==',
+        args: [{ type: 'richtext', value: richtext({ text: 'open' }) }, { type: 'nothing', value: null }],
+      } as any)
+    ).toBe('"open" == null');
   });
 });
