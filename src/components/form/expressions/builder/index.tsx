@@ -32,6 +32,7 @@ import {
   isTextOrDateType,
 } from '../../../../helpers/expressions';
 import { addMissingExpressionArgs } from '../argumentPresence';
+import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
 import { findTemplate } from '../../../../helpers/templates';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
 import { IQorusTypeObject, useQorusTypes } from '../../../../hooks/useQorusTypes';
@@ -1129,7 +1130,10 @@ export const Expression = ({
               allowCustomValues={
                 !!firstArgument?.allowed_values ||
                 !!firstArgument?.element_allowed_values ||
-                (!!firstArgument?.type && !serverExpression)
+                // an untyped operand is written as text from the start, as a typed one is once
+                // it has a type: a template chosen into it is a chip, with text around it
+                ((!!firstArgument?.type || isUntypedOptionType(firstArgSchema?.ui_type)) &&
+                  !serverExpression)
               }
               filterTemplatesFunc={(templates) => {
                 // PORT NOTE: `?.` on `items` added — with no templates at all
@@ -1242,7 +1246,9 @@ export const Expression = ({
                         !!arg.allowed_values ||
                         !!arg.element_allowed_values ||
                         !!rest[index]?.type ||
-                        !!arg.default_value
+                        !!arg.default_value ||
+                        // an untyped operand is written as text from the start (see the first operand)
+                        isUntypedOptionType(arg.ui_type)
                       }
                       onChange={((_name, value, type, isFunction) => {
                         updateArg(value, index + 1, isFunction ? undefined : type, isFunction);

@@ -35,7 +35,6 @@ import {
   filterTemplatesByType as templatesFilterFunc,
   getTemplateKey,
   getTemplateValue,
-  isBracedTemplateToken,
   isCompleteTemplateToken,
   describeTemplateReference,
   isValueTemplate,
@@ -67,6 +66,7 @@ import { RichTextFormField } from '../rich-text/RichText';
 import { richtextToString } from '../../../../helpers/common';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
+import { isWrittenAsText, templateTextValue } from './writtenAsText';
 import {
   IRowMenuRegistration,
   RowMenuContext,
@@ -799,6 +799,13 @@ const TemplateFieldImpl = memo(
     // When template key or template value change run the onChange function
     useUpdateEffect(() => {
       if (templateValue) {
+        /* Read from the text where the field is written as text: a lone template takes its own
+           type in an untyped field, a scalar's literal is that literal, other text is text. */
+        if (templateSupportsCustomValues) {
+          const read = templateTextValue(templateValue, type as string, filteredTemplates);
+          onChange?.(name, read.value, read.type as TQorusType, effectiveIsFunction);
+          return;
+        }
         onChange?.(name, templateValue, type as TQorusType, effectiveIsFunction);
       }
     }, [JSON.stringify(templateValue)]);
@@ -808,14 +815,6 @@ const TemplateFieldImpl = memo(
     const showTemplateToggle =
       allowCustomValues && allowTemplates && !rest.arg_schema && !editorHandlesTemplates;
 
-    // Only a BRACED context ref (`$data:{…}` — machine-written, nobody types
-    // one) renders as the picker chip (named via `resolveTemplateLabel`)
-    // rather than as its raw text in a string editor. Plain word-path tokens
-    // (`$local:id`) are typeable, so per the build #123 review they keep the
-    // input that offers templates while typing. Mixed text-and-token strings
-    // keep the string editor too; the chip-in-editor treatment arrives with
-    // the rich-text string mode.
-    const templateValueIsBracedToken = isBracedTemplateToken(templateValue);
 
     /* An UNTYPED field can be typed into as well as picked from.
     
@@ -832,11 +831,19 @@ const TemplateFieldImpl = memo(
        specific to that field: every empty untyped field with templates on
        offer got the same downgrade. The editor still offers the same templates
        on focus, so nothing is lost by being able to type as well. */
+    /* And so can a scalar: a whole number, a number or a yes/no is written as text too
+       (qorus#646). A template chosen into it is a chip in that text, not a pick-only
+       control that holds the template and nothing else, so text can be written around it;
+       what the field then holds is read from the text (writtenAsText). A date keeps its
+       date control. */
     const templateSupportsCustomValues =
-      allowCustomValues && (type === 'string' || typeIsAnyLike) && !hasOnlyAllowedValues;
+      allowCustomValues && isWrittenAsText(type as string) && !hasOnlyAllowedValues;
     const showTemplatesDropdown =
       allowTemplates && (!allowCustomValues || (isTemplate && !templateSupportsCustomValues));
     const hasOnlyExpressions = !allowCustomValues && !allowTemplates && allowFunctions;
+    /** A date field with templates on offer: they are offered beside its date control. */
+    const dateTakesTemplates =
+      type === 'date' && !!allowTemplates && hasTemplatesOnOffer && !hasOnlyAllowedValues;
     // True when some input control renders besides the ⋮ menu. When nothing
     // does (an empty `any` field: custom values are disallowed and the value's
     // type is picked FROM the menu), the menu trigger is the field's only
@@ -922,6 +929,15 @@ const TemplateFieldImpl = memo(
     // SEAM (reqraft): the IDE computes `canSaveValue` here and renders a
     // `SaveValueButton` in the controls menu — the saved-values storage is
     // IDE-only, so the menu item is dropped (`allowSaving` is inert).
+
+    /* A template chosen beside a date control is the value at once, IN the template control: handed to
+       the form while the field was still drawing its date control, the reference reached the date
+       picker first, which threw on it ("Invalid ISO 8601 date time string"). */
+    const handleSelectDateTemplate = useCallback((item: { value?: unknown }) => {
+      if (typeof item?.value !== 'string') return;
+      setIsTemplate(true);
+      setTemplateValue(item.value);
+    }, []);
 
     const handleRemoveTemplateClick = useCallback(() => {
       /* This is the `×` ON the template control, and it means "I do not want a
@@ -1097,7 +1113,8 @@ const TemplateFieldImpl = memo(
       !!allowFunctions &&
       !!allowTextExpressions &&
       !effectiveIsFunction &&
-      !isTemplate &&
+      // the template editor is text too: an expression written around a template is detected there
+      (!isTemplate || templateSupportsCustomValues) &&
       !hasOnlyAllowedValues &&
       !rest.readonly &&
       !rest.readOnly &&
@@ -1634,12 +1651,29 @@ const TemplateFieldImpl = memo(
           />
         : null}
 
+        {/* A date keeps its date control - it is not written as text - and takes a template beside it:
+            chosen, the template is the value (the template control, whose × returns to the date). */}
+        {!isTemplate && allowCustomValues && dateTakesTemplates ?
+          <ReqoreDropdown
+            className='date-template-picker'
+            icon='MoneyDollarCircleLine'
+            fixed
+            compact
+            size={rest.size}
+            tooltip='Use a template'
+            aria-label='Use a template'
+            filterable
+            items={filteredTemplates?.items}
+            onItemSelect={handleSelectDateTemplate}
+          />
+        : null}
+
         {/* Template mode's editor for a value that can also be typed: each
             reference in it is a chip named as the catalogue names it, while the
             field still stores the plain string. A textarea spelled a chosen
             template `$local:name` wherever it was edited — in the Visual
             builder's operands, in every string field that takes templates. */}
-        {isTemplate && templateSupportsCustomValues && !templateValueIsBracedToken ?
+        {isTemplate && templateSupportsCustomValues ?
           <RichTextFormField
             className='template-selector'
             valueFormat='text'
@@ -1649,6 +1683,16 @@ const TemplateFieldImpl = memo(
             allowTemplates
             onChange={handleTemplateTextChange}
             {...rest}
+            /* The text the value is written in takes the room its row gives it and gives it back: a
+               caller's \`fixed\` sized a picker chip, and on a text field it kept the field at its full
+               width, pushing the ⋮ past an operand's row in a narrow column. */
+            fixed={false}
+            fluid
+            // and may be narrower than a free text field's 150px: an operand in a narrow column is
+            panelProps={{
+              ...(rest as { panelProps?: object }).panelProps,
+              style: { ...(rest as { panelProps?: { style?: object } }).panelProps?.style, minWidth: 0 },
+            }}
             aria-label={fieldAriaLabel}
           />
         : null}
@@ -1676,10 +1720,7 @@ const TemplateFieldImpl = memo(
           </ReqoreControlGroup>
         : null}
 
-        {(
-          showTemplatesDropdown ||
-          (isTemplate && templateSupportsCustomValues && templateValueIsBracedToken)
-        ) ?
+        {showTemplatesDropdown ?
           <TemplateDropdownSelector
             allowCustomValues={allowCustomValues}
             templates={templates}
