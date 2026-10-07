@@ -1673,9 +1673,12 @@ export const CompactRow = memo(
           $border={schemaIntentColor ? `${schemaIntentColor}66` : `${cInfo}66`}
         >
           <div
+            className='options-readfirst-card-header'
             style={{
               display: 'flex',
-              alignItems: 'flex-start',
+              // a heading of one line is centred on the card's actions; one with a description or tags under
+              // its name lines up by its top (David's review of qorus#646: the name sat above the buttons)
+              alignItems: schema?.short_desc || cardTags.length ? 'flex-start' : 'center',
               justifyContent: 'space-between',
               gap: 12,
             }}

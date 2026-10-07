@@ -254,6 +254,46 @@ export const NumberComponent: StoryObj<typeof meta> = {
   },
 };
 
+export const NumberTypedFreely: StoryObj<typeof meta> = {
+  args: {
+    value: 25,
+    type: 'int',
+    allowTemplates: true,
+    componentFromType: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for a whole number that takes templates. A click in the field lists the templates of its type at once; what is typed is kept as typed (12abc is flagged by the form, not cut to 12); a template chosen from the list is the value, shown by its name in the template picker.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    const input = (await canvas.findByDisplayValue('25')) as HTMLInputElement;
+    // the first click lists the templates
+    await userEvent.click(input);
+    await waitFor(() => expect(document.querySelector('.reqore-popover-content .reqore-menu-item'), 'the list at the first click').toBeTruthy());
+    // typed freely
+    await userEvent.clear(input);
+    await userEvent.type(input, '12abc');
+    await expect(input).toHaveValue('12abc');
+    // a template from the list: the field becomes the template picker, named by the template
+    await userEvent.clear(input);
+    const first = await waitFor(() => {
+      const item = document.querySelector<HTMLElement>('.reqore-popover-content .reqore-menu-item');
+      expect(item, 'the list again').toBeTruthy();
+      return item as HTMLElement;
+    });
+    const name = first.querySelector('.reqore-menu-item-label, [data-reqore-marquee="text"]')?.textContent ?? first.textContent ?? '';
+    await userEvent.click(first);
+    // the template is the value, named as the catalogue names it, in the template picker
+    await waitFor(() => expect(canvasElement.querySelector('input')).toBeNull());
+    await expect(canvasElement.textContent).toContain(name.trim());
+  },
+};
+
 export const AutoComponent: StoryObj<typeof meta> = {
   args: {
     defaultType: 'auto',
