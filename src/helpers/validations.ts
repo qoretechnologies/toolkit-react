@@ -1659,10 +1659,8 @@ export const _validateField = (
           });
 
           if (!result.isValid) {
-            return withContext(
-              result,
-              `Sub-expression for argument ${index + 1} ("${argLabel}") is invalid`
-            );
+            // said by the operand's name, as the editor shows it - not by its position in the call
+            return withContext(result, `The expression in "${argLabel}" is invalid`);
           }
 
           continue;
@@ -1686,10 +1684,12 @@ export const _validateField = (
         });
 
         if (!result.isValid) {
-          return withContext(
-            result,
-            `Value for argument ${index + 1} ("${argLabel}") is invalid`
-          );
+          // an operand not filled in yet says what to do; one that is wrong says which and why (David's
+          // review of qorus#646: "Value for argument 1 ("Value") is invalid: Missing value" while building)
+          if (argValue?.value === undefined || argValue?.value === null || argValue?.value === '') {
+            return invalidResult(`Enter a value for "${argLabel}"`);
+          }
+          return withContext(result, `"${argLabel}" is invalid`);
         }
       }
 

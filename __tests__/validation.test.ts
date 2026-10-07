@@ -1295,7 +1295,8 @@ describe('expression with an empty operand slot', () => {
     expect(() => validateField('expression', value, { expressions: addition })).not.toThrow();
     const result = validateFieldWithResult('expression', value, { expressions: addition });
     expect(result.isValid).toBe(false);
-    expect(result.reason).toContain('argument 1');
+    // said by the operand's name, and what to do
+    expect(result.reason).toMatch(/^Enter a value for "/);
   });
 
   it('still accepts the same expression once the operand is filled', () => {
@@ -1340,7 +1341,7 @@ describe('expression argument whose envelope carries no type', () => {
     });
 
     expect(result.isValid).toBe(false);
-    expect(result.reason ?? '').toContain('argument 1');
+    expect(result.reason ?? '').toMatch(/^"[^"]+" is invalid/);
     expect(result.reason ?? '').toContain('integer');
   });
 
