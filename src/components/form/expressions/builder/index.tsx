@@ -878,7 +878,9 @@ export const Expression = ({
           icon='Functions'
           placeholder='Select operation'
           fluid={false}
-          fixed={true}
+          // shrinks with a narrow panel, its name shortened, rather than holding the panel open
+          fixed={false}
+          style={{ minWidth: 0, maxWidth: '100%' }}
           flat
           // The operation catalogue is long and every entry carries a description,
           // so it belongs in the searchable collection modal rather than an inline
@@ -895,6 +897,10 @@ export const Expression = ({
       }
       style={{
         marginLeft: isChild ? 10 : undefined,
+        // indented, it is as wide as what is left of the group's width: at its full width the indent
+        // pushed it - and the actions floating above it on hover - past the group and a narrow screen
+        maxWidth: isChild ? 'calc(100% - 10px)' : undefined,
+        minWidth: 0,
         borderStyle: 'dashed',
         flexShrink: 1,
       }}
@@ -1208,7 +1214,6 @@ export const Expression = ({
                       componentOverrides={componentOverrides}
                       // SEAM (reqraft): same as the first operand above.
                       extraActions={extraActions}
-                      noSoft
                       level={level + 1}
                       allowFunctions={!arg?.allowed_values && !arg?.element_allowed_values}
                       isFunction={rest[index]?.is_expression}
@@ -1339,6 +1344,11 @@ export const ExpressionBuilder = ({
   reorder,
 }: IExpressionBuilderProps) => {
   const templates = useTemplates(!isChild, localTemplates);
+  /* A builder nested in a group does not resolve templates again: its parent hands it the resolved ones.
+     `useTemplates` gives a nested builder none, and they were what it handed on, so every comparison in
+     an AND/OR group had no templates - its field pickers had nothing to offer and were drawn disabled,
+     and the operands read as read-only. */
+  const resolvedTemplates = isChild ? localTemplates : templates.value;
   const theme = useReqoreTheme();
   const [showSummary, setShowSummary] = useState(false);
   const _expressions = useExpressions({
@@ -1429,6 +1439,9 @@ export const ExpressionBuilder = ({
           label={isChild ? (value.value.exp === '||' ? 'OR group' : 'AND group') : 'IF group'}
           style={{
             marginLeft: isChild ? 10 : 0,
+            // a nested group too: its indent is taken out of its width, not added past it
+            maxWidth: isChild ? 'calc(100% - 10px)' : undefined,
+            minWidth: 0,
           }}
           actions={[
             {
@@ -1472,7 +1485,7 @@ export const ExpressionBuilder = ({
               <React.Fragment key={index}>
                 <ExpressionBuilder
                   value={arg}
-                  localTemplates={templates.value}
+                  localTemplates={resolvedTemplates}
                   isChild
                   path={`${path ? `${path}.` : ''}value.args.${index}`}
                   level={level + 1}
@@ -1508,7 +1521,7 @@ export const ExpressionBuilder = ({
   return (
     <ReqoreErrorBoundary>
       <Expression
-        localTemplates={templates.value}
+        localTemplates={resolvedTemplates}
         value={value}
         isChild={isChild}
         type={type}

@@ -1824,24 +1824,36 @@ export const getTypeFromValue = (value: any) => {
   }
 };
 
+/**
+ * The groups of `groups` none of whose options has a value. A required group asks for one of its
+ * options; an option in several groups is settled only when each of them is.
+ */
+export const unsatisfiedRequiredGroups = (
+  options: TQorusForm,
+  schema: IQorusFormSchema,
+  groups: string[]
+): string[] =>
+  (groups ?? []).filter(
+    (group) =>
+      !getOptionsFromRequiredGroups(schema, [group]).some((option) =>
+        isValueDefined(
+          ((schema[option] as TQorusFormFieldSchema)?.ui_type as string) ||
+            ((schema[option] as TQorusFormFieldSchema)?.type as string),
+          options?.[option]?.value
+        )
+      )
+  );
+
+/**
+ * Whether an option's required groups are settled: each has an option with a value. Any value in any of
+ * the groups used to do, so an option in two groups passed while one of them was still empty - it was
+ * neither flagged nor counted, and the form said fewer fields needed attention than did.
+ */
 export const validateOptionWithRequiredGroups = (
   options: TQorusForm,
   schema: IQorusFormSchema,
   groups: string[]
-): boolean => {
-  if (groups) {
-    const optionsInGroups = getOptionsFromRequiredGroups(schema, groups);
-    return optionsInGroups.some((option) =>
-      isValueDefined(
-        ((schema[option] as TQorusFormFieldSchema)?.ui_type as string) ||
-          ((schema[option] as TQorusFormFieldSchema)?.type as string),
-        options?.[option]?.value
-      )
-    );
-  }
-
-  return true;
-};
+): boolean => !unsatisfiedRequiredGroups(options, schema, groups).length;
 
 /** Why a required option is not satisfied by the current values. */
 export type TUnresolvedRequiredOptionReason =

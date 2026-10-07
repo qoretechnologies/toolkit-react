@@ -16,6 +16,7 @@ import {
   parseDependency,
   validateFieldWithResult,
   validateOptionWithRequiredGroups,
+  unsatisfiedRequiredGroups,
 } from '../../../helpers/validations';
 import { OptionsContext } from './optionsContext';
 
@@ -400,9 +401,10 @@ export const getOptionFieldMessages = ({
       optionSchema?.required_groups &&
       !validateOptionWithRequiredGroups(allOptions, schema, optionSchema.required_groups)
     ) {
+      // the options that would settle it: those of the groups still empty
       const requiredOptionsMessage = getRequiredOptionMessage(
         schema,
-        optionSchema.required_groups,
+        unsatisfiedRequiredGroups(allOptions, schema, optionSchema.required_groups),
         name
       );
 

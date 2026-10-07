@@ -245,22 +245,17 @@ describe('DPQL typed into a plain field', () => {
     });
   });
 
-  it('never sees expression text on a numeric field, whose editor filters it out', async () => {
-    // Not a gap to fix here: `int` and `float` render `input[type=number]`,
-    // which drops `@`, `>` and spaces before any handler runs. Detection on
-    // those types is therefore unreachable BY DESIGN of the editor, and the
-    // expression affordance in the ⋮ menu is the way in. Pinned so that a
-    // future editor change that starts passing raw text through is noticed.
+  it('takes expression text typed into a numeric field as an expression', async () => {
+    // A numeric field is typed freely now (David's review of qorus#646): it used to render
+    // `input[type=number]`, which dropped `@`, `>` and spaces, so detection never saw the text and only
+    // the digits survived. Text that cannot be a number here was an error the moment it was typed, so it
+    // switches to the expression, as it does on any field whose type the text cannot be.
     probe.mockResolvedValue(expressionResult('>'));
 
     const onChange = await renderTypedField('@a > 5', { type: 'int' });
 
-    await new Promise((resolve) => setTimeout(resolve, 700));
-
-    expect(probe).not.toHaveBeenCalled();
-    expect(storedExpression(onChange)).toBeUndefined();
-    // Only the digits survived the number input.
-    expect(onChange.mock.calls.slice(-1)[0]?.[1]).toBe(5);
+    await waitFor(() => expect(probe).toHaveBeenCalledWith('@a > 5'));
+    await waitFor(() => expect(storedExpression(onChange)).toBeDefined());
   });
 
   it('does not detect on a field that cannot hold an expression', async () => {

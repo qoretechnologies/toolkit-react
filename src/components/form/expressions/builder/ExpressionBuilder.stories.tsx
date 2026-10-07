@@ -1034,6 +1034,178 @@ export const AddValueSlotOnPhone: Story = {
 };
 
 /**
+ * The expression panels, nested or not, that reach past the box of the one they are nested in: none
+ * should. A nested expression is indented; at its full width the indent pushed its right edge - and the
+ * actions that float above it on hover - past its parent, and past a narrow screen's edge.
+ */
+const panelsPastTheirParent = () =>
+  [...document.querySelectorAll<HTMLElement>('.expression, .reqore-panel')]
+    .filter((panel) => panel.getBoundingClientRect().width > 0)
+    .map((panel) => {
+      const parent = panel.parentElement!.getBoundingClientRect();
+      const box = panel.getBoundingClientRect();
+      return { panel: panel.className.split(' ').pop(), over: Math.round(box.right - parent.right) };
+    })
+    .filter(({ over }) => over > 0);
+
+/** The controls of an expression's title (its operation, its actions) that reach past its panel: none should. */
+const titlesPastTheirPanel = () =>
+  [...document.querySelectorAll<HTMLElement>('.expression')].flatMap((panel) => {
+    const box = panel.getBoundingClientRect();
+    return [...panel.querySelectorAll<HTMLElement>('.expression-operator-selector, .reqore-panel-title button')]
+      .filter((control) => control.closest('.expression') === panel && control.getBoundingClientRect().width > 0)
+      .map((control) => Math.round(control.getBoundingClientRect().right - box.right))
+      .filter((over) => over > 0);
+  });
+
+/** The column a 320px screen leaves the condition, and narrower ones a form's indents leave it. */
+const NARROW_COLUMNS = [320, 280, 240, 200, 186];
+
+/**
+ * The order's fields, for the narrow-column stories: the operands refer to them, and a field picker
+ * whose value is not among its templates has nothing to offer - it is drawn disabled, and the operand
+ * reads as read-only.
+ */
+const orderTemplates = {
+  label: 'Order',
+  items: [
+    {
+      label: 'Order',
+      badge: 'Order',
+      items: [
+        { label: 'Quantity', badge: 'int', value: '$local:quantity' },
+        { label: 'Price', badge: 'int', value: '$local:price' },
+      ],
+    },
+  ],
+} as any;
+
+/** A comparison with the longest operation name nested in an "AND" group, in a column it can narrow. */
+export const NestedFitsNarrowColumn: Story = {
+  args: {
+    localTemplates: orderTemplates,
+    value: {
+      is_expression: true,
+      value: {
+        exp: '&&',
+        args: [
+          {
+            is_expression: true,
+            value: {
+              exp: '>=',
+              args: [
+                { type: 'int', value: '$local:quantity' },
+                { type: 'int', value: 100 },
+              ],
+            },
+          },
+          {
+            is_expression: true,
+            value: {
+              exp: '>=',
+              args: [
+                { type: 'int', value: '$local:price' },
+                { type: 'int', value: 5 },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  },
+  decorators: [
+    (Story) => (
+      <div className='narrow-column' style={{ width: NARROW_COLUMNS[0], maxWidth: '100%' }}>
+        <Story />
+      </div>
+    ),
+  ],
+  parameters: {
+    qlip: { viewport: { width: 320, height: 800 } },
+    docs: {
+      description: {
+        story:
+          'Renders two "Logical Greater Than Or Equal" comparisons nested in an "AND" group, in a column narrowed from 320px to 186px - what a 320px screen leaves a condition in a form - and shown at 186px: each nested expression is indented and stays inside the group, its operation name shortened to fit, so the actions that float above it on hover stay on the screen.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(expressionCount()).toBe(2), { timeout: 10000 });
+    // editable: every control of the operands can be used (a field picker with nothing to offer is disabled)
+    expect(
+      [...canvasElement.querySelectorAll<HTMLButtonElement>('.expression-arg button')].filter((b) => b.disabled).map((b) => b.textContent)
+    ).toEqual([]);
+    const column = canvasElement.querySelector('.narrow-column') as HTMLElement;
+    // as narrow as a 320px screen leaves the condition, and narrower
+    for (const width of NARROW_COLUMNS) {
+      column.style.width = `${width}px`;
+      await waitFor(
+        () =>
+          expect({ width, past: panelsPastTheirParent(), titles: titlesPastTheirPanel() }).toEqual({
+            width,
+            past: [],
+            titles: [],
+          }),
+        { timeout: 10000 }
+      );
+      // the operation stays readable: named in full in a 320px column, and shortened, not crushed, below
+      const selector = canvasElement.querySelector('.expression .expression-operator-selector') as HTMLElement;
+      const name = selector.querySelector('.reqore-button-text-content') as HTMLElement;
+      const shown = { width, selector: Math.round(selector.getBoundingClientRect().width) >= 60, full: name.scrollWidth <= name.clientWidth + 1 };
+      expect(shown).toEqual({ width, selector: true, full: width === NARROW_COLUMNS[0] ? true : shown.full });
+    }
+  },
+};
+
+/**
+ * The controls of the operands (a value or a field, its clear button, its `⋮` menu) that reach past their
+ * operand's row, or a row past its expression: none should, or a control is cut off or hangs outside.
+ */
+const operandControlsPastTheirRow = () =>
+  [...document.querySelectorAll<HTMLElement>('.expression-arg')].flatMap((row) => {
+    const box = row.getBoundingClientRect();
+    const panel = (row.closest('.expression') as HTMLElement).getBoundingClientRect();
+    const right = Math.min(box.right, panel.right);
+    return [...row.querySelectorAll<HTMLElement>('button, input, .reqore-tag')]
+      .filter((control) => control.closest('.expression-arg') === row && control.getBoundingClientRect().width > 0)
+      .map((control) => ({
+        control: control.className.split(' ').filter((c) => !/^sc-/.test(c)).pop() ?? control.tagName,
+        over: Math.round(control.getBoundingClientRect().right - right),
+      }))
+      .filter(({ over }) => over > 0);
+  });
+
+/** The same condition's operands - a field and a number each - in a column narrowed to 186px. */
+export const OperandsFitNarrowColumn: Story = {
+  args: NestedFitsNarrowColumn.args,
+  decorators: NestedFitsNarrowColumn.decorators,
+  parameters: {
+    qlip: { viewport: { width: 320, height: 800 } },
+    docs: {
+      description: {
+        story:
+          'Renders the nested "AND" condition in a column narrowed from 320px to 186px - what a 320px screen leaves a condition in a form - and shown at 186px: each operand\'s value or field, its clear button and its ⋮ menu stay inside the operand\'s row, the field shortened to fit.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(expressionCount()).toBe(2), { timeout: 10000 });
+    // editable: the operands' controls are all usable, so their narrow layout is the editing one
+    expect(
+      [...canvasElement.querySelectorAll<HTMLButtonElement>('.expression-arg button')].filter((b) => b.disabled).map((b) => b.textContent)
+    ).toEqual([]);
+    const column = canvasElement.querySelector('.narrow-column') as HTMLElement;
+    for (const width of NARROW_COLUMNS) {
+      column.style.width = `${width}px`;
+      await waitFor(
+        () => expect({ width, past: operandControlsPastTheirRow() }).toEqual({ width, past: [] }),
+        { timeout: 10000 }
+      );
+    }
+  },
+};
+
+/**
  * On a phone the remove action leaves the operand row for its ⋮ menu. The play
  * runs at the runner's desktop viewport, where the inline buttons are the
  * route, and leaves the second operand's menu open; the capture, taken at

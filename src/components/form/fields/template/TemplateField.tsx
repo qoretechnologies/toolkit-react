@@ -1529,6 +1529,8 @@ const TemplateFieldImpl = memo(
                 readOnly={rest.readOnly || rest.disabled}
                 expressions={rest.expressions}
                 expressionsUrl={rest.expressions_url}
+                // the record's fields for the Text view, from the field's schema (`dpql_fields`)
+                fields={rest.dpql_fields}
                 serverHandled={rest.server_expression_handling}
                 extraActions={extraActions}
                 size={rest.size}

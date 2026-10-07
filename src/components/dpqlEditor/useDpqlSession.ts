@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ILspDiagnostic } from '../../utils/lspClient.types';
 import { useLspSession, IUseLspSessionResult } from '../smartEditor/useLspSession';
-import { IDpqlParseResult, TDpqlFsmContext } from './types';
+import { IDpqlParseResult, TDpqlFields, TDpqlFsmContext } from './types';
 
 export interface IDpqlFieldMeta {
   display_name?: string;
@@ -26,6 +26,8 @@ export interface IUseDpqlSessionOptions {
   options?: Record<string, any>;
   /** FSM action code (DPAT_FIND / DPAT_UPDATE / DPAT_DELETE / …). */
   actionCode?: number;
+  /** The record's fields, for a record no provider has (see `IDpqlEditorProps.fields`). */
+  fields?: TDpqlFields;
   /** Initial DPQL text sent on `didOpen`. */
   initialText?: string;
   /**
@@ -72,6 +74,7 @@ export function useDpqlSession(
     recordType,
     options: ctxOptions,
     actionCode,
+    fields,
     initialText = '',
     alertPayloadContext = false,
     fsmContext,
@@ -81,8 +84,11 @@ export function useDpqlSession(
   // server-side mutually exclusive — only one binds the URI at a time.
   // When `alertPayloadContext` is `true`, suppress the provider effect
   // so they don't race.
+  // An explicit field list binds the document on its own: the provider is optional with it.
+  const hasFields = !!fields && Object.keys(fields).length > 0;
+  const fieldsKey = hasFields ? JSON.stringify(fields) : undefined;
   const needsProviderBinding =
-    Boolean(provider && recordType) && !alertPayloadContext;
+    (Boolean(provider && recordType) || hasFields) && !alertPayloadContext;
 
   const initialMetadata = (() => {
     const m: Record<string, any> = {};
@@ -98,6 +104,7 @@ export function useDpqlSession(
       if (recordType) m.recordType = recordType;
       if (ctxOptions) m.options = ctxOptions;
       if (actionCode !== undefined) m.action_code = actionCode;
+      if (hasFields) m.fields = fields;
     }
     return Object.keys(m).length > 0 ? m : undefined;
   })();
@@ -156,6 +163,7 @@ export function useDpqlSession(
         recordType,
         options: ctxOptions,
         action_code: actionCode,
+        ...(hasFields ? { fields } : {}),
       })
       .then((result) => {
         if (cancelled) return;
@@ -196,6 +204,7 @@ export function useDpqlSession(
     recordType,
     ctxOptions,
     actionCode,
+    fieldsKey,
   ]);
 
   // Alert-payload binding. On first mount it lands via

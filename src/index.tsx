@@ -9,6 +9,7 @@ export {
   hasAllDependenciesFullfilled,
   parseDependency,
   validateOptionWithRequiredGroups,
+  unsatisfiedRequiredGroups,
 } from './helpers/validations';
 export type { IValidationResult } from './helpers/validations';
 export { thinScrollbar } from './helpers/scrollbar';

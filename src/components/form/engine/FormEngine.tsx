@@ -43,6 +43,7 @@ import { offersTypeChoices } from './typeChoices';
 import { optionRowActions, resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
 import { revealRow } from './revealRow';
+import { useEmittedValues } from '../fields/emittedValues';
 import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last, uniq } from 'lodash';
 import map from 'lodash/map';
 import reduce from 'lodash/reduce';
@@ -1608,6 +1609,16 @@ const FormEngineImpl = ({
    * whole reason the sync-down runs `fixOptions` at all.
    */
   const mirroredValue = useRef<TQorusForm | TQorusFlatForm | undefined>(undefined);
+  /**
+   * Every emit the parent has yet to feed back, not only the last one. A parent that takes the value back
+   * late (a store, a debounced owner, a slow render) echoes an older emit after this form has emitted a newer
+   * one. Compared with `lastEmittedValue` alone, that echo read as the parent's own change, and the sync-down
+   * reset the form to it: the field under the cursor went back a step and the keys typed since were lost
+   * ("I have value" came out as "I he value" in a story under load).
+   */
+  const inFlight = useEmittedValues<TQorusForm | TQorusFlatForm | undefined>((a, b) =>
+    isEqual(normalizeEmptyFieldValues(a), normalizeEmptyFieldValues(b))
+  );
 
   if (originalValue.current === undefined && size(value)) {
     originalValue.current = localValue.fields;
@@ -1630,6 +1641,7 @@ const FormEngineImpl = ({
 
     const toEmit = size(localValue.fields) ? (localValue.fields as TQorusForm) : undefined;
     lastEmittedValue.current = toEmit;
+    inFlight.record(toEmit);
     const meta = size(localValue.meta) ? localValue.meta : undefined;
     // Batched mode still emits every staged change (consumers may want to
     // live-validate), but flags it as a draft — persistence waits for Save.
@@ -1790,8 +1802,10 @@ const FormEngineImpl = ({
     /* What this rebuild lets us agree with the parent on — `undefined` when it
        contributed something the parent has yet to learn. */
     const agreed = agreementFromRebuild(fixedValue, value);
+    // the echo of an emit still in flight - the last or an older one - is not the parent's change
+    const echo = inFlight.isEcho(value);
     if (
-      isEqual(normalizedValue, normalizeEmptyFieldValues(lastEmittedValue.current)) &&
+      (echo || isEqual(normalizedValue, normalizeEmptyFieldValues(lastEmittedValue.current))) &&
       agreed !== undefined
     ) {
       return;
@@ -3108,7 +3122,6 @@ const FormEngineImpl = ({
             }
             key={optionName}
             arg_schema={options?.[optionName]?.arg_schema}
-            noSoft={!!rest?.options}
             value={expressionAwareValue}
             isFunction={optionHoldsExpression(other)}
             isDefaultFunction={options?.[optionName]?.default_view === 'expression'}

@@ -94,11 +94,17 @@ From [`qorus-ide/src/components/Field/auto.tsx`](../../qorus-ide/src/components/
   (Reqraft already has this helper at `helpers/validations`). Handles
   `auto` / `any` by inference.
 - **Type picker.** When the type is `auto`/`any` (or `allowedTypes`
-  has >1 entry), renders a `SelectField` of soft types —
-  `bool, softbool, date, string, softstring, binary, float, softfloat,
-  list, softlist, hash, int, softint, rgbcolor` (auto.tsx ~`945`) —
+  has >1 entry), renders a `SelectField` of the types a typed-in value
+  can have (`getImmediateValueTypes()`: True/False, Date, Text, Binary,
+  Decimal, List, Key/Value {}, Integer, RGB Color), with no item count,
   letting the user pick the concrete type; the chosen type then renders
-  the matching sub-field.
+  the matching sub-field. No Qore soft type (`softint`, `softlist`, …) is
+  offered: a soft type only declares a conversion for what a variable or
+  parameter is given, which means nothing for a literal. A soft type in a
+  caller's `allowedTypes` is offered once, as its base type, and a soft
+  type that arrives as `defaultType` / `defaultInternalType` is edited
+  with its base type's editor (`editorTypeOf()`) while the declared type
+  is what `onChange` reports. (`noSoft` is deprecated and inert.)
 - **Concrete dispatch.** A switch over the resolved type → the right
   field component. In Reqraft this delegates back into the existing
   `FormField` switch (which already covers string/bool/int/float/

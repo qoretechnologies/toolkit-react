@@ -392,3 +392,11 @@ describe('semantic tokens', () => {
     ]);
   });
 });
+
+describe('the stand-in tokenizer reads field names in any script, as the server does', () => {
+  it('colours a whole non-ASCII name as one field', () => {
+    const ascii = decodeTokens('@qty > 0')[0][1];
+    expect(decodeTokens('@menge_bestätigt > 0')[0]).toEqual(['@menge_bestätigt', ascii]);
+    expect(decodeTokens('@名前 == "x"')[0]).toEqual(['@名前', ascii]);
+  });
+});

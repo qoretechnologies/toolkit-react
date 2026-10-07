@@ -52,6 +52,94 @@ const waitForText = async (text: string | RegExp) => {
   await waitFor(() => expect(body.queryAllByText(text)[0]).toBeTruthy(), { timeout: 10000 });
 };
 
+/** The readable names of the types an untyped field's picker offers. */
+const IMMEDIATE_TYPE_NAMES = [
+  'True/False',
+  'Date',
+  'Text',
+  'Binary',
+  'Decimal',
+  'List',
+  'Key/Value {}',
+  'Integer',
+  'RGB Color',
+];
+
+/**
+ * Opens the type picker and returns the open list. Asserts the closed trigger
+ * reads `label` (the chosen type's readable name) when one is given, and that
+ * it carries no item count: a count on a fixed list of types is noise.
+ */
+const openTypePicker = async (canvasElement: HTMLElement, label?: string) => {
+  const trigger = await waitFor(
+    () => {
+      const button = canvasElement.querySelector(
+        '.auto-field-group [aria-haspopup]'
+      ) as HTMLElement | null;
+      expect(button).toBeTruthy();
+      return button!;
+    },
+    { timeout: 10000 }
+  );
+  if (label) {
+    await waitFor(() => expect(trigger.textContent).toContain(label), { timeout: 10000 });
+  }
+  await expect(trigger.querySelector('.reqore-button-badge')).toBeNull();
+  await userEvent.click(trigger);
+  return waitFor(
+    () => {
+      const el = document.querySelector('.reqore-popover-content') as HTMLElement | null;
+      expect(el).toBeTruthy();
+      return el!;
+    },
+    { timeout: 10000 }
+  );
+};
+
+/**
+ * Closes the open type picker the way an author does — a click outside the
+ * list (reqore's popover closes on an outside click; Escape could discard an
+ * edit) — and waits until the list is gone.
+ */
+const closeTypePicker = async (popover: HTMLElement) => {
+  await userEvent.click(document.body);
+  await waitFor(
+    () => {
+      expect(popover.isConnected).toBe(false);
+      expect(document.querySelector('.reqore-popover-content')).toBeNull();
+    },
+    { timeout: 10000 }
+  );
+};
+
+/**
+ * Nothing (an open list) covers the control: it is on top at its centre and
+ * across its width — a full-width editor's centre is clear of a narrow list
+ * anchored at its left, so the centre alone would not show it.
+ */
+const expectUncovered = async (control: HTMLElement) => {
+  const box = control.getBoundingClientRect();
+  for (const fraction of [0.1, 0.3, 0.5, 0.7, 0.9]) {
+    const hit = document.elementFromPoint(
+      box.left + box.width * fraction,
+      box.top + box.height / 2
+    );
+    await expect(hit !== null && (hit === control || control.contains(hit))).toBe(true);
+  }
+};
+
+const expectOffered = async (popover: HTMLElement, labels: string[]) => {
+  await waitFor(
+    () => {
+      for (const label of labels) {
+        expect(within(popover).getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
+      }
+    },
+    { timeout: 10000 }
+  );
+  await expect(within(popover).queryByText(/^soft/)).not.toBeInTheDocument();
+};
+
 // --- reqraft behavioral stories (kept from the field-migration batch) -------
 
 /** Untyped, no value — the field opens on an editor to type into, never on a type question. */
@@ -193,21 +281,21 @@ export const AllowedTypesSubset: Story = {
     docs: {
       description: {
         story:
-          'Renders AutoFormField with allowedTypes restricted to Integer and Text. The type picker offers those 2 types (its badge reads 2), and the field can be typed into meanwhile without being asked for a data type.',
+          'Renders AutoFormField with allowedTypes restricted to Integer and Text. The type picker offers exactly those 2 types, with no item count, and the field can be typed into meanwhile without being asked for a data type.',
       },
     },
   },
   async play({ canvasElement }) {
-    // The picker badge reflects the restricted list — 2 instead of 14.
-    await waitForText('2');
     await expect(within(canvasElement).queryByText('Please select data type')).not.toBeInTheDocument();
+    const popover = await openTypePicker(canvasElement);
+    await expectOffered(popover, ['Integer', 'Text']);
+    await expect(within(popover).queryByText('Decimal')).not.toBeInTheDocument();
   },
 };
 
-/** `noSoft` hides the `soft*` variants from the picker (9 instead of 14). */
+/** The picker offers no `soft*` type: a typed-in literal has nothing to convert. */
 export const NoSoftTypes: Story = {
   args: {
-    noSoft: true,
     /* The picker belongs to a value with a type: an untyped field that is
        empty is typed into, and one holding text has resolved to `string`. */
     defaultType: 'auto',
@@ -217,13 +305,14 @@ export const NoSoftTypes: Story = {
     docs: {
       description: {
         story:
-          'Renders an untyped AutoFormField holding a text value with noSoft enabled. The picker for the type the value resolved to leaves out the soft* variants, so its badge reads 9 instead of 14.',
+          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True/False, Date, Text, Binary, Decimal, List, Key/Value {}, Integer, RGB Color) and no soft type, and shows no item count.',
       },
     },
   },
   async play({ canvasElement }) {
-    await waitForText('9');
     await expect(within(canvasElement).queryByText('Please select data type')).not.toBeInTheDocument();
+    const popover = await openTypePicker(canvasElement, 'Text');
+    await expectOffered(popover, IMMEDIATE_TYPE_NAMES);
   },
 };
 
@@ -486,7 +575,7 @@ export const Timeout: Story = {
 
     const input = await canvas.findByDisplayValue('45');
     await expect(input).toBeInTheDocument();
-    await expect(input).toHaveAttribute('type', 'number');
+    await expect(input).toHaveAttribute('inputmode', 'numeric');
     await expect(canvas.getByText('seconds')).toBeInTheDocument();
     await expect(canvas.queryByText('Unknown type!')).not.toBeInTheDocument();
   },
@@ -501,13 +590,66 @@ export const AutoDoesNotChangeTypeBackToAuto: Story = {
     docs: {
       description: {
         story:
-          'Renders AutoFormField in auto mode with a string value — the inferred type ("string") is shown and the picker still exposes all 14 types so the operator can switch away from auto without the field snapping back.',
+          'Renders AutoFormField in auto mode with a string value — the inferred type is shown as Text and the picker still offers every base type so the operator can switch away from auto without the field snapping back.',
       },
     },
   },
-  play: async () => {
-    await waitForText('string');
-    await waitForText('14');
+  async play({ canvasElement }) {
+    const popover = await openTypePicker(canvasElement, 'Text');
+    await expectOffered(popover, IMMEDIATE_TYPE_NAMES);
+    // End on what the story is about: the text value, still in its editor.
+    await closeTypePicker(popover);
+    const editor = await within(canvasElement).findByDisplayValue('test');
+    await expectUncovered(editor);
+  },
+};
+
+/** A soft type in a caller's allowed types is offered once, as its base type. */
+export const AllowedSoftTypesOfferedAsTheirBase: Story = {
+  args: {
+    allowedTypes: [{ name: 'softint' }, { name: 'int' }, { name: 'softstring' }],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders AutoFormField whose allowedTypes are softint, int and softstring. The type picker offers Integer once and Text, with no soft type and no item count.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const popover = await openTypePicker(canvasElement);
+    await expectOffered(popover, ['Integer', 'Text']);
+    await expect(within(popover).getAllByText('Integer', { exact: true })).toHaveLength(1);
+  },
+};
+
+/** A value saved with a soft type is edited with its base type's editor. */
+export const SavedSoftTypeEditsAsItsBase: Story = {
+  args: {
+    defaultType: 'auto',
+    defaultInternalType: 'softint',
+    value: 5,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an untyped AutoFormField holding 5, saved with the soft type softint. It is edited with the integer editor and the type picker reads Integer, instead of drawing "Unknown type!".',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByDisplayValue('5')).toBeInTheDocument();
+    await expect(canvas.queryByText('Unknown type!')).not.toBeInTheDocument();
+    const popover = await openTypePicker(canvasElement, 'Integer');
+    await expectOffered(popover, IMMEDIATE_TYPE_NAMES);
+    // End on what the story is about: the integer editor, holding 5.
+    await closeTypePicker(popover);
+    const input = await canvas.findByDisplayValue('5');
+    await expect(input.tagName).toBe('INPUT');
+    await expectUncovered(input);
   },
 };
 

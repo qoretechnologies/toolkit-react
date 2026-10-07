@@ -16,6 +16,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef } from '../../dpqlEditor';
 import { dpqlDisplayedText } from '../../dpqlEditor/dpqlHelpers';
+import { TDpqlFields } from '../../dpqlEditor/types';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
 import { DpqlRendering } from './DpqlRendering';
 import { IExpression, IExpressionSchema, IExpressionValue, TExpressionReorder } from './types';
@@ -72,6 +73,11 @@ export interface IExpressionFieldProps {
   /** Optional data-provider context for DPQL `@field` completions in Text mode. */
   provider?: string;
   recordType?: string;
+  /**
+   * The record's fields for the Text view, for a record no provider has: every field the expression may
+   * use is offered there, as in the Visual view (see `IDpqlEditorProps.fields`).
+   */
+  fields?: TDpqlFields;
   /** Initial editor mode (default `visual`). */
   defaultMode?: TExpressionMode;
   /**
@@ -98,6 +104,7 @@ export const ExpressionField = memo(
     serverHandled,
     extraActions,
     provider,
+    fields,
     recordType,
     defaultMode = 'visual',
     size,
@@ -416,6 +423,7 @@ export const ExpressionField = memo(
               onChange={handleDpqlChange}
               provider={provider}
               recordType={recordType}
+              fields={fields}
               readOnly={readOnly}
               height='48px'
             />

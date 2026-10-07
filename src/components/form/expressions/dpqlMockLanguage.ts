@@ -109,7 +109,8 @@ export function mockTokenizeDpql(text: string): number[] {
       `("(?:\\\\.|[^"\\\\])*")`, // 1: double-quoted string
       `('(?:\\\\.|[^'\\\\])*')`, // 2: single-quoted string
       `(/(?:\\\\.|[^/\\\\])*/[gimsux]*)`, // 3: regex literal /…/flags
-      `(@"(?:\\\\.|[^"\\\\])*"|@[A-Za-z_][\\w.]*)`, // 4: @field
+      // a field name is bare in any script, as the server reads it: @menge_bestätigt, @名前
+      `(@"(?:\\\\.|[^"\\\\])*"|@[\\p{L}_][\\p{L}\\p{M}\\p{N}_.]*)`, // 4: @field
       `(\\$[A-Za-z_-][\\w-]*:(?:\\{[^}]*\\}|[\\w.{}]+))`, // 5: $context:value
       `(\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b)`, // 6: number
       `(==|!=|<=|>=|&&|\\|\\||=~|!~|[+\\-*/%<>!=])`, // 7: operator
@@ -117,7 +118,7 @@ export function mockTokenizeDpql(text: string): number[] {
       `(\\.\\.|[,(){}\\[\\].])`,
       `(\\b[A-Za-z_][\\w]*\\b)`, // 9: identifier (keyword check)
     ].join('|'),
-    'g'
+    'gu'
   );
 
   const tokens: Array<{ line: number; char: number; length: number; type: number }> = [];
