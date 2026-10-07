@@ -39,6 +39,7 @@ export type {
 } from './stores/currentUser/currentUser';
 export {
   fetchConfig,
+  isQueryCancelled,
   query,
   queryRaw,
   reqraftApiPath,

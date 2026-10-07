@@ -7,6 +7,7 @@ import { useFetch } from '../hooks/useFetch/useFetch';
 import { useReqraftProperty } from '../hooks/useReqraftProperty';
 import { TReqraftStorageValue } from '../hooks/useStorage/useStorage';
 import { currentUserStore } from '../stores/currentUser/currentUser';
+import { isQueryCancelled } from '../utils/fetch';
 import { IReqraftProviderProps } from './ReqraftProvider';
 
 /**
@@ -45,8 +46,15 @@ export const ReqraftUserProvider = ({ children, waitForStorage }: IReqraftStorag
        refuses (CORS), no such endpoint (404) - is a state the store keeps
        (`error`, `errorData`), and the page renders without one. The promise was
        dropped, so the failure was an unhandled rejection: Storybook marked a story
-       wrapped in this provider as errored whenever it landed first. */
+       wrapped in this provider as errored whenever it landed first.
+       A request that was abandoned (the query cache was cleared while it was in
+       flight - a story runner does it between stories) is not one of those: the
+       server refused nothing, so there is nothing to warn about. */
     loadCurrentUser().catch((error: unknown) => {
+      if (isQueryCancelled(error)) {
+        return;
+      }
+
       console.warn('Reqraft: the current user could not be loaded', error);
     });
   });

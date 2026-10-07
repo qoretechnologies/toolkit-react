@@ -4,7 +4,12 @@ import { useEffectOnce } from 'react-use';
 import { useContextSelector } from 'use-context-selector';
 import { FetchContext } from '../../contexts/FetchContext';
 import { ReqraftQueryClient } from '../../providers/ReqraftProvider';
-import { IReqraftQueryConfig, reqraftCacheKey } from '../../utils/fetch';
+import {
+  IReqraftFetchResponse,
+  IReqraftQueryConfig,
+  isQueryCancelled,
+  reqraftCacheKey,
+} from '../../utils/fetch';
 
 export interface IReqraftUseFetch<T> {
   data: T | undefined;
@@ -97,7 +102,24 @@ export function useFetch<T>({
       }
 
       const _body = mergeBodies ? { ...body, ...customBody } : customBody || body;
-      const response = await query<T>({ url, body: _body, cache, noApiPrefix });
+      let response: IReqraftFetchResponse<T>;
+
+      try {
+        response = await query<T>({ url, body: _body, cache, noApiPrefix });
+      } catch (error) {
+        if (!silent) {
+          setLoading(false);
+        }
+        /* An abandoned request (the query cache was cleared while it was in
+           flight) has no answer to keep: data and error stay as they were. It
+           used to reject out of the load-on-mount effect, unhandled - a story
+           runner reports that as the story failing - and left `loading` set. */
+        if (isQueryCancelled(error)) {
+          return;
+        }
+
+        throw error;
+      }
 
       if (!silent) {
         setLoading(false);

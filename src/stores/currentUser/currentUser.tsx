@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { query } from '../../utils/fetch';
+import { IReqraftFetchResponse, isQueryCancelled, query } from '../../utils/fetch';
 
 export interface ICurrentUser {
   provider: string;
@@ -40,7 +40,29 @@ export const currentUserStore = create<ICurrentUserStore>((set, get) => ({
   load: async () => {
     set({ loading: true });
 
-    const response = await query<ICurrentUser>({ url: 'users?action=current', cache: false });
+    let response: IReqraftFetchResponse<ICurrentUser>;
+
+    try {
+      response = await query<ICurrentUser>({ url: 'users?action=current', cache: false });
+    } catch (error) {
+      /* An abandoned request (the query cache was cleared while it was in
+         flight) is not a user that could not be loaded: the store keeps what it
+         had and only stops loading - without that, `loading` stayed true for
+         good and a `waitForStorage` provider rendered nothing. Anything else
+         that throws is a load that failed, and is kept as one. */
+      if (isQueryCancelled(error)) {
+        set({ loading: false });
+      } else {
+        set({
+          loading: false,
+          error: error as Error,
+          currentUser: undefined,
+          errorData: undefined,
+        });
+      }
+
+      return Promise.reject(error);
+    }
 
     if (!response.ok) {
       set({
