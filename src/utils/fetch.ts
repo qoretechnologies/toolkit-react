@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query';
+import { CancelledError, QueryClient, isCancelledError } from '@tanstack/react-query';
 import { ReqraftQueryClient } from '../providers/ReqraftProvider';
 
 export interface IReqraftFetchConfig {
@@ -288,6 +288,22 @@ export const seedQueryCache = <T>({
     response: undefined,
   });
 };
+
+/**
+ * Whether `query` rejected because its request was ABANDONED, not because it failed.
+ *
+ * `query` answers every request the server answered — a 401 or a 500 included —
+ * with `{ ok: false }`, and rejects for almost nothing else. The one rejection a
+ * page meets in normal use is react-query's `CancelledError`: the query was
+ * removed from the cache while its request was in flight (`clear()`,
+ * `removeQueries()`; a story runner clears it between stories), so nobody will
+ * hear the answer. That is not a resource that could not be loaded: the server
+ * refused nothing, and the component that asked is usually already unmounted.
+ * react-query itself neither logs a cancel nor, for a removal (`silent`), puts the
+ * query into its error state; a caller should not do either.
+ */
+export const isQueryCancelled = (error: unknown): error is CancelledError =>
+  isCancelledError(error);
 
 export async function query<T>({
   url,

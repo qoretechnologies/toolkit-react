@@ -70,7 +70,8 @@ import {
 } from '../../../helpers/validations';
 import { useQorusTypes } from '../../../hooks/useQorusTypes';
 import { useTemplates } from '../../../hooks/useTemplates';
-import { query } from '../../../utils/fetch';
+import { isQueryCancelled } from '../../../utils/fetch';
+import { queryUnlessCancelled } from '../../../utils/queryUnlessCancelled';
 import { Description } from '../../Description';
 import { FocusedEditing } from '../../FocusedEditing';
 import { SelectFormField } from '../fields/select/Select';
@@ -1683,6 +1684,13 @@ const FormEngineImpl = ({
         if (cancelled) {
           return;
         }
+        /* A loader built on `query` rejects with a cancel when its request is
+           abandoned (the query cache was cleared mid-flight). The schema was not
+           refused, so it is not an error to show: the form just stops waiting. */
+        if (isQueryCancelled(error)) {
+          setOptionsLoading(false);
+          return;
+        }
         setOptionsError(
           error instanceof Error ? error.message : String(error ?? 'Failed to load options')
         );
@@ -1705,7 +1713,12 @@ const FormEngineImpl = ({
       (async () => {
         setOptions(undefined);
         setLoading(true);
-        const data = await query<IQorusFormSchema>({ url: getFetchUrl() });
+        const data = await queryUnlessCancelled<IQorusFormSchema>({ url: getFetchUrl() });
+
+        // abandoned: nobody is waiting for this schema any more
+        if (!data) {
+          return;
+        }
 
         if (!data.ok || data.data === null) {
           setLoading(false);
@@ -1728,7 +1741,13 @@ const FormEngineImpl = ({
       (async () => {
         setOperators(undefined);
         setLoading(true);
-        const data = await query<IOperatorsSchema>({ url: operatorsUrl.replace(/^\//, '') });
+        const data = await queryUnlessCancelled<IOperatorsSchema>({
+          url: operatorsUrl.replace(/^\//, ''),
+        });
+
+        if (!data) {
+          return;
+        }
 
         if (!data.ok) {
           setLoading(false);
@@ -1748,7 +1767,12 @@ const FormEngineImpl = ({
       (async () => {
         setOptions(undefined);
         setLoading(true);
-        const data = await query<IQorusFormSchema>({ url: getFetchUrl() });
+        const data = await queryUnlessCancelled<IQorusFormSchema>({ url: getFetchUrl() });
+
+        // abandoned: nobody is waiting for this schema any more
+        if (!data) {
+          return;
+        }
 
         if (!data.ok) {
           setLoading(false);
@@ -1773,7 +1797,13 @@ const FormEngineImpl = ({
       (async () => {
         setOperators(undefined);
         setLoading(true);
-        const data = await query<IOperatorsSchema>({ url: operatorsUrl.replace(/^\//, '') });
+        const data = await queryUnlessCancelled<IOperatorsSchema>({
+          url: operatorsUrl.replace(/^\//, ''),
+        });
+
+        if (!data) {
+          return;
+        }
 
         if (!data.ok) {
           setLoading(false);
