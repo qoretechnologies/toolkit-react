@@ -121,6 +121,26 @@ describe('dpqlEditor helpers', () => {
     });
   });
 
+  describe('field names in any script', () => {
+    // DPQL reads a field name bare in any script (qorus#646: a sheet contract's columns are named in the
+    // user's language): a letter of any script or `_`, then letters, combining marks, digits and `_`
+    it.each(['@menge_bestätigt', '@größe', '@名前', '@Çeşit.adı', '@e\u0301tat'])('makes %s one tag', (ref) => {
+      const children = plainTextToSlate(`${ref} > 0`)[0].children;
+      expect(children[0]).toMatchObject({ type: 'tag', value: ref, label: ref.slice(1) });
+      expect(children[1]).toEqual({ text: ' > 0' });
+    });
+
+    it('keeps it bare through the round trip', () => {
+      const text = '@menge_bestätigt * @einzelpreis_eur > 100 && @geprüft';
+      expect(slateToPlainText(plainTextToSlate(text))).toBe(text);
+    });
+
+    it('does not start a field inside a word, in any script', () => {
+      const children = plainTextToSlate('Straß@wert.de')[0].children;
+      expect(children).toEqual([{ text: 'Straß@wert.de' }]);
+    });
+  });
+
   describe('slateToPlainText', () => {
     it('converts text-only paragraph back to string', () => {
       const result = slateToPlainText([

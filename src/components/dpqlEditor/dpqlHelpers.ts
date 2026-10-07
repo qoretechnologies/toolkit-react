@@ -15,9 +15,16 @@ import { ISlateConverter, ISlateElement, ISlateText, TSlateNode } from '../smart
 // A dot that starts a method call ends the value: the server's readable
 // rendering writes `ends-with` as `$local:str.endsWith($local:p, true)`, and a
 // path that took every dot turned `str.endsWith` into one reference.
+//
+// A field name is bare in any script, as DPQL reads it (qorus#646): a letter of any script or `_`, then
+// letters, combining marks, digits and `_`, with dot-separated parts. `\w` is ASCII only, so
+// `@menge_bestätigt` was cut to the tag `@menge_best` and the text `ätigt`.
+const NAME_START = '[\\p{L}_]';
+const NAME_PART = '[\\p{L}\\p{M}\\p{N}_]';
+const FIELD_NAME = `${NAME_START}${NAME_PART}*`;
 const TOKEN_PATTERN = new RegExp(
-  `(\\$\\w+:(?:\\{[^}]*\\}|(?:\\w|\\.(?!\\w+\\())+))|((?<![.\\w])@\\w+(?:\\.\\w+)*)`,
-  'g'
+  `(\\$\\w+:(?:\\{[^}]*\\}|(?:\\w|\\.(?!\\w+\\())+))|((?<![.\\p{L}\\p{M}\\p{N}_])@${FIELD_NAME}(?:\\.${FIELD_NAME})*)`,
+  'gu'
 );
 
 /**
