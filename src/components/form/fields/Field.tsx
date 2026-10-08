@@ -375,7 +375,7 @@ export const FormField = <T extends TFormFieldType>({
       case 'hash': {
         if (argSchemaLoading) {
           // A hash renders a nested FORM, so it waits in the shape of one.
-          return <FormFieldsSkeleton rows={2} />;
+          return <FormFieldsSkeleton rows={2} reason='arg-schema' />;
         }
         if (finalArgSchema) {
           return (
