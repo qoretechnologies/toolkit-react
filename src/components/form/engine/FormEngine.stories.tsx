@@ -9810,14 +9810,14 @@ const TextAroundATemplateForm = ({ initial, type = 'int' }: { initial: unknown; 
   );
 };
 
-const TEXT_AROUND = "A whole number can't have text around a template";
+const TEXT_AROUND = '"Stk." makes this text, not a whole number. Delete it to keep the template alone.';
 
 export const WholeNumberWithTextAroundATemplate: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a whole-number option holding the field pos, written as text. Text written after the field ("$record:{pos} Stk.") is not a whole number: the option says so under it while it is being typed, and the form cannot be saved. Deleting the text makes it the field alone again: the message goes and the form can be saved.',
+          'Renders a whole-number option holding the field pos, written as text. Text written after the field ("$record:{pos} Stk.") is not a whole number: while it is being typed the option says which text makes it text and that deleting it keeps the template alone, and the form cannot be saved. Deleting the text makes it the field alone again: the message goes and the form can be saved.',
       },
     },
   },
@@ -9863,7 +9863,7 @@ const textAroundOf = (type: string, label: string, message: string): Story => ({
   parameters: {
     docs: {
       description: {
-        story: `Renders a ${label} option holding "$record:{pos} Stk.", text around the field pos. It is not ${label === 'true or false' ? 'true or false' : `a ${label}`}: the option says "${message}" and the form cannot be saved.`,
+        story: `Renders a ${label} option holding "$record:{pos} Stk.", text around the field pos. It is not ${label === 'true or false' ? 'true or false' : `a ${label}`}: the option says which text makes it so and how to fix it - "${message}" - and the form cannot be saved.`,
       },
     },
   },
@@ -9874,13 +9874,21 @@ const textAroundOf = (type: string, label: string, message: string): Story => ({
   },
 });
 
-export const NumberWithTextAroundATemplate = textAroundOf('number', 'number', "A number can't have text around a template");
+export const NumberWithTextAroundATemplate = textAroundOf(
+  'number',
+  'number',
+  '"Stk." makes this text, not a number. Delete it to keep the template alone.'
+);
 export const TrueOrFalseWithTextAroundATemplate = textAroundOf(
   'bool',
   'true or false',
-  "True or false can't have text around a template"
+  '"Stk." makes this text, not true or false. Delete it to keep the template alone.'
 );
-export const DateWithTextAroundATemplate = textAroundOf('date', 'date', "A date can't have text around a template");
+export const DateWithTextAroundATemplate = textAroundOf(
+  'date',
+  'date',
+  '"Stk." makes this text, not a date. Delete it to keep the template alone.'
+);
 
 /** A whole-number option whose host says, in its own words, what is wrong with it. */
 const HostReasonForm = ({ initial, reason }: { initial: unknown; reason?: string }) => {
@@ -9914,21 +9922,25 @@ const HostReasonForm = ({ initial, reason }: { initial: unknown; reason?: string
   );
 };
 
+/* The host's reason says, as a field's own does, why the value is wrong and how to fix it (qlip build
+   20261008-083118: "How does the user fix this? Why has this happened?"). */
+const HOST_REASON = 'Quantity counts pieces: delete "Stk." so that it holds pos alone';
+
 export const HostReasonInPlaceOfTheFieldsOwn: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a whole-number option holding "$record:{pos} Stk." whose host gives its own reason (`invalid_reason`): "Eine Ganzzahl kann keinen Text um ein Feld enthalten". The field says the host\'s reason, once, in place of its own "A whole number can\'t have text around a template", and the form cannot be saved.',
+          'Renders a whole-number option holding "$record:{pos} Stk." whose host gives its own reason (`invalid_reason`), in its own words, saying why and what to do: "Quantity counts pieces: delete "Stk." so that it holds pos alone". The field says the host\'s reason, once, in place of its own, and the form cannot be saved.',
       },
     },
   },
   render: () => (
-    <HostReasonForm initial='$record:{pos} Stk.' reason='Eine Ganzzahl kann keinen Text um ein Feld enthalten' />
+    <HostReasonForm initial='$record:{pos} Stk.' reason={HOST_REASON} />
   ),
   play: async ({ canvasElement }) => {
-    await waitFor(() => expect(canvasElement.textContent).toContain('Eine Ganzzahl kann keinen Text um ein Feld enthalten'));
-    expect(canvasElement.textContent).not.toContain("can't have text around a template");
+    await waitFor(() => expect(canvasElement.textContent).toContain(HOST_REASON));
+    expect(canvasElement.textContent).not.toContain('makes this text, not a whole number');
     await waitFor(() => expect(canvasElement.querySelector('.form-validity')?.getAttribute('data-valid')).toBe('false'));
   },
 };

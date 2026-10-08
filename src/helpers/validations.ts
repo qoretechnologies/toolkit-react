@@ -15,7 +15,7 @@ import { fixOperatorValue, getAddress, getProtocol, splitByteSize } from './comm
 import { isOptionInterfaceUiType } from './optionUiTypes';
 import { getListElementValue, getOptionsFromRequiredGroups } from './options';
 import { IProviderType, TVariableActionValue, maybeBuildOptionProvider } from './providerValue';
-import { getTemplateKey, getTemplateValue, hasTextAroundATemplate, isValueTemplate } from './templates';
+import { getTemplateKey, getTemplateValue, isValueTemplate, textAroundATemplate } from './templates';
 import { getUnlistedChoiceReason } from './allowedValues';
 
 /** The five cron fields, in order, as a schedule hash may name them. */
@@ -244,12 +244,12 @@ const isValueDefined = (type: string, value: any): boolean => {
   return value !== undefined && value !== '';
 };
 
-/** What is said of a value of a type that is not text, written with text around a template. */
-const TEXT_AROUND_A_TEMPLATE: Record<string, string> = (() => {
-  const wholeNumber = "A whole number can't have text around a template";
-  const number = "A number can't have text around a template";
-  const yesNo = "True or false can't have text around a template";
-  const date = "A date can't have text around a template";
+/** What a value of each type that is not text is called, where text around a template makes it text. */
+const TEXT_AROUND_A_TEMPLATE_NOT_A: Record<string, string> = (() => {
+  const wholeNumber = 'a whole number';
+  const number = 'a number';
+  const yesNo = 'true or false';
+  const date = 'a date';
   return {
     int: wholeNumber,
     integer: wholeNumber,
@@ -265,6 +265,25 @@ const TEXT_AROUND_A_TEMPLATE: Record<string, string> = (() => {
     softdate: date,
   };
 })();
+
+/**
+ * What is said of a value of a type that is not text, written with text around a template: what makes it
+ * text, and what to do about it (qlip build 20261008-083118: "How does the user fix this? Why has this
+ * happened?"). `undefined` where the type is text, or the value is not text around a template.
+ */
+const textAroundATemplateReason = (type: string, value: unknown): string | undefined => {
+  const notA = TEXT_AROUND_A_TEMPLATE_NOT_A[type];
+  const around = notA ? textAroundATemplate(value) : undefined;
+  if (!around) {
+    return undefined;
+  }
+  if (around.templates > 1) {
+    return around.text.length
+      ? `Text and more than one template make this text, not ${notA}. Keep one template alone.`
+      : `Templates side by side make this text, not ${notA}. Keep one of them alone.`;
+  }
+  return `"${around.text.join(' … ')}" makes this text, not ${notA}. Delete it to keep the template alone.`;
+};
 
 export const _validateField = (
   type: string,
@@ -298,7 +317,7 @@ export const _validateField = (
      number written as "$record:{pos} Stk." passed as a template - anything starting with `$` and holding
      a `:` did - and the form could be saved with a value its type cannot hold (qorus#646). A template
      alone, a literal and an expression are judged as before. */
-  const textAroundReason = hasTextAroundATemplate(value) ? TEXT_AROUND_A_TEMPLATE[type] : undefined;
+  const textAroundReason = textAroundATemplateReason(type, value);
   if (textAroundReason) {
     return invalidResult(textAroundReason);
   }

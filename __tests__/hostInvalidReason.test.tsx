@@ -48,7 +48,7 @@ describe("a field's own reason from its host", () => {
   it("leaves the field's own messages when it is not given", () => {
     expect(messagesFor({ type: 'int' }, {})).toEqual(['This field is required']);
     expect(messagesFor({ type: 'int', value: '$record:{pos} Stk.' }, {})).toEqual([
-      "A whole number can't have text around a template",
+      '"Stk." makes this text, not a whole number. Delete it to keep the template alone.',
     ]);
   });
 });
