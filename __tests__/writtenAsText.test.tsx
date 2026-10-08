@@ -113,3 +113,34 @@ describe('an empty date field with templates on offer', () => {
     expect(container.querySelector('input')).not.toBeNull();
   });
 });
+
+/**
+ * qorus#646 (David): an untyped field holding null showed an empty text field - the same as a field
+ * holding nothing - so the author could not tell the two apart. null is written `null`, and `null`
+ * written in an untyped field is null; an empty field is no value at all.
+ */
+describe('null in an untyped field', () => {
+  it('is written null, and null written there is null', () => {
+    expect(templateTextValue('null', 'any', TEMPLATES)).toEqual({ value: null, type: 'any' });
+    expect(templateTextValue(' null ', 'auto', TEMPLATES)).toEqual({ value: null, type: 'auto' });
+  });
+
+  it('is only that: text with null in it is text, and null is text in a text field', () => {
+    expect(templateTextValue('null value', 'any', TEMPLATES)).toEqual({ value: 'null value', type: 'string' });
+    expect(templateTextValue('null', 'string', TEMPLATES)).toEqual({ value: 'null', type: 'string' });
+  });
+
+  it('shows as null, not as an empty field', async () => {
+    const { container } = show({ type: 'any', value: null, filterTemplatesByType: false });
+    await waitFor(() => expect(container.querySelector('[data-slate-editor]')).not.toBeNull());
+    await waitFor(() =>
+      expect(container.querySelector('[data-slate-editor]')?.textContent?.replace(/﻿/g, '').trim()).toBe('null')
+    );
+  });
+
+  it('is told from an empty field, which shows nothing', async () => {
+    const { container } = show({ type: 'any', value: undefined, filterTemplatesByType: false });
+    await waitFor(() => expect(container.querySelector('[data-slate-editor]')).not.toBeNull());
+    expect(container.querySelector('[data-slate-editor]')?.textContent?.replace(/﻿/g, '').trim()).toBe('');
+  });
+});

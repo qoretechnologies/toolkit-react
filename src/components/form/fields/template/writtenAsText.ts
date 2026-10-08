@@ -10,6 +10,7 @@
 //   number);
 // - a literal of a scalar field's type (`12` in a whole-number field, `true` in a
 //   yes/no one) is that literal;
+// - null in an untyped field is written `null` (an empty field holds no value at all);
 // - anything else is text: an untyped field's value becomes text, a typed field holds
 //   what was written and says it does not fit (an expression in it is detected and
 //   offered, or switched to, by the field's DPQL detection).
@@ -59,6 +60,13 @@ export const scalarLiteral = (text: string, type?: string): number | boolean | u
   }
 };
 
+/** How null is written in an untyped field: the word, so it is not taken for an empty field. */
+export const NULL_TEXT = 'null';
+
+/** The text an untyped field shows for its value: `null` for null; for anything else, the text it is. */
+export const untypedTextOf = (value: unknown, type?: string): string | undefined =>
+  value === null && isUntypedOptionType(type) ? NULL_TEXT : undefined;
+
 export interface ITemplateTextValue {
   value: unknown;
   /** the value's type: the field's own, or for an untyped field the type the text gives it */
@@ -78,6 +86,10 @@ export const templateTextValue = (
       return { value: trimmed, type: typeof badge === 'string' && badge ? badge : type };
     }
     return { value: trimmed, type };
+  }
+  // null, the literal that says "no value", is a value of an untyped field: written `null`, it is null
+  if (isUntypedOptionType(type) && trimmed === NULL_TEXT) {
+    return { value: null, type };
   }
   const literal = scalarLiteral(text, type);
   if (literal !== undefined) {

@@ -1204,8 +1204,13 @@ const WrittenAsText = (args: any) => {
           setHeld({ value, type });
         }}
       />
-      <code className='held-value' data-value={JSON.stringify(held.value ?? null)} data-type={held.type ?? ''}>
-        {`${JSON.stringify(held.value ?? null)} : ${held.type ?? ''}`}
+      {/* no value at all (an emptied field) is told from null, which is a value */}
+      <code
+        className='held-value'
+        data-value={held.value === undefined ? '' : JSON.stringify(held.value)}
+        data-type={held.type ?? ''}
+      >
+        {held.value === undefined ? '(no value)' : `${JSON.stringify(held.value)} : ${held.type ?? ''}`}
       </code>
     </div>
   );
@@ -1213,7 +1218,7 @@ const WrittenAsText = (args: any) => {
 
 const held = (canvasElement: HTMLElement) => {
   const el = canvasElement.querySelector('.held-value') as HTMLElement;
-  return { value: JSON.parse(el.dataset.value ?? 'null'), type: el.dataset.type };
+  return { value: el.dataset.value ? JSON.parse(el.dataset.value) : undefined, type: el.dataset.type };
 };
 
 /** The text field of the template editor. */
@@ -1331,7 +1336,7 @@ export const WrittenAsTextNumberEmptiedKeepsItsField: StoryObj<typeof meta> = {
     await waitFor(() => expect(editor.textContent).toContain('pos'));
     await userEvent.click(editor);
     await userEvent.keyboard('{Backspace}{Backspace}');
-    await waitFor(() => expect(held(canvasElement).value).toBeNull());
+    await waitFor(() => expect(held(canvasElement).value).toBeUndefined());
     await sleep(300);
     // the same text field, the cursor still in it: no other editor was put in its place
     expect(editor.isConnected).toBe(true);
@@ -1377,15 +1382,25 @@ export const WrittenAsTextNullStaysAValue: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders an untyped field holding null, the literal that says "no value". It is a value, not an empty field: the field is not reset to an empty template editor and does not report itself as empty.',
+          'Renders an untyped field holding null, the literal that says "no value". It is a value, not an empty field: the field shows null, written as text, where it used to look exactly like a field holding nothing. Deleting it leaves the field empty - no value at all - and writing null again makes it null again.',
       },
     },
   },
   async play({ canvasElement }) {
-    await waitFor(() => expect(canvasElement.querySelector('.held-value')).toBeTruthy());
+    const editor = await textField(canvasElement);
+    const shown = () => editor.textContent?.replace(/\uFEFF/g, '').trim();
+    await waitFor(() => expect(shown()).toBe('null'));
     await sleep(300);
     expect(held(canvasElement).value).toBeNull();
     expect(canvasElement.textContent).not.toContain('Value is empty');
+    // deleted, the field is empty: no value, which is not null
+    await userEvent.click(editor);
+    await userEvent.keyboard('{Backspace}{Backspace}{Backspace}{Backspace}');
+    await waitFor(() => expect(held(canvasElement).value).toBeUndefined());
+    await waitFor(() => expect(shown()).toBe(''));
+    // null written again is null
+    await userEvent.keyboard('null');
+    await waitFor(() => expect(held(canvasElement)).toEqual({ value: null, type: 'any' }));
   },
 };
 

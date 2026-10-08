@@ -66,7 +66,7 @@ import { RichTextFormField } from '../rich-text/RichText';
 import { richtextToString } from '../../../../helpers/common';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
-import { isWrittenAsText, templateTextValue } from './writtenAsText';
+import { isWrittenAsText, templateTextValue, untypedTextOf } from './writtenAsText';
 import {
   IRowMenuRegistration,
   RowMenuContext,
@@ -663,9 +663,18 @@ const TemplateFieldImpl = memo(
     const emptyLandsOnTemplates =
       typeIsAnyLike && (hasTemplatesOnOffer || (!!allowCustomValues && !hasOnlyAllowedValues));
     const opensOnTemplates = isEmptyValue && emptyLandsOnTemplates;
+    /* An untyped field holding null is written in the same text field, as `null`: the editor an untyped
+       field otherwise falls to drew null as an empty box, the same as a field holding nothing, so the
+       author could not tell the two apart (qorus#646). */
+    const nullWrittenAsText =
+      value === null && typeIsAnyLike && !!allowCustomValues && !hasOnlyAllowedValues;
 
     const [isTemplateState, setIsTemplate] = useState<boolean>(
-      (isDefaultTemplate || isValueTemplate(value) || !allowCustomValues || opensOnTemplates) &&
+      (isDefaultTemplate ||
+        isValueTemplate(value) ||
+        !allowCustomValues ||
+        opensOnTemplates ||
+        nullWrittenAsText) &&
         allowTemplates
     );
 
@@ -765,6 +774,14 @@ const TemplateFieldImpl = memo(
         setIsTemplate(false);
       }
     }, [allowCustomValues]);
+
+    // null arriving later (written in the Text tab, say) is written in the text field too - see above
+    useEffect(() => {
+      if (!isTemplate && nullWrittenAsText && allowTemplates) {
+        setTemplateValue(null);
+        setIsTemplate(true);
+      }
+    }, [nullWrittenAsText, allowTemplates]);
 
     useEffect(() => {
       if (!isTemplate && isValueTemplate(value) && allowTemplates) {
@@ -1681,7 +1698,9 @@ const TemplateFieldImpl = memo(
             className='template-selector'
             valueFormat='text'
             singleLine={isSingleLineStringType('string')}
-            value={typeof templateValue === 'string' ? templateValue : ''}
+            /* null shows as null, not as an empty field: the two are different values, and an
+               untyped field holding null looked exactly like one holding nothing (qorus#646) */
+            value={typeof templateValue === 'string' ? templateValue : (untypedTextOf(value, type as string) ?? '')}
             templates={filteredTemplates}
             allowTemplates
             onChange={handleTemplateTextChange}
