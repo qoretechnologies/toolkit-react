@@ -1378,6 +1378,8 @@ const FormEngineImpl = ({
   // stays put when its status flips (e.g. becomes valid) instead of jumping to
   // another box mid-edit and stealing focus. Keyed by option name.
   const settledBucket = useRef<Record<string, 'attention' | 'set' | 'optional'>>({});
+  // the one field that says where it moves when it is closed: see `heldOptions`
+  const movesToNoteFor = useRef<string | null | undefined>(undefined);
   // Measured form width (not viewport — the form lives in drawers/panels of
   // arbitrary width) drives the stacked narrow layout.
   const [compactWrapRef, { width: compactWrapWidth }] = useMeasure<HTMLDivElement>();
@@ -3280,14 +3282,23 @@ const FormEngineImpl = ({
   /* An open field is held in the box it was opened in, so finishing an edit does not remount it elsewhere
      and take the focus (see `stableBucketOf`). Held, it says where it now belongs - otherwise a value
      already right sat under "Needs attention" until ✓ was pressed, with nothing saying why (David's review
-     of qorus#646). Keyed by option name: the box it moves to when closed. */
+     of qorus#646). Keyed by option name: the box it moves to when closed.
+
+     It is said once per form, on the first field held this way, and on no field once that one is closed:
+     the user knows it from then on, and saying it on every field takes room (qlip build 20261008-083118;
+     David's decision). `movesToNoteFor` is that field - undefined until one is held, null once it is
+     closed. */
+  const heldEntries = expandedOptions
+    .map((name) => [name, settledBucket.current[name], getOptionBucket(name)] as const)
+    .filter(([, held, now]) => !!held && held !== now)
+    .map(([name, , now]) => [name, now] as const);
+  if (movesToNoteFor.current === undefined && heldEntries.length) {
+    movesToNoteFor.current = heldEntries[0][0];
+  } else if (movesToNoteFor.current && !expandedOptions.includes(movesToNoteFor.current)) {
+    movesToNoteFor.current = null;
+  }
   const heldOptionsKey = JSON.stringify(
-    Object.fromEntries(
-      expandedOptions
-        .map((name) => [name, settledBucket.current[name], getOptionBucket(name)] as const)
-        .filter(([, held, now]) => !!held && held !== now)
-        .map(([name, , now]) => [name, now])
-    )
+    Object.fromEntries(heldEntries.filter(([name]) => name === movesToNoteFor.current))
   );
   const heldOptions = useMemo<Record<string, 'attention' | 'set' | 'optional'>>(
     () => JSON.parse(heldOptionsKey),

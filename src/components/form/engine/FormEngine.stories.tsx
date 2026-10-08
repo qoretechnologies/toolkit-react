@@ -1088,7 +1088,7 @@ export const CompactRowSaysWhereItMoves: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with a required field left empty, in Needs attention. Opened and filled in, it stays where it is while it is open (moving it would take the focus), and says it moves to Set when it is closed; closed, it is in Set.',
+          'Renders a compact form with two required fields left empty, in Needs attention. The first, opened and filled in, stays where it is while it is open (moving it would take the focus), and says it moves to Set when it is closed; closed, it is in Set. The second, filled in, stays where it is too, and says nothing: the form says it once, on the first field edited.',
       },
     },
   },
@@ -1101,6 +1101,12 @@ export const CompactRowSaysWhereItMoves: Story = {
         type: 'string',
         ui_type: 'string',
         display_name: 'Cookie Name',
+        required: true,
+      },
+      cookie_path: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Cookie Path',
         required: true,
       },
     },
@@ -1122,6 +1128,19 @@ export const CompactRowSaysWhereItMoves: Story = {
     expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy();
     fireEvent.click(canvasElement.querySelector<HTMLElement>('.options-readfirst-done')!);
     await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeNull());
+    expect(canvasElement.textContent).not.toContain('Moves to');
+    // the second field edited is held as the first was, and does not say so again
+    fireEvent.click(canvasElement.querySelector<HTMLElement>('[data-field="cookie_path"]')!);
+    const path = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLInputElement>(
+        '[data-field="cookie_path"] input, [data-field="cookie_path"] textarea'
+      );
+      expect(el).toBeTruthy();
+      return el!;
+    });
+    fireEvent.change(path, { target: { value: '/' } });
+    await waitFor(() => expect(canvasElement.textContent).toContain('2/2 set'));
+    expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy();
     expect(canvasElement.textContent).not.toContain('Moves to');
   },
 };
