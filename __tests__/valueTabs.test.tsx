@@ -400,6 +400,15 @@ describe('one value, three views', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('an empty value opens the Expression tab empty', async () => {
+    for (const initial of ['', undefined]) {
+      const { container, getByTestId, unmount } = show({ type: 'number' as never, initial });
+      clickTab(container, 'expression');
+      await waitFor(() => expect((getByTestId('dpql-text') as HTMLTextAreaElement).value).toBe(''));
+      unmount();
+    }
+  });
+
   it('Expression to Value converts a lone value', async () => {
     const onChange = vi.fn();
     const { container } = show({
@@ -545,6 +554,9 @@ describe('the server parse result', () => {
   });
 
   it('writes a value as expression text', () => {
+    // nothing is nothing to write: an empty value opens the Expression tab empty, not on concat()
+    expect(expressionTextOfValue('')).toBe('');
+    expect(expressionTextOfValue(undefined)).toBe('');
     expect(expressionTextOfValue(12)).toBe('12');
     expect(expressionTextOfValue(true)).toBe('true');
     expect(expressionTextOfValue('open')).toBe('"open"');

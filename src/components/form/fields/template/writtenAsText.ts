@@ -80,6 +80,8 @@ export const expressionTextOfValue = (value: unknown): string => {
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   if (typeof value !== 'string') return '';
   const text = String(value);
+  // nothing written is nothing to write: not an empty concat()
+  if (text === '') return '';
   if (isCompleteTemplateToken(text)) return String(text);
   const plain: string = text;
   const parts = plain.split(new RegExp(`(${TEMPLATE_TOKEN_SOURCE})`)).filter((part) => part !== '');
