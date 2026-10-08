@@ -712,10 +712,10 @@ export const OptionWithAnyType: Story = {
     await waitFor(() => expect(fields()).toHaveLength(4), { timeout: 10000 });
     for (const field of fields()) {
       expect([...field.querySelectorAll('.value-tab')].map((t) => t.getAttribute('data-tab'))).toEqual([
-        'Value',
-        'Template',
+        'value',
+        'template',
       ]);
-      expect(field.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')).toBe('Value');
+      expect(field.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')).toBe('value');
     }
 
     // The value a type was set for (number 1234) is written as text, as typed - and keeps its type.
@@ -726,7 +726,7 @@ export const OptionWithAnyType: Story = {
 
     // An empty option's Template tab is the template picker: a template picked there is the value.
     const [, picking, last] = empty();
-    await userEvent.click(picking.querySelector('.value-tab[data-tab="Template"]') as HTMLElement);
+    await userEvent.click(picking.querySelector('.value-tab[data-tab="template"]') as HTMLElement);
     const picker = await waitFor(() => {
       const el = picking.querySelector<HTMLElement>('button.template-selector');
       expect(el, 'the template picker').toBeTruthy();
@@ -10150,17 +10150,17 @@ export const ValueTabPerOptionType: Story = {
   render: () => <TemplateOrExpressionForm />,
   play: async () => {
     for (const [field, asText, tabs] of [
-      ['quantity', true, ['Value', 'Expression', 'Visual']],
-      ['price', true, ['Value', 'Expression', 'Visual']],
-      ['note', true, ['Value', 'Expression', 'Visual']],
-      ['active', false, ['Value', 'Expression', 'Visual']],
-      ['due', false, ['Value', 'Expression', 'Visual']],
+      ['quantity', true, ['value', 'expression', 'visual']],
+      ['price', true, ['value', 'expression', 'visual']],
+      ['note', true, ['value', 'expression', 'visual']],
+      ['active', false, ['value', 'expression', 'visual']],
+      ['due', false, ['value', 'expression', 'visual']],
       // a value that must be one of the choices takes no expression: its templates are on Template
-      ['status', false, ['Value', 'Template']],
+      ['status', false, ['value', 'template']],
     ] as const) {
       const row = await editOption(field);
       await waitFor(() => expect(optionTabs(row)).toEqual(tabs));
-      expect(optionActiveTab(row)).toBe('Value');
+      expect(optionActiveTab(row)).toBe('value');
       expect(!!row.querySelector('.value-tab-text [data-slate-editor]'), `${field} written as text`).toBe(asText);
       if (!asText) expect(row.querySelector('input, .reqore-checkbox'), `${field} has its own control`).toBeTruthy();
     }
@@ -10179,7 +10179,7 @@ export const ValueToExpressionAndVisual: Story = {
   render: () => <TemplateOrExpressionForm />,
   play: async ({ canvasElement }) => {
     const row = await editOption('quantity');
-    await chooseTab(row, 'Expression');
+    await chooseTab(row, 'expression');
     const field = await waitFor(() => {
       const el = optionRow('quantity').querySelector<HTMLElement>('.expression-field');
       expect(el, 'the expression editor').toBeTruthy();
@@ -10190,7 +10190,7 @@ export const ValueToExpressionAndVisual: Story = {
     );
     expect(field.querySelector('.expression-text-template-picker'), 'the templates offered').toBeTruthy();
     expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 });
-    await chooseTab(optionRow('quantity'), 'Visual');
+    await chooseTab(optionRow('quantity'), 'visual');
     await waitFor(() => expect(optionRow('quantity').querySelector('.expression')).toBeTruthy());
   },
 };
@@ -10207,7 +10207,7 @@ export const SavedTemplateOpensOnValue: Story = {
   render: () => <TemplateOrExpressionForm />,
   play: async ({ canvasElement }) => {
     const row = await editOption('saved_template');
-    expect(optionActiveTab(row)).toBe('Value');
+    expect(optionActiveTab(row)).toBe('value');
     await waitFor(() => expect(row.querySelector('.value-tab-text [data-slate-editor]')?.textContent).toContain('pos'));
     expect(heldOption(canvasElement, 'saved_template')).toEqual({ type: 'int', value: '$record:{pos}' });
   },
@@ -10225,9 +10225,9 @@ export const SavedTemplateOnAYesNoOpensOnExpression: Story = {
   render: () => <TemplateOrExpressionForm />,
   play: async () => {
     const row = await editOption('flag_template');
-    expect(optionActiveTab(row)).toBe('Expression');
+    expect(optionActiveTab(row)).toBe('expression');
     await waitFor(() => expect(row.querySelector('.expression-field [data-slate-editor]')?.textContent).toContain('pos'));
-    await chooseTab(row, 'Value');
+    await chooseTab(row, 'value');
     await waitFor(() =>
       expect(optionRow('flag_template').querySelector('.value-tab-cannot-show')?.textContent).toContain('Expression tab')
     );
@@ -10246,7 +10246,7 @@ export const SavedTextWithTemplatesStaysText: Story = {
   render: () => <TemplateOrExpressionForm />,
   play: async () => {
     const row = await editOption('note');
-    expect(optionActiveTab(row)).toBe('Value');
+    expect(optionActiveTab(row)).toBe('value');
     const editor = await waitFor(() => {
       const el = row.querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
       expect(el).toBeTruthy();
@@ -10254,7 +10254,7 @@ export const SavedTextWithTemplatesStaysText: Story = {
     });
     await waitFor(() => expect(editor.textContent).toContain('pos'));
     expect(editor.textContent).toContain('SUP-');
-    await chooseTab(row, 'Expression');
+    await chooseTab(row, 'expression');
     await waitFor(() =>
       expect(optionRow('note').querySelector('.expression-field [data-slate-editor]')?.textContent).toContain('concat')
     );
@@ -10273,9 +10273,9 @@ export const SavedExpressionOpensOnExpression: Story = {
   render: () => <TemplateOrExpressionForm />,
   play: async ({ canvasElement }) => {
     const row = await editOption('computed');
-    expect(optionActiveTab(row)).toBe('Expression');
+    expect(optionActiveTab(row)).toBe('expression');
     await waitFor(() => expect(row.querySelector('.expression-field [data-slate-editor]')?.textContent).toContain('+'));
-    await chooseTab(row, 'Value');
+    await chooseTab(row, 'value');
     await waitFor(() => expect(optionRow('computed').querySelector('.value-tab-cannot-show')).toBeTruthy());
     expect(heldOption(canvasElement, 'computed').is_expression).toBe(true);
     await userEvent.click(optionRow('computed').querySelector('.value-tab-replace') as HTMLElement);
@@ -10295,8 +10295,8 @@ export const TemplateOnlyOptionHasValueAndTemplate: Story = {
   render: () => <TemplateOrExpressionForm />,
   play: async ({ canvasElement }) => {
     const row = await editOption('template_only');
-    await waitFor(() => expect(optionTabs(row)).toEqual(['Value', 'Template']));
-    await chooseTab(row, 'Template');
+    await waitFor(() => expect(optionTabs(row)).toEqual(['value', 'template']));
+    await chooseTab(row, 'template');
     await waitFor(() => expect(optionRow('template_only').textContent).toContain('pos'));
     expect(optionRow('template_only').querySelector('.expression-field')).toBeNull();
     expect(heldOption(canvasElement, 'template_only')).toEqual({ type: 'int', value: '$record:{pos}' });
@@ -10322,10 +10322,10 @@ export const ExpressionTypedOnValueSwitchesWithUndo: Story = {
     });
     await userEvent.click(editor);
     await userEvent.keyboard(' + 2');
-    await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('Expression'), { timeout: 10000 });
+    await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('expression'), { timeout: 10000 });
     await waitFor(() => expect(heldOption(canvasElement, 'quantity').is_expression).toBe(true));
     await userEvent.click(optionRow('quantity').querySelector('.dpql-detected-undo') as HTMLElement);
-    await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('Value'));
+    await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('value'));
   },
 };
 

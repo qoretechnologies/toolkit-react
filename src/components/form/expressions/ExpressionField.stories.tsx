@@ -1197,7 +1197,7 @@ export const FieldMenuStaysInTheToolbar: Story = {
       () =>
         expect(
           canvasElement.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')
-        ).toBe('Expression'),
+        ).toBe('expression'),
       { timeout: 10000 }
     );
 

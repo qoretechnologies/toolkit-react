@@ -203,6 +203,8 @@ export interface ITemplateFieldProps extends Partial<
    * options set it (FormEngine); an expression's operands and other hosts keep the field as it was.
    */
   valueTabs?: boolean;
+  /** The words of the value tabs, for a host that translates them; English where not given. */
+  valueTabsLabels?: Partial<IValueTabsLabels>;
   /**
    * SEAM (reqraft): host-injected per-card actions for the expression editor
    * this field renders in expression mode (the IDE's AI-assist button).
@@ -235,6 +237,50 @@ export const ComponentMap = {
   date: DateField,
   richtext: RichTextField,
   file: FileField,
+};
+
+/**
+ * The words of the value tabs (qorus#646). A host that translates its interface passes its own; a label that
+ * holds a value is a function of it, so the host keeps its language's word order.
+ */
+export interface IValueTabsLabels {
+  value: string;
+  expression: string;
+  visual: string;
+  template: string;
+  expressionTooltip: string;
+  visualTooltip: string;
+  templateTooltip: string;
+  /** Said on the Value tab for an expression that is not a lone value or template. */
+  cannotShowExpression: string;
+  /** Said on the Value tab for a template it cannot show; `tab` is the tab's own label. */
+  templateShownOn: (tab: string) => string;
+  replaceWithAValue: string;
+  /** A template of another type than the field's; `from` and `to` are the types' names. */
+  conversion: (from: string, to: string) => string;
+  /** The name of a type in `conversion`. */
+  typeName: (type: string) => string;
+  undo: string;
+  /** The undo's tooltip; `text` is what was typed. */
+  undoTooltip: (text: string) => string;
+}
+
+export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = {
+  value: 'Value',
+  expression: 'Expression',
+  visual: 'Visual',
+  template: 'Template',
+  expressionTooltip: 'Write an expression - it also takes templates',
+  visualTooltip: 'Build the expression visually',
+  templateTooltip: 'Choose a template',
+  cannotShowExpression: "This expression can't be shown as a value.",
+  templateShownOn: (tab) => `A template is shown on the ${tab} tab, not here.`,
+  replaceWithAValue: 'Replace it with a value',
+  conversion: (from, to) =>
+    `${from} is converted to ${to.toLowerCase()} when the value is used; a value that does not convert fails`,
+  typeName: templateTypeName,
+  undo: 'Undo',
+  undoTooltip: (text) => `Keep "${text}" as a value instead`,
 };
 
 export interface ITemplateDropdownSelectorProps extends IReqoreDropdownProps {
@@ -546,6 +592,7 @@ const TemplateFieldImpl = memo(
     allowFunctions,
     allowTextExpressions,
     valueTabs,
+    valueTabsLabels,
     extraActions,
     componentOverrides,
     allowCustomValues = true,
@@ -1686,6 +1733,7 @@ const TemplateFieldImpl = memo(
 
     // ─── Value · Expression · Visual (or Value · Template) ───────────────────────────────────────────
     if (tabsKind && !rest.disabled) {
+      const words: IValueTabsLabels = { ...DEFAULT_VALUE_TABS_LABELS, ...valueTabsLabels };
       const tabButton = (
         key: TValueTab,
         label: string,
@@ -1699,7 +1747,7 @@ const TemplateFieldImpl = memo(
           icon={icon}
           active={tab === key}
           aria-pressed={tab === key}
-          data-tab={label}
+          data-tab={key}
           className={`value-tab value-tab-${key}`}
           tooltip={tooltip}
           disabled={rest.readOnly || rest.readonly}
@@ -1722,7 +1770,7 @@ const TemplateFieldImpl = memo(
           templateBadge &&
           !sameValueType(templateBadge, type as string)
         ) ?
-          `${templateTypeName(templateBadge)} is converted to ${templateTypeName(type as string).toLowerCase()} when the value is used; a value that does not convert fails`
+          words.conversion(words.typeName(templateBadge), words.typeName(type as string))
         : undefined;
       const cannotShow = (message: string) => (
         <ReqoreMessage
@@ -1740,13 +1788,13 @@ const TemplateFieldImpl = memo(
             onClick={replaceWithAValue}
             disabled={rest.readOnly || rest.readonly}
           >
-            Replace it with a value
+            {words.replaceWithAValue}
           </ReqoreButton>
         </ReqoreMessage>
       );
       const valueBody = () => {
         if (valueIsExpression) {
-          return cannotShow("This expression can't be shown as a value.");
+          return cannotShow(words.cannotShowExpression);
         }
         if (valueTabIsText) {
           return (
@@ -1795,7 +1843,7 @@ const TemplateFieldImpl = memo(
         }
         if (loneTemplate !== undefined || (typeof value === 'string' && isValueTemplate(value))) {
           return cannotShow(
-            `A template is shown on the ${tabsKind === 'full' ? 'Expression' : 'Template'} tab, not here.`
+            words.templateShownOn(tabsKind === 'full' ? words.expression : words.template)
           );
         }
         return (
@@ -1857,10 +1905,10 @@ const TemplateFieldImpl = memo(
               icon='ArrowGoBackLine'
               size={rest.size}
               className='dpql-detected-undo'
-              tooltip={`Keep "${expressionFromText}" as a value instead`}
+              tooltip={words.undoTooltip(expressionFromText)}
               onClick={undoExpressionFromText}
             >
-              Undo
+              {words.undo}
             </ReqoreButton>
           : null}
         </ReqoreControlGroup>
@@ -1882,18 +1930,19 @@ const TemplateFieldImpl = memo(
         <ReqoreControlGroup vertical fluid gapSize='small' className='value-tabs-field'>
           <ReqoreControlGroup fluid size={rest.size} verticalAlign='center'>
             <ReqoreControlGroup stack size={rest.size} className='value-tabs' fixed>
-              {tabButton('value', 'Value', 'EditLine')}
+              {tabButton('value', words.value, 'EditLine')}
               {tabsKind === 'full' ?
                 [
-                  tabButton(
-                    'expression',
-                    'Expression',
-                    'CodeLine',
-                    'Write an expression - it also takes templates'
-                  ),
-                  tabButton('visual', 'Visual', 'NodeTree', 'Build the expression visually'),
+                  tabButton('expression', words.expression, 'CodeLine', words.expressionTooltip),
+                  tabButton('visual', words.visual, 'NodeTree', words.visualTooltip),
                 ]
-              : tabButton('template', 'Template', 'MoneyDollarCircleLine', 'Choose a template')}
+              : tabButton(
+                  'template',
+                  words.template,
+                  'MoneyDollarCircleLine',
+                  words.templateTooltip
+                )
+              }
             </ReqoreControlGroup>
             {renderControls()}
           </ReqoreControlGroup>

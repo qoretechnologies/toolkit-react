@@ -187,12 +187,12 @@ beforeEach(() => {
 describe('the tabs a form option offers', () => {
   it('are Value, Expression and Visual where it takes templates and expressions', async () => {
     const { container } = show({ type: 'int' as never, initial: 12 });
-    await waitFor(() => expect(tabs(container)).toEqual(['Value', 'Expression', 'Visual']));
+    await waitFor(() => expect(tabs(container)).toEqual(['value', 'expression', 'visual']));
   });
 
   it('are Value and Template where it takes templates only', async () => {
     const { container } = show({ type: 'int' as never, initial: 12, allowFunctions: false });
-    await waitFor(() => expect(tabs(container)).toEqual(['Value', 'Template']));
+    await waitFor(() => expect(tabs(container)).toEqual(['value', 'template']));
   });
 
   it('are none where it takes no templates', async () => {
@@ -217,10 +217,63 @@ describe('the tabs a form option offers', () => {
   });
 });
 
+describe('the words of the tabs', () => {
+  it("are the host's where it gives them, English where it does not", async () => {
+    const { container } = show({
+      type: 'int' as never,
+      initial: {
+        exp: '+',
+        args: [
+          { type: 'int', value: 1 },
+          { type: 'int', value: 2 },
+        ],
+      },
+      isFunction: true,
+      valueTabsLabels: {
+        value: 'Wert',
+        expression: 'Ausdruck',
+        cannotShowExpression: 'Dieser Ausdruck ist kein Wert.',
+        replaceWithAValue: 'Durch einen Wert ersetzen',
+      },
+    });
+    await waitFor(() => expect(activeTab(container)).toBe('expression'));
+    const tab = (key: string) =>
+      container.querySelector(`.value-tab[data-tab="${key}"]`)?.textContent;
+    expect(tab('value')).toContain('Wert');
+    expect(tab('expression')).toContain('Ausdruck');
+    expect(tab('visual')).toContain('Visual');
+    clickTab(container, 'value');
+    await waitFor(() =>
+      expect(container.querySelector('.value-tab-cannot-show')?.textContent).toContain(
+        'Dieser Ausdruck ist kein Wert.'
+      )
+    );
+    expect(container.querySelector('.value-tab-replace')?.textContent).toContain(
+      'Durch einen Wert ersetzen'
+    );
+  });
+
+  it("that hold a value are the host's functions of it", async () => {
+    const { container } = show({
+      type: 'int' as never,
+      initial: '$record:{bezeichnung}',
+      valueTabsLabels: {
+        typeName: (type) => ({ string: 'Text', int: 'Ganzzahl' })[type] ?? type,
+        conversion: (from, to) => `${from} wird in ${to} umgewandelt`,
+      },
+    });
+    await waitFor(() =>
+      expect(container.querySelector('.value-tab-conversion')?.textContent).toBe(
+        'Text wird in Ganzzahl umgewandelt'
+      )
+    );
+  });
+});
+
 describe('a saved value opens on its tab', () => {
   it('a literal on Value, written as text for a whole number', async () => {
     const { container } = show({ type: 'int' as never, initial: 12 });
-    await waitFor(() => expect(activeTab(container)).toBe('Value'));
+    await waitFor(() => expect(activeTab(container)).toBe('value'));
     await waitFor(() =>
       expect(container.querySelector('.value-tab-text [data-slate-editor]')?.textContent).toContain(
         '12'
@@ -231,7 +284,7 @@ describe('a saved value opens on its tab', () => {
   it('a template on Value as a chip, for text, a number or a whole number', async () => {
     for (const type of ['string', 'number', 'int']) {
       const { container, unmount } = show({ type: type as never, initial: '$record:{pos}' });
-      await waitFor(() => expect(activeTab(container)).toBe('Value'));
+      await waitFor(() => expect(activeTab(container)).toBe('value'));
       await waitFor(() =>
         expect(
           container.querySelector('.value-tab-text [data-slate-editor]')?.textContent
@@ -244,7 +297,7 @@ describe('a saved value opens on its tab', () => {
   it('a template on Expression for a yes / no, a date or fixed choices', async () => {
     for (const type of ['bool', 'date']) {
       const { container, unmount } = show({ type: type as never, initial: '$record:{pos}' });
-      await waitFor(() => expect(activeTab(container)).toBe('Expression'));
+      await waitFor(() => expect(activeTab(container)).toBe('expression'));
       await waitFor(() =>
         expect(
           (container.querySelector('[data-testid="dpql-text"]') as HTMLTextAreaElement)?.value
@@ -260,12 +313,12 @@ describe('a saved value opens on its tab', () => {
       initial: '$record:{pos}',
       allowFunctions: false,
     });
-    await waitFor(() => expect(activeTab(container)).toBe('Template'));
+    await waitFor(() => expect(activeTab(container)).toBe('template'));
   });
 
   it('text with templates on Value', async () => {
     const { container } = show({ type: 'string' as never, initial: 'SUP-$record:{pos}' });
-    await waitFor(() => expect(activeTab(container)).toBe('Value'));
+    await waitFor(() => expect(activeTab(container)).toBe('value'));
     await waitFor(() =>
       expect(container.querySelector('.value-tab-text [data-slate-editor]')?.textContent).toContain(
         'SUP-'
@@ -285,12 +338,12 @@ describe('a saved value opens on its tab', () => {
       },
       isFunction: true,
     });
-    await waitFor(() => expect(activeTab(container)).toBe('Expression'));
+    await waitFor(() => expect(activeTab(container)).toBe('expression'));
   });
 
   it('a yes / no on its own control', async () => {
     const { container } = show({ type: 'bool' as never, initial: true });
-    await waitFor(() => expect(activeTab(container)).toBe('Value'));
+    await waitFor(() => expect(activeTab(container)).toBe('value'));
     await waitFor(() => expect(container.querySelector('.reqore-checkbox')).not.toBeNull());
     expect(container.querySelector('[data-slate-editor]')).toBeNull();
   });
@@ -304,8 +357,8 @@ describe('one value, three views', () => {
       initial: 'SUP-$record:{pos}',
       onChange,
     });
-    await waitFor(() => expect(activeTab(container)).toBe('Value'));
-    clickTab(container, 'Expression');
+    await waitFor(() => expect(activeTab(container)).toBe('value'));
+    clickTab(container, 'expression');
     await waitFor(() =>
       expect((getByTestId('dpql-text') as HTMLTextAreaElement).value).toBe(
         'concat("SUP-", $record:{pos})'
@@ -317,9 +370,11 @@ describe('one value, three views', () => {
   it('Visual starts from the value as the server reads it alone: value(12), changing nothing', async () => {
     const onChange = vi.fn();
     const { container } = show({ type: 'int' as never, initial: 12, onChange });
-    clickTab(container, 'Visual');
+    clickTab(container, 'visual');
     await waitFor(() => expect(container.querySelector('.expression')).not.toBeNull());
-    await waitFor(() => expect(container.querySelector('.expression')?.textContent).toContain('Value'));
+    await waitFor(() =>
+      expect(container.querySelector('.expression')?.textContent).toContain('Value')
+    );
     expect(onChange).not.toHaveBeenCalled();
   });
 
@@ -331,8 +386,8 @@ describe('one value, three views', () => {
       isFunction: true,
       onChange,
     });
-    await waitFor(() => expect(activeTab(container)).toBe('Expression'));
-    clickTab(container, 'Value');
+    await waitFor(() => expect(activeTab(container)).toBe('expression'));
+    clickTab(container, 'value');
     await waitFor(() => expect(onChange).toHaveBeenCalledWith('value', 15, 'int', false));
     await waitFor(() =>
       expect(container.querySelector('.value-tab-text [data-slate-editor]')?.textContent).toContain(
@@ -355,8 +410,8 @@ describe('one value, three views', () => {
       isFunction: true,
       onChange,
     });
-    await waitFor(() => expect(activeTab(container)).toBe('Expression'));
-    clickTab(container, 'Value');
+    await waitFor(() => expect(activeTab(container)).toBe('expression'));
+    clickTab(container, 'value');
     await waitFor(() => expect(container.querySelector('.value-tab-cannot-show')).not.toBeNull());
     // nothing lost: the expression is still what the field holds
     expect(onChange).not.toHaveBeenCalled();
@@ -367,7 +422,7 @@ describe('one value, three views', () => {
   it('a lone value written on the Expression tab is held as that value', async () => {
     const onChange = vi.fn();
     const { container, getByTestId } = show({ type: 'int' as never, initial: 12, onChange });
-    clickTab(container, 'Expression');
+    clickTab(container, 'expression');
     const text = await waitFor(() => getByTestId('dpql-text') as HTMLTextAreaElement);
     fireEvent.change(text, { target: { value: '15' } });
     await waitFor(() => expect(onChange).toHaveBeenCalledWith('value', 15, 'int', false));
@@ -378,8 +433,8 @@ describe('one value, three views', () => {
 
   it('a template on a yes / no cannot be shown on Value: it says where it is shown', async () => {
     const { container } = show({ type: 'bool' as never, initial: '$record:{pos}' });
-    await waitFor(() => expect(activeTab(container)).toBe('Expression'));
-    clickTab(container, 'Value');
+    await waitFor(() => expect(activeTab(container)).toBe('expression'));
+    clickTab(container, 'value');
     await waitFor(() =>
       expect(container.querySelector('.value-tab-cannot-show')?.textContent).toContain(
         'Expression tab'
@@ -419,7 +474,7 @@ describe('the Expression tab without a language server', () => {
       },
       isFunction: true,
     });
-    await waitFor(() => expect(activeTab(container)).toBe('Visual'));
+    await waitFor(() => expect(activeTab(container)).toBe('visual'));
     expect(container.querySelector('[data-testid="dpql-text"]')).toBeNull();
   });
 });
