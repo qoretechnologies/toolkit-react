@@ -1425,9 +1425,7 @@ const FormEngineImpl = ({
       setCompactToolbarHeight(0);
       return undefined;
     }
-    const header = wrap.querySelector<HTMLElement>(
-      ':scope > .reqore-panel > .reqore-panel-title'
-    );
+    const header = wrap.querySelector<HTMLElement>(':scope > .reqore-panel > .reqore-panel-title');
     if (!header) {
       setCompactToolbarHeight(0);
       return undefined;
@@ -2148,7 +2146,6 @@ const FormEngineImpl = ({
           return newValue;
         }
 
-
         const rendererType = getType(
           (options[optionName].ui_type || options[optionName].type) as TQorusType,
           operators,
@@ -2392,29 +2389,39 @@ const FormEngineImpl = ({
         const isEmpty = optionValue === undefined || optionValue === '';
 
         let validation: IValidationResult;
+        /* A field whose host gives its own reason (`invalid_reason`) is invalid while it does, whatever the
+           field makes of its value: the host knows something the field cannot - that a field it names
+           is not in the record, that text around a field is not a whole number - and says it in the field,
+           in place of the field's own message (`getOptionFieldMessages`). */
+        const hostReason = (options?.[optionName] as { invalid_reason?: string } | undefined)
+          ?.invalid_reason;
 
-        /* A required field locked by an unmet `depends_on` does not apply
+        if (hostReason) {
+          validation = { isValid: false, reason: hostReason, reasons: [hostReason] };
+        } else {
+          /* A required field locked by an unmet `depends_on` does not apply
            while it is locked: it is not in "Needs attention", and an empty one
            does not make the form incomplete either. Otherwise a check whose
            kind is Equals could never be saved, because Minimum — required for
            Between alone — is empty; and a form whose only gaps are fields
            nobody can fill in would say Incomplete with nothing to act on. A
            locked field that still HOLDS a value is validated as before. */
-        if (
-          isEmpty &&
-          ((!isRequired && !hasRequiredGroups) || dependencyLockedNames.includes(optionName))
-        ) {
-          validation = { isValid: true, reasons: [] };
-        } else {
-          validation = validateFieldWithResult(getType(type), optionValue, {
-            has_to_have_value: true,
-            optionSchema: options,
-            options: availableOptions,
-            ...options?.[optionName],
-            // The expression flag lives on the field value, not the schema.
-            isFunction: (option as { is_expression?: boolean }).is_expression,
-            hasOwnEditor: isRendererOnly(options?.[optionName]?.ui_type as TQorusType),
-          } as any);
+          if (
+            isEmpty &&
+            ((!isRequired && !hasRequiredGroups) || dependencyLockedNames.includes(optionName))
+          ) {
+            validation = { isValid: true, reasons: [] };
+          } else {
+            validation = validateFieldWithResult(getType(type), optionValue, {
+              has_to_have_value: true,
+              optionSchema: options,
+              options: availableOptions,
+              ...options?.[optionName],
+              // The expression flag lives on the field value, not the schema.
+              isFunction: (option as { is_expression?: boolean }).is_expression,
+              hasOwnEditor: isRendererOnly(options?.[optionName]?.ui_type as TQorusType),
+            } as any);
+          }
         }
 
         result.push({
@@ -4263,7 +4270,10 @@ const FormEngineImpl = ({
      tested. Rendered as `data-wait` on the placeholder so a page can be asked
      what it is waiting FOR instead of only that it is waiting. */
   const waitReason =
-    rest.skeleton ? (rest.skeletonReason ? `host:${rest.skeletonReason}` : 'host')
+    rest.skeleton ?
+      rest.skeletonReason ?
+        `host:${rest.skeletonReason}`
+      : 'host'
     : templates.loading ? 'templates'
     : typesLoading ? 'types'
     : optionsLoading ? 'options'

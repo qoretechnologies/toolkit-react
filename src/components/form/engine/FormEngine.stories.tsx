@@ -9881,3 +9881,70 @@ export const TrueOrFalseWithTextAroundATemplate = textAroundOf(
   "True or false can't have text around a template"
 );
 export const DateWithTextAroundATemplate = textAroundOf('date', 'date', "A date can't have text around a template");
+
+/** A whole-number option whose host says, in its own words, what is wrong with it. */
+const HostReasonForm = ({ initial, reason }: { initial: unknown; reason?: string }) => {
+  const [value, setValue] = useState<any>({ quantity: { type: 'int', value: initial } });
+  const [valid, setValid] = useState<boolean>();
+  return (
+    <>
+      <FormEngine
+        name='hostReason'
+        stringTemplates={ROW_FIELDS as any}
+        options={
+          {
+            quantity: {
+              type: 'int',
+              display_name: 'Quantity',
+              required: true,
+              preselected: true,
+              supports_templates: true,
+              ...(reason ? { invalid_reason: reason } : {}),
+            },
+          } as unknown as IQorusFormSchema
+        }
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+        onValidityChange={(isValid) => setValid(isValid)}
+      />
+      <code className='form-validity' data-valid={String(valid)}>
+        {valid ? 'can be saved' : 'cannot be saved'}
+      </code>
+    </>
+  );
+};
+
+export const HostReasonInPlaceOfTheFieldsOwn: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a whole-number option holding "$record:{pos} Stk." whose host gives its own reason (`invalid_reason`): "Eine Ganzzahl kann keinen Text um ein Feld enthalten". The field says the host\'s reason, once, in place of its own "A whole number can\'t have text around a template", and the form cannot be saved.',
+      },
+    },
+  },
+  render: () => (
+    <HostReasonForm initial='$record:{pos} Stk.' reason='Eine Ganzzahl kann keinen Text um ein Feld enthalten' />
+  ),
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.textContent).toContain('Eine Ganzzahl kann keinen Text um ein Feld enthalten'));
+    expect(canvasElement.textContent).not.toContain("can't have text around a template");
+    await waitFor(() => expect(canvasElement.querySelector('.form-validity')?.getAttribute('data-valid')).toBe('false'));
+  },
+};
+
+export const HostReasonInPlaceOfRequired: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same option empty, with the host\'s reason "Enter a value or an expression": said in place of "This field is required", not beside it.',
+      },
+    },
+  },
+  render: () => <HostReasonForm initial={undefined} reason='Enter a value or an expression' />,
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.textContent).toContain('Enter a value or an expression'));
+    expect(canvasElement.textContent).not.toContain('This field is required');
+  },
+};
