@@ -19,7 +19,12 @@
 // takes the template's type again. Pure: no React, no transport.
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
-import { findTemplate, isCompleteTemplateToken } from '../../../../helpers/templates';
+import {
+  findTemplate,
+  isCompleteTemplateToken,
+  isValueTemplate,
+  TEMPLATE_TOKEN_SOURCE,
+} from '../../../../helpers/templates';
 
 /** Scalar types whose value can be written as text: whole numbers, numbers, yes/no. Not a date, which has
  *  its own control. */
@@ -39,6 +44,84 @@ const TEXTABLE_SCALARS: Record<string, 'int' | 'number' | 'bool'> = {
 /** Whether a field of this type is written in the template editor: text, untyped, or a textable scalar. */
 export const isWrittenAsText = (type?: string): boolean =>
   type === 'string' || isUntypedOptionType(type) || (!!type && type in TEXTABLE_SCALARS);
+
+/**
+ * Whether a form option of this type is written as text on its Value tab - a text field taking templates as
+ * chips and detecting expressions - rather than on its own control (qorus#646, David): text, untyped values,
+ * whole numbers and numbers. A yes / no, a date and fixed choices keep their own control.
+ */
+export const isWrittenAsTextOnTheValueTab = (type?: string): boolean =>
+  type === 'string' ||
+  isUntypedOptionType(type) ||
+  (!!type && (TEXTABLE_SCALARS[type] === 'int' || TEXTABLE_SCALARS[type] === 'number'));
+
+/** The tabs a field's value is entered on (see `valueTabsOf`). */
+export type TValueTab = 'value' | 'expression' | 'visual' | 'template';
+
+/**
+ * The text a value shows as on the Value tab: text as it is, a number or a yes/no as written, null as
+ * `null` (in an untyped field), nothing for no value.
+ */
+export const valueTextOf = (value: unknown, type?: string): string => {
+  if (value === undefined) return '';
+  if (value === null) return isUntypedOptionType(type) ? NULL_TEXT : '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+};
+
+/**
+ * A value written as an expression's text: a literal as DPQL writes it (`12`, `true`, `"open"`), a template
+ * as itself, text with templates as the text and the templates joined (`concat("SUP-", $record:{pos})`).
+ * The Expression tab opens on this for a value that is not an expression yet.
+ */
+export const expressionTextOfValue = (value: unknown): string => {
+  if (value === undefined || value === null) return value === null ? 'null' : '';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value !== 'string') return '';
+  const text = String(value);
+  if (isCompleteTemplateToken(text)) return String(text);
+  const plain: string = text;
+  const parts = plain.split(new RegExp(`(${TEMPLATE_TOKEN_SOURCE})`)).filter((part) => part !== '');
+  if (parts.length === 1) return JSON.stringify(plain);
+  return `concat(${parts.map((part) => (isCompleteTemplateToken(part) ? part : JSON.stringify(part))).join(', ')})`;
+};
+
+/**
+ * A lone template written in the expression editor's Text view, as the server parses it: the `template`
+ * operation with the reference as its one argument. It is stored as the bare template, which every consumer
+ * evaluates; the expression form of it is not one the server reads back as the template's value.
+ */
+export const loneTemplateOf = (expression: unknown): string | undefined => {
+  const node = (expression as { value?: { exp?: string; args?: unknown[] } } | undefined)?.value;
+  if (node?.exp !== 'template' || node.args?.length !== 1) return undefined;
+  const arg = node.args[0] as { value?: { raw?: unknown } | string } | undefined;
+  const raw = typeof arg?.value === 'string' ? arg.value : arg?.value?.raw;
+  return typeof raw === 'string' && isCompleteTemplateToken(raw) ? raw : undefined;
+};
+
+/**
+ * A lone value written in the expression editor's Text view (`12`, `true`, `"open"`), as the server parses
+ * it: the `value` operation with a plain value as its one argument. It is stored as that value - the field's
+ * own shape - rather than as an expression the Visual view has nothing to show for. A record field is not
+ * such a value: it is read from the row.
+ */
+export const loneValueOf = (expression: unknown): { value: unknown } | undefined => {
+  const node = (expression as { value?: { exp?: string; args?: unknown[] } } | undefined)?.value;
+  if (node?.exp !== 'value' || node.args?.length !== 1) return undefined;
+  const arg = node.args[0] as { value?: unknown; is_expression?: boolean } | undefined;
+  const value = arg?.value;
+  if (!arg || arg.is_expression || (value !== null && typeof value === 'object')) return undefined;
+  if (typeof value === 'string' && isValueTemplate(value)) return undefined;
+  return { value };
+};
+
+/** The text a value is seeded into the Text view as: a template, a number or a yes/no as written. */
+export const expressionSeedOf = (value: unknown): string => {
+  if (typeof value === 'string') return isCompleteTemplateToken(value) ? value : '';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+};
 
 const INT_LITERAL = /^\s*[-+]?\d+\s*$/;
 const NUMBER_LITERAL = /^\s*[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?\s*$/i;
@@ -96,4 +179,39 @@ export const templateTextValue = (
     return { value: literal, type };
   }
   return { value: text, type: isUntypedOptionType(type) ? 'string' : type };
+};
+
+/** The kind of value a type holds, for telling whether a template and a field hold the same kind. */
+const valueKindOf = (type?: string): string | undefined => {
+  if (!type) return undefined;
+  const t = type.replace(/^\*/, '').replace(/^soft/, '');
+  if (TEXTABLE_SCALARS[t]) return TEXTABLE_SCALARS[t];
+  if (t === 'string' || t === 'date' || t === 'list' || t === 'hash' || t === 'binary') return t;
+  return undefined;
+};
+
+/** Whether a template of this type is a value of the field's type as it is, with nothing to convert. */
+export const sameValueType = (templateType: string, fieldType?: string): boolean => {
+  const a = valueKindOf(templateType);
+  const b = valueKindOf(fieldType);
+  // a whole number is a number too
+  return !a || !b || a === b || (a === 'int' && b === 'number');
+};
+
+/** A type in words: "a whole number", "text". */
+export const templateTypeName = (type?: string): string => {
+  switch (valueKindOf(type)) {
+    case 'int':
+      return 'A whole number';
+    case 'number':
+      return 'A number';
+    case 'bool':
+      return 'A yes / no value';
+    case 'string':
+      return 'Text';
+    case 'date':
+      return 'A date';
+    default:
+      return type ?? 'A value';
+  }
 };

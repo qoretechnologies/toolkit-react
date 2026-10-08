@@ -788,10 +788,10 @@ const settle = (root: HTMLElement, quietMs = 400): Promise<void> =>
   });
 
 /** Open a compact row — a read-first row shows its label, not its editor. */
-const openCompactRow = async (canvasElement: HTMLElement): Promise<void> => {
+const openCompactRow = async (canvasElement: HTMLElement, rowLabel = 'Value'): Promise<void> => {
   const label = (await waitFor(
     () => {
-      const el = within(canvasElement).queryByText('Value');
+      const el = within(canvasElement).queryByText(rowLabel);
       if (!el) throw new Error('row not rendered');
       return el as HTMLElement;
     },
@@ -1139,7 +1139,7 @@ export const FieldMenuStaysInTheToolbar: Story = {
     docs: {
       description: {
         story:
-          "Accepts the offer on a compact row whose field also has templates. The row shows ONE More menu — the field publishes its items into the row's ⋮ rather than drawing its own — and that menu sits in the shell's toolbar row, level with Undo, not part-way down the editor.",
+          "Types 1 + 2 on a compact row whose field also has templates: the field enters its value on tabs (Value · Expression · Visual), and the expression moves it to Expression. The row shows ONE More menu — the field publishes its items into the row's ⋮ rather than drawing its own — and that menu sits in the tabs' row, not part-way down the editor.",
       },
     },
   },
@@ -1159,7 +1159,7 @@ export const FieldMenuStaysInTheToolbar: Story = {
             expected: {
               type: 'string',
               ui_type: 'string',
-              display_name: 'Value',
+              display_name: 'Expected',
               preselected: true,
               supports_expressions: true,
               supports_templates: true,
@@ -1181,8 +1181,25 @@ export const FieldMenuStaysInTheToolbar: Story = {
     );
   },
   async play({ canvasElement }) {
-    await openCompactRow(canvasElement);
-    await acceptTypedExpression(canvasElement);
+    await openCompactRow(canvasElement, 'Expected');
+    const input = (await waitFor(
+      () => {
+        const el = canvasElement.querySelector('.value-tab-text [contenteditable="true"]');
+        if (!el) throw new Error('field not ready');
+        return el as HTMLElement;
+      },
+      { timeout: 10000 }
+    )) as HTMLElement;
+    await userEvent.click(input);
+    await userEvent.type(input, '1 + 2');
+    // the Value tab never holds an expression: the field moves to Expression, in the tabs' row
+    await waitFor(
+      () =>
+        expect(
+          canvasElement.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')
+        ).toBe('Expression'),
+      { timeout: 10000 }
+    );
 
     // One menu per control: the row's ⋮, not a second one drawn by the field.
     expect(canvasElement.querySelector('.template-more')).toBeNull();
@@ -1190,9 +1207,9 @@ export const FieldMenuStaysInTheToolbar: Story = {
     expect(menus).toHaveLength(1);
     const menu = menus[0] as HTMLElement;
 
-    // The toolbar row is the shell's first line — the Visual/Text toggle.
-    const toggle = within(canvasElement).getByText('Text').closest('button') as HTMLElement;
-    const toolbar = toggle.getBoundingClientRect();
+    // The toolbar row is the field's first line — its tabs.
+    const tabs = canvasElement.querySelector('.value-tabs') as HTMLElement;
+    const toolbar = tabs.getBoundingClientRect();
     const control = menu.getBoundingClientRect();
 
     /* Reported as numbers: "the menu is in the wrong place" is not something a

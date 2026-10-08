@@ -3112,6 +3112,9 @@ const FormEngineImpl = ({
             // reqraft: form-level expression fields get the Visual/Text shell
             // (DPQL text mode); opt out per-form via `templateFieldProps`.
             allowTextExpressions
+            // a form's options enter their value on tabs: Value · Expression · Visual, or Value · Template
+            // where only templates are taken (qorus#646); opt out per-form via `templateFieldProps`
+            valueTabs
             // A fixed allowed-value field still needs its selector even when
             // arbitrary custom values are forbidden. TemplateField uses this
             // flag to decide whether to mount AutoFormField at all; treating
