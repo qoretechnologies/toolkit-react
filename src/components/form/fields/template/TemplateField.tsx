@@ -58,7 +58,7 @@ import { ExpressionField } from '../../expressions/ExpressionField';
 import { IExpression, TExpressionReorder } from '../../expressions/types';
 import { useExpressions } from '../../expressions/useExpressions';
 import { AutoFormField as Auto, IQorusType as IQorusFormType } from '../auto/AutoFormField';
-import BooleanFormField from '../boolean/Boolean';
+import BooleanFormField, { yesNoShown } from '../boolean/Boolean';
 import { DateFormField } from '../date/Date';
 import { ReqraftFileFormField } from '../file/File';
 import LongStringFormField from '../long-string/LongString';
@@ -134,7 +134,7 @@ const Number = ({ name, onChange, type, level, allowTemplates, ...rest }: any) =
 const BooleanField = ({ name, onChange, value, type, level, allowTemplates, ...rest }: any) => (
   <BooleanFormField
     {...rest}
-    checked={!!value}
+    checked={yesNoShown(value)}
     onChange={(checked: boolean) => onChange?.(name, checked)}
   />
 );
@@ -2041,13 +2041,14 @@ const TemplateFieldImpl = memo(
                 {...rest}
                 fixed={false}
                 fluid
+                /* The value takes the row the tabs give it (qorus#646, David: a small box beside empty room
+                   was clicked beside, and offered nothing). An operand's own field sizes itself to its
+                   column instead - that is the field outside the tabs. */
                 panelProps={{
                   ...(rest as { panelProps?: object }).panelProps,
                   style: {
                     ...(rest as { panelProps?: { style?: object } }).panelProps?.style,
-                    width: '150px',
-                    maxWidth: '100%',
-                    minWidth: 'fit-content',
+                    width: '100%',
                   },
                 }}
                 aria-label={fieldAriaLabel}

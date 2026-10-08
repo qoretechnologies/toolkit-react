@@ -10163,6 +10163,13 @@ export const ValueTabPerOptionType: Story = {
       await waitFor(() => expect(optionTabs(row)).toEqual(tabs));
       expect(optionActiveTab(row)).toBe('value');
       expect(!!row.querySelector('.value-tab-text [data-slate-editor]'), `${field} written as text`).toBe(asText);
+      if (asText) {
+        // the text takes the room its row gives it, as wide as the tabs' row - not a small box beside nothing
+        const text = row.querySelector<HTMLElement>('.value-tab-text.reqore-control-wrapper, .value-tab-text [data-slate-editor]')!
+          .closest('.reqore-control-wrapper') as HTMLElement;
+        const tabsRow = row.querySelector<HTMLElement>('.value-tabs-field') as HTMLElement;
+        expect(text.getBoundingClientRect().width, `${field} text width`).toBeGreaterThan(tabsRow.getBoundingClientRect().width * 0.9);
+      }
       if (!asText) expect(row.querySelector('input, .reqore-checkbox'), `${field} has its own control`).toBeTruthy();
     }
   },
