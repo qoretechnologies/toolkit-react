@@ -409,6 +409,13 @@ export const ExpressionField = memo(
           seededRef.current = true;
           setText(t);
           setAstText(t);
+          /* The text shown is checked against the field's type, as typed text is. It was checked only when the
+             editor reported it back as a change, which it does only while it has the focus: with the focus in
+             the picker (opened at once, qorus#646) an expression that does not fit said nothing. */
+          if (targetType) {
+            const result = await dpqlRef.current?.parse?.(t, targetType);
+            if (!cancelled && !userTypedRef.current) readTypeCheck(result);
+          }
         } else if (++tries < SEED_MAX_TRIES) {
           timer = setTimeout(seed, SEED_RETRY_MS);
         }
@@ -418,7 +425,7 @@ export const ExpressionField = memo(
         cancelled = true;
         if (timer) clearTimeout(timer);
       };
-    }, [mode, ast, expressions]);
+    }, [mode, ast, expressions, targetType, readTypeCheck]);
 
     /** The field's templates, its catalogue's entries, for the Text view's picker. */
     const templateItems = useMemo(
