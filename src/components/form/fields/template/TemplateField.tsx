@@ -66,14 +66,7 @@ import { RichTextFormField } from '../rich-text/RichText';
 import { richtextToString } from '../../../../helpers/common';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
-import {
-  expressionSeedOf,
-  isWrittenAsText,
-  loneTemplateOf,
-  loneValueOf,
-  templateTextValue,
-  untypedTextOf,
-} from './writtenAsText';
+import { isWrittenAsText, templateTextValue, untypedTextOf } from './writtenAsText';
 import {
   IRowMenuRegistration,
   RowMenuContext,
@@ -676,31 +669,18 @@ const TemplateFieldImpl = memo(
     const nullWrittenAsText =
       value === null && typeIsAnyLike && !!allowCustomValues && !hasOnlyAllowedValues;
 
-    /* The Text view of the expression editor is where a typed value takes a template or an expression
-       ("Use Template / Expression", qorus#646). A saved template in a typed field that takes expressions
-       opens there, as the template it is: nothing is rewritten until it is edited. */
-    const takesTextExpressions =
-      !!allowFunctions && !!allowTextExpressions && !hasOnlyAllowedValues;
-    const opensInExpressionText =
-      takesTextExpressions && !isWrittenAsText(type as string) && isCompleteTemplateToken(value);
-    /** What the Text view is seeded with when the value is not an expression yet; null outside it. */
-    const [expressionSeed, setExpressionSeed] = useState<string | null>(
-      opensInExpressionText ? (value as string) : null
-    );
-
     const [isTemplateState, setIsTemplate] = useState<boolean>(
-      !opensInExpressionText &&
-        (isDefaultTemplate ||
-          isValueTemplate(value) ||
-          !allowCustomValues ||
-          opensOnTemplates ||
-          nullWrittenAsText) &&
-        !!allowTemplates
+      (isDefaultTemplate ||
+        isValueTemplate(value) ||
+        !allowCustomValues ||
+        opensOnTemplates ||
+        nullWrittenAsText) &&
+        allowTemplates
     );
 
     const isTemplate = editorHandlesTemplates ? false : isTemplateState;
     const [internalIsFunction, setInternalIsFunction] = useState<boolean>(
-      (!!isDefaultFunction && !!allowFunctions) || opensInExpressionText
+      !!isDefaultFunction && !!allowFunctions
     );
     const [templateValue, setTemplateValue] = useState<string | null>(value);
 
@@ -810,8 +790,7 @@ const TemplateFieldImpl = memo(
     }, [nullWrittenAsText, allowTemplates]);
 
     useEffect(() => {
-      // a template in the Text view stays there: it is the expression editor's to show
-      if (!isTemplate && isValueTemplate(value) && allowTemplates && !internalIsFunction) {
+      if (!isTemplate && isValueTemplate(value) && allowTemplates) {
         // In auto mode, leave user-typed dollar-strings alone ('$foo: hello'
         // passes the loose check) — but a string that IS one well-formed token
         // ($data:{…}, $config:item) must still flip into template mode, or an
@@ -859,6 +838,7 @@ const TemplateFieldImpl = memo(
     const showTemplateToggle =
       allowCustomValues && allowTemplates && !rest.arg_schema && !editorHandlesTemplates;
 
+
     /* An UNTYPED field can be typed into as well as picked from.
     
        Template mode has a typable editor whenever the field's type can hold
@@ -874,14 +854,19 @@ const TemplateFieldImpl = memo(
        specific to that field: every empty untyped field with templates on
        offer got the same downgrade. The editor still offers the same templates
        on focus, so nothing is lost by being able to type as well. */
-    /* A whole number, a number, a yes/no and a date open on their own control: a template or an
-       expression goes in through "Use Template / Expression" (qorus#646, David). Text and untyped values
-       are written as text, a template a chip in it (writtenAsText). */
+    /* And so can a scalar: a whole number, a number or a yes/no is written as text too
+       (qorus#646). A template chosen into it is a chip in that text, not a pick-only
+       control that holds the template and nothing else, so text can be written around it;
+       what the field then holds is read from the text (writtenAsText). A date keeps its
+       date control. */
     const templateSupportsCustomValues =
       allowCustomValues && isWrittenAsText(type as string) && !hasOnlyAllowedValues;
     const showTemplatesDropdown =
       allowTemplates && (!allowCustomValues || (isTemplate && !templateSupportsCustomValues));
     const hasOnlyExpressions = !allowCustomValues && !allowTemplates && allowFunctions;
+    /** A date field with templates on offer: they are offered beside its date control. */
+    const dateTakesTemplates =
+      type === 'date' && !!allowTemplates && hasTemplatesOnOffer && !hasOnlyAllowedValues;
     // True when some input control renders besides the ⋮ menu. When nothing
     // does (an empty `any` field: custom values are disallowed and the value's
     // type is picked FROM the menu), the menu trigger is the field's only
@@ -971,6 +956,15 @@ const TemplateFieldImpl = memo(
     // `SaveValueButton` in the controls menu — the saved-values storage is
     // IDE-only, so the menu item is dropped (`allowSaving` is inert).
 
+    /* A template chosen beside a date control is the value at once, IN the template control: handed to
+       the form while the field was still drawing its date control, the reference reached the date
+       picker first, which threw on it ("Invalid ISO 8601 date time string"). */
+    const handleSelectDateTemplate = useCallback((item: { value?: unknown }) => {
+      if (typeof item?.value !== 'string') return;
+      setIsTemplate(true);
+      setTemplateValue(item.value);
+    }, []);
+
     const handleRemoveTemplateClick = useCallback(() => {
       /* This is the `×` ON the template control, and it means "I do not want a
          template here" — on a field whose menu offers no `Set Custom Value` it
@@ -1038,16 +1032,6 @@ const TemplateFieldImpl = memo(
       }
     }, [name, onChange, value, templateValue]);
 
-    /* "Use Template / Expression": the expression editor's Text view, seeded with what the field holds
-       (a template, a number, a yes/no as written), the field's templates and fields offered beside it; the
-       Visual view one click away. Nothing is emitted until the text is edited. */
-    const handleTemplateOrExpressionClick = useCallback(() => {
-      setExpressionSeed(expressionSeedOf(value));
-      setInternalIsFunction(true);
-      setIsTemplate(false);
-      setTemplateValue(null);
-    }, [value]);
-
     const handleTemplateToggleClick = useCallback(() => {
       setInternalIsFunction(false);
       onChange(name, undefined, undefined, false);
@@ -1059,29 +1043,12 @@ const TemplateFieldImpl = memo(
       (expressionValue: IExpression | undefined, remove: boolean) => {
         if (remove) {
           setInternalIsFunction(false);
-          setExpressionSeed(null);
           // The expression is gone, so there is no longer a switch to undo.
           setExpressionFromText(null);
         }
-        /* A lone template written in the Text view is the template: stored bare, as every consumer
-           evaluates it, rather than as an expression wrapping it (see `loneTemplateOf`). The Text view
-           stays, seeded with it. */
-        const lone = remove ? undefined : loneTemplateOf(expressionValue);
-        if (lone !== undefined) {
-          setExpressionSeed(lone);
-          onChange(name, lone, type as TQorusType, false);
-          return;
-        }
-        // and a lone value (12, true) is that value, the field's own shape (see `loneValueOf`)
-        const literal = remove ? undefined : loneValueOf(expressionValue);
-        if (literal !== undefined) {
-          setExpressionSeed(expressionSeedOf(literal.value));
-          onChange(name, literal.value, type as TQorusType, false);
-          return;
-        }
         onChange(name, expressionValue?.value, expressionDataType as TQorusType, !remove);
       },
-      [name, onChange, expressionDataType, value, type]
+      [name, onChange, expressionDataType, value]
     );
 
     // ─── Text typed into a plain field that is really a DPQL expression ───
@@ -1262,55 +1229,38 @@ const TemplateFieldImpl = memo(
        was a one-way door on the surface most options are edited from. */
     const canOfferCustomValue = showTemplateToggle && isTemplate && templateSupportsCustomValues;
 
-    /* One action for a template or an expression (qorus#646, David): where the field takes expressions
-       written as text, it opens the expression editor's Text view, with the field's templates and fields
-       offered and the Visual view one click away. A field that takes templates and no expressions - a
-       template-only option - keeps the template picker, and the bare template it stores. A field without
-       the Text view (the bare builder) keeps the builder. */
-    const offersTextExpression = canOfferExpression && !!allowTextExpressions && !functions.loading;
     const publishedItems = useMemo(
       () => [
-        ...(offersTextExpression ?
-          [
-            {
-              label: 'Use Template / Expression',
-              icon: 'Functions' as const,
-              tooltip: 'Write a template or an expression for this value',
-              onClick: handleTemplateOrExpressionClick,
-            },
-          ]
-        : [
-            ...(canOfferExpression && !functions.loading ?
-              [
-                {
-                  label: 'Use Expression',
-                  icon: 'Functions' as const,
-                  tooltip: 'Run a function on this value',
-                  onClick: handleSelectFunctionChange,
-                },
-              ]
-            : []),
-            ...(canOfferTemplate ?
-              [
-                {
-                  label: 'Use Template',
-                  icon: 'MoneyDollarCircleLine' as const,
-                  tooltip: 'Use a template',
-                  onClick: handleTemplateToggleClick,
-                },
-              ]
-            : []),
-          ]),
-        ...(canOfferCustomValue ?
-          [
-            {
-              label: 'Use Custom Value',
-              icon: 'EditLine' as const,
-              tooltip: 'Write the value here instead of choosing a template',
-              onClick: handleUseCustomValueClick,
-            },
-          ]
-        : []),
+        ...(canOfferExpression && !functions.loading
+          ? [
+              {
+                label: 'Use Expression',
+                icon: 'Functions' as const,
+                tooltip: 'Run a function on this value',
+                onClick: handleSelectFunctionChange,
+              },
+            ]
+          : []),
+        ...(canOfferTemplate
+          ? [
+              {
+                label: 'Use Template',
+                icon: 'MoneyDollarCircleLine' as const,
+                tooltip: 'Use a template',
+                onClick: handleTemplateToggleClick,
+              },
+            ]
+          : []),
+        ...(canOfferCustomValue
+          ? [
+              {
+                label: 'Use Custom Value',
+                icon: 'EditLine' as const,
+                tooltip: 'Write the value here instead of choosing a template',
+                onClick: handleUseCustomValueClick,
+              },
+            ]
+          : []),
         /* The "set a value of this type" choices an untyped field offers.
            Dividers are dropped: they grouped items in a menu this field drew
            itself, and in the row's shared menu they would divide other
@@ -1329,13 +1279,11 @@ const TemplateFieldImpl = memo(
       ],
       [
         canOfferExpression,
-        offersTextExpression,
         functions.loading,
         canOfferTemplate,
         canOfferCustomValue,
         menuItems,
         handleSelectFunctionChange,
-        handleTemplateOrExpressionClick,
         handleTemplateToggleClick,
         handleUseCustomValueClick,
       ]
@@ -1358,14 +1306,10 @@ const TemplateFieldImpl = memo(
         allowFunctions && !hasOnlyAllowedValues && !rest.readonly && !internalIsFunction;
       const showTemplatesButton = showTemplateToggle && !isTemplate;
       // The way back out of template mode, where the editor draws no `×`.
-      const showCustomValueButton =
-        showTemplateToggle && isTemplate && templateSupportsCustomValues;
+      const showCustomValueButton = showTemplateToggle && isTemplate && templateSupportsCustomValues;
       // The "Set value" label promises a way to set one — reorder rows alone don't.
       const hasValueRows =
-        showFunctionsDropdown ||
-        showTemplatesButton ||
-        showCustomValueButton ||
-        size(menuItems) > 0;
+        showFunctionsDropdown || showTemplatesButton || showCustomValueButton || size(menuItems) > 0;
 
       /* A lone group opens itself. Two of the menu's groups are collapsed
          sections, so a menu holding nothing but one of them asked for a click
@@ -1478,20 +1422,7 @@ const TemplateFieldImpl = memo(
             handler='click'
             content={
               <ReqoreMenu size={rest.size} maxHeight='400px' style={{ overflow: 'auto' }}>
-                {/* the same one action the row's menu offers (see `publishedItems`) */}
-                {showFunctionsDropdown && allowTextExpressions ?
-                  functions.loading ?
-                    <ReqoreSkeleton size={rest.size} />
-                  : <ReqoreButton
-                      compact
-                      transparent
-                      label='Use Template / Expression'
-                      className='function-selector template-or-expression'
-                      icon='Functions'
-                      tooltip='Write a template or an expression for this value'
-                      onClick={handleTemplateOrExpressionClick}
-                    />
-                : showFunctionsDropdown ?
+                {showFunctionsDropdown ?
                   functions.loading ?
                     <ReqoreSkeleton size={rest.size} />
                   : <ReqoreButton
@@ -1503,9 +1434,10 @@ const TemplateFieldImpl = memo(
                       tooltip='Run a function on this value'
                       onClick={handleSelectFunctionChange}
                     />
+
                 : null}
 
-                {showTemplatesButton && !(showFunctionsDropdown && allowTextExpressions) ?
+                {showTemplatesButton ?
                   <ReqoreButton
                     transparent
                     icon='MoneyDollarCircleLine'
@@ -1566,10 +1498,8 @@ const TemplateFieldImpl = memo(
       allowFunctions,
       functions.expressions,
       handleSelectFunctionChange,
-      handleTemplateOrExpressionClick,
       handleTemplateToggleClick,
       handleUseCustomValueClick,
-      allowTextExpressions,
       hasOnlyAllowedValues,
       isTemplate,
       rest.readonly,
@@ -1626,19 +1556,10 @@ const TemplateFieldImpl = memo(
           <ReqoreControlGroup>
             <ReqoreErrorBoundary>
               <ExpressionField
-                /* A value that is not an expression yet (a template, a literal) is the Text view's seed, and
-                   the Visual view's first operand - as "Use Expression" always started from it - so neither
-                   view starts from nothing while the field holds something. */
                 value={{
                   is_expression: true,
-                  value:
-                    value !== null && typeof value === 'object' ? value
-                    : !isEmptyValue && value !== null ? { args: [{ type: type as TQorusType, value }] }
-                    : undefined,
+                  value,
                 }}
-                initialText={expressionSeed ?? undefined}
-                // a template or a literal written in the Text view is held as itself (see `loneTemplateOf`)
-                heldAsValue={!isEmptyValue && value !== null && typeof value !== 'object'}
                 // The host's per-ui_type editors reach this field through the
                 // rest-spread; the expression shell needs them explicitly or the
                 // builder's operands render "Unknown type!" for any consumer
@@ -1656,9 +1577,10 @@ const TemplateFieldImpl = memo(
                 serverHandled={rest.server_expression_handling}
                 extraActions={extraActions}
                 size={rest.size}
-                // the Text view by default (qorus#646, David), the Visual view one click away; without a
-                // language server the field falls back to the Visual view by itself
-                defaultMode='text'
+                // An author who typed the expression as text is already
+                // writing in that language — dropping them into the visual
+                // builder would make them find their own sentence again.
+                defaultMode={expressionFromText !== null ? 'text' : 'visual'}
                 reorder={reorder}
               />
             </ReqoreErrorBoundary>
@@ -1757,6 +1679,21 @@ const TemplateFieldImpl = memo(
 
         {/* A date keeps its date control - it is not written as text - and takes a template beside it:
             chosen, the template is the value (the template control, whose × returns to the date). */}
+        {!isTemplate && allowCustomValues && dateTakesTemplates ?
+          <ReqoreDropdown
+            className='date-template-picker'
+            icon='MoneyDollarCircleLine'
+            fixed
+            compact
+            size={rest.size}
+            tooltip='Use a template'
+            aria-label='Use a template'
+            filterable
+            items={filteredTemplates?.items}
+            onItemSelect={handleSelectDateTemplate}
+          />
+        : null}
+
         {/* Template mode's editor for a value that can also be typed: each
             reference in it is a chip named as the catalogue names it, while the
             field still stores the plain string. A textarea spelled a chosen
@@ -1769,11 +1706,7 @@ const TemplateFieldImpl = memo(
             singleLine={isSingleLineStringType('string')}
             /* null shows as null, not as an empty field: the two are different values, and an
                untyped field holding null looked exactly like one holding nothing (qorus#646) */
-            value={
-              typeof templateValue === 'string' ? templateValue : (
-                (untypedTextOf(value, type as string) ?? '')
-              )
-            }
+            value={typeof templateValue === 'string' ? templateValue : (untypedTextOf(value, type as string) ?? '')}
             templates={filteredTemplates}
             // a chip of a field not of this type (text around it, say) is named as the catalogue names it
             namingTemplates={templates}

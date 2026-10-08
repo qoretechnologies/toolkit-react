@@ -64,12 +64,10 @@ describe('what a field written as text holds', () => {
     });
   });
 
-  /* qorus#646 (David): typed options open on their own control - a checkbox, a number input, the date
-     picker - and take a template or an expression through "Use Template / Expression". Text and untyped
-     values keep the text field with chips. */
-  it('is written as text for text and untyped values only, not for a typed one', () => {
-    expect(['string', 'any', 'auto'].every((t) => isWrittenAsText(t))).toBe(true);
-    expect(['int', 'number', 'bool', 'date', 'hash'].some((t) => isWrittenAsText(t))).toBe(false);
+  it('is written as text for text, untyped and scalar types - not a date', () => {
+    expect(['string', 'any', 'auto', 'int', 'number', 'bool'].every((t) => isWrittenAsText(t))).toBe(true);
+    expect(isWrittenAsText('date')).toBe(false);
+    expect(isWrittenAsText('hash')).toBe(false);
   });
 });
 
@@ -90,20 +88,11 @@ const show = (props: Record<string, unknown>) =>
     </ReqoreUIProvider>
   );
 
-describe('a typed field', () => {
-  it('opens on its own control, not on a text field', async () => {
-    for (const [type, value] of [['int', 12], ['number', 3.5], ['bool', true]] as const) {
-      const { container, unmount } = show({ type, value, componentFromType: true });
-      await waitFor(() => expect(container.querySelector('input, .reqore-checkbox')).not.toBeNull());
-      expect(container.querySelector('[data-slate-editor]')).toBeNull();
-      unmount();
-    }
-  });
-
-  it('holding a template, and taking no expressions, shows it in the template control', async () => {
-    const { container } = show({ type: 'int', value: '$record:{pos}', componentFromType: true });
-    await waitFor(() => expect(container.textContent).toContain('pos'));
-    expect(container.querySelector('[data-slate-editor]')).toBeNull();
+describe('a whole-number field holding a template', () => {
+  it('shows it in the text it is written in, as a chip, not in a pick-only selector', async () => {
+    const { container } = show({ type: 'int', value: '$record:{pos}' });
+    await waitFor(() => expect(container.querySelector('[data-slate-editor]')).not.toBeNull());
+    expect(container.querySelector('[data-slate-editor]')?.textContent).toContain('pos');
   });
 });
 
@@ -116,11 +105,12 @@ describe('a date field holding a template', () => {
 });
 
 describe('an empty date field with templates on offer', () => {
-  it('opens on its date control: a template goes in through the field menu, not a button of its own', async () => {
+  it('keeps its date control and offers the templates beside it', async () => {
     const { container } = show({ type: 'date', value: undefined, componentFromType: true });
-    await waitFor(() => expect(container.querySelector('input')).not.toBeNull());
+    await waitFor(() => expect(container.querySelector('[aria-label="Use a template"]')).not.toBeNull());
+    // the date control, not a text field
     expect(container.querySelector('[data-slate-editor]')).toBeNull();
-    expect(container.querySelector('[aria-label="Use a template"]')).toBeNull();
+    expect(container.querySelector('input')).not.toBeNull();
   });
 });
 
@@ -144,14 +134,14 @@ describe('null in an untyped field', () => {
     const { container } = show({ type: 'any', value: null, filterTemplatesByType: false });
     await waitFor(() => expect(container.querySelector('[data-slate-editor]')).not.toBeNull());
     await waitFor(() =>
-      expect(container.querySelector('[data-slate-editor]')?.textContent?.replace(/\uFEFF/g, '').trim()).toBe('null')
+      expect(container.querySelector('[data-slate-editor]')?.textContent?.replace(/﻿/g, '').trim()).toBe('null')
     );
   });
 
   it('is told from an empty field, which shows nothing', async () => {
     const { container } = show({ type: 'any', value: undefined, filterTemplatesByType: false });
     await waitFor(() => expect(container.querySelector('[data-slate-editor]')).not.toBeNull());
-    expect(container.querySelector('[data-slate-editor]')?.textContent?.replace(/\uFEFF/g, '').trim()).toBe('');
+    expect(container.querySelector('[data-slate-editor]')?.textContent?.replace(/﻿/g, '').trim()).toBe('');
   });
 });
 
@@ -162,18 +152,12 @@ describe('null in an untyped field', () => {
  * reference's path. A chip is named from the whole catalogue; only the list offered is filtered.
  */
 describe("a chip of a field not of the value's type", () => {
-  // a field whose host offers only some of the catalogue (a filter of its own): a field in its value that is
-  // not on offer is still named as the catalogue names it
-  for (const type of ['string', 'any']) {
-    it(`is named as the catalogue names it, in a ${type} field offering only some fields`, async () => {
-      const { container } = show({
-        type,
-        value: '$record:{pos} x',
-        filterTemplatesFunc: (templates: { items?: unknown[] }) => ({ ...templates, items: [] }),
-      });
+  for (const type of ['bool', 'number', 'int']) {
+    it(`is named as the catalogue names it, in a ${type} field`, async () => {
+      const { container } = show({ type, value: '$record:{bezeichnung} x', filterTemplatesByType: true });
       await waitFor(() => expect(container.querySelector('[data-slate-editor] .reqore-tag')).not.toBeNull());
-      const chip = container.querySelector('[data-slate-editor] .reqore-tag')?.textContent?.replace(/\uFEFF/g, '');
-      expect(chip).toContain('pos');
+      const chip = container.querySelector('[data-slate-editor] .reqore-tag')?.textContent?.replace(/﻿/g, '');
+      expect(chip).toContain('bezeichnung');
       expect(chip).not.toContain('record');
     });
   }
@@ -202,12 +186,13 @@ describe('a value written as text, cleared from outside its editor', () => {
     </ReqoreUIProvider>
   );
   const shown = (container: HTMLElement) =>
-    container.querySelector('[data-slate-editor]')?.textContent?.replace(/\uFEFF/g, '').trim() ?? '';
+    container.querySelector('[data-slate-editor]')?.textContent?.replace(/﻿/g, '').trim() ?? '';
 
   for (const [type, cleared] of [
-    ['string', undefined],
+    ['bool', undefined],
+    ['int', undefined],
+    ['int', ''],
     ['string', ''],
-    ['any', undefined],
   ] as const) {
     it(`shows nothing once its ${type} value is ${JSON.stringify(cleared)}`, async () => {
       const { container, rerender } = render(holder({ type, value: '$record:{pos}' }));

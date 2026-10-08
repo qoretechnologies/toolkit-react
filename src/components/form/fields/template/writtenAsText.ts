@@ -19,7 +19,7 @@
 // takes the template's type again. Pure: no React, no transport.
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
-import { findTemplate, isCompleteTemplateToken, isValueTemplate } from '../../../../helpers/templates';
+import { findTemplate, isCompleteTemplateToken } from '../../../../helpers/templates';
 
 /** Scalar types whose value can be written as text: whole numbers, numbers, yes/no. Not a date, which has
  *  its own control. */
@@ -36,48 +36,9 @@ const TEXTABLE_SCALARS: Record<string, 'int' | 'number' | 'bool'> = {
   softbool: 'bool',
 };
 
-/**
- * Whether a field of this type is written in the template editor: text and untyped values, where text with
- * a field in it is the natural value. A whole number, a number, a yes/no and a date open on their own
- * control, and take a template or an expression through "Use Template / Expression" (qorus#646, David).
- */
-export const isWrittenAsText = (type?: string): boolean => type === 'string' || isUntypedOptionType(type);
-
-/**
- * A lone template written in the expression editor's Text view, as the server parses it: the `template`
- * operation with the reference as its one argument. It is stored as the bare template, which every consumer
- * evaluates; the expression form of it is not one the server reads back as the template's value.
- */
-export const loneTemplateOf = (expression: unknown): string | undefined => {
-  const node = (expression as { value?: { exp?: string; args?: unknown[] } } | undefined)?.value;
-  if (node?.exp !== 'template' || node.args?.length !== 1) return undefined;
-  const arg = node.args[0] as { value?: { raw?: unknown } | string } | undefined;
-  const raw = typeof arg?.value === 'string' ? arg.value : arg?.value?.raw;
-  return typeof raw === 'string' && isCompleteTemplateToken(raw) ? raw : undefined;
-};
-
-/**
- * A lone value written in the expression editor's Text view (`12`, `true`, `"open"`), as the server parses
- * it: the `value` operation with a plain value as its one argument. It is stored as that value - the field's
- * own shape - rather than as an expression the Visual view has nothing to show for. A record field is not
- * such a value: it is read from the row.
- */
-export const loneValueOf = (expression: unknown): { value: unknown } | undefined => {
-  const node = (expression as { value?: { exp?: string; args?: unknown[] } } | undefined)?.value;
-  if (node?.exp !== 'value' || node.args?.length !== 1) return undefined;
-  const arg = node.args[0] as { value?: unknown; is_expression?: boolean } | undefined;
-  const value = arg?.value;
-  if (!arg || arg.is_expression || (value !== null && typeof value === 'object')) return undefined;
-  if (typeof value === 'string' && isValueTemplate(value)) return undefined;
-  return { value };
-};
-
-/** The text a value is seeded into the Text view as: a template, a number or a yes/no as written. */
-export const expressionSeedOf = (value: unknown): string => {
-  if (typeof value === 'string') return isCompleteTemplateToken(value) ? value : '';
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return '';
-};
+/** Whether a field of this type is written in the template editor: text, untyped, or a textable scalar. */
+export const isWrittenAsText = (type?: string): boolean =>
+  type === 'string' || isUntypedOptionType(type) || (!!type && type in TEXTABLE_SCALARS);
 
 const INT_LITERAL = /^\s*[-+]?\d+\s*$/;
 const NUMBER_LITERAL = /^\s*[-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?\s*$/i;

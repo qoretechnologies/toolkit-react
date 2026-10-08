@@ -115,11 +115,6 @@ export interface IDpqlEditorProps {
   /** Called when the editor loses focus. */
   onBlur?: () => void;
   /**
-   * Called once when there is no language server to talk to (connecting failed): the editor can show the
-   * text but not parse, serialize or complete it, so a host that needs those offers what works without it.
-   */
-  onUnavailable?: () => void;
-  /**
    * Opt-in to server-driven plain-text → Slate parsing via the LSP's
    * `dpql/toRichtext` custom method. When `true`, the editor calls
    * `dpql/toRichtext({ text: value })` on mount and on every external

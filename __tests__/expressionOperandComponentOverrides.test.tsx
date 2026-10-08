@@ -20,7 +20,7 @@
  * Unknown type!" passed against a component that had rendered nothing at all.
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { fireEvent, render, waitFor } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 const builderProps: any[] = [];
@@ -58,7 +58,7 @@ describe('componentOverrides reach an expression operand', () => {
   it('reach the builder from a field in expression mode', async () => {
     builderProps.length = 0;
 
-    const { findAllByText } = render(
+    render(
       wrap(
         <TemplateField
           name='value'
@@ -73,8 +73,6 @@ describe('componentOverrides reach an expression operand', () => {
       )
     );
 
-    // the field opens on the Text view (qorus#646); the builder is the Visual view
-    fireEvent.click((await findAllByText('Visual'))[0]);
     await waitFor(() => expect(builderProps.length).toBeGreaterThan(0));
     expect(builderProps[0].componentOverrides).toBe(OVERRIDES);
   });

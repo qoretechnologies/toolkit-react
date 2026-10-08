@@ -106,10 +106,9 @@ const showsRawEnvelope = (container: HTMLElement) => {
   return text.includes('is_expression') || text.includes('Key/Value');
 };
 
-/* The expression editor drew - on its Text view since qorus#646 (the DPQL editor), its builder the Visual
-   view - not the raw envelope or nothing at all. */
+/* The builder itself drew — its root, not the shell around it. */
 const showsExpressionBuilder = (container: HTMLElement) =>
-  container.querySelector('.expression-field') !== null;
+  container.querySelector('.expression') !== null;
 
 describe('an expression loaded from a saved draft', () => {
   it('does not render the raw envelope for the author to edit', async () => {
