@@ -710,6 +710,12 @@ const TemplateFieldImpl = memo(
       if (isTemplate && isValueTemplate(value)) {
         setTemplateValue(value);
       }
+      /* Emptied from outside the editor - the card's "Clear value", an undo, a host's reset - the text the
+         value is written in is emptied too. It kept its own copy, so a cleared value went on showing what it
+         had held (qorus#646: "Clear value" had no effect). The editor's own emptying sets this already. */
+      if (isEmptyValue && templateValue) {
+        setTemplateValue(null);
+      }
     }, [JSON.stringify(value)]);
 
     /* Clearing an untyped field returns it to the template selector, which is

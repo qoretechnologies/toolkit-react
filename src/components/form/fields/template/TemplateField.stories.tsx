@@ -1372,6 +1372,53 @@ export const WrittenAsTextChipOfAnotherType: StoryObj<typeof meta> = {
   },
 };
 
+/** The field with a host's own "Clear value", as a form's card has. */
+const WrittenAsTextWithHostClear = (args: any) => {
+  const [held, setHeld] = useState<{ value: unknown; type?: string }>({ value: args.value, type: args.type });
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520 }}>
+      <TemplateField
+        {...args}
+        value={held.value}
+        onChange={(_name: string, value: unknown, type?: string) => setHeld({ value, type })}
+      />
+      <button type='button' className='host-clear' onClick={() => setHeld({ value: undefined, type: args.type })}>
+        Clear value
+      </button>
+      <code className='held-value' data-value={held.value === undefined ? '' : JSON.stringify(held.value)} data-type={held.type ?? ''}>
+        {held.value === undefined ? '(no value)' : `${JSON.stringify(held.value)} : ${held.type ?? ''}`}
+      </code>
+    </div>
+  );
+};
+
+export const WrittenAsTextClearedByItsHost: StoryObj<typeof meta> = {
+  args: {
+    type: 'bool',
+    value: '$record:{pos}',
+    allowTemplates: true,
+    allowCustomValues: true,
+    componentFromType: true,
+    templates: recordTemplates as any,
+  },
+  render: WrittenAsTextWithHostClear,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a yes/no field holding the field pos, beside its host\'s "Clear value" (a form card has one). Cleared by the host, the field is empty: it used to go on showing pos, because the text field kept its own copy of what it held.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editor = await textField(canvasElement);
+    await waitFor(() => expect(editor.textContent).toContain('pos'));
+    await userEvent.click(canvasElement.querySelector('.host-clear') as HTMLElement);
+    await waitFor(() => expect(held(canvasElement).value).toBeUndefined());
+    await waitFor(() => expect(canvasElement.textContent).not.toContain('pos'));
+  },
+};
+
 export const WrittenAsTextExpressionDetected: StoryObj<typeof meta> = {
   args: {
     type: 'any',

@@ -162,3 +162,43 @@ describe("a chip of a field not of the value's type", () => {
     });
   }
 });
+
+/**
+ * qorus#646 (David): "Clear value" on an added yes/no holding the field pos had no effect - the draft was
+ * cleared, the field still showed pos. The text field keeps its own copy of the text, and nothing set it
+ * when the value was emptied from outside the editor (the card's "Clear value", an undo, a host reset).
+ */
+describe('a value written as text, cleared from outside its editor', () => {
+  const holder = (props: Record<string, unknown>) => (
+    <ReqoreUIProvider>
+      <FetchContext.Provider value={emptyFetchContext()}>
+        <TemplateField
+          name='value'
+          allowTemplates
+          allowCustomValues
+          componentFromType
+          templates={TEMPLATES as never}
+          filterTemplatesByType={false}
+          onChange={vi.fn()}
+          {...props}
+        />
+      </FetchContext.Provider>
+    </ReqoreUIProvider>
+  );
+  const shown = (container: HTMLElement) =>
+    container.querySelector('[data-slate-editor]')?.textContent?.replace(/﻿/g, '').trim() ?? '';
+
+  for (const [type, cleared] of [
+    ['bool', undefined],
+    ['int', undefined],
+    ['int', ''],
+    ['string', ''],
+  ] as const) {
+    it(`shows nothing once its ${type} value is ${JSON.stringify(cleared)}`, async () => {
+      const { container, rerender } = render(holder({ type, value: '$record:{pos}' }));
+      await waitFor(() => expect(shown(container)).toContain('pos'));
+      rerender(holder({ type, value: cleared }));
+      await waitFor(() => expect(container.textContent).not.toContain('pos'));
+    });
+  }
+});
