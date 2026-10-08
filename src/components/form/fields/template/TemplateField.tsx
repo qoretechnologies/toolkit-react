@@ -1348,17 +1348,11 @@ const TemplateFieldImpl = memo(
           // The expression is gone, so there is no longer a switch to undo.
           setExpressionFromText(null);
         }
-        /* On the Expression tab, a lone template is the template: stored bare, as every consumer
-           evaluates it (see `loneTemplateOf`) - the server evaluates its expression form, template(...),
-           to the template's parts, not to its value. The Text view stays, seeded with it. */
+        /* On the Expression tab a lone template is kept as the expression the server parses it into,
+           template(...): the option takes expressions (qorus#646, David). A template-only option has no
+           Expression tab and keeps the bare template. A lone value (12, true) is that value, the field's own
+           shape (see `loneValueOf`). */
         const onTabs = !!tabsKindRef.current;
-        const lone = remove || !onTabs ? undefined : loneTemplateOf(expressionValue);
-        if (lone !== undefined) {
-          setExpressionSeed(lone);
-          onChange(name, lone, type as TQorusType, false);
-          return;
-        }
-        // and a lone value (12, true) is that value, the field's own shape (see `loneValueOf`)
         const literal = remove || !onTabs ? undefined : loneValueOf(expressionValue);
         if (literal !== undefined) {
           setExpressionSeed(expressionSeedOf(literal.value));

@@ -89,11 +89,47 @@ const NAME_BY_SYMBOL = new Map<string, string>(
 
 const DPQL_KEYWORDS = new Set(['in', 'not', 'between', 'and', 'like', 'true', 'false', 'null']);
 const DPQL_FUNCTIONS = new Set([
-  'abs', 'round', 'floor', 'ceil', 'trim', 'ltrim', 'rtrim', 'concat', 'split', 'substr',
-  'coalesce', 'nullif', 'now', 'days', 'hours', 'minutes', 'seconds', 'milliseconds',
-  'microseconds', 'years', 'months', 'weeks', 'get_year', 'get_month', 'get_day', 'get_hour',
-  'get_minute', 'get_second', 'format_date', 'format_number', 'map', 'hash_map', 'contains',
-  'ignore', 'case', 'toString', 'toInt', 'toFloat', 'toBool', 'startsWith', 'endsWith',
+  'abs',
+  'round',
+  'floor',
+  'ceil',
+  'trim',
+  'ltrim',
+  'rtrim',
+  'concat',
+  'split',
+  'substr',
+  'coalesce',
+  'nullif',
+  'now',
+  'days',
+  'hours',
+  'minutes',
+  'seconds',
+  'milliseconds',
+  'microseconds',
+  'years',
+  'months',
+  'weeks',
+  'get_year',
+  'get_month',
+  'get_day',
+  'get_hour',
+  'get_minute',
+  'get_second',
+  'format_date',
+  'format_number',
+  'map',
+  'hash_map',
+  'contains',
+  'ignore',
+  'case',
+  'toString',
+  'toInt',
+  'toFloat',
+  'toBool',
+  'startsWith',
+  'endsWith',
 ]);
 
 /**
@@ -127,15 +163,22 @@ export function mockTokenizeDpql(text: string): number[] {
     let match: RegExpExecArray | null;
     while ((match = TOKEN_RE.exec(line)) !== null) {
       let type = -1;
-      if (match[1] || match[2]) type = 11; // string
-      else if (match[3]) type = 13; // regexp
-      else if (match[4]) type = 4; // variable
-      else if (match[5]) type = 2; // class (template)
-      else if (match[6]) type = 12; // number
-      else if (match[7]) type = 14; // operator
+      if (match[1] || match[2])
+        type = 11; // string
+      else if (match[3])
+        type = 13; // regexp
+      else if (match[4])
+        type = 4; // variable
+      else if (match[5])
+        type = 2; // class (template)
+      else if (match[6])
+        type = 12; // number
+      else if (match[7])
+        type = 14; // operator
       else if (match[9]) {
         const word = match[9];
-        if (DPQL_KEYWORDS.has(word.toLowerCase())) type = 8; // keyword
+        if (DPQL_KEYWORDS.has(word.toLowerCase()))
+          type = 8; // keyword
         else if (DPQL_FUNCTIONS.has(word) || DPQL_FUNCTIONS.has(word.toLowerCase())) type = 6; // function
       }
       if (type >= 0) {
@@ -220,10 +263,9 @@ const tokenize = (text: string): TToken[] => {
   return tokens;
 };
 
-const templateArg = (raw: string): IDpqlMockNode => {
-  const [, context, value] = raw.match(/^\$([^:]+):(.*)$/) ?? [];
-  return { type: 'auto', value: { tmpl_context: context, tmpl_value: value, raw } };
-};
+// A template reference is given as its template, as the server gives it (qorus#646): a record field is
+// `$record:{name}`, any other template the template itself.
+const templateArg = (raw: string): IDpqlMockNode => ({ type: 'auto', value: raw });
 
 /** An operand: a bare argument, or a nested expression wrapped as the server wraps it. */
 const asOperand = (node: IDpqlMockNode): IDpqlMockNode =>
@@ -246,8 +288,8 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
     pos++;
     switch (token.kind) {
       case 'number':
-        return token.text.includes('.')
-          ? { type: 'float', value: parseFloat(token.text) }
+        return token.text.includes('.') ?
+            { type: 'float', value: parseFloat(token.text) }
           : { type: 'int', value: parseInt(token.text, 10) };
       case 'string':
         return { type: 'string', value: JSON.parse(token.text) };
@@ -297,10 +339,13 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
       const op = peek();
       // A word comparison (`"a" contains "b"`) binds as the symbol comparisons do.
       const wordComparison =
-        op?.kind === 'word' && NAME_BY_SYMBOL.has(op.text) &&
-        isInfixComparison(NAME_BY_SYMBOL.get(op.text)!, 2)
-          ? NAME_BY_SYMBOL.get(op.text)
-          : undefined;
+        (
+          op?.kind === 'word' &&
+          NAME_BY_SYMBOL.has(op.text) &&
+          isInfixComparison(NAME_BY_SYMBOL.get(op.text)!, 2)
+        ) ?
+          NAME_BY_SYMBOL.get(op.text)
+        : undefined;
       const precedence =
         op?.kind === 'op' ? BINARY_PRECEDENCE[op.text]
         : wordComparison ? BINARY_PRECEDENCE['==']
@@ -351,7 +396,13 @@ const analyse = (
 } => {
   const base = { inferred_type: inferred, target_type: target };
   if (inferred === 'auto' || target === 'auto' || target === 'any' || inferred === target) {
-    return { ...base, type_compatible: true, auto_coercible: true, coercion_may_fail: false, diagnostics: [] };
+    return {
+      ...base,
+      type_compatible: true,
+      auto_coercible: true,
+      coercion_may_fail: false,
+      diagnostics: [],
+    };
   }
   // Text can become anything but may not parse on the day; a number or a bool
   // always becomes text; nothing else converts implicitly.
@@ -363,19 +414,20 @@ const analyse = (
     type_compatible: false,
     auto_coercible: coercible,
     coercion_may_fail: mayFail,
-    ...(coercible
-      ? {
-          suggested_fix: {
-            text: `to${capitalise(target)}(${text})`,
-            description: `Convert ${inferred} to ${target} using to${capitalise(target)}()`,
-          },
-        }
-      : {}),
+    ...(coercible ?
+      {
+        suggested_fix: {
+          text: `to${capitalise(target)}(${text})`,
+          description: `Convert ${inferred} to ${target} using to${capitalise(target)}()`,
+        },
+      }
+    : {}),
     diagnostics: [
       {
         severity: coercible ? 'warning' : 'error',
-        message: coercible
-          ? `Expression returns '${inferred}' but target expects '${target}' (auto-coercion available)`
+        message:
+          coercible ?
+            `Expression returns '${inferred}' but target expects '${target}' (auto-coercion available)`
           : `Expression returns '${inferred}' but target expects '${target}'`,
         code: 'TYPE_MISMATCH',
         ...span,
@@ -393,7 +445,7 @@ export const mockParseDpql = (text: string, target?: string): IDpqlMockParseResu
     // A lone value is wrapped in `value(...)`, which is how the server tells a
     // literal apart from an expression; a lone template reference in `template(...)`,
     // as the server's parser wraps one (Qore DpqlParser: DP_EXPR_TEMPLATE).
-    const isTemplate = !!(node.value as { tmpl_context?: unknown } | undefined)?.tmpl_context;
+    const isTemplate = tokens.length === 1 && tokens[0].kind === 'template';
     const root: IDpqlMockNode =
       node.exp ? node
       : isTemplate ? { exp: 'template', args: [node] }
@@ -402,7 +454,9 @@ export const mockParseDpql = (text: string, target?: string): IDpqlMockParseResu
     return {
       success: true,
       expression: { is_expression: true, value: root },
-      ...(target ? analyse(trimmed, inferred, target) : { inferred_type: inferred, diagnostics: [] }),
+      ...(target ?
+        analyse(trimmed, inferred, target)
+      : { inferred_type: inferred, diagnostics: [] }),
     } as IDpqlMockParseResult;
   } catch (err) {
     const column = err instanceof DpqlMockSyntaxError ? err.column : 1;
@@ -431,14 +485,14 @@ const TEMPLATE_TOKEN = /^\$[A-Za-z_-][\w-]*:[\w.{}]+$/;
 const argumentValue = (arg: IDpqlMockNode | undefined): unknown =>
   arg && !arg.exp && !arg.is_expression ? arg.value : arg;
 
-const printLiteral = (value: unknown, readable: boolean): string => {
+const printLiteral = (value: unknown): string => {
   if (value && typeof value === 'object' && 'raw' in value) {
     return String((value as { raw?: string }).raw);
   }
   if (typeof value === 'string') {
-    // Serialized DPQL keeps a string a string; a readable rendering shows a
-    // reference the string holds as the reference, which the server's does too.
-    return readable && TEMPLATE_TOKEN.test(value) ? value : JSON.stringify(value);
+    // A value that is one template is the template, as the UI form evaluates it and as the server serializes
+    // it (qorus#646); any other string is a string.
+    return TEMPLATE_TOKEN.test(value) ? value : JSON.stringify(value);
   }
   return value === null || value === undefined ? 'null' : String(value);
 };
@@ -457,7 +511,7 @@ const printArg = (arg: IDpqlMockNode, parentPrecedence: number, readable: boolea
     return precedence !== undefined && precedence < parentPrecedence ? `(${printed})` : printed;
   }
   if (arg.exp) return printNode(arg, readable);
-  return printLiteral(arg.value, readable);
+  return printLiteral(arg.value);
 };
 
 /** `render_template` substitution, in the server's order. */
@@ -466,7 +520,7 @@ const renderTemplate = (info: IExpressionSchema, args: IDpqlMockNode[]): string 
     if (n < args.length) return printArg(args[n], Infinity, true);
     // A missing argument reads as its default, or as nothing.
     const fallback = info.args?.[n]?.default_value;
-    return fallback === undefined ? '' : printLiteral(fallback, true);
+    return fallback === undefined ? '' : printLiteral(fallback);
   };
   return info
     .render_template!.split('$symbol')

@@ -29,12 +29,7 @@ vi.mock('../src/components/dpqlEditor', () => ({
                 is_expression: true,
                 value: {
                   exp: 'template',
-                  args: [
-                    {
-                      type: 'auto',
-                      value: { tmpl_context: 'record', tmpl_value: 'pos', raw: text },
-                    },
-                  ],
+                  args: [{ type: 'auto', value: text }],
                 },
               },
             }
@@ -501,6 +496,23 @@ describe('one value, three views', () => {
     await waitFor(() => expect(container.querySelector('.value-tab-cannot-show')).not.toBeNull());
   });
 
+  it('a lone template written on the Expression tab is kept as the expression template(...)', async () => {
+    const onChange = vi.fn();
+    const { container, getByTestId } = show({ type: 'int' as never, initial: 12, onChange });
+    clickTab(container, 'expression');
+    const text = await waitFor(() => getByTestId('dpql-text') as HTMLTextAreaElement);
+    fireEvent.change(text, { target: { value: '$record:{pos}' } });
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        'value',
+        { exp: 'template', args: [{ type: 'auto', value: '$record:{pos}' }] },
+        expect.anything(),
+        true
+      )
+    );
+    expect(onChange).not.toHaveBeenCalledWith('value', '$record:{pos}', expect.anything(), false);
+  });
+
   it('a template on a yes / no cannot be shown on Value: it says where it is shown', async () => {
     const { container } = show({ type: 'bool' as never, initial: '$record:{pos}' });
     await waitFor(() => expect(activeTab(container)).toBe('expression'));
@@ -571,9 +583,7 @@ describe('the server parse result', () => {
         is_expression: true,
         value: {
           exp: 'template',
-          args: [
-            { type: 'auto', value: { tmpl_context: 'local', tmpl_value: 'x', raw: '$local:x' } },
-          ],
+          args: [{ type: 'auto', value: '$local:x' }],
         },
       })
     ).toBe('$local:x');
