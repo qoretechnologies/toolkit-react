@@ -9,6 +9,7 @@
 import {
   ReqoreButton,
   ReqoreControlGroup,
+  ReqoreDropdown,
   ReqoreMessage,
   ReqoreVerticalSpacer,
 } from '@qoretechnologies/reqore';
@@ -82,6 +83,17 @@ export interface IExpressionFieldProps {
   /** Initial editor mode (default `visual`). */
   defaultMode?: TExpressionMode;
   /**
+   * The Text view's text when the value is not an expression yet: a template or a literal the field held
+   * when "Use Template / Expression" opened it. Nothing is emitted until it is edited.
+   */
+  initialText?: string;
+  /**
+   * The field holds a plain value the text stands for - a template or a literal written in the Text view
+   * (stored as itself, not as an expression). The expression is then gone from `value` but the field is not
+   * cleared, so the text being written stays.
+   */
+  heldAsValue?: boolean;
+  /**
    * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the
    * builder's operand fields. Without them an operand typed with one of the
    * CONSUMER's ui_types renders "Unknown type!".
@@ -108,6 +120,8 @@ export const ExpressionField = memo(
     fields,
     recordType,
     defaultMode = 'visual',
+    initialText,
+    heldAsValue,
     size,
     componentOverrides,
     reorder,
@@ -125,7 +139,14 @@ export const ExpressionField = memo(
 
     // Text mode state. `text` is the DPQL string the editor shows; the AST
     // (`value`) stays the source of truth, kept in sync via parse-on-edit.
-    const [text, setText] = useState('');
+    const [text, setText] = useState(initialText ?? '');
+    /* No language server to parse or write the text: the Text view cannot work, so the field shows the
+       Visual view, which needs none, and says why (qorus#646). */
+    const [textUnavailable, setTextUnavailable] = useState(false);
+    const handleTextUnavailable = useCallback(() => {
+      setTextUnavailable(true);
+      setMode('visual');
+    }, []);
     /* The text the current AST was parsed FROM.
      *
      * The preview renders the AST, and the AST only moves on a SUCCESSFUL
@@ -174,9 +195,14 @@ export const ExpressionField = memo(
      * noise the message below is written to avoid.
      */
     const readTypeCheck = useCallback(
-      (result?: { type_compatible?: boolean; auto_coercible?: boolean;
-        coercion_may_fail?: boolean; inferred_type?: string; target_type?: string;
-        suggested_fix?: { text: string } }): void => {
+      (result?: {
+        type_compatible?: boolean;
+        auto_coercible?: boolean;
+        coercion_may_fail?: boolean;
+        inferred_type?: string;
+        target_type?: string;
+        suggested_fix?: { text: string };
+      }): void => {
         if (!result || result.type_compatible === undefined) {
           setTypeCheck(null);
           return;
@@ -246,12 +272,17 @@ export const ExpressionField = memo(
         hadExpression.current = true;
         return;
       }
+      // a template or a literal written here is held as itself: the text stands for it, and stays
+      if (heldAsValue) {
+        hadExpression.current = false;
+        return;
+      }
       if (hadExpression.current) {
         hadExpression.current = false;
         userTypedRef.current = false;
         setText('');
       }
-    }, [ast]);
+    }, [ast, heldAsValue]);
 
     // Text mode: parse the DPQL into the AST (debounced).
     /* The session may not be attached when the debounce fires — the editor
@@ -365,6 +396,22 @@ export const ExpressionField = memo(
       };
     }, [mode, ast, expressions]);
 
+    /** The field's templates, its catalogue's entries, for the Text view's picker. */
+    const templateItems = useMemo(
+      () => (localTemplates?.items ?? []) as NonNullable<IReqoreFormTemplates['items']>,
+      [localTemplates]
+    );
+    /* A template chosen from the picker goes in after the text, as a chip, and is parsed as typed text is:
+       the editor keeps no caret the field can reach, so the end of the text is where it is put. */
+    const insertTemplate = useCallback(
+      (item: { value?: unknown }) => {
+        if (typeof item?.value !== 'string' || !item.value) return;
+        const current = text.trimEnd();
+        handleDpqlChange(current ? `${current} ${item.value}` : item.value);
+      },
+      [text, handleDpqlChange]
+    );
+
     // Switch to Text: the seeding effect above serializes the AST once
     // the editor's session is up.
     const enterTextMode = useCallback(() => {
@@ -422,25 +469,48 @@ export const ExpressionField = memo(
             icon='CodeLine'
             active={mode === 'text'}
             onClick={enterTextMode}
-            disabled={readOnly}
+            disabled={readOnly || textUnavailable}
+            tooltip={
+              textUnavailable ? 'The expression language server is not available' : undefined
+            }
             size={size as any}
           >
             Text
           </ReqoreButton>
         </ReqoreControlGroup>
 
-        {mode === 'text' ? (
+        {mode === 'text' ?
           <>
-            <DpqlEditor
-              ref={dpqlRef}
-              value={text}
-              onChange={handleDpqlChange}
-              provider={provider}
-              recordType={recordType}
-              fields={fields}
-              readOnly={readOnly}
-              height='48px'
-            />
+            <ReqoreControlGroup gapSize='small' fluid verticalAlign='flex-start'>
+              <DpqlEditor
+                ref={dpqlRef}
+                value={text}
+                onChange={handleDpqlChange}
+                provider={provider}
+                recordType={recordType}
+                fields={fields}
+                // the field's own templates name the chips as its catalogue names them
+                templates={localTemplates}
+                readOnly={readOnly}
+                height='48px'
+                onUnavailable={handleTextUnavailable}
+              />
+              {/* The field's templates and fields, as its catalogue names them, inserted as chips - next to
+                  the server's `$` completion, which offers every context but not these names. */}
+              {templateItems.length && !readOnly ?
+                <ReqoreDropdown
+                  className='expression-text-template-picker'
+                  icon='MoneyDollarCircleLine'
+                  aria-label='Insert a template'
+                  tooltip='Insert a template'
+                  size={size as any}
+                  filterable
+                  fixed
+                  items={templateItems}
+                  onItemSelect={insertTemplate}
+                />
+              : null}
+            </ReqoreControlGroup>
             {/* What the server said about the result's type, when the field
                 declares one to check against.
 
@@ -463,12 +533,12 @@ export const ExpressionField = memo(
                 {typeCheck.mayFail ?
                   ' That conversion is attempted rather than guaranteed, so the value itself is checked when it runs.'
                 : ''}
-                {typeCheck.fix ? (
+                {typeCheck.fix ?
                   <>
                     <ReqoreVerticalSpacer height={6} />
                     <DpqlRendering text={typeCheck.fix} data-testid='expression-type-fix' />
                   </>
-                ) : null}
+                : null}
               </ReqoreMessage>
             )}
 
@@ -485,30 +555,43 @@ export const ExpressionField = memo(
 
                 An empty query has nothing to render either, so the box appears
                 once there is a result rather than holding a placeholder. */}
-            {previewState === 'shown' ? (
+            {previewState === 'shown' ?
               <ReqoreMessage intent='info' size='small' title='Preview' flat opaque={false}>
                 <DpqlRendering text={preview} data-testid='expression-preview' />
               </ReqoreMessage>
-            ) : null}
+            : null}
           </>
-        ) : (
-          <ExpressionBuilder
-            value={value}
-            onChange={(v, remove) => onChange(v, remove)}
-            expressions={expressions}
-            // Default to `auto` when the field declares no return type, so a
-            // valid expression renders `muted` rather than `danger` (the
-            // builder's intent requires a truthy returnType).
-            returnType={(returnType ?? type ?? 'auto') as any}
-            readOnly={readOnly}
-            localTemplates={localTemplates ?? { items: [] }}
-            serverHandled={serverHandled}
-            componentOverrides={componentOverrides}
-            extraActions={extraActions}
-            size={size}
-            reorder={reorder}
-          />
-        )}
+        : <>
+            {textUnavailable ?
+              <ReqoreMessage
+                intent='muted'
+                size='small'
+                flat
+                opaque={false}
+                className='expression-text-unavailable'
+              >
+                The Text view needs the expression language server, which is not available: the
+                expression is built here instead.
+              </ReqoreMessage>
+            : null}
+            <ExpressionBuilder
+              value={value}
+              onChange={(v, remove) => onChange(v, remove)}
+              expressions={expressions}
+              // Default to `auto` when the field declares no return type, so a
+              // valid expression renders `muted` rather than `danger` (the
+              // builder's intent requires a truthy returnType).
+              returnType={(returnType ?? type ?? 'auto') as any}
+              readOnly={readOnly}
+              localTemplates={localTemplates ?? { items: [] }}
+              serverHandled={serverHandled}
+              componentOverrides={componentOverrides}
+              extraActions={extraActions}
+              size={size}
+              reorder={reorder}
+            />
+          </>
+        }
       </ReqoreControlGroup>
     );
   }

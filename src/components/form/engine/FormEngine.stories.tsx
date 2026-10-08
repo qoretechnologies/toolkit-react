@@ -5073,10 +5073,19 @@ export const CompactExpressions: Story = {
       expect(summary?.textContent).toContain('== "John"');
     });
 
-    // Drill in → the card hosts the ExpressionField (Visual builder).
+    // Drill in → the card hosts the ExpressionField, on its Text view by default (qorus#646); the Visual
+    // builder is one click away.
     await fireEvent.click(
       document.querySelector('.readfirst-row[data-field="condition"]') as HTMLElement
     );
+    const visualBtn = await waitFor(() => {
+      const button = Array.from(
+        document.querySelectorAll('.options-readfirst-card[data-field="condition"] .expression-field button')
+      ).find((b) => b.textContent?.trim() === 'Visual') as HTMLElement | undefined;
+      expect(button, 'the expression editor, with its Visual view a click away').toBeTruthy();
+      return button as HTMLElement;
+    });
+    await fireEvent.click(visualBtn);
     await waitFor(
       () =>
         expect(
@@ -9817,28 +9826,14 @@ export const WholeNumberWithTextAroundATemplate: Story = {
     docs: {
       description: {
         story:
-          'Renders a whole-number option holding the field pos, written as text. Text written after the field ("$record:{pos} Stk.") is not a whole number: the option says so under it while it is being typed, and the form cannot be saved. Deleting the text makes it the field alone again: the message goes and the form can be saved.',
+          'Renders a whole-number option holding "$record:{pos} Stk.", text around the field pos, as a value saved before typed options opened on their own control: it is not a whole number, the option says so under it, and the form cannot be saved.',
       },
     },
   },
-  render: () => <TextAroundATemplateForm initial='$record:{pos}' />,
+  render: () => <TextAroundATemplateForm initial='$record:{pos} Stk.' />,
   play: async ({ canvasElement }) => {
-    const validity = () => canvasElement.querySelector('.form-validity')?.getAttribute('data-valid');
-    const editor = await waitFor(() => {
-      const el = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
-      expect(el, 'the whole number, written as text').toBeTruthy();
-      return el as HTMLElement;
-    });
-    await waitFor(() => expect(editor.textContent).toContain('pos'));
-    await waitFor(() => expect(validity()).toBe('true'));
-    expect(canvasElement.textContent).not.toContain(TEXT_AROUND);
-    await userEvent.click(editor);
-    await userEvent.keyboard(' Stk.');
     await waitFor(() => expect(canvasElement.textContent).toContain(TEXT_AROUND));
-    await waitFor(() => expect(validity()).toBe('false'));
-    await userEvent.keyboard('{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}');
-    await waitFor(() => expect(canvasElement.textContent).not.toContain(TEXT_AROUND));
-    await waitFor(() => expect(validity()).toBe('true'));
+    await waitFor(() => expect(canvasElement.querySelector('.form-validity')?.getAttribute('data-valid')).toBe('false'));
   },
 };
 
@@ -9976,5 +9971,301 @@ export const YesNoHoldingATemplateRead: Story = {
     });
     await waitFor(() => expect(row.textContent).toContain('pos'));
     expect(row.textContent).not.toContain('Yes');
+  },
+};
+
+// --- "Use Template / Expression" (qorus#646, David) ----------------------------------------------------------
+// A typed option opens on its own control; one ⋮ action opens the expression editor's Text view for a template
+// or an expression, the Visual view one click away. Text and untyped values keep the text field with chips.
+
+const TEMPLATE_OR_EXPRESSION_OPTIONS = {
+  quantity: { type: 'int', display_name: 'Quantity', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
+  price: { type: 'number', display_name: 'Price', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
+  active: { type: 'bool', display_name: 'Active', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
+  due: { type: 'date', display_name: 'Due', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
+  status: {
+    type: 'string',
+    display_name: 'Status',
+    supports_templates: true,
+    supports_expressions: true,
+    expressions: mockExpressions,
+    allowed_values: [
+      { name: 'open', display_name: 'Open', value: { type: 'string', value: 'open' } },
+      { name: 'closed', display_name: 'Closed', value: { type: 'string', value: 'closed' } },
+    ],
+  },
+  note: { type: 'string', display_name: 'Note', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
+  anything: { type: 'any', display_name: 'Anything', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
+  saved_template: { type: 'int', display_name: 'Saved template', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
+  computed: { type: 'int', display_name: 'Computed', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
+  template_only: { type: 'int', display_name: 'Template only', supports_templates: true },
+} as unknown as IQorusFormSchema;
+
+const TEMPLATE_OR_EXPRESSION_VALUE = {
+  quantity: { type: 'int', value: 12 },
+  price: { type: 'number', value: 3.5 },
+  active: { type: 'bool', value: true },
+  due: { type: 'date', value: '2026-11-02T00:00:00Z' },
+  status: { type: 'string', value: 'open' },
+  note: { type: 'string', value: 'SUP-$record:{pos}' },
+  anything: { type: 'any', value: '$record:{pos}' },
+  saved_template: { type: 'int', value: '$record:{pos}' },
+  computed: {
+    type: 'int',
+    is_expression: true,
+    value: { exp: '+', args: [{ type: 'int', value: '$record:{pos}' }, { type: 'int', value: 1 }] },
+  },
+  template_only: { type: 'int', value: '$record:{pos}' },
+};
+
+/** The form, and what each option holds - its value, and whether it is an expression. */
+const TemplateOrExpressionForm = () => {
+  const [value, setValue] = useState<any>(TEMPLATE_OR_EXPRESSION_VALUE);
+  return (
+    <>
+      <FormEngine
+        compact
+        name='templateOrExpression'
+        stringTemplates={ROW_FIELDS as any}
+        options={TEMPLATE_OR_EXPRESSION_OPTIONS}
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+      />
+      <code className='form-held' data-held={JSON.stringify(value)} style={{ display: 'none' }} />
+    </>
+  );
+};
+
+/** What the form holds for an option. */
+const heldOption = (canvasElement: HTMLElement, field: string) =>
+  JSON.parse(canvasElement.querySelector('.form-held')?.getAttribute('data-held') ?? '{}')[field];
+
+/** An option's row, read or being edited. */
+const optionRow = (field: string) =>
+  [...document.querySelectorAll<HTMLElement>(`[data-field="${field}"]`)].pop() as HTMLElement;
+
+/** Open an option's editor, as a click on its row does. */
+const editOption = async (field: string) => {
+  const row = await waitFor(() => {
+    const el = optionRow(field);
+    expect(el, field).toBeTruthy();
+    return el;
+  });
+  const editing = () =>
+    document.querySelector<HTMLElement>(
+      `[data-field="${field}"].readfirst-row-editing, [data-field="${field}"].options-readfirst-card`
+    );
+  if (!editing()) await userEvent.click(row);
+  return waitFor(() => {
+    const el = editing();
+    expect(el, `${field} being edited`).toBeTruthy();
+    return el as HTMLElement;
+  });
+};
+
+/** An option's ⋯ (More actions) trigger, while it is being edited. */
+const optionMore = (row: HTMLElement) => {
+  const more = row.querySelector<HTMLElement>('.options-readfirst-more');
+  return (more?.matches('button') ? more : more?.querySelector('button')) as HTMLElement;
+};
+
+/** Choose an action from an option's ⋯ menu. */
+const fromOptionMenu = async (row: HTMLElement, action: string) => {
+  await userEvent.click(optionMore(row));
+  await userEvent.click(await within(document.body).findByText(action, { selector: '.reqore-menu-item *' }));
+};
+
+/** The labels of an option's ⋯ menu. */
+const optionMenuLabels = async (row: HTMLElement) => {
+  await userEvent.click(optionMore(row));
+  const labels = await waitFor(() => {
+    const items = [...document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')];
+    expect(items.length).toBeGreaterThan(0);
+    return items.map((item) => item.textContent?.trim() ?? '');
+  });
+  await userEvent.keyboard('{Escape}');
+  return labels;
+};
+
+export const TypedOptionsOpenOnTheirOwnControl: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a form whose options take templates and expressions, and opens its typed ones: a whole number, a number, a yes / no, a date and fixed choices each open on their own control - a number input, a checkbox, the date picker, the choices - not on a text field. Their ⋯ menu offers one action for a template or an expression, "Use Template / Expression".',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async () => {
+    for (const field of ['quantity', 'price', 'active', 'due', 'status']) {
+      const row = await editOption(field);
+      expect(row.querySelector('[data-slate-editor]'), `${field} is not a text field`).toBeNull();
+      expect(row.querySelector('input, .reqore-checkbox'), `${field} has its own control`).toBeTruthy();
+    }
+    const labels = await optionMenuLabels(await editOption('quantity'));
+    expect(labels).toContain('Use Template / Expression');
+    expect(labels).not.toContain('Use Template');
+    expect(labels).not.toContain('Use Expression');
+  },
+};
+
+export const UseTemplateOrExpressionOpensTheTextView: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form and chooses "Use Template / Expression" for the whole number Quantity (12): the expression editor opens on its Text view, seeded with 12, with the form\'s templates offered beside it ($) and the Visual view one click away. Nothing changes in the form until the text is edited.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('quantity');
+    await fromOptionMenu(row, 'Use Template / Expression');
+    const field = await waitFor(() => {
+      const el = optionRow('quantity').querySelector<HTMLElement>('.expression-field');
+      expect(el, 'the expression editor').toBeTruthy();
+      return el as HTMLElement;
+    });
+    await waitFor(() =>
+      expect(field.querySelector('[data-slate-editor]')?.textContent?.replace(/\uFEFF/g, '').trim()).toBe('12')
+    );
+    expect(field.querySelector('.expression-text-template-picker'), 'the templates offered').toBeTruthy();
+    expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 });
+    // the Visual view, one click away
+    await userEvent.click(within(field).getByRole('button', { name: 'Visual' }));
+    await waitFor(() => expect(field.querySelector('[data-slate-editor]')).toBeNull());
+  },
+};
+
+export const SavedTemplateOpensInTheTextView: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form and opens "Saved template", a whole number holding the template pos: it opens in the Text view, as the template - a chip - and the form still holds the bare template; nothing is rewritten until it is edited.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('saved_template');
+    const field = await waitFor(() => {
+      const el = row.querySelector<HTMLElement>('.expression-field');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await waitFor(() => expect(field.querySelector('[data-slate-editor]')?.textContent).toContain('pos'));
+    expect(heldOption(canvasElement, 'saved_template')).toEqual({ type: 'int', value: '$record:{pos}' });
+  },
+};
+
+export const SavedTextWithTemplatesStaysText: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form and opens Note, text holding "SUP-" and the field pos: it keeps the text field, the field a chip in it.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async () => {
+    for (const [field, text] of [['note', 'SUP-']] as const) {
+      const row = await editOption(field);
+      const editor = await waitFor(() => {
+        const el = row.querySelector<HTMLElement>('[data-slate-editor]');
+        expect(el, `${field} is a text field`).toBeTruthy();
+        return el as HTMLElement;
+      });
+      expect(row.querySelector('.expression-field')).toBeNull();
+      await waitFor(() => expect(editor.textContent).toContain('pos'));
+      expect(editor.textContent).toContain(text);
+    }
+  },
+};
+
+export const SavedExpressionOpensInTheTextView: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form and opens Computed, a whole number holding the expression pos + 1: it opens in the Text view, the Visual view one click away.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async () => {
+    const row = await editOption('computed');
+    const field = await waitFor(() => {
+      const el = row.querySelector<HTMLElement>('.expression-field');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    // the Text view: the expression as DPQL text, in the DPQL editor
+    await waitFor(() => expect(field.querySelector('[data-slate-editor]')?.textContent).toContain('+'));
+  },
+};
+
+export const TemplateOnlyOptionKeepsThePicker: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form and opens "Template only", a whole number that takes templates and no expressions, holding the template pos: it is shown in the template picker, and its ⋯ menu offers "Use Custom Value", not "Use Template / Expression" - a template-only option keeps the bare template.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('template_only');
+    await waitFor(() => expect(row.textContent).toContain('pos'));
+    expect(row.querySelector('.expression-field')).toBeNull();
+    const labels = await optionMenuLabels(row);
+    expect(labels).not.toContain('Use Template / Expression');
+    expect(heldOption(canvasElement, 'template_only')).toEqual({ type: 'int', value: '$record:{pos}' });
+  },
+};
+
+export const LoneTemplateWrittenIsStoredBare: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form, chooses "Use Template / Expression" for Quantity and writes $record:{pos} in the Text view: the form holds the bare template $record:{pos}, not an expression wrapping it - the shape every consumer evaluates.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('quantity');
+    await fromOptionMenu(row, 'Use Template / Expression');
+    const editor = await waitFor(() => {
+      const el = optionRow('quantity').querySelector<HTMLElement>('.expression-field [data-slate-editor]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await waitFor(() => expect(editor.textContent?.replace(/\uFEFF/g, '').trim()).toBe('12'));
+    await userEvent.click(editor);
+    await userEvent.keyboard('{Backspace}{Backspace}$record:{{pos}');
+    await waitFor(() => expect(heldOption(canvasElement, 'quantity')).toMatchObject({ value: '$record:{pos}' }));
+    expect(heldOption(canvasElement, 'quantity').is_expression).toBeFalsy();
+  },
+};
+
+export const UseTemplateOrExpressionOnAPhone: Story = {
+  ...UseTemplateOrExpressionOpensTheTextView,
+  parameters: {
+    ...UseTemplateOrExpressionOpensTheTextView.parameters,
+    qlip: { viewport: { width: 390, height: 844 } },
+  },
+};
+
+export const SavedTemplateOpensInTheTextViewOnAPhone: Story = {
+  ...SavedTemplateOpensInTheTextView,
+  parameters: {
+    ...SavedTemplateOpensInTheTextView.parameters,
+    qlip: { viewport: { width: 390, height: 844 } },
   },
 };

@@ -256,7 +256,8 @@ export const ViaFormEngine: Story = {
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
-    // The ported builder rendered inside the engine-driven form.
+    // The expression opens on its Text view (qorus#646); the ported builder is the Visual view, a click away.
+    await userEvent.click(await canvas.findByText('Visual'));
     await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
       timeout: 6000,
     });
@@ -289,14 +290,9 @@ export const ViaFormEngineTextMode: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
-    // Visual (the builder) renders first.
-    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
-      timeout: 6000,
-    });
-
-    // Switch to Text — the DPQL editor mounts and seeds from the AST
+    // The field opens on its Text view (qorus#646): the DPQL editor mounts and seeds from the AST
     // (`dpql/serialize` over the mock LSP).
-    await userEvent.click(await canvas.findByText('Text'));
+    await canvas.findByText('Text');
     const editable = (await waitFor(
       () => {
         const el = canvasElement.querySelector('[contenteditable="true"]');
@@ -386,9 +382,9 @@ export const ViaFormEngineTextTyping: Story = {
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
 
-    // Switch the form field to Text — empty expression, so the editor
+    // The form field opens on Text (qorus#646) — empty expression, so the editor
     // starts blank.
-    await userEvent.click(await canvas.findByText('Text'));
+    await canvas.findByText('Text');
     const editable = (await waitFor(
       () => {
         const el = canvasElement.querySelector('[contenteditable="true"]');
@@ -398,11 +394,12 @@ export const ViaFormEngineTextTyping: Story = {
       { timeout: 10000 }
     )) as HTMLElement;
 
-    // Type DPQL — the debounced `dpql/parse` (mock echoes the text into an
-    // `==` AST) flows through TemplateField's `handleExpressionChange` into
-    // FormEngine's 4-arg `handleValueChange`.
+    // Type DPQL — the debounced `dpql/parse` flows through TemplateField's
+    // `handleExpressionChange` into FormEngine's 4-arg `handleValueChange`. An
+    // expression, not a lone value: a lone value written here is held as that value
+    // (qorus#646), and `1+2` renders differently (`1 + 2`), so the Preview shows.
     await userEvent.click(editable);
-    await userEvent.type(editable, 'name');
+    await userEvent.type(editable, '1+2');
 
     await waitFor(
       () => {
@@ -700,7 +697,7 @@ export const ToggleInFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Expression" flips the field to expression mode and the ExpressionField shell with the Visual builder mounts in place of the checkbox.',
+          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Template / Expression" flips the field to expression mode: the ExpressionField shell mounts in place of the checkbox, on its Text view, and the Visual builder is a click away.',
       },
     },
   },
@@ -741,20 +738,22 @@ export const ToggleInFormEngine: Story = {
     )) as HTMLElement;
     await userEvent.click(more);
 
-    // "Use Expression" (`.function-selector`) flips the field into expression
-    // mode.
-    await userEvent.click(await canvas.findByText('Use Expression'));
+    // "Use Template / Expression" flips the field into expression mode, on the Text view (qorus#646).
+    await userEvent.click(await canvas.findByText('Use Template / Expression'));
 
-    // The ExpressionField shell mounts: its `.expression-field` wrapper, the
-    // ported builder (`.expression`), and the Visual/Text toggle.
+    // The ExpressionField shell mounts on its Text view - the DPQL editor - with the Visual/Text toggle;
+    // the ported builder (`.expression`) is the Visual view, a click away.
     await waitFor(
       () => {
         expect(canvasElement.querySelector('.expression-field')).toBeInTheDocument();
-        expect(canvasElement.querySelector('.expression')).toBeInTheDocument();
+        expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument();
       },
       { timeout: 6000 }
     );
-    await expect(await canvas.findByText('Visual')).toBeInTheDocument();
+    await userEvent.click(await canvas.findByText('Visual'));
+    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
+      timeout: 6000,
+    });
   },
 };
 

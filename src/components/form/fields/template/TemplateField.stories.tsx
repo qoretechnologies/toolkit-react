@@ -265,7 +265,7 @@ export const NumberTypedFreely: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a whole number that takes templates. A click in the field lists the templates of its type at once; what is typed is kept as typed (12abc is flagged by the form, not cut to 12); a template chosen from the list is the value, shown by its name as a chip in the text field it is written in, where text can be written around it.',
+          'Renders TemplateField for a whole number that takes templates. A click in the field lists the templates of its type at once; what is typed is kept as typed (12abc is flagged by the form, not cut to 12); a template chosen from the list is the value, shown by its name in the template picker.',
       },
     },
   },
@@ -279,7 +279,7 @@ export const NumberTypedFreely: StoryObj<typeof meta> = {
     await userEvent.clear(input);
     await userEvent.type(input, '12abc');
     await expect(input).toHaveValue('12abc');
-    // a template from the list: a chip in the text field the value is written in, named by the template
+    // a template from the list: the field becomes the template picker, named by the template
     await userEvent.clear(input);
     const first = await waitFor(() => {
       const item = document.querySelector<HTMLElement>('.reqore-popover-content .reqore-menu-item');
@@ -288,8 +288,8 @@ export const NumberTypedFreely: StoryObj<typeof meta> = {
     });
     const name = first.querySelector('.reqore-menu-item-label, [data-reqore-marquee="text"]')?.textContent ?? first.textContent ?? '';
     await userEvent.click(first);
-    // the template is the value, named as the catalogue names it, a chip in the text field
-    await waitFor(() => expect(canvasElement.querySelector('[data-slate-editor]')).toBeTruthy());
+    // the template is the value, named as the catalogue names it, in the template picker
+    await waitFor(() => expect(canvasElement.querySelector('input')).toBeNull());
     await expect(canvasElement.textContent).toContain(name.trim());
   },
 };
@@ -609,27 +609,16 @@ export const TemplateValueCanBeRemoved: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField holding a $config:boolean template value, a chip in the text field the value is written in. Deleting the chip clears the value and leaves the text field, the cursor in it, for what is written next; the yes/no checkbox is one menu item away: "Use Custom Value" in the ⋮ menu.',
+          'Renders TemplateField holding a $config:boolean template value. Clicking the template-remove action clears the template and the underlying boolean checkbox is shown instead.',
       },
     },
   },
-  play: async ({ canvasElement }) => {
-    // the template is a chip in the text field the yes/no value is written in; deleted, the field is empty
-    // and still the text field
-    const editor = await waitFor(() => {
-      const el = document.querySelector<HTMLElement>('[data-slate-editor]');
-      expect(el).toBeTruthy();
-      return el as HTMLElement;
-    });
-    await userEvent.type(editor, '{Backspace}{Backspace}');
-    await waitFor(() => expect(editor.textContent?.replace(/\uFEFF/g, '').trim()).toBe(''));
-    expect(editor.isConnected).toBe(true);
-    expect(document.querySelector('.reqore-checkbox')).toBeNull();
-    // the checkbox, from the menu
-    const buttons = canvasElement.querySelectorAll<HTMLElement>('button');
-    await userEvent.click(buttons[buttons.length - 1]);
-    await userEvent.click(await screen.findByText('Use Custom Value'));
-    await waitFor(() => expect(document.querySelector('.reqore-checkbox')).toBeInTheDocument());
+  play: async () => {
+    await expect(document.querySelector('.template-selector')).toBeInTheDocument();
+
+    await fireEvent.click(document.querySelector('.template-remove'));
+
+    await expect(document.querySelector('.reqore-checkbox')).toBeInTheDocument();
   },
 };
 
@@ -763,7 +752,7 @@ export const ValueIsResetWhenChangingToCustom: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField over a number type holding a $config:something template value, a chip in the text field. Deleting the chip resets the value to undefined and fires onChange with the cleared value.',
+          'Renders TemplateField over a number type holding a $config:something template value. Clicking template-remove resets the value to undefined and fires onChange with the cleared value.',
       },
     },
   },
@@ -795,10 +784,8 @@ export const ValueIsResetWhenChangingToCustom: StoryObj<typeof meta> = {
       { timeout: 10000 }
     );
 
-    // the template is a chip in the text field; deleted, the value is cleared
-    const editor = document.querySelector<HTMLElement>('[data-slate-editor]') as HTMLElement;
-    await userEvent.type(editor, '{Backspace}{Backspace}');
-    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('Test Field', undefined));
+    await fireEvent.click(document.querySelectorAll('.template-remove')[0]);
+    await expect(args.onChange).toHaveBeenLastCalledWith('Test Field', undefined);
   },
 };
 
@@ -1284,72 +1271,14 @@ export const WrittenAsTextTextAroundTheTemplate: StoryObj<typeof meta> = {
   },
 };
 
-export const WrittenAsTextNumberWithATemplate: StoryObj<typeof meta> = {
-  args: {
-    type: 'int',
-    value: '$record:{pos}',
-    allowTemplates: true,
-    allowCustomValues: true,
-    componentFromType: true,
-    templates: recordTemplates as any,
-  },
-  render: WrittenAsText,
-  parameters: {
-    docs: {
-      description: {
-        story:
-          'Renders a whole-number field holding the template pos: the template is a chip in a text field, not a picker that holds it and nothing else. A number written in its place is the number (12, a whole number); text that is not one is kept as written for the form to flag.',
-      },
-    },
-  },
-  async play({ canvasElement }) {
-    const editor = await textField(canvasElement);
-    await waitFor(() => expect(editor.textContent).toContain('pos'));
-    expect(held(canvasElement)).toEqual({ value: '$record:{pos}', type: 'int' });
-    // a literal of the field's type
-    // the template deleted (it is one chip) and a number written instead
-    await userEvent.type(editor, '{Backspace}{Backspace}12');
-    await waitFor(() => expect(held(canvasElement)).toEqual({ value: 12, type: 'int' }));
-  },
-};
 
-export const WrittenAsTextNumberEmptiedKeepsItsField: StoryObj<typeof meta> = {
-  args: {
-    type: 'int',
-    value: '$record:{pos}',
-    allowTemplates: true,
-    allowCustomValues: true,
-    componentFromType: true,
-    templates: recordTemplates as any,
-  },
-  render: WrittenAsText,
-  parameters: {
-    docs: {
-      description: {
-        story:
-          'Renders a whole-number field holding the template pos, whose chip is deleted: the field is empty, and it is still the text field the author is writing in, with the cursor in it, so the number typed next is the value.',
-      },
-    },
-  },
-  async play({ canvasElement }) {
-    const editor = await textField(canvasElement);
-    await waitFor(() => expect(editor.textContent).toContain('pos'));
-    await userEvent.click(editor);
-    await userEvent.keyboard('{Backspace}{Backspace}');
-    await waitFor(() => expect(held(canvasElement).value).toBeUndefined());
-    await sleep(300);
-    // the same text field, the cursor still in it: no other editor was put in its place
-    expect(editor.isConnected).toBe(true);
-    expect(editor.contains(document.activeElement) || editor === document.activeElement).toBe(true);
-    await userEvent.keyboard('7');
-    await waitFor(() => expect(held(canvasElement)).toEqual({ value: 7, type: 'int' }));
-  },
-};
 
 export const WrittenAsTextChipOfAnotherType: StoryObj<typeof meta> = {
   args: {
-    type: 'bool',
+    type: 'string',
     value: '$record:{pos} Stk.',
+    // the host offers only some of the catalogue (a filter of its own): pos is not on offer
+    filterTemplatesFunc: (templates: any) => ({ ...templates, items: [] }),
     allowTemplates: true,
     allowCustomValues: true,
     componentFromType: true,
@@ -1360,7 +1289,7 @@ export const WrittenAsTextChipOfAnotherType: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders a yes/no field holding the whole-number field pos with text after it. Its chip reads "pos", as the catalogue names it, though a yes/no field offers only yes/no fields: chips used to be named from that offered list, and a field not on it read as its reference ("record: pos").',
+          'Renders a text field holding the whole-number field pos with text after it, in a host that offers only some of the catalogue - pos is not on offer. Its chip reads "pos", as the catalogue names it: chips were named from the list offered, and a field not on it read as its reference ("record: pos").',
       },
     },
   },
@@ -1394,7 +1323,7 @@ const WrittenAsTextWithHostClear = (args: any) => {
 
 export const WrittenAsTextClearedByItsHost: StoryObj<typeof meta> = {
   args: {
-    type: 'bool',
+    type: 'string',
     value: '$record:{pos}',
     allowTemplates: true,
     allowCustomValues: true,
@@ -1406,7 +1335,7 @@ export const WrittenAsTextClearedByItsHost: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders a yes/no field holding the field pos, beside its host\'s "Clear value" (a form card has one). Cleared by the host, the field is empty: it used to go on showing pos, because the text field kept its own copy of what it held.',
+          'Renders a text field holding the field pos, beside its host\'s "Clear value" (a form card has one). Cleared by the host, the field is empty: it used to go on showing pos, because the text field kept its own copy of what it held.',
       },
     },
   },
@@ -1508,82 +1437,4 @@ export const WrittenAsTextAllowedValues: StoryObj<typeof meta> = {
   },
 };
 
-export const WrittenAsTextDateKeepsItsControl: StoryObj<typeof meta> = {
-  args: {
-    type: 'date',
-    allowTemplates: true,
-    allowCustomValues: true,
-    componentFromType: true,
-    templates: recordTemplates as any,
-    filterTemplatesByType: false,
-  },
-  render: WrittenAsText,
-  parameters: {
-    docs: {
-      description: {
-        story:
-          'Renders a date field that takes templates. It keeps its date control, with the templates offered beside it ($): chosen, the template liefertermin is the value, shown in the template control, whose × returns to the date.',
-      },
-    },
-  },
-  async play({ canvasElement }) {
-    const pick = await waitFor(() => {
-      const el = canvasElement.querySelector<HTMLElement>('[aria-label="Use a template"]');
-      expect(el, 'templates offered beside the date').toBeTruthy();
-      return el as HTMLElement;
-    });
-    expect(canvasElement.querySelector('[data-slate-editor]')).toBeNull();
-    await userEvent.click(pick);
-    const item = await waitFor(() => {
-      const el = [...document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')].find((i) =>
-        i.textContent?.includes('liefertermin')
-      );
-      expect(el).toBeTruthy();
-      return el as HTMLElement;
-    });
-    await userEvent.click(item);
-    await waitFor(() => expect(held(canvasElement).value).toBe('$record:{liefertermin}'));
-    await waitFor(() => expect(canvasElement.textContent).toContain('liefertermin'));
-  },
-};
 
-export const WrittenAsTextNumberPicksATemplate: StoryObj<typeof meta> = {
-  args: {
-    type: 'int',
-    allowTemplates: true,
-    allowCustomValues: true,
-    componentFromType: true,
-    templates: recordTemplates as any,
-  },
-  render: WrittenAsText,
-  parameters: {
-    docs: {
-      description: {
-        story:
-          'Renders an empty whole-number field that takes templates. It is typed freely; the template pos chosen from the list its first click opens is the value, a chip in the text field the value is then written in, and text written after it is written around it.',
-      },
-    },
-  },
-  async play({ canvasElement }) {
-    const input = await waitFor(() => {
-      const el = canvasElement.querySelector<HTMLInputElement>('input');
-      expect(el).toBeTruthy();
-      return el as HTMLInputElement;
-    });
-    await userEvent.click(input);
-    const item = await waitFor(() => {
-      const el = [...document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')].find((i) =>
-        i.textContent?.includes('pos')
-      );
-      expect(el).toBeTruthy();
-      return el as HTMLElement;
-    });
-    await userEvent.click(item);
-    const editor = await textField(canvasElement);
-    await waitFor(() => expect(held(canvasElement)).toEqual({ value: '$record:{pos}', type: 'int' }));
-    await waitFor(() => expect(editor.textContent).toContain('pos'));
-    await sleep(500);
-    // nothing took it away again
-    expect(held(canvasElement)).toEqual({ value: '$record:{pos}', type: 'int' });
-  },
-};

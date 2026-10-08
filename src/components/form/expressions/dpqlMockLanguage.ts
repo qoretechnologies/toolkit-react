@@ -391,8 +391,13 @@ export const mockParseDpql = (text: string, target?: string): IDpqlMockParseResu
     const tokens = tokenize(trimmed);
     const node = parseTokens(tokens, trimmed.length + 1);
     // A lone value is wrapped in `value(...)`, which is how the server tells a
-    // literal apart from an expression.
-    const root: IDpqlMockNode = node.exp ? node : { exp: 'value', args: [node] };
+    // literal apart from an expression; a lone template reference in `template(...)`,
+    // as the server's parser wraps one (Qore DpqlParser: DP_EXPR_TEMPLATE).
+    const isTemplate = !!(node.value as { tmpl_context?: unknown } | undefined)?.tmpl_context;
+    const root: IDpqlMockNode =
+      node.exp ? node
+      : isTemplate ? { exp: 'template', args: [node] }
+      : { exp: 'value', args: [node] };
     const inferred = inferDpqlMockType(root);
     return {
       success: true,
