@@ -10188,7 +10188,20 @@ export const ValueToExpressionAndVisual: Story = {
     await waitFor(() =>
       expect(field.querySelector('[data-slate-editor]')?.textContent?.replace(/\uFEFF/g, '').trim()).toBe('12')
     );
-    expect(field.querySelector('.expression-text-template-picker'), 'the templates offered').toBeTruthy();
+    const picker = field.querySelector<HTMLElement>('.expression-text-template-picker');
+    expect(picker, 'the templates offered').toBeTruthy();
+    // beside the text, as tall as it: the controls of a row are as tall as each other
+    const text = field.querySelector<HTMLElement>('[data-slate-editor]') as HTMLElement;
+    const textBox = (text.closest('.reqore-control-wrapper, .reqore-textarea') as HTMLElement) ?? text;
+    const height = (el: HTMLElement) => Math.round(el.getBoundingClientRect().height);
+    await waitFor(() => expect(height(picker as HTMLElement)).toBe(height(textBox)));
+    // and centred on the editor beside it, which is no taller than the text it shows
+    const editor = picker!.previousElementSibling as HTMLElement;
+    const centre = (el: HTMLElement) => {
+      const box = el.getBoundingClientRect();
+      return Math.round(box.top + box.height / 2);
+    };
+    expect(centre(editor)).toBe(centre(picker as HTMLElement));
     expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 });
     await chooseTab(optionRow('quantity'), 'visual');
     await waitFor(() => expect(optionRow('quantity').querySelector('.expression')).toBeTruthy());

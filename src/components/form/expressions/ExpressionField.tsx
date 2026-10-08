@@ -514,7 +514,8 @@ export const ExpressionField = memo(
                 // the field's own templates name the chips as its catalogue names them
                 templates={localTemplates}
                 readOnly={readOnly}
-                height='48px'
+                // no floor of its own: one line as tall as the text it shows, growing with its lines - a
+                // 48px floor left an empty strip under the text, which the picker beside it could not match
                 onUnavailable={handleTextUnavailable}
               />
               {/* The field's templates and fields, as its catalogue names them, inserted as chips - next to
@@ -525,7 +526,9 @@ export const ExpressionField = memo(
                   icon='MoneyDollarCircleLine'
                   aria-label='Insert a template'
                   tooltip='Insert a template'
-                  size={size as any}
+                  // the size of the text it inserts into - the DPQL editor is drawn at the normal size in
+                  // any form - so the two are as tall as each other
+                  size='normal'
                   filterable
                   fixed
                   items={templateItems}
