@@ -2,7 +2,7 @@ import { isValidSixCharHex } from '@qoretechnologies/reqore/dist/helpers/colors'
 import { IQorusFormSchema, TQorusForm, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import { isValidCron } from 'cron-validator';
 import jsyaml from 'js-yaml';
-import { isBoolean, isNull, isString, isUndefined, memoize, omit } from 'lodash';
+import { isBoolean, isNull, isString, isUndefined, memoize, omit, upperFirst } from 'lodash';
 import every from 'lodash/every';
 import isArray from 'lodash/isArray';
 import isDate from 'lodash/isDate';
@@ -283,6 +283,15 @@ const textAroundATemplateReason = (type: string, value: unknown): string | undef
       : `Templates side by side make this text, not ${notA}. Keep one of them alone.`;
   }
   return `"${around.text.join(' … ')}" makes this text, not ${notA}. Delete it to keep the template alone.`;
+};
+
+/** 1st, 2nd, 3rd, 4th, … 11th, 12th, 13th, … 21st: a position as it is written. */
+const ordinal = (n: number): string => {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) {
+    return `${n}th`;
+  }
+  return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`;
 };
 
 export const _validateField = (
@@ -1666,6 +1675,14 @@ export const _validateField = (
       // Now we need to validate each argument, either as a normal value or as a sub-expression
       const args = castedValue.value?.args ?? [];
 
+      // each operand's name, as the editor shows it
+      const argLabels: string[] = args.map((_arg: unknown, index: number) => {
+        const definition = expressionDefinition.varargs
+          ? expressionDefinition.args[0]
+          : expressionDefinition.args[index];
+        return definition?.display_name ?? definition?.name ?? `argument ${index + 1}`;
+      });
+
       for (let index = 0; index < args.length; index++) {
         const argValue: any = args[index];
         const argDefinition = expressionDefinition.varargs
@@ -1676,8 +1693,13 @@ export const _validateField = (
            `display_name` is what a catalogue MAY carry; the served one carries
            `name`, so every message about an argument read "argument 1
            ("undefined") is invalid" and named a field that does not exist. */
-        const argLabel =
-          argDefinition?.display_name ?? argDefinition?.name ?? `argument ${index + 1}`;
+        const argLabel = argLabels[index];
+        /* Which operand, where its name alone does not say: every operand of a call taking any number of
+           them is "Value" (qlip build 20261008-083118: "which "value" is the message mentioning"). Said by
+           its position too, as the editor shows them, left to right. */
+        const operand = argLabels.some((label, other) => other !== index && label === argLabel)
+          ? `the ${ordinal(index + 1)} "${argLabel}"`
+          : undefined;
 
         /* An explicit null is a VALUE, and DPQL says so: `null` is a literal
            that parses, serializes and round-trips like any other.
@@ -1709,7 +1731,7 @@ export const _validateField = (
 
           if (!result.isValid) {
             // said by the operand's name, as the editor shows it - not by its position in the call
-            return withContext(result, `The expression in "${argLabel}" is invalid`);
+            return withContext(result, `The expression in ${operand ?? `"${argLabel}"`} is invalid`);
           }
 
           continue;
@@ -1736,9 +1758,9 @@ export const _validateField = (
           // an operand not filled in yet says what to do; one that is wrong says which and why (David's
           // review of qorus#646: "Value for argument 1 ("Value") is invalid: Missing value" while building)
           if (argValue?.value === undefined || argValue?.value === null || argValue?.value === '') {
-            return invalidResult(`Enter a value for "${argLabel}"`);
+            return invalidResult(operand ? `Enter ${operand}` : `Enter a value for "${argLabel}"`);
           }
-          return withContext(result, `"${argLabel}" is invalid`);
+          return withContext(result, operand ? `${upperFirst(operand)} is invalid` : `"${argLabel}" is invalid`);
         }
       }
 
