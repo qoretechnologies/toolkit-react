@@ -1080,6 +1080,11 @@ export const CompactRowCancelEdit: Story = {
 
 export const CompactRowSaysWhereItMoves: Story = {
   parameters: {
+    /* Nothing to SEE in the end frame: the note this story asserts is shown only while the field is open,
+       and the play closes it, so the capture is an ordinary filled row. Rejected on qlip build
+       20261008-083118 ("if it says that during the play test, then remove the snapshot"); the story stays
+       because the behaviour it pins is the point. */
+    qlip: { skip: true },
     docs: {
       description: {
         story:
