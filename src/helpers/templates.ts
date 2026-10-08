@@ -94,6 +94,16 @@ const COMPLETE_TEMPLATE_TOKEN = new RegExp(`^${TEMPLATE_TOKEN_SOURCE}$`);
 export const isCompleteTemplateToken = (value?: unknown): value is string =>
   typeof value === 'string' && COMPLETE_TEMPLATE_TOKEN.test(value);
 
+const TEMPLATE_TOKEN_ANYWHERE = new RegExp(TEMPLATE_TOKEN_SOURCE);
+
+/**
+ * Text with a template in it that is not the template alone: `$record:{pos} Stk.`, `SUP-$record:{pos}`,
+ * two templates side by side. In text it is text; a whole number, a number, a yes/no or a date cannot
+ * hold it (qorus#646).
+ */
+export const hasTextAroundATemplate = (value?: unknown): value is string =>
+  typeof value === 'string' && TEMPLATE_TOKEN_ANYWHERE.test(value) && !isCompleteTemplateToken(value);
+
 /** A complete token carrying at least one BRACED context segment —
  *  `$data:{W2n….filename}`, `$qore-expr:{1 + 2}`. These are machine-written
  *  references nobody types by hand, so a surface may render them as a picker

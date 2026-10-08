@@ -15,7 +15,7 @@ import { fixOperatorValue, getAddress, getProtocol, splitByteSize } from './comm
 import { isOptionInterfaceUiType } from './optionUiTypes';
 import { getListElementValue, getOptionsFromRequiredGroups } from './options';
 import { IProviderType, TVariableActionValue, maybeBuildOptionProvider } from './providerValue';
-import { getTemplateKey, getTemplateValue, isValueTemplate } from './templates';
+import { getTemplateKey, getTemplateValue, hasTextAroundATemplate, isValueTemplate } from './templates';
 import { getUnlistedChoiceReason } from './allowedValues';
 
 /** The five cron fields, in order, as a schedule hash may name them. */
@@ -244,6 +244,28 @@ const isValueDefined = (type: string, value: any): boolean => {
   return value !== undefined && value !== '';
 };
 
+/** What is said of a value of a type that is not text, written with text around a template. */
+const TEXT_AROUND_A_TEMPLATE: Record<string, string> = (() => {
+  const wholeNumber = "A whole number can't have text around a template";
+  const number = "A number can't have text around a template";
+  const yesNo = "True or false can't have text around a template";
+  const date = "A date can't have text around a template";
+  return {
+    int: wholeNumber,
+    integer: wholeNumber,
+    softint: wholeNumber,
+    number,
+    float: number,
+    softfloat: number,
+    softnumber: number,
+    bool: yesNo,
+    boolean: yesNo,
+    softbool: yesNo,
+    date,
+    softdate: date,
+  };
+})();
+
 export const _validateField = (
   type: string,
   value?: any,
@@ -271,6 +293,14 @@ export const _validateField = (
   const pos: number = type.indexOf('<');
   if (pos > 0) {
     type = type.slice(0, pos);
+  }
+  /* A value whose type is not text, written with text around a template, is not of that type: a whole
+     number written as "$record:{pos} Stk." passed as a template - anything starting with `$` and holding
+     a `:` did - and the form could be saved with a value its type cannot hold (qorus#646). A template
+     alone, a literal and an expression are judged as before. */
+  const textAroundReason = hasTextAroundATemplate(value) ? TEXT_AROUND_A_TEMPLATE[type] : undefined;
+  if (textAroundReason) {
+    return invalidResult(textAroundReason);
   }
   // Check if the value is a template string
   if (isValueTemplate(value)) {

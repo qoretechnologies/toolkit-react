@@ -9766,3 +9766,118 @@ const stickyBoxesStory = (layout: 'own' | 'host' | 'padded-host'): Story => ({
 export const BoxHeaderSlidesUnderToolbarOwnScroll: Story = stickyBoxesStory('own');
 export const BoxHeaderSlidesUnderToolbarHostScroll: Story = stickyBoxesStory('host');
 export const BoxHeaderSlidesUnderToolbarPaddedHost: Story = stickyBoxesStory('padded-host');
+
+const ROW_FIELDS = {
+  items: [
+    {
+      label: 'Fields of the row',
+      items: [
+        { label: 'pos', value: '$record:{pos}', badge: 'int' },
+        { label: 'bezeichnung', value: '$record:{bezeichnung}', badge: 'string' },
+      ],
+    },
+  ],
+};
+
+/** A whole-number option holding a field of the row, and whether the form can be saved. */
+const TextAroundATemplateForm = ({ initial, type = 'int' }: { initial: unknown; type?: string }) => {
+  const [value, setValue] = useState<any>({ quantity: { type, value: initial } });
+  const [valid, setValid] = useState<boolean>();
+  return (
+    <>
+      <FormEngine
+        name='textAround'
+        stringTemplates={ROW_FIELDS as any}
+        options={
+          {
+            quantity: {
+              type,
+              display_name: 'Quantity',
+              required: true,
+              preselected: true,
+              supports_templates: true,
+            },
+          } as unknown as IQorusFormSchema
+        }
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+        onValidityChange={(isValid) => setValid(isValid)}
+      />
+      <code className='form-validity' data-valid={String(valid)}>
+        {valid ? 'can be saved' : 'cannot be saved'}
+      </code>
+    </>
+  );
+};
+
+const TEXT_AROUND = "A whole number can't have text around a template";
+
+export const WholeNumberWithTextAroundATemplate: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a whole-number option holding the field pos, written as text. Text written after the field ("$record:{pos} Stk.") is not a whole number: the option says so under it while it is being typed, and the form cannot be saved. Deleting the text makes it the field alone again: the message goes and the form can be saved.',
+      },
+    },
+  },
+  render: () => <TextAroundATemplateForm initial='$record:{pos}' />,
+  play: async ({ canvasElement }) => {
+    const validity = () => canvasElement.querySelector('.form-validity')?.getAttribute('data-valid');
+    const editor = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
+      expect(el, 'the whole number, written as text').toBeTruthy();
+      return el as HTMLElement;
+    });
+    await waitFor(() => expect(editor.textContent).toContain('pos'));
+    await waitFor(() => expect(validity()).toBe('true'));
+    expect(canvasElement.textContent).not.toContain(TEXT_AROUND);
+    await userEvent.click(editor);
+    await userEvent.keyboard(' Stk.');
+    await waitFor(() => expect(canvasElement.textContent).toContain(TEXT_AROUND));
+    await waitFor(() => expect(validity()).toBe('false'));
+    await userEvent.keyboard('{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}');
+    await waitFor(() => expect(canvasElement.textContent).not.toContain(TEXT_AROUND));
+    await waitFor(() => expect(validity()).toBe('true'));
+  },
+};
+
+export const WholeNumberLiteralAndExpressionStayValid: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same whole-number option holding 12, a literal of its type: valid, and no message. A template alone and an expression are valid too; only text around a template is not.',
+      },
+    },
+  },
+  render: () => <TextAroundATemplateForm initial={12} />,
+  play: async ({ canvasElement }) => {
+    const validity = () => canvasElement.querySelector('.form-validity')?.getAttribute('data-valid');
+    await waitFor(() => expect(validity()).toBe('true'));
+    expect(canvasElement.textContent).not.toContain(TEXT_AROUND);
+  },
+};
+
+const textAroundOf = (type: string, label: string, message: string): Story => ({
+  parameters: {
+    docs: {
+      description: {
+        story: `Renders a ${label} option holding "$record:{pos} Stk.", text around the field pos. It is not ${label === 'true or false' ? 'true or false' : `a ${label}`}: the option says "${message}" and the form cannot be saved.`,
+      },
+    },
+  },
+  render: () => <TextAroundATemplateForm type={type} initial='$record:{pos} Stk.' />,
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.textContent).toContain(message));
+    await waitFor(() => expect(canvasElement.querySelector('.form-validity')?.getAttribute('data-valid')).toBe('false'));
+  },
+});
+
+export const NumberWithTextAroundATemplate = textAroundOf('number', 'number', "A number can't have text around a template");
+export const TrueOrFalseWithTextAroundATemplate = textAroundOf(
+  'bool',
+  'true or false',
+  "True or false can't have text around a template"
+);
+export const DateWithTextAroundATemplate = textAroundOf('date', 'date', "A date can't have text around a template");
