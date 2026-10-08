@@ -10,7 +10,7 @@ import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
+import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
 import {
   _testsChangeRichText,
@@ -26,6 +26,7 @@ import {
 } from '../../../stories/Tests/utils';
 import { mockExpressions } from '../expressions/mockExpressions';
 import { mockPopulatedDefinition } from '../fields/schema-definition/mockDefinition';
+import { ITemplateFieldSavedValue } from '../fields/template/TemplateField';
 import { defaultMarkdownRenderer } from '../fields/markdown/MarkdownView';
 import {
   FormEngine,
@@ -10358,6 +10359,115 @@ export const TemplateOfAnotherTypeWarns: Story = {
       expect(row.querySelector('.value-tab-conversion')?.textContent).toContain('Text is converted to a whole number')
     );
   },
+};
+
+// --- Saved values and a template's badge (qorus#646): host seams of the template field ----------------------
+
+const SAVED_VALUES_OPTIONS = {
+  quantity: { type: 'int', display_name: 'Quantity', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
+  source: { type: 'string', display_name: 'Source', supports_templates: true },
+} as unknown as IQorusFormSchema;
+
+/** The form with values the host keeps for reuse: "Save this value" adds one, named as the host names it. */
+const SavedValuesForm = () => {
+  const [value, setValue] = useState<any>({
+    quantity: { type: 'int', value: 12 },
+    source: { type: 'string', value: '$record:{pos}' },
+  });
+  const [items, setItems] = useState<ITemplateFieldSavedValue[]>([
+    { id: 'pallet', label: 'A pallet', description: '48 pieces', type: 'int', value: 48 },
+    { id: 'note', label: 'Supplier note', type: 'string', value: 'SUP-17' },
+  ]);
+  return (
+    <>
+      <FormEngine
+        compact
+        name='savedValues'
+        stringTemplates={ROW_FIELDS as any}
+        options={SAVED_VALUES_OPTIONS}
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+        templateFieldProps={{
+          savedValues: {
+            items,
+            onSave: (saved, type) =>
+              setItems((previous) => [
+                ...previous,
+                { id: `saved-${previous.length}`, label: `Saved ${saved}`, type, value: saved },
+              ]),
+            onRemove: (id) => setItems((previous) => previous.filter((item) => item.id !== id)),
+          },
+          // where a template comes from, as a host knows it: here, the record's fields
+          templateBadge: (template) =>
+            String(template.value ?? '').startsWith('$record:') ? { label: 'Row field' } : undefined,
+        }}
+      />
+      <code className='form-held' data-held={JSON.stringify(value)} style={{ display: 'none' }} />
+      <code className='saved-held' data-held={JSON.stringify(items)} style={{ display: 'none' }} />
+    </>
+  );
+};
+
+/** The row's ⋮ of an option being edited, opened. */
+const openRowMenu = async (row: HTMLElement) => {
+  await userEvent.click(row.querySelector('.options-readfirst-more') as HTMLElement);
+  return waitFor(() => {
+    const el = document.querySelector<HTMLElement>('.reqore-popover-content');
+    expect(el).toBeTruthy();
+    return el as HTMLElement;
+  });
+};
+
+export const SavedValuesInTheFieldMenu: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a form whose host keeps values for reuse, and opens Quantity (12). Its ⋮ offers "Save this value": the host keeps 12 (here it names it "Saved 12"). "Use a saved value" lists the values saved for a whole number - A pallet, Saved 12, not the supplier note - and A pallet is the value at once: 48.',
+      },
+    },
+  },
+  render: () => <SavedValuesForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('quantity');
+    let popover = await openRowMenu(row);
+    await userEvent.click(within(popover).getByText('Save this value'));
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.saved-held')?.getAttribute('data-held')).toContain('Saved 12')
+    );
+    popover = await openRowMenu(optionRow('quantity'));
+    await userEvent.click(within(popover).getByText('Use a saved value'));
+    await waitFor(() => expect(document.body.textContent).toContain('A pallet'));
+    expect(document.body.textContent).toContain('Saved 12');
+    expect([...document.querySelectorAll('.reqore-popover-content')].map((el) => el.textContent).join(' ')).not.toContain('Supplier note');
+    await userEvent.click(screen.getAllByText('A pallet').pop() as HTMLElement);
+    await waitFor(() => expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 48 }));
+    await waitFor(() =>
+      expect(optionRow('quantity').querySelector('[data-slate-editor].value-tab-text')?.textContent).toContain('48')
+    );
+  },
+};
+
+export const TemplateBadgeFromTheHost: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same form and opens Source, a text option that takes templates only, on its Template tab: the template picker shows the field pos with the badge its host gives a field of the row - "Row field".',
+      },
+    },
+  },
+  render: () => <SavedValuesForm />,
+  play: async () => {
+    const row = await editOption('source');
+    await chooseTab(row, 'template');
+    await waitFor(() => expect(optionRow('source').querySelector('.template-selector')?.textContent).toContain('Row field'));
+  },
+};
+
+export const SavedValuesInTheFieldMenuOnAPhone: Story = {
+  ...SavedValuesInTheFieldMenu,
+  parameters: { ...SavedValuesInTheFieldMenu.parameters, qlip: { viewport: { width: 390, height: 844 } } },
 };
 
 export const ValueToExpressionAndVisualOnAPhone: Story = {

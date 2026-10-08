@@ -205,7 +205,8 @@ describe('the tabs a form option offers', () => {
 
   it('leave the field menu with value actions only - no mode switches', async () => {
     show({ type: 'int' as never, initial: '$record:{pos}' });
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // the field has published its menu
+    await waitFor(() => expect(Object.keys(published)).toHaveLength(1));
     for (const mode of [
       'Use Template',
       'Use Expression',
@@ -457,8 +458,8 @@ describe('one value, three views', () => {
     const text = await waitFor(() => getByTestId('dpql-text') as HTMLTextAreaElement);
     fireEvent.change(text, { target: { value: '15' } });
     await waitFor(() => expect(onChange).toHaveBeenCalledWith('value', 15, 'int', false));
-    // and the text being written stays
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    // and the text being written stays, once the field has rendered the value it now holds
+    await act(async () => {});
     expect((getByTestId('dpql-text') as HTMLTextAreaElement).value).toBe('15');
   });
 

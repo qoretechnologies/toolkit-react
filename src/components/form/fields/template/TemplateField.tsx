@@ -17,6 +17,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
+import { TReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/Menu/item';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import ReqoreMenuDivider, {
@@ -203,6 +204,10 @@ export interface ITemplateFieldProps extends Partial<
    * options set it (FormEngine); an expression's operands and other hosts keep the field as it was.
    */
   valueTabs?: boolean;
+  /** SEAM (reqraft): values the host keeps for reuse - see `ITemplateFieldSavedValues`. */
+  savedValues?: ITemplateFieldSavedValues;
+  /** SEAM (reqraft): the badge a template shows in the template picker - see `TTemplateBadge`. */
+  templateBadge?: TTemplateBadge;
   /** The words of the value tabs, for a host that translates them; English where not given. */
   valueTabsLabels?: Partial<IValueTabsLabels>;
   /**
@@ -294,8 +299,44 @@ export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = {
   undoTooltip: (text) => `Keep "${text}" as a value instead`,
 };
 
+/** A value the host keeps for reuse (qorus#646): saved from one field, offered in every field of its type. */
+export interface ITemplateFieldSavedValue {
+  id: string;
+  label: string;
+  description?: string;
+  /** The type of the field it was saved from; it is offered in fields of that type. */
+  type: string;
+  value: unknown;
+}
+
+/**
+ * SEAM (reqraft): values the host keeps for reuse. The field's `⋮` offers "Save this value", which hands the
+ * value to the host (it asks for a name and keeps it), and "Use a saved value", which lists the values saved
+ * for the field's type. The host owns the storage; the field only offers and takes them.
+ */
+export interface ITemplateFieldSavedValues {
+  items: ITemplateFieldSavedValue[];
+  onSave?: (value: unknown, type: string) => void;
+  onRemove?: (id: string) => void;
+  /** The menu's words, English where not given. */
+  labels?: Partial<{ save: string; saveTooltip: string; use: string; remove: string }>;
+}
+
+const DEFAULT_SAVED_VALUES_LABELS = {
+  save: 'Save this value',
+  saveTooltip: 'Save this value to use it again',
+  use: 'Use a saved value',
+  remove: 'Remove saved value',
+};
+
+/** SEAM (reqraft): the badge a template shows in the template picker - where it comes from, as the host knows. */
+export type TTemplateBadge = (
+  template: TReqoreDropdownItem
+) => IReqoreButtonProps['badge'] | undefined;
+
 export interface ITemplateDropdownSelectorProps extends IReqoreDropdownProps {
   onRemoveClick?: IReqoreButtonProps['onClick'];
+  templateBadge?: TTemplateBadge;
   allowCustomValues?: boolean;
   hasOnlyAllowedValues?: boolean;
   templates?: IReqoreFormTemplates;
@@ -487,6 +528,7 @@ export const TemplateDropdownSelector = memo(
     hasOnlyAllowedValues,
     value,
     size,
+    templateBadge,
     ...rest
   }: ITemplateDropdownSelectorProps) => {
     /* The LAST hop before Reqore, which is the only place a drawn description
@@ -512,9 +554,9 @@ export const TemplateDropdownSelector = memo(
       }),
       [template]
     );
-    // SEAM (reqraft): the IDE resolves the template's app/action via
-    // `useGetAppActionData` and renders the action's display name as a badge
-    // here — the app catalogue is IDE-only, so the badge is dropped.
+    // SEAM (reqraft): where the template comes from (the IDE: the app action that captures it), as the
+    // host says, beside its name
+    const badge = template && templateBadge ? templateBadge(template) : undefined;
 
     return (
       <ReqoreControlGroup vertical fluid>
@@ -534,6 +576,7 @@ export const TemplateDropdownSelector = memo(
             items={shownItems}
             label={label}
             leftIconProps={leftIconProps}
+            badge={badge}
             caretPosition='right'
             filterable
             size={size}
@@ -604,6 +647,8 @@ const TemplateFieldImpl = memo(
     allowTextExpressions,
     valueTabs,
     valueTabsLabels,
+    savedValues,
+    templateBadge,
     extraActions,
     componentOverrides,
     allowCustomValues = true,
@@ -1187,6 +1232,96 @@ const TemplateFieldImpl = memo(
       onChange?.(name, undefined, type as TQorusType, false);
     }, [name, onChange, type]);
 
+    /* A saved value is the value at once, shown where its kind is: a template on the Value tab where the
+       field is written as text, else on the Expression tab (or Template, for a template-only field); any
+       other value on the Value tab - or, without tabs, in template mode for a template. */
+    const takeSavedValue = useCallback(
+      (saved: unknown) => {
+        const isSavedTemplate = typeof saved === 'string' && isValueTemplate(saved);
+        setExpressionFromText(null);
+        setTemplateValue(typeof saved === 'string' ? saved : null);
+        if (tabsKindRef.current) {
+          const next: TValueTab =
+            isSavedTemplate && !valueTabIsText ?
+              tabsKindRef.current === 'full' ?
+                'expression'
+              : 'template'
+            : 'value';
+          setExpressionSeed(next === 'expression' ? expressionTextOfValue(saved) : null);
+          setInternalIsFunction(next === 'expression');
+          setIsTemplate(next === 'template' || (next === 'value' && valueTabIsText));
+          setTab(next);
+        } else {
+          setExpressionSeed(null);
+          setInternalIsFunction(false);
+          setIsTemplate(isSavedTemplate && !!allowTemplates);
+        }
+        onChange?.(name, saved, type as TQorusType, false);
+      },
+      [name, onChange, type, valueTabIsText, allowTemplates]
+    );
+
+    // the values saved for this field's type, and whether this value can be saved
+    const savedWords = { ...DEFAULT_SAVED_VALUES_LABELS, ...savedValues?.labels };
+    const savedForType = useMemo(
+      () => (savedValues?.items ?? []).filter((item) => item.type === type),
+      [savedValues?.items, type]
+    );
+    const editable = !rest.readonly && !rest.readOnly && !rest.disabled;
+    const canSaveValue =
+      !!savedValues?.onSave &&
+      editable &&
+      type !== 'bool' &&
+      type !== 'boolean' &&
+      !hasOnlyAllowedValues &&
+      !valueIsExpression &&
+      !isEmptyValue &&
+      value !== null;
+    const canUseSavedValue = editable && savedForType.length > 0;
+    const savedValueItems = [
+      ...(canSaveValue ?
+        [
+          {
+            label: savedWords.save,
+            icon: 'SaveLine' as const,
+            tooltip: savedWords.saveTooltip,
+            className: 'save-value',
+            onClick: () => savedValues!.onSave!(value, type as string),
+          },
+        ]
+      : []),
+      ...(canUseSavedValue ?
+        [
+          {
+            label: savedWords.use,
+            icon: 'HistoryLine' as const,
+            className: 'use-saved-value',
+            items: savedForType.map((item) => ({
+              label: item.label,
+              description: item.description,
+              className: 'saved-value',
+              onClick: () => takeSavedValue(item.value),
+              ...(savedValues?.onRemove ?
+                {
+                  rightAction: {
+                    icon: 'DeleteBinLine' as const,
+                    intent: 'danger' as const,
+                    minimal: true,
+                    className: 'saved-value-remove',
+                    tooltip: savedWords.remove,
+                    onClick: (event: React.MouseEvent<HTMLElement>) => {
+                      event.stopPropagation();
+                      savedValues.onRemove!(item.id);
+                    },
+                  },
+                }
+              : {}),
+            })),
+          },
+        ]
+      : []),
+    ];
+
     const handleTemplateToggleClick = useCallback(() => {
       setInternalIsFunction(false);
       onChange(name, undefined, undefined, false);
@@ -1461,6 +1596,7 @@ const TemplateFieldImpl = memo(
                 setTemplateValue(null);
               }),
           })),
+        ...savedValueItems,
       ],
       [
         canOfferExpression,
@@ -1471,6 +1607,11 @@ const TemplateFieldImpl = memo(
         handleSelectFunctionChange,
         handleTemplateToggleClick,
         handleUseCustomValueClick,
+        // the saved values offered, and whether this value can be saved
+        canSaveValue,
+        value,
+        savedForType,
+        takeSavedValue,
       ]
     );
 
@@ -1482,6 +1623,8 @@ const TemplateFieldImpl = memo(
       canOfferTemplate ? 'template' : '',
       canOfferCustomValue ? 'custom-value' : '',
       `custom:${((menuItems ?? []) as { label?: unknown }[]).map((item) => String(item.label ?? '')).join('|')}`,
+      canSaveValue ? `save:${JSON.stringify(value)}` : '',
+      canUseSavedValue ? `saved:${savedForType.map((item) => item.id).join('|')}` : '',
     ].join(',');
 
     useRowMenuPublisher(rowMenu, publishedKey, publishedItems as never);
@@ -1503,7 +1646,8 @@ const TemplateFieldImpl = memo(
         showFunctionsDropdown ||
         showTemplatesButton ||
         showCustomValueButton ||
-        size(menuItems) > 0;
+        size(menuItems) > 0 ||
+        savedValueItems.length > 0;
 
       /* A lone group opens itself. Two of the menu's groups are collapsed
          sections, so a menu holding nothing but one of them asked for a click
@@ -1519,6 +1663,7 @@ const TemplateFieldImpl = memo(
           showCustomValueButton,
           size(menuActions?.items) > 0,
           size(menuItems) > 0,
+          canUseSavedValue,
         ].filter(Boolean).length === 1;
 
       /* ONE menu per control. Where this field sits in a form ROW, the row
@@ -1678,6 +1823,55 @@ const TemplateFieldImpl = memo(
                   />
                 : null}
 
+                {canSaveValue ?
+                  <ReqoreButton
+                    compact
+                    transparent
+                    icon='SaveLine'
+                    className='save-value'
+                    tooltip={savedWords.saveTooltip}
+                    size={rest.size}
+                    onClick={() => savedValues!.onSave!(value, type as string)}
+                  >
+                    {savedWords.save}
+                  </ReqoreButton>
+                : null}
+
+                {canUseSavedValue ?
+                  <ReqoreMenuSection
+                    label={savedWords.use}
+                    icon='HistoryLine'
+                    className='use-saved-value'
+                    transparent
+                    isCollapsed={!loneSectionStartsExpanded}
+                  >
+                    {savedForType.map((item) => (
+                      <ReqoreMenuItem
+                        key={item.id}
+                        className='saved-value'
+                        label={item.label}
+                        description={item.description}
+                        onClick={() => takeSavedValue(item.value)}
+                        rightAction={
+                          savedValues?.onRemove ?
+                            {
+                              icon: 'DeleteBinLine',
+                              intent: 'danger',
+                              minimal: true,
+                              className: 'saved-value-remove',
+                              tooltip: savedWords.remove,
+                              onClick: (event) => {
+                                event.stopPropagation();
+                                savedValues.onRemove!(item.id);
+                              },
+                            }
+                          : undefined
+                        }
+                      />
+                    ))}
+                  </ReqoreMenuSection>
+                : null}
+
                 {size(menuTrailingItems) > 0 ?
                   <MenuTrailingItems items={menuTrailingItems} size={rest.size} />
                 : null}
@@ -1714,6 +1908,11 @@ const TemplateFieldImpl = memo(
       // the row decides whether this field draws a menu at all
       rowMenu,
       tabsKind,
+      canSaveValue,
+      canUseSavedValue,
+      savedForType,
+      takeSavedValue,
+      savedValues,
     ]);
 
     // When the type is a list, and it has an element type - that element type is different
@@ -1771,17 +1970,17 @@ const TemplateFieldImpl = memo(
          warning, not a block - whether it converts depends on the data (qorus#646, David). */
       const loneTemplate =
         typeof value === 'string' && isCompleteTemplateToken(value) ? value : undefined;
-      const templateBadge =
+      const loneTemplateType =
         loneTemplate && !typeIsAnyLike ?
           findTemplate(templates ?? {}, loneTemplate)?.badge
         : undefined;
       const conversionNote =
         (
-          typeof templateBadge === 'string' &&
-          templateBadge &&
-          !sameValueType(templateBadge, type as string)
+          typeof loneTemplateType === 'string' &&
+          loneTemplateType &&
+          !sameValueType(loneTemplateType, type as string)
         ) ?
-          words.conversion(words.typeName(templateBadge), words.typeName(type as string))
+          words.conversion(words.typeName(loneTemplateType), words.typeName(type as string))
         : undefined;
       const cannotShow = (message: string) => (
         <ReqoreMessage
@@ -1936,6 +2135,7 @@ const TemplateFieldImpl = memo(
           items={filteredTemplates?.items}
           onItemSelect={handleSelectTemplateFromList}
           onRemoveClick={replaceWithAValue}
+          templateBadge={templateBadge}
           size={rest.size}
           label={label}
           hasOnlyAllowedValues={hasOnlyAllowedValues}
@@ -2195,6 +2395,7 @@ const TemplateFieldImpl = memo(
             items={filteredTemplates?.items}
             onItemSelect={handleSelectTemplateFromList}
             onRemoveClick={handleRemoveTemplateClick}
+            templateBadge={templateBadge}
             size={rest.size}
             label={label}
             hasOnlyAllowedValues={hasOnlyAllowedValues}
