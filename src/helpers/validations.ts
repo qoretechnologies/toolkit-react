@@ -1696,10 +1696,13 @@ export const _validateField = (
         const argLabel = argLabels[index];
         /* Which operand, where its name alone does not say: every operand of a call taking any number of
            them is "Value" (qlip build 20261008-083118: "which "value" is the message mentioning"). Said by
-           its position too, as the editor shows them, left to right. */
-        const operand = argLabels.some((label, other) => other !== index && label === argLabel)
-          ? `the ${ordinal(index + 1)} "${argLabel}"`
-          : undefined;
+           its position too, as the editor shows them, left to right - and so is a lone operand of a call that
+           can take more (David, qorus#646), as the operands that join it will be. */
+        const operand =
+          expressionDefinition.varargs ||
+          argLabels.some((label, other) => other !== index && label === argLabel)
+            ? `the ${ordinal(index + 1)} "${argLabel}"`
+            : undefined;
 
         /* An explicit null is a VALUE, and DPQL says so: `null` is a literal
            that parses, serializes and round-trips like any other.

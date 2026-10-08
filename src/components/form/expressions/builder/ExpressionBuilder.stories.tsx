@@ -144,7 +144,7 @@ export const AdditionPickedFresh: Story = {
     docs: {
       description: {
         story:
-          'Renders an empty ExpressionBuilder and picks "Addition" from the operation picker — the card shows one empty Value operand and the "Add value" slot, with no crash and no error boundary.',
+          'Renders an empty ExpressionBuilder and picks "Addition" from the operation picker — the card shows one empty Value operand and the "Add value" slot, with no crash and no error boundary. The operand says its position, "Enter the 1st "Value"", as the operands that join it will.',
       },
     },
   },
@@ -156,6 +156,8 @@ export const AdditionPickedFresh: Story = {
     expect(addSlot()).not.toBeNull();
     expect(document.querySelector('.reqore-error-boundary')).toBeNull();
     await waitForText('Value');
+    // a lone operand of a call that can take more says its position (David, qorus#646)
+    await waitFor(() => expect(document.body.textContent).toContain('Enter the 1st "Value"'), { timeout: 10000 });
     expect(context.args.onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         value: expect.objectContaining({ exp: '+', args: [{ type: undefined }] }),
