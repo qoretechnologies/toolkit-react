@@ -227,10 +227,7 @@ export const CompactRow = memo(
     );
     const setFocusedEditing = useContextSelector(CompactRowContext, (v) => v.setFocusedEditing);
     const readRowHeights = useContextSelector(CompactRowContext, (v) => v.readRowHeights);
-    const onReadOnlyActivate = useContextSelector(
-      CompactRowContext,
-      (v) => v.onReadOnlyActivate
-    );
+    const onReadOnlyActivate = useContextSelector(CompactRowContext, (v) => v.onReadOnlyActivate);
 
     /**
      * The floor recorded when a row is opened lasts until the author changes
@@ -406,7 +403,11 @@ export const CompactRow = memo(
         );
       }
 
-      if (valueType === 'bool' || valueType === 'boolean') {
+      // a yes/no holding a template reads as the template, below, not as Yes (qorus#646)
+      if (
+        (valueType === 'bool' || valueType === 'boolean') &&
+        !(typeof field?.value === 'string' && isValueTemplate(field.value))
+      ) {
         const truthy = field?.value === true || field?.value === 'true';
         return (
           <ReqoreTag
@@ -1914,9 +1915,7 @@ export const CompactRow = memo(
       !Array.isArray(optionField.value) &&
       !isExpression;
     const hashEntries =
-      !hidden && (isPlainHashType || isObjectValuedType) ?
-        getHashEntries(optionField, schema)
-      : [];
+      !hidden && (isPlainHashType || isObjectValuedType) ? getHashEntries(optionField, schema) : [];
     // A LIST OF HASHES/objects gets the same expandable structured preview a hash
     // does — the flat "N items" summary can't convey object contents (and must
     // never print "[object Object]"). StructuredDataView unwraps each item's
@@ -2252,7 +2251,8 @@ export const CompactRow = memo(
         tabIndex={actsOnClick ? 0 : undefined}
         aria-label={
           readOnlyIsAWayIn ? `Edit ${label}`
-          : readOnly ? undefined
+          : readOnly ?
+            undefined
           : label
         }
         className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${readOnlyIsAWayIn ? ' readfirst-row-way-in' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}

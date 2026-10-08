@@ -4,6 +4,7 @@ import {
   TQorusFormFieldSchema,
   TQorusType,
 } from '@qoretechnologies/ts-toolkit';
+import { isValueTemplate } from '../../../helpers/templates';
 import { isRendererOnlyUiType } from './rendererTypes';
 import { isEmptyUiEnvelope, isUiEncodedValue } from './_structuredData/structuredData';
 import { renderExpressionToText } from '../expressions/renderExpressionToText';
@@ -642,7 +643,12 @@ export const formatOptionValue = (
 
   const type = getValueType(option, schema);
 
-  if (type === 'bool' || type === 'boolean') {
+  /* A template is the field it names, in a yes/no as in any type: it is not "Yes" because it is not
+     empty. Only a value that is true or false reads as Yes or No (qorus#646). */
+  if (
+    (type === 'bool' || type === 'boolean') &&
+    !(typeof value === 'string' && isValueTemplate(value))
+  ) {
     return value ? 'Yes' : 'No';
   }
 

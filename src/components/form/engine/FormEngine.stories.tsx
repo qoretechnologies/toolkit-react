@@ -9948,3 +9948,33 @@ export const HostReasonInPlaceOfRequired: Story = {
     expect(canvasElement.textContent).not.toContain('This field is required');
   },
 };
+
+export const YesNoHoldingATemplateRead: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose yes/no option holds the field pos. Its collapsed row shows the field, pos, as a chip: it used to read "Yes", because the row read any value that is not empty as true.',
+      },
+    },
+  },
+  render: () => (
+    <FormEngine
+      compact
+      name='yesNoTemplate'
+      stringTemplates={ROW_FIELDS as any}
+      options={{ flag: { type: 'bool', display_name: 'Flag', supports_templates: true } } as unknown as IQorusFormSchema}
+      value={{ flag: { type: 'bool', value: '$record:{pos}' } } as any}
+      onChange={fn()}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('.readfirst-row');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await waitFor(() => expect(row.textContent).toContain('pos'));
+    expect(row.textContent).not.toContain('Yes');
+  },
+};
