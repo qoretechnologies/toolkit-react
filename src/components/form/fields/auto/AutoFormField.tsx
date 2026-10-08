@@ -511,7 +511,7 @@ function AutoField<T = any>({
     /* One ROW, because this stands in for one field. It was a spinner reading
        "Loading field data…", which is a different picture from every other
        wait on the page and announces a delay the reader cannot act on. */
-    return <FormFieldsSkeleton rows={1} />;
+    return <FormFieldsSkeleton rows={1} reason='arg-schema' />;
   }
 
   const renderAllowedValues = (currentType: IQorusType) => {

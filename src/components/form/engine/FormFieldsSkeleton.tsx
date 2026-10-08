@@ -27,6 +27,11 @@ export interface IFormFieldsSkeletonProps {
    * in the same commit and neither of the two shared waits (`types`, 140ms;
    * `templates`, 1500ms) explained it. Naming the reason in the DOM turns that
    * from a guess into a reading.
+   *
+   * Always rendered, `loading` when the caller names none: `data-wait` is also
+   * how a page asks whether it has finished loading, so a placeholder without
+   * it is one nothing can wait for. The nested waits named none, and a story
+   * handed a skeleton to its visual capture (qorus-ide Qlip build 279).
    */
   reason?: string;
 }
@@ -50,7 +55,7 @@ export const FormFieldsSkeleton = ({
   rows = 6,
   fill,
   className,
-  reason,
+  reason = 'loading',
 }: IFormFieldsSkeletonProps) => (
   <ReqoreControlGroup
     className={className}
