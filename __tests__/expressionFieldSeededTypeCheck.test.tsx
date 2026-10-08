@@ -8,14 +8,18 @@
 // of an expression that does not fit it.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';
-import { forwardRef, useImperativeHandle, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 let parsed: { text: string; targetType?: string }[] = [];
 
 vi.mock('../src/components/dpqlEditor', () => ({
   // an editor that never reports its text back: nothing typed, nothing echoed
-  DpqlEditor: forwardRef<any, any>(({ readOnly, value }, ref) => {
+  DpqlEditor: forwardRef<any, any>(({ readOnly, value, onReady }, ref) => {
+    // a session that is up: the field reads and writes its text through it from the start
+    useEffect(() => {
+      onReady?.();
+    }, []);
     useImperativeHandle(
       ref,
       () => ({

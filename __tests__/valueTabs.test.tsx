@@ -17,7 +17,7 @@ const lsp = { available: true };
 /* The Text view's editor, standing in for the DPQL editor: it shows its text, parses a lone template as the
    server does (the `template` operation), and reports when there is no language server. */
 vi.mock('../src/components/dpqlEditor', () => ({
-  DpqlEditor: forwardRef<any, any>(({ value, onChange, onUnavailable }, ref) => {
+  DpqlEditor: forwardRef<any, any>(({ value, onChange, onUnavailable, onReady }, ref) => {
     useImperativeHandle(
       ref,
       () => ({
@@ -64,6 +64,7 @@ vi.mock('../src/components/dpqlEditor', () => ({
     );
     useEffect(() => {
       if (!lsp.available) onUnavailable?.();
+      else onReady?.();
     }, []);
     return (
       <textarea
@@ -486,7 +487,13 @@ describe('one value, three views', () => {
     await waitFor(() =>
       expect(onChange).toHaveBeenCalledWith(
         'value',
-        { exp: '+', args: [{ type: 'int', value: 1 }, { type: 'int', value: 2 }] },
+        {
+          exp: '+',
+          args: [
+            { type: 'int', value: 1 },
+            { type: 'int', value: 2 },
+          ],
+        },
         expect.anything(),
         true
       )

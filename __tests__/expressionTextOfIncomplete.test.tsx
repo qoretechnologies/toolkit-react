@@ -1,6 +1,6 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, screen, waitFor } from '@testing-library/react';
-import { forwardRef, useImperativeHandle } from 'react';
+import { forwardRef, useEffect, useImperativeHandle } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 /**
@@ -13,7 +13,11 @@ import { describe, expect, it, vi } from 'vitest';
  */
 const serialized: unknown[] = [];
 vi.mock('../src/components/dpqlEditor', () => ({
-  DpqlEditor: forwardRef<any, any>(({ value }, ref) => {
+  DpqlEditor: forwardRef<any, any>(({ value, onReady }, ref) => {
+    // a session that is up: the field reads and writes its text through it from the start
+    useEffect(() => {
+      onReady?.();
+    }, []);
     useImperativeHandle(
       ref,
       () => ({

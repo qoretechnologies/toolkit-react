@@ -120,6 +120,12 @@ export interface IDpqlEditorProps {
    */
   onUnavailable?: () => void;
   /**
+   * Called once the language server can parse and write this editor's text: its session is connected and
+   * its context bound. A host that parses or serializes through the editor's ref waits for this rather
+   * than asking earlier, when the answer is "nothing parsed".
+   */
+  onReady?: () => void;
+  /**
    * Opt-in to server-driven plain-text → Slate parsing via the LSP's
    * `dpql/toRichtext` custom method. When `true`, the editor calls
    * `dpql/toRichtext({ text: value })` on mount and on every external

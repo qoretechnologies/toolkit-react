@@ -52,6 +52,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       alertPayloadContext = false,
       fsmContext,
       onUnavailable,
+      onReady,
     },
     ref
   ) => {
@@ -166,6 +167,11 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
     useEffect(() => {
       if (unavailable) onUnavailable?.();
     }, [unavailable]);
+    // the language server can now parse and write the text: said once, as the session says it
+    const ready = dpql.session.isReady && dpql.session.isContextReady;
+    useEffect(() => {
+      if (ready) onReady?.();
+    }, [ready]);
 
     const tagRenderer = useMemo(
       () => makeDpqlTagRenderer(dpql.fieldMeta, { templateTagsUseIntent, templates }),

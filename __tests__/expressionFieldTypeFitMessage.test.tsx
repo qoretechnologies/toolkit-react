@@ -12,14 +12,18 @@
 // Every analysis below is what the Qorus `/lsp` handler returned for the text.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { forwardRef, useImperativeHandle, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 let parseResult: Record<string, unknown> = {};
 let parseCalls = 0;
 
 vi.mock('../src/components/dpqlEditor', () => ({
-  DpqlEditor: forwardRef<any, any>(({ onChange, readOnly, value }, ref) => {
+  DpqlEditor: forwardRef<any, any>(({ onChange, readOnly, value, onReady }, ref) => {
+    // a session that is up: the field reads and writes its text through it from the start
+    useEffect(() => {
+      onReady?.();
+    }, []);
     useImperativeHandle(
       ref,
       () => ({

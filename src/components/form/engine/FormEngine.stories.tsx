@@ -5140,28 +5140,26 @@ export const CompactExpressions: Story = {
       )
     ).find((b) => b.textContent?.trim() === 'Text') as HTMLElement;
     await fireEvent.click(textBtn);
+    const card = '.options-readfirst-card[data-field="condition"]';
+    // the text is the seeded expression, written by the session once it is ready
     await waitFor(
       () =>
         expect(
-          document.querySelector(
-            '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
-          )
-        ).toBeInTheDocument(),
-      { timeout: 10000 }
-    );
-
-    // The "Parsed" line is the single live rendering of the AST (over the
-    // mock dpql/renderExpression) — it reflects the seeded expression. The
-    // separate Text-mode "Explain" button was dropped; Parsed is canonical.
-    await waitFor(
-      () =>
-        expect(
-          document.querySelector(
-            '.options-readfirst-card[data-field="condition"] [data-testid="expression-preview"]'
-          )?.textContent
+          document.querySelector(`${card} .expression-field [data-slate-editor]`)?.textContent
         ).toContain('John'),
       { timeout: 10000 }
     );
+    /* The Preview (the server's rendering of the expression) reads exactly as that text, so it is not
+       drawn beside it: the field says why (`data-preview="repeats"`). It used to be caught drawn beside
+       an EMPTY editor, rendered before the text was seeded - the state that rule is there to prevent. */
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(`${card} .expression-field`)?.getAttribute('data-preview')
+        ).toBe('repeats'),
+      { timeout: 10000 }
+    );
+    expect(document.querySelector(`${card} [data-testid="expression-preview"]`)).toBeNull();
   },
 };
 

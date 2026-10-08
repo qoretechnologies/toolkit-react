@@ -38,9 +38,6 @@ const PARSE_DEBOUNCE_MS = 300;
  * has stopped moving rather than twitching on the way there.
  */
 const PREVIEW_DEBOUNCE_MS = 400;
-/** Retry cadence for seeding the Text editor while its LSP session opens. */
-const SEED_RETRY_MS = 400;
-const SEED_MAX_TRIES = 20;
 
 export interface IExpressionFieldProps {
   /** The expression value: `{ is_expression:true, value:{ exp, args } }`. */
@@ -159,14 +156,52 @@ export const ExpressionField = memo(
     // Text mode state. `text` is the DPQL string the editor shows; the AST
     // (`value`) stays the source of truth, kept in sync via parse-on-edit.
     const [text, setText] = useState(initialText ?? '');
+    /** The text the editor was given, for its echo of that text to be told from typing. */
+    const textRef = useRef(text);
+    textRef.current = text;
     /* No language server to parse or write the text: the Text view cannot work, so the field shows the
        Visual view, which needs none, and says why (qorus#646). */
     const [textUnavailable, setTextUnavailable] = useState(false);
+    /* Whether the Text view's language server can parse and write its text - the session's own signal
+       (`onReady`), never a guess by time. Typed text waits for it; it is not asked of a session that is not
+       up, whose answer is "nothing parsed" (qorus#646: under load, text typed before the session was up
+       never reached the value). Each visit to the Text view opens a session of its own. */
+    const [sessionReady, setSessionReady] = useState(false);
+    const sessionReadyRef = useRef(false);
+    /** Who waits for the session: told true when it is ready, false when it cannot be reached or goes. */
+    const sessionWaiters = useRef<Array<(ready: boolean) => void>>([]);
+    const settleSessionWaiters = useCallback((ready: boolean) => {
+      const waiters = sessionWaiters.current;
+      sessionWaiters.current = [];
+      waiters.forEach((resolve) => resolve(ready));
+    }, []);
+    const whenSessionReady = useCallback(
+      (): Promise<boolean> =>
+        sessionReadyRef.current ?
+          Promise.resolve(true)
+        : new Promise<boolean>((resolve) => sessionWaiters.current.push(resolve)),
+      []
+    );
+    const handleTextReady = useCallback(() => {
+      sessionReadyRef.current = true;
+      setSessionReady(true);
+      settleSessionWaiters(true);
+    }, [settleSessionWaiters]);
+    useEffect(() => {
+      if (mode === 'text') return;
+      sessionReadyRef.current = false;
+      setSessionReady(false);
+      settleSessionWaiters(false);
+    }, [mode, settleSessionWaiters]);
+    useEffect(() => () => settleSessionWaiters(false), [settleSessionWaiters]);
     const handleTextUnavailable = useCallback(() => {
       setTextUnavailable(true);
-      setMode('visual');
+      settleSessionWaiters(false);
       onTextUnavailable?.();
-    }, [onTextUnavailable]);
+      // text typed and not read stays as typed, in the Text view, with the reason under it: nothing is lost
+      if (pendingParse.current !== null) return;
+      setMode('visual');
+    }, [onTextUnavailable, settleSessionWaiters]);
     /* The text the current AST was parsed FROM.
      *
      * The preview renders the AST, and the AST only moves on a SUCCESSFUL
@@ -306,54 +341,46 @@ export const ExpressionField = memo(
       }
     }, [ast, heldAsValue]);
 
-    // Text mode: parse the DPQL into the AST (debounced).
-    /* The session may not be attached when the debounce fires — the editor
-       mounts on the render that flips the mode, and its LSP session comes up
-       after that. `dpqlRef.current?.parse?.()` is optional all the way down, so
-       an early call resolves `undefined`, `readTypeCheck` CLEARS the analysis,
-       and nothing asks again: the author types once into a fresh Text field and
-       is told nothing about the type until they happen to type another
-       character.
+    /* Read the text typed and not yet read: once the session is ready, however long that takes, and the
+       latest text typed by then. Gives the expression it is, or nothing. The debounce, the host leaving the
+       Text view (its tabs) and the session coming up all read through here. */
+    const flushPendingParse = useCallback(async (): Promise<IExpression | undefined> => {
+      if (pendingParse.current === null) return undefined;
+      if (!(await whenSessionReady())) return undefined;
+      const pending = pendingParse.current;
+      const parse = dpqlRef.current?.parse;
+      if (pending === null || !parse) return undefined;
+      if (parseTimer.current) clearTimeout(parseTimer.current);
+      pendingParse.current = null;
+      const result = await parse(pending, targetType);
+      readTypeCheck(result);
+      if (!result?.success || !result.expression) return undefined;
+      setAstText(pending);
+      // `dpql/parse` returns the field-ready `{ is_expression, value }`.
+      onChange(result.expression as IExpression);
+      return result.expression as IExpression;
+    }, [onChange, targetType, readTypeCheck, whenSessionReady]);
 
-       The seeding effect below already retries for this exact reason
-       ("`serialize` resolves '' until the editor's LSP session is ready"); the
-       parse path needed the same care and did not have it. Same budget as
-       seeding, so a session that never arrives gives up rather than spinning.
-
-       Found by CI, not locally: the session is up before the debounce on a
-       fast machine, so the story asserting the type message passed here every
-       time and failed on the runner. */
+    // Text mode: parse the DPQL into the AST, debounced, once the session can read it.
     const handleDpqlChange = useCallback(
       (next: string) => {
+        /* The editor reports the text it was given back as a change (Slate's first operation after the
+           value is set). That is not typing: counted as such it stopped the session from writing the
+           expression into the view once it was ready. */
+        if (next === textRef.current) return;
         userTypedRef.current = true;
         setText(next);
         if (parseTimer.current) clearTimeout(parseTimer.current);
         pendingParse.current = next;
-        let tries = 0;
-        const runParse = async (): Promise<void> => {
-          const parse = dpqlRef.current?.parse;
-          if (!parse) {
-            if (++tries < SEED_MAX_TRIES) {
-              parseTimer.current = setTimeout(runParse, SEED_RETRY_MS);
-            }
-            return;
-          }
-          pendingParse.current = null;
-          const result = await parse(next, targetType);
-          readTypeCheck(result);
-          if (result?.success && result.expression) {
-            setAstText(next);
-            // `dpql/parse` returns the field-ready `{ is_expression, value }`.
-            onChange(result.expression as IExpression);
-          }
-        };
-        parseTimer.current = setTimeout(runParse, PARSE_DEBOUNCE_MS);
+        parseTimer.current = setTimeout(() => void flushPendingParse(), PARSE_DEBOUNCE_MS);
       },
-      [onChange, targetType, readTypeCheck]
+      [flushPendingParse]
     );
 
-    /** Whether this visit to Text mode has already put the AST in the editor. */
-    const seededRef = useRef(false);
+    /** Whether this visit to Text mode has already put the AST in the editor. The host's own text for the
+     *  first visit (`initialText`, such as the value written as `concat("SUP-", $record:{pos})`) is that visit's
+     *  text: the session does not write over it once it is ready. */
+    const seededRef = useRef(!!initialText);
 
     /* Seed the Text editor from the AST whenever Text mode becomes active
      * (including a `defaultMode='text'` mount). This must run as an effect: the
@@ -399,9 +426,9 @@ export const ExpressionField = memo(
         setAstText(holes);
         return undefined;
       }
+      // written by the session once it is ready, as the session says it - not asked of it before
+      if (!sessionReady) return undefined;
       let cancelled = false;
-      let timer: ReturnType<typeof setTimeout> | null = null;
-      let tries = 0;
       const seed = async (): Promise<void> => {
         const t = await dpqlRef.current?.serialize?.(seedAst);
         if (cancelled || userTypedRef.current) return;
@@ -416,16 +443,13 @@ export const ExpressionField = memo(
             const result = await dpqlRef.current?.parse?.(t, targetType);
             if (!cancelled && !userTypedRef.current) readTypeCheck(result);
           }
-        } else if (++tries < SEED_MAX_TRIES) {
-          timer = setTimeout(seed, SEED_RETRY_MS);
         }
       };
       void seed();
       return () => {
         cancelled = true;
-        if (timer) clearTimeout(timer);
       };
-    }, [mode, ast, expressions, targetType, readTypeCheck]);
+    }, [mode, ast, expressions, targetType, readTypeCheck, sessionReady]);
 
     /** The field's templates, its catalogue's entries, for the Text view's picker. */
     const templateItems = useMemo(
@@ -452,7 +476,8 @@ export const ExpressionField = memo(
     // Switch to Visual: flush any pending parse so the AST is current.
     const enterVisualMode = useCallback(async () => {
       if (parseTimer.current) clearTimeout(parseTimer.current);
-      if (mode === 'text' && text) {
+      // read by the session once it is ready; one that cannot be reached leaves the text unread, as asked
+      if (mode === 'text' && text && (await whenSessionReady())) {
         const result = await dpqlRef.current?.parse?.(text, targetType);
         readTypeCheck(result);
         if (result?.success && result.expression) {
@@ -460,7 +485,7 @@ export const ExpressionField = memo(
         }
       }
       setMode('visual');
-    }, [mode, text, onChange, targetType, readTypeCheck]);
+    }, [mode, text, onChange, targetType, readTypeCheck, whenSessionReady]);
 
     // the host's tabs: followed as the toggle is (see `requestedMode`)
     useEffect(() => {
@@ -468,22 +493,6 @@ export const ExpressionField = memo(
       if (requestedMode === 'visual') void enterVisualMode();
       else if (!textUnavailable) enterTextMode();
     }, [requestedMode]);
-
-    /* Read the text typed and not yet read, now, while the editor is here to read it: the host leaves the Text
-       view (its tabs) and the editor goes with it. Gives the expression it is, or nothing. */
-    const flushPendingParse = useCallback(async (): Promise<IExpression | undefined> => {
-      const pending = pendingParse.current;
-      const parse = dpqlRef.current?.parse;
-      if (pending === null || !parse) return undefined;
-      if (parseTimer.current) clearTimeout(parseTimer.current);
-      pendingParse.current = null;
-      const result = await parse(pending, targetType);
-      readTypeCheck(result);
-      if (!result?.success || !result.expression) return undefined;
-      setAstText(pending);
-      onChange(result.expression as IExpression);
-      return result.expression as IExpression;
-    }, [onChange, targetType, readTypeCheck]);
 
     useEffect(() => {
       if (!flushRef) return undefined;
@@ -545,6 +554,18 @@ export const ExpressionField = memo(
 
         {mode === 'text' ?
           <>
+            {textUnavailable ?
+              <ReqoreMessage
+                intent='warning'
+                size='small'
+                flat
+                opaque={false}
+                className='expression-text-unavailable'
+              >
+                The expression language server is not available, so this text cannot be read yet. It
+                is kept as you typed it; the Visual view builds the expression without the server.
+              </ReqoreMessage>
+            : null}
             <ReqoreControlGroup gapSize='small' fluid verticalAlign='flex-start'>
               <DpqlEditor
                 ref={dpqlRef}
@@ -559,6 +580,7 @@ export const ExpressionField = memo(
                 // no floor of its own: one line as tall as the text it shows, growing with its lines - a
                 // 48px floor left an empty strip under the text, which the picker beside it could not match
                 onUnavailable={handleTextUnavailable}
+                onReady={handleTextReady}
               />
               {/* The field's templates and fields, as its catalogue names them, inserted as chips - next to
                   the server's `$` completion, which offers every context but not these names. */}
