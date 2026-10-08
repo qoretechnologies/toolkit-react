@@ -247,6 +247,13 @@ describe('a saved value', () => {
     await waitFor(() => expect(item('Use a saved value')).toBeTruthy());
     act(() => (item('Use a saved value')!.items![0].onClick as () => void)());
     expect(onChange).toHaveBeenCalledWith('value', '$record:{pos}', 'bool', false);
+    // a value, not an expression, whichever tab it is shown on
+    await waitFor(() =>
+      expect(
+        container.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')
+      ).toBe('expression')
+    );
+    expect(onChange).not.toHaveBeenCalledWith('value', '$record:{pos}', expect.anything(), true);
     await waitFor(() =>
       expect(
         container.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')

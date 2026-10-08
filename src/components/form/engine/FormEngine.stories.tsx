@@ -10280,7 +10280,7 @@ export const SavedExpressionOpensOnExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders the form and opens Computed, a whole number holding the expression pos + 1: it opens on Expression, as DPQL text. On Value it says it cannot show this expression as a value and offers to replace it - the expression is kept until it is replaced.',
+          'Renders the form and opens Computed, a whole number holding the expression pos + 1: it opens on Expression, as DPQL text. On Value it says it cannot show this expression as a value and offers to replace it - the expression is kept until it is replaced. Replaced, it is a value: the field pos chosen on the Value tab is that field, not an expression - kept when the Expression tab is opened straight after the pick, and shown there.',
       },
     },
   },
@@ -10294,6 +10294,27 @@ export const SavedExpressionOpensOnExpression: Story = {
     expect(heldOption(canvasElement, 'computed').is_expression).toBe(true);
     await userEvent.click(optionRow('computed').querySelector('.value-tab-replace') as HTMLElement);
     await waitFor(() => expect(heldOption(canvasElement, 'computed')?.value).toBeUndefined());
+    // replaced, it is a value: a field chosen on the Value tab is that field, not an expression
+    const text = await waitFor(() => {
+      const el = optionRow('computed').querySelector<HTMLElement>('[data-slate-editor].value-tab-text');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(text);
+    const field = await waitFor(() => {
+      const el = [...document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')].find(
+        (item) => item.textContent?.startsWith('pos')
+      );
+      expect(el, 'the fields on offer').toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(field);
+    // and the Expression tab opened straight after the pick, before the field has sent it: the pick is kept
+    await userEvent.click(optionRow('computed').querySelector('.value-tab[data-tab="expression"]') as HTMLElement);
+    await waitFor(() => expect(heldOption(canvasElement, 'computed')).toEqual({ type: 'int', value: '$record:{pos}' }));
+    await waitFor(() =>
+      expect(optionRow('computed').querySelector('.expression-field [data-slate-editor]')?.textContent).toContain('pos')
+    );
   },
 };
 

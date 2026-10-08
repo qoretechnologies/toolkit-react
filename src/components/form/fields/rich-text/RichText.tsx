@@ -162,8 +162,16 @@ export const RichTextFormField = memo(({
     }
   }, [JSON.stringify(value)]);
 
+  /* The edit the debounce below has yet to send, and how to send it. The field can go away before it fires -
+     a value's tab switched, a row closed, right after a pick - and the edit went with it (qorus#646): it is
+     sent on the way out instead. */
+  const pending = useRef<{ edit: string | IReqoreRichTextEditorProps['value'] } | undefined>(undefined);
+  const latestOnChange = useRef(onChange);
+  latestOnChange.current = onChange;
+
   useDebounce(
     () => {
+      pending.current = undefined;
       if (isText) {
         if (lastTextRef.current !== String(value ?? '')) {
           emitted.record(lastTextRef.current);
@@ -185,6 +193,18 @@ export const RichTextFormField = memo(({
     [localValue]
   );
 
+  /** The text as an edit to send, or nothing where it is what the field was given. */
+  const changedFrom = (text: string) => (text === String(value ?? '') ? undefined : { edit: text });
+
+  useEffect(
+    () => () => {
+      if (pending.current) {
+        latestOnChange.current?.(pending.current.edit);
+      }
+    },
+    []
+  );
+
   const handleChange = (val: any): void => {
     if (isText) {
       const text = templateNodesToText(val);
@@ -192,17 +212,21 @@ export const RichTextFormField = memo(({
       // stopped below. Flattened text is shown as the one line it now is.
       if (singleLine && hasLineBreak(text)) {
         lastTextRef.current = flattenToSingleLine(text);
+        pending.current = changedFrom(lastTextRef.current);
         setLocalValue(templateTextToNodes(lastTextRef.current, naming, templateToken));
         return;
       }
       lastTextRef.current = text;
+      pending.current = changedFrom(text);
       setLocalValue(val);
       return;
     }
     if (JSON.stringify(val) === '[{"type":"paragraph","children":[{"text":""}]}]') {
+      pending.current = isEqual(undefined, value) ? undefined : { edit: undefined };
       setLocalValue(undefined);
       return;
     }
+    pending.current = isEqual(val, value) ? undefined : { edit: val };
     setLocalValue(val);
   };
 

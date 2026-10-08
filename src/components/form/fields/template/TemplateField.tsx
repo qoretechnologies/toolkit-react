@@ -983,14 +983,18 @@ const TemplateFieldImpl = memo(
     // When template key or template value change run the onChange function
     useUpdateEffect(() => {
       if (templateValue) {
+        /* On the tabs this text is the Value or the Template tab's - a value, never an expression -
+           whichever tab is open by the time it arrives: an edit sent as its field goes away (the tab
+           switched straight after it) arrives on the next tab (qorus#646). */
+        const asExpression = tabsKindRef.current ? false : effectiveIsFunction;
         /* Read from the text where the field is written as text: a lone template takes its own
            type in an untyped field, a scalar's literal is that literal, other text is text. */
         if (templateSupportsCustomValues) {
           const read = templateTextValue(templateValue, type as string, filteredTemplates);
-          onChange?.(name, read.value, read.type as TQorusType, effectiveIsFunction);
+          onChange?.(name, read.value, read.type as TQorusType, asExpression);
           return;
         }
-        onChange?.(name, templateValue, type as TQorusType, effectiveIsFunction);
+        onChange?.(name, templateValue, type as TQorusType, asExpression);
       }
     }, [JSON.stringify(templateValue)]);
 
