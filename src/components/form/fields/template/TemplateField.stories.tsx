@@ -1346,6 +1346,32 @@ export const WrittenAsTextNumberEmptiedKeepsItsField: StoryObj<typeof meta> = {
   },
 };
 
+export const WrittenAsTextChipOfAnotherType: StoryObj<typeof meta> = {
+  args: {
+    type: 'bool',
+    value: '$record:{pos} Stk.',
+    allowTemplates: true,
+    allowCustomValues: true,
+    componentFromType: true,
+    templates: recordTemplates as any,
+  },
+  render: WrittenAsText,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a yes/no field holding the whole-number field pos with text after it. Its chip reads "pos", as the catalogue names it, though a yes/no field offers only yes/no fields: chips used to be named from that offered list, and a field not on it read as its reference ("record: pos").',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editor = await textField(canvasElement);
+    await waitFor(() => expect(editor.querySelector('.reqore-tag')).toBeTruthy());
+    const chip = editor.querySelector('.reqore-tag')?.textContent?.replace(/\uFEFF/g, '').trim();
+    expect(chip).toBe('pos');
+  },
+};
+
 export const WrittenAsTextExpressionDetected: StoryObj<typeof meta> = {
   args: {
     type: 'any',

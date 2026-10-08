@@ -144,3 +144,21 @@ describe('null in an untyped field', () => {
     expect(container.querySelector('[data-slate-editor]')?.textContent?.replace(/﻿/g, '').trim()).toBe('');
   });
 });
+
+/**
+ * qorus#646 (David): in a yes/no field, a chip of the whole-number field pos read "record: pos", where every
+ * other field's chip reads "pos". The text field named its chips from the list it offers, which a typed
+ * field filters to its own type: pos is not on a yes/no field's list, so its chip fell back to the
+ * reference's path. A chip is named from the whole catalogue; only the list offered is filtered.
+ */
+describe("a chip of a field not of the value's type", () => {
+  for (const type of ['bool', 'number', 'int']) {
+    it(`is named as the catalogue names it, in a ${type} field`, async () => {
+      const { container } = show({ type, value: '$record:{bezeichnung} x', filterTemplatesByType: true });
+      await waitFor(() => expect(container.querySelector('[data-slate-editor] .reqore-tag')).not.toBeNull());
+      const chip = container.querySelector('[data-slate-editor] .reqore-tag')?.textContent?.replace(/﻿/g, '');
+      expect(chip).toContain('bezeichnung');
+      expect(chip).not.toContain('record');
+    });
+  }
+});

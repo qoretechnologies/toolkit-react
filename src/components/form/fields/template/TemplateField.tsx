@@ -1702,6 +1702,8 @@ const TemplateFieldImpl = memo(
                untyped field holding null looked exactly like one holding nothing (qorus#646) */
             value={typeof templateValue === 'string' ? templateValue : (untypedTextOf(value, type as string) ?? '')}
             templates={filteredTemplates}
+            // a chip of a field not of this type (text around it, say) is named as the catalogue names it
+            namingTemplates={templates}
             allowTemplates
             onChange={handleTemplateTextChange}
             {...rest}

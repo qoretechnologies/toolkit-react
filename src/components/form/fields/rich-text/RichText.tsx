@@ -49,6 +49,13 @@ export interface IRichTextFormFieldProps extends Omit<
   allowTemplates?: boolean;
   templates?: IReqoreFormTemplates;
   /**
+   * The catalogue a chip is NAMED from, when it is wider than the `templates` offered: a typed field offers
+   * only the fields of its type, but a chip of any field in its value is named as the catalogue names it.
+   * Named from the offered list, a field not on it read as its reference's path ("record: pos").
+   * Defaults to `templates`.
+   */
+  namingTemplates?: IReqoreFormTemplates;
+  /**
    * What the value is. `richtext` (the default) stores the editor's document.
    * `text` stores a plain string: each template reference in it is drawn as a
    * chip named from `templates`, and what is emitted is the string again — for
@@ -116,14 +123,17 @@ export const RichTextFormField = memo(({
   onChange,
   allowTemplates,
   templates,
+  namingTemplates,
   valueFormat = 'richtext',
   singleLine,
   templateToken,
   ...rest
 }: IRichTextFormFieldProps) => {
   const isText = valueFormat === 'text';
+  /** What chips are named from: the whole catalogue, not only what is offered (see the prop). */
+  const naming = namingTemplates ?? templates;
   const [localValue, setLocalValue] = useState<any>(() =>
-    isText ? templateTextToNodes(String(value ?? ''), templates, templateToken) : value
+    isText ? templateTextToNodes(String(value ?? ''), naming, templateToken) : value
   );
   /* In text mode, the string the editor's document stands for. The value that
      comes back from the parent is usually that same string, and rebuilding the
@@ -143,7 +153,7 @@ export const RichTextFormField = memo(({
       const text = String(value ?? '');
       if (text !== lastTextRef.current) {
         lastTextRef.current = text;
-        setLocalValue(templateTextToNodes(text, templates, templateToken));
+        setLocalValue(templateTextToNodes(text, naming, templateToken));
       }
       return;
     }
@@ -182,7 +192,7 @@ export const RichTextFormField = memo(({
       // stopped below. Flattened text is shown as the one line it now is.
       if (singleLine && hasLineBreak(text)) {
         lastTextRef.current = flattenToSingleLine(text);
-        setLocalValue(templateTextToNodes(lastTextRef.current, templates, templateToken));
+        setLocalValue(templateTextToNodes(lastTextRef.current, naming, templateToken));
         return;
       }
       lastTextRef.current = text;
@@ -200,9 +210,7 @@ export const RichTextFormField = memo(({
   // show the same strings, so they must be drawn the same way.
   const renderMarkdown = useMarkdownRenderer();
 
-  const descriptionByValue = useMemo(() => getChipTooltipDescriptions(templates), [
-    JSON.stringify(templates),
-  ]);
+  const descriptionByValue = useMemo(() => getChipTooltipDescriptions(naming), [JSON.stringify(naming)]);
 
   const handleGetTagProps = useCallback(
     (tag: any): IReqoreTagProps => {
@@ -217,13 +225,13 @@ export const RichTextFormField = memo(({
          description on hover. Read at render, so a catalogue that arrives
          after the value still names it. */
       if (isText && tagValue.startsWith('$')) {
-        const { item } = describeTemplateReference(templates, tagValue);
+        const { item } = describeTemplateReference(naming, tagValue);
         const metadata = item?.metadata as TTemplateMeta | undefined;
         return {
           icon: 'ExchangeDollarLine',
           leftIconProps: { image: metadata?.image },
-          label: templateChipLabel(templates, tagValue),
-          tooltip: templateTooltip(templates, tagValue),
+          label: templateChipLabel(naming, tagValue),
+          tooltip: templateTooltip(naming, tagValue),
           ...getTemplateTagStyle(metadata),
         };
       }
@@ -269,7 +277,7 @@ export const RichTextFormField = memo(({
 
       return {};
     },
-    [descriptionByValue, renderMarkdown, isText, templates]
+    [descriptionByValue, renderMarkdown, isText, naming]
   );
 
   const handleKeyDown = useCallback(
