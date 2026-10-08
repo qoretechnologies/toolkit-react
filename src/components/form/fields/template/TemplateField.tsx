@@ -265,6 +265,17 @@ export interface IValueTabsLabels {
   undoTooltip: (text: string) => string;
 }
 
+/** The keyboard a whole number or a number is typed on, on the Value tab. */
+const TEXTABLE_INPUT_MODES: Record<string, 'numeric' | 'decimal'> = {
+  int: 'numeric',
+  integer: 'numeric',
+  softint: 'numeric',
+  number: 'decimal',
+  float: 'decimal',
+  softfloat: 'decimal',
+  softnumber: 'decimal',
+};
+
 export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = {
   value: 'Value',
   expression: 'Expression',
@@ -1802,6 +1813,10 @@ const TemplateFieldImpl = memo(
               <RichTextFormField
                 className='template-selector value-tab-text'
                 valueFormat='text'
+                /* A whole number or a number is typed on a numeric keyboard where the device has one, as its own
+                   input was (qorus#646); templates are picked from the list the field opens, and an expression
+                   is written on the Expression tab. */
+                inputMode={TEXTABLE_INPUT_MODES[type as string]}
                 singleLine={isSingleLineStringType('string')}
                 value={
                   typeof templateValue === 'string' ? templateValue : (

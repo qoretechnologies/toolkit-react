@@ -341,6 +341,28 @@ describe('a saved value opens on its tab', () => {
     await waitFor(() => expect(activeTab(container)).toBe('expression'));
   });
 
+  it('a whole number and a number are written on a numeric keyboard, text on any', async () => {
+    for (const [type, mode] of [
+      ['int', 'numeric'],
+      ['number', 'decimal'],
+      ['string', null],
+    ] as const) {
+      const { container, unmount } = show({
+        type: type as never,
+        initial: type === 'string' ? 'x' : 12,
+      });
+      const editor = await waitFor(() => {
+        const el = container.querySelector(
+          '.value-tab-text[data-slate-editor], .value-tab-text [data-slate-editor]'
+        );
+        expect(el, type).toBeTruthy();
+        return el as HTMLElement;
+      });
+      expect(editor.getAttribute('inputmode'), type).toBe(mode);
+      unmount();
+    }
+  });
+
   it('a yes / no on its own control', async () => {
     const { container } = show({ type: 'bool' as never, initial: true });
     await waitFor(() => expect(activeTab(container)).toBe('value'));
