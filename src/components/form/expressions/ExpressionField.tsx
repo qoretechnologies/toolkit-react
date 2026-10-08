@@ -14,7 +14,7 @@ import {
   ReqoreVerticalSpacer,
 } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef } from '../../dpqlEditor';
 import { dpqlDisplayedText } from '../../dpqlEditor/dpqlHelpers';
 import { TDpqlFields } from '../../dpqlEditor/types';
@@ -103,6 +103,12 @@ export interface IExpressionFieldProps {
   /** No language server: the Text view cannot work, and the field shows the Visual view instead. */
   onTextUnavailable?: () => void;
   /**
+   * Set to a function that reads the text typed and not yet read - its parse still waiting - and gives the
+   * expression it is, or nothing. A host leaving the Text view calls it first, so what was just typed is not
+   * lost with the editor (qorus#646).
+   */
+  flushRef?: MutableRefObject<(() => Promise<IExpression | undefined>) | null>;
+  /**
    * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the
    * builder's operand fields. Without them an operand typed with one of the
    * CONSUMER's ui_types renders "Unknown type!".
@@ -134,6 +140,7 @@ export const ExpressionField = memo(
     requestedMode,
     hideModeToggle,
     onTextUnavailable,
+    flushRef,
     size,
     componentOverrides,
     reorder,
@@ -183,6 +190,8 @@ export const ExpressionField = memo(
     } | null>(null);
     const dpqlRef = useRef<IDpqlEditorRef>(null);
     const parseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** The text typed whose parse is still waiting on the debounce, or null. */
+    const pendingParse = useRef<string | null>(null);
 
     const ast = useMemo<IExpressionValue | undefined>(() => value?.value, [value]);
 
@@ -319,6 +328,7 @@ export const ExpressionField = memo(
         userTypedRef.current = true;
         setText(next);
         if (parseTimer.current) clearTimeout(parseTimer.current);
+        pendingParse.current = next;
         let tries = 0;
         const runParse = async (): Promise<void> => {
           const parse = dpqlRef.current?.parse;
@@ -328,6 +338,7 @@ export const ExpressionField = memo(
             }
             return;
           }
+          pendingParse.current = null;
           const result = await parse(next, targetType);
           readTypeCheck(result);
           if (result?.success && result.expression) {
@@ -450,6 +461,30 @@ export const ExpressionField = memo(
       if (requestedMode === 'visual') void enterVisualMode();
       else if (!textUnavailable) enterTextMode();
     }, [requestedMode]);
+
+    /* Read the text typed and not yet read, now, while the editor is here to read it: the host leaves the Text
+       view (its tabs) and the editor goes with it. Gives the expression it is, or nothing. */
+    const flushPendingParse = useCallback(async (): Promise<IExpression | undefined> => {
+      const pending = pendingParse.current;
+      const parse = dpqlRef.current?.parse;
+      if (pending === null || !parse) return undefined;
+      if (parseTimer.current) clearTimeout(parseTimer.current);
+      pendingParse.current = null;
+      const result = await parse(pending, targetType);
+      readTypeCheck(result);
+      if (!result?.success || !result.expression) return undefined;
+      setAstText(pending);
+      onChange(result.expression as IExpression);
+      return result.expression as IExpression;
+    }, [onChange, targetType, readTypeCheck]);
+
+    useEffect(() => {
+      if (!flushRef) return undefined;
+      flushRef.current = flushPendingParse;
+      return () => {
+        if (flushRef.current === flushPendingParse) flushRef.current = null;
+      };
+    }, [flushRef, flushPendingParse]);
 
     useEffect(
       () => () => {

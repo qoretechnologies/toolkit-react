@@ -1200,12 +1200,19 @@ const TemplateFieldImpl = memo(
        expression text, emitting nothing until it is edited. Expression ↔ Visual is the editor's own toggle.
        Expression → Value converts only a literal or a lone template; any other expression stays, and the
        Value tab says it cannot show it and offers to replace it. Nothing is lost silently. */
+    /** Reads the Expression tab's text typed and not yet read (see `ExpressionField.flushRef`). */
+    const expressionFlush = useRef<(() => Promise<IExpression | undefined>) | null>(null);
+
     const selectTab = useCallback(
-      (next: TValueTab) => {
+      async (next: TValueTab) => {
         if (next === tab) return;
+        /* What was just typed on the Expression tab is read before the tab goes, and is the expression the
+           field now holds; it was lost with the editor when the tab was left before it was read (qorus#646). */
+        const flushed = tab === 'expression' ? await expressionFlush.current?.() : undefined;
+        const envelope =
+          flushed ?? (valueIsExpression ? { is_expression: true, value } : undefined);
         if (next === 'value' || next === 'template') {
-          if (valueIsExpression) {
-            const envelope = { is_expression: true, value };
+          if (envelope) {
             const template = loneTemplateOf(envelope);
             const literal = template === undefined ? loneValueOf(envelope) : undefined;
             if (template !== undefined) {
@@ -1220,7 +1227,7 @@ const TemplateFieldImpl = memo(
           setExpressionFromText(null);
           setIsTemplate(next === 'template' || valueTabIsText);
         } else {
-          if (!valueIsExpression) setExpressionSeed(expressionTextOfValue(value));
+          if (!flushed && !valueIsExpression) setExpressionSeed(expressionTextOfValue(value));
           setInternalIsFunction(true);
         }
         setTab(next);
@@ -2110,6 +2117,7 @@ const TemplateFieldImpl = memo(
               defaultMode={tab === 'visual' ? 'visual' : 'text'}
               requestedMode={tab === 'visual' ? 'visual' : 'text'}
               hideModeToggle
+              flushRef={expressionFlush}
               // no language server: the Visual tab is where the expression is built
               onTextUnavailable={() => setTab('visual')}
               reorder={reorder}

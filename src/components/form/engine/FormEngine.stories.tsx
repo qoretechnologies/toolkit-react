@@ -10364,6 +10364,33 @@ export const ExpressionTypedOnValueSwitchesWithUndo: Story = {
   },
 };
 
+export const ExpressionKeptWhenTheTabIsLeftAtOnce: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form, opens Quantity (12) on the Expression tab, writes "12 + 1" and opens the Value tab at once - before the text has been read: what was written is read first and is the expression the option holds, so the Value tab says it cannot show it.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('quantity');
+    await chooseTab(row, 'expression');
+    const text = await waitFor(() => {
+      const el = optionRow('quantity').querySelector<HTMLElement>('.expression-field [data-slate-editor]');
+      expect(el?.textContent?.replace(/\uFEFF/g, '').trim()).toBe('12');
+      return el as HTMLElement;
+    });
+    await userEvent.click(text);
+    await userEvent.keyboard(' + 1');
+    // at once, not waiting for the text to be read
+    await userEvent.click(optionRow('quantity').querySelector('.value-tab[data-tab="value"]') as HTMLElement);
+    await waitFor(() => expect(heldOption(canvasElement, 'quantity')?.is_expression).toBe(true));
+    await waitFor(() => expect(optionRow('quantity').querySelector('.value-tab-cannot-show')).toBeTruthy());
+  },
+};
+
 export const TemplateOfAnotherTypeWarns: Story = {
   parameters: {
     docs: {

@@ -463,6 +463,37 @@ describe('one value, three views', () => {
     expect((getByTestId('dpql-text') as HTMLTextAreaElement).value).toBe('15');
   });
 
+  /* Typed on the Expression tab and the Value tab opened straight away, before the text has been read: what was
+     typed is read first, not lost (qorus#646, found clicking through the review in the IDE). */
+  it('what was typed on the Expression tab is kept when the Value tab is opened straight after', async () => {
+    const onChange = vi.fn();
+    const { container, getByTestId } = show({ type: 'int' as never, initial: 12, onChange });
+    clickTab(container, 'expression');
+    const text = await waitFor(() => getByTestId('dpql-text') as HTMLTextAreaElement);
+    fireEvent.change(text, { target: { value: '15' } });
+    clickTab(container, 'value');
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith('value', 15, 'int', false));
+    await waitFor(() => expect(activeTab(container)).toBe('value'));
+  });
+
+  it('an expression typed on the Expression tab is kept when the Value tab is opened straight after', async () => {
+    const onChange = vi.fn();
+    const { container, getByTestId } = show({ type: 'int' as never, initial: 12, onChange });
+    clickTab(container, 'expression');
+    const text = await waitFor(() => getByTestId('dpql-text') as HTMLTextAreaElement);
+    fireEvent.change(text, { target: { value: '1 + 2' } });
+    clickTab(container, 'value');
+    await waitFor(() =>
+      expect(onChange).toHaveBeenCalledWith(
+        'value',
+        { exp: '+', args: [{ type: 'int', value: 1 }, { type: 'int', value: 2 }] },
+        expect.anything(),
+        true
+      )
+    );
+    await waitFor(() => expect(container.querySelector('.value-tab-cannot-show')).not.toBeNull());
+  });
+
   it('a template on a yes / no cannot be shown on Value: it says where it is shown', async () => {
     const { container } = show({ type: 'bool' as never, initial: '$record:{pos}' });
     await waitFor(() => expect(activeTab(container)).toBe('expression'));
