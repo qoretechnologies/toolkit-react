@@ -369,8 +369,11 @@ export function useDpqlSession(
           { uri: session.uri, expression }
         );
         return result?.dpql ?? '';
-      } catch {
-        return '';
+      } catch (error) {
+        /* The server refused to write this value (DPQL-SERIALIZE-ERROR: a two-argument operator stored with
+           more arguments). Said, not answered with no text: an empty answer opened an empty Text view for the
+           author to type over, and what was typed replaced the value (qorus#646). */
+        throw new Error(String((error as { message?: unknown })?.message ?? error));
       }
     },
     [session.client, session.uri]

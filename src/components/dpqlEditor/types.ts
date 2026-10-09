@@ -209,6 +209,9 @@ export interface IDpqlEditorRef {
    * the result. Omit it to ask only whether the text parses.
    */
   parse: (text: string, targetType?: string) => Promise<IDpqlParseResult>;
-  /** Serialize an expression AST back to DPQL text via `dpql/serialize`. */
+  /**
+   * Serialize an expression AST back to DPQL text via `dpql/serialize`: '' while the session has no client,
+   * and rejected, with the server's reason, when the server refuses to write the value.
+   */
   serialize: (expression: Record<string, any>) => Promise<string>;
 }

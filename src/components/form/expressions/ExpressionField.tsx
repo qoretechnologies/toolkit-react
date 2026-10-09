@@ -173,6 +173,12 @@ export const ExpressionField = memo(
     /* No language server to parse or write the text: the Text view cannot work, so the field shows the
        Visual view, which needs none, and says why (qorus#646). */
     const [textUnavailable, setTextUnavailable] = useState(false);
+    /* Why the server would not write this value as text, or null. The field is then built in Visual: an empty
+       Text view would be one the author types over, replacing the value (qorus#646). */
+    const [textRefused, setTextRefused] = useState<string | null>(null);
+    // read when a refusal lands, so a host's new callback on each render does not restart the seed
+    const onTextUnavailableRef = useRef(onTextUnavailable);
+    onTextUnavailableRef.current = onTextUnavailable;
     /* Whether the Text view's language server can parse and write its text - the session's own signal
        (`onReady`), never a guess by time. Typed text waits for it; it is not asked of a session that is not
        up, whose answer is "nothing parsed" (qorus#646: under load, text typed before the session was up
@@ -441,8 +447,19 @@ export const ExpressionField = memo(
       if (!sessionReady) return undefined;
       let cancelled = false;
       const seed = async (): Promise<void> => {
-        const t = await dpqlRef.current?.serialize?.(seedAst);
+        let t: string | undefined;
+        try {
+          t = await dpqlRef.current?.serialize?.(seedAst);
+        } catch (error) {
+          if (cancelled || userTypedRef.current) return;
+          setTextRefused(String((error as { message?: unknown })?.message ?? error));
+          setMode('visual');
+          // a host drawing the views as tabs follows: the Visual tab
+          onTextUnavailableRef.current?.();
+          return;
+        }
         if (cancelled || userTypedRef.current) return;
+        setTextRefused(null);
         if (t) {
           seededRef.current = true;
           setText(t);
@@ -670,6 +687,17 @@ export const ExpressionField = memo(
             : null}
           </>
         : <>
+            {textRefused ?
+              <ReqoreMessage
+                intent='warning'
+                size='small'
+                flat
+                opaque={false}
+                className='expression-text-refused'
+              >
+                This expression cannot be shown as text, so it is built here: {textRefused}
+              </ReqoreMessage>
+            : null}
             {textUnavailable ?
               <ReqoreMessage
                 intent='muted'

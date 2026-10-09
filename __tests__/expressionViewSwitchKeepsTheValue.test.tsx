@@ -10,7 +10,11 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const server = { parses: [] as string[], onReady: undefined as undefined | (() => void) };
+const server = {
+  parses: [] as string[],
+  onReady: undefined as undefined | (() => void),
+  refuse: false,
+};
 
 /** What the lossy serializer writes for the three-argument `+` below, and what parsing it gives back. */
 const LOSSY_TEXT = '"Run at " + format_number(9000000)';
@@ -49,7 +53,12 @@ vi.mock('../src/components/dpqlEditor', () => ({
             diagnostics: [],
           };
         },
-        serialize: async () => LOSSY_TEXT,
+        serialize: async () => {
+          if (server.refuse) {
+            throw new Error('DPQL-SERIALIZE-ERROR: "-" takes two arguments; this one has 3');
+          }
+          return LOSSY_TEXT;
+        },
       }),
       []
     );
@@ -140,6 +149,7 @@ const opened = async () => {
 beforeEach(() => {
   vi.useFakeTimers();
   server.parses = [];
+  server.refuse = false;
   onChange.mockClear();
 });
 afterEach(() => {
@@ -167,5 +177,21 @@ describe('an expression opened on its Text view', () => {
       expect.objectContaining({ value: expect.objectContaining({ exp: '+' }) })
     );
     expect(server.parses).toContain('"edited"');
+  });
+});
+
+describe('an expression the server cannot write as text', () => {
+  it('opens on Visual and says why, with no empty Text view to type over, and changes nothing', async () => {
+    server.refuse = true;
+    const { container } = show();
+    await act(async () => {
+      server.onReady?.();
+    });
+    await pass(1000);
+    expect(screen.queryByTestId('fake-dpql')).toBeNull();
+    expect(container.querySelector('.expression-text-refused')?.textContent).toContain(
+      'DPQL-SERIALIZE-ERROR'
+    );
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
