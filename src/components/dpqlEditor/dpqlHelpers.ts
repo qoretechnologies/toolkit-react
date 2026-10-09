@@ -57,9 +57,10 @@ export function plainTextToSlate(text: string): ISlateElement[] {
       const textStart = isQuoted ? matchStart - 1 : matchStart;
       const textEnd = isQuoted ? matchEnd + 1 : matchEnd;
 
-      if (textStart > lastIndex) {
-        children.push({ text: line.slice(lastIndex, textStart) });
-      }
+      // Every chip has a text node on each side, even an empty one: a chip
+      // that starts or ends the line otherwise leaves the caret nowhere to go
+      // but into the chip, where Slate drops whatever is typed.
+      children.push({ text: line.slice(lastIndex, textStart) });
 
       const fullMatch = match[0];
       if (match[1]) {
@@ -84,12 +85,7 @@ export function plainTextToSlate(text: string): ISlateElement[] {
 
       lastIndex = textEnd;
     }
-    if (lastIndex < line.length) {
-      children.push({ text: line.slice(lastIndex) });
-    }
-    if (children.length === 0) {
-      children.push({ text: '' });
-    }
+    children.push({ text: line.slice(lastIndex) });
     return { type: 'paragraph' as const, children };
   });
 }
@@ -107,6 +103,28 @@ export function dpqlDisplayedText(text: string): string {
         .join('')
     )
     .join('\n');
+}
+
+/**
+ * `children` with a text node on each side of every chip, as Slate requires of
+ * an inline void: adjacent text nodes are left as they are, and an empty
+ * paragraph gets one empty text node. The server's `dpql/toRichtext` writes a
+ * chip that starts or ends a line without the empty text beside it, and a
+ * document loaded that way is never normalised, so the caret a click puts
+ * after such a chip lands back inside it, where typing does nothing.
+ */
+export function withTextAroundTags(children: TSlateNode[]): TSlateNode[] {
+  const out: TSlateNode[] = [];
+  for (const child of children) {
+    if (!('text' in child) && (out.length === 0 || !('text' in out[out.length - 1]))) {
+      out.push({ text: '' } as ISlateText);
+    }
+    out.push(child);
+  }
+  if (out.length === 0 || !('text' in out[out.length - 1])) {
+    out.push({ text: '' } as ISlateText);
+  }
+  return out;
 }
 
 function createTagElement(
@@ -277,8 +295,7 @@ export function richtextResponseToSlate(
         return null;
       }
     }
-    if (children.length === 0) children.push({ text: '' } as ISlateText);
-    paragraphs.push({ type: 'paragraph', children });
+    paragraphs.push({ type: 'paragraph', children: withTextAroundTags(children) });
   }
   if (paragraphs.length === 0) {
     paragraphs.push({ type: 'paragraph', children: [{ text: '' }] });
