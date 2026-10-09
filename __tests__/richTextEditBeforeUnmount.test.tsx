@@ -7,12 +7,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const editor = vi.hoisted(() => ({ props: undefined as Record<string, any> | undefined }));
 
-vi.mock('@qoretechnologies/reqore/dist/components/RichTextEditor', () => ({
-  ReqoreRichTextEditor: (props: Record<string, any>) => {
-    editor.props = props;
-    return null;
-  },
-}));
+/* A ref-taking component, as the real one is: the field hands it a ref for its completion list. */
+vi.mock('@qoretechnologies/reqore/dist/components/RichTextEditor', async () => {
+  const { forwardRef } = await import('react');
+  return {
+    ReqoreRichTextEditor: forwardRef((props: Record<string, any>, _ref) => {
+      editor.props = props;
+      return null;
+    }),
+  };
+});
 
 import { RichTextFormField } from '../src/components/form/fields/rich-text/RichText';
 import { templateTextToNodes } from '../src/helpers/templateText';

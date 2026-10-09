@@ -3,9 +3,6 @@
 import {
   ReqoreCallout,
   ReqoreControlGroup,
-  ReqoreMenu,
-  ReqoreMenuDivider,
-  ReqoreMenuItem,
   ReqoreMessage,
   ReqorePanel,
   ReqoreSpinner,
@@ -17,7 +14,6 @@ import {
   TReqoreRichTextEditorRef,
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
-import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import React, {
   forwardRef,
   memo,
@@ -33,8 +29,9 @@ import { ReactEditor, RenderLeafProps } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
 import { useEmittedValues } from '../form/fields/emittedValues';
 import { defaultSlateConverter, expandSnippet, lspPositionToOffset } from './helpers';
+import { TEMPLATE_BROWSE_LIST_PROPS } from '../form/fields/rich-text/useTemplateTags';
+import { CompletionMenu } from './CompletionMenu';
 import { MarkdownDoc } from './MarkdownDoc';
-import { COMPLETION_KIND_INTENTS, SMART_EDITOR_OVERLAY_EFFECT } from './styling';
 import { ISlateElement, ISmartEditorProps, TCompletionInserter } from './types';
 import { ICompletionDropdownItem, useLspAutocomplete } from './useLspAutocomplete';
 import { severityToIntent, useLspDiagnosticDecorations } from './useLspDiagnosticDecorations';
@@ -62,56 +59,6 @@ const SEMANTIC_TOKEN_COLORS: Record<string, string> = {
   decorator: '#c678dd', // purple
   namespace: '#e5c07b', // yellow
 };
-
-// Kind chip + a Warning chip (Qonsole flags mutating verbs) for a
-// completion row; undefined when neither applies.
-function buildKindBadge(
-  item: ICompletionDropdownItem
-): Record<string, unknown> | Array<Record<string, unknown>> | undefined {
-  const kindIntent =
-    item.metadata?.kind !== undefined ? COMPLETION_KIND_INTENTS[item.metadata.kind] : undefined;
-  const kindBadge =
-    item.kindLabel ?
-      {
-        label: item.kindLabel,
-        minimal: true as const,
-        size: 'small' as const,
-        intent: kindIntent,
-      }
-    : null;
-  const warningBadge =
-    item.warning ?
-      {
-        label: 'Warning',
-        size: 'small' as const,
-        intent: 'warning' as const,
-        tooltip: item.warning,
-      }
-    : null;
-  if (warningBadge && kindBadge) return [kindBadge, warningBadge];
-  if (warningBadge) return [warningBadge];
-  if (kindBadge) return kindBadge;
-  return undefined;
-}
-
-// Tooltip prop rendering a row's LSP `documentation` (markdown/plaintext),
-// or undefined when there is none.
-function buildDocTooltip(item: ICompletionDropdownItem) {
-  const doc = item.documentation;
-  if (!doc) return undefined;
-  const isMarkdown = typeof doc === 'object' && doc !== null && doc.kind === 'markdown';
-  const text = typeof doc === 'string' ? doc : (doc?.value ?? '');
-  if (!text) return undefined;
-  return {
-    content: <MarkdownDoc content={text} markdown={isMarkdown} />,
-    placement: 'right' as const,
-    delay: 200,
-    // The cast covers popover props missing from the older tooltip type.
-    flat: true,
-    transparent: true,
-    backgroundBlur: 20,
-  } as IReqoreTooltip;
-}
 
 // Applies the server's `textEdit` (replacing the typed partial token so
 // `-` + `--desc=` doesn't become `---desc=`), else inserts at the cursor.
@@ -157,41 +104,6 @@ const defaultCompletionInserter: TCompletionInserter = (item, editor, ctx) => {
   }
 };
 
-// Module-scoped so the reference is stable across renders — an inline
-// object would defeat ReqoreMenuItem's memoization.
-const COMPLETION_ITEM_STYLE: React.CSSProperties = { fontFamily: 'monospace' };
-
-interface ICompletionMenuItemProps {
-  item: ICompletionDropdownItem;
-  isFocused: boolean;
-  onSelect: (item: ICompletionDropdownItem) => void;
-}
-
-// Memoized completion row so badge/tooltip derivation runs once per item,
-// not on every SmartEditor re-render.
-const CompletionMenuItem = memo(({ item, isFocused, onSelect }: ICompletionMenuItemProps) => {
-  const badge = useMemo(() => buildKindBadge(item), [item]);
-  const tooltip = useMemo(() => buildDocTooltip(item), [item]);
-  const handleClick = useCallback(() => onSelect(item), [onSelect, item]);
-
-  return (
-    <ReqoreMenuItem
-      icon={item.icon as any}
-      label={item.label}
-      description={item.description}
-      badge={badge as any}
-      tooltip={tooltip as any}
-      selected={isFocused}
-      active={isFocused}
-      minimal
-      scrollIntoView={isFocused}
-      onClick={handleClick}
-      compact
-      style={COMPLETION_ITEM_STYLE}
-    />
-  );
-});
-CompletionMenuItem.displayName = 'CompletionMenuItem';
 
 interface ISignatureHelpPillProps {
   signature: ILspSignatureHelp;
@@ -297,6 +209,9 @@ const SignatureHelpPill = memo(({ signature, position }: ISignatureHelpPillProps
 });
 SignatureHelpPill.displayName = 'SignatureHelpPill';
 
+/** Distinguishes the completion lists of the editors on a page, for each editor's `aria-controls`. */
+let completionMenuCounter = 0;
+
 export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProps>(
   (
     {
@@ -325,6 +240,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
   ) => {
     const theme = useReqoreTheme();
     const editorRef = useRef<TReqoreRichTextEditorRef>(null);
+    const completionMenuId = useMemo(() => `completion-menu-${++completionMenuCounter}`, []);
     const lastPlainTextRef = useRef(value);
     // Cached Slate nodes, refreshed only on EXTERNAL value changes — not on
     // the typing echo. Passing a fresh ref every keystroke re-runs
@@ -530,9 +446,15 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     // Replace mode: open the dropdown at the chip's DOM rect (not the
     // editor selection — clicks on a Slate VOID inline don't reliably
     // update `editor.selection`) and atomically swap the chip on select.
+    const hasBrowseList = !!tags && Object.keys(tags).length > 0;
     const handleTagClickDefault = useCallback(
       (tag: ISlateElement, editor: TReqoreRichTextEditorRef) => {
         if (readOnly) return;
+        /* An editor with a browse list (`tags`) answers a click on a chip with that list, as a click anywhere
+           in its text, and as a value's text does: one list at a time. Opening the chip's replacements beside
+           it put two lists over the text, and what was typed then reached neither (qorus#646, David: "you
+           can't type"). */
+        if (hasBrowseList) return;
         try {
           const tagPath = ReactEditor.findPath(editor, tag as any);
           const domNode = ReactEditor.toDOMNode(editor, tag as any);
@@ -545,7 +467,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           // Tag may have been removed mid-render — ignore.
         }
       },
-      [readOnly, autocomplete]
+      [readOnly, autocomplete, hasBrowseList]
     );
 
     const resolvedTagClick = onTagClick ?? handleTagClickDefault;
@@ -570,15 +492,6 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       [autocomplete]
     );
 
-    // Flatten groups into rows carrying a flat index to compare against
-    // `focusedIndex` (which is flat across all groups).
-    const completionGroups = useMemo(() => {
-      let flatIndex = 0;
-      return autocomplete.groups.map((group) => ({
-        label: group.label,
-        items: group.items.map((item) => ({ item, index: flatIndex++ })),
-      }));
-    }, [autocomplete.groups]);
 
     // Overlay shown while the session connects, a context binding resolves,
     // or the wrapper signals `isLoading` (e.g. DpqlEditor awaiting
@@ -618,8 +531,14 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             getTagProps={tagRenderer as any}
             onTagClick={stableOnTagClick}
             onBlur={onBlur}
-            // the field's templates, listed when the text is clicked, tapped or tabbed into
+            // the field's templates, browsed when the text is clicked, tapped or tabbed into: the browse list,
+            // drawn as the completion list is
             tags={tags}
+            tagsListProps={{ useTargetWidth: true, ...TEMPLATE_BROWSE_LIST_PROPS }}
+            // what is typed is completed in the list at the caret: a screen reader is told it completes, and where
+            aria-autocomplete='list'
+            aria-expanded={autocomplete.isOpen}
+            aria-controls={completionMenuId}
             panelProps={{
               fluid: true,
               flat: true,
@@ -662,82 +581,16 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               {overlayContent}
             </div>
           )}
-          {autocomplete.isOpen &&
-            (autocomplete.items.length > 0 ||
-              autocomplete.isReplaceMode ||
-              autocomplete.isFetching) && (
-              <ReqorePopover
-                key={autocomplete.popoverKey}
-                component='span'
-                wrapperStyle={{
-                  // `fixed` anchor at the cursor's screen coords — avoids
-                  // parent-offset math.
-                  position: 'fixed',
-                  top: autocomplete.position.top,
-                  left: autocomplete.position.left,
-                  width: '1px',
-                  height: '1px',
-                  pointerEvents: 'none',
-                }}
-                content={
-                  <ReqoreMenu
-                    rounded
-                    flat
-                    maxHeight='300px'
-                    width='300px'
-                    effect={SMART_EDITOR_OVERLAY_EFFECT}
-                    customTheme={{ main: '#1e0d29' }}
-                  >
-                    {autocomplete.items.length === 0 &&
-                      (autocomplete.isReplaceMode || autocomplete.isFetching) && (
-                        <ReqoreMenuItem
-                          icon='LoaderLine'
-                          label={
-                            !session.isReady ? 'Connecting to language server…'
-                            : !session.isContextReady ?
-                              'Loading schema…'
-                            : autocomplete.isFetching ?
-                              'Loading completions…'
-                            : 'No alternatives available'
-                          }
-                          disabled
-                          compact
-                        />
-                      )}
-                    {completionGroups.map((group) => (
-                      <React.Fragment key={group.label || '_default'}>
-                        {group.label && (
-                          <ReqoreMenuDivider
-                            label={group.label}
-                            // @ts-expect-error — intent type not in older Reqore
-                            intent='muted'
-                          />
-                        )}
-                        {group.items.map(({ item, index }) => (
-                          <CompletionMenuItem
-                            key={item.value}
-                            item={item}
-                            isFocused={index === autocomplete.focusedIndex}
-                            onSelect={handleCompletionSelect}
-                          />
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </ReqoreMenu>
-                }
-                openOnMount
-                noArrow
-                placement='bottom-start'
-                handler='click'
-                closeOnOutsideClick
-                closeOnInsideClick={false}
-                minWidth='300px'
-                flat
-                // Transparent so the popover wrapper doesn't frame the menu.
-                transparent
-                onToggleChange={autocomplete.handleExternalClose}
-              />
-            )}
+          <CompletionMenu
+            autocomplete={autocomplete}
+            id={completionMenuId}
+            onSelect={handleCompletionSelect}
+            pendingLabel={
+              !session.isReady ? 'Connecting to language server…'
+              : !session.isContextReady ? 'Loading schema…'
+              : undefined
+            }
+          />
           {hover.hoverContent && hover.hoverPosition && (
             // Non-interactive (`pointerEvents: none`) so typing/clicking
             // doesn't dismiss it via a focus trap.

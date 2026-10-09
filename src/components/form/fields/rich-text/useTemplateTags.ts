@@ -8,6 +8,17 @@ import {
   templateItemsToShow,
 } from '../../../../helpers/templateItems';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
+import { COMPLETION_LIST_THEME, styleTemplateItems } from '../../../smartEditor/completionStyle';
+
+/**
+ * How the list a field's templates are browsed in is drawn, wherever it opens - an editor's (its `tagsListProps`)
+ * or a control's (`TemplateBrowser`): the completion list's colour, at least as wide as it.
+ */
+export const TEMPLATE_BROWSE_LIST_PROPS = {
+  minWidth: '300px',
+  maxWidth: '600px',
+  listCustomTheme: COMPLETION_LIST_THEME,
+};
 
 /**
  * The templates a rich-text editor lists when it is clicked, tapped or tabbed into, and inserts as chips:
@@ -36,9 +47,8 @@ export const useTemplateTags = (
            and printing its punctuation at the reader was the last surface still
            doing that. Never made further up: the list is a `JSON.stringify`
            memo key in `TemplateField`. */
-        items: renderTemplateItemDescriptions(
-          templateItemsToShow(templates?.items),
-          renderMarkdown
+        items: styleTemplateItems(
+          renderTemplateItemDescriptions(templateItemsToShow(templates?.items), renderMarkdown)
         ),
       };
     }

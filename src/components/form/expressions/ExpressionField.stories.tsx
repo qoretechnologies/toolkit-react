@@ -91,12 +91,14 @@ const waitForLspIdle = (canvasElement: HTMLElement) =>
 export const Default: Story = {
   args: {
     value: SAMPLE,
+    // the Visual builder, which this story shows: an expression opens in Text
+    defaultMode: 'visual',
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Renders ExpressionField holding a "$local:name == John" expression — the Visual builder shows the Logical Equals operator with its two operands and the Visual/Text mode toggle.',
+          'Renders ExpressionField holding a "$local:name == John" expression, opened in its Visual view — the Visual builder shows the Logical Equals operator with its two operands and the Text/Visual mode toggle.',
       },
     },
   },
@@ -157,6 +159,8 @@ export const Empty: Story = {
  */
 export const NestedOperandKeepsInjectedActions: Story = {
   args: {
+    // the Visual builder's cards, which this story counts: an expression opens in Text
+    defaultMode: 'visual',
     value: {
       is_expression: true,
       value: {

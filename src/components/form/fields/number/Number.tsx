@@ -1,4 +1,4 @@
-import { ReqoreDropdown, ReqoreInput } from '@qoretechnologies/reqore';
+import { ReqoreInput } from '@qoretechnologies/reqore';
 import { IReqoreInputProps } from '@qoretechnologies/reqore/dist/components/Input';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
@@ -6,6 +6,7 @@ import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
 // Const-only usage at render time — the cycle (Number → TemplateField → Number)
 // is safe the same way Field → AutoFormField → Field is.
+import { TemplateBrowser } from '../template/TemplateBrowser';
 import { TemplatesListProps } from '../template/TemplateField';
 
 export interface INumberFormFieldProps extends Omit<IReqoreInputProps, 'value' | 'onChange' | 'type'> {
@@ -120,13 +121,13 @@ export const NumberFormField = ({
   // focus-opened dropdown of the template values.
   if (templates?.items) {
     return (
-      <ReqoreDropdown<IReqoreInputProps>
+      // the list a field's templates are browsed in (`TemplateBrowser`): the input keeps the keyboard
+      <TemplateBrowser
         {...(rest as any)}
         component={ReqoreInput}
         fluid
         icon='MoneyDollarCircleLine'
-        items={templates?.items}
-        filterable
+        templates={templates}
         value={text}
         onItemSelect={handleItemSelect}
         onChange={handleInputChange}

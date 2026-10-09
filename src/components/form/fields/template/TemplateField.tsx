@@ -6,7 +6,6 @@
 import {
   ReqoreButton,
   ReqoreControlGroup,
-  ReqoreDropdown,
   ReqoreErrorBoundary,
   ReqoreMenu,
   ReqoreMenuItem,
@@ -42,11 +41,7 @@ import {
   isValueTemplate,
 } from '../../../../helpers/templates';
 import { classifyTypedText, mightBeDpqlExpression } from '../../../../helpers/dpqlDetection';
-import {
-  renderTemplateItemDescriptions,
-  templateItemsToShow,
-} from '../../../../helpers/templateItems';
-import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
+import { templateItemsToShow } from '../../../../helpers/templateItems';
 import { getTypeFromValue } from '../../../../helpers/validations';
 import { useDpqlProbe } from '../../../dpqlEditor/useDpqlProbe';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
@@ -65,6 +60,7 @@ import LongStringFormField from '../long-string/LongString';
 import NumberFormField from '../number/Number';
 import { ReadOnlyTemplateTag } from './ReadOnlyTemplateTag';
 import { RichTextFormField } from '../rich-text/RichText';
+import { TemplateBrowser } from './TemplateBrowser';
 import { richtextToString } from '../../../../helpers/common';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
@@ -531,14 +527,8 @@ export const TemplateDropdownSelector = memo(
     templateBadge,
     ...rest
   }: ITemplateDropdownSelectorProps) => {
-    /* The LAST hop before Reqore, which is the only place a drawn description
-       may be made: `filteredTemplates` upstream is a `JSON.stringify` memo key,
-       and an element in it throws on its own circular owner. */
-    const renderMarkdown = useMarkdownRenderer();
-    const shownItems = useMemo(
-      () => renderTemplateItemDescriptions(templateItemsToShow(items), renderMarkdown),
-      [items, renderMarkdown]
-    );
+    /* The catalogue browsed: `TemplateBrowser` draws its descriptions at the hand-off to Reqore. */
+    const browsed = useMemo(() => ({ items }) as IReqoreFormTemplates, [items]);
 
     // One resolver for every surface that names a reference — the picker chip
     // here, the read-only tag, and the compact row's expression summary. The
@@ -567,18 +557,18 @@ export const TemplateDropdownSelector = memo(
           </ReqoreMessage>
         )}
         <ReqoreControlGroup stack>
-          <ReqoreDropdown
+          <TemplateBrowser
             className='template-selector'
             customTheme={TemplatesListProps.listCustomTheme}
             minimal
             compact
             onItemSelect={onItemSelect}
-            items={shownItems}
+            templates={browsed}
+            focusFilter
             label={label}
             leftIconProps={leftIconProps}
             badge={badge}
             caretPosition='right'
-            filterable
             size={size}
             {...TemplatesListProps}
           />
@@ -2313,7 +2303,7 @@ const TemplateFieldImpl = memo(
         {/* A date keeps its date control - it is not written as text - and takes a template beside it:
             chosen, the template is the value (the template control, whose × returns to the date). */}
         {!isTemplate && allowCustomValues && dateTakesTemplates ?
-          <ReqoreDropdown
+          <TemplateBrowser
             className='date-template-picker'
             icon='MoneyDollarCircleLine'
             fixed
@@ -2321,8 +2311,8 @@ const TemplateFieldImpl = memo(
             size={rest.size}
             tooltip='Use a template'
             aria-label='Use a template'
-            filterable
-            items={filteredTemplates?.items}
+            templates={filteredTemplates}
+            focusFilter
             onItemSelect={handleSelectDateTemplate}
           />
         : null}

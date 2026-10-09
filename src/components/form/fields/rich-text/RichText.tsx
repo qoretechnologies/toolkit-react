@@ -1,6 +1,7 @@
 import {
   IReqoreRichTextEditorProps,
   ReqoreRichTextEditor,
+  TReqoreRichTextEditorRef,
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
@@ -22,7 +23,16 @@ import {
   TTemplateMeta,
 } from '../../../../helpers/templates';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
-import { useTemplateTags } from './useTemplateTags';
+import { TEMPLATE_BROWSE_LIST_PROPS, useTemplateTags } from './useTemplateTags';
+import { CompletionMenu } from '../../../smartEditor/CompletionMenu';
+import { defaultSlateConverter } from '../../../smartEditor/helpers';
+import { templateChipInserter, templateCompletionItems } from '../../../smartEditor/templateCompletions';
+import { useLspAutocomplete } from '../../../smartEditor/useLspAutocomplete';
+
+/** What opens the field's template list as it is typed: a template begins with `$`. */
+const TEMPLATE_TRIGGERS = new Set(['$']);
+/** Distinguishes the completion lists of the fields on a page, for each field's `aria-controls`. */
+let textCompletionMenuCounter = 0;
 
 export interface IRichTextFormFieldProps extends Omit<
   IReqoreRichTextEditorProps,
@@ -311,13 +321,6 @@ export const RichTextFormField = memo(({
     [isText, singleLine, (rest as { onKeyDown?: unknown }).onKeyDown]
   );
 
-  const tags = useTemplateTags(templates, allowTemplates);
-
-  const formattedValue: IReqoreRichTextEditorProps['value'] =
-    typeof localValue !== 'object' ? [{ type: 'paragraph', children: [{ text: String(localValue ?? '') }] }]
-    : localValue === null ? undefined
-    : localValue;
-
   // Read-only: ReqoreRichTextEditor makes the Slate surface non-editable (and
   // disables tag click/remove) when `readOnly` is set. Honour the field-level
   // flags — the IDE Options model passes `readonly`, the compact form passes
@@ -329,6 +332,32 @@ export const RichTextFormField = memo(({
     (rest as { disabled?: boolean }).disabled
   );
 
+  /* The field's templates, two ways (qorus#646): browsed, in the hierarchical list a click, a tap or the
+     keyboard coming in opens (`tags`, the editor's own - see `useTemplateTags`); and found by what is typed
+     after a `$`, in the completion list typing opens everywhere (`CompletionMenu`), as an expression's Text
+     view does. */
+  const tags = useTemplateTags(templates, allowTemplates);
+  const editorRef = useRef<TReqoreRichTextEditorRef>(null);
+  const completionMenuId = useMemo(() => `completion-menu-text-${++textCompletionMenuCounter}`, []);
+  const templateItems = useMemo(
+    () => (allowTemplates ? templateCompletionItems(templates) : []),
+    [allowTemplates, templates]
+  );
+  const offerTemplates = useCallback(async () => templateItems, [templateItems]);
+  const autocomplete = useLspAutocomplete({
+    getCompletions: offerTemplates,
+    isReady: !readOnly && templateItems.length > 0,
+    triggerCharacters: TEMPLATE_TRIGGERS,
+    converter: defaultSlateConverter,
+    inserter: templateChipInserter,
+  });
+
+  const formattedValue: IReqoreRichTextEditorProps['value'] =
+    typeof localValue !== 'object' ? [{ type: 'paragraph', children: [{ text: String(localValue ?? '') }] }]
+    : localValue === null ? undefined
+    : localValue;
+
+
   /* Everything the caller passed, minus its own `tags` — see the prop's doc
      above: on a form field that name means the chips to show, while the
      editor's `tags` is the template catalogue this component computes. */
@@ -336,9 +365,14 @@ export const RichTextFormField = memo(({
   delete (editorProps as { tags?: unknown }).tags;
 
   return (
+    <>
     <ReqoreRichTextEditor
+      ref={editorRef}
       value={formattedValue}
-      onChange={handleChange}
+      onChange={(val: any) => {
+        handleChange(val);
+        if (editorRef.current) autocomplete.onSlateChange(editorRef.current as any, val);
+      }}
       /* `rest` is spread BEFORE everything this component computes. It used to
          come after, so a caller's prop of the same name silently replaced the
          computed one — and `tags` is exactly such a name twice over: on a form
@@ -350,15 +384,15 @@ export const RichTextFormField = memo(({
       {...editorProps}
       tagsListProps={{
         useTargetWidth: true,
-        minWidth: '300px',
-        maxWidth: '600px',
-        listCustomTheme: {
-          main: '#1b151f',
-        },
+        ...TEMPLATE_BROWSE_LIST_PROPS,
         ...(rest.tagsListProps || {}),
       }}
       getTagProps={handleGetTagProps}
       tags={tags}
+      // what is typed after a `$` is completed in the list at the caret: a screen reader is told it completes
+      aria-autocomplete='list'
+      aria-expanded={autocomplete.isOpen}
+      aria-controls={completionMenuId}
       panelProps={{ fluid: true, style: { minWidth: '150px', ...rest.panelProps?.style } }}
       readOnly={readOnly}
       onKeyDown={handleKeyDown}
@@ -369,5 +403,11 @@ export const RichTextFormField = memo(({
          Both still work from the keyboard, where every other text field's do. */
       actions={{ undo: false, redo: false, styling: false }}
     />
+    <CompletionMenu
+      autocomplete={autocomplete}
+      id={completionMenuId}
+      onSelect={(item) => editorRef.current && autocomplete.onItemSelect(item, editorRef.current as any)}
+    />
+    </>
   );
 });

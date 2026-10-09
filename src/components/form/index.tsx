@@ -51,3 +51,5 @@ export * from './expressions/ExpressionField';
 // it must be able to reach the builder without a deep import (#119).
 export { ExpressionBuilder } from './expressions/builder';
 export type { IExpressionBuilderProps } from './expressions/builder';
+export * from './fields/rich-text/useTemplateTags';
+export * from './fields/template/TemplateBrowser';

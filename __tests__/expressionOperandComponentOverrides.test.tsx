@@ -86,6 +86,8 @@ describe('componentOverrides reach an expression operand', () => {
           value={{ is_expression: true, value: { exp: '+', args: [1, 2] } } as never}
           onChange={vi.fn()}
           type='auto'
+          // the builder is the Visual view's; an expression opens in Text
+          defaultMode='visual'
           expressions={[]}
           componentOverrides={OVERRIDES as never}
         />

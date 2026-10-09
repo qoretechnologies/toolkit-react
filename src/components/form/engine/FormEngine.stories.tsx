@@ -10227,6 +10227,88 @@ export const ValueToExpressionAndVisual: Story = {
   },
 };
 
+/** The background an element is seen on: its own, or the first one painted behind it. */
+const seenBackground = (el: HTMLElement | null | undefined) => {
+  for (let node = el; node; node = node.parentElement) {
+    const colour = getComputedStyle(node).backgroundColor;
+    if (colour && colour !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(colour)) return colour;
+  }
+  return undefined;
+};
+
+/** The open list's look, and where the keyboard is, as an author meets them. */
+const openList = () => {
+  const menu = document.querySelector<HTMLElement>('.reqore-popover-content .reqore-menu');
+  const row = menu?.querySelector<HTMLElement>('.reqore-menu-item');
+  return {
+    menu,
+    background: seenBackground(menu),
+    rowFont: row ? getComputedStyle(row).fontFamily : undefined,
+    focused: menu?.querySelector('.reqore-menu-item[aria-selected="true"], .reqore-menu-item.active, [data-focused="true"]')
+      ?.textContent,
+  };
+};
+
+export const ListsLookAndBehaveAlike: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the form and opens Note: a click in its text opens the list its templates are browsed in, and `$` typed in Computed's Text view the completion list. The two are one family (David's review): the same colour and row font, the focus left in the text, the arrow keys moving through the rows, and Escape putting the list away and nothing else.",
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async () => {
+    // the browse list: a click in a value's text
+    const note = await editOption('note');
+    const text = await waitFor(() => {
+      const el = note.querySelector<HTMLElement>('.value-tab-text [data-slate-editor], [data-slate-editor]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(text);
+    const browse = await waitFor(() => {
+      const list = openList();
+      expect(list.menu, 'the browse list').toBeTruthy();
+      return list;
+    });
+    expect(text.contains(document.activeElement), 'the focus stays in the text').toBe(true);
+    expect(browse.rowFont).toMatch(/monospace/);
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(openList().menu).toBeFalsy());
+    /* That Escape leaves the row open, putting away only the list, comes with reqore 0.78.5 (#708): checked in
+       reqore's own tests and in the Qorus IDE, which uses it. The completion list's Escape is checked below. */
+
+    // the completion list: `$` typed in an expression's Text view
+    const computed = await editOption('computed');
+    const dpql = await waitFor(() => {
+      const el = computed.querySelector<HTMLElement>('.expression-field [data-slate-editor]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(dpql);
+    // typing puts the browse list the click opened away, and `$` opens the completion list in its place
+    await userEvent.keyboard(' + $');
+    const complete = await waitFor(() => {
+      const list = openList();
+      expect(list.menu?.classList.contains('completion-menu'), 'the completion list').toBe(true);
+      return list;
+    });
+    expect(dpql.contains(document.activeElement), 'the focus stays in the text').toBe(true);
+    // one family: the same colour, the same row font
+    expect(complete.background).toBe(browse.background);
+    expect(complete.rowFont).toBe(browse.rowFont);
+    // the arrow keys move through the rows
+    const first = openList().focused;
+    await userEvent.keyboard('{ArrowDown}');
+    await waitFor(() => expect(openList().focused).not.toBe(first));
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(openList().menu).toBeFalsy());
+    expect(optionRow('computed').querySelector('.expression-field [data-slate-editor]'), 'Escape leaves the row open').toBeTruthy();
+  },
+};
+
 export const SavedTemplateOpensOnValue: Story = {
   parameters: {
     docs: {

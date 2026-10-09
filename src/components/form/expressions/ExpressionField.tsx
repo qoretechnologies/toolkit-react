@@ -9,13 +9,13 @@
 import {
   ReqoreButton,
   ReqoreControlGroup,
-  ReqoreDropdown,
   ReqoreMessage,
   ReqoreVerticalSpacer,
 } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { memo, MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef } from '../../dpqlEditor';
+import { TemplateBrowser } from '../fields/template/TemplateBrowser';
 import { dpqlDisplayedText } from '../../dpqlEditor/dpqlHelpers';
 import { TDpqlFields } from '../../dpqlEditor/types';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
@@ -77,7 +77,7 @@ export interface IExpressionFieldProps {
    * use is offered there, as in the Visual view (see `IDpqlEditorProps.fields`).
    */
   fields?: TDpqlFields;
-  /** Initial editor mode (default `visual`). */
+  /** Initial editor mode (default `text`: an expression opens as it is written, Visual beside it). */
   defaultMode?: TExpressionMode;
   /**
    * The Text view's text when the value is not an expression yet: a template or a literal the field held
@@ -131,7 +131,7 @@ export const ExpressionField = memo(
     provider,
     fields,
     recordType,
-    defaultMode = 'visual',
+    defaultMode = 'text',
     initialText,
     heldAsValue,
     requestedMode,
@@ -528,15 +528,8 @@ export const ExpressionField = memo(
       >
         {hideModeToggle ? null : (
           <ReqoreControlGroup gapSize='small' fluid>
-            <ReqoreButton
-              icon='NodeTree'
-              active={mode === 'visual'}
-              onClick={enterVisualMode}
-              disabled={readOnly}
-              size={size as any}
-            >
-              Visual
-            </ReqoreButton>
+            {/* Text first, and the view an expression opens in: as the value's tabs read (Value · Expression ·
+                Visual), the written form before the built one (qorus#646, David) */}
             <ReqoreButton
               icon='CodeLine'
               active={mode === 'text'}
@@ -548,6 +541,15 @@ export const ExpressionField = memo(
               size={size as any}
             >
               Text
+            </ReqoreButton>
+            <ReqoreButton
+              icon='NodeTree'
+              active={mode === 'visual'}
+              onClick={enterVisualMode}
+              disabled={readOnly}
+              size={size as any}
+            >
+              Visual
             </ReqoreButton>
           </ReqoreControlGroup>
         )}
@@ -585,7 +587,7 @@ export const ExpressionField = memo(
               {/* The field's templates and fields, as its catalogue names them, inserted as chips - next to
                   the server's `$` completion, which offers every context but not these names. */}
               {templateItems.length && !readOnly ?
-                <ReqoreDropdown
+                <TemplateBrowser
                   className='expression-text-template-picker'
                   icon='MoneyDollarCircleLine'
                   aria-label='Insert a template'
@@ -593,9 +595,9 @@ export const ExpressionField = memo(
                   // the size of the text it inserts into - the DPQL editor is drawn at the normal size in
                   // any form - so the two are as tall as each other
                   size='normal'
-                  filterable
                   fixed
-                  items={templateItems}
+                  templates={localTemplates}
+                  focusFilter
                   onItemSelect={insertTemplate}
                 />
               : null}
