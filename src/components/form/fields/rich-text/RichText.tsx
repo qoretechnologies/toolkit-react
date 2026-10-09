@@ -5,15 +5,11 @@ import {
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
-import { isEqual, size } from 'lodash';
+import { isEqual } from 'lodash';
 import { KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
 import { flattenToSingleLine, hasLineBreak } from '../../../../helpers/singleLineString';
-import {
-  renderTemplateItemDescriptions,
-  templateItemsToShow,
-} from '../../../../helpers/templateItems';
 import {
   templateChipLabel,
   templateNodesToText,
@@ -26,6 +22,7 @@ import {
   TTemplateMeta,
 } from '../../../../helpers/templates';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
+import { useTemplateTags } from './useTemplateTags';
 
 export interface IRichTextFormFieldProps extends Omit<
   IReqoreRichTextEditorProps,
@@ -314,29 +311,7 @@ export const RichTextFormField = memo(({
     [isText, singleLine, (rest as { onKeyDown?: unknown }).onKeyDown]
   );
 
-  const tags = useMemo<IReqoreRichTextEditorProps['tags']>((): IReqoreRichTextEditorProps['tags'] => {
-    const _tags: IReqoreRichTextEditorProps['tags'] = {};
-
-    if (size(templates?.items) && allowTemplates) {
-      _tags.templates = {
-        icon: 'MoneyDollarBoxLine',
-        label: 'Templates',
-        flat: false,
-        description: 'Universal values that can be used in multiple places',
-        /* The in-editor list already nests everything under "Templates", so a
-           lone category makes the author drill through TWO headers to reach
-           the only values on offer. Hoist it. */
-        /* Drawn here, at the hand-off to Reqore. A description is prose written
-           in the same markdown as every other description this package shows,
-           and printing its punctuation at the reader was the last surface still
-           doing that. Never made further up: the list is a `JSON.stringify`
-           memo key in `TemplateField`. */
-        items: renderTemplateItemDescriptions(templateItemsToShow(templates?.items), renderMarkdown),
-      };
-    }
-
-    return _tags;
-  }, [allowTemplates, templates, renderMarkdown]);
+  const tags = useTemplateTags(templates, allowTemplates);
 
   const formattedValue: IReqoreRichTextEditorProps['value'] =
     typeof localValue !== 'object' ? [{ type: 'paragraph', children: [{ text: String(localValue ?? '') }] }]

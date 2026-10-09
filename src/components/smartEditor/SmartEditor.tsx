@@ -315,6 +315,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       readOnly = false,
       showDiagnostics = true,
       onBlur,
+      tags,
       loadingIndicator,
       enableHover = true,
       isLoading = false,
@@ -617,6 +618,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             getTagProps={tagRenderer as any}
             onTagClick={stableOnTagClick}
             onBlur={onBlur}
+            // the field's templates, listed when the text is clicked, tapped or tabbed into
+            tags={tags}
             panelProps={{
               fluid: true,
               flat: true,

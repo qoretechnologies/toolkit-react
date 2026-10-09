@@ -20,6 +20,7 @@ import { dpqlCompletionInserter } from './dpqlInserter';
 import { makeDpqlTagRenderer } from './dpqlTags';
 import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
+import { useTemplateTags } from '../form/fields/rich-text/useTemplateTags';
 
 export type { IDpqlEditorProps, IDpqlEditorRef };
 
@@ -173,6 +174,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       if (ready) onReady?.();
     }, [ready]);
 
+    const templateTags = useTemplateTags(templates, !readOnly);
+
     const tagRenderer = useMemo(
       () => makeDpqlTagRenderer(dpql.fieldMeta, { templateTagsUseIntent, templates }),
       [dpql.fieldMeta, templateTagsUseIntent, templates]
@@ -208,6 +211,9 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         showDiagnostics={showDiagnostics}
         enableHover={enableHover}
         onBlur={onBlur}
+        // the templates it labels chips with are the ones it lists when clicked or tabbed into, as a
+        // rich-text field lists them (qorus#646)
+        tags={templateTags}
         isLoading={isParsing}
         loadingIndicator={loadingIndicator}
       />

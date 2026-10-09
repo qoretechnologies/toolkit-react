@@ -10178,7 +10178,7 @@ export const ValueToExpressionAndVisual: Story = {
     docs: {
       description: {
         story:
-          'Renders the form and opens Quantity (12) on the Expression tab: the value written as expression text (12), with the form\'s templates offered beside it ($) and the server\'s $ completion; the form still holds 12. Visual shows the expression built from it - 12 its first operand.',
+          'Renders the form and opens Quantity (12) on the Expression tab: the value written as expression text (12), with the form\'s templates listed when the text is clicked into, offered beside it ($), and the server\'s $ completion; the form still holds 12. Visual shows the expression built from it - 12 its first operand.',
       },
     },
   },
@@ -10209,6 +10209,19 @@ export const ValueToExpressionAndVisual: Story = {
     };
     expect(centre(editor)).toBe(centre(picker as HTMLElement));
     expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 });
+    /* The text lists the row's fields when it is clicked into, as the Value tab's text does (David's review):
+       not only from the picker beside it. */
+    const listed = () =>
+      Array.from(document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')).map(
+        (item) => item.textContent ?? ''
+      );
+    await userEvent.click(text);
+    await waitFor(() => {
+      expect(listed().some((item) => item.includes('pos'))).toBe(true);
+      expect(listed().some((item) => item.includes('bezeichnung'))).toBe(true);
+    });
+    /* Listed on keyboard focus too, and put away by Escape alone, with reqore 0.78.5 (#708): checked where
+       that reqore is used, in its own tests and the Qorus IDE's review stories. */
     await chooseTab(optionRow('quantity'), 'visual');
     await waitFor(() => expect(optionRow('quantity').querySelector('.expression')).toBeTruthy());
   },
