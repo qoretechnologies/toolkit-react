@@ -49,7 +49,7 @@ import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 import { ExpressionBuilder, IExpressionBuilderProps } from '../../expressions/builder';
 // Direct import — the cycle (TemplateField → ExpressionField → builder →
 // TemplateField) is render-time only, safe like the other Field cycles.
-import { ExpressionField } from '../../expressions/ExpressionField';
+import { ExpressionField, TExpressionMode } from '../../expressions/ExpressionField';
 import { IExpression, TExpressionReorder } from '../../expressions/types';
 import { useExpressions } from '../../expressions/useExpressions';
 import { AutoFormField as Auto, IQorusType as IQorusFormType } from '../auto/AutoFormField';
@@ -835,6 +835,10 @@ const TemplateFieldImpl = memo(
     // expression mode — kept so the switch is undoable, and so the editor
     // opens on the Text view the author was already writing in.
     const [expressionFromText, setExpressionFromText] = useState<string | null>(null);
+    /* The view the expression editor (without value tabs) is on. It opens on Text (qorus#646, David); when it
+       is mounted again - an expression removed in Visual and put back empty by its host, as a row rule's
+       condition is - it opens where the author was, not back on Text. */
+    const [expressionMode, setExpressionMode] = useState<TExpressionMode>('text');
     // Texts the author has said no to. Without this, dismissing an offer (or
     // undoing a switch) would re-detect the same text on the next render and
     // ask again forever.
@@ -2208,8 +2212,10 @@ const TemplateFieldImpl = memo(
                 /* An expression opens on its Text view, the first of Text · Visual, as the value's tabs open on
                    Expression before Visual (qorus#646, David); without a language server it falls back to
                    Visual by itself. It opened on Visual, on an empty "Select operation", unless the
-                   expression had just been typed as text. */
-                defaultMode='text'
+                   expression had just been typed as text. Mounted again, it opens on the view the author
+                   was on - except for an expression just typed as text, which is shown as the text it is. */
+                defaultMode={expressionFromText !== null ? 'text' : expressionMode}
+                onModeChange={setExpressionMode}
                 reorder={reorder}
               />
             </ReqoreErrorBoundary>

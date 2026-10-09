@@ -100,6 +100,11 @@ export interface IExpressionFieldProps {
   /** No language server: the Text view cannot work, and the field shows the Visual view instead. */
   onTextUnavailable?: () => void;
   /**
+   * The view the field is on, each time it changes: for a host that mounts the field again (an expression
+   * removed and put back empty) to open it where the author was, through `defaultMode`.
+   */
+  onModeChange?: (mode: TExpressionMode) => void;
+  /**
    * Set to a function that reads the text typed and not yet read - its parse still waiting - and gives the
    * expression it is, or nothing. A host leaving the Text view calls it first, so what was just typed is not
    * lost with the editor (qorus#646).
@@ -137,6 +142,7 @@ export const ExpressionField = memo(
     requestedMode,
     hideModeToggle,
     onTextUnavailable,
+    onModeChange,
     flushRef,
     size,
     componentOverrides,
@@ -149,6 +155,11 @@ export const ExpressionField = memo(
     const { renderRich } = useRenderExpression();
 
     const [mode, setMode] = useState<TExpressionMode>(defaultMode);
+    const onModeChangeRef = useRef(onModeChange);
+    onModeChangeRef.current = onModeChange;
+    useEffect(() => {
+      onModeChangeRef.current?.(mode);
+    }, [mode]);
     /* The server's rendering of the current AST; empty until it has one. There is
        no client-side stand-in — see `useRenderExpression`. */
     const [preview, setPreview] = useState('');

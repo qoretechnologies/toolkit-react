@@ -285,6 +285,77 @@ export const ViaFormEngine: Story = {
  * stored AST (`dpql/serialize` over the mock LSP) and the "Preview" box
  * renders the same AST.
  */
+export const RemovedInVisualStaysInVisual: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a FormEngine condition that is always an expression (its host puts back an empty one when it is removed, as a Qorus row rule does), opens Visual and removes the expression: the editor stays on Visual, on "Select operation", where the author was. It opens on Text only the first time.',
+      },
+    },
+  },
+  render: () => {
+    const [value, setValue] = useState<any>({
+      condition: { type: 'bool', value: SAMPLE.value, is_expression: true },
+    });
+    return (
+      <FormEngine
+        name='exprAlways'
+        options={
+          {
+            condition: {
+              type: 'bool',
+              ui_type: 'bool',
+              display_name: 'Condition',
+              preselected: true,
+              supports_expressions: true,
+              expressions: mockExpressions,
+            },
+          } as any
+        }
+        value={value}
+        onChange={(_n, v: any) =>
+          setValue(
+            v?.condition?.value === undefined || v?.condition?.value === null
+              ? { ...v, condition: { type: 'bool', is_expression: true, value: { args: [] } } }
+              : v
+          )
+        }
+      />
+    );
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await waitFor(
+      () => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument(),
+      { timeout: 6000 }
+    );
+    await userEvent.click(await canvas.findByText('Visual'));
+    const top = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>('.expression');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 6000 }
+    );
+    await userEvent.hover(top);
+    const remove = await waitFor(() => {
+      const el =
+        document.querySelector<HTMLElement>('.reqore-panel-floating-actions .expression-group-remove') ??
+        top.querySelector<HTMLElement>('.expression-group-remove');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(remove);
+    // still the Visual view: an operation to choose, not the Text view
+    await waitFor(() => expect(canvas.getByText('Select operation')).toBeInTheDocument(), { timeout: 6000 });
+    await settle(canvasElement);
+    expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeNull();
+    expect(canvas.getByText('Select operation')).toBeInTheDocument();
+  },
+};
+
 export const ViaFormEngineTextMode: Story = {
   parameters: {
     docs: {
