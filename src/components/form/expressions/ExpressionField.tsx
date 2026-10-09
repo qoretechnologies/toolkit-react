@@ -487,8 +487,14 @@ export const ExpressionField = memo(
     // Switch to Visual: flush any pending parse so the AST is current.
     const enterVisualMode = useCallback(async () => {
       if (parseTimer.current) clearTimeout(parseTimer.current);
+      pendingParse.current = null;
+      /* Only an edit is read back. The text is the value written by the session (or the host's own text for
+         it), and reading it back unedited made a view switch change the value: a writer that cannot say all
+         of it - Qore's DPQL serializer wrote `a + b` for a `+` of three arguments - dropped the third from the
+         stored expression the moment it was looked at in Visual (qorus#646). */
+      const edited = text !== astText && userTypedRef.current;
       // read by the session once it is ready; one that cannot be reached leaves the text unread, as asked
-      if (mode === 'text' && text && (await whenSessionReady())) {
+      if (mode === 'text' && text && edited && (await whenSessionReady())) {
         const result = await dpqlRef.current?.parse?.(text, targetType);
         readTypeCheck(result);
         if (result?.success && result.expression) {
@@ -496,7 +502,7 @@ export const ExpressionField = memo(
         }
       }
       setMode('visual');
-    }, [mode, text, onChange, targetType, readTypeCheck, whenSessionReady]);
+    }, [mode, text, astText, onChange, targetType, readTypeCheck, whenSessionReady]);
 
     // the host's tabs: followed as the toggle is (see `requestedMode`)
     useEffect(() => {
