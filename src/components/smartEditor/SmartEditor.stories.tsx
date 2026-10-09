@@ -49,6 +49,24 @@ function SmartEditorPlayground(props: IDemoArgs) {
   );
 }
 
+/**
+ * Types `text` after `typed` one key at a time, each once the editor has reported the key before it.
+ *
+ * Slate leaves a single letter or space typed inside a word to the browser and applies it after the input
+ * event (its "native" path). A story's keys are synthetic: user-event edits the page itself, and a letter it
+ * sends while the one before is still pending is lost under load. CI captured `arr.for` as `ar.for`, and a run
+ * at 4x CPU throttling lost a letter in 2 of 12. A real keyboard loses nothing at 8x. Waiting for each key
+ * keeps the order a person's typing has.
+ */
+const typeEachKey = async (onChange: ((value: string) => void) | undefined, typed: string, text: string) => {
+  let value = typed;
+  for (const key of text) {
+    await userEvent.keyboard(key);
+    value += key;
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(value));
+  }
+};
+
 const meta = {
   component: SmartEditorPlayground,
   title: 'Components/SmartEditor',
@@ -201,11 +219,11 @@ export const WithMarkdownDocs: Story = {
   // Open the dropdown so the story snapshot is distinct from the other
   // empty-at-rest SmartEditor stories (and to guard the markdown-item
   // render path in CI).
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
-    await userEvent.type(editable, 'arr.');
+    await typeEachKey(args.onChange, '', 'arr.');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.reqore-menu');
@@ -220,7 +238,7 @@ export const WithMarkdownDocs: Story = {
     // after the last `.` (`for`), not the whole `arr.for` token —
     // otherwise every suggestion would wrongly disappear. Poll until
     // the list has settled to the narrowed state (`reduce` gone).
-    await userEvent.type(editable, 'for');
+    await typeEachKey(args.onChange, 'arr.', 'for');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.reqore-menu');
