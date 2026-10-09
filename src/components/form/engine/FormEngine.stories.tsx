@@ -5075,7 +5075,7 @@ export const CompactExpressions: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with an expression-supporting option — the row opens the ExpressionField shell with the Visual builder and the Visual/Text mode toggle.',
+          'Renders a compact form with an expression-supporting option — the row opens the ExpressionField shell on its Text view, the first of the Text · Visual toggle (qorus#646, David); Visual shows the builder, and Text the expression again.',
       },
     },
     chromatic: { disable: true },
@@ -5119,10 +5119,30 @@ export const CompactExpressions: Story = {
       expect(summary?.textContent).toContain('== "John"');
     });
 
-    // Drill in → the card hosts the ExpressionField (Visual builder).
+    // Drill in → the card hosts the ExpressionField, on its Text view (no builder drawn).
     await fireEvent.click(
       document.querySelector('.readfirst-row[data-field="condition"]') as HTMLElement
     );
+    const toggle = (name: string) =>
+      Array.from(
+        document.querySelectorAll(
+          '.options-readfirst-card[data-field="condition"] .expression-field button'
+        )
+      ).find((b) => b.textContent?.trim() === name) as HTMLElement;
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector(
+            '.options-readfirst-card[data-field="condition"] .expression-field [data-slate-editor]'
+          )
+        ).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
+    expect(
+      document.querySelector('.options-readfirst-card[data-field="condition"] .expression')
+    ).toBeNull();
+    // Visual → the builder, which resolves the operator from the offline catalogue.
+    await fireEvent.click(toggle('Visual'));
     await waitFor(
       () =>
         expect(
@@ -5130,16 +5150,10 @@ export const CompactExpressions: Story = {
         ).toBeInTheDocument(),
       { timeout: 10000 }
     );
-    // The builder resolves the operator from the offline catalogue.
     await _testsWaitForText('Logical Equals');
 
     // Text/DPQL tab — seeded from the AST via the mock LSP (dpql/serialize).
-    const textBtn = Array.from(
-      document.querySelectorAll(
-        '.options-readfirst-card[data-field="condition"] .expression-field button'
-      )
-    ).find((b) => b.textContent?.trim() === 'Text') as HTMLElement;
-    await fireEvent.click(textBtn);
+    await fireEvent.click(toggle('Text'));
     const card = '.options-readfirst-card[data-field="condition"]';
     // the text is the seeded expression, written by the session once it is ready
     await waitFor(

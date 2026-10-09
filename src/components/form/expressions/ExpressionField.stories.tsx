@@ -230,7 +230,7 @@ export const ViaFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema with a bool option that carries supports_expressions and a stored expression value — the engine routes through TemplateField and mounts the ExpressionField shell with the Visual builder and the Visual/Text toggle.',
+          'Renders a FormEngine schema with a bool option that carries supports_expressions and a stored expression value — the engine routes through TemplateField and mounts the ExpressionField shell on its Text view, the first of the Text · Visual toggle and the view an expression opens in (qorus#646, David). Choosing Visual shows the builder.',
       },
     },
   },
@@ -260,14 +260,19 @@ export const ViaFormEngine: Story = {
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
-    // The ported builder rendered inside the engine-driven form.
+    // The ExpressionField shell opens on its Text view: the written expression, no builder yet.
+    await waitFor(
+      () => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument(),
+      { timeout: 6000 }
+    );
+    expect(canvasElement.querySelector('.expression')).toBeNull();
+    await expect(canvas.getByText('Text')).toBeInTheDocument();
+    // Visual shows the ported builder inside the engine-driven form.
+    await userEvent.click(await canvas.findByText('Visual'));
     await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
       timeout: 6000,
     });
     await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
-    // The ExpressionField shell wraps it: the Visual/Text toggle is present.
-    await expect(await canvas.findByText('Visual')).toBeInTheDocument();
-    await expect(canvas.getByText('Text')).toBeInTheDocument();
     // A valid expression is validated as an expression, not as the base
     // `bool` type — no "must be True or False" error.
     await expect(canvas.queryByText(/True or False/)).not.toBeInTheDocument();
@@ -285,7 +290,7 @@ export const ViaFormEngineTextMode: Story = {
     docs: {
       description: {
         story:
-          'Renders the FormEngine expression field, then switches to Text mode — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call, highlighted like typed text. The server\'s rendering reads exactly as that text, so no "Preview" box repeats it.',
+          'Renders the FormEngine expression field, which opens on its Text view — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call, highlighted like typed text. The server\'s rendering reads exactly as that text, so no "Preview" box repeats it.',
       },
     },
   },
@@ -293,14 +298,9 @@ export const ViaFormEngineTextMode: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
-    // Visual (the builder) renders first.
-    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
-      timeout: 6000,
-    });
-
-    // Switch to Text — the DPQL editor mounts and seeds from the AST
-    // (`dpql/serialize` over the mock LSP).
-    await userEvent.click(await canvas.findByText('Text'));
+    // It opens on Text (qorus#646, David) — the DPQL editor mounts and seeds from the AST
+    // (`dpql/serialize` over the mock LSP); the builder is not drawn.
+    await expect(await canvas.findByText('Text')).toBeInTheDocument();
     const editable = (await waitFor(
       () => {
         const el = canvasElement.querySelector('[contenteditable="true"]');
@@ -704,7 +704,7 @@ export const ToggleInFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Expression" flips the field to expression mode and the ExpressionField shell with the Visual builder mounts in place of the checkbox.',
+          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Expression" flips the field to expression mode and the ExpressionField shell mounts in place of the checkbox, on its Text view (qorus#646, David); Visual shows the builder.',
       },
     },
   },
@@ -749,16 +749,19 @@ export const ToggleInFormEngine: Story = {
     // mode.
     await userEvent.click(await canvas.findByText('Use Expression'));
 
-    // The ExpressionField shell mounts: its `.expression-field` wrapper, the
-    // ported builder (`.expression`), and the Visual/Text toggle.
+    // The ExpressionField shell mounts: its `.expression-field` wrapper, on the Text view.
     await waitFor(
       () => {
         expect(canvasElement.querySelector('.expression-field')).toBeInTheDocument();
-        expect(canvasElement.querySelector('.expression')).toBeInTheDocument();
+        expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument();
       },
       { timeout: 6000 }
     );
-    await expect(await canvas.findByText('Visual')).toBeInTheDocument();
+    // Visual shows the ported builder (`.expression`).
+    await userEvent.click(await canvas.findByText('Visual'));
+    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
+      timeout: 6000,
+    });
   },
 };
 

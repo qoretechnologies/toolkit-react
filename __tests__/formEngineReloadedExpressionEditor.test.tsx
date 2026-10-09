@@ -31,7 +31,7 @@
  *    it opened.
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/hooks/useStorage/useStorage', () => ({
@@ -110,6 +110,21 @@ const showsRawEnvelope = (container: HTMLElement) => {
 const showsExpressionBuilder = (container: HTMLElement) =>
   container.querySelector('.expression') !== null;
 
+/* The expression editor opened: on its Text view, the view an expression opens in (qorus#646, David), and
+   its Visual view draws the builder when it is chosen. */
+const opensTheExpressionEditor = async (container: HTMLElement) => {
+  const toggle = (name: string) =>
+    [...container.querySelectorAll<HTMLElement>('.expression-field button')].find(
+      // a button's label is drawn more than once (its marquee), so it is read as what it starts with
+      (button) => button.textContent?.trim().startsWith(name)
+    );
+  await waitFor(() => expect(toggle('Visual')).toBeTruthy());
+  expect(container.querySelector('.expression-field [data-slate-editor]')).not.toBeNull();
+  expect(showsExpressionBuilder(container)).toBe(false);
+  fireEvent.click(toggle('Visual') as HTMLElement);
+  await waitFor(() => expect(showsExpressionBuilder(container)).toBe(true));
+};
+
 describe('an expression loaded from a saved draft', () => {
   it('does not render the raw envelope for the author to edit', async () => {
     // THE REGRESSION — the saved shape, with the flag on the value.
@@ -126,8 +141,7 @@ describe('an expression loaded from a saved draft', () => {
       expected_value: { type: 'auto', value: { is_expression: true, value: AST } },
     });
 
-    expect(container.textContent || '').toContain('Visual');
-    expect(showsExpressionBuilder(container)).toBe(true);
+    await opensTheExpressionEditor(container);
   });
 
   it('still opens the expression editor for a freshly typed expression', async () => {
@@ -138,8 +152,7 @@ describe('an expression loaded from a saved draft', () => {
     });
 
     expect(showsRawEnvelope(container)).toBe(false);
-    expect(container.textContent || '').toContain('Visual');
-    expect(showsExpressionBuilder(container)).toBe(true);
+    await opensTheExpressionEditor(container);
   });
 
   it('still renders a value that really is a hash as data', async () => {

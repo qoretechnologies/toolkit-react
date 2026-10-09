@@ -2205,10 +2205,11 @@ const TemplateFieldImpl = memo(
                 serverHandled={rest.server_expression_handling}
                 extraActions={extraActions}
                 size={rest.size}
-                // An author who typed the expression as text is already
-                // writing in that language — dropping them into the visual
-                // builder would make them find their own sentence again.
-                defaultMode={expressionFromText !== null ? 'text' : 'visual'}
+                /* An expression opens on its Text view, the first of Text · Visual, as the value's tabs open on
+                   Expression before Visual (qorus#646, David); without a language server it falls back to
+                   Visual by itself. It opened on Visual, on an empty "Select operation", unless the
+                   expression had just been typed as text. */
+                defaultMode='text'
                 reorder={reorder}
               />
             </ReqoreErrorBoundary>

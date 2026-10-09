@@ -1448,6 +1448,39 @@ export const WrittenAsTextExpressionDetected: StoryObj<typeof meta> = {
   },
 };
 
+export const ExpressionOpensOnText: StoryObj<typeof meta> = {
+  args: {
+    type: 'bool',
+    defaultType: 'bool',
+    allowFunctions: true,
+    allowTextExpressions: true,
+    isFunction: true,
+    expressions: storyExpressions as any,
+    templates: recordTemplates as any,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a yes/no field written as an expression, with no value tabs (a row rule\'s condition is one): it opens on its Text view, the first of Text · Visual, ready to be written in. It opened on Visual, on an empty "Select operation", unless the expression had just been typed as text (qorus#646, David).',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const toggle = (name: string) =>
+      [...canvasElement.querySelectorAll<HTMLElement>('.expression-field button')].find(
+        (button) => button.textContent?.trim() === name
+      );
+    await waitFor(() => expect(toggle('Text')).toBeTruthy());
+    const buttons = [...canvasElement.querySelectorAll<HTMLElement>('.expression-field button')]
+      .map((button) => button.textContent?.trim())
+      .filter((name) => name === 'Text' || name === 'Visual');
+    expect(buttons).toEqual(['Text', 'Visual']);
+    await waitFor(() => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeTruthy());
+    expect(canvasElement.textContent).not.toContain('Select an operation');
+  },
+};
+
 export const WrittenAsTextNullStaysAValue: StoryObj<typeof meta> = {
   args: { type: 'any', value: null, allowTemplates: true, allowCustomValues: true, templates: recordTemplates as any, filterTemplatesByType: false },
   render: WrittenAsText,
