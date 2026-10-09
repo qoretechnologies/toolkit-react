@@ -1217,7 +1217,10 @@ const TemplateFieldImpl = memo(
           setExpressionFromText(null);
           setIsTemplate(next === 'template' || valueTabIsText);
         } else {
-          if (!flushed && !valueIsExpression) setExpressionSeed(expressionTextOfValue(value));
+          /* The seed is the value written as text while it is not an expression yet. One that is shows itself:
+             a seed left from an earlier visit was shown in its place - the value as it was opened, not the
+             expression written since - and leaving the tab saved it (qorus#646). */
+          setExpressionSeed(!flushed && !valueIsExpression ? expressionTextOfValue(value) : null);
           setInternalIsFunction(true);
         }
         setTab(next);
@@ -1388,6 +1391,10 @@ const TemplateFieldImpl = memo(
       (text: string, expression: any) => {
         setDpqlOffer(null);
         setExpressionFromText(text);
+        /* The value is an expression now, and the Text view shows it. A seed left from an earlier visit to
+           the Expression tab - the value as it was then - was shown in its place, and leaving the tab saved
+           it: what had just been typed was lost (qorus#646). */
+        setExpressionSeed(null);
         setInternalIsFunction(true);
         setIsTemplate(false);
         setTemplateValue(null);

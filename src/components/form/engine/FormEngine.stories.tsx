@@ -10464,6 +10464,85 @@ export const ExpressionTypedOnValueSwitchesWithUndo: Story = {
   },
 };
 
+export const ExpressionTypedOnValueAfterTheExpressionTabShowsWhatWasTyped: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form, opens Quantity (12) on the Expression tab and goes back to Value, then writes " + 2" there: it moves to Expression, and the Text view shows 12 + 2, the expression the option now holds. The Text view showed 12, what it had shown on the first visit, and leaving the tab saved that: what was typed was lost (qorus#646).',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('quantity');
+    await chooseTab(row, 'expression');
+    await waitFor(() =>
+      expect(
+        optionRow('quantity')
+          .querySelector('.expression-field [data-slate-editor]')
+          ?.textContent?.replace(/\uFEFF/g, '')
+          .trim()
+      ).toBe('12')
+    );
+    await chooseTab(optionRow('quantity'), 'value');
+    const editor = await waitFor(() => {
+      const el = optionRow('quantity').querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(editor);
+    await userEvent.keyboard(' + 2');
+    await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('expression'), { timeout: 10000 });
+    await waitFor(() => expect(heldOption(canvasElement, 'quantity').is_expression).toBe(true));
+    // the Text view shows what the option holds: what was typed, not the first visit's text
+    await waitFor(() =>
+      expect(
+        optionRow('quantity')
+          .querySelector('.expression-field [data-slate-editor]')
+          ?.textContent?.replace(/\uFEFF/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+      ).toBe('12 + 2')
+    );
+    // and leaving the tab keeps it
+    await chooseTab(optionRow('quantity'), 'visual');
+    await chooseTab(optionRow('quantity'), 'expression');
+    await waitFor(() => expect(heldOption(canvasElement, 'quantity').is_expression).toBe(true));
+    expect(JSON.stringify(heldOption(canvasElement, 'quantity').value)).toMatch(/"value":2\b/);
+  },
+};
+
+export const ExpressionWrittenOnExpressionShowsWhenTheTabIsBack: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form, opens Quantity (12) on the Expression tab and writes " + 1", then opens Value and comes back: the Text view shows 12 + 1, the expression the option holds - not 12, the value it was opened on.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const textView = () =>
+      optionRow('quantity')
+        .querySelector('.expression-field [data-slate-editor]')
+        ?.textContent?.replace(/\uFEFF/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    const row = await editOption('quantity');
+    await chooseTab(row, 'expression');
+    await waitFor(() => expect(textView()).toBe('12'));
+    await userEvent.click(optionRow('quantity').querySelector('.expression-field [data-slate-editor]') as HTMLElement);
+    await userEvent.keyboard(' + 1');
+    await waitFor(() => expect(heldOption(canvasElement, 'quantity')?.is_expression).toBe(true));
+    await chooseTab(optionRow('quantity'), 'value');
+    await chooseTab(optionRow('quantity'), 'expression');
+    await waitFor(() => expect(textView()).toBe('12 + 1'));
+    expect(heldOption(canvasElement, 'quantity')?.is_expression).toBe(true);
+  },
+};
+
 export const ExpressionKeptWhenTheTabIsLeftAtOnce: Story = {
   parameters: {
     docs: {
