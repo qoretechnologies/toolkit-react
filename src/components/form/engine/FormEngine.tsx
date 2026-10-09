@@ -1630,6 +1630,13 @@ const FormEngineImpl = ({
   const templates = useTemplates(allowTemplates, rest.stringTemplates, interfaceContext);
 
   useEffect(() => {
+    /* While the host is still loading the schema, the form has read the value against none: every field it
+       did not know was dropped, and what was left is no answer. Emitted, it wiped a Qog state's stored options
+       the moment the state was opened, before its options had loaded (qorus#646). The schema's arrival reads
+       the value again, and that is emitted if it adds anything. */
+    if (rest.skeleton) {
+      return;
+    }
     if (
       !shouldEmitLocalValue({
         localValue: localValue.fields,
