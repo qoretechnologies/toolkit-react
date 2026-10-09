@@ -37,6 +37,17 @@ export class EmittedValues<T> {
   }
 
   /**
+   * What the parent will hold once every emit still in flight has come back: the latest emit, or, with none in
+   * flight, `current` - the value the parent holds now. An edit is a change only when it differs from this.
+   * Compared with `current` alone, an edit back to the parent's old value, made while the emit before it was in
+   * flight, looked like no change and was never sent; the echo of that emit then left the parent holding the
+   * edit that had been undone (qorus#646).
+   */
+  settled(current: T): T {
+    return this.pending.length ? this.pending[this.pending.length - 1] : current;
+  }
+
+  /**
    * Whether `incoming` is one of the emits still in flight, without acknowledging anything: for a render,
    * which may run more than once for one value, while `isEcho` is called once the value is committed.
    */

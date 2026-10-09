@@ -81,3 +81,64 @@ describe("RichTextFormField valueFormat='text' and the echo of its own emit", ()
     expect(shown()).toBe('abc');
   });
 });
+
+/*
+ * An edit back to what the parent had before, made while the parent's echo of the edit before it is still on its
+ * way (qorus#646). The field compared the edit with the value it was given - still the old one - found them
+ * equal and sent nothing; then the echo arrived and was taken as the echo it was. The parent kept the edit that
+ * had been undone while the field showed the text without it: " $" typed after a field's chip and deleted again
+ * at once left the added field reading `concat(@pos, " $")`, flagged as text, over an editor showing `pos`.
+ */
+describe('RichTextFormField and an edit undone while its emit is in flight', () => {
+  const edit = (text: string) =>
+    act(() => editor.props?.onChange(templateTextToNodes(text, undefined)));
+
+  it('reports the text it went back to, as text', async () => {
+    render(<Parent initial='abc' />);
+    edit('abcd');
+    // the field emits "abcd" at 100 ms; the parent hands it back at 220 ms
+    await act(() => vi.advanceTimersByTimeAsync(110));
+    expect(lastReported).toBe('abcd');
+    edit('abc');
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+
+    expect(shown()).toBe('abc');
+    expect(lastReported).toBe('abc');
+  });
+
+  it('reports the document it went back to', async () => {
+    let reported: unknown;
+    const initial = templateTextToNodes('abc', undefined);
+    const DocumentParent = () => {
+      const [value, setValue] = useState<unknown>(initial);
+      return (
+        <RichTextFormField
+          value={value as any}
+          onChange={(next) => {
+            reported = next;
+            setTimeout(() => setValue(next), 120);
+          }}
+        />
+      );
+    };
+    render(<DocumentParent />);
+    edit('abcd');
+    await act(() => vi.advanceTimersByTimeAsync(110));
+    expect(templateNodesToText(reported as any)).toBe('abcd');
+    edit('abc');
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+
+    expect(templateNodesToText(reported as any)).toBe('abc');
+  });
+
+  it('hands the text it went back to to its host when it goes away first', async () => {
+    const { unmount } = render(<Parent initial='abc' />);
+    edit('abcd');
+    await act(() => vi.advanceTimersByTimeAsync(110));
+    edit('abc');
+    // a tab switched before the debounce sends the edit back
+    unmount();
+
+    expect(lastReported).toBe('abc');
+  });
+});

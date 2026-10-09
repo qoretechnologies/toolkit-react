@@ -180,13 +180,13 @@ export const RichTextFormField = memo(({
     () => {
       pending.current = undefined;
       if (isText) {
-        if (lastTextRef.current !== String(value ?? '')) {
+        if (lastTextRef.current !== emitted.settled(String(value ?? ''))) {
           emitted.record(lastTextRef.current);
           onChange?.(lastTextRef.current);
         }
         return;
       }
-      if (!isEqual(localValue, value)) {
+      if (!isEqual(localValue, emitted.settled(value))) {
         emitted.record(localValue);
         onChange?.(localValue);
       }
@@ -200,8 +200,11 @@ export const RichTextFormField = memo(({
     [localValue]
   );
 
-  /** The text as an edit to send, or nothing where it is what the field was given. */
-  const changedFrom = (text: string) => (text === String(value ?? '') ? undefined : { edit: text });
+  /** What the host will hold once the emits in flight come back: what an edit is a change from. */
+  const settled = () => emitted.settled(isText ? String(value ?? '') : value);
+
+  /** The text as an edit to send, or nothing where it is what the host will hold. */
+  const changedFrom = (text: string) => (text === settled() ? undefined : { edit: text });
 
   useEffect(
     () => () => {
@@ -229,11 +232,11 @@ export const RichTextFormField = memo(({
       return;
     }
     if (JSON.stringify(val) === '[{"type":"paragraph","children":[{"text":""}]}]') {
-      pending.current = isEqual(undefined, value) ? undefined : { edit: undefined };
+      pending.current = isEqual(undefined, settled()) ? undefined : { edit: undefined };
       setLocalValue(undefined);
       return;
     }
-    pending.current = isEqual(val, value) ? undefined : { edit: val };
+    pending.current = isEqual(val, settled()) ? undefined : { edit: val };
     setLocalValue(val);
   };
 

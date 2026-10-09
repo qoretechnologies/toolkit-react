@@ -73,7 +73,7 @@ export const NumberFormField = ({
 
   useDebounce(
     () => {
-      if (localValue !== value) {
+      if (localValue !== emitted.settled(value)) {
         emitted.record(localValue);
         onChange?.(localValue);
       }
