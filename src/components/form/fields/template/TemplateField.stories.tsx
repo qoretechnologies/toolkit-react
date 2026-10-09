@@ -352,7 +352,7 @@ export const TemplateValue: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for an int wrapped over the Number component with a template value ($local:id) — the template selector replaces the number input.',
+          'Renders TemplateField for a whole number holding a template ($local:id). There is no separate template selector and no number input: the value is written in one text field, and the template is a chip in it, named as the catalogue names it ("Interface ID"). A click in the field lists the templates of its type. Typing is never blocked; the form flags a value that is not a whole number, one template alone or an expression, and says what to delete - e.g. “"abc" makes this text, not a whole number. Delete it to keep the template alone.” - and the form cannot be saved until it is fixed.',
       },
     },
   },
@@ -573,7 +573,7 @@ export const ShowsTemplatesListForBoolean: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a boolean value, switches to template mode and opens the templates popover — the templates list is shown for a boolean target type.',
+          'Renders TemplateField for a yes/no value, switches it from its Yes/No buttons to a template and opens the list of templates of its type. A template is written in the same text field as every other value, as a chip. Typing is not blocked, and the form checks what is written: one template alone is a yes/no; anything else is flagged with what to change - text ("Value must be a True or False value"), text around a template (“"x" makes this text, not true or false. Delete it to keep the template alone.”) or two templates side by side ("Templates side by side make this text, not true or false. Keep one of them alone.") - and the form cannot be saved until it is fixed. Deleting the template leaves the text field; the Yes/No buttons come back through "Use Custom Value" in the ⋮ menu.',
       },
     },
   },
@@ -680,7 +680,7 @@ export const TemplateWithFunctionValue: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField holding a substr function value with three arguments — the expression builder shows the function name and each argument slot.',
+          'Renders TemplateField holding a substr function value with three arguments: the expression builder shows the function name and each argument slot. An argument holding a template (Start, a whole number holding $local:start) shows it as a chip in the text field the argument is written in, as every typed field does. Typing in it is not blocked; the form flags what is not a whole number, one template alone or an expression, and says what to delete.',
       },
     },
   },
