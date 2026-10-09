@@ -82,7 +82,7 @@ import {
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
 import { FormFieldsSkeleton } from './FormFieldsSkeleton';
-import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer } from './compactRowContext';
+import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer, TReadSummary } from './compactRowContext';
 import {
   GROUP_INDENT,
   LABEL_AFFORDANCE_WIDTH,
@@ -1074,6 +1074,12 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   codePreviewRenderer?: TCodePreviewRenderer;
   /**
+   * A collapsed row's summary drawn by the host, by `ui_type`: for an editor that reports a status of its own,
+   * shown where the generic summary would be ("2 items"). Display only; the value and the form's validity are
+   * untouched.
+   */
+  readSummaries?: Record<string, TReadSummary>;
+  /**
    * Draws every markdown description this form shows -- the inline row
    * description, the focused-editing header, and the field help dialog.
    *
@@ -1261,6 +1267,7 @@ const FormEngineImpl = ({
   optionActionsCollapse = 'auto',
   componentOverrides,
   codePreviewRenderer,
+  readSummaries,
   // consumed by the wrapper below, which publishes it to every description this
   // form draws; destructured here only so it cannot reach `rest` and be spread
   // onto a DOM node
@@ -3327,6 +3334,7 @@ const FormEngineImpl = ({
       focusedEditing,
       showFieldTypes,
       codePreviewRenderer,
+      readSummaries,
       showAllDescriptions,
       expandedOptions,
       highlightedOptions,
@@ -3376,6 +3384,7 @@ const FormEngineImpl = ({
       focusedEditing,
       showFieldTypes,
       codePreviewRenderer,
+      readSummaries,
       showAllDescriptions,
       expandedOptions,
       highlightedOptions,

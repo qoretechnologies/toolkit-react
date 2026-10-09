@@ -36,6 +36,19 @@ export type TCodePreviewRenderer = (props: {
   values?: TQorusForm;
 }) => React.ReactNode;
 
+/**
+ * What a collapsed row says of its value, drawn by its host for a `ui_type` whose editor reports a status of its
+ * own - a pipeline processor's field mappings, "incomplete" or "required" - in place of the generic summary
+ * ("2 items"), which said nothing of it (qorus#646). It is what the row shows; it changes nothing.
+ */
+export type TReadSummary = React.ComponentType<{
+  name: string;
+  value: unknown;
+  schema?: TQorusFormFieldSchema;
+  /** The generic summary, for a host that adds to it rather than replacing it. */
+  formatted: string;
+}>;
+
 export interface ICompactRowContext {
   // Props / config
   readOnly?: boolean;
@@ -132,6 +145,8 @@ export interface ICompactRowContext {
    * sibling field rather than being told it twice.
    */
   codePreviewRenderer?: TCodePreviewRenderer;
+  /** A collapsed row's summary drawn by the host, by `ui_type` (see `TReadSummary`). */
+  readSummaries?: Record<string, TReadSummary>;
 
   // Theme + theme-derived colours
   theme: IReqoreTheme;

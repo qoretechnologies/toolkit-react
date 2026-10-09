@@ -10557,6 +10557,55 @@ export const ExpressionWrittenOnExpressionShowsWhenTheTabIsBack: Story = {
   },
 };
 
+/** A host's summary for an editor that reports a status: field mappings, set but incomplete, or not set. */
+const MappingStatusSummary = ({ value }: { value: unknown }) => {
+  const set = Array.isArray(value) && value.length > 0;
+  return (
+    <ReqoreTag
+      className='mapping-status-summary'
+      size='small'
+      minimal
+      icon={set ? 'AlarmWarningLine' : 'ErrorWarningLine'}
+      intent={set ? 'warning' : 'danger'}
+      label={set ? 'Field mappings incomplete' : 'Field mappings required'}
+    />
+  );
+};
+
+export const ReadSummaryFromItsHost: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a form whose host draws the collapsed summary of one ui_type: Field Mappings says what its editor reports - "Field mappings incomplete" - where it read "2 items" (qorus#646). The form is still ready, as the summary changes nothing.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    name: 'readSummaries',
+    options: {
+      mappings: { type: 'list', ui_type: 'mapping-status', display_name: 'Field Mappings', required: true },
+      processor: { type: 'string', display_name: 'Processor Class', required: true },
+    } as never,
+    value: {
+      mappings: { type: 'list', value: [{ from: 'size' }, { from: 'name' }] },
+      processor: { type: 'string', value: 'Qog Compatibility Test' },
+    } as never,
+    readSummaries: { 'mapping-status': MappingStatusSummary },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.mapping-status-summary')?.textContent).toContain(
+        'Field mappings incomplete'
+      )
+    );
+    expect(canvasElement.querySelector('.readfirst-row[data-field="mappings"]')?.textContent).not.toContain(
+      '2 items'
+    );
+  },
+};
+
 export const ExpressionKeptWhenTheTabIsLeftAtOnce: Story = {
   parameters: {
     docs: {

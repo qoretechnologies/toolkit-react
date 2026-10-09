@@ -205,6 +205,7 @@ export const CompactRow = memo(
       (options?.[absorbedName] as { display_name?: string } | undefined)?.display_name ||
       absorbedName;
     const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
+    const readSummaries = useContextSelector(CompactRowContext, (v) => v.readSummaries);
     const markdownRenderer = useMarkdownRenderer();
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
     const focusedEditing = useContextSelector(CompactRowContext, (v) => v.focusedEditing);
@@ -1857,6 +1858,8 @@ export const CompactRow = memo(
 
     const formatted = formatOptionValue(optionField, schema);
     const empty = formatted === '';
+    const readSummaryUiType = (schema as { ui_type?: string } | undefined)?.ui_type;
+    const ReadSummary = readSummaryUiType ? readSummaries?.[readSummaryUiType] : undefined;
     // A field with no value of its own but a declared default is not simply
     // unanswered: the default is what the server will use, and an em-dash says
     // the opposite. Render the default in its place, through the same formatter
@@ -2378,7 +2381,16 @@ export const CompactRow = memo(
           ) ?
             null
           : <span className='options-readfirst-valuetext'>
-              {hidden || empty ?
+              {ReadSummary && !hidden ?
+                /* the host's own summary: an editor that reports a status says it here, set or not
+                   ("Field mappings required", "… incomplete"), where "2 items" said nothing of it (qorus#646) */
+                <ReadSummary
+                  name={optionName}
+                  value={optionField?.value}
+                  schema={schema}
+                  formatted={formatted}
+                />
+              : hidden || empty ?
                 formattedDefault || '—'
               : renderReadFirstValue(optionField, schema, formatted, readOnly)}
             </span>}
