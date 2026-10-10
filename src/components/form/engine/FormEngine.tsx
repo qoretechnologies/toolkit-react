@@ -1318,6 +1318,19 @@ const FormEngineImpl = ({
     optionsSchema || undefined
   );
   const options = useMemo(() => resolveDegenerateRequiredGroups(servedOptions), [servedOptions]);
+  /* Whether the schema the form holds is the one in force: its host is not waiting behind the skeleton, and a
+     schema the host hands down has been taken in (`servedOptions` follows the `options` prop a render later).
+     Until then the value is neither pruned against the schema nor emitted. A host loading the schema hands an
+     empty or an earlier one meanwhile; read against that, every stored field was "not on this instance" and
+     was removed, so a Qog state opened before its options had loaded showed them empty and, once emitted,
+     lost them (qorus#646). */
+  const hostSchemaPending =
+    !optionsLoader &&
+    !url &&
+    !customUrl &&
+    optionsSchema !== servedOptions &&
+    JSON.stringify(optionsSchema || undefined) !== JSON.stringify(servedOptions);
+  const schemaInForce = !rest.skeleton && !hostSchemaPending;
   // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
   const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !optionsSchema);
   const [optionsError, setOptionsError] = useState<string | undefined>();
@@ -1641,11 +1654,16 @@ const FormEngineImpl = ({
   const templates = useTemplates(allowTemplates, stringTemplates, interfaceContext);
 
   useEffect(() => {
-    /* While the host is still loading the schema, the form has read the value against none: every field it
-       did not know was dropped, and what was left is no answer. Emitted, it wiped a Qog state's stored options
-       the moment the state was opened, before its options had loaded (qorus#646). The schema's arrival reads
-       the value again, and that is emitted if it adds anything. */
-    if (rest.skeleton) {
+    /* Nothing is emitted until the schema is in force (`schemaInForce`): read against the empty or earlier
+       schema a host hands down while it loads its own, the value is no answer, and emitted it wiped a Qog
+       state's stored options the moment the state was opened (qorus#646).
+
+       When it comes into force this check runs (it is a dependency). A host also shows the skeleton for other
+       waits: qorus-ide shows it while the templates load, with the schema already there. The form completes the
+       value meanwhile (a required field's default, e.g. the server's `created_by_user`), and nothing read it
+       again when the skeleton cleared: the default was shown and never emitted, so never saved. A value that
+       adds nothing still emits nothing. */
+    if (!schemaInForce) {
       return;
     }
     if (
@@ -1665,7 +1683,7 @@ const FormEngineImpl = ({
     // Batched mode still emits every staged change (consumers may want to
     // live-validate), but flags it as a draft — persistence waits for Save.
     onChange?.(name, toEmit, commitMode === 'batched' ? { ...(meta || {}), draft: true } : meta);
-  }, [JSON.stringify(localValue)]);
+  }, [JSON.stringify(localValue), schemaInForce]);
 
   useUpdateEffect(() => {
     // When a loader owns the schema, ignore controlled `options` syncs so a
@@ -2161,8 +2179,11 @@ const FormEngineImpl = ({
       .reduce((newValue: TQorusForm, optionName) => {
         const option = fixedValue[optionName];
         if (!options?.[optionName]) {
-          unavailableOptionsCount.current += 1;
-          removeSelectedOption(optionName);
+          // not on this instance - unless the schema is not yet the one in force (see `schemaInForce`)
+          if (schemaInForce) {
+            unavailableOptionsCount.current += 1;
+            removeSelectedOption(optionName);
+          }
           return newValue;
         }
 
@@ -2203,6 +2224,7 @@ const FormEngineImpl = ({
     unavailableOptionsCount.current,
     JSON.stringify(operators),
     showInvalidOptionsOnly,
+    schemaInForce,
   ]);
 
   // Per required-group: its member options, and which member (if any) already
