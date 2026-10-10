@@ -84,3 +84,39 @@ describe('renderExpressionToText parenthesisation', () => {
     expect(renderExpressionToText(call)).toBe('toInt(1 + 2)');
   });
 });
+
+/**
+ * An operator holding more than two operands (qorus#646).
+ *
+ * `+` and `*` take any number of operands, and the Visual view builds them that way: the IDE's
+ * Message Content is one `+` of three. The server writes them infix (`DpqlSerializer::serializeArithmeticOp`,
+ * since Qore's n-ary fix), and the read-first row wrote `+("…", format_number(…), "…")`, so the collapsed
+ * summary disagreed with the Text view and the preview of the same value. An operator that takes two holding
+ * more is refused as text by the server; the summary keeps every operand, as a call.
+ */
+const call = (exp: string, ...args: IExpression[]): IExpressionValue =>
+  ({ exp, args }) as IExpressionValue;
+
+describe('renderExpressionToText with more than two operands', () => {
+  it('writes `+` and `*` infix, as the server does', () => {
+    expect(
+      renderExpressionToText(call('+', lit('run at '), lit(9000000), lit(' and that is it')))
+    ).toBe('"run at " + 9000000 + " and that is it"');
+    expect(renderExpressionToText(call('*', lit(2), lit(3), lit(4)))).toBe('2 * 3 * 4');
+  });
+
+  it('keeps the parentheses a later operand needs, and none the first one does', () => {
+    expect(
+      renderExpressionToText(
+        call('+', nest(bin('+', lit(1), lit(2))), nest(bin('+', lit(3), lit(4))), lit(5))
+      )
+    ).toBe('1 + 2 + (3 + 4) + 5');
+    expect(renderExpressionToText(call('*', nest(bin('+', lit(1), lit(2))), lit(3), lit(4)))).toBe(
+      '(1 + 2) * 3 * 4'
+    );
+  });
+
+  it('keeps every operand of an operator that takes two, as a call', () => {
+    expect(renderExpressionToText(call('-', lit(10), lit(3), lit(2)))).toBe('-(10, 3, 2)');
+  });
+});

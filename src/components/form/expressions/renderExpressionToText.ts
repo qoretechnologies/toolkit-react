@@ -55,6 +55,12 @@ const PREC_LOOSEST = 7;
  */
 const ASSOCIATIVE = new Set(['&&', '||']);
 
+/**
+ * Operators written infix with any number of operands - `DpqlSerializer`'s `NaryOperators`. Another
+ * operator holding more than two is refused as text by the server, and is written as a call here.
+ */
+const N_ARY = new Set(['+', '*']);
+
 const precedenceOf = (exp?: string): number => PRECEDENCE[exp ?? ''] ?? PREC_PRIMARY;
 
 /**
@@ -109,9 +115,12 @@ const renderInContext = (
   const args = value.args ?? [];
   // Logical group (subtype 2) → join with the symbol.
   const isLogicalGroup = schema?.subtype === 2 || value.exp === '&&' || value.exp === '||';
-  // Binary operator → infix. Everything else renders as a call, whose own
-  // parentheses and commas already delimit its arguments.
-  const isInfix = isLogicalGroup || (args.length === 2 && isOperatorSymbol(symbol));
+  // Binary operator → infix, as is `+` or `*` holding more operands. Everything else renders as a call,
+  // whose own parentheses and commas already delimit its arguments.
+  const isInfix =
+    isLogicalGroup ||
+    (isOperatorSymbol(symbol) &&
+      (args.length === 2 || (args.length > 2 && N_ARY.has(value.exp as string))));
 
   /* Each operand as what it holds (expressionOperands): a custom Text value is the
      template or the words in it, and one not filled in yet - an operation not chosen,
@@ -140,7 +149,7 @@ const renderInContext = (
     return `${symbol}(${parts.join(', ')})`;
   }
 
-  const text = isLogicalGroup ? parts.join(` ${symbol} `) : `${parts[0]} ${symbol} ${parts[1]}`;
+  const text = parts.join(` ${symbol} `);
   return precedenceOf(value.exp) > contextPrec ? `(${text})` : text;
 };
 
