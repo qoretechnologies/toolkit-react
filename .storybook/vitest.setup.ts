@@ -1,6 +1,7 @@
 import { setProjectAnnotations } from '@storybook/react-vite';
 import { createElement } from 'react';
-import { beforeAll } from 'vitest';
+import { afterEach, beforeAll } from 'vitest';
+import { guardRealNetwork } from '../src/stories/realNetworkGuard';
 import * as previewAnnotations from './preview';
 // storybook-addon-mock drives `parameters.mockData` through `faker`, which
 // patches window.fetch/XHR. Its own `withRoundTrip` decorator only (re)configures
@@ -41,6 +42,18 @@ const annotations = setProjectAnnotations([
 ]);
 
 beforeAll(annotations.beforeAll);
+
+// No story reaches a real server: what no mock answers is blocked, and the story fails naming it (see
+// realNetworkGuard). Installed after `faker` above, whose fall-through for unmocked requests it wraps.
+const network = guardRealNetwork(window as never);
+afterEach(() => {
+  const blocked = network.take();
+  if (blocked.length) {
+    throw new Error(
+      `The story requested what no mock answers (mock it: src/stories/storyNetwork.ts):\n${blocked.join('\n')}`
+    );
+  }
+});
 
 // React Query cancels in-flight (mocked) requests when a story unmounts, which
 // surfaces as an EMPTY unhandled rejection (no message, no stack). It's benign —
