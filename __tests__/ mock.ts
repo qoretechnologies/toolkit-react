@@ -1,8 +1,12 @@
 import { set } from 'lodash';
+import { storyApiUrl } from '../src/stories/storyNetwork';
+
+// Built from the configured instance (storyApiUrl), as every story mock is: a URL written for one host stopped
+// matching when the stories ran against another, and the request went to that instance instead.
 
 export const storiesStorageMockEmpty = [
   {
-    url: 'https://hq.qoretechnologies.com:8092/api/latest/users?action=current',
+    url: storyApiUrl('users?action=current'),
     method: 'GET',
     status: 200,
     response: {},
@@ -11,7 +15,7 @@ export const storiesStorageMockEmpty = [
 
 export const storiesStorageMock = [
   {
-    url: 'https://hq.qoretechnologies.com:8092/api/latest/users?action=current',
+    url: storyApiUrl('users?action=current'),
     method: 'GET',
     status: 200,
     response: {
@@ -24,7 +28,7 @@ export const storiesStorageMock = [
     },
   },
   {
-    url: 'https://hq.qoretechnologies.com:8092/api/latest/users/_current_/',
+    url: storyApiUrl('users/_current_/'),
     method: 'PUT',
     status: 200,
     response: (request) => {

@@ -25,6 +25,7 @@ import {
   sleep,
 } from '../../../stories/Tests/utils';
 import { mockExpressions } from '../expressions/mockExpressions';
+import { mockSchemaCatalog } from '../fields/schema-definition/mockCatalog';
 import { mockPopulatedDefinition } from '../fields/schema-definition/mockDefinition';
 import { ITemplateFieldSavedValue } from '../fields/template/TemplateField';
 import { defaultMarkdownRenderer } from '../fields/markdown/MarkdownView';
@@ -39,6 +40,7 @@ import {
 } from './FormEngine';
 import { basicFormValue, getBasicFormOptions as getOptions } from './__fixtures__/basicFormOptions';
 import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOptions';
+import { storyApiUrl } from '../../../stories/storyNetwork';
 
 // schema data
 
@@ -6069,6 +6071,15 @@ const _compactExpandAllRows = async () => {
 export const CompactFieldTypesEditing: Story = {
   // chromatic off: every catalog editor mounts live (async) — flaky and snapshot-heavy.
   parameters: {
+    // The schema-definition editor, opened with every other, loads its option catalogue.
+    mockData: [
+      {
+        url: storyApiUrl('schemas?action=options'),
+        method: 'GET',
+        status: 200,
+        response: mockSchemaCatalog,
+      },
+    ],
     docs: {
       description: {
         story:
