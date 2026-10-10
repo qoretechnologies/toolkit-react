@@ -17,7 +17,13 @@ export interface IConfirmUnsupportedTypeModalProps extends IReqoreModalProps {
 }
 
 export const ConfirmUnsupportedTypeModal = memo(
-  ({ acceptedTypes, children, ...rest }: IConfirmUnsupportedTypeModalProps) => {
+  ({
+    acceptedTypes,
+    children,
+    // this modal's own prop; ReqoreModal does not take it, so it stops here
+    exactMatch, // eslint-disable-line @typescript-eslint/no-unused-vars
+    ...rest
+  }: IConfirmUnsupportedTypeModalProps) => {
     const types = useQorusTypes();
     const [doNotShowTypeConfirmation, setDoNotShowTypeConfirmation] = useReqraftStorage<boolean>(
       'doNotShowTypeExpressionConfirmation',

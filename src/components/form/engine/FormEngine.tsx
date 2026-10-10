@@ -1280,6 +1280,10 @@ const FormEngineImpl = ({
   expandFirstRequired,
   initialExpandedOptions,
   maxFieldsShown,
+  // The form's own props, read here and never handed on to the collection drawn below (`{...rest}`).
+  options: optionsSchema,
+  stringTemplates,
+  skeletonReason,
   ...rest
 }: IFormEngineProps) => {
   // Built-ins + whatever the consumer declared for its own injected editors.
@@ -1311,11 +1315,11 @@ const FormEngineImpl = ({
      the read-first summary cannot disagree about it: every one of them reads
      `options`, and none of them has to know the rule. */
   const [servedOptions, setOptions] = useState<IQorusFormSchema | undefined>(
-    rest?.options || undefined
+    optionsSchema || undefined
   );
   const options = useMemo(() => resolveDegenerateRequiredGroups(servedOptions), [servedOptions]);
   // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
-  const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
+  const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !optionsSchema);
   const [optionsError, setOptionsError] = useState<string | undefined>();
   // Operators: prop-provided (compact) or fetched via operatorsUrl (dpql,
   // ported from IDE Options) — the fetch overrides the seeded prop value.
@@ -1634,7 +1638,7 @@ const FormEngineImpl = ({
 
   const unavailableOptionsCount = useRef(0);
   const { compactValue, loading: typesLoading } = useQorusTypes();
-  const templates = useTemplates(allowTemplates, rest.stringTemplates, interfaceContext);
+  const templates = useTemplates(allowTemplates, stringTemplates, interfaceContext);
 
   useEffect(() => {
     /* While the host is still loading the schema, the form has read the value against none: every field it
@@ -1669,8 +1673,8 @@ const FormEngineImpl = ({
     if (optionsLoader) {
       return;
     }
-    setOptions(rest.options);
-  }, [JSON.stringify(rest.options)]);
+    setOptions(optionsSchema);
+  }, [JSON.stringify(optionsSchema)]);
 
   // Fetch the schema on mount and on loader identity change.
   useEffect(() => {
@@ -3258,7 +3262,7 @@ const FormEngineImpl = ({
       fixedValue,
       // Depend on the specific `rest` values used, not the whole `rest` object
       // (which is a fresh `{...rest}` every render and would defeat the memo).
-      rest?.options,
+      optionsSchema,
       rest?.size,
       handleValueChange,
       handleOperatorChange,
@@ -4301,8 +4305,8 @@ const FormEngineImpl = ({
      what it is waiting FOR instead of only that it is waiting. */
   const waitReason =
     rest.skeleton ?
-      rest.skeletonReason ?
-        `host:${rest.skeletonReason}`
+      skeletonReason ?
+        `host:${skeletonReason}`
       : 'host'
     : templates.loading ? 'templates'
     : typesLoading ? 'types'
