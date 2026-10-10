@@ -58,10 +58,17 @@ if (typeof window !== 'undefined') {
 
 // Font parity with .storybook/preview-body.html.
 const style = document.createElement('style');
+// No text caret in a capture: it blinks, so a story ending with the cursor in a field was captured with it on
+// or off at random, and qlip flagged the same frame as changed (Template › Template Value, qorus#646).
 style.textContent = `
   html,
   body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  *,
+  *::before,
+  *::after {
+    caret-color: transparent !important;
   }
 `;
 document.head.appendChild(style);
