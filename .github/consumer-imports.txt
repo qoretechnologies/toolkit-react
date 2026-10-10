@@ -1,0 +1,39 @@
+# The reqraft modules its consumers import. check-packed-files.mjs fails CI when one of them is not in the
+# npm package (package.json `files`), so a deep import cannot break in a consumer after a release.
+#
+# qorus-ide (wip/646-phase-b, 2026-10-10). Regenerate from a qorus-ide checkout with:
+#   grep -rhoE "['\"]@qoretechnologies/reqraft(/[^'\"]*)?['\"]" src __tests__ .storybook | tr -d "'\"" | sort -u
+@qoretechnologies/reqraft
+@qoretechnologies/reqraft/dist/components/Description/markdownRendererContext
+@qoretechnologies/reqraft/dist/components/form/engine/FormEngine
+@qoretechnologies/reqraft/dist/components/form/engine/FormFieldsSkeleton
+@qoretechnologies/reqraft/dist/components/form/engine/_structuredData/structuredData
+@qoretechnologies/reqraft/dist/components/form/engine/optionActions
+@qoretechnologies/reqraft/dist/components/form/engine/rendererTypes
+@qoretechnologies/reqraft/dist/components/form/engine/rowMenuContext
+@qoretechnologies/reqraft/dist/components/form/expressions/useRenderExpression
+@qoretechnologies/reqraft/dist/components/form/fields/allowed-values/AllowedValues
+@qoretechnologies/reqraft/dist/components/form/fields/binary/Binary
+@qoretechnologies/reqraft/dist/components/form/fields/emittedValues
+@qoretechnologies/reqraft/dist/components/form/fields/file/File
+@qoretechnologies/reqraft/dist/components/form/fields/object/Object
+@qoretechnologies/reqraft/dist/components/form/fields/select/SelectCollection
+@qoretechnologies/reqraft/dist/components/form/fields/template/TemplateField
+@qoretechnologies/reqraft/dist/contexts/FetchContext
+@qoretechnologies/reqraft/dist/contexts/StorageContext
+@qoretechnologies/reqraft/dist/helpers/allowedValues
+@qoretechnologies/reqraft/dist/helpers/common
+@qoretechnologies/reqraft/dist/helpers/optionUiTypes
+@qoretechnologies/reqraft/dist/helpers/options
+@qoretechnologies/reqraft/dist/helpers/providerValue
+@qoretechnologies/reqraft/dist/helpers/singleLineString
+@qoretechnologies/reqraft/dist/helpers/templateItems
+@qoretechnologies/reqraft/dist/helpers/templateText
+@qoretechnologies/reqraft/dist/helpers/templates
+@qoretechnologies/reqraft/dist/helpers/validations
+@qoretechnologies/reqraft/dist/hooks/useQorusTypes
+@qoretechnologies/reqraft/dist/hooks/useTemplates
+@qoretechnologies/reqraft/dist/providers/ReqraftProvider
+@qoretechnologies/reqraft/dist/stores/currentUser/currentUser
+@qoretechnologies/reqraft/dist/utils/fetch
+@qoretechnologies/reqraft/dist/utils/lspClient

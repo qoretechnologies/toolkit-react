@@ -120,6 +120,11 @@ jobs:
         run: |
           yarn build
 
+      # The package is package.json's `files` allowlist. Fails when the packed file list is missing an entry
+      # point, a built file or a module a consumer imports (.github/consumer-imports.txt).
+      - name: Check the package ships what consumers import
+        run: node .github/scripts/check-packed-files.mjs .github/consumer-imports.txt
+
       - name: Install Playwright Chromium
         id: install_playwright
         run: yarn playwright install --with-deps chromium
