@@ -104,13 +104,15 @@ export const FieldAllowedValuesCheckGroup = memo(
           : multiSelect ? 'Select one or more:'
           : 'Select one:'}
         </ReqoreSpan>
-        {items?.map((item) => {
+        {items?.map((item, index) => {
           const unavailable = getSelectItemUnavailability(item);
 
           return (
             <ReqoreCheckbox
               margin='right'
-              key={item.value?.toString()}
+              /* The value, as JSON: `toString()` gave a choice not resolved yet no key, and every object
+                 value the same "[object Object]". Its position stands in for a choice that has none. */
+              key={JSON.stringify(item.value) ?? `#${index}`}
               label={item.display_name || JSON.stringify(item.value)}
               tooltip={getSelectItemShortDescription(item)}
               /* The reason is IN the row: a checkbox has no body to put it in,
