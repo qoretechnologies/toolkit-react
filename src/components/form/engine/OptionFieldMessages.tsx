@@ -356,7 +356,16 @@ export const getOptionFieldMessages = ({
     !!optionSchema?.depends_on &&
     !hasAllDependenciesFullfilled(optionSchema.depends_on, allOptions, schema);
 
-  if (option.value || option.value === false || option.value === 0 || option.value === null) {
+  /* The host's own words for what is wrong with this field (`invalid_reason`) are said in place of the
+     field's own reason and its "This field is required": a host that has a sentence of its own, in the
+     user's language, showed it beside the field's generic one, two messages for one problem (qorus#646).
+     Required groups and dependencies still say what they say. */
+  const hostReason = (optionSchema as { invalid_reason?: string } | undefined)?.invalid_reason;
+  const hasValue = option.value || option.value === false || option.value === 0 || option.value === null;
+
+  if (hostReason) {
+    result.push({ label: hostReason, intent: 'danger' });
+  } else if (hasValue) {
     /* A concrete type the VALUE carries beats an untyped schema.
        `auto`/`any` declare no type — the author picks one (Binary, Date, …)
        and it is recorded beside the value. Reading the schema first validated
@@ -396,7 +405,9 @@ export const getOptionFieldMessages = ({
     if (optionSchema?.required && !locked) {
       result.push({ label: 'This field is required', intent: 'danger' });
     }
+  }
 
+  if (!hasValue) {
     if (
       optionSchema?.required_groups &&
       !validateOptionWithRequiredGroups(allOptions, schema, optionSchema.required_groups)

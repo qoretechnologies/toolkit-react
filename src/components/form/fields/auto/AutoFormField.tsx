@@ -34,7 +34,7 @@ import {
   rendersCreatableValueSelect,
 } from '../allowed-values/AllowedValues';
 import { ArrayAuto } from '../array/ArrayAuto';
-import BooleanFormField from '../boolean/Boolean';
+import BooleanFormField, { yesNoShown } from '../boolean/Boolean';
 import { ByteSizeFormField } from '../byte-size/ByteSize';
 import { TimeoutFormField } from '../timeout/Timeout';
 import ColorFormField from '../color/Color';
@@ -723,7 +723,7 @@ function AutoField<T = any>({
           return (
             <BooleanFormField
               {...rest}
-              checked={!!value}
+              checked={yesNoShown(value)}
               onChange={(checked) => handleChange(name, checked)}
             />
           );

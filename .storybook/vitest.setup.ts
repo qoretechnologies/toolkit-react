@@ -1,6 +1,7 @@
 import { setProjectAnnotations } from '@storybook/react-vite';
 import { createElement } from 'react';
-import { beforeAll } from 'vitest';
+import { afterEach, beforeAll } from 'vitest';
+import { guardRealNetwork } from '../src/stories/realNetworkGuard';
 import * as previewAnnotations from './preview';
 // storybook-addon-mock drives `parameters.mockData` through `faker`, which
 // patches window.fetch/XHR. Its own `withRoundTrip` decorator only (re)configures
@@ -42,6 +43,18 @@ const annotations = setProjectAnnotations([
 
 beforeAll(annotations.beforeAll);
 
+// No story reaches a real server: what no mock answers is blocked, and the story fails naming it (see
+// realNetworkGuard). Installed after `faker` above, whose fall-through for unmocked requests it wraps.
+const network = guardRealNetwork(window as never);
+afterEach(() => {
+  const blocked = network.take();
+  if (blocked.length) {
+    throw new Error(
+      `The story requested what no mock answers (mock it: src/stories/storyNetwork.ts):\n${blocked.join('\n')}`
+    );
+  }
+});
+
 // React Query cancels in-flight (mocked) requests when a story unmounts, which
 // surfaces as an EMPTY unhandled rejection (no message, no stack). It's benign —
 // the stories pass and the app behaves correctly — but Vitest's strict detection
@@ -58,10 +71,17 @@ if (typeof window !== 'undefined') {
 
 // Font parity with .storybook/preview-body.html.
 const style = document.createElement('style');
+// No text caret in a capture: it blinks, so a story ending with the cursor in a field was captured with it on
+// or off at random, and qlip flagged the same frame as changed (Template › Template Value, qorus#646).
 style.textContent = `
   html,
   body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  *,
+  *::before,
+  *::after {
+    caret-color: transparent !important;
   }
 `;
 document.head.appendChild(style);

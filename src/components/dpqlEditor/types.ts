@@ -115,6 +115,17 @@ export interface IDpqlEditorProps {
   /** Called when the editor loses focus. */
   onBlur?: () => void;
   /**
+   * Called once when there is no language server to talk to (connecting failed): the editor can show the
+   * text but not parse, serialize or complete it, so a host that needs those offers what works without it.
+   */
+  onUnavailable?: () => void;
+  /**
+   * Called once the language server can parse and write this editor's text: its session is connected and
+   * its context bound. A host that parses or serializes through the editor's ref waits for this rather
+   * than asking earlier, when the answer is "nothing parsed".
+   */
+  onReady?: () => void;
+  /**
    * Opt-in to server-driven plain-text → Slate parsing via the LSP's
    * `dpql/toRichtext` custom method. When `true`, the editor calls
    * `dpql/toRichtext({ text: value })` on mount and on every external
@@ -198,6 +209,9 @@ export interface IDpqlEditorRef {
    * the result. Omit it to ask only whether the text parses.
    */
   parse: (text: string, targetType?: string) => Promise<IDpqlParseResult>;
-  /** Serialize an expression AST back to DPQL text via `dpql/serialize`. */
+  /**
+   * Serialize an expression AST back to DPQL text via `dpql/serialize`: '' while the session has no client,
+   * and rejected, with the server's reason, when the server refuses to write the value.
+   */
   serialize: (expression: Record<string, any>) => Promise<string>;
 }

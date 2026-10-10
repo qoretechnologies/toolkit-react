@@ -35,6 +35,12 @@ export * from './expressions/useExpressions';
 // Named (not wildcard) so the `_resetRenderExpressionTransportForTests`
 // test hook stays out of the public package surface.
 export { renderExpressionToText, useRenderExpression } from './expressions/useRenderExpression';
+export {
+  expressionOperand,
+  expressionWithOperands,
+  isExpressionComplete,
+} from './expressions/expressionOperands';
+export { EXPRESSION_HOLE } from './expressions/renderExpressionToText';
 export type {
   IRenderedExpression,
   IUseRenderExpressionResult,
@@ -45,3 +51,5 @@ export * from './expressions/ExpressionField';
 // it must be able to reach the builder without a deep import (#119).
 export { ExpressionBuilder } from './expressions/builder';
 export type { IExpressionBuilderProps } from './expressions/builder';
+export * from './fields/rich-text/useTemplateTags';
+export * from './fields/template/TemplateBrowser';

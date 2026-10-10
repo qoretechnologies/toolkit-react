@@ -841,7 +841,8 @@ describe('isFunction', () => {
       { isFunction: true, expressions }
     );
     expect(result.isValid).toBe(false);
-    expect(result.reason).toContain('argument 2');
+    // the empty second value, by its name
+    expect(result.reason).toMatch(/^Enter a value for "/);
   });
 
   it('reports a missing operation', () => {

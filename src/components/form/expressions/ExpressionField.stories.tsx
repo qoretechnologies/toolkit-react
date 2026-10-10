@@ -91,12 +91,14 @@ const waitForLspIdle = (canvasElement: HTMLElement) =>
 export const Default: Story = {
   args: {
     value: SAMPLE,
+    // the Visual builder, which this story shows: an expression opens in Text
+    defaultMode: 'visual',
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Renders ExpressionField holding a "$local:name == John" expression — the Visual builder shows the Logical Equals operator with its two operands and the Visual/Text mode toggle.',
+          'Renders ExpressionField holding a "$local:name == John" expression, opened in its Visual view — the Visual builder shows the Logical Equals operator with its two operands and the Text/Visual mode toggle.',
       },
     },
   },
@@ -157,6 +159,8 @@ export const Empty: Story = {
  */
 export const NestedOperandKeepsInjectedActions: Story = {
   args: {
+    // the Visual builder's cards, which this story counts: an expression opens in Text
+    defaultMode: 'visual',
     value: {
       is_expression: true,
       value: {
@@ -226,7 +230,7 @@ export const ViaFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema with a bool option that carries supports_expressions and a stored expression value — the engine routes through TemplateField and mounts the ExpressionField shell with the Visual builder and the Visual/Text toggle.',
+          'Renders a FormEngine schema with a bool option that carries supports_expressions and a stored expression value — the engine routes through TemplateField and mounts the ExpressionField shell on its Text view, the first of the Text · Visual toggle and the view an expression opens in (qorus#646, David). Choosing Visual shows the builder.',
       },
     },
   },
@@ -256,14 +260,19 @@ export const ViaFormEngine: Story = {
   },
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
-    // The ported builder rendered inside the engine-driven form.
+    // The ExpressionField shell opens on its Text view: the written expression, no builder yet.
+    await waitFor(
+      () => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument(),
+      { timeout: 6000 }
+    );
+    expect(canvasElement.querySelector('.expression')).toBeNull();
+    await expect(canvas.getByText('Text')).toBeInTheDocument();
+    // Visual shows the ported builder inside the engine-driven form.
+    await userEvent.click(await canvas.findByText('Visual'));
     await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
       timeout: 6000,
     });
     await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
-    // The ExpressionField shell wraps it: the Visual/Text toggle is present.
-    await expect(await canvas.findByText('Visual')).toBeInTheDocument();
-    await expect(canvas.getByText('Text')).toBeInTheDocument();
     // A valid expression is validated as an expression, not as the base
     // `bool` type — no "must be True or False" error.
     await expect(canvas.queryByText(/True or False/)).not.toBeInTheDocument();
@@ -276,12 +285,83 @@ export const ViaFormEngine: Story = {
  * stored AST (`dpql/serialize` over the mock LSP) and the "Preview" box
  * renders the same AST.
  */
+export const RemovedInVisualStaysInVisual: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a FormEngine condition that is always an expression (its host puts back an empty one when it is removed, as a Qorus row rule does), opens Visual and removes the expression: the editor stays on Visual, on "Select operation", where the author was. It opens on Text only the first time.',
+      },
+    },
+  },
+  render: () => {
+    const [value, setValue] = useState<any>({
+      condition: { type: 'bool', value: SAMPLE.value, is_expression: true },
+    });
+    return (
+      <FormEngine
+        name='exprAlways'
+        options={
+          {
+            condition: {
+              type: 'bool',
+              ui_type: 'bool',
+              display_name: 'Condition',
+              preselected: true,
+              supports_expressions: true,
+              expressions: mockExpressions,
+            },
+          } as any
+        }
+        value={value}
+        onChange={(_n, v: any) =>
+          setValue(
+            v?.condition?.value === undefined || v?.condition?.value === null
+              ? { ...v, condition: { type: 'bool', is_expression: true, value: { args: [] } } }
+              : v
+          )
+        }
+      />
+    );
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await waitFor(
+      () => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument(),
+      { timeout: 6000 }
+    );
+    await userEvent.click(await canvas.findByText('Visual'));
+    const top = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>('.expression');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 6000 }
+    );
+    await userEvent.hover(top);
+    const remove = await waitFor(() => {
+      const el =
+        document.querySelector<HTMLElement>('.reqore-panel-floating-actions .expression-group-remove') ??
+        top.querySelector<HTMLElement>('.expression-group-remove');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(remove);
+    // still the Visual view: an operation to choose, not the Text view
+    await waitFor(() => expect(canvas.getByText('Select operation')).toBeInTheDocument(), { timeout: 6000 });
+    await settle(canvasElement);
+    expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeNull();
+    expect(canvas.getByText('Select operation')).toBeInTheDocument();
+  },
+};
+
 export const ViaFormEngineTextMode: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the FormEngine expression field, then switches to Text mode — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call, highlighted like typed text. The server\'s rendering reads exactly as that text, so no "Preview" box repeats it.',
+          'Renders the FormEngine expression field, which opens on its Text view — the DPQL editor seeds from the stored AST via the mock LSP\'s dpql/serialize call, highlighted like typed text. The server\'s rendering reads exactly as that text, so no "Preview" box repeats it.',
       },
     },
   },
@@ -289,14 +369,9 @@ export const ViaFormEngineTextMode: Story = {
   async play({ canvasElement }) {
     const canvas = within(canvasElement);
 
-    // Visual (the builder) renders first.
-    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
-      timeout: 6000,
-    });
-
-    // Switch to Text — the DPQL editor mounts and seeds from the AST
-    // (`dpql/serialize` over the mock LSP).
-    await userEvent.click(await canvas.findByText('Text'));
+    // It opens on Text (qorus#646, David) — the DPQL editor mounts and seeds from the AST
+    // (`dpql/serialize` over the mock LSP); the builder is not drawn.
+    await expect(await canvas.findByText('Text')).toBeInTheDocument();
     const editable = (await waitFor(
       () => {
         const el = canvasElement.querySelector('[contenteditable="true"]');
@@ -659,6 +734,37 @@ export const TextMode: Story = {
   },
 };
 
+/** A comparison built in the Visual view and left unfinished, seen in the Text view. */
+export const TextModeOfAnUnfinishedExpression: Story = {
+  args: {
+    value: {
+      is_expression: true,
+      // ">" with its first operand switched to "Use Expression", nothing chosen, and its second empty
+      value: { exp: '>', args: [{ value: { args: [null] }, is_expression: true }, {}] },
+    },
+    defaultMode: 'text',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text mode over a comparison left unfinished in the Visual view: an operand switched to Use Expression with no operation chosen, and an empty one. The text shows a hole for each, "… > …", as the row summary does.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[contenteditable="true"]');
+        expect(el?.textContent).toBe('… > …');
+      },
+      { timeout: 6000 }
+    );
+    expect(canvasElement.textContent).not.toContain('[object Object]');
+    await waitForLspIdle(canvasElement);
+  },
+};
+
 /**
  * A plain `bool` field with `supports_expressions` and no value — starts as
  * the normal field; the "Use Expression" toggle (More menu) switches it.
@@ -669,7 +775,7 @@ export const ToggleInFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Expression" flips the field to expression mode and the ExpressionField shell with the Visual builder mounts in place of the checkbox.',
+          'Renders a FormEngine schema with a plain bool option (supports_expressions, no value). Clicking More then "Use Expression" flips the field to expression mode and the ExpressionField shell mounts in place of the checkbox, on its Text view (qorus#646, David); Visual shows the builder.',
       },
     },
   },
@@ -714,16 +820,19 @@ export const ToggleInFormEngine: Story = {
     // mode.
     await userEvent.click(await canvas.findByText('Use Expression'));
 
-    // The ExpressionField shell mounts: its `.expression-field` wrapper, the
-    // ported builder (`.expression`), and the Visual/Text toggle.
+    // The ExpressionField shell mounts: its `.expression-field` wrapper, on the Text view.
     await waitFor(
       () => {
         expect(canvasElement.querySelector('.expression-field')).toBeInTheDocument();
-        expect(canvasElement.querySelector('.expression')).toBeInTheDocument();
+        expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument();
       },
       { timeout: 6000 }
     );
-    await expect(await canvas.findByText('Visual')).toBeInTheDocument();
+    // Visual shows the ported builder (`.expression`).
+    await userEvent.click(await canvas.findByText('Visual'));
+    await waitFor(() => expect(canvasElement.querySelector('.expression')).toBeInTheDocument(), {
+      timeout: 6000,
+    });
   },
 };
 
@@ -757,10 +866,10 @@ const settle = (root: HTMLElement, quietMs = 400): Promise<void> =>
   });
 
 /** Open a compact row — a read-first row shows its label, not its editor. */
-const openCompactRow = async (canvasElement: HTMLElement): Promise<void> => {
+const openCompactRow = async (canvasElement: HTMLElement, rowLabel = 'Value'): Promise<void> => {
   const label = (await waitFor(
     () => {
-      const el = within(canvasElement).queryByText('Value');
+      const el = within(canvasElement).queryByText(rowLabel);
       if (!el) throw new Error('row not rendered');
       return el as HTMLElement;
     },
@@ -1108,7 +1217,7 @@ export const FieldMenuStaysInTheToolbar: Story = {
     docs: {
       description: {
         story:
-          "Accepts the offer on a compact row whose field also has templates. The row shows ONE More menu — the field publishes its items into the row's ⋮ rather than drawing its own — and that menu sits in the shell's toolbar row, level with Undo, not part-way down the editor.",
+          "Types 1 + 2 on a compact row whose field also has templates: the field enters its value on tabs (Value · Expression · Visual), and the expression moves it to Expression. The row shows ONE More menu — the field publishes its items into the row's ⋮ rather than drawing its own — and that menu sits in the tabs' row, not part-way down the editor.",
       },
     },
   },
@@ -1128,7 +1237,7 @@ export const FieldMenuStaysInTheToolbar: Story = {
             expected: {
               type: 'string',
               ui_type: 'string',
-              display_name: 'Value',
+              display_name: 'Expected',
               preselected: true,
               supports_expressions: true,
               supports_templates: true,
@@ -1150,8 +1259,25 @@ export const FieldMenuStaysInTheToolbar: Story = {
     );
   },
   async play({ canvasElement }) {
-    await openCompactRow(canvasElement);
-    await acceptTypedExpression(canvasElement);
+    await openCompactRow(canvasElement, 'Expected');
+    const input = (await waitFor(
+      () => {
+        const el = canvasElement.querySelector('.value-tab-text [contenteditable="true"]');
+        if (!el) throw new Error('field not ready');
+        return el as HTMLElement;
+      },
+      { timeout: 10000 }
+    )) as HTMLElement;
+    await userEvent.click(input);
+    await userEvent.type(input, '1 + 2');
+    // the Value tab never holds an expression: the field moves to Expression, in the tabs' row
+    await waitFor(
+      () =>
+        expect(
+          canvasElement.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')
+        ).toBe('expression'),
+      { timeout: 10000 }
+    );
 
     // One menu per control: the row's ⋮, not a second one drawn by the field.
     expect(canvasElement.querySelector('.template-more')).toBeNull();
@@ -1159,9 +1285,9 @@ export const FieldMenuStaysInTheToolbar: Story = {
     expect(menus).toHaveLength(1);
     const menu = menus[0] as HTMLElement;
 
-    // The toolbar row is the shell's first line — the Visual/Text toggle.
-    const toggle = within(canvasElement).getByText('Text').closest('button') as HTMLElement;
-    const toolbar = toggle.getBoundingClientRect();
+    // The toolbar row is the field's first line — its tabs.
+    const tabs = canvasElement.querySelector('.value-tabs') as HTMLElement;
+    const toolbar = tabs.getBoundingClientRect();
     const control = menu.getBoundingClientRect();
 
     /* Reported as numbers: "the menu is in the wrong place" is not something a

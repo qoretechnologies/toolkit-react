@@ -88,11 +88,23 @@ describe('dpql/parse', () => {
     expect(result.expression?.value).toEqual({
       exp: '==',
       args: [
-        { type: 'auto', value: { tmpl_context: 'local', tmpl_value: 'name', raw: '$local:name' } },
+        { type: 'auto', value: '$local:name' },
         { type: 'string', value: 'John' },
       ],
     });
     expect(result).toMatchObject({ inferred_type: 'bool', type_compatible: true });
+  });
+
+  it('wraps a lone template in template(), as the template, as the server does', () => {
+    expect(mockParseDpql('$local:name').expression?.value).toEqual({
+      exp: 'template',
+      args: [{ type: 'auto', value: '$local:name' }],
+    });
+    // a string that reads like a template is a string
+    expect(mockParseDpql('"$local:name"').expression?.value).toEqual({
+      exp: 'value',
+      args: [{ type: 'string', value: '$local:name' }],
+    });
   });
 
   it('wraps a lone word as value(), which fits any target', () => {
@@ -108,7 +120,10 @@ describe('dpql/parse', () => {
   it('answers without analysis when no target was sent', () => {
     expect(mockParseDpql('null')).toEqual({
       success: true,
-      expression: { is_expression: true, value: { exp: 'value', args: [{ type: 'any', value: null }] } },
+      expression: {
+        is_expression: true,
+        value: { exp: 'value', args: [{ type: 'any', value: null }] },
+      },
       inferred_type: 'auto',
       diagnostics: [],
     });
@@ -129,7 +144,10 @@ describe('dpql/parse type analysis', () => {
       type_compatible: false,
       auto_coercible: true,
       coercion_may_fail: false,
-      suggested_fix: { text: 'toString(1 + 2)', description: 'Convert int to string using toString()' },
+      suggested_fix: {
+        text: 'toString(1 + 2)',
+        description: 'Convert int to string using toString()',
+      },
     });
   });
 
@@ -156,7 +174,11 @@ describe('dpql/parse type analysis', () => {
   it('refuses a conversion that does not exist, with no fix', () => {
     const result = mockParseDpql('1 + 2', 'bool');
 
-    expect(result).toMatchObject({ type_compatible: false, auto_coercible: false, coercion_may_fail: false });
+    expect(result).toMatchObject({
+      type_compatible: false,
+      auto_coercible: false,
+      coercion_may_fail: false,
+    });
     expect(result.suggested_fix).toBeUndefined();
     expect(result.diagnostics[0]).toMatchObject({
       severity: 'error',
@@ -212,12 +234,12 @@ describe('dpql/serialize and dpql/renderExpression', () => {
     metadata: { displayName: 'Local Context' },
   };
 
-  it('serializes a stored string as a string, the reference a chip inside it', () => {
+  it('serializes a stored template as the template, as the UI form evaluates it (qorus#646)', () => {
     expect(mockSerializeDpql(STORED)).toEqual({
-      dpql: '"$local:name" == "John"',
+      dpql: '$local:name == "John"',
       richtext: {
         type: 'richtext',
-        value: [{ type: 'paragraph', children: [{ text: '"' }, chip, { text: '" == "John"' }] }],
+        value: [{ type: 'paragraph', children: [chip, { text: ' == "John"' }] }],
       },
     });
   });
@@ -243,8 +265,27 @@ describe('dpql/serialize and dpql/renderExpression', () => {
     const group = {
       exp: '||',
       args: [
-        { is_expression: true, value: { exp: '==', args: [{ type: 'int', value: 1 }, { type: 'int', value: 2 }] } },
-        { is_expression: true, value: { exp: '&&', args: [{ type: 'bool', value: true }, { type: 'bool', value: false }, { type: 'bool', value: true }] } },
+        {
+          is_expression: true,
+          value: {
+            exp: '==',
+            args: [
+              { type: 'int', value: 1 },
+              { type: 'int', value: 2 },
+            ],
+          },
+        },
+        {
+          is_expression: true,
+          value: {
+            exp: '&&',
+            args: [
+              { type: 'bool', value: true },
+              { type: 'bool', value: false },
+              { type: 'bool', value: true },
+            ],
+          },
+        },
         { type: 'bool', value: false },
       ],
     };
@@ -290,8 +331,8 @@ describe('expressions the catalogue spells', () => {
 
   it('serializes the same expression as DPQL', () => {
     expect(mockSerializeDpql(BUILDER_STORY).dpql).toBe(
-      '("$local:input" contains "es" || "test" startsWith "t" && "test" startsWith "t" || 23 >= "$local:id") && ' +
-        '"$local:str" endsWith "$local:p" && "$local:input" < "$local:p"'
+      '($local:input contains "es" || "test" startsWith "t" && "test" startsWith "t" || 23 >= $local:id) && ' +
+        '$local:str endsWith $local:p && $local:input < $local:p'
     );
   });
 
@@ -300,12 +341,14 @@ describe('expressions the catalogue spells', () => {
       '"test".startsWith("t", true)'
     );
     expect(
-      mockRenderDpql(e('starts-with', s('test'), s('t'), { type: 'bool', value: false }).value).rendered
+      mockRenderDpql(e('starts-with', s('test'), s('t'), { type: 'bool', value: false }).value)
+        .rendered
     ).toBe('"test".startsWith("t", false)');
   });
 
   it('reads a conditional template part from the argument, and its default only when omitted', () => {
-    const contains = (...extra: unknown[]) => e('contains', s('$local:input'), s('es'), ...extra).value;
+    const contains = (...extra: unknown[]) =>
+      e('contains', s('$local:input'), s('es'), ...extra).value;
 
     expect(mockRenderDpql(contains()).rendered).toBe('$local:input contains "es" (ignore case)');
     expect(mockRenderDpql(contains({ type: 'bool', value: true })).rendered).toBe(
@@ -325,23 +368,28 @@ describe('expressions the catalogue spells', () => {
   });
 
   it('calls a comparison by its symbol when it has other than two arguments', () => {
-    expect(mockSerializeDpql(e('contains', s('$local:input'), s('es'), { type: 'bool', value: true }).value).dpql).toBe(
-      'contains("$local:input", "es", true)'
-    );
-    expect(mockSerializeDpql(e('starts-with', s('test'), s('t'), { type: 'bool', value: false }).value).dpql).toBe(
-      'startsWith("test", "t", false)'
-    );
+    expect(
+      mockSerializeDpql(
+        e('contains', s('$local:input'), s('es'), { type: 'bool', value: true }).value
+      ).dpql
+    ).toBe('contains($local:input, "es", true)');
+    expect(
+      mockSerializeDpql(e('starts-with', s('test'), s('t'), { type: 'bool', value: false }).value)
+        .dpql
+    ).toBe('startsWith("test", "t", false)');
   });
 
   it('calls a function by name in both', () => {
     const concat = e('concat', s('a'), s('$local:x')).value;
 
     expect(mockRenderDpql(concat).rendered).toBe('concat("a", $local:x)');
-    expect(mockSerializeDpql(concat).dpql).toBe('concat("a", "$local:x")');
+    expect(mockSerializeDpql(concat).dpql).toBe('concat("a", $local:x)');
   });
 
   it('parses a word comparison and a call by symbol back to the catalogue name', () => {
-    expect(mockParseDpql('"test" startsWith "t" || startsWith("test", "t", false)').expression?.value).toEqual({
+    expect(
+      mockParseDpql('"test" startsWith "t" || startsWith("test", "t", false)').expression?.value
+    ).toEqual({
       exp: '||',
       args: [
         { is_expression: true, value: { exp: 'starts-with', args: [s('test'), s('t')] } },
@@ -353,7 +401,7 @@ describe('expressions the catalogue spells', () => {
     });
     expect(mockParseDpql('concat("a", $local:x)').expression?.value).toEqual({
       exp: 'concat',
-      args: [s('a'), { type: 'auto', value: { tmpl_context: 'local', tmpl_value: 'x', raw: '$local:x' } }],
+      args: [s('a'), { type: 'auto', value: '$local:x' }],
     });
   });
 });

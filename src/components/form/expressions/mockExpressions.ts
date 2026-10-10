@@ -8,10 +8,7 @@ import { IExpressionSchema } from './types';
 
 // String comparators share this arg shape: a richtext value (with the
 // operator word as `label_after`), a richtext operand, and an Ignore Case flag.
-const stringArgs = (
-  operandLabel: string,
-  operatorWord: string
-): IExpressionSchema['args'] => [
+const stringArgs = (operandLabel: string, operatorWord: string): IExpressionSchema['args'] => [
   {
     name: 'softstring',
     display_name: 'String Value',
@@ -36,6 +33,21 @@ const comparatorArgs = (operatorWord: string): IExpressionSchema['args'] => [
 ];
 
 export const mockExpressions: IExpressionSchema[] = [
+  // As the server defines it (qorus Classes/QorusExpressions.qc QO_VALUE): what a value written alone parses
+  // into, so a value the Visual view starts from is shown as itself.
+  {
+    name: 'value',
+    display_name: 'Value',
+    short_desc: 'Evaluates and returns a field reference value',
+    desc: 'Evaluates the given field reference and returns its value; this allows field references to be used as standalone expressions',
+    symbol: '',
+    type: 1,
+    subtype: 1,
+    return_type: 'any',
+    ui_return_type: 'any',
+    varargs: false,
+    args: [{ name: 'any', display_name: 'Value', ui_type: 'any', required: true }],
+  },
   {
     name: '==',
     display_name: 'Logical Equals',

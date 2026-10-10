@@ -1083,6 +1083,81 @@ export const CanTypeText: Story = {
 };
 
 /**
+ * A reference that is the whole expression: the chip starts AND ends the line.
+ * A click (or tap) at the end of the line puts the caret at the line's last
+ * caret position, and what is typed there is written after the reference
+ * (qorus#646, "can't type" in the Text view). Slate requires a text node on
+ * each side of a chip; when the loaded document had none, the last caret
+ * position was inside the chip, where Slate drops every keystroke, so the
+ * editor looked focused and ignored typing.
+ */
+const typeAtTheEndOfTheLine =
+  (reference: string, tap: 'mouse' | 'touch'): Story['play'] =>
+  async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    const line = await waitFor(() => {
+      const paragraph = editable.querySelector<HTMLElement>('.reqore-tag')?.closest('p');
+      if (!paragraph) throw new Error('the reference is not drawn as a chip yet');
+      return paragraph;
+    });
+    // where the browser puts the caret for a click past the line's end: its
+    // last caret position, the last text the line holds
+    const caretSpots = line.querySelectorAll('[data-slate-string], [data-slate-zero-width]');
+    const last = caretSpots[caretSpots.length - 1] as HTMLElement;
+    if (tap === 'touch') {
+      await userEvent.pointer([{ keys: '[TouchA]', target: last }]);
+    } else {
+      await userEvent.click(last);
+    }
+    editable.focus();
+    const spot = document.createTreeWalker(last, NodeFilter.SHOW_TEXT).nextNode() as Text;
+    window.getSelection()?.collapse(spot, spot.length);
+    await userEvent.keyboard(' + 1');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(`${reference} + 1`));
+    await expect(editable.textContent?.replace(/\uFEFF/g, '')).toContain(' + 1');
+  };
+
+export const TypesAfterAReferenceThatIsTheWholeLine: Story = {
+  args: { value: '@pos', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The expression is one reference. A click at the end of the line puts the caret after the chip, and " + 1" typed there is written after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('@pos', 'mouse'),
+};
+
+export const TypesAfterAReferenceThatIsTheWholeLineOnTouch: Story = {
+  args: { value: '@pos', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same on a touch screen: a tap at the end of the line puts the caret after the only chip, and what is typed there is written after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('@pos', 'touch'),
+};
+
+export const TypesAfterAServerDrawnReference: Story = {
+  args: { value: '$record:{pos}', useServerParse: true, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The server draws the chips (`useServerParse`) and sends a line that is one reference. A click at the end of the line and typing writes after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('$record:{pos}', 'mouse'),
+};
+
+/**
  * End-to-end LSP completion test. Types `@`, waits for the mock server to
  * receive `textDocument/completion`, and asserts the canned completion
  * items render in the dropdown. This guards the entire request-correlation

@@ -13,13 +13,15 @@ import {
   ReqoreVerticalSpacer,
 } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef } from '../../dpqlEditor';
+import { TemplateBrowser } from '../fields/template/TemplateBrowser';
 import { dpqlDisplayedText } from '../../dpqlEditor/dpqlHelpers';
 import { TDpqlFields } from '../../dpqlEditor/types';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
 import { DpqlRendering } from './DpqlRendering';
 import { IExpression, IExpressionSchema, IExpressionValue, TExpressionReorder } from './types';
+import { incompleteExpressionText, serializableExpression } from './textOfExpression';
 import { useExpressions } from './useExpressions';
 import { useRenderExpression } from './useRenderExpression';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
@@ -36,9 +38,6 @@ const PARSE_DEBOUNCE_MS = 300;
  * has stopped moving rather than twitching on the way there.
  */
 const PREVIEW_DEBOUNCE_MS = 400;
-/** Retry cadence for seeding the Text editor while its LSP session opens. */
-const SEED_RETRY_MS = 400;
-const SEED_MAX_TRIES = 20;
 
 export interface IExpressionFieldProps {
   /** The expression value: `{ is_expression:true, value:{ exp, args } }`. */
@@ -78,8 +77,39 @@ export interface IExpressionFieldProps {
    * use is offered there, as in the Visual view (see `IDpqlEditorProps.fields`).
    */
   fields?: TDpqlFields;
-  /** Initial editor mode (default `visual`). */
+  /** Initial editor mode (default `text`: an expression opens as it is written, Visual beside it). */
   defaultMode?: TExpressionMode;
+  /**
+   * The Text view's text when the value is not an expression yet: a template or a literal the field held
+   * when "Use Template / Expression" opened it. Nothing is emitted until it is edited.
+   */
+  initialText?: string;
+  /**
+   * The field holds a plain value the text stands for - a template or a literal written in the Text view
+   * (stored as itself, not as an expression). The expression is then gone from `value` but the field is not
+   * cleared, so the text being written stays.
+   */
+  heldAsValue?: boolean;
+  /**
+   * The view a host's own tabs ask for (Value · Expression · Visual, qorus#646). Followed as the field's own
+   * Visual / Text toggle is: leaving the Text view parses what is written first, so nothing is lost.
+   */
+  requestedMode?: TExpressionMode;
+  /** The host draws the views as tabs of its own: the field's Visual / Text toggle is not drawn. */
+  hideModeToggle?: boolean;
+  /** No language server: the Text view cannot work, and the field shows the Visual view instead. */
+  onTextUnavailable?: () => void;
+  /**
+   * The view the field is on, each time it changes: for a host that mounts the field again (an expression
+   * removed and put back empty) to open it where the author was, through `defaultMode`.
+   */
+  onModeChange?: (mode: TExpressionMode) => void;
+  /**
+   * Set to a function that reads the text typed and not yet read - its parse still waiting - and gives the
+   * expression it is, or nothing. A host leaving the Text view calls it first, so what was just typed is not
+   * lost with the editor (qorus#646).
+   */
+  flushRef?: MutableRefObject<(() => Promise<IExpression | undefined>) | null>;
   /**
    * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the
    * builder's operand fields. Without them an operand typed with one of the
@@ -106,7 +136,14 @@ export const ExpressionField = memo(
     provider,
     fields,
     recordType,
-    defaultMode = 'visual',
+    defaultMode = 'text',
+    initialText,
+    heldAsValue,
+    requestedMode,
+    hideModeToggle,
+    onTextUnavailable,
+    onModeChange,
+    flushRef,
     size,
     componentOverrides,
     reorder,
@@ -118,13 +155,70 @@ export const ExpressionField = memo(
     const { renderRich } = useRenderExpression();
 
     const [mode, setMode] = useState<TExpressionMode>(defaultMode);
+    const onModeChangeRef = useRef(onModeChange);
+    onModeChangeRef.current = onModeChange;
+    useEffect(() => {
+      onModeChangeRef.current?.(mode);
+    }, [mode]);
     /* The server's rendering of the current AST; empty until it has one. There is
        no client-side stand-in — see `useRenderExpression`. */
     const [preview, setPreview] = useState('');
 
     // Text mode state. `text` is the DPQL string the editor shows; the AST
     // (`value`) stays the source of truth, kept in sync via parse-on-edit.
-    const [text, setText] = useState('');
+    const [text, setText] = useState(initialText ?? '');
+    /** The text the editor was given, for its echo of that text to be told from typing. */
+    const textRef = useRef(text);
+    textRef.current = text;
+    /* No language server to parse or write the text: the Text view cannot work, so the field shows the
+       Visual view, which needs none, and says why (qorus#646). */
+    const [textUnavailable, setTextUnavailable] = useState(false);
+    /* Why the server would not write this value as text, or null. The field is then built in Visual: an empty
+       Text view would be one the author types over, replacing the value (qorus#646). */
+    const [textRefused, setTextRefused] = useState<string | null>(null);
+    // read when a refusal lands, so a host's new callback on each render does not restart the seed
+    const onTextUnavailableRef = useRef(onTextUnavailable);
+    onTextUnavailableRef.current = onTextUnavailable;
+    /* Whether the Text view's language server can parse and write its text - the session's own signal
+       (`onReady`), never a guess by time. Typed text waits for it; it is not asked of a session that is not
+       up, whose answer is "nothing parsed" (qorus#646: under load, text typed before the session was up
+       never reached the value). Each visit to the Text view opens a session of its own. */
+    const [sessionReady, setSessionReady] = useState(false);
+    const sessionReadyRef = useRef(false);
+    /** Who waits for the session: told true when it is ready, false when it cannot be reached or goes. */
+    const sessionWaiters = useRef<Array<(ready: boolean) => void>>([]);
+    const settleSessionWaiters = useCallback((ready: boolean) => {
+      const waiters = sessionWaiters.current;
+      sessionWaiters.current = [];
+      waiters.forEach((resolve) => resolve(ready));
+    }, []);
+    const whenSessionReady = useCallback(
+      (): Promise<boolean> =>
+        sessionReadyRef.current ?
+          Promise.resolve(true)
+        : new Promise<boolean>((resolve) => sessionWaiters.current.push(resolve)),
+      []
+    );
+    const handleTextReady = useCallback(() => {
+      sessionReadyRef.current = true;
+      setSessionReady(true);
+      settleSessionWaiters(true);
+    }, [settleSessionWaiters]);
+    useEffect(() => {
+      if (mode === 'text') return;
+      sessionReadyRef.current = false;
+      setSessionReady(false);
+      settleSessionWaiters(false);
+    }, [mode, settleSessionWaiters]);
+    useEffect(() => () => settleSessionWaiters(false), [settleSessionWaiters]);
+    const handleTextUnavailable = useCallback(() => {
+      setTextUnavailable(true);
+      settleSessionWaiters(false);
+      onTextUnavailable?.();
+      // text typed and not read stays as typed, in the Text view, with the reason under it: nothing is lost
+      if (pendingParse.current !== null) return;
+      setMode('visual');
+    }, [onTextUnavailable, settleSessionWaiters]);
     /* The text the current AST was parsed FROM.
      *
      * The preview renders the AST, and the AST only moves on a SUCCESSFUL
@@ -148,6 +242,8 @@ export const ExpressionField = memo(
     } | null>(null);
     const dpqlRef = useRef<IDpqlEditorRef>(null);
     const parseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    /** The text typed whose parse is still waiting on the debounce, or null. */
+    const pendingParse = useRef<string | null>(null);
 
     const ast = useMemo<IExpressionValue | undefined>(() => value?.value, [value]);
 
@@ -173,9 +269,14 @@ export const ExpressionField = memo(
      * noise the message below is written to avoid.
      */
     const readTypeCheck = useCallback(
-      (result?: { type_compatible?: boolean; auto_coercible?: boolean;
-        coercion_may_fail?: boolean; inferred_type?: string; target_type?: string;
-        suggested_fix?: { text: string } }): void => {
+      (result?: {
+        type_compatible?: boolean;
+        auto_coercible?: boolean;
+        coercion_may_fail?: boolean;
+        inferred_type?: string;
+        target_type?: string;
+        suggested_fix?: { text: string };
+      }): void => {
         if (!result || result.type_compatible === undefined) {
           setTypeCheck(null);
           return;
@@ -245,59 +346,58 @@ export const ExpressionField = memo(
         hadExpression.current = true;
         return;
       }
+      // a template or a literal written here is held as itself: the text stands for it, and stays
+      if (heldAsValue) {
+        hadExpression.current = false;
+        return;
+      }
       if (hadExpression.current) {
         hadExpression.current = false;
         userTypedRef.current = false;
         setText('');
       }
-    }, [ast]);
+    }, [ast, heldAsValue]);
 
-    // Text mode: parse the DPQL into the AST (debounced).
-    /* The session may not be attached when the debounce fires — the editor
-       mounts on the render that flips the mode, and its LSP session comes up
-       after that. `dpqlRef.current?.parse?.()` is optional all the way down, so
-       an early call resolves `undefined`, `readTypeCheck` CLEARS the analysis,
-       and nothing asks again: the author types once into a fresh Text field and
-       is told nothing about the type until they happen to type another
-       character.
+    /* Read the text typed and not yet read: once the session is ready, however long that takes, and the
+       latest text typed by then. Gives the expression it is, or nothing. The debounce, the host leaving the
+       Text view (its tabs) and the session coming up all read through here. */
+    const flushPendingParse = useCallback(async (): Promise<IExpression | undefined> => {
+      if (pendingParse.current === null) return undefined;
+      if (!(await whenSessionReady())) return undefined;
+      const pending = pendingParse.current;
+      const parse = dpqlRef.current?.parse;
+      if (pending === null || !parse) return undefined;
+      if (parseTimer.current) clearTimeout(parseTimer.current);
+      pendingParse.current = null;
+      const result = await parse(pending, targetType);
+      readTypeCheck(result);
+      if (!result?.success || !result.expression) return undefined;
+      setAstText(pending);
+      // `dpql/parse` returns the field-ready `{ is_expression, value }`.
+      onChange(result.expression as IExpression);
+      return result.expression as IExpression;
+    }, [onChange, targetType, readTypeCheck, whenSessionReady]);
 
-       The seeding effect below already retries for this exact reason
-       ("`serialize` resolves '' until the editor's LSP session is ready"); the
-       parse path needed the same care and did not have it. Same budget as
-       seeding, so a session that never arrives gives up rather than spinning.
-
-       Found by CI, not locally: the session is up before the debounce on a
-       fast machine, so the story asserting the type message passed here every
-       time and failed on the runner. */
+    // Text mode: parse the DPQL into the AST, debounced, once the session can read it.
     const handleDpqlChange = useCallback(
       (next: string) => {
+        /* The editor reports the text it was given back as a change (Slate's first operation after the
+           value is set). That is not typing: counted as such it stopped the session from writing the
+           expression into the view once it was ready. */
+        if (next === textRef.current) return;
         userTypedRef.current = true;
         setText(next);
         if (parseTimer.current) clearTimeout(parseTimer.current);
-        let tries = 0;
-        const runParse = async (): Promise<void> => {
-          const parse = dpqlRef.current?.parse;
-          if (!parse) {
-            if (++tries < SEED_MAX_TRIES) {
-              parseTimer.current = setTimeout(runParse, SEED_RETRY_MS);
-            }
-            return;
-          }
-          const result = await parse(next, targetType);
-          readTypeCheck(result);
-          if (result?.success && result.expression) {
-            setAstText(next);
-            // `dpql/parse` returns the field-ready `{ is_expression, value }`.
-            onChange(result.expression as IExpression);
-          }
-        };
-        parseTimer.current = setTimeout(runParse, PARSE_DEBOUNCE_MS);
+        pendingParse.current = next;
+        parseTimer.current = setTimeout(() => void flushPendingParse(), PARSE_DEBOUNCE_MS);
       },
-      [onChange, targetType, readTypeCheck]
+      [flushPendingParse]
     );
 
-    /** Whether this visit to Text mode has already put the AST in the editor. */
-    const seededRef = useRef(false);
+    /** Whether this visit to Text mode has already put the AST in the editor. The host's own text for the
+     *  first visit (`initialText`, such as the value written as `concat("SUP-", $record:{pos})`) is that visit's
+     *  text: the session does not write over it once it is ready. */
+    const seededRef = useRef(!!initialText);
 
     /* Seed the Text editor from the AST whenever Text mode becomes active
      * (including a `defaultMode='text'` mount). This must run as an effect: the
@@ -329,27 +429,71 @@ export const ExpressionField = memo(
       }
       if (seededRef.current || userTypedRef.current) return undefined;
       if (!ast?.exp) return undefined;
-      const seedAst = ast;
+      /* Only what DPQL can write is serialized. An operand whose operation is not
+         chosen yet, or that is not filled in, has no text; handed to serialize as
+         it was, it came back as the server's (or a stand-in's) rendering of a hash:
+         `{args=(null)} > {type=int}`. The Text view shows the expression with a hole
+         for each part not filled in instead - `… > …`, as the row's summary does -
+         and serialize gets custom Text values as the strings or templates they are. */
+      const seedAst = serializableExpression(ast);
+      if (!seedAst) {
+        const holes = incompleteExpressionText(ast, expressions);
+        seededRef.current = true;
+        setText(holes);
+        setAstText(holes);
+        return undefined;
+      }
+      // written by the session once it is ready, as the session says it - not asked of it before
+      if (!sessionReady) return undefined;
       let cancelled = false;
-      let timer: ReturnType<typeof setTimeout> | null = null;
-      let tries = 0;
       const seed = async (): Promise<void> => {
-        const t = await dpqlRef.current?.serialize?.(seedAst);
+        let t: string | undefined;
+        try {
+          t = await dpqlRef.current?.serialize?.(seedAst);
+        } catch (error) {
+          if (cancelled || userTypedRef.current) return;
+          setTextRefused(String((error as { message?: unknown })?.message ?? error));
+          setMode('visual');
+          // a host drawing the views as tabs follows: the Visual tab
+          onTextUnavailableRef.current?.();
+          return;
+        }
         if (cancelled || userTypedRef.current) return;
+        setTextRefused(null);
         if (t) {
           seededRef.current = true;
           setText(t);
           setAstText(t);
-        } else if (++tries < SEED_MAX_TRIES) {
-          timer = setTimeout(seed, SEED_RETRY_MS);
+          /* The text shown is checked against the field's type, as typed text is. It was checked only when the
+             editor reported it back as a change, which it does only while it has the focus: with the focus in
+             the picker (opened at once, qorus#646) an expression that does not fit said nothing. */
+          if (targetType) {
+            const result = await dpqlRef.current?.parse?.(t, targetType);
+            if (!cancelled && !userTypedRef.current) readTypeCheck(result);
+          }
         }
       };
       void seed();
       return () => {
         cancelled = true;
-        if (timer) clearTimeout(timer);
       };
-    }, [mode, ast]);
+    }, [mode, ast, expressions, targetType, readTypeCheck, sessionReady]);
+
+    /** The field's templates, its catalogue's entries, for the Text view's picker. */
+    const templateItems = useMemo(
+      () => (localTemplates?.items ?? []) as NonNullable<IReqoreFormTemplates['items']>,
+      [localTemplates]
+    );
+    /* A template chosen from the picker goes in after the text, as a chip, and is parsed as typed text is:
+       the editor keeps no caret the field can reach, so the end of the text is where it is put. */
+    const insertTemplate = useCallback(
+      (item: { value?: unknown }) => {
+        if (typeof item?.value !== 'string' || !item.value) return;
+        const current = text.trimEnd();
+        handleDpqlChange(current ? `${current} ${item.value}` : item.value);
+      },
+      [text, handleDpqlChange]
+    );
 
     // Switch to Text: the seeding effect above serializes the AST once
     // the editor's session is up.
@@ -360,7 +504,14 @@ export const ExpressionField = memo(
     // Switch to Visual: flush any pending parse so the AST is current.
     const enterVisualMode = useCallback(async () => {
       if (parseTimer.current) clearTimeout(parseTimer.current);
-      if (mode === 'text' && text) {
+      pendingParse.current = null;
+      /* Only an edit is read back. The text is the value written by the session (or the host's own text for
+         it), and reading it back unedited made a view switch change the value: a writer that cannot say all
+         of it - Qore's DPQL serializer wrote `a + b` for a `+` of three arguments - dropped the third from the
+         stored expression the moment it was looked at in Visual (qorus#646). */
+      const edited = text !== astText && userTypedRef.current;
+      // read by the session once it is ready; one that cannot be reached leaves the text unread, as asked
+      if (mode === 'text' && text && edited && (await whenSessionReady())) {
         const result = await dpqlRef.current?.parse?.(text, targetType);
         readTypeCheck(result);
         if (result?.success && result.expression) {
@@ -368,7 +519,22 @@ export const ExpressionField = memo(
         }
       }
       setMode('visual');
-    }, [mode, text, onChange, targetType, readTypeCheck]);
+    }, [mode, text, astText, onChange, targetType, readTypeCheck, whenSessionReady]);
+
+    // the host's tabs: followed as the toggle is (see `requestedMode`)
+    useEffect(() => {
+      if (!requestedMode || requestedMode === mode) return;
+      if (requestedMode === 'visual') void enterVisualMode();
+      else if (!textUnavailable) enterTextMode();
+    }, [requestedMode]);
+
+    useEffect(() => {
+      if (!flushRef) return undefined;
+      flushRef.current = flushPendingParse;
+      return () => {
+        if (flushRef.current === flushPendingParse) flushRef.current = null;
+      };
+    }, [flushRef, flushPendingParse]);
 
     useEffect(
       () => () => {
@@ -394,39 +560,82 @@ export const ExpressionField = memo(
         className='expression-field'
         data-preview={mode === 'text' ? previewState : undefined}
       >
-        <ReqoreControlGroup gapSize='small' fluid>
-          <ReqoreButton
-            icon='NodeTree'
-            active={mode === 'visual'}
-            onClick={enterVisualMode}
-            disabled={readOnly}
-            size={size as any}
-          >
-            Visual
-          </ReqoreButton>
-          <ReqoreButton
-            icon='CodeLine'
-            active={mode === 'text'}
-            onClick={enterTextMode}
-            disabled={readOnly}
-            size={size as any}
-          >
-            Text
-          </ReqoreButton>
-        </ReqoreControlGroup>
+        {hideModeToggle ? null : (
+          <ReqoreControlGroup gapSize='small' fluid>
+            {/* Text first, and the view an expression opens in: as the value's tabs read (Value · Expression ·
+                Visual), the written form before the built one (qorus#646, David) */}
+            <ReqoreButton
+              icon='CodeLine'
+              active={mode === 'text'}
+              onClick={enterTextMode}
+              disabled={readOnly || textUnavailable}
+              tooltip={
+                textUnavailable ? 'The expression language server is not available' : undefined
+              }
+              size={size as any}
+            >
+              Text
+            </ReqoreButton>
+            <ReqoreButton
+              icon='NodeTree'
+              active={mode === 'visual'}
+              onClick={enterVisualMode}
+              disabled={readOnly}
+              size={size as any}
+            >
+              Visual
+            </ReqoreButton>
+          </ReqoreControlGroup>
+        )}
 
-        {mode === 'text' ? (
+        {mode === 'text' ?
           <>
-            <DpqlEditor
-              ref={dpqlRef}
-              value={text}
-              onChange={handleDpqlChange}
-              provider={provider}
-              recordType={recordType}
-              fields={fields}
-              readOnly={readOnly}
-              height='48px'
-            />
+            {textUnavailable ?
+              <ReqoreMessage
+                intent='warning'
+                size='small'
+                flat
+                opaque={false}
+                className='expression-text-unavailable'
+              >
+                The expression language server is not available, so this text cannot be read yet. It
+                is kept as you typed it; the Visual view builds the expression without the server.
+              </ReqoreMessage>
+            : null}
+            <ReqoreControlGroup gapSize='small' fluid verticalAlign='flex-start'>
+              <DpqlEditor
+                ref={dpqlRef}
+                value={text}
+                onChange={handleDpqlChange}
+                provider={provider}
+                recordType={recordType}
+                fields={fields}
+                // the field's own templates name the chips as its catalogue names them
+                templates={localTemplates}
+                readOnly={readOnly}
+                // no floor of its own: one line as tall as the text it shows, growing with its lines - a
+                // 48px floor left an empty strip under the text, which the picker beside it could not match
+                onUnavailable={handleTextUnavailable}
+                onReady={handleTextReady}
+              />
+              {/* The field's templates and fields, as its catalogue names them, inserted as chips - next to
+                  the server's `$` completion, which offers every context but not these names. */}
+              {templateItems.length && !readOnly ?
+                <TemplateBrowser
+                  className='expression-text-template-picker'
+                  icon='MoneyDollarCircleLine'
+                  aria-label='Insert a template'
+                  tooltip='Insert a template'
+                  // the size of the text it inserts into - the DPQL editor is drawn at the normal size in
+                  // any form - so the two are as tall as each other
+                  size='normal'
+                  fixed
+                  templates={localTemplates}
+                  focusFilter
+                  onItemSelect={insertTemplate}
+                />
+              : null}
+            </ReqoreControlGroup>
             {/* What the server said about the result's type, when the field
                 declares one to check against.
 
@@ -449,12 +658,12 @@ export const ExpressionField = memo(
                 {typeCheck.mayFail ?
                   ' That conversion is attempted rather than guaranteed, so the value itself is checked when it runs.'
                 : ''}
-                {typeCheck.fix ? (
+                {typeCheck.fix ?
                   <>
                     <ReqoreVerticalSpacer height={6} />
                     <DpqlRendering text={typeCheck.fix} data-testid='expression-type-fix' />
                   </>
-                ) : null}
+                : null}
               </ReqoreMessage>
             )}
 
@@ -471,30 +680,54 @@ export const ExpressionField = memo(
 
                 An empty query has nothing to render either, so the box appears
                 once there is a result rather than holding a placeholder. */}
-            {previewState === 'shown' ? (
+            {previewState === 'shown' ?
               <ReqoreMessage intent='info' size='small' title='Preview' flat opaque={false}>
                 <DpqlRendering text={preview} data-testid='expression-preview' />
               </ReqoreMessage>
-            ) : null}
+            : null}
           </>
-        ) : (
-          <ExpressionBuilder
-            value={value}
-            onChange={(v, remove) => onChange(v, remove)}
-            expressions={expressions}
-            // Default to `auto` when the field declares no return type, so a
-            // valid expression renders `muted` rather than `danger` (the
-            // builder's intent requires a truthy returnType).
-            returnType={(returnType ?? type ?? 'auto') as any}
-            readOnly={readOnly}
-            localTemplates={localTemplates ?? { items: [] }}
-            serverHandled={serverHandled}
-            componentOverrides={componentOverrides}
-            extraActions={extraActions}
-            size={size}
-            reorder={reorder}
-          />
-        )}
+        : <>
+            {textRefused ?
+              <ReqoreMessage
+                intent='warning'
+                size='small'
+                flat
+                opaque={false}
+                className='expression-text-refused'
+              >
+                This expression cannot be shown as text, so it is built here: {textRefused}
+              </ReqoreMessage>
+            : null}
+            {textUnavailable ?
+              <ReqoreMessage
+                intent='muted'
+                size='small'
+                flat
+                opaque={false}
+                className='expression-text-unavailable'
+              >
+                The Text view needs the expression language server, which is not available: the
+                expression is built here instead.
+              </ReqoreMessage>
+            : null}
+            <ExpressionBuilder
+              value={value}
+              onChange={(v, remove) => onChange(v, remove)}
+              expressions={expressions}
+              // Default to `auto` when the field declares no return type, so a
+              // valid expression renders `muted` rather than `danger` (the
+              // builder's intent requires a truthy returnType).
+              returnType={(returnType ?? type ?? 'auto') as any}
+              readOnly={readOnly}
+              localTemplates={localTemplates ?? { items: [] }}
+              serverHandled={serverHandled}
+              componentOverrides={componentOverrides}
+              extraActions={extraActions}
+              size={size}
+              reorder={reorder}
+            />
+          </>
+        }
       </ReqoreControlGroup>
     );
   }

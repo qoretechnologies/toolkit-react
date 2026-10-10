@@ -1,6 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // Type definitions for the generic SmartEditor primitive.
 
+import { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { BaseEditor } from 'slate';
 import { HistoryEditor } from 'slate-history';
@@ -168,6 +169,11 @@ export interface ISmartEditorProps {
 
   /** Called when the editor loses focus. */
   onBlur?: () => void;
+  /**
+   * What the editor lists when it is clicked, tapped or tabbed into, and inserts as chips - the field's
+   * templates (see `useTemplateTags`). The language server's completion stays as it is, opened by typing.
+   */
+  tags?: IReqoreRichTextEditorProps['tags'];
 
   /**
    * Custom loading indicator rendered as an overlay on top of the

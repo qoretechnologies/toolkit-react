@@ -82,7 +82,7 @@ import {
 } from '../fields/template/TemplateField';
 import { CompactRow } from './CompactRow';
 import { FormFieldsSkeleton } from './FormFieldsSkeleton';
-import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer } from './compactRowContext';
+import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer, TReadSummary } from './compactRowContext';
 import {
   GROUP_INDENT,
   LABEL_AFFORDANCE_WIDTH,
@@ -1074,6 +1074,12 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   codePreviewRenderer?: TCodePreviewRenderer;
   /**
+   * A collapsed row's summary drawn by the host, by `ui_type`: for an editor that reports a status of its own,
+   * shown where the generic summary would be ("2 items"). Display only; the value and the form's validity are
+   * untouched.
+   */
+  readSummaries?: Record<string, TReadSummary>;
+  /**
    * Draws every markdown description this form shows -- the inline row
    * description, the focused-editing header, and the field help dialog.
    *
@@ -1261,6 +1267,7 @@ const FormEngineImpl = ({
   optionActionsCollapse = 'auto',
   componentOverrides,
   codePreviewRenderer,
+  readSummaries,
   // consumed by the wrapper below, which publishes it to every description this
   // form draws; destructured here only so it cannot reach `rest` and be spread
   // onto a DOM node
@@ -1273,6 +1280,10 @@ const FormEngineImpl = ({
   expandFirstRequired,
   initialExpandedOptions,
   maxFieldsShown,
+  // The form's own props, read here and never handed on to the collection drawn below (`{...rest}`).
+  options: optionsSchema,
+  stringTemplates,
+  skeletonReason,
   ...rest
 }: IFormEngineProps) => {
   // Built-ins + whatever the consumer declared for its own injected editors.
@@ -1304,11 +1315,24 @@ const FormEngineImpl = ({
      the read-first summary cannot disagree about it: every one of them reads
      `options`, and none of them has to know the rule. */
   const [servedOptions, setOptions] = useState<IQorusFormSchema | undefined>(
-    rest?.options || undefined
+    optionsSchema || undefined
   );
   const options = useMemo(() => resolveDegenerateRequiredGroups(servedOptions), [servedOptions]);
+  /* Whether the schema the form holds is the one in force: its host is not waiting behind the skeleton, and a
+     schema the host hands down has been taken in (`servedOptions` follows the `options` prop a render later).
+     Until then the value is neither pruned against the schema nor emitted. A host loading the schema hands an
+     empty or an earlier one meanwhile; read against that, every stored field was "not on this instance" and
+     was removed, so a Qog state opened before its options had loaded showed them empty and, once emitted,
+     lost them (qorus#646). */
+  const hostSchemaPending =
+    !optionsLoader &&
+    !url &&
+    !customUrl &&
+    optionsSchema !== servedOptions &&
+    JSON.stringify(optionsSchema || undefined) !== JSON.stringify(servedOptions);
+  const schemaInForce = !rest.skeleton && !hostSchemaPending;
   // optionsLoader lifecycle: loading feeds the skeleton gate, error the banner.
-  const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !rest?.options);
+  const [optionsLoading, setOptionsLoading] = useState<boolean>(!!optionsLoader && !optionsSchema);
   const [optionsError, setOptionsError] = useState<string | undefined>();
   // Operators: prop-provided (compact) or fetched via operatorsUrl (dpql,
   // ported from IDE Options) — the fetch overrides the seeded prop value.
@@ -1378,6 +1402,8 @@ const FormEngineImpl = ({
   // stays put when its status flips (e.g. becomes valid) instead of jumping to
   // another box mid-edit and stealing focus. Keyed by option name.
   const settledBucket = useRef<Record<string, 'attention' | 'set' | 'optional'>>({});
+  // the one field that says where it moves when it is closed: see `heldOptions`
+  const movesToNoteFor = useRef<string | null | undefined>(undefined);
   // Measured form width (not viewport — the form lives in drawers/panels of
   // arbitrary width) drives the stacked narrow layout.
   const [compactWrapRef, { width: compactWrapWidth }] = useMeasure<HTMLDivElement>();
@@ -1425,9 +1451,7 @@ const FormEngineImpl = ({
       setCompactToolbarHeight(0);
       return undefined;
     }
-    const header = wrap.querySelector<HTMLElement>(
-      ':scope > .reqore-panel > .reqore-panel-title'
-    );
+    const header = wrap.querySelector<HTMLElement>(':scope > .reqore-panel > .reqore-panel-title');
     if (!header) {
       setCompactToolbarHeight(0);
       return undefined;
@@ -1627,9 +1651,21 @@ const FormEngineImpl = ({
 
   const unavailableOptionsCount = useRef(0);
   const { compactValue, loading: typesLoading } = useQorusTypes();
-  const templates = useTemplates(allowTemplates, rest.stringTemplates, interfaceContext);
+  const templates = useTemplates(allowTemplates, stringTemplates, interfaceContext);
 
   useEffect(() => {
+    /* Nothing is emitted until the schema is in force (`schemaInForce`): read against the empty or earlier
+       schema a host hands down while it loads its own, the value is no answer, and emitted it wiped a Qog
+       state's stored options the moment the state was opened (qorus#646).
+
+       When it comes into force this check runs (it is a dependency). A host also shows the skeleton for other
+       waits: qorus-ide shows it while the templates load, with the schema already there. The form completes the
+       value meanwhile (a required field's default, e.g. the server's `created_by_user`), and nothing read it
+       again when the skeleton cleared: the default was shown and never emitted, so never saved. A value that
+       adds nothing still emits nothing. */
+    if (!schemaInForce) {
+      return;
+    }
     if (
       !shouldEmitLocalValue({
         localValue: localValue.fields,
@@ -1647,7 +1683,7 @@ const FormEngineImpl = ({
     // Batched mode still emits every staged change (consumers may want to
     // live-validate), but flags it as a draft — persistence waits for Save.
     onChange?.(name, toEmit, commitMode === 'batched' ? { ...(meta || {}), draft: true } : meta);
-  }, [JSON.stringify(localValue)]);
+  }, [JSON.stringify(localValue), schemaInForce]);
 
   useUpdateEffect(() => {
     // When a loader owns the schema, ignore controlled `options` syncs so a
@@ -1655,8 +1691,8 @@ const FormEngineImpl = ({
     if (optionsLoader) {
       return;
     }
-    setOptions(rest.options);
-  }, [JSON.stringify(rest.options)]);
+    setOptions(optionsSchema);
+  }, [JSON.stringify(optionsSchema)]);
 
   // Fetch the schema on mount and on loader identity change.
   useEffect(() => {
@@ -2143,11 +2179,13 @@ const FormEngineImpl = ({
       .reduce((newValue: TQorusForm, optionName) => {
         const option = fixedValue[optionName];
         if (!options?.[optionName]) {
-          unavailableOptionsCount.current += 1;
-          removeSelectedOption(optionName);
+          // not on this instance - unless the schema is not yet the one in force (see `schemaInForce`)
+          if (schemaInForce) {
+            unavailableOptionsCount.current += 1;
+            removeSelectedOption(optionName);
+          }
           return newValue;
         }
-
 
         const rendererType = getType(
           (options[optionName].ui_type || options[optionName].type) as TQorusType,
@@ -2186,6 +2224,7 @@ const FormEngineImpl = ({
     unavailableOptionsCount.current,
     JSON.stringify(operators),
     showInvalidOptionsOnly,
+    schemaInForce,
   ]);
 
   // Per required-group: its member options, and which member (if any) already
@@ -2392,29 +2431,39 @@ const FormEngineImpl = ({
         const isEmpty = optionValue === undefined || optionValue === '';
 
         let validation: IValidationResult;
+        /* A field whose host gives its own reason (`invalid_reason`) is invalid while it does, whatever the
+           field makes of its value: the host knows something the field cannot - that a field it names
+           is not in the record, that text around a field is not a whole number - and says it in the field,
+           in place of the field's own message (`getOptionFieldMessages`). */
+        const hostReason = (options?.[optionName] as { invalid_reason?: string } | undefined)
+          ?.invalid_reason;
 
-        /* A required field locked by an unmet `depends_on` does not apply
+        if (hostReason) {
+          validation = { isValid: false, reason: hostReason, reasons: [hostReason] };
+        } else {
+          /* A required field locked by an unmet `depends_on` does not apply
            while it is locked: it is not in "Needs attention", and an empty one
            does not make the form incomplete either. Otherwise a check whose
            kind is Equals could never be saved, because Minimum — required for
            Between alone — is empty; and a form whose only gaps are fields
            nobody can fill in would say Incomplete with nothing to act on. A
            locked field that still HOLDS a value is validated as before. */
-        if (
-          isEmpty &&
-          ((!isRequired && !hasRequiredGroups) || dependencyLockedNames.includes(optionName))
-        ) {
-          validation = { isValid: true, reasons: [] };
-        } else {
-          validation = validateFieldWithResult(getType(type), optionValue, {
-            has_to_have_value: true,
-            optionSchema: options,
-            options: availableOptions,
-            ...options?.[optionName],
-            // The expression flag lives on the field value, not the schema.
-            isFunction: (option as { is_expression?: boolean }).is_expression,
-            hasOwnEditor: isRendererOnly(options?.[optionName]?.ui_type as TQorusType),
-          } as any);
+          if (
+            isEmpty &&
+            ((!isRequired && !hasRequiredGroups) || dependencyLockedNames.includes(optionName))
+          ) {
+            validation = { isValid: true, reasons: [] };
+          } else {
+            validation = validateFieldWithResult(getType(type), optionValue, {
+              has_to_have_value: true,
+              optionSchema: options,
+              options: availableOptions,
+              ...options?.[optionName],
+              // The expression flag lives on the field value, not the schema.
+              isFunction: (option as { is_expression?: boolean }).is_expression,
+              hasOwnEditor: isRendererOnly(options?.[optionName]?.ui_type as TQorusType),
+            } as any);
+          }
         }
 
         result.push({
@@ -3103,6 +3152,9 @@ const FormEngineImpl = ({
             // reqraft: form-level expression fields get the Visual/Text shell
             // (DPQL text mode); opt out per-form via `templateFieldProps`.
             allowTextExpressions
+            // a form's options enter their value on tabs: Value · Expression · Visual, or Value · Template
+            // where only templates are taken (qorus#646); opt out per-form via `templateFieldProps`
+            valueTabs
             // A fixed allowed-value field still needs its selector even when
             // arbitrary custom values are forbidden. TemplateField uses this
             // flag to decide whether to mount AutoFormField at all; treating
@@ -3232,7 +3284,7 @@ const FormEngineImpl = ({
       fixedValue,
       // Depend on the specific `rest` values used, not the whole `rest` object
       // (which is a fresh `{...rest}` every render and would defeat the memo).
-      rest?.options,
+      optionsSchema,
       rest?.size,
       handleValueChange,
       handleOperatorChange,
@@ -3270,9 +3322,35 @@ const FormEngineImpl = ({
   // The closure surface the extracted CompactRow reads through context. Refs and
   // setters are stable; the state/memo/handler fields change identity as they do
   // today, so a row re-renders exactly when its inputs do.
+  /* An open field is held in the box it was opened in, so finishing an edit does not remount it elsewhere
+     and take the focus (see `stableBucketOf`). Held, it says where it now belongs - otherwise a value
+     already right sat under "Needs attention" until ✓ was pressed, with nothing saying why (David's review
+     of qorus#646). Keyed by option name: the box it moves to when closed.
+
+     It is said once per form, on the first field held this way, and on no field once that one is closed:
+     the user knows it from then on, and saying it on every field takes room (qlip build 20261008-083118;
+     David's decision). `movesToNoteFor` is that field - undefined until one is held, null once it is
+     closed. */
+  const heldEntries = expandedOptions
+    .map((name) => [name, settledBucket.current[name], getOptionBucket(name)] as const)
+    .filter(([, held, now]) => !!held && held !== now)
+    .map(([name, , now]) => [name, now] as const);
+  if (movesToNoteFor.current === undefined && heldEntries.length) {
+    movesToNoteFor.current = heldEntries[0][0];
+  } else if (movesToNoteFor.current && !expandedOptions.includes(movesToNoteFor.current)) {
+    movesToNoteFor.current = null;
+  }
+  const heldOptionsKey = JSON.stringify(
+    Object.fromEntries(heldEntries.filter(([name]) => name === movesToNoteFor.current))
+  );
+  const heldOptions = useMemo<Record<string, 'attention' | 'set' | 'optional'>>(
+    () => JSON.parse(heldOptionsKey),
+    [heldOptionsKey]
+  );
   const compactRowContextValue = useMemo<ICompactRowContext>(
     () => ({
       templates: templates.value,
+      heldOptions,
       readOnly,
       onReadOnlyActivate,
       commitMode,
@@ -3282,6 +3360,7 @@ const FormEngineImpl = ({
       focusedEditing,
       showFieldTypes,
       codePreviewRenderer,
+      readSummaries,
       showAllDescriptions,
       expandedOptions,
       highlightedOptions,
@@ -3322,6 +3401,7 @@ const FormEngineImpl = ({
     }),
     [
       templates.value,
+      heldOptions,
       readOnly,
       commitMode,
       expandMode,
@@ -3330,6 +3410,7 @@ const FormEngineImpl = ({
       focusedEditing,
       showFieldTypes,
       codePreviewRenderer,
+      readSummaries,
       showAllDescriptions,
       expandedOptions,
       highlightedOptions,
@@ -4245,7 +4326,10 @@ const FormEngineImpl = ({
      tested. Rendered as `data-wait` on the placeholder so a page can be asked
      what it is waiting FOR instead of only that it is waiting. */
   const waitReason =
-    rest.skeleton ? (rest.skeletonReason ? `host:${rest.skeletonReason}` : 'host')
+    rest.skeleton ?
+      skeletonReason ?
+        `host:${skeletonReason}`
+      : 'host'
     : templates.loading ? 'templates'
     : typesLoading ? 'types'
     : optionsLoading ? 'options'

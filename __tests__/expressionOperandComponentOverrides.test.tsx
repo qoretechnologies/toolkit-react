@@ -20,7 +20,7 @@
  * Unknown type!" passed against a component that had rendered nothing at all.
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 const builderProps: any[] = [];
@@ -58,7 +58,7 @@ describe('componentOverrides reach an expression operand', () => {
   it('reach the builder from a field in expression mode', async () => {
     builderProps.length = 0;
 
-    render(
+    const { container } = render(
       wrap(
         <TemplateField
           name='value'
@@ -73,6 +73,17 @@ describe('componentOverrides reach an expression operand', () => {
       )
     );
 
+    // the builder is the Visual view's; an expression opens in Text (qorus#646, David)
+    const visual = await waitFor(() => {
+      const button = [...container.querySelectorAll<HTMLElement>('.expression-field button')].find(
+        // a button's label is drawn more than once (its marquee), so it is read as what it starts with
+        (candidate) => candidate.textContent?.trim().startsWith('Visual')
+      );
+      expect(button).toBeTruthy();
+      return button as HTMLElement;
+    });
+    expect(builderProps.length).toBe(0);
+    fireEvent.click(visual);
     await waitFor(() => expect(builderProps.length).toBeGreaterThan(0));
     expect(builderProps[0].componentOverrides).toBe(OVERRIDES);
   });
@@ -86,6 +97,8 @@ describe('componentOverrides reach an expression operand', () => {
           value={{ is_expression: true, value: { exp: '+', args: [1, 2] } } as never}
           onChange={vi.fn()}
           type='auto'
+          // the builder is the Visual view's; an expression opens in Text
+          defaultMode='visual'
           expressions={[]}
           componentOverrides={OVERRIDES as never}
         />

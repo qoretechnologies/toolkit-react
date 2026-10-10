@@ -94,6 +94,41 @@ const COMPLETE_TEMPLATE_TOKEN = new RegExp(`^${TEMPLATE_TOKEN_SOURCE}$`);
 export const isCompleteTemplateToken = (value?: unknown): value is string =>
   typeof value === 'string' && COMPLETE_TEMPLATE_TOKEN.test(value);
 
+const TEMPLATE_TOKEN_ANYWHERE = new RegExp(TEMPLATE_TOKEN_SOURCE);
+
+/**
+ * Text with a template in it that is not the template alone: `$record:{pos} Stk.`, `SUP-$record:{pos}`,
+ * two templates side by side. In text it is text; a whole number, a number, a yes/no or a date cannot
+ * hold it (qorus#646).
+ */
+export const hasTextAroundATemplate = (value?: unknown): value is string =>
+  typeof value === 'string' && TEMPLATE_TOKEN_ANYWHERE.test(value) && !isCompleteTemplateToken(value);
+
+/** The text around the templates in a value that is not one template alone, and how many templates it holds. */
+export interface ITextAroundATemplate {
+  /** The pieces of text before, between and after the templates, trimmed; empty pieces left out. */
+  text: string[];
+  templates: number;
+}
+
+/**
+ * What makes a value text rather than one template alone: `$record:{pos} Stk.` holds the text "Stk." and
+ * one template; `$record:{a}$record:{b}` no text and two. `undefined` where the value is not text with a
+ * template in it, or is one template alone (see {@link hasTextAroundATemplate}).
+ */
+export const textAroundATemplate = (value?: unknown): ITextAroundATemplate | undefined => {
+  if (!hasTextAroundATemplate(value)) {
+    return undefined;
+  }
+  const tokens = new RegExp(TEMPLATE_TOKEN_SOURCE, 'g');
+  const templates = value.match(tokens)?.length ?? 0;
+  const text = value
+    .split(tokens)
+    .map((piece) => piece.trim())
+    .filter((piece) => piece !== '');
+  return { text, templates };
+};
+
 /** A complete token carrying at least one BRACED context segment —
  *  `$data:{W2n….filename}`, `$qore-expr:{1 + 2}`. These are machine-written
  *  references nobody types by hand, so a surface may render them as a picker

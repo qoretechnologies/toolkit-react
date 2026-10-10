@@ -12,14 +12,7 @@
 // There is intentionally no client-side "Templates" button — it would
 // duplicate what the server already returns on `$`.
 
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { SmartEditor } from '../smartEditor/SmartEditor';
 import { ISlateConverter, ISlateElement } from '../smartEditor/types';
 import { dpqlSlateConverter, richtextResponseToSlate } from './dpqlHelpers';
@@ -27,6 +20,7 @@ import { dpqlCompletionInserter } from './dpqlInserter';
 import { makeDpqlTagRenderer } from './dpqlTags';
 import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
+import { useTemplateTags } from '../form/fields/rich-text/useTemplateTags';
 
 export type { IDpqlEditorProps, IDpqlEditorRef };
 
@@ -58,6 +52,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       fields,
       alertPayloadContext = false,
       fsmContext,
+      onUnavailable,
+      onReady,
     },
     ref
   ) => {
@@ -79,12 +75,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
     // reuse it without another roundtrip. `null` until the first
     // response arrives (or when the request errored — caller falls
     // back to the client-side regex parser via `dpqlSlateConverter`).
-    const [serverParsedNodes, setServerParsedNodes] = useState<
-      ISlateElement[] | null
-    >(null);
-    const [serverParsedFor, setServerParsedFor] = useState<string | null>(
-      null
-    );
+    const [serverParsedNodes, setServerParsedNodes] = useState<ISlateElement[] | null>(null);
+    const [serverParsedFor, setServerParsedFor] = useState<string | null>(null);
     const [isParsing, setIsParsing] = useState(false);
     // Tracks the most recent in-flight request so a slow response
     // can't overwrite a newer one (the user typed faster than the
@@ -163,16 +155,26 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       return {
         ...dpqlSlateConverter,
         toSlateNodes: (text: string) => {
-          if (
-            text === serverParsedFor &&
-            serverParsedNodes
-          ) {
+          if (text === serverParsedFor && serverParsedNodes) {
             return serverParsedNodes;
           }
           return dpqlSlateConverter.toSlateNodes(text);
         },
       };
     }, [useServerParse, serverParsedFor, serverParsedNodes]);
+
+    // no language server to talk to: said once, for the host to show what works without one
+    const unavailable = dpql.session.isUnavailable;
+    useEffect(() => {
+      if (unavailable) onUnavailable?.();
+    }, [unavailable]);
+    // the language server can now parse and write the text: said once, as the session says it
+    const ready = dpql.session.isReady && dpql.session.isContextReady;
+    useEffect(() => {
+      if (ready) onReady?.();
+    }, [ready]);
+
+    const templateTags = useTemplateTags(templates, !readOnly);
 
     const tagRenderer = useMemo(
       () => makeDpqlTagRenderer(dpql.fieldMeta, { templateTagsUseIntent, templates }),
@@ -209,6 +211,9 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         showDiagnostics={showDiagnostics}
         enableHover={enableHover}
         onBlur={onBlur}
+        // the templates it labels chips with are the ones it lists when clicked or tabbed into, as a
+        // rich-text field lists them (qorus#646)
+        tags={templateTags}
         isLoading={isParsing}
         loadingIndicator={loadingIndicator}
       />

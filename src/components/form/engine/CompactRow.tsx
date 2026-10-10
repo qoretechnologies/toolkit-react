@@ -166,6 +166,9 @@ export const richtextItemText = (item: unknown): string | undefined =>
     richtextToString((item as { value?: Parameters<typeof richtextToString>[0] }).value)
   : undefined;
 
+/** The status boxes by name, as their headers say them. */
+const BOX_NAMES = { attention: 'Needs attention', set: 'Set', optional: 'Optional' } as const;
+
 export const CompactRow = memo(
   ({
     optionName,
@@ -202,6 +205,7 @@ export const CompactRow = memo(
       (options?.[absorbedName] as { display_name?: string } | undefined)?.display_name ||
       absorbedName;
     const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
+    const readSummaries = useContextSelector(CompactRowContext, (v) => v.readSummaries);
     const markdownRenderer = useMarkdownRenderer();
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
     const focusedEditing = useContextSelector(CompactRowContext, (v) => v.focusedEditing);
@@ -210,6 +214,8 @@ export const CompactRow = memo(
     const isExpanded = useContextSelector(CompactRowContext, (v) =>
       v.expandedOptions.includes(optionName)
     );
+    // the box this open field moves to when it is closed, when that is not the one it is shown in
+    const movesTo = useContextSelector(CompactRowContext, (v) => v.heldOptions?.[optionName]);
     const isHighlighted = useContextSelector(CompactRowContext, (v) =>
       v.highlightedOptions.includes(optionName)
     );
@@ -222,10 +228,7 @@ export const CompactRow = memo(
     );
     const setFocusedEditing = useContextSelector(CompactRowContext, (v) => v.setFocusedEditing);
     const readRowHeights = useContextSelector(CompactRowContext, (v) => v.readRowHeights);
-    const onReadOnlyActivate = useContextSelector(
-      CompactRowContext,
-      (v) => v.onReadOnlyActivate
-    );
+    const onReadOnlyActivate = useContextSelector(CompactRowContext, (v) => v.onReadOnlyActivate);
 
     /**
      * The floor recorded when a row is opened lasts until the author changes
@@ -401,7 +404,11 @@ export const CompactRow = memo(
         );
       }
 
-      if (valueType === 'bool' || valueType === 'boolean') {
+      // a yes/no holding a template reads as the template, below, not as Yes (qorus#646)
+      if (
+        (valueType === 'bool' || valueType === 'boolean') &&
+        !(typeof field?.value === 'string' && isValueTemplate(field.value))
+      ) {
         const truthy = field?.value === true || field?.value === 'true';
         return (
           <ReqoreTag
@@ -1245,6 +1252,7 @@ export const CompactRow = memo(
     const panelMessages = schemaMessages;
     const inlineMessages: TInfoMsg[] = [
       ...fieldMessages,
+
       ...(infoActive && schema?.default_value_desc ?
         [
           {
@@ -1587,6 +1595,18 @@ export const CompactRow = memo(
                   {renderOption(optionName, optionField, 'small', true)}
                 </RowMenuContext.Provider>
               </RowOpenPickerContext.Provider>
+              {/* Why a value already right is still in this box: an open field stays where it was opened
+                  (moving it would take the focus), and says where it goes when it is closed. */}
+              {movesTo ?
+                <ReqoreP
+                  size='small'
+                  className='options-readfirst-moves-to'
+                  intent={movesTo === 'attention' ? 'warning' : 'success'}
+                  style={{ marginTop: 4 }}
+                >
+                  {`Moves to "${BOX_NAMES[movesTo]}" when you close it (✓)`}
+                </ReqoreP>
+              : null}
             </div>
             <StyledRowActions>
               {draftChip}
@@ -1674,9 +1694,12 @@ export const CompactRow = memo(
           $border={schemaIntentColor ? `${schemaIntentColor}66` : `${cInfo}66`}
         >
           <div
+            className='options-readfirst-card-header'
             style={{
               display: 'flex',
-              alignItems: 'flex-start',
+              // a heading of one line is centred on the card's actions; one with a description or tags under
+              // its name lines up by its top (David's review of qorus#646: the name sat above the buttons)
+              alignItems: schema?.short_desc || cardTags.length ? 'flex-start' : 'center',
               justifyContent: 'space-between',
               gap: 12,
             }}
@@ -1835,6 +1858,8 @@ export const CompactRow = memo(
 
     const formatted = formatOptionValue(optionField, schema);
     const empty = formatted === '';
+    const readSummaryUiType = (schema as { ui_type?: string } | undefined)?.ui_type;
+    const ReadSummary = readSummaryUiType ? readSummaries?.[readSummaryUiType] : undefined;
     // A field with no value of its own but a declared default is not simply
     // unanswered: the default is what the server will use, and an em-dash says
     // the opposite. Render the default in its place, through the same formatter
@@ -1893,9 +1918,7 @@ export const CompactRow = memo(
       !Array.isArray(optionField.value) &&
       !isExpression;
     const hashEntries =
-      !hidden && (isPlainHashType || isObjectValuedType) ?
-        getHashEntries(optionField, schema)
-      : [];
+      !hidden && (isPlainHashType || isObjectValuedType) ? getHashEntries(optionField, schema) : [];
     // A LIST OF HASHES/objects gets the same expandable structured preview a hash
     // does — the flat "N items" summary can't convey object contents (and must
     // never print "[object Object]"). StructuredDataView unwraps each item's
@@ -2231,7 +2254,8 @@ export const CompactRow = memo(
         tabIndex={actsOnClick ? 0 : undefined}
         aria-label={
           readOnlyIsAWayIn ? `Edit ${label}`
-          : readOnly ? undefined
+          : readOnly ?
+            undefined
           : label
         }
         className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${readOnlyIsAWayIn ? ' readfirst-row-way-in' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
@@ -2357,7 +2381,16 @@ export const CompactRow = memo(
           ) ?
             null
           : <span className='options-readfirst-valuetext'>
-              {hidden || empty ?
+              {ReadSummary && !hidden ?
+                /* the host's own summary: an editor that reports a status says it here, set or not
+                   ("Field mappings required", "… incomplete"), where "2 items" said nothing of it (qorus#646) */
+                <ReadSummary
+                  name={optionName}
+                  value={optionField?.value}
+                  schema={schema}
+                  formatted={formatted}
+                />
+              : hidden || empty ?
                 formattedDefault || '—'
               : renderReadFirstValue(optionField, schema, formatted, readOnly)}
             </span>}
