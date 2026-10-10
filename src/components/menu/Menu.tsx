@@ -59,34 +59,38 @@ const StyledMenuBottomShadow = styled.div<{ $visible: boolean }>`
   transition: opacity 0.15s ease;
 `;
 
+/** Whether a menu item is the active one: `path` is one of its `activePaths` or below one. */
+const isActivePath = (path: string | undefined, activePaths: string[] | undefined): boolean =>
+  !!path &&
+  !!activePaths?.some((activePath) => activePath === path || path.startsWith(`${activePath}/`));
+
 export const ReqraftMenuItem = ({
   path,
   isCollapsed,
   activeIntent = 'info',
   ...props
 }: TReqraftMenuItem & { path?: string; isCollapsed?: boolean; activeIntent?: TReqoreIntent }) => {
+  // The item's own props decide what is drawn and are never handed on: a ReqoreMenuItem drawn `as` another
+  // component (a router Link) passes the props it does not know to its element, so `activePaths` reached the
+  // DOM. `to` and `href` are handed on; the link uses them.
   if ('divider' in props) {
-    return <ReqoreMenuDivider {...props} />;
+    const { divider, ...dividerProps } = props; // eslint-disable-line @typescript-eslint/no-unused-vars
+    return <ReqoreMenuDivider {...dividerProps} />;
   }
 
-  const isActive = useMemo(
-    () =>
-      props.activePaths?.some(
-        (activePath) => activePath === path || path?.startsWith(`${activePath}/`)
-      ),
-    [path]
-  );
+  const { activePaths, submenu, ...itemProps } = props;
+  // Computed on every render, from the activePaths given now: a menu rebuilt with another item active
+  // must show it.
+  const isActive = isActivePath(path, activePaths);
 
-  if (props.submenu) {
-    const { submenu, ...menuData } = props;
-
+  if (submenu) {
     return (
       <ReqoreMenuSection
-        label={menuData.label}
-        icon={menuData.icon}
+        label={itemProps.label}
+        icon={itemProps.icon}
         isCollapsed={isCollapsed && !isActive}
         verticalPadding='big'
-        {...menuData}
+        {...itemProps}
       >
         {map(submenu, (submenuData, submenuId) => (
           <ReqraftMenuItem
@@ -118,7 +122,7 @@ export const ReqraftMenuItem = ({
         : undefined
       }
       leftIconColor={isActive ? `${activeIntent}:lighten:10` : undefined}
-      {...props}
+      {...itemProps}
     />
   );
 };
