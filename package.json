@@ -74,7 +74,6 @@
     "@types/lodash": "^4.14.166",
     "@types/node": "^14.14.14",
     "@types/react": "^18.3.1",
-    "@types/react-color": "^3.0.12",
     "@types/react-dom": "^18.3.0",
     "@types/react-query": "^1.2.9",
     "@typescript-eslint/eslint-plugin": "^7.8.0",
@@ -109,8 +108,11 @@
     "react-dom": "^18.3.1"
   },
   "dependencies": {
+    "@babel/runtime": "^7.23.8",
     "@qoretechnologies/ts-toolkit": "^0.5.82",
     "@tanstack/react-query": "4",
+    "@uiw/color-convert": "^2.10.3",
+    "@uiw/react-color-sketch": "^2.10.3",
     "classnames": "^2.2.6",
     "cron-validator": "^1.4.0",
     "cronstrue": "^2.50.0",
@@ -120,7 +122,6 @@
     "lodash": "^4.17.21",
     "nanoid": "^5.1.5",
     "polished": "^4.2.2",
-    "react-color": "^2.19.3",
     "react-dropzone": "^14.3.5",
     "react-markdown": "^9.0.1",
     "react-use": "^17.6.0",

@@ -246,12 +246,13 @@ export const FormField = <T extends TFormFieldType>({
       case 'rgbcolor':
         return (
           <ColorFormField
-            {...rest}
             {...(fieldProps as IFormFieldProps<'rgbcolor'>['fieldProps'])}
             value={value as IColorFormFieldProps['value']}
             onChange={(color) => {
               handleChange(color as TFormFieldValueType<T>);
             }}
+            disabled={(rest as { disabled?: boolean }).disabled}
+            readOnly={readonly}
           />
         );
 

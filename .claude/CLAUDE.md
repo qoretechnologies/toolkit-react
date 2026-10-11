@@ -127,7 +127,7 @@ Shared form field components built on ReQore, exported from `src/components/form
 | Component     | Field Type                        |
 |---------------|-----------------------------------|
 | `Boolean`     | Toggle/checkbox                   |
-| `Color`       | Color picker (`react-color`)      |
+| `Color`       | Color picker (`@uiw/react-color-sketch`) |
 | `Cron`        | Cron expression editor            |
 | `File`        | File upload (`react-dropzone`)    |
 | `LongString`  | Multi-line text                   |

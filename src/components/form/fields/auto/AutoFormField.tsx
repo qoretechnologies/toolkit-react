@@ -1043,9 +1043,10 @@ function AutoField<T = any>({
         case 'rgbcolor': {
           return (
             <ColorFormField
-              {...rest}
               value={!value ? undefined : value}
               onChange={(color) => handleChange(name, color)}
+              disabled={rest.disabled}
+              readOnly={rest.readonly}
             />
           );
         }
