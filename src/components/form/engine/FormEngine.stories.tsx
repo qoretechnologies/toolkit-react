@@ -41,6 +41,8 @@ import {
 import { basicFormValue, getBasicFormOptions as getOptions } from './__fixtures__/basicFormOptions';
 import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOptions';
 import { storyApiUrl } from '../../../stories/storyNetwork';
+import { withCoarsePointer } from '../../../stories/coarsePointer';
+import { PHONE_VIEWPORT } from '../../../stories/tracking';
 
 // schema data
 
@@ -3940,6 +3942,101 @@ export const CompactBatchedCommitInvalid: Story = {
     await sleep(400);
     await expect((args.onCommit as ReturnType<typeof fn>).mock.calls).toHaveLength(0);
     await _testsWaitForText('1 unsaved change'); // still staged
+
+    // …and says why where it can be read, not only on a hover a phone does not have: the field that
+    // blocks it, by the name the form shows it under.
+    await waitFor(() =>
+      expect(document.querySelector('.options-readfirst-commit-blocked')?.textContent).toMatch(
+        /Description/
+      )
+    );
+  },
+};
+
+// On a phone the reason is there to read without a hover, inside the screen.
+export const CompactBatchedCommitInvalidOnAPhone: Story = {
+  ...CompactBatchedCommitInvalid,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          "The invalid batched form on a phone (390 px, touch): Save refuses, and the reason beside it - which field, and what is wrong with it - is text on the screen, wrapped within it, not a tooltip a finger cannot raise.",
+      },
+    },
+  },
+  play: async (context) => {
+    await CompactBatchedCommitInvalid.play!(context);
+    const reason = context.canvasElement.ownerDocument.querySelector<HTMLElement>(
+      '.options-readfirst-commit-blocked'
+    );
+    expect(reason).toBeTruthy();
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      if (narrowed) {
+        await waitFor(() => {
+          const box = reason!.getBoundingClientRect();
+          expect(box.width).toBeGreaterThan(0);
+          expect(box.right).toBeLessThanOrEqual(PHONE_VIEWPORT.width + 1);
+        });
+      }
+    });
+  },
+};
+
+// An optional list field holding no values is not set, not invalid: it does not block Save.
+export const CompactBatchedCommitWithAnEmptyOptionalList: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a valid form in commitMode='batched' whose optional Authors field (a select-array) holds an empty list. An empty list is no value: the field is not invalid, nothing says it needs attention, and Save commits the staged edit.",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    commitMode: 'batched',
+    onCommit: fn(),
+    minColumnWidth: '300px',
+    options: {
+      ...CompactSchema,
+      authors: {
+        type: 'select-array',
+        ui_type: 'select-array',
+        display_name: 'Authors',
+        short_desc: 'Who wrote this interface',
+        preselected: true,
+        group: 'general',
+      } as TCompactField,
+    },
+    value: {
+      ...CompactValue,
+      description: { type: 'string', value: 'All set' },
+      authors: { type: 'select-array', value: [] },
+    } as IOptions,
+    groups: CompactGroups,
+  },
+  play: async ({ args }) => {
+    await _testsWaitForText('order-fulfilment');
+    await _testsClickText('order-fulfilment');
+    await _testsWaitForInputValue('order-fulfilment', '.options-readfirst-inline .reqore-textarea');
+    await _testsChangeStringField({
+      selector: '.options-readfirst-inline .reqore-textarea',
+      value: 'staged-name',
+    });
+    await sleep(300);
+    await _testsClickButton({ selector: '.options-readfirst-done' });
+    await _testsWaitForText('1 unsaved change');
+
+    // nothing blocks the save, and nothing says something does
+    expect(document.querySelector('.options-readfirst-commit-blocked')).toBeNull();
+    await _testsClickButton({ selector: '.options-readfirst-save' });
+    await waitFor(() => {
+      const calls = (args.onCommit as ReturnType<typeof fn>).mock.calls;
+      expect(calls).toHaveLength(1);
+      expect((calls[0][1] as IOptions)?.authors?.value).toEqual([]);
+    });
   },
 };
 

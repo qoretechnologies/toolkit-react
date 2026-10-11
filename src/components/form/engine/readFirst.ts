@@ -13,6 +13,7 @@ import yaml from 'js-yaml';
 import { formatTimeoutValue, richtextToString } from '../../../helpers/common';
 import { firstDeclaredType } from '../../../helpers/optionUiTypes';
 import { findAllowedValueOption } from '../../../helpers/allowedValues';
+import { isOptionValueEmpty } from '../../../helpers/validations';
 
 /** "N noun" with naive pluralisation ("1 item", "2 items"). */
 const pluralize = (count: number, noun: string): string =>
@@ -166,12 +167,36 @@ const parseSerialized = (value: string, type?: string): unknown => {
  * stored value into a short summary and resolve its group. Unit-testable.
  */
 
-/** A value is "empty" (nothing set) when it is nullish, an empty string, or an empty array. */
-export const isOptionValueEmpty = (value: unknown): boolean =>
-  value === undefined ||
-  value === null ||
-  value === '' ||
-  (Array.isArray(value) && value.length === 0);
+/** A value is "empty" (nothing set) when it is nullish, an empty string, or an empty array: one rule, which
+ *  validation reads too (`helpers/validations.ts`). */
+export { isOptionValueEmpty };
+
+/**
+ * Why a form cannot be saved, in words a person can act on: the first field that blocks it, by the name the form
+ * shows it under, what is wrong with it, and how many more there are. `undefined` when nothing blocks it.
+ *
+ * Shown beside a Save that refuses, as text: a disabled button fires no hover, so a reason carried only in its
+ * tooltip reached nobody - and a phone has no hover at all.
+ */
+export const describeBlockedSave = (
+  invalidFields: ReadonlyArray<{
+    fieldName: string;
+    validation: { reason?: string; reasons?: string[] };
+  }>,
+  schema?: Record<string, { display_name?: string } | undefined>
+): string | undefined => {
+  const [first] = invalidFields;
+  if (!first) {
+    return undefined;
+  }
+  const name = schema?.[first.fieldName]?.display_name || first.fieldName;
+  const why = first.validation.reason || first.validation.reasons?.[0];
+  const more = invalidFields.length - 1;
+  return (
+    `Before saving, fix ${name}${why ? `: ${why}` : ''}` +
+    (more ? ` (and ${more} more field${more === 1 ? '' : 's'})` : '')
+  );
+};
 
 /**
  * A schema-declared hash whose every entry is a materialised-but-unset field.

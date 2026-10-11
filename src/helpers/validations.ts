@@ -236,12 +236,26 @@ const isRichTextWithoutValue = (value: any): boolean => {
   );
 };
 
+/**
+ * A value that sets nothing: none, `null`, empty text or an empty list.
+ *
+ * The one rule for "is this field set" - the form's read-first status reads it (an empty list files the field
+ * under Optional, not Set), and so does validation. The two used to disagree on an empty list: the status said an
+ * optional Authors field holding `[]` was not set, while validation checked it as a value and found it wanting
+ * ("At least one value is required"), so the form was invalid with nothing on screen saying why.
+ */
+export const isOptionValueEmpty = (value: unknown): boolean =>
+  value === undefined ||
+  value === null ||
+  value === '' ||
+  (Array.isArray(value) && value.length === 0);
+
 const isValueDefined = (type: string, value: any): boolean => {
   if (type === 'richtext') {
     return !isRichTextWithoutValue(value);
   }
 
-  return value !== undefined && value !== '';
+  return !isOptionValueEmpty(value);
 };
 
 /** What a value of each type that is not text is called, where text around a template makes it text. */

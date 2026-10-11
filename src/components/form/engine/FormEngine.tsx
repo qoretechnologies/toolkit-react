@@ -124,6 +124,7 @@ import {
   getReadFirstCompletion,
   getReadFirstStatus,
   isOptionValueEmpty,
+  describeBlockedSave,
   isFixedCompactAllowedValueOption,
   shouldAutoCollapseCompactOption,
   isUnsetSchemaHash,
@@ -2378,7 +2379,8 @@ const FormEngineImpl = ({
 
   const isOptionValid = useCallback(
     (optionName: string, type: TQorusType, optionValue: any) => {
-      const isEmpty = optionValue === undefined || optionValue === '';
+      // the same "not set" the row's status reads: an empty list is no value
+      const isEmpty = isOptionValueEmpty(optionValue);
       // An empty field locked by an unmet `depends_on` does not apply, so it is
       // not missing — the same rule the read-first status follows.
       if (
@@ -2428,7 +2430,8 @@ const FormEngineImpl = ({
 
         const isRequired = options?.[optionName]?.required;
         const hasRequiredGroups = !!options?.[optionName]?.required_groups;
-        const isEmpty = optionValue === undefined || optionValue === '';
+        // the same "not set" the row's status reads: an empty list is no value
+        const isEmpty = isOptionValueEmpty(optionValue);
 
         let validation: IValidationResult;
         /* A field whose host gives its own reason (`invalid_reason`) is invalid while it does, whatever the
@@ -4284,6 +4287,19 @@ const FormEngineImpl = ({
                         icon='EditLine'
                         label={`${dirtyOptionNames.length} unsaved change${dirtyOptionNames.length === 1 ? '' : 's'}`}
                       />
+                      {/* Why Save refuses, as text: a disabled button fires no hover, and a phone has none. */}
+                      {validityData.isValid ? null : (
+                        <ReqoreTag
+                          size='tiny'
+                          minimal
+                          flat
+                          wrap
+                          intent='danger'
+                          icon='ErrorWarningLine'
+                          className='options-readfirst-commit-blocked'
+                          label={describeBlockedSave(validityData.invalidFields, options as any)}
+                        />
+                      )}
                       <ReqoreButton
                         size='small'
                         intent='success'
