@@ -13,6 +13,9 @@ import { templateChipLabel } from '../../../../helpers/templateText';
 import { mockExpressions } from '../mockExpressions';
 import { IExpression } from '../types';
 import { ExpressionBuilder } from './index';
+import { withCoarsePointer } from '../../../../stories/coarsePointer';
+import { _testsWithViewport } from '../../../../stories/Tests/utils';
+import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 
 // --- inlined test helpers (equivalents of the IDE `../Tests/utils`) ---------
 
@@ -1690,3 +1693,124 @@ export const DiscardAllIncompatibleFunctionArgs: Story = {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
   },
 };
+
+/* A condition (qorus#646): the server reads one as true unless its value is zero or empty. What it gives
+   is said under it as every condition editor says it: nothing for true or false, a warning for a number
+   or a list, an error for text, a date or a time. */
+
+/** What is said of the condition, if anything. */
+const conditionVerdict = () => document.querySelector('.expression-condition-verdict');
+
+export const ConditionThatGivesANumber: Story = {
+  args: {
+    returnType: 'bool',
+    condition: true,
+    value: {
+      value: { exp: '+', args: [{ type: 'int', value: '$local:id' }, { type: 'int', value: 20 }] },
+      is_expression: true,
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a condition (a true-or-false place, such as a Qog if state\'s) that adds two numbers. It is accepted, as the condition is read as true unless it is zero, and a warning under it says so and that comparing it explicitly says what is meant.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(
+      () =>
+        expect(conditionVerdict()?.textContent).toContain(
+          "This condition is true whenever its value isn't zero or empty"
+        ),
+      { timeout: 10000 }
+    );
+    await expect(document.body.textContent).not.toContain('but the expected return type is');
+  },
+};
+
+export const ConditionThatGivesText: Story = {
+  args: {
+    returnType: 'bool',
+    condition: true,
+    value: {
+      value: {
+        exp: 'concat',
+        args: [
+          { type: 'string', value: 'first' },
+          { type: 'string', value: 'second' },
+        ],
+      },
+      is_expression: true,
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a condition that joins two pieces of text. Text does not say plainly whether it is true, so the condition is refused, and the error under it says to compare it explicitly.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(
+      () => expect(conditionVerdict()?.textContent).toContain("A condition can't give"),
+      { timeout: 10000 }
+    );
+    await expect(conditionVerdict()?.textContent).toContain('compare it explicitly');
+  },
+};
+
+export const BoolValueThatGivesANumber: Story = {
+  args: {
+    returnType: 'bool',
+    value: {
+      value: { exp: '+', args: [{ type: 'int', value: '$local:id' }, { type: 'int', value: 20 }] },
+      is_expression: true,
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a value of type bool that is not a condition (an option that holds true or false) adding two numbers. The Qorus server checks a bool value as a bool, and a number does not fit it: it is refused with what it returns and what is expected, and nothing is said of it as a condition.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(
+      () => expect(document.body.textContent).toContain('but the expected return type is'),
+      { timeout: 10000 }
+    );
+    await expect(conditionVerdict()).toBeNull();
+  },
+};
+
+export const ConditionThatGivesANumberOnAPhone: Story = {
+  ...ConditionThatGivesANumber,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The condition that adds two numbers, on a phone (390 px, touch): the warning under it wraps inside the expression.',
+      },
+    },
+  },
+  play: async (context) => {
+    await ConditionThatGivesANumber.play!(context);
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      if (narrowed) {
+        await waitFor(() => {
+          const expression = document.querySelector('.expression')!.getBoundingClientRect();
+          expect(conditionVerdict()!.getBoundingClientRect().right).toBeLessThanOrEqual(
+            expression.right + 0.5
+          );
+        });
+      }
+    });
+  },
+};
+

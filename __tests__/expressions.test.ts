@@ -6,6 +6,7 @@ import {
 import {
   areQorusTypesCompatible,
   expressionFitsReturnType,
+  conditionVerdict,
   isConditionType,
   isTextOrDateType,
   argumentMatchesType,
@@ -209,6 +210,8 @@ describe('a place that takes a condition', () => {
   it('is one whose result must be true or false', () => {
     expect(isConditionType('bool')).toBe(true);
     expect(isConditionType('*boolean')).toBe(true);
+    expect(isConditionType('softbool')).toBe(true);
+    expect(isConditionType('*softbool')).toBe(true);
     expect(isConditionType(['bool'])).toBe(true);
     expect(isConditionType(['bool', 'int'])).toBe(false);
     expect(isConditionType('int')).toBe(false);
@@ -216,3 +219,24 @@ describe('a place that takes a condition', () => {
     expect(isConditionType([])).toBe(false);
   });
 });
+
+describe('what is said of a condition (qorus#646)', () => {
+  it('says nothing of true or false, or of a result it cannot tell', () => {
+    for (const type of ['bool', '*bool', 'softbool', 'boolean', 'any', 'auto', undefined, '']) {
+      expect(conditionVerdict(type)).toBeUndefined();
+    }
+  });
+
+  it('refuses text, a date or a time', () => {
+    for (const type of ['string', '*string', 'softstring', 'richtext', 'date', '*date', 'time']) {
+      expect(conditionVerdict(type)).toBe('error');
+    }
+  });
+
+  it('warns of a number, a list or a hash: true unless it is zero or empty', () => {
+    for (const type of ['int', '*int', 'softint', 'number', 'float', 'list', 'list<string>', 'hash', 'binary']) {
+      expect(conditionVerdict(type)).toBe('warning');
+    }
+  });
+});
+

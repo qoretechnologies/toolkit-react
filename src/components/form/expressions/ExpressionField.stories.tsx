@@ -8,6 +8,9 @@ import { storyApiUrl } from '../../../stories/storyNetwork';
 import { StoryMeta } from '../../../types';
 import { FormEngine } from '../engine/FormEngine';
 import { dpqlMockParseCalls } from './dpqlMockLsp';
+import { withCoarsePointer } from '../../../stories/coarsePointer';
+import { _testsWithViewport } from '../../../stories/Tests/utils';
+import { PHONE_VIEWPORT } from '../../../stories/tracking';
 import { ExpressionField } from './ExpressionField';
 import { mockExpressions } from './mockExpressions';
 import { IExpression } from './types';
@@ -514,7 +517,9 @@ const typedExpressionStory = (
   fieldType: string,
   text: string,
   description: string,
-  expectation: (canvasElement: HTMLElement) => Promise<void>
+  expectation: (canvasElement: HTMLElement) => Promise<void>,
+  /** more of the field's schema (a condition's `metadata`) */
+  schema: Record<string, unknown> = {}
 ): Story => ({
   parameters: {
     docs: { description: { story: description } },
@@ -535,6 +540,7 @@ const typedExpressionStory = (
               preselected: true,
               supports_expressions: true,
               expressions: mockExpressions,
+              ...schema,
             },
           } as any
         }
@@ -647,6 +653,120 @@ export const TextModeTypeFits: Story = typedExpressionStory(
     expect(canvasElement.textContent).not.toContain('This does not fit');
   }
 );
+
+/* A condition, written as text (qorus#646): a field its host marks as one (`metadata.condition`) - a Qog if
+   state's value, a while or for block's condition. The server reads a condition as true unless its value is
+   zero or empty, so the field asks it how it reads the text (`condition: true`) instead of whether it fits
+   bool, and says what it answers: a number is accepted with a warning, text is refused. A value of type bool
+   that is not a condition keeps its type check. */
+
+/** The mark a host sets on a field that is a condition. */
+const CONDITION_SCHEMA = { metadata: { condition: true } };
+
+/** Settled when the server has read this text as a condition. */
+const readAsCondition = async (canvasElement: HTMLElement, text: string) => {
+  await waitFor(
+    () =>
+      expect(
+        dpqlMockParseCalls.some((call) => call.text === text && call.condition && !call.target),
+        `parses=${JSON.stringify(dpqlMockParseCalls)}`
+      ).toBe(true),
+    { timeout: 10000 }
+  );
+  await waitForLspIdle(canvasElement);
+};
+
+const CONDITION_BY_TRUTHINESS = "This condition is true whenever its value isn't zero or empty";
+
+export const TextModeConditionThatGivesANumber: Story = typedExpressionStory(
+  'bool',
+  '1 + 2',
+  "Types `1 + 2` into the Text view of a condition (a Qog if state's value, say). The result is a number, which the condition reads as true unless it is zero: the field says so, in the server's words, and that comparing it explicitly says what is meant.",
+  async (canvasElement) => {
+    await readAsCondition(canvasElement, '1 + 2');
+    await waitFor(() => expect(canvasElement.textContent).toContain(CONDITION_BY_TRUTHINESS), {
+      timeout: 10000,
+    });
+    expect(canvasElement.textContent).not.toContain('This does not fit');
+    expect(canvasElement.textContent).not.toContain('This may not fit');
+  },
+  CONDITION_SCHEMA
+);
+
+export const TextModeConditionThatGivesText: Story = typedExpressionStory(
+  'bool',
+  '"a" + 1',
+  "Types `\"a\" + 1` into the Text view of a condition. The result is text, which does not say plainly whether it is true: the field refuses it, in the server's words, and says to compare it explicitly.",
+  async (canvasElement) => {
+    await readAsCondition(canvasElement, '"a" + 1');
+    await waitFor(
+      () => expect(canvasElement.textContent).toContain("A condition can't give Text"),
+      { timeout: 10000 }
+    );
+    expect(canvasElement.textContent).toContain('compare it explicitly');
+    expect(canvasElement.textContent).not.toContain('This may not fit');
+    expect(canvasElement.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
+  },
+  CONDITION_SCHEMA
+);
+
+export const TextModeConditionThatGivesTrueOrFalse: Story = typedExpressionStory(
+  'bool',
+  '1 < 2',
+  'Types `1 < 2` into the Text view of a condition. The result is true or false, so nothing is said.',
+  async (canvasElement) => {
+    await readAsCondition(canvasElement, '1 < 2');
+    expect(canvasElement.textContent).not.toContain(CONDITION_BY_TRUTHINESS);
+    expect(canvasElement.textContent).not.toContain("A condition can't give");
+    expect(canvasElement.textContent).not.toContain('This does not fit');
+  },
+  CONDITION_SCHEMA
+);
+
+export const TextModeBoolValueThatGivesANumber: Story = typedExpressionStory(
+  'bool',
+  '1 + 2',
+  'Types `1 + 2` into the Text view of a value of type bool that is not a condition. The server checks a bool value as a bool, and a number does not fit it: the field says "This does not fit", and nothing about a condition.',
+  async (canvasElement) => {
+    await waitFor(() => expect(canvasElement.textContent).toContain('This does not fit'), {
+      timeout: 10000,
+    });
+    expect(
+      dpqlMockParseCalls.some(
+        (call) => call.text === '1 + 2' && call.target === 'bool' && !call.condition
+      ),
+      `parses=${JSON.stringify(dpqlMockParseCalls)}`
+    ).toBe(true);
+    expect(canvasElement.textContent).not.toContain(CONDITION_BY_TRUTHINESS);
+  }
+);
+
+/** The number condition on a phone, with a finger: the warning stays inside the field. */
+export const TextModeConditionThatGivesANumberOnAPhone: Story = {
+  ...TextModeConditionThatGivesANumber,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The condition that gives a number, on a phone (390 px, touch): the warning under the text wraps inside the field.',
+      },
+    },
+  },
+  play: async (context) => {
+    await TextModeConditionThatGivesANumber.play!(context);
+    const verdict = context.canvasElement.querySelector('.expression-condition-verdict');
+    expect(verdict).toBeTruthy();
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      if (narrowed) {
+        await waitFor(() =>
+          expect(verdict!.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth)
+        );
+      }
+    });
+  },
+};
 
 /**
  * An `auto` field accepts anything, so there is nothing to check the

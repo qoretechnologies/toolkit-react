@@ -32,6 +32,13 @@ export interface IDpqlParseResult {
   coercion_may_fail?: boolean;
   /** The conversion that would make the expression fit, when one would. */
   suggested_fix?: { text: string; description?: string };
+  /**
+   * How the server reads the expression as a condition, when the request asked (`condition: true`):
+   * `condition` (it gives true or false), `truthiness` (a number, a list, a hash: true unless it is zero or
+   * empty), `not_a_condition` (text, a date or a time), `unknown` (a result it cannot tell). A server that
+   * does not know the question leaves it out.
+   */
+  condition_reading?: 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
   diagnostics: Array<{
     range: {
       start: { line: number; character: number };
@@ -42,6 +49,15 @@ export interface IDpqlParseResult {
     code?: string | number;
     source?: string;
   }>;
+}
+
+/** What else a `dpql/parse` asks. */
+export interface IDpqlParseOptions {
+  /**
+   * The expression is a condition: ask how the server reads it as one (`condition: true`) instead of
+   * whether it fits a type; the target type is not sent.
+   */
+  condition?: boolean;
 }
 
 /** A record's fields for `dpql/setContext`: each field's type (or types) and an optional description. */
@@ -207,8 +223,14 @@ export interface IDpqlEditorRef {
    * `targetType` asks the server, in the same round trip, whether the
    * expression's result can satisfy that type — see `coercion_may_fail` on
    * the result. Omit it to ask only whether the text parses.
+   *
+   * `condition` asks instead how the server reads the expression as a condition (`condition_reading`).
    */
-  parse: (text: string, targetType?: string) => Promise<IDpqlParseResult>;
+  parse: (
+    text: string,
+    targetType?: string,
+    options?: IDpqlParseOptions
+  ) => Promise<IDpqlParseResult>;
   /**
    * Serialize an expression AST back to DPQL text via `dpql/serialize`: '' while the session has no client,
    * and rejected, with the server's reason, when the server refuses to write the value.

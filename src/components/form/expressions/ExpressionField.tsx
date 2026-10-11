@@ -14,7 +14,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { memo, MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DpqlEditor, IDpqlEditorRef } from '../../dpqlEditor';
+import { DpqlEditor, IDpqlEditorRef, IDpqlParseResult } from '../../dpqlEditor';
 import { TemplateBrowser } from '../fields/template/TemplateBrowser';
 import { dpqlDisplayedText } from '../../dpqlEditor/dpqlHelpers';
 import { TDpqlFields } from '../../dpqlEditor/types';
@@ -24,6 +24,11 @@ import { IExpression, IExpressionSchema, IExpressionValue, TExpressionReorder } 
 import { incompleteExpressionText, serializableExpression } from './textOfExpression';
 import { useExpressions } from './useExpressions';
 import { useRenderExpression } from './useRenderExpression';
+import {
+  conditionErrorText,
+  conditionVerdict,
+  CONDITION_BY_TRUTHINESS_TEXT,
+} from '../../../helpers/expressions';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
 
 export type TExpressionMode = 'visual' | 'text';
@@ -59,6 +64,13 @@ export interface IExpressionFieldProps {
   localTemplates?: IReqoreFormTemplates;
   /** Forwarded to the builder — server-handled expression evaluation. */
   serverHandled?: boolean;
+  /**
+   * The expression is a condition, read as true or false by its value - true unless it is zero or empty (a
+   * Qog transition's condition, an if state's, a while or for block's, a sheet contract's row rule). What it
+   * gives is said as a condition, not as a type that fits: the Text view asks the server how it reads it
+   * (`condition: true`), the Visual view tells it from the operation. A value of type `bool` is not one.
+   */
+  condition?: boolean;
   /**
    * SEAM (reqraft): the builder's `extraActions` slot, forwarded. Hosts mount
    * this shell, not the builder, so a seam that stops at the builder is
@@ -132,6 +144,7 @@ export const ExpressionField = memo(
     expressionsUrl,
     localTemplates,
     serverHandled,
+    condition,
     extraActions,
     provider,
     fields,
@@ -239,6 +252,10 @@ export const ExpressionField = memo(
       inferred?: string;
       target?: string;
       fix?: string;
+      /** what is said of a condition that is not plainly true or false */
+      condition?: 'error' | 'warning';
+      /** the server's own words for it, in its presentation language, when it gave them */
+      message?: string;
     } | null>(null);
     const dpqlRef = useRef<IDpqlEditorRef>(null);
     const parseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -260,6 +277,9 @@ export const ExpressionField = memo(
       return declared && !isUntypedOptionType(declared) ? declared : undefined;
     }, [returnType, type]);
 
+    /** A condition is asked as one, not as a type to fit. */
+    const parseOptions = useMemo(() => (condition ? { condition: true } : undefined), [condition]);
+
     /**
      * Read the type analysis off a parse result, or clear it.
      *
@@ -276,7 +296,40 @@ export const ExpressionField = memo(
         inferred_type?: string;
         target_type?: string;
         suggested_fix?: { text: string };
+        condition_reading?: IDpqlParseResult['condition_reading'];
+        diagnostics?: IDpqlParseResult['diagnostics'];
       }): void => {
+        /* A condition is not a type to fit (qorus#646): the server reads it as true unless its value is
+           zero or empty, so it is said as every condition editor says it - a number accepted with a warning,
+           text refused. The server's reading, with its own words, when it gave one; the inferred type read
+           the same way when it did not (a server that does not know the question). */
+        if (condition) {
+          if (!result) {
+            setTypeCheck(null);
+            return;
+          }
+          const reading = result.condition_reading;
+          const verdict =
+            reading === 'not_a_condition' ? 'error'
+            : reading === 'truthiness' ? 'warning'
+            : reading ? undefined
+            : conditionVerdict(result.inferred_type);
+          const said = result.diagnostics?.find((d) =>
+            verdict === 'error' ? d.code === 'NOT_A_CONDITION' : d.code === 'CONDITION_BY_TRUTHINESS'
+          )?.message;
+          setTypeCheck(
+            verdict ?
+              {
+                compatible: verdict !== 'error',
+                mayFail: false,
+                inferred: result.inferred_type,
+                condition: verdict,
+                ...(said ? { message: said } : {}),
+              }
+            : null
+          );
+          return;
+        }
         if (!result || result.type_compatible === undefined) {
           setTypeCheck(null);
           return;
@@ -290,7 +343,7 @@ export const ExpressionField = memo(
           fix: result.suggested_fix?.text,
         });
       },
-      []
+      [condition]
     );
 
     // Keep a readable rendering of the current expression in sync — the
@@ -369,14 +422,14 @@ export const ExpressionField = memo(
       if (pending === null || !parse) return undefined;
       if (parseTimer.current) clearTimeout(parseTimer.current);
       pendingParse.current = null;
-      const result = await parse(pending, targetType);
+      const result = await parse(pending, targetType, parseOptions);
       readTypeCheck(result);
       if (!result?.success || !result.expression) return undefined;
       setAstText(pending);
       // `dpql/parse` returns the field-ready `{ is_expression, value }`.
       onChange(result.expression as IExpression);
       return result.expression as IExpression;
-    }, [onChange, targetType, readTypeCheck, whenSessionReady]);
+    }, [onChange, targetType, parseOptions, readTypeCheck, whenSessionReady]);
 
     // Text mode: parse the DPQL into the AST, debounced, once the session can read it.
     const handleDpqlChange = useCallback(
@@ -467,8 +520,8 @@ export const ExpressionField = memo(
           /* The text shown is checked against the field's type, as typed text is. It was checked only when the
              editor reported it back as a change, which it does only while it has the focus: with the focus in
              the picker (opened at once, qorus#646) an expression that does not fit said nothing. */
-          if (targetType) {
-            const result = await dpqlRef.current?.parse?.(t, targetType);
+          if (targetType || condition) {
+            const result = await dpqlRef.current?.parse?.(t, targetType, parseOptions);
             if (!cancelled && !userTypedRef.current) readTypeCheck(result);
           }
         }
@@ -477,7 +530,7 @@ export const ExpressionField = memo(
       return () => {
         cancelled = true;
       };
-    }, [mode, ast, expressions, targetType, readTypeCheck, sessionReady]);
+    }, [mode, ast, expressions, targetType, parseOptions, condition, readTypeCheck, sessionReady]);
 
     /** The field's templates, its catalogue's entries, for the Text view's picker. */
     const templateItems = useMemo(
@@ -512,14 +565,14 @@ export const ExpressionField = memo(
       const edited = text !== astText && userTypedRef.current;
       // read by the session once it is ready; one that cannot be reached leaves the text unread, as asked
       if (mode === 'text' && text && edited && (await whenSessionReady())) {
-        const result = await dpqlRef.current?.parse?.(text, targetType);
+        const result = await dpqlRef.current?.parse?.(text, targetType, parseOptions);
         readTypeCheck(result);
         if (result?.success && result.expression) {
           onChange(result.expression as IExpression);
         }
       }
       setMode('visual');
-    }, [mode, text, astText, onChange, targetType, readTypeCheck, whenSessionReady]);
+    }, [mode, text, astText, onChange, targetType, parseOptions, readTypeCheck, whenSessionReady]);
 
     // the host's tabs: followed as the toggle is (see `requestedMode`)
     useEffect(() => {
@@ -646,7 +699,21 @@ export const ExpressionField = memo(
                 appears for exactly two cases: the conversion is impossible
                 (danger), or it is attempted and may fail on the day (warning,
                 and the run checks the value itself). */}
-            {typeCheck && !typeCheck.compatible && (
+            {typeCheck?.condition && (
+              <ReqoreMessage
+                className='expression-condition-verdict'
+                intent={typeCheck.condition === 'error' ? 'danger' : 'warning'}
+                size='small'
+                flat
+                opaque={false}
+              >
+                {typeCheck.message ??
+                  (typeCheck.condition === 'error' ?
+                    conditionErrorText(typeCheck.inferred ?? '')
+                  : CONDITION_BY_TRUTHINESS_TEXT)}
+              </ReqoreMessage>
+            )}
+            {typeCheck && !typeCheck.compatible && !typeCheck.condition && (
               <ReqoreMessage
                 intent={typeCheck.mayFail ? 'warning' : 'danger'}
                 size='small'
@@ -721,6 +788,7 @@ export const ExpressionField = memo(
               readOnly={readOnly}
               localTemplates={localTemplates ?? { items: [] }}
               serverHandled={serverHandled}
+              condition={condition}
               componentOverrides={componentOverrides}
               extraActions={extraActions}
               size={size}

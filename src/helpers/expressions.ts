@@ -110,11 +110,48 @@ export const areQorusTypesCompatible = (
 export const isTextOrDateType = (type: string): boolean =>
   /^(string|richtext|date|time)$/.test(type.replace(/^\*/, '').replace(/^soft/, ''));
 
-/** Whether a place takes a condition: its result must be true or false (`bool`, or a list of only that). */
+/**
+ * Whether a place takes a condition: its result must be true or false (`bool`, optional or soft, or a list of
+ * only that).
+ */
 export const isConditionType = (returnType: string | string[] | undefined): boolean => {
   const types = isArray(returnType) ? returnType : returnType ? [returnType] : [];
-  return types.length > 0 && types.every((type) => /^\*?(bool|boolean)$/.test(type));
+  return types.length > 0 && types.every((type) => /^\*?(soft)?(bool|boolean)$/.test(type));
 };
+
+/**
+ * What an editor says of a condition that gives this type (qorus#646): nothing for true or false or a type it
+ * cannot tell (`any`, `auto`); an error for text, a date or a time, which do not say plainly what is meant;
+ * and a warning for any other (a number, a list, a hash), which the condition reads as true unless it is
+ * zero or empty - accepted, as the Qorus server accepts it, but said, because it is seldom what was meant.
+ * qorus-ide says the same of its own condition editors.
+ */
+export const conditionVerdict = (type: string | undefined): 'error' | 'warning' | undefined => {
+  if (!type) {
+    return undefined;
+  }
+  const base = type.replace(/^\*/, '').replace(/^soft/, '').replace(/<.*$/, '');
+  if (!base || /^(bool|boolean|any|auto)$/.test(base)) {
+    return undefined;
+  }
+  return isTextOrDateType(base) ? 'error' : 'warning';
+};
+
+/**
+ * Whether a field is a condition: its schema's `metadata.condition`, the mark a host sets on the options that
+ * are conditions (a Qog transition's value, a built-in if's value, a while or for block's condition). The
+ * schema's own `type` cannot say it: a value of type bool is not a condition.
+ */
+export const isConditionOption = (field: { metadata?: Record<string, unknown> } | undefined): boolean =>
+  field?.metadata?.condition === true;
+
+/** What is said of a condition that gives text, a date or a time: how to make it one. */
+export const conditionErrorText = (typeName: string): string =>
+  `A condition can't give ${typeName}: compare it explicitly, for example @status == "open" or @note != "".`;
+
+/** What is said of a condition that gives a number, a list or a hash. */
+export const CONDITION_BY_TRUTHINESS_TEXT =
+  "This condition is true whenever its value isn't zero or empty. To say what you mean, compare it explicitly.";
 
 /**
  * Whether an operation is offered where its result must be of `returnType`: a condition (`bool`) is

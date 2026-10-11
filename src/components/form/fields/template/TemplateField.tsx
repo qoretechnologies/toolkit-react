@@ -64,6 +64,7 @@ import { TemplateBrowser } from './TemplateBrowser';
 import { richtextToString } from '../../../../helpers/common';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
+import { isConditionOption } from '../../../../helpers/expressions';
 import {
   expressionSeedOf,
   isWrittenAsText,
@@ -2108,6 +2109,8 @@ const TemplateFieldImpl = memo(
               expressionsUrl={rest.expressions_url}
               fields={rest.dpql_fields}
               serverHandled={rest.server_expression_handling}
+              // a condition (a Qog if state's value, a while or for block's condition), marked by the host
+              condition={isConditionOption(rest)}
               extraActions={extraActions}
               size={rest.size}
               defaultMode={tab === 'visual' ? 'visual' : 'text'}
@@ -2207,6 +2210,8 @@ const TemplateFieldImpl = memo(
                 // the record's fields for the Text view, from the field's schema (`dpql_fields`)
                 fields={rest.dpql_fields}
                 serverHandled={rest.server_expression_handling}
+                // a condition (a Qog if state's value, a while or for block's condition), marked by the host
+                condition={isConditionOption(rest)}
                 extraActions={extraActions}
                 size={rest.size}
                 /* An expression opens on its Text view, the first of Text · Visual, as the value's tabs open on
@@ -2258,6 +2263,8 @@ const TemplateFieldImpl = memo(
               expressions={rest.expressions}
               expressionsUrl={rest.expressions_url}
               serverHandled={rest.server_expression_handling}
+              // a condition (a Qog if state's value, a while or for block's condition), marked by the host
+              condition={isConditionOption(rest)}
               extraActions={extraActions}
               reorder={reorder}
             />

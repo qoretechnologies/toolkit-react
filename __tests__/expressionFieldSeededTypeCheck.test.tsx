@@ -82,16 +82,16 @@ const opened = (type: string) => {
 
 describe('an expression opened in the Text view', () => {
   it('is checked against the field type, untyped', async () => {
-    const { container, findByTestId } = opened('bool');
+    const { container, findByTestId } = opened('hash');
     const editor = await findByTestId('fake-dpql');
     await waitFor(() => expect(editor.textContent).toBe('1 + 2'));
     await waitFor(() => expect(container.textContent).toContain('This does not fit'), {
       timeout: 5000,
     });
     expect(container.textContent).toContain(
-      'The expression returns int, and this field holds bool.'
+      'The expression returns int, and this field holds hash.'
     );
-    expect(parsed).toEqual([{ text: '1 + 2', targetType: 'bool' }]);
+    expect(parsed).toEqual([{ text: '1 + 2', targetType: 'hash' }]);
   });
 
   it('says nothing when it fits', async () => {

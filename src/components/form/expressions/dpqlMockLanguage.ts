@@ -40,6 +40,7 @@ export interface IDpqlMockParseResult {
   auto_coercible?: boolean;
   coercion_may_fail?: boolean;
   suggested_fix?: { text: string; description: string };
+  condition_reading?: 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
   diagnostics: IDpqlMockDiagnostic[];
 }
 
@@ -436,8 +437,59 @@ const analyse = (
   };
 };
 
+/** The words the server uses for a type a condition cannot give. */
+const NOT_A_CONDITION_TYPE_NAMES: Record<string, string> = { string: 'Text', date: 'Date', time: 'Time' };
+
+/**
+ * How the server reads an expression as a condition (`condition: true`, qorus#646), shaped as its answer:
+ * true or false is a condition, text, a date or a time is not one, a type it cannot tell is unknown, and any
+ * other is read by its value - true unless it is zero or empty.
+ */
+const readAsCondition = (text: string, inferred: string) => {
+  const base = inferred.replace(/^\*/, '').replace(/^soft/, '');
+  const reading =
+    base === 'bool' ? 'condition'
+    : base === 'auto' || base === 'any' ? 'unknown'
+    : NOT_A_CONDITION_TYPE_NAMES[base] ? 'not_a_condition'
+    : 'truthiness';
+  const span = { line: 1, column: 1, end_line: 1, end_column: text.length + 1 };
+  return {
+    inferred_type: inferred,
+    target_type: 'bool',
+    condition_reading: reading,
+    type_compatible: reading === 'condition' || reading === 'unknown',
+    auto_coercible: reading !== 'not_a_condition',
+    coercion_may_fail: reading === 'truthiness',
+    diagnostics:
+      reading === 'not_a_condition' ?
+        [
+          {
+            severity: 'error',
+            code: 'NOT_A_CONDITION',
+            message: `A condition can't give ${NOT_A_CONDITION_TYPE_NAMES[base]}: compare it explicitly, for example @status == "open" or @note != ""`,
+            ...span,
+          },
+        ]
+      : reading === 'truthiness' ?
+        [
+          {
+            severity: 'warning',
+            code: 'CONDITION_BY_TRUTHINESS',
+            message:
+              "This condition is true whenever its value isn't zero or empty. To say what you mean, compare it explicitly.",
+            ...span,
+          },
+        ]
+      : [],
+  };
+};
+
 /** `dpql/parse`: the AST for `text`, or the diagnostic the server reports. */
-export const mockParseDpql = (text: string, target?: string): IDpqlMockParseResult => {
+export const mockParseDpql = (
+  text: string,
+  target?: string,
+  condition?: boolean
+): IDpqlMockParseResult => {
   const trimmed = text.trim();
   try {
     const tokens = tokenize(trimmed);
@@ -454,8 +506,8 @@ export const mockParseDpql = (text: string, target?: string): IDpqlMockParseResu
     return {
       success: true,
       expression: { is_expression: true, value: root },
-      ...(target ?
-        analyse(trimmed, inferred, target)
+      ...(condition ? readAsCondition(trimmed, inferred)
+      : target ? analyse(trimmed, inferred, target)
       : { inferred_type: inferred, diagnostics: [] }),
     } as IDpqlMockParseResult;
   } catch (err) {

@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ILspDiagnostic } from '../../utils/lspClient.types';
 import { useLspSession, IUseLspSessionResult } from '../smartEditor/useLspSession';
-import { IDpqlParseResult, TDpqlFields, TDpqlFsmContext } from './types';
+import { IDpqlParseOptions, IDpqlParseResult, TDpqlFields, TDpqlFsmContext } from './types';
 
 export interface IDpqlFieldMeta {
   display_name?: string;
@@ -56,7 +56,7 @@ export interface IUseDpqlSessionResult {
    * `dpql/parse` — DPQL text → expression AST, and, when `targetType` is
    * given, whether that result can satisfy the type the field declares.
    */
-  parse: (text: string, targetType?: string) => Promise<IDpqlParseResult>;
+  parse: (text: string, targetType?: string, options?: IDpqlParseOptions) => Promise<IDpqlParseResult>;
   /** `dpql/serialize` — expression AST → DPQL text. */
   serialize: (expression: Record<string, any>) => Promise<string>;
   /**
@@ -326,7 +326,11 @@ export function useDpqlSession(
   );
 
   const parse = useCallback(
-    async (text: string, targetType?: string): Promise<IDpqlParseResult> => {
+    async (
+      text: string,
+      targetType?: string,
+      options?: IDpqlParseOptions
+    ): Promise<IDpqlParseResult> => {
       if (!session.client) {
         return { success: false, expression: null, diagnostics: [] };
       }
@@ -338,8 +342,15 @@ export function useDpqlSession(
             text,
             // Only sent when the field declares one. Without it the server
             // does no type analysis at all, which is the right answer for a
-            // caller that only wants to know whether the text parses.
-            ...(targetType ? { target_type: targetType } : {}),
+            // caller that only wants to know whether the text parses. A
+            // condition is asked as one instead: the server ignores the
+            // target type then, and an older one, which does not know the
+            // question, answers with the inferred type alone.
+            ...(options?.condition
+              ? { condition: true }
+              : targetType
+                ? { target_type: targetType }
+                : {}),
           }
         );
         return {
@@ -351,6 +362,7 @@ export function useDpqlSession(
           auto_coercible: result?.auto_coercible,
           coercion_may_fail: result?.coercion_may_fail,
           suggested_fix: result?.suggested_fix,
+          condition_reading: result?.condition_reading,
           diagnostics: result?.diagnostics ?? [],
         };
       } catch {

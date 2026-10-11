@@ -36,6 +36,8 @@ import {
 export interface IDpqlMockParseCall {
   text: string;
   target?: string;
+  /** the request asked how the text reads as a condition (`condition: true`) */
+  condition?: boolean;
   analysed: boolean;
 }
 export const dpqlMockParseCalls: IDpqlMockParseCall[] = [];
@@ -84,8 +86,14 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
   'dpql/parse': (msg) => {
     const text = String(msg.params?.text ?? '');
     const target = msg.params?.target_type as string | undefined;
-    dpqlMockParseCalls.push({ text: text.trim(), target, analysed: !!target });
-    return mockParseDpql(text, target);
+    const condition = msg.params?.condition === true;
+    dpqlMockParseCalls.push({
+      text: text.trim(),
+      target,
+      ...(condition ? { condition } : {}),
+      analysed: !!target || condition,
+    });
+    return mockParseDpql(text, target, condition);
   },
 
   'dpql/serialize': (msg) => mockSerializeDpql(msg.params?.expression as IDpqlMockNode),

@@ -28,6 +28,9 @@ import {
   areQorusTypesCompatible,
   expressionFitsReturnType,
   getArgumentType,
+  conditionErrorText,
+  conditionVerdict,
+  CONDITION_BY_TRUTHINESS_TEXT,
   isConditionType,
   isTextOrDateType,
 } from '../../../../helpers/expressions';
@@ -88,6 +91,13 @@ export interface IExpressionBuilderProps {
   expressions?: IExpressionSchema[];
   expressionsUrl?: string;
   serverHandled?: boolean;
+  /**
+   * The expression is a condition: what it gives is read as true or false by its value, true unless it is
+   * zero or empty (a Qog transition's condition, an if state's, a while or for block's, a sheet contract's
+   * row rule). A value of type `bool` is not one: the Qorus server checks it as a bool, and an int does not
+   * fit it.
+   */
+  condition?: boolean;
   /**
    * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the operand
    * fields below.
@@ -154,6 +164,7 @@ export const Expression = ({
   serverHandled,
   extraActions,
   componentOverrides,
+  condition: isCondition,
   ...props
 }: IExpressionProps) => {
   const coarsePointer = useCoarsePointer();
@@ -595,6 +606,16 @@ export const Expression = ({
     ];
   }
 
+  /* The expression as a condition (qorus#646): a Qog if state's, a while or for block's, a transition's
+     condition is read by the server as true unless its value is zero or empty (Fsm.qc calls .toBool()). What
+     it gives is said as every condition editor says it: a number or a list is accepted with a warning under
+     it, text, a date or a time is refused. Only where the host says it is a condition: a value of type bool
+     is checked as a bool, and an int does not fit it. */
+  const condition = level === 0 && isCondition ? conditionVerdict(expressionReturnType) : undefined;
+  /* A bool place that takes any result but text, a date or a time: the condition itself, and each part of an
+     AND or an OR in it. */
+  const takesCondition =
+    level === 0 ? !!isCondition : isConditionType(returnType as string | string[] | undefined);
   const isReturnTypeMatching =
     expressionReturnType === 'any' ||
     (isArray(returnType)
@@ -607,9 +628,7 @@ export const Expression = ({
         returnType === expressionReturnType ||
         !returnType) ||
     // a condition is decided by any result but text, a date or a time
-    (isConditionType(returnType as string | string[] | undefined) &&
-      !!expressionReturnType &&
-      !isTextOrDateType(expressionReturnType));
+    (takesCondition && !!expressionReturnType && !isTextOrDateType(expressionReturnType));
 
   const defaultItems = useMemo(
     () =>
@@ -622,6 +641,7 @@ export const Expression = ({
           (exp) =>
             isChild ||
             exp.name === value?.value?.exp ||
+            !takesCondition ||
             expressionFitsReturnType(returnType as string | string[] | undefined, exp)
         )
         .map((exp) => ({
@@ -1299,24 +1319,44 @@ export const Expression = ({
           )}
         </ReqoreControlGroup>
       )}
-      {!isReturnTypeMatching && (
+      {condition === 'warning' && (
         <>
           <ReqoreVerticalSpacer height={5} />
           <ReqoreTag
             minimal
-            icon='ErrorWarningLine'
-            intent='danger'
+            className='expression-condition-verdict'
+            icon='AlertLine'
+            intent='warning'
             size='tiny'
             wrap
-            label={
-              isConditionType(returnType as string | string[] | undefined) &&
-              !!expressionReturnType &&
-              isTextOrDateType(expressionReturnType)
-                ? // a condition that gives text, a date or a time: say how to make it one
-                  `A condition can't give ${types.getTypeDisplayName(expressionReturnType)}: compare it explicitly, for example @status == "open" or @note != "".`
-                : `This expression returns ${types.getTypeDisplayName(expressionReturnType) || 'nothing'} but the expected return type is ${expectedReturnTypeText}. Please select an expression that returns ${expectedReturnTypeText} or wrap this expression inside another one that does.`
-            }
+            label={CONDITION_BY_TRUTHINESS_TEXT}
           />
+        </>
+      )}
+      {!isReturnTypeMatching && (
+        <>
+          <ReqoreVerticalSpacer height={5} />
+          {takesCondition && !!expressionReturnType && isTextOrDateType(expressionReturnType) ? (
+            // a condition that gives text, a date or a time: say how to make it one
+            <ReqoreTag
+              minimal
+              className='expression-condition-verdict'
+              icon='ErrorWarningLine'
+              intent='danger'
+              size='tiny'
+              wrap
+              label={conditionErrorText(types.getTypeDisplayName(expressionReturnType))}
+            />
+          ) : (
+            <ReqoreTag
+              minimal
+              icon='ErrorWarningLine'
+              intent='danger'
+              size='tiny'
+              wrap
+              label={`This expression returns ${types.getTypeDisplayName(expressionReturnType) || 'nothing'} but the expected return type is ${expectedReturnTypeText}. Please select an expression that returns ${expectedReturnTypeText} or wrap this expression inside another one that does.`}
+            />
+          )}
         </>
       )}
       {selectedExpression && !validationData.isValid ? (
@@ -1355,6 +1395,7 @@ export const ExpressionBuilder = ({
   extraActions,
   componentOverrides,
   reorder,
+  condition,
 }: IExpressionBuilderProps) => {
   const templates = useTemplates(!isChild, localTemplates);
   /* A builder nested in a group does not resolve templates again: its parent hands it the resolved ones.
@@ -1552,6 +1593,7 @@ export const ExpressionBuilder = ({
         extraActions={extraActions}
         componentOverrides={componentOverrides}
         reorder={reorder}
+        condition={condition}
       />
     </ReqoreErrorBoundary>
   );

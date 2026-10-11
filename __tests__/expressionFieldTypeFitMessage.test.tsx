@@ -17,6 +17,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 let parseResult: Record<string, unknown> = {};
 let parseCalls = 0;
+/** what each parse asked: the target type, and whether it asked about a condition */
+let parseAsked: { targetType?: string; condition?: boolean }[] = [];
 
 vi.mock('../src/components/dpqlEditor', () => ({
   DpqlEditor: forwardRef<any, any>(({ onChange, readOnly, value, onReady }, ref) => {
@@ -27,8 +29,9 @@ vi.mock('../src/components/dpqlEditor', () => ({
     useImperativeHandle(
       ref,
       () => ({
-        parse: async () => {
+        parse: async (_text: string, targetType?: string, options?: { condition?: boolean }) => {
           parseCalls++;
+          parseAsked.push({ targetType, condition: options?.condition });
           return parseResult;
         },
       }),
@@ -54,8 +57,14 @@ import { emptyFetchContext } from './support/fetchContext';
 
 const fetchContext = emptyFetchContext();
 
-const analysedAs = (type: string, text: string, analysis: Record<string, unknown>) => {
+const analysedAs = (
+  type: string,
+  text: string,
+  analysis: Record<string, unknown>,
+  condition?: boolean
+) => {
   parseCalls = 0;
+  parseAsked = [];
   parseResult = {
     success: true,
     expression: { is_expression: true, value: { exp: '+', args: [] } },
@@ -71,6 +80,7 @@ const analysedAs = (type: string, text: string, analysis: Record<string, unknown
             value={value}
             onChange={(v) => setValue(v)}
             type={type}
+            condition={condition}
             defaultMode='text'
             expressions={[]}
           />
@@ -135,6 +145,102 @@ describe('the type-fit message', () => {
   });
 
   it('reports a result that cannot become the field type at all', async () => {
+    const { container, type } = analysedAs('hash', '1 + 2', {
+      inferred_type: 'int',
+      target_type: 'hash',
+      type_compatible: false,
+      auto_coercible: false,
+      coercion_may_fail: false,
+    });
+    await type();
+
+    await waitFor(() => expect(container.textContent).toContain('This does not fit'), { timeout: 5000 });
+    expect(container.textContent).toContain('The expression returns int, and this field holds hash.');
+    expect(container.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
+  });
+
+  /* A condition (a field its host marks as one) is not a type to fit (qorus#646): the server reads it as
+     true unless its value is zero or empty. The field asks how the server reads it (`condition: true`, no
+     target type) and says what it answers, in the server's words when it gave them; a server that does
+     not know the question answers with the inferred type alone, which is read the same way. */
+  it('asks the server how it reads a condition, not whether it fits bool', async () => {
+    const { type } = analysedAs('bool', '1 + 2', { inferred_type: 'int' }, true);
+    await type();
+    await settle();
+    expect(parseAsked).toEqual([{ targetType: 'bool', condition: true }]);
+  });
+
+  it("says of a condition that gives a number what the server says of it", async () => {
+    const { container, type } = analysedAs(
+      'bool',
+      '1 + 2',
+      {
+        inferred_type: 'int',
+        target_type: 'bool',
+        condition_reading: 'truthiness',
+        type_compatible: false,
+        auto_coercible: true,
+        coercion_may_fail: true,
+        diagnostics: [{ code: 'CONDITION_BY_TRUTHINESS', message: 'Wahr, solange der Wert nicht null ist.' }],
+      },
+      true
+    );
+    await type();
+
+    await waitFor(() => expect(container.textContent).toContain('Wahr, solange der Wert nicht null ist.'), {
+      timeout: 5000,
+    });
+    expect(container.textContent).not.toContain('This may not fit');
+    expect(container.textContent).not.toContain('This does not fit');
+  });
+
+  it('refuses a condition that gives text, and says to compare it explicitly', async () => {
+    const { container, type } = analysedAs(
+      'bool',
+      '"a" + 1',
+      {
+        inferred_type: 'string',
+        target_type: 'bool',
+        condition_reading: 'not_a_condition',
+        type_compatible: false,
+        auto_coercible: false,
+        coercion_may_fail: false,
+        diagnostics: [],
+      },
+      true
+    );
+    await type();
+
+    await waitFor(() => expect(container.textContent).toContain("A condition can't give string"), {
+      timeout: 5000,
+    });
+    expect(container.textContent).not.toContain('This does not fit');
+  });
+
+  it('reads the inferred type as a condition when the server does not know the question', async () => {
+    const { container, type } = analysedAs('bool', '1 + 2', { inferred_type: 'int' }, true);
+    await type();
+
+    await waitFor(
+      () => expect(container.textContent).toContain("This condition is true whenever its value isn't zero or empty"),
+      { timeout: 5000 }
+    );
+  });
+
+  it('says nothing of a condition that gives true or false', async () => {
+    const { container, type } = analysedAs(
+      'bool',
+      '1 < 2',
+      { inferred_type: 'bool', condition_reading: 'condition', type_compatible: true },
+      true
+    );
+    await type();
+    await settle();
+    expect(container.textContent).not.toContain('This condition is true whenever');
+    expect(container.textContent).not.toContain("A condition can't give");
+  });
+
+  it('keeps the type check of a bool value that is not a condition', async () => {
     const { container, type } = analysedAs('bool', '1 + 2', {
       inferred_type: 'int',
       target_type: 'bool',
@@ -145,8 +251,7 @@ describe('the type-fit message', () => {
     await type();
 
     await waitFor(() => expect(container.textContent).toContain('This does not fit'), { timeout: 5000 });
-    expect(container.textContent).toContain('The expression returns int, and this field holds bool.');
-    expect(container.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
+    expect(parseAsked).toEqual([{ targetType: 'bool', condition: undefined }]);
   });
 
   it('says nothing when the result already fits', async () => {
