@@ -94,7 +94,7 @@ export const mockExpressions: IExpressionSchema[] = [
     name: '&&',
     display_name: 'Logical And',
     short_desc: 'Returns True if all arguments are True with logic short-circuiting',
-    desc: 'Logical AND of all arguments, with short-circuiting.',
+    desc: 'Logical AND of all arguments, with short-circuiting. Each argument is read as true or false as a condition is: a number is true unless it is zero, a list or a hash unless it is empty; compare a value explicitly to say what is meant.',
     symbol: '&&',
     type: 1,
     subtype: 2,
@@ -103,13 +103,14 @@ export const mockExpressions: IExpressionSchema[] = [
     varargs: true,
     min_args: 1,
     groups: ['Logic'],
-    args: [{ name: 'bool', display_name: 'Value', ui_type: 'bool', required: true }],
+    // any value: each part is read as a condition is, not required to be a bool (qorus#646)
+    args: [{ name: 'any', display_name: 'Value', ui_type: 'any', required: true }],
   },
   {
     name: '||',
     display_name: 'Logical Or',
     short_desc: 'Returns True if at least one argument is True with logic short-circuiting',
-    desc: 'Logical OR of all arguments, with short-circuiting.',
+    desc: 'Logical OR of all arguments, with short-circuiting. Each argument is read as true or false as a condition is: a number is true unless it is zero, a list or a hash unless it is empty; compare a value explicitly to say what is meant.',
     symbol: '||',
     type: 1,
     subtype: 2,
@@ -118,7 +119,8 @@ export const mockExpressions: IExpressionSchema[] = [
     varargs: true,
     min_args: 1,
     groups: ['Logic'],
-    args: [{ name: 'bool', display_name: 'Value', ui_type: 'bool', required: true }],
+    // any value: each part is read as a condition is, not required to be a bool (qorus#646)
+    args: [{ name: 'any', display_name: 'Value', ui_type: 'any', required: true }],
   },
   {
     name: 'contains',

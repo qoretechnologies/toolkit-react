@@ -1741,6 +1741,167 @@ export const VisualOperandsThatCombine: Story = {
   },
 };
 
+/* Each part of an AND, an OR or a NOT in a condition is read as true or false by its value (qorus#646), as the
+   whole condition is: the server judges each part by the same rule (`dpql/parse` with `condition: true` answers
+   `parts`), and the Visual view says what it says of each part on that part's own card. No part is checked as a
+   bool here: a number part is accepted, as the server accepts it, with the warning the server gives it. */
+
+/** A record with a whole number and a text field. */
+const CONDITION_FIELDS = { n: { type: 'int' }, name: { type: 'string' } };
+
+const fieldOperand = (name: string, type: string): IExpression => ({
+  type,
+  value: `$record:{${name}}`,
+});
+
+/** An operation on two operands, as the Visual view builds it. */
+const operation = (exp: string, left: IExpression, right: IExpression): IExpression => ({
+  is_expression: true,
+  value: { exp, args: [left, right] },
+});
+
+const one: IExpression = { type: 'int', value: 1 };
+
+/** A condition built in the Visual view as `left <exp> right`: an AND or an OR group of two operations. */
+const conditionOf = (exp: '&&' | '||', left: IExpression, right: IExpression): IExpression =>
+  operation(exp, left, right);
+
+/** `n + 1`: a whole number, which a condition reads as true unless it is zero. */
+const N_PLUS_ONE = operation('+', fieldOperand('n', 'int'), one);
+/** `n >= 1`: true or false. */
+const N_AT_LEAST_ONE = operation('>=', fieldOperand('n', 'int'), one);
+/** `name + 1`: text, which does not say plainly whether it is true. */
+const NAME_PLUS_ONE = operation('+', fieldOperand('name', 'string'), one);
+
+/** The verdict each card of the condition shows, by the card's text. */
+const partVerdicts = (canvasElement: HTMLElement) =>
+  Array.from(canvasElement.querySelectorAll<HTMLElement>('.expression-condition-part-verdict')).map(
+    (tag) => tag.dataset.verdict
+  );
+
+/** Settled when the server has read the built condition, as its text. */
+const readBuiltCondition = (text: string) =>
+  waitFor(
+    () =>
+      expect(
+        dpqlMockParseCalls.some((call) => call.text === text && call.condition),
+        `parses=${JSON.stringify(dpqlMockParseCalls)}`
+      ).toBe(true),
+    { timeout: 10000 }
+  );
+
+export const VisualConditionWithANumberPart: Story = {
+  args: {
+    value: conditionOf('&&', N_PLUS_ONE, N_AT_LEAST_ONE),
+    fields: CONDITION_FIELDS,
+    condition: true,
+    defaultMode: 'visual',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the condition `n + 1 && n >= 1` built in the Visual view, where `n` is a whole number. The server reads each part of an AND by its value, as it reads a whole condition: `n + 1` is true unless it is zero, which it says with a warning on that part's card. `n >= 1` is true or false, so its card says nothing, and nothing is refused.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readBuiltCondition('$record:{n} + 1 && $record:{n} >= 1');
+    await waitFor(() => expect(partVerdicts(canvasElement)).toEqual(['warning']), {
+      timeout: 10000,
+    });
+    const tag = canvasElement.querySelector<HTMLElement>('.expression-condition-part-verdict');
+    expect(tag?.textContent).toContain(CONDITION_BY_TRUTHINESS);
+    // on the part's own card: the first operand of the group
+    const cards = canvasElement.querySelectorAll('.reqore-panel .reqore-panel');
+    expect(tag?.closest('.reqore-panel')).toBe(cards[0]);
+    // a number part is no type mismatch: nothing is refused
+    expect(errorsShown(canvasElement)).toEqual([]);
+    expect(canvasElement.textContent).not.toContain('but the expected return type is');
+  },
+};
+
+export const VisualConditionWithATextPart: Story = {
+  args: {
+    value: conditionOf('||', NAME_PLUS_ONE, N_AT_LEAST_ONE),
+    fields: CONDITION_FIELDS,
+    condition: true,
+    defaultMode: 'visual',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the condition `name + 1 || n >= 1` built in the Visual view, where `name` is text. Text does not say plainly whether it is true, so the server refuses that part, and its card says so as an error, with how to make it a condition.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readBuiltCondition('$record:{name} + 1 || $record:{n} >= 1');
+    await waitFor(() => expect(partVerdicts(canvasElement)).toEqual(['error']), { timeout: 10000 });
+    expect(
+      canvasElement.querySelector('.expression-condition-part-verdict')?.textContent
+    ).toContain("A condition can't give Text");
+  },
+};
+
+export const VisualConditionWithPartsThatAreTrueOrFalse: Story = {
+  args: {
+    value: conditionOf(
+      '&&',
+      N_AT_LEAST_ONE,
+      operation('<', fieldOperand('n', 'int'), { type: 'int', value: 10 })
+    ),
+    fields: CONDITION_FIELDS,
+    condition: true,
+    defaultMode: 'visual',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the condition `n >= 1 && n < 10` built in the Visual view. Both parts are true or false, so no card says anything.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readBuiltCondition('$record:{n} >= 1 && $record:{n} < 10');
+    expect(partVerdicts(canvasElement)).toEqual([]);
+    expect(errorsShown(canvasElement)).toEqual([]);
+  },
+};
+
+export const VisualConditionWithANumberPartOnAPhone: Story = {
+  ...VisualConditionWithANumberPart,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The condition with a number part on a phone (390 px, touch): the warning wraps inside the card of the part it is about.',
+      },
+    },
+  },
+  play: async (context) => {
+    await VisualConditionWithANumberPart.play!(context);
+    const tag = context.canvasElement.querySelector<HTMLElement>(
+      '.expression-condition-part-verdict'
+    );
+    const card = tag?.closest('.reqore-panel') as HTMLElement | null;
+    expect(card).toBeTruthy();
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      if (narrowed) {
+        await waitFor(() =>
+          expect(tag!.getBoundingClientRect().right).toBeLessThanOrEqual(
+            card!.getBoundingClientRect().right + 1
+          )
+        );
+      }
+    });
+  },
+};
+
 export const VisualOperandsTheOperatorCannotCombineOnAPhone: Story = {
   ...VisualOperandsTheOperatorCannotCombine,
   decorators: [withCoarsePointer],

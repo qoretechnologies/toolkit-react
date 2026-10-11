@@ -40,9 +40,13 @@ export interface IDpqlMockParseResult {
   auto_coercible?: boolean;
   coercion_may_fail?: boolean;
   suggested_fix?: { text: string; description: string };
-  condition_reading?: 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
+  condition_reading?: TMockConditionReading;
+  /** With `condition`: each part of `&&`, `||` and `!`, with its type and how a condition reads it. */
+  parts?: Array<{ type: string; reading: TMockConditionReading }>;
   diagnostics: IDpqlMockDiagnostic[];
 }
+
+type TMockConditionReading = 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
 
 // ─── Catalogue ───────────────────────────────────────────────────────────────
 
@@ -442,18 +446,85 @@ const analyse = (
 /** The words the server uses for a type a condition cannot give. */
 const NOT_A_CONDITION_TYPE_NAMES: Record<string, string> = { string: 'Text', date: 'Date', time: 'Time' };
 
-/**
- * How the server reads an expression as a condition (`condition: true`, qorus#646), shaped as its answer:
- * true or false is a condition, text, a date or a time is not one, a type it cannot tell is unknown, and any
- * other is read by its value - true unless it is zero or empty.
- */
-const readAsCondition = (text: string, inferred: string) => {
-  const base = inferred.replace(/^\*/, '').replace(/^soft/, '');
-  const reading =
+/** How a condition reads a type: true or false, not a condition (text, a date or a time), unknown, or by its value. */
+const conditionReadingOf = (type: string): TMockConditionReading => {
+  const base = type.replace(/^\*/, '').replace(/^soft/, '');
+  return (
     base === 'bool' ? 'condition'
     : base === 'auto' || base === 'any' ? 'unknown'
     : NOT_A_CONDITION_TYPE_NAMES[base] ? 'not_a_condition'
-    : 'truthiness';
+    : 'truthiness'
+  );
+};
+
+/** The rank of each reading, the worst highest, as the server ranks them (QorusDpqlCondition::ReadingRank). */
+const READING_RANK: Record<TMockConditionReading, number> = {
+  condition: 0,
+  unknown: 1,
+  truthiness: 2,
+  not_a_condition: 3,
+};
+
+/** The operators whose every part is read as a condition. */
+const LOGICAL_OPERATORS = ['&&', '||', '!'];
+
+/** The type an operand gives, its fields' types known: what the server infers for it (`inferArgType`). */
+const inferWithFields = (node: IDpqlMockNode, fields: TDpqlMockFields): string => {
+  const field = fieldOf(node);
+  if (field !== undefined) {
+    const type = fields[field]?.type;
+    return typeof type === 'string' ? type : 'auto';
+  }
+  if (node.exp && ['+', '-', '*', '/'].includes(node.exp)) {
+    const operandTypes = (node.args ?? []).map((arg) => inferWithFields(nodeOf(arg), fields));
+    if (operandTypes.includes('auto')) return 'auto';
+    if (node.exp === '+' && operandTypes.includes('string')) return 'string';
+    return operandTypes.includes('float') ? 'float' : 'int';
+  }
+  return inferDpqlMockType(node);
+};
+
+/**
+ * The parts of an expression's logical operators, in the server's walk order (QorusDpqlCondition::partReadings):
+ * a logical operator's operands, left to right, a nested one standing for its own parts. A part's type is what
+ * it gives, its fields' types known.
+ */
+const conditionParts = (root: IDpqlMockNode, fields: TDpqlMockFields) => {
+  const parts: Array<{ type: string; reading: TMockConditionReading }> = [];
+  const walk = (node: IDpqlMockNode) => {
+    (node.args ?? []).forEach((arg) => {
+      const inner = nodeOf(arg);
+      if (inner.exp && LOGICAL_OPERATORS.includes(inner.exp)) {
+        walk(inner);
+        return;
+      }
+      const type = inferWithFields(inner, fields);
+      parts.push({ type, reading: conditionReadingOf(type) });
+    });
+  };
+  if (root.exp && LOGICAL_OPERATORS.includes(root.exp)) walk(root);
+  return parts;
+};
+
+/**
+ * How the server reads an expression as a condition (`condition: true`, qorus#646), shaped as its answer:
+ * true or false is a condition, text, a date or a time is not one, a type it cannot tell is unknown, and any
+ * other is read by its value - true unless it is zero or empty. Each part of `&&`, `||` and `!` is read the
+ * same way and answered in `parts`; the reading answered is the worst of the expression's and its parts', and
+ * each one that is not true or false has its own diagnostic.
+ */
+const readAsCondition = (
+  text: string,
+  inferred: string,
+  root: IDpqlMockNode,
+  fields: TDpqlMockFields = {}
+) => {
+  const parts = conditionParts(root, fields);
+  const judged = [{ type: inferred, reading: conditionReadingOf(inferred) }, ...parts];
+  const reading = judged.reduce<TMockConditionReading>(
+    (worst, part) => (READING_RANK[part.reading] > READING_RANK[worst] ? part.reading : worst),
+    judged[0].reading
+  );
   const span = { line: 1, column: 1, end_line: 1, end_column: text.length + 1 };
   return {
     inferred_type: inferred,
@@ -462,17 +533,18 @@ const readAsCondition = (text: string, inferred: string) => {
     type_compatible: reading === 'condition' || reading === 'unknown',
     auto_coercible: reading !== 'not_a_condition',
     coercion_may_fail: reading === 'truthiness',
-    diagnostics:
-      reading === 'not_a_condition' ?
+    parts,
+    diagnostics: judged.flatMap((part): IDpqlMockDiagnostic[] =>
+      part.reading === 'not_a_condition' ?
         [
           {
             severity: 'error',
             code: 'NOT_A_CONDITION',
-            message: `A condition can't give ${NOT_A_CONDITION_TYPE_NAMES[base]}: compare it explicitly, for example @status == "open" or @note != ""`,
+            message: `A condition can't give ${NOT_A_CONDITION_TYPE_NAMES[part.type.replace(/^\*/, '').replace(/^soft/, '')]}: compare it explicitly, for example @status == "open" or @note != ""`,
             ...span,
           },
         ]
-      : reading === 'truthiness' ?
+      : part.reading === 'truthiness' ?
         [
           {
             severity: 'warning',
@@ -482,7 +554,8 @@ const readAsCondition = (text: string, inferred: string) => {
             ...span,
           },
         ]
-      : [],
+      : []
+    ),
   };
 };
 
@@ -592,7 +665,7 @@ export const mockParseDpql = (
     return {
       success: true,
       expression: { is_expression: true, value: root },
-      ...(condition ? readAsCondition(trimmed, inferred)
+      ...(condition ? readAsCondition(trimmed, inferred, root, fields)
       : target ? analyse(trimmed, inferred, target)
       : { inferred_type: inferred, diagnostics: [] }),
     } as IDpqlMockParseResult;

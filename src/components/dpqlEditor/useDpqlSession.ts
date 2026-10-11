@@ -363,6 +363,7 @@ export function useDpqlSession(
           coercion_may_fail: result?.coercion_may_fail,
           suggested_fix: result?.suggested_fix,
           condition_reading: result?.condition_reading,
+          parts: result?.parts,
           diagnostics: result?.diagnostics ?? [],
         };
       } catch {

@@ -153,6 +153,101 @@ export const conditionErrorText = (typeName: string): string =>
 export const CONDITION_BY_TRUTHINESS_TEXT =
   "This condition is true whenever its value isn't zero or empty. To say what you mean, compare it explicitly.";
 
+/** The operators whose every part is read as true or false by its value: AND, OR and NOT. */
+export const LOGICAL_OPERATORS = ['&&', '||', '!'] as const;
+
+/** Whether an expression is an AND, an OR or a NOT. */
+export const isLogicalOperation = (expression: IExpression | undefined): boolean =>
+  !!expression?.is_expression &&
+  (LOGICAL_OPERATORS as readonly string[]).includes(expression.value?.exp);
+
+/** How the server reads a part of a condition (`dpql/parse` with `condition: true`, qorus#646). */
+export type TConditionReading = 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
+
+/** A part of an AND, an OR or a NOT in a condition: the type it gives and how it is read. */
+export interface IConditionPart {
+  type: string;
+  reading: TConditionReading;
+  /** What the server says of it, in its words, when it says anything. */
+  message?: string;
+}
+
+/**
+ * The parts the server judged, each with what it said of it.
+ *
+ * The server says it in the diagnostics (NOT_A_CONDITION, CONDITION_BY_TRUTHINESS), in the order it judged:
+ * the whole expression first, then its parts - one for each that is not true or false, all over the whole
+ * text. The whole's own reading is the one its type gives (`inferredType`); the answer's `condition_reading`
+ * is the worst of all of them. A part keeps no words when the diagnostics do not line up with the readings.
+ */
+export const conditionPartsWithMessages = (
+  parts: IConditionPart[] | undefined,
+  inferredType: string | undefined,
+  diagnostics: Array<{ code?: string | number; message: string }>
+): IConditionPart[] | undefined => {
+  if (!parts) {
+    return undefined;
+  }
+  const said = diagnostics.filter(
+    (d) => d.code === 'NOT_A_CONDITION' || d.code === 'CONDITION_BY_TRUTHINESS'
+  );
+  const codeOf = (reading: TConditionReading) =>
+    reading === 'not_a_condition' ? 'NOT_A_CONDITION'
+    : reading === 'truthiness' ? 'CONDITION_BY_TRUTHINESS'
+    : undefined;
+  const wholeVerdict = conditionVerdict(inferredType);
+  const rest = wholeVerdict ? said.slice(1) : said;
+  const partCodes = parts.map((part) => codeOf(part.reading)).filter(Boolean);
+  if (rest.length !== partCodes.length || rest.some((d, index) => d.code !== partCodes[index])) {
+    return parts;
+  }
+  let next = 0;
+  return parts.map((part) =>
+    codeOf(part.reading) ? { ...part, message: rest[next++].message } : part
+  );
+};
+
+/**
+ * Where each part the server judged is drawn, by the path of its card in the expression (the builder's
+ * `path`; `''` for the expression itself).
+ *
+ * The server reads each part of `&&`, `||` and `!` as a condition (qorus#646) and answers `parts` in its own
+ * walk order: the operands of the expression's logical operator, left to right, a nested `&&`, `||` or `!`
+ * standing for its own parts. A part of an AND or an OR has its own card; the part a NOT reads is drawn on
+ * the NOT's card. An answer whose parts are not this expression's (a stale one, or none) places nothing.
+ */
+export const conditionPartCards = (
+  expression: IExpression | undefined,
+  parts: IConditionPart[] | undefined
+): Record<string, IConditionPart> => {
+  const cards: string[] = [];
+  const walk = (node: IExpression, path: string): void => {
+    (node.value?.args ?? []).forEach((arg: IExpression, index: number) => {
+      const argPath = `${path ? `${path}.` : ''}value.args.${index}`;
+      if (isLogicalOperation(arg)) {
+        walk(arg, argPath);
+      } else {
+        cards.push(node.value?.exp === '!' ? path : argPath);
+      }
+    });
+  };
+  if (expression && isLogicalOperation(expression)) {
+    walk(expression, '');
+  }
+  if (!parts || parts.length !== cards.length) {
+    return {};
+  }
+  return Object.fromEntries(cards.map((card, index) => [card, parts[index]]));
+};
+
+/** What is said of a part of a condition: nothing when it is true or false or cannot be told. */
+export const conditionPartVerdict = (
+  part: IConditionPart | undefined
+): 'error' | 'warning' | undefined =>
+  part?.reading === 'not_a_condition' ? 'error'
+  : part?.reading === 'truthiness' ? 'warning'
+  : undefined;
+
 /**
  * Whether an operation is offered where its result must be of `returnType`: a condition (`bool`) is
  * built from the operations whose result decides it, which is any result but text, a date or a time.

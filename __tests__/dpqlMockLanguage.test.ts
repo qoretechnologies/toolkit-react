@@ -480,3 +480,52 @@ describe('operands the operator cannot combine', () => {
     expect(mockPublishedDiagnostics('@quantity + 1', fields)).toEqual([]);
   });
 });
+
+describe('each part of && || ! is read as a condition (qorus#646)', () => {
+  // the server's own cases (lsp-websocket.qtest), with the record's field types
+  const fields = { n: { type: 'int' }, flag: { type: 'bool' }, name: { type: 'string' } };
+  const codes = (text: string) =>
+    mockParseDpql(text, undefined, true, fields).diagnostics.map((d) => [d.severity, d.code]);
+
+  it('warns of a part read by its value', () => {
+    const result = mockParseDpql('@n && @flag', undefined, true, fields);
+    expect(result.parts).toEqual([
+      { type: 'int', reading: 'truthiness' },
+      { type: 'bool', reading: 'condition' },
+    ]);
+    expect(result.condition_reading).toBe('truthiness');
+    expect(codes('@n && @flag')).toEqual([['warning', 'CONDITION_BY_TRUTHINESS']]);
+  });
+
+  it('refuses a part that is text', () => {
+    const result = mockParseDpql('@name || @flag', undefined, true, fields);
+    expect(result.parts?.map((part) => part.reading)).toEqual(['not_a_condition', 'condition']);
+    expect(result.condition_reading).toBe('not_a_condition');
+    expect(result.type_compatible).toBe(false);
+    expect(codes('@name || @flag')).toEqual([['error', 'NOT_A_CONDITION']]);
+  });
+
+  it('says nothing of parts that are true or false, at any depth', () => {
+    expect(mockParseDpql('@n > 0 && @flag', undefined, true, fields).parts).toEqual([
+      { type: 'bool', reading: 'condition' },
+      { type: 'bool', reading: 'condition' },
+    ]);
+    expect(codes('@n > 0 && @flag')).toEqual([]);
+    expect(mockParseDpql('(@n > 0 && @flag) || !@n', undefined, true, fields).parts).toEqual([
+      { type: 'bool', reading: 'condition' },
+      { type: 'bool', reading: 'condition' },
+      { type: 'int', reading: 'truthiness' },
+    ]);
+  });
+
+  it('types a part that is an expression by its operands', () => {
+    expect(mockParseDpql('@n + 1 && @name + 1', undefined, true, fields).parts).toEqual([
+      { type: 'int', reading: 'truthiness' },
+      { type: 'string', reading: 'not_a_condition' },
+    ]);
+  });
+
+  it('has no parts outside an AND, an OR or a NOT', () => {
+    expect(mockParseDpql('@n', undefined, true, fields).parts).toEqual([]);
+  });
+});

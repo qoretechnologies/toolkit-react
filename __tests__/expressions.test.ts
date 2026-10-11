@@ -5,6 +5,9 @@ import {
 } from '../src/components/form/expressions/types';
 import {
   areQorusTypesCompatible,
+  conditionPartCards,
+  conditionPartsWithMessages,
+  conditionPartVerdict,
   expressionFitsReturnType,
   conditionVerdict,
   isConditionType,
@@ -240,3 +243,89 @@ describe('what is said of a condition (qorus#646)', () => {
   });
 });
 
+describe('the parts of a condition (qorus#646)', () => {
+  const field = (name: string): IExpression => ({ type: 'auto', value: `$record:{${name}}` });
+  const op = (exp: string, ...args: IExpression[]): IExpression => ({
+    is_expression: true,
+    value: { exp, args },
+  });
+  const int = { type: 'int', reading: 'truthiness' as const };
+  const bool = { type: 'bool', reading: 'condition' as const };
+  const text = { type: 'string', reading: 'not_a_condition' as const };
+
+  it("puts each part of an AND or an OR on its own card, in the server's walk order", () => {
+    expect(conditionPartCards(op('&&', field('n'), field('flag')), [int, bool])).toEqual({
+      'value.args.0': int,
+      'value.args.1': bool,
+    });
+  });
+
+  it('walks into a nested AND or OR, whose own parts are the parts', () => {
+    const value = op('||', op('&&', field('n'), field('flag')), field('name'));
+    expect(conditionPartCards(value, [int, bool, text])).toEqual({
+      'value.args.0.value.args.0': int,
+      'value.args.0.value.args.1': bool,
+      'value.args.1': text,
+    });
+  });
+
+  it("puts the part a NOT reads on the NOT's own card", () => {
+    expect(conditionPartCards(op('!', field('items')), [int])).toEqual({ '': int });
+    expect(conditionPartCards(op('&&', field('flag'), op('!', field('n'))), [bool, int])).toEqual({
+      'value.args.0': bool,
+      'value.args.1': int,
+    });
+  });
+
+  it('has no parts for a condition that is not an AND, an OR or a NOT', () => {
+    expect(conditionPartCards(op('>', field('n'), { type: 'int', value: 0 }), [])).toEqual({});
+  });
+
+  it("trusts no answer that is not about this expression: the server's parts must match its own", () => {
+    expect(conditionPartCards(op('&&', field('n'), field('flag')), [int])).toEqual({});
+    expect(conditionPartCards(op('&&', field('n'), field('flag')), undefined)).toEqual({});
+  });
+
+  it('says what a part is read as: nothing for true or false or an unknown, else a warning or an error', () => {
+    expect(conditionPartVerdict(bool)).toBeUndefined();
+    expect(conditionPartVerdict({ type: 'auto', reading: 'unknown' })).toBeUndefined();
+    expect(conditionPartVerdict(int)).toBe('warning');
+    expect(conditionPartVerdict(text)).toBe('error');
+    expect(conditionPartVerdict(undefined)).toBeUndefined();
+  });
+});
+
+describe('what the server says of each part (qorus#646)', () => {
+  const WARN = { code: 'CONDITION_BY_TRUTHINESS', message: 'true unless zero' };
+  const REFUSE = { code: 'NOT_A_CONDITION', message: "A condition can't give Text" };
+  const int = { type: 'int', reading: 'truthiness' as const };
+  const bool = { type: 'bool', reading: 'condition' as const };
+  const text = { type: 'string', reading: 'not_a_condition' as const };
+
+  it("gives each part the server's words, in the order it judged them", () => {
+    expect(conditionPartsWithMessages([int, bool, text], 'bool', [WARN, REFUSE])).toEqual([
+      { ...int, message: WARN.message },
+      bool,
+      { ...text, message: REFUSE.message },
+    ]);
+  });
+
+  it('skips what it said of the whole expression first', () => {
+    // a whole that is not true or false is said first, before its parts
+    expect(conditionPartsWithMessages([text], 'int', [WARN, REFUSE])).toEqual([
+      { ...text, message: REFUSE.message },
+    ]);
+  });
+
+  it('keeps no words when the diagnostics do not line up with the readings', () => {
+    expect(conditionPartsWithMessages([int, text], 'bool', [REFUSE, WARN])).toEqual([int, text]);
+    expect(conditionPartsWithMessages([int], 'bool', [])).toEqual([int]);
+    expect(conditionPartsWithMessages(undefined, 'bool', [WARN])).toBeUndefined();
+  });
+
+  it('ignores what else the server said', () => {
+    expect(
+      conditionPartsWithMessages([int], 'bool', [{ code: 'DPQL-W004', message: 'w' }, WARN])
+    ).toEqual([{ ...int, message: WARN.message }]);
+  });
+});

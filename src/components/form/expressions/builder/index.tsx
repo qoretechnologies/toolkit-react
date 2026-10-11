@@ -29,8 +29,11 @@ import {
   expressionFitsReturnType,
   getArgumentType,
   conditionErrorText,
+  conditionPartCards,
+  conditionPartVerdict,
   conditionVerdict,
   CONDITION_BY_TRUTHINESS_TEXT,
+  IConditionPart,
   isConditionType,
   isTextOrDateType,
 } from '../../../../helpers/expressions';
@@ -99,6 +102,14 @@ export interface IExpressionBuilderProps {
    */
   condition?: boolean;
   /**
+   * What the server says of each part of the condition's `&&`, `||` and `!` (`dpql/parse` with `condition: true`,
+   * qorus#646), in its walk order: each is drawn on its part's card. Given to the builder at the top; it hands
+   * each card its own (`conditionPartCards`).
+   */
+  conditionParts?: IConditionPart[];
+  /** Each part's verdict, by the path of the card it is drawn on: what the top builder hands its cards. */
+  conditionPartCards?: Record<string, IConditionPart>;
+  /**
    * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the operand
    * fields below.
    *
@@ -165,6 +176,7 @@ export const Expression = ({
   extraActions,
   componentOverrides,
   condition: isCondition,
+  conditionPartCards: partCards,
   ...props
 }: IExpressionProps) => {
   const coarsePointer = useCoarsePointer();
@@ -612,8 +624,14 @@ export const Expression = ({
      it, text, a date or a time is refused. Only where the host says it is a condition: a value of type bool
      is checked as a bool, and an int does not fit it. */
   const condition = level === 0 && isCondition ? conditionVerdict(expressionReturnType) : undefined;
-  /* A bool place that takes any result but text, a date or a time: the condition itself, and each part of an
-     AND or an OR in it. */
+  /* A part of the condition's AND, OR or NOT (this card's own, or the one a NOT reads): read as true or false
+     by its value as the whole condition is, and judged by the server by the same rule (qorus#646). Its verdict
+     is the server's, drawn here; nothing on this side checks a part as a bool. */
+  const part = partCards?.[path ?? ''];
+  const partVerdict = conditionPartVerdict(part);
+  /* A bool place that takes any result but text, a date or a time: the condition itself, and a bool place a
+     catalogue still declares (a part of an AND or an OR is typed by its operator's arguments, which take any
+     value on a Qorus that reads them as conditions). */
   const takesCondition =
     level === 0 ? !!isCondition : isConditionType(returnType as string | string[] | undefined);
   const isReturnTypeMatching =
@@ -1004,7 +1022,12 @@ export const Expression = ({
       ]}
       bottomActions={[
         {
-          show: !!selectedExpression && areQorusTypesCompatible('bool', returnType) && !readOnly,
+          /* a yes/no place, or a part of an AND or an OR, which another AND or OR can stand for (a part
+             takes any value, qorus#646) */
+          show:
+            !!selectedExpression &&
+            (!!group || areQorusTypesCompatible('bool', returnType)) &&
+            !readOnly,
           group: [
             {
               flat: true,
@@ -1319,6 +1342,26 @@ export const Expression = ({
           )}
         </ReqoreControlGroup>
       )}
+      {partVerdict && (
+        <>
+          <ReqoreVerticalSpacer height={5} />
+          <ReqoreTag
+            minimal
+            className='expression-condition-part-verdict'
+            data-verdict={partVerdict}
+            icon={partVerdict === 'error' ? 'ErrorWarningLine' : 'AlertLine'}
+            intent={partVerdict === 'error' ? 'danger' : 'warning'}
+            size='tiny'
+            wrap
+            label={
+              part?.message ??
+              (partVerdict === 'error' ?
+                conditionErrorText(types.getTypeDisplayName(part!.type) || part!.type)
+              : CONDITION_BY_TRUTHINESS_TEXT)
+            }
+          />
+        </>
+      )}
       {condition === 'warning' && (
         <>
           <ReqoreVerticalSpacer height={5} />
@@ -1396,8 +1439,18 @@ export const ExpressionBuilder = ({
   componentOverrides,
   reorder,
   condition,
+  conditionParts,
+  conditionPartCards: givenPartCards,
 }: IExpressionBuilderProps) => {
   const templates = useTemplates(!isChild, localTemplates);
+  /* The top builder places what the server says of each part of the condition on that part's card; a nested
+     one is handed the placement. */
+  const partCards = useMemo(
+    () =>
+      givenPartCards ??
+      (condition && conditionParts ? conditionPartCards(value, conditionParts) : undefined),
+    [givenPartCards, condition, conditionParts, JSON.stringify(value)]
+  );
   /* A builder nested in a group does not resolve templates again: its parent hands it the resolved ones.
      `useTemplates` gives a nested builder none, and they were what it handed on, so every comparison in
      an AND/OR group had no templates - its field pickers had nothing to offer and were drawn disabled,
@@ -1546,7 +1599,13 @@ export const ExpressionBuilder = ({
                   index={index}
                   type={type}
                   onValueChange={handleChange}
-                  returnType='bool'
+                  /* what its operator takes, as the catalogue declares it: any value, on a Qorus that reads
+                     each part of an AND or an OR as a condition (qorus#646) */
+                  returnType={
+                    (_expressions.expressions?.find((exp) => exp.name === value.value.exp)
+                      ?.args?.[0]?.ui_type ?? 'any') as any
+                  }
+                  conditionPartCards={partCards}
                   group={value.value.exp}
                   readOnly={readOnly}
                   expressions={expressions}
@@ -1594,6 +1653,7 @@ export const ExpressionBuilder = ({
         componentOverrides={componentOverrides}
         reorder={reorder}
         condition={condition}
+        conditionPartCards={partCards}
       />
     </ReqoreErrorBoundary>
   );

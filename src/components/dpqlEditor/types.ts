@@ -39,6 +39,15 @@ export interface IDpqlParseResult {
    * does not know the question leaves it out.
    */
   condition_reading?: 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
+  /**
+   * With `condition`: each part of the expression's `&&`, `||` and `!`, at any depth, with the type it gives
+   * and how a condition reads it - in the server's walk order (qorus#646). `condition_reading` is the worst of
+   * the expression's own reading and its parts'.
+   */
+  parts?: Array<{
+    type: string;
+    reading: 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
+  }>;
   diagnostics: Array<{
     range: {
       start: { line: number; character: number };

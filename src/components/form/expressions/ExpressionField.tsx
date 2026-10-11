@@ -26,6 +26,7 @@ import { useExpressions } from './useExpressions';
 import { useRenderExpression } from './useRenderExpression';
 import {
   conditionErrorText,
+  conditionPartsWithMessages,
   conditionVerdict,
   CONDITION_BY_TRUTHINESS_TEXT,
 } from '../../../helpers/expressions';
@@ -137,11 +138,17 @@ export interface IExpressionFieldProps {
 const isErrorDiagnostic = (diagnostic: { severity?: number | string }): boolean =>
   diagnostic.severity === 1 || diagnostic.severity === 'error';
 
+/** What the server says of a condition as a condition: drawn by the builder, on the cards it is about. */
+const CONDITION_DIAGNOSTIC_CODES = ['NOT_A_CONDITION', 'CONDITION_BY_TRUTHINESS'];
+
 /**
  * What the server says of an expression built in the Visual view: its errors, in its words, at the danger
  * intent. It writes the expression as DPQL (`dpql/serialize`) and reads it back (`dpql/parse`) on a document
  * bound to the record's fields, as the Text view's document is - so the server judges what is built as it
  * judges what is written. Mounted only while the Visual view shows a whole expression it can type.
+ *
+ * A condition is read as one (`condition: true`): what the server says of each part of its `&&`, `||` and `!`
+ * goes to `onConditionParts`, for the builder to draw on each part's card, and is not repeated here.
  */
 const ExpressionServerErrors = memo(
   ({
@@ -149,11 +156,16 @@ const ExpressionServerErrors = memo(
     fields,
     provider,
     recordType,
+    condition,
+    onConditionParts,
   }: {
     expression: IExpressionValue;
     fields?: TDpqlFields;
     provider?: string;
     recordType?: string;
+    condition?: boolean;
+    /** The parts the server judged, for the expression with this key (its JSON). */
+    onConditionParts?: (expressionKey: string, parts: IDpqlParseResult['parts']) => void;
   }) => {
     const dpql = useDpqlSession({ fields, provider, recordType });
     const ready = dpql.session.isReady && dpql.session.isContextReady;
@@ -166,23 +178,42 @@ const ExpressionServerErrors = memo(
       let cancelled = false;
       const check = async (): Promise<void> => {
         let said: string[] = [];
+        let parts: IDpqlParseResult['parts'];
         try {
           const text = await serialize(JSON.parse(expressionKey));
           if (text) {
-            const result = await parse(text);
-            said = result.diagnostics.filter(isErrorDiagnostic).map((d) => d.message);
+            const result = await parse(
+              text,
+              undefined,
+              condition ? { condition: true } : undefined
+            );
+            parts = conditionPartsWithMessages(
+              result.parts,
+              result.inferred_type,
+              result.diagnostics
+            );
+            said = result.diagnostics
+              .filter(
+                (d) =>
+                  isErrorDiagnostic(d) &&
+                  !(condition && CONDITION_DIAGNOSTIC_CODES.includes(String(d.code ?? '')))
+              )
+              .map((d) => d.message);
           }
         } catch {
           // a server that cannot write or read it says nothing about it here
           said = [];
+          parts = undefined;
         }
-        if (!cancelled) setErrors(said);
+        if (cancelled) return;
+        setErrors(said);
+        onConditionParts?.(expressionKey, parts);
       };
       void check();
       return () => {
         cancelled = true;
       };
-    }, [ready, expressionKey, serialize, parse]);
+    }, [ready, expressionKey, serialize, parse, condition, onConditionParts]);
 
     if (!errors.length) return null;
     return (
@@ -359,11 +390,29 @@ export const ExpressionField = memo(
      */
     const serverCheckable = useMemo(
       () =>
-        mode === 'visual' && ((!!fields && Object.keys(fields).length > 0) || !!provider) ?
+        (
+          mode === 'visual' &&
+          ((!!fields && Object.keys(fields).length > 0) || !!provider || !!condition)
+        ) ?
           serializableExpression(ast)
         : undefined,
-      [mode, fields, provider, ast]
+      [mode, fields, provider, condition, ast]
     );
+
+    /* What the server said of each part of the condition built in the Visual view (qorus#646), for the
+       expression it was said of: an answer about an expression since edited is not drawn on it. */
+    const [conditionParts, setConditionParts] = useState<{
+      key: string;
+      parts: IDpqlParseResult['parts'];
+    }>();
+    const onConditionParts = useCallback(
+      (key: string, parts: IDpqlParseResult['parts']) => setConditionParts({ key, parts }),
+      []
+    );
+    const currentConditionParts =
+      serverCheckable && conditionParts?.key === JSON.stringify(serverCheckable) ?
+        conditionParts.parts
+      : undefined;
 
     /**
      * Read the type analysis off a parse result, or clear it.
@@ -874,19 +923,22 @@ export const ExpressionField = memo(
               localTemplates={localTemplates ?? { items: [] }}
               serverHandled={serverHandled}
               condition={condition}
+              conditionParts={currentConditionParts}
               componentOverrides={componentOverrides}
               extraActions={extraActions}
               size={size}
               reorder={reorder}
             />
             {/* What the server says of the expression built here, where it can tell: with the record's
-                fields to type its operands by. */}
+                fields to type its operands by, and of a condition, each part as a condition. */}
             {serverCheckable ?
               <ExpressionServerErrors
                 expression={serverCheckable}
                 fields={fields}
                 provider={provider}
                 recordType={recordType}
+                condition={condition}
+                onConditionParts={condition ? onConditionParts : undefined}
               />
             : null}
           </>
