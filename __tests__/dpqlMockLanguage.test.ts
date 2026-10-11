@@ -13,6 +13,7 @@ import {
   mockRenderDpql,
   mockSerializeDpql,
   mockTokenizeDpql,
+  mockPublishedDiagnostics,
 } from '../src/components/form/expressions/dpqlMockLanguage';
 
 /** Decode LSP semantic tokens into `[text, typeIndex]` pairs for one line. */
@@ -446,5 +447,36 @@ describe('the stand-in tokenizer reads field names in any script, as the server 
     const ascii = decodeTokens('@qty > 0')[0][1];
     expect(decodeTokens('@menge_bestätigt > 0')[0]).toEqual(['@menge_bestätigt', ascii]);
     expect(decodeTokens('@名前 == "x"')[0]).toEqual(['@名前', ascii]);
+  });
+});
+
+// qorus#646: the server's parser refuses a `+` whose operands it cannot combine (DPQL-E050); the mock answers
+// as professor's language server did for the case the stories write, a hash and a number.
+describe('operands the operator cannot combine', () => {
+  const fields = { create: { type: 'hash' }, quantity: { type: 'int' } };
+  const E050 =
+    "Operator '+' cannot be applied to '@create' (a hash) and a number: it adds numbers, or a number and a date; joins a string with a string, number, date or boolean; appends to a list; and merges two hashes or two binary values";
+
+  it('refuses the parse, with no expression, in the server words', () => {
+    const result = mockParseDpql('@create + 1', undefined, false, fields);
+    expect(result.success).toBe(false);
+    expect(result.expression).toBeUndefined();
+    expect(result.diagnostics).toEqual([expect.objectContaining({ code: 'DPQL-E050', message: E050 })]);
+  });
+
+  it('publishes it as an error over the text', () => {
+    expect(mockPublishedDiagnostics('@create + 1', fields)).toEqual([
+      expect.objectContaining({ severity: 1, code: 'DPQL-E050', message: E050 }),
+    ]);
+  });
+
+  it('reads the field as the editor writes it, a template of the record', () => {
+    expect(mockParseDpql('$record:{create} + 1', undefined, false, fields).success).toBe(false);
+  });
+
+  it('combines a number with a number, and a field of a type it cannot tell with anything', () => {
+    expect(mockParseDpql('@quantity + 1', undefined, false, fields).success).toBe(true);
+    expect(mockParseDpql('@create + 1', undefined, false, {}).success).toBe(true);
+    expect(mockPublishedDiagnostics('@quantity + 1', fields)).toEqual([]);
   });
 });

@@ -209,8 +209,9 @@ type TToken =
   | { kind: 'word'; text: string; start: number }
   | { kind: 'op'; text: string; start: number };
 
+// 6: a record field (`@create`), which the server gives as the template `$record:{create}`
 const LEX_RE =
-  /\s*(?:("(?:\\.|[^"\\])*")|(\$[A-Za-z_-][\w-]*:[\w.{}]+)|(\d+(?:\.\d+)?)|([A-Za-z_]\w*)|(==|!=|<=|>=|&&|\|\||[-+*/<>!(),]))/y;
+  /\s*(?:("(?:\\.|[^"\\])*")|(\$[A-Za-z_-][\w-]*:[\w.{}]+)|(\d+(?:\.\d+)?)|([A-Za-z_]\w*)|(==|!=|<=|>=|&&|\|\||[-+*/<>!(),])|(@[A-Za-z_][\w]*))/y;
 
 /** Binary operators, loosest first — the precedence the server parenthesises by. */
 const BINARY_PRECEDENCE: Record<string, number> = {
@@ -260,6 +261,7 @@ const tokenize = (text: string): TToken[] => {
     else if (m[3]) tokens.push({ kind: 'number', text: m[3], start: tokenStart });
     else if (m[4]) tokens.push({ kind: 'word', text: m[4], start: tokenStart });
     else if (m[5]) tokens.push({ kind: 'op', text: m[5], start: tokenStart });
+    else if (m[6]) tokens.push({ kind: 'template', text: `$record:{${m[6].slice(1)}}`, start: tokenStart });
   }
   return tokens;
 };
@@ -485,15 +487,99 @@ const readAsCondition = (text: string, inferred: string) => {
 };
 
 /** `dpql/parse`: the AST for `text`, or the diagnostic the server reports. */
+/** A record's fields, as `dpql/setContext` and `didOpen` give them: each field's type. */
+export type TDpqlMockFields = Record<string, { type?: string | string[] }>;
+
+/** The record field an operand names (`@create`, or `$record:{create}` as the editor writes it), if any. */
+const fieldOf = (node: IDpqlMockNode): string | undefined => {
+  if (node.exp || typeof node.value !== 'string') return undefined;
+  return /^@(.+)$/.exec(node.value)?.[1] ?? /^\$record:\{(.+)\}$/.exec(node.value)?.[1];
+};
+
+/** An operand of `+` as the server names it in DPQL-E050: a field by its reference and type, else its kind. */
+const describeOperand = (node: IDpqlMockNode, fields: TDpqlMockFields): { kind?: string; words: string } => {
+  const field = fieldOf(node);
+  if (field !== undefined) {
+    const type = fields[field]?.type;
+    const kind = typeof type === 'string' ? type : undefined;
+    return { kind, words: `'@${field}' (a ${kind ?? 'value'})` };
+  }
+  return ['int', 'float', 'number'].includes(node.type ?? '') ?
+      { kind: 'number', words: 'a number' }
+    : { kind: node.type, words: `a ${node.type}` };
+};
+
+/**
+ * What the server reports of a `+` whose operands it cannot combine (Qore DpqlParser, DPQL-E050, qorus#646):
+ * the one the stories write, a hash and a number, in the server's words. Anything else combines.
+ */
+export const mockOperandCombinationErrors = (
+  root: IDpqlMockNode,
+  fields: TDpqlMockFields = {},
+  text = ''
+): IDpqlMockDiagnostic[] => {
+  const errors: IDpqlMockDiagnostic[] = [];
+  const visit = (node: IDpqlMockNode) => {
+    const inner = node.is_expression ? (node.value as IDpqlMockNode) : node;
+    if (!inner?.exp) return;
+    if (inner.exp === '+' && inner.args?.length === 2) {
+      const [left, right] = inner.args.map((arg) => describeOperand(arg, fields));
+      const kinds = [left.kind, right.kind];
+      if (kinds.includes('hash') && kinds.includes('number')) {
+        errors.push({
+          severity: 'error',
+          code: 'DPQL-E050',
+          message: `Operator '+' cannot be applied to ${left.words} and ${right.words}: it adds numbers, or a number and a date; joins a string with a string, number, date or boolean; appends to a list; and merges two hashes or two binary values`,
+          line: 1,
+          column: 1,
+          end_line: 1,
+          end_column: text.length + 1,
+        });
+      }
+    }
+    inner.args?.forEach(visit);
+  };
+  visit(root);
+  return errors;
+};
+
+/** What the server publishes for a document's text: its DPQL-E050 errors, as LSP diagnostics. */
+export const mockPublishedDiagnostics = (text: string, fields: TDpqlMockFields = {}) => {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  try {
+    const root = parseTokens(tokenize(trimmed), trimmed.length + 1);
+    return mockOperandCombinationErrors(root, fields, trimmed).map((error) => ({
+      range: {
+        start: { line: 0, character: 0 },
+        end: { line: 0, character: trimmed.length },
+      },
+      severity: 1,
+      code: error.code,
+      source: 'dpql',
+      message: error.message,
+    }));
+  } catch {
+    return [];
+  }
+};
+
+/** `dpql/parse`: the AST for `text`, or the diagnostic the server reports. */
 export const mockParseDpql = (
   text: string,
   target?: string,
-  condition?: boolean
+  condition?: boolean,
+  fields?: TDpqlMockFields
 ): IDpqlMockParseResult => {
   const trimmed = text.trim();
   try {
     const tokens = tokenize(trimmed);
     const node = parseTokens(tokens, trimmed.length + 1);
+    // operands the operator cannot combine: refused, as the server refuses them (no expression)
+    const combination = mockOperandCombinationErrors(node, fields, trimmed);
+    if (combination.length) {
+      return { success: false, diagnostics: combination } as IDpqlMockParseResult;
+    }
     // A lone value is wrapped in `value(...)`, which is how the server tells a
     // literal apart from an expression; a lone template reference in `template(...)`,
     // as the server's parser wraps one (Qore DpqlParser: DP_EXPR_TEMPLATE).

@@ -14,7 +14,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { memo, MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DpqlEditor, IDpqlEditorRef, IDpqlParseResult } from '../../dpqlEditor';
+import { DpqlEditor, IDpqlEditorRef, IDpqlParseResult, useDpqlSession } from '../../dpqlEditor';
 import { TemplateBrowser } from '../fields/template/TemplateBrowser';
 import { dpqlDisplayedText } from '../../dpqlEditor/dpqlHelpers';
 import { TDpqlFields } from '../../dpqlEditor/types';
@@ -132,6 +132,77 @@ export interface IExpressionFieldProps {
   /** Forwarded to the builder — operand reordering for varargs expressions. */
   reorder?: TExpressionReorder;
 }
+
+/** A diagnostic that is an error: the server marks one severity 1, or `error`. */
+const isErrorDiagnostic = (diagnostic: { severity?: number | string }): boolean =>
+  diagnostic.severity === 1 || diagnostic.severity === 'error';
+
+/**
+ * What the server says of an expression built in the Visual view: its errors, in its words, at the danger
+ * intent. It writes the expression as DPQL (`dpql/serialize`) and reads it back (`dpql/parse`) on a document
+ * bound to the record's fields, as the Text view's document is - so the server judges what is built as it
+ * judges what is written. Mounted only while the Visual view shows a whole expression it can type.
+ */
+const ExpressionServerErrors = memo(
+  ({
+    expression,
+    fields,
+    provider,
+    recordType,
+  }: {
+    expression: IExpressionValue;
+    fields?: TDpqlFields;
+    provider?: string;
+    recordType?: string;
+  }) => {
+    const dpql = useDpqlSession({ fields, provider, recordType });
+    const ready = dpql.session.isReady && dpql.session.isContextReady;
+    const [errors, setErrors] = useState<string[]>([]);
+    const expressionKey = JSON.stringify(expression);
+    const { serialize, parse } = dpql;
+
+    useEffect(() => {
+      if (!ready) return undefined;
+      let cancelled = false;
+      const check = async (): Promise<void> => {
+        let said: string[] = [];
+        try {
+          const text = await serialize(JSON.parse(expressionKey));
+          if (text) {
+            const result = await parse(text);
+            said = result.diagnostics.filter(isErrorDiagnostic).map((d) => d.message);
+          }
+        } catch {
+          // a server that cannot write or read it says nothing about it here
+          said = [];
+        }
+        if (!cancelled) setErrors(said);
+      };
+      void check();
+      return () => {
+        cancelled = true;
+      };
+    }, [ready, expressionKey, serialize, parse]);
+
+    if (!errors.length) return null;
+    return (
+      <ReqoreControlGroup vertical fluid size='small' className='expression-server-errors'>
+        {errors.map((message, index) => (
+          <ReqoreMessage
+            key={index}
+            intent='danger'
+            data-severity='danger'
+            size='small'
+            flat
+            opaque={false}
+          >
+            {message}
+          </ReqoreMessage>
+        ))}
+      </ReqoreControlGroup>
+    );
+  }
+);
 
 export const ExpressionField = memo(
   ({
@@ -279,6 +350,20 @@ export const ExpressionField = memo(
 
     /** A condition is asked as one, not as a type to fit. */
     const parseOptions = useMemo(() => (condition ? { condition: true } : undefined), [condition]);
+
+    /**
+     * The expression built in the Visual view, as the server is asked about it (qorus#646): whole, and only
+     * where the server can type its operands - with the record's fields or a provider's. The server refuses
+     * operands its operators cannot combine (DPQL-E050, `@create + 1` with `create` a hash), which nothing
+     * on this side can tell; the Text view shows it as the server publishes it, and so does this view.
+     */
+    const serverCheckable = useMemo(
+      () =>
+        mode === 'visual' && ((!!fields && Object.keys(fields).length > 0) || !!provider) ?
+          serializableExpression(ast)
+        : undefined,
+      [mode, fields, provider, ast]
+    );
 
     /**
      * Read the type analysis off a parse result, or clear it.
@@ -794,6 +879,16 @@ export const ExpressionField = memo(
               size={size}
               reorder={reorder}
             />
+            {/* What the server says of the expression built here, where it can tell: with the record's
+                fields to type its operands by. */}
+            {serverCheckable ?
+              <ExpressionServerErrors
+                expression={serverCheckable}
+                fields={fields}
+                provider={provider}
+                recordType={recordType}
+              />
+            : null}
           </>
         }
       </ReqoreControlGroup>

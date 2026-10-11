@@ -1639,3 +1639,129 @@ export const LiveExplain: Story = {
     defaultMode: 'text',
   },
 };
+
+/* Operands the operator cannot combine (qorus#646): a hash plus a number keeps Qore's run-time result, but the
+   server's parser refuses it (DPQL-E050), and the editor says so as an error - in the Text view, where the
+   server publishes it, and in the Visual view, which asks the server about the expression it builds. */
+
+/** The record of these stories: `create` is a hash. */
+const HASH_FIELD = { create: { type: 'hash' } };
+
+/** The server's words for `@create + 1` (DPQL-E050), as professor's language server says them. */
+const CANNOT_COMBINE = "Operator '+' cannot be applied to '@create' (a hash) and a number";
+
+/** What the field shows of the expression as an error: the server's messages at the danger intent. */
+const errorsShown = (canvasElement: HTMLElement) =>
+  Array.from(canvasElement.querySelectorAll('[data-severity="danger"]')).map((el) => el.textContent ?? '');
+
+export const TextModeOperandsTheOperatorCannotCombine: Story = typedExpressionStory(
+  'auto',
+  '@create + 1',
+  'Types `@create + 1` into the Text view, where `create` is a hash. The server cannot combine a hash and a number with `+` (DPQL-E050), and the field shows its words as an error, under the text and as a red underline.',
+  async (canvasElement) => {
+    await waitFor(
+      () => expect(errorsShown(canvasElement).join('\n')).toContain(CANNOT_COMBINE),
+      { timeout: 10000 }
+    );
+    expect(canvasElement.querySelector('[data-testid="diagnostic-underline"]')).not.toBeNull();
+    expect(canvasElement.querySelector('[data-severity="warning"]')).toBeNull();
+  },
+  { dpql_fields: HASH_FIELD }
+);
+
+const HASH_PLUS_ONE: IExpression = {
+  is_expression: true,
+  value: {
+    exp: '+',
+    args: [
+      { type: 'hash', value: '$record:{create}' },
+      { type: 'int', value: 1 },
+    ],
+  },
+} as IExpression;
+
+export const VisualOperandsTheOperatorCannotCombine: Story = {
+  args: {
+    value: HASH_PLUS_ONE,
+    fields: HASH_FIELD,
+    defaultMode: 'visual',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders `create + 1` built in the Visual view, where `create` is a hash. The field asks the server about the expression it builds, and shows the server\'s refusal (DPQL-E050: `+` cannot combine a hash and a number) as an error under it.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(
+      () =>
+        expect(
+          (canvasElement.querySelector('.expression-server-errors')?.textContent ?? '')
+        ).toContain(CANNOT_COMBINE),
+      { timeout: 10000 }
+    );
+    expect(errorsShown(canvasElement).join('\n')).toContain(CANNOT_COMBINE);
+  },
+};
+
+export const VisualOperandsThatCombine: Story = {
+  args: {
+    value: {
+      is_expression: true,
+      value: {
+        exp: '+',
+        args: [
+          { type: 'int', value: '$record:{quantity}' },
+          { type: 'int', value: 1 },
+        ],
+      },
+    } as IExpression,
+    fields: { ...HASH_FIELD, quantity: { type: 'int' } },
+    defaultMode: 'visual',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders `quantity + 1` built in the Visual view, where `quantity` is a whole number. The server combines them, so nothing is said under the expression.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    // asked and answered: the server wrote the expression and read it back
+    await waitFor(
+      () =>
+        expect(dpqlMockParseCalls.some((call) => call.text === '$record:{quantity} + 1')).toBe(true),
+      { timeout: 10000 }
+    );
+    expect(canvasElement.querySelector('.expression-server-errors')).toBeNull();
+    expect(errorsShown(canvasElement)).toEqual([]);
+  },
+};
+
+export const VisualOperandsTheOperatorCannotCombineOnAPhone: Story = {
+  ...VisualOperandsTheOperatorCannotCombine,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The same refused expression on a phone (390 px, touch): the server\'s error under the Visual view wraps inside the field.',
+      },
+    },
+  },
+  play: async (context) => {
+    await VisualOperandsTheOperatorCannotCombine.play!(context);
+    const shown = context.canvasElement.querySelector('.expression-server-errors') as HTMLElement;
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      if (narrowed) {
+        await waitFor(() =>
+          expect(shown.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth)
+        );
+      }
+    });
+  },
+};

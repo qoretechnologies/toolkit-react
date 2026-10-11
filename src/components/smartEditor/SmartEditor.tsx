@@ -642,6 +642,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               <ReqoreMessage
                 key={`${diag.range.start.line}:${diag.range.start.character}:${i}`}
                 intent={severityToIntent(diag.severity)}
+                // what the message is - an error, a warning, a note - for a test or a host to tell apart
+                data-severity={severityToIntent(diag.severity)}
                 icon={
                   diag.severity === 2 ? 'AlertLine'
                   : diag.severity && diag.severity >= 3 ?
