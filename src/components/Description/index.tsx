@@ -4,6 +4,7 @@ import { TQorusType } from '@qoretechnologies/ts-toolkit';
 import { memo, useCallback, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
+import { markdownToProse } from '../../helpers/markdownText';
 import { useMarkdownRenderer } from './markdownRendererContext';
 
 export interface IDescriptionProps extends IReqoreParagraphProps {
@@ -243,7 +244,8 @@ export const Description = memo(
         ) : (
           <ReqoreP {...rest}>
             <ReqoreSpan effect={effect}>
-              {finalShownDescription} {finalLongDescription ? renderToggle() : null}
+              {/* one line of prose until expanded: the words of its markdown, never the marks */}
+              {markdownToProse(finalShownDescription)} {finalLongDescription ? renderToggle() : null}
             </ReqoreSpan>
           </ReqoreP>
         )}

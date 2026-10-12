@@ -6,6 +6,7 @@ import {
   useMarkdownRenderer,
 } from '../components/Description/markdownRendererContext';
 import { useCoarsePointer } from '../hooks/useCoarsePointer';
+import { plainTextNode } from './markdownText';
 
 /** How wide a hover that explains something grows: a readable line, and narrower than a phone. */
 export const DESCRIPTION_TOOLTIP_MAX_WIDTH = '360px';
@@ -42,8 +43,9 @@ export const useDescriptionTooltips = (): IDescriptionTooltipOptions => {
  * same string as plain content printed its `**` and backticks at the reader, beside a list that drew them.
  * So every hover of a description is made here, drawn by the same renderer, `compact` as a hover card is.
  *
- * Without a host renderer the description stays the plain string it always was, as the template list's
- * does (`renderTemplateItemDescriptions`): reqraft does not draw in a dialect the host never chose.
+ * Without a host renderer it reads as the plain text its markdown renders to - the words and the paragraph
+ * breaks, none of the marks (`markdownToPlainText`) - as the template list's rows do: reqraft draws in no dialect
+ * the host never chose, and prints no `**` either.
  *
  * `title` heads the card - a template's name, say. Returns the title alone when there is no description,
  * and undefined when there is neither.
@@ -58,15 +60,15 @@ export const descriptionTooltip = (
     // a title alone says what the thing it is on already says: nothing for a finger to open
     return title || undefined;
   }
-  if (!render && !title && !tapToOpen) {
-    return description;
+  const content = (
+    render ? render({ value: description, compact: true }) : plainTextNode(description)
+  ) as IReqoreTooltip['content'];
+  if (typeof content === 'string' && !title && !tapToOpen) {
+    return content;
   }
   return {
     ...(title ? { title } : {}),
-    content:
-      render ?
-        (render({ value: description, compact: true }) as IReqoreTooltip['content'])
-      : description,
+    content,
     maxWidth: DESCRIPTION_TOOLTIP_MAX_WIDTH,
     ...touch,
   };

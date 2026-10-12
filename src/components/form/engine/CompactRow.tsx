@@ -58,6 +58,7 @@ import { findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
 import { RowOpenPickerContext } from './rowOpenPicker';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
 import { queryUnlessCancelled } from '../../../utils/queryUnlessCancelled';
+import { plainTextNode } from '../../../helpers/markdownText';
 import {
   colorToCss,
   findAllowedValueOption,
@@ -1319,7 +1320,7 @@ export const CompactRow = memo(
        `compact` for the same reason the row inset asks for it: this is a strip
        inside a row, never a page, and markdown authored as a document opens with
        a heading that would outgrow the field label above it. Without a host
-       renderer the string is drawn as it always was. */
+       renderer it reads as the plain text its markdown renders to (`plainTextNode`). */
     const renderInfoStrip = (m: TInfoMsg, index: number) => (
       <ReqoreMessage
         key={`${m.content}-${index}`}
@@ -1332,7 +1333,7 @@ export const CompactRow = memo(
       >
         {markdownRenderer && typeof m.content === 'string' ?
           markdownRenderer({ value: m.content, compact: true })
-        : m.content}
+        : plainTextNode(m.content)}
       </ReqoreMessage>
     );
     const reasonColor = (intent?: string) =>
@@ -2400,11 +2401,12 @@ export const CompactRow = memo(
           {readOnlyChoiceDesc ?
             /* What the chosen option means, on its own line: the server writes it in markdown ("Each
                `POST /conversations` ..."), so the host's renderer draws it, as it draws the schema messages
-               below; without one, it reads as the prose it renders to. A block, as what is drawn is. */
+               below; without one, it reads as the plain text it renders to, its paragraphs kept. A block, as
+               what is drawn is. */
             <div className='options-readfirst-choice-desc'>
               {markdownRenderer ?
                 markdownRenderer({ value: readOnlyChoiceDesc, compact: true })
-              : markdownToProse(readOnlyChoiceDesc)}
+              : plainTextNode(readOnlyChoiceDesc)}
             </div>
           : null}
           {valueReasons.map((m, i) => (

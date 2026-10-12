@@ -1,3 +1,4 @@
+import { markdownToProse } from '../../../helpers/markdownText';
 import {
   IQorusFormField,
   IQorusFormSchema,
@@ -540,43 +541,6 @@ const capSummary = (text: string): string => {
 };
 
 
-/**
- * Markdown as the prose it renders to, whole: `summariseMarkdown` without the cap. For a read row's slot that
- * holds a sentence or two in the row's own type (a field's short description under its name, a reason under the
- * value) and so cannot hold the blocks a renderer draws. Where a slot can, the host's renderer draws it.
- */
-export const markdownToProse = (value: unknown): string => {
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  return value
-    // a fenced block is never the summary of the thing it sits in
-    .replace(/```[\s\S]*?```/g, ' ')
-    // images before links — an image's `!` prefix would otherwise survive
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    // autolinks: <https://example.com> → https://example.com
-    .replace(/<((?:https?|mailto):[^>\s]+)>/g, '$1')
-    // leading block markers: heading hashes, blockquote carets, list bullets
-    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, '')
-    // setext underlines and thematic breaks carry no prose
-    .replace(/^\s{0,3}(?:={2,}|-{2,}|\*{3,}|_{3,})\s*$/gm, '')
-    // Emphasis / strong / strikethrough markers around their own text. The
-    // delimiters must hug the text they wrap, as CommonMark requires, and
-    // underscores additionally must not be intraword.
-    .replace(/(\*\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
-    .replace(/(?<![A-Za-z0-9])(___)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
-    .replace(/(\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
-    .replace(/(?<![A-Za-z0-9])(__)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
-    .replace(/(\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
-    .replace(/(?<![A-Za-z0-9])(_)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
-    .replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, '$1')
-    // inline code spans
-    .replace(/`+([^`]+)`+/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
-};
 
 /**
  * Summarise a markdown value as the prose it renders to.
@@ -596,7 +560,14 @@ export const markdownToProse = (value: unknown): string => {
  * `retrycountmax`: emphasis delimiters have to hug the text they wrap, and an
  * underscore must not be intraword, or an option key loses its underscores.
  */
-export const summariseMarkdown = (value: unknown): string => capSummary(markdownToProse(value));
+export const summariseMarkdown = (value: unknown): string =>
+  typeof value === 'string' ?
+    // a fenced block is never the summary of the thing it sits in
+    capSummary(markdownToProse(value.replace(/```[\s\S]*?```/g, ' ')))
+  : '';
+
+/** The prose a description's markdown renders to, on one line (`helpers/markdownText`). */
+export { markdownToProse };
 
 /**
  * The expression AST a field holds, whichever shape it arrived in.

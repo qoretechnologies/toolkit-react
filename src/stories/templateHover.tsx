@@ -97,7 +97,10 @@ export const playTapIsDrawnOnAPhone = async ({ canvasElement }: { canvasElement:
     }
   });
 
-/** With no host renderer the card says the description as it was written: the contract, unchanged. */
+/**
+ * With no host renderer the card says the description as plain text: its words, none of its marks, and nothing
+ * drawn in a dialect the host never chose.
+ */
 export const playHoverIsPlainWithoutAHost = async ({
   canvasElement,
 }: {
@@ -107,7 +110,8 @@ export const playHoverIsPlainWithoutAHost = async ({
   await waitFor(() => {
     const card = findHoverCard();
     expect(card).toBeTruthy();
-    expect(card!.querySelector('strong')).toBeNull();
-    expect(card!).toHaveTextContent('The **customer’s** full name');
+    expect(card!).toHaveTextContent('The customer’s full name, as the order gives it in customer.name.');
+    expect(card!.textContent).not.toMatch(/[`*]/);
+    expect(card!.querySelector('strong, code')).toBeNull();
   });
 };

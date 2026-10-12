@@ -64,7 +64,7 @@ export const WithoutAHostRenderer: Story = {
     docs: {
       description: {
         story:
-          'Renders the same text where the host draws no markdown. Hovered, the chip\'s card shows the description as it was written, as the template list does there.',
+          'Renders the same text where the host draws no markdown. Hovered, the chip\'s card says the description as plain text: "The customer’s full name, as the order gives it in customer.name.", with no asterisks or backticks.',
       },
     },
   },

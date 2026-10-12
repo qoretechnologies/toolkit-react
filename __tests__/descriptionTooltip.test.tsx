@@ -27,6 +27,8 @@ import { templateTooltip } from '../src/helpers/templates';
 import { COARSE_POINTER_QUERY } from '../src/hooks/useCoarsePointer';
 
 const DESCRIPTION = 'The **customer’s** full name, from `customer.name`.';
+/** What it says without a host renderer: its words, none of its marks. */
+const PLAIN = 'The customer’s full name, from customer.name.';
 
 /** A host renderer, as the IDE supplies one: it says what it was asked to draw. */
 const hostRender = vi.fn<TMarkdownRenderer>(({ value, compact }) => (
@@ -81,19 +83,26 @@ describe('descriptionTooltip', () => {
     });
     // drawn or not: what it says is out of a finger's reach on a hover either way
     expect(descriptionTooltip(DESCRIPTION, { tapToOpen: true })).toEqual({
-      content: DESCRIPTION,
+      content: PLAIN,
       maxWidth: DESCRIPTION_TOOLTIP_MAX_WIDTH,
       handler: 'click',
     });
   });
 
-  it('keeps the description as written where the host draws no markdown', () => {
-    expect(descriptionTooltip(DESCRIPTION, {})).toBe(DESCRIPTION);
+  it('says the description without its marks where the host draws no markdown', () => {
+    expect(descriptionTooltip(DESCRIPTION, {})).toBe(PLAIN);
     expect(descriptionTooltip(DESCRIPTION, {}, 'Customer name')).toEqual({
       title: 'Customer name',
-      content: DESCRIPTION,
+      content: PLAIN,
       maxWidth: DESCRIPTION_TOOLTIP_MAX_WIDTH,
     });
+  });
+
+  it('keeps its paragraphs, each on its own, where it has more than one', () => {
+    const tooltip = descriptionTooltip('The **name**.\n\n- `first`\n- second', {}) as IReqoreTooltip;
+    const block = drawn(tooltip);
+    expect(block.textContent).toBe('The name.\n\nfirst\nsecond');
+    expect(block.style.whiteSpace).toBe('pre-line');
   });
 
   it('is the title alone without a description, and nothing without either', () => {
