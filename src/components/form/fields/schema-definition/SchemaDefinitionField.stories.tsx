@@ -295,6 +295,7 @@ const sectionTab = (canvasElement: HTMLElement, name: string) =>
   );
 
 export const SectionsDescribedOnATouchScreen: Story = {
+  tags: ['touch'],
   args: {
     value: mockPopulatedDefinition,
   },

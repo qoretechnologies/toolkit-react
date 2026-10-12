@@ -608,6 +608,7 @@ export const CompletionDocsFromTheKeyboard: Story = {
 };
 
 export const CompletionDocsOnATouchScreen: Story = {
+  tags: ['touch'],
   args: { languageId: 'demo', initialValue: '', triggerCharacters: new Set(['.']) },
   decorators: [withCoarsePointer],
   parameters: {
@@ -646,6 +647,7 @@ export const CompletionDocsOnATouchScreen: Story = {
 };
 
 export const HoverDetailsOnATouchScreen: Story = {
+  tags: ['touch'],
   args: { languageId: 'demo', initialValue: '', triggerCharacters: new Set(['.']) },
   decorators: [withCoarsePointer],
   parameters: {

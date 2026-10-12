@@ -561,6 +561,7 @@ const expectFingerSized = (canvasElement: HTMLElement, narrowed: boolean) => {
 };
 
 export const OnATouchScreen: Story = {
+  tags: ['touch'],
   args: {
     value: CORNFLOWER,
   },
@@ -602,6 +603,7 @@ export const OnATouchScreen: Story = {
 };
 
 export const ColourBarDraggedByAFinger: Story = {
+  tags: ['touch'],
   args: {
     value: CORNFLOWER,
   },
@@ -630,6 +632,7 @@ export const ColourBarDraggedByAFinger: Story = {
 };
 
 export const SwatchTappedByAFinger: Story = {
+  tags: ['touch'],
   args: {
     value: CORNFLOWER,
   },
@@ -656,6 +659,7 @@ export const SwatchTappedByAFinger: Story = {
 };
 
 export const HelpTappedByAFinger: Story = {
+  tags: ['touch'],
   args: {
     value: CORNFLOWER,
   },
@@ -689,6 +693,7 @@ export const HelpTappedByAFinger: Story = {
 };
 
 export const WithTransparencyOnATouchScreen: Story = {
+  tags: ['touch'],
   args: {
     value: { r: 100, g: 149, b: 237, a: 0.5 },
     disableAlpha: false,

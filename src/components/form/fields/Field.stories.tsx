@@ -191,6 +191,7 @@ export const ChoicesDescribedOnHover: Story = {
 };
 
 export const ChoicesDescribedOnATouchScreen: Story = {
+  tags: ['touch'],
   args: describedChoiceArgs,
   decorators: [withCoarsePointer],
   parameters: {

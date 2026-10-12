@@ -110,6 +110,7 @@ export const TemplateHoverDrawsTheDescription: Story = {
 };
 
 export const TemplateTappedOnAPhone: Story = {
+  tags: ['touch'],
   args: TemplateHoverDrawsTheDescription.args,
   // the pointer is a finger where the touches are dispatched too (Storybook's own UI), as on a phone
   decorators: [withCoarsePointer, withHostMarkdown],

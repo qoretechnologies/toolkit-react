@@ -40,6 +40,7 @@ export const HoverDrawsTheDescription: Story = {
 };
 
 export const TappedOnAPhone: Story = {
+  tags: ['touch'],
   // the pointer is a finger where the touches are dispatched too (Storybook's own UI), as on a phone
   decorators: [withCoarsePointer, withHostMarkdown],
   parameters: {
