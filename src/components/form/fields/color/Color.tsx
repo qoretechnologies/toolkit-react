@@ -1,21 +1,35 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-import { useReqoreTheme } from '@qoretechnologies/reqore';
+import { ReqoreButton, ReqoreInput, ReqoreMessage, useReqoreTheme } from '@qoretechnologies/reqore';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import {
-  ColorResult,
   hexToRgba,
   HsvaColor,
+  hsvaToRgba,
   RgbaColor,
+  rgbaToHex,
   rgbaToHsva,
   validHex,
 } from '@uiw/color-convert';
-import Sketch, { SketchProps } from '@uiw/react-color-sketch';
+import Alpha, { BACKGROUND_IMG } from '@uiw/react-color-alpha';
+import Hue from '@uiw/react-color-hue';
+import Saturation, { SaturationProps } from '@uiw/react-color-saturation';
 import { rgba } from 'polished';
-import { useEffect, useMemo, useRef } from 'react';
+import {
+  ChangeEvent,
+  KeyboardEvent,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import styled, { css } from 'styled-components';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 
-/** The colour an `rgbcolor` field stores. */
+/** The colour an `rgbcolor` field stores: red, green and blue from 0 to 255, alpha from 0 to 1. */
 export interface IColorFormFieldValue {
   r: number;
   g: number;
@@ -23,27 +37,145 @@ export interface IColorFormFieldValue {
   a?: number;
 }
 
-export interface IColorFormFieldProps extends Pick<SketchProps, 'presetColors' | 'className'> {
+/** A colour offered as a swatch: a hex colour, or one with a name to read it by. */
+export type TColorPreset = string | { color: string; title?: string };
+
+/**
+ * The words of the colour field. A host that translates its interface passes its own; English where it
+ * does not. A text that holds a value is a function of it, so a host keeps its language's word order.
+ */
+export interface IColorFormFieldLabels {
+  hex: string;
+  red: string;
+  green: string;
+  blue: string;
+  opacity: string;
+  /** The square in which the colour's strength and brightness are chosen. */
+  area: string;
+  hue: string;
+  /** What the preview says of the colour, for a screen reader. */
+  preview: (hex: string, opacityPercent: number) => string;
+  /** What the preview says when the field holds no colour yet. */
+  noColor: string;
+  /** The button that shows and hides what the controls mean. */
+  help: string;
+  helpArea: string;
+  helpHex: string;
+  helpChannels: string;
+  helpOpacity: string;
+  /** A swatch's name, for a screen reader: the colour it picks. */
+  swatch: (title: string) => string;
+  /** Characters typed into a hex code that cannot be in one. */
+  notHex: (characters: string) => string;
+  /** Characters typed into a number that cannot be in one. */
+  notDigits: (characters: string, field: string) => string;
+  /** A hex code too long to be one. */
+  hexTooLong: string;
+  /** A hex code of the wrong length. */
+  hexLength: (text: string) => string;
+  /** A hex code left empty. */
+  hexEmpty: string;
+  /** A number past its field's range. */
+  outOfRange: (field: string, max: number) => string;
+  /** A number field left empty. */
+  empty: (field: string, max: number) => string;
+}
+
+const characters = (chars: string): string =>
+  Array.from(new Set(chars.split('')))
+    .map((char) => (char === ' ' ? 'a space' : `“${char}”`))
+    .join(', ');
+
+export const DEFAULT_COLOR_FORM_FIELD_LABELS: IColorFormFieldLabels = {
+  hex: 'Hex code',
+  red: 'Red',
+  green: 'Green',
+  blue: 'Blue',
+  opacity: 'Opacity %',
+  area: 'Strength and brightness',
+  hue: 'Colour',
+  preview: (hex, opacity) =>
+    opacity === 100 ? `Chosen colour: ${hex}` : `Chosen colour: ${hex}, ${opacity}% opaque`,
+  noColor: 'No colour chosen yet',
+  help: 'What do these mean?',
+  helpArea:
+    'The square sets how strong the colour is (left to right) and how bright (bottom to top); the rainbow bar under it sets the colour itself.',
+  helpHex:
+    'Hex code: the whole colour as six characters, each 0–9 or A–F, two each for red, green and blue - 6495ED is cornflower blue. Three characters are short for six: F80 is FF8800.',
+  helpChannels:
+    'Red, Green, Blue: how much red, green and blue light make the colour, each from 0 (none) to 255 (all). 0, 0, 0 is black and 255, 255, 255 is white.',
+  helpOpacity:
+    'Opacity: how solid the colour is, from 0% (you see through it) to 100% (solid). The squares behind the preview show through a colour that is not solid.',
+  swatch: (title) => `Use ${title}`,
+  notHex: (chars) =>
+    `${characters(chars)} cannot be in a hex code: use the digits 0–9 and the letters A–F.`,
+  notDigits: (chars, field) => `${characters(chars)} cannot be in ${field}: type a whole number.`,
+  hexTooLong: 'A hex code has six characters.',
+  hexLength: (text) =>
+    `“${text}” is not a colour: a hex code has six characters (or three, short for six).`,
+  hexEmpty: 'Type a hex code: six characters, each 0–9 or A–F.',
+  outOfRange: (field, max) => `${field} goes from 0 to ${max}.`,
+  empty: (field, max) => `${field} needs a whole number from 0 to ${max}.`,
+};
+
+/** The colours offered as swatches when a host offers none of its own. */
+export const DEFAULT_COLOR_PRESETS: TColorPreset[] = [
+  '#D0021B',
+  '#F5A623',
+  '#F8E61B',
+  '#8B572A',
+  '#7ED321',
+  '#417505',
+  '#BD10E0',
+  '#9013FE',
+  '#4A90E2',
+  '#50E3C2',
+  '#B8E986',
+  '#000000',
+  '#4A4A4A',
+  '#9B9B9B',
+  '#FFFFFF',
+];
+
+export interface IColorFormFieldProps {
   value?: IColorFormFieldValue;
   onChange?: (value: Required<IColorFormFieldValue>) => void;
   disabled?: boolean;
   readOnly?: boolean;
   /** Leave out the transparency slider and keep the stored transparency (the default). */
   disableAlpha?: boolean;
+  /** The swatches offered, or `false` for none. */
+  presetColors?: false | TColorPreset[];
+  className?: string;
+  /** The field's words, for a host that translates them. */
+  labels?: Partial<IColorFormFieldLabels>;
 }
 
 /**
- * What the picker shows while the field holds no colour: the picker's own starting colour. A constant, so
- * clearing the value moves the picker back to it, and an empty field does not reset it on every render.
+ * What the picker shows while the field holds no colour: a starting colour. A constant, so clearing the
+ * value moves the picker back to it, and an empty field does not reset it on every render.
  */
 const NO_COLOR: HsvaColor = { h: 209, s: 36, v: 90, a: 1 };
 
 const isChannel = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
 
+const clamp = (n: number, min: number, max: number): number => Math.min(max, Math.max(min, n));
+
+/**
+ * A colour as it may be stored: red, green and blue whole numbers from 0 to 255, and the alpha from 0 to 1
+ * in hundredths, which is what the opacity field shows. Nothing past these is ever stored.
+ */
+const toStoredColor = ({ r, g, b, a }: RgbaColor): Required<IColorFormFieldValue> => ({
+  r: clamp(Math.round(r), 0, 255),
+  g: clamp(Math.round(g), 0, 255),
+  b: clamp(Math.round(b), 0, 255),
+  a: clamp(Math.round(a * 100) / 100, 0, 1),
+});
+
 /**
  * A stored colour as red, green, blue and alpha: `{ r, g, b, a? }` as the field stores it, or a hex colour,
  * bare or as `{ hex }`, as a value written by hand or by another client can be. Undefined when it is none
- * of these.
+ * of these. A channel past its range is brought into it, so what is shown, and stored from it, is a colour.
  */
 export const colorToRgba = (value: unknown): RgbaColor | undefined => {
   if (typeof value === 'string') {
@@ -53,7 +185,7 @@ export const colorToRgba = (value: unknown): RgbaColor | undefined => {
   if (value && typeof value === 'object') {
     const { r, g, b, a, hex } = value as Partial<RgbaColor> & { hex?: unknown };
     if (isChannel(r) && isChannel(g) && isChannel(b)) {
-      return { r, g, b, a: isChannel(a) ? a : 1 };
+      return toStoredColor({ r, g, b, a: isChannel(a) ? a : 1 });
     }
     if (typeof hex === 'string') {
       return colorToRgba(hex);
@@ -65,91 +197,284 @@ export const colorToRgba = (value: unknown): RgbaColor | undefined => {
 const sameRgba = (x: RgbaColor, y: RgbaColor): boolean =>
   x.r === y.r && x.g === y.g && x.b === y.b && x.a === y.a;
 
+const hexOf = (color: RgbaColor): string => rgbaToHex(color).replace(/^#/, '').toUpperCase();
+
 /** A finger's target: the smallest a control should be on a touch screen. */
-const TAP_TARGET_PX = 44;
+export const TAP_TARGET_PX = 44;
+
+/** The sizes of the picker's parts, for a mouse and for a finger. */
+const sizesFor = (coarse: boolean) => ({
+  /** The colour square's height. */
+  area: coarse ? 160 : 100,
+  /** A slider's visible bar. */
+  track: coarse ? 28 : 12,
+  /** A slider's reach: the bar and the room around it a touch still lands on. */
+  reach: coarse ? TAP_TARGET_PX : 20,
+  /** The preview's side. */
+  preview: coarse ? 56 : 40,
+  /** A swatch's side. */
+  swatch: coarse ? TAP_TARGET_PX : 18,
+});
+
+type TChannel = 'r' | 'g' | 'b' | 'a';
+type TField = 'hex' | TChannel;
+
+const CHANNEL_MAX: Record<TChannel, number> = { r: 255, g: 255, b: 255, a: 100 };
+
+/** What the field shows in each input for a colour. */
+const fieldTexts = (color: RgbaColor): Record<TField, string> => ({
+  hex: hexOf(color),
+  r: String(color.r),
+  g: String(color.g),
+  b: String(color.b),
+  a: String(Math.round(color.a * 100)),
+});
+
+/**
+ * Text typed into a field, kept to what the field can hold: the characters that can be in it, up to its
+ * length. Returns what is kept, the characters dropped, and whether the text was too long.
+ */
+const keepValid = (field: TField, text: string): { kept: string; dropped: string; long: boolean } => {
+  // a hex code's own mark, written or pasted with it, is not a character of the code
+  const source = field === 'hex' ? text.trim().replace(/^#/, '') : text.trim();
+  const allowed = field === 'hex' ? /[0-9a-f]/i : /[0-9]/;
+  const max = field === 'hex' ? 6 : 3;
+  let kept = '';
+  let dropped = '';
+  for (const char of source) {
+    if (allowed.test(char)) {
+      kept += char;
+    } else {
+      dropped += char;
+    }
+  }
+  return {
+    kept: (field === 'hex' ? kept.toUpperCase() : kept).slice(0, max),
+    dropped,
+    long: kept.length > max,
+  };
+};
 
 interface IStyledColorFieldProps {
-  $coarse: boolean;
   $disabled: boolean;
   $text: string;
 }
 
-/**
- * The picker draws itself as a popover on a white page, with inline styles, so its colours, spacing and sizes
- * are set here over them: it takes the field's width up to 400px, sits flush with the field's other content,
- * takes the theme's text colours, and on a touch screen its bars, swatches and inputs grow to a finger's
- * size.
- */
 export const StyledColorField = styled.div<IStyledColorFieldProps>`
+  display: flex;
+  flex-flow: column;
+  gap: 8px;
   width: 100%;
   max-width: 400px;
+  color: ${({ $text }) => $text};
   opacity: ${({ $disabled }) => ($disabled ? 0.5 : 1)};
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'auto')};
+`;
 
-  .w-color-sketch {
-    width: 100% !important;
-    --sketch-background: transparent !important;
-    --sketch-box-shadow: none !important;
-    --sketch-swatch-border-top: 1px solid ${({ $text }) => rgba($text, 0.15)} !important;
+const StyledArea = styled.div<{ $height: number; $text: string }>`
+  position: relative;
+  width: 100%;
+  height: ${({ $height }) => $height}px;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px ${({ $text }) => rgba($text, 0.2)};
+
+  .w-color-saturation:focus-visible {
+    outline: 2px solid ${({ $text }) => $text};
+    outline-offset: -2px;
   }
+`;
 
-  /* flush with the field's other content: the picker pads itself as a popover would */
-  .w-color-sketch > div:first-child {
-    padding: 0 0 8px !important;
+const StyledSliders = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const StyledSliderStack = styled.div`
+  display: flex;
+  flex-flow: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 4px;
+`;
+
+/** A checkerboard, under whatever is not solid: the preview and the opacity bar. */
+const checkerboard = css`
+  background-image: url(${BACKGROUND_IMG});
+  background-position: left center;
+  background-color: #fff;
+`;
+
+const StyledPreview = styled.div<{ $size: number; $text: string; $color?: string }>`
+  position: relative;
+  flex: 0 0 auto;
+  width: ${({ $size }) => $size}px;
+  height: ${({ $size }) => $size}px;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px ${({ $text }) => rgba($text, 0.3)};
+  ${checkerboard}
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 1px ${({ $text }) => rgba($text, 0.3)};
+    ${({ $color }) =>
+      $color ?
+        css`
+          background: ${$color};
+        `
+      : css`
+          /* no colour yet: struck through */
+          background: linear-gradient(
+            to top right,
+            transparent calc(50% - 1.5px),
+            #d0021b calc(50% - 1.5px),
+            #d0021b calc(50% + 1.5px),
+            transparent calc(50% + 1.5px)
+          );
+        `}
   }
-
-  .w-color-sketch > div:nth-child(2) {
-    margin: 0 0 3px !important;
-  }
-
-  .w-color-swatch {
-    padding-left: 0 !important;
-  }
-
-  ${({ $coarse }) =>
-    !$coarse &&
-    css`
-      /* the field's compact colour area; a finger gets the picker's own, taller one */
-      .w-color-saturation {
-        height: 100px !important;
-      }
-    `}
-
-  .w-color-editable-input {
-    --editable-input-color: ${({ $text }) => $text} !important;
-    --editable-input-label-color: ${({ $text }) => rgba($text, 0.7)} !important;
-    --editable-input-box-shadow: inset 0 0 0 1px ${({ $text }) => rgba($text, 0.3)} !important;
-  }
-
-  ${({ $coarse }) =>
-    $coarse &&
-    css`
-      .w-color-hue,
-      .w-color-alpha {
-        height: 24px !important;
-      }
-
-      .w-color-swatch > div {
-        width: ${TAP_TARGET_PX}px !important;
-        height: ${TAP_TARGET_PX}px !important;
-      }
-
-      .w-color-editable-input input {
-        min-height: ${TAP_TARGET_PX}px;
-        /* below 16px a phone zooms the page in to type */
-        font-size: 16px !important;
-      }
-    `}
 `;
 
 /**
- * The `rgbcolor` field: a Sketch colour picker (`@uiw/react-color-sketch`) that stores `{ r, g, b, a }`.
+ * A slider's bar inside its reach: the room above and below the bar is still the slider's, so a finger
+ * that lands just off the bar still moves it. The reach itself is clear (the picker paints it white).
+ */
+const sliderStyles = (track: number, reach: number) => ({
+  height: reach,
+  style: { background: 'transparent', backgroundColor: 'transparent' },
+  bgProps: { style: { inset: `${(reach - track) / 2}px 0`, borderRadius: track / 2 } },
+});
+
+const StyledThumb = styled.div<{ $height: number; $width: number }>`
+  position: absolute;
+  top: 50%;
+  width: ${({ $width }) => $width}px;
+  height: ${({ $height }) => $height}px;
+  transform: translate(-50%, -50%);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 4px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+`;
+
+const StyledAreaThumb = styled.div<{ $size: number }>`
+  position: absolute;
+  width: ${({ $size }) => $size}px;
+  height: ${({ $size }) => $size}px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 3px rgba(0, 0, 0, 0.4),
+    inset 0 0 1px 1px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+`;
+
+const StyledInputsBlock = styled.div`
+  display: flex;
+  flex-flow: column;
+
+  .reqore-message {
+    margin-top: 6px;
+  }
+`;
+
+const StyledInputs = styled.div`
+  display: flex;
+  flex-flow: row wrap;
+  gap: 8px 6px;
+`;
+
+const StyledInputColumn = styled.div<{ $grow: number; $min: number }>`
+  display: flex;
+  flex-flow: column;
+  gap: 2px;
+  flex: ${({ $grow, $min }) => `${$grow} 1 ${$min}px`};
+  min-width: ${({ $min }) => $min}px;
+
+  input {
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+`;
+
+const StyledLabel = styled.label<{ $text: string; $coarse: boolean }>`
+  font-size: ${({ $coarse }) => ($coarse ? 14 : 12)}px;
+  line-height: 1.3;
+  color: ${({ $text }) => rgba($text, 0.85)};
+  white-space: nowrap;
+`;
+
+const StyledHelp = styled.div<{ $text: string; $coarse: boolean }>`
+  display: flex;
+  flex-flow: column;
+  gap: 6px;
+  font-size: ${({ $coarse }) => ($coarse ? 15 : 13)}px;
+  line-height: 1.45;
+  color: ${({ $text }) => rgba($text, 0.85)};
+
+  p {
+    margin: 0;
+  }
+`;
+
+const StyledSwatches = styled.div<{ $text: string }>`
+  display: flex;
+  flex-flow: row wrap;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid ${({ $text }) => rgba($text, 0.15)};
+`;
+
+const StyledSwatch = styled.button<{ $size: number; $color: string; $text: string }>`
+  width: ${({ $size }) => $size}px;
+  height: ${({ $size }) => $size}px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  background: ${({ $color }) => $color};
+  box-shadow: inset 0 0 0 1px ${({ $text }) => rgba($text, 0.25)};
+
+  &[aria-pressed='true'] {
+    box-shadow:
+      inset 0 0 0 1px ${({ $text }) => rgba($text, 0.25)},
+      0 0 0 2px ${({ $text }) => $text};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ $text }) => $text};
+    outline-offset: 2px;
+  }
+`;
+
+interface IFieldProblem {
+  field: TField;
+  message: string;
+  /** The text in the field is not a colour while it says so; once put back, only the message stays. */
+  invalid: boolean;
+}
+
+/**
+ * The `rgbcolor` field: a colour picker that stores `{ r, g, b, a }`.
+ *
+ * It is drawn from the `@uiw` picker's parts - the colour square, the hue bar and the opacity bar - and
+ * around them the field's own: a preview of the colour, its hex code and its red, green, blue (and
+ * opacity) as labelled inputs that take only what a colour can be, a "What do these mean?" help, and
+ * swatches. On a touch screen every target is a finger's size.
  *
  * The picker works in hue, saturation and value, and a stored colour is red, green and blue. A colour the
  * picker sent comes back as the field's value, and turned back into hue it can lose what the picker had:
- * a grey has no hue, so moving the saturation to a grey would throw the hue slider back to red. So the
- * colour the picker sent is handed back to it as it sent it, and only a value that changed somewhere else
- * is converted.
+ * a grey has no hue, so moving the saturation to a grey would throw the hue bar back to red. So the colour
+ * the picker last showed is kept with the colour it sent, and only a value that changed somewhere else is
+ * converted.
  */
 export const ColorFormField = ({
   value,
@@ -157,27 +482,44 @@ export const ColorFormField = ({
   disabled,
   readOnly,
   disableAlpha = true,
-  presetColors,
+  presetColors = DEFAULT_COLOR_PRESETS,
   className,
+  labels,
 }: IColorFormFieldProps) => {
   const theme = useReqoreTheme();
+  const text = getReadableColor(theme);
   const coarse = useCoarsePointer();
+  const sizes = sizesFor(coarse);
+  const words = useMemo(() => ({ ...DEFAULT_COLOR_FORM_FIELD_LABELS, ...labels }), [labels]);
+  const id = useId();
   const field = useRef<HTMLDivElement>(null);
-  const sent = useRef<{ rgba: RgbaColor; hsva: HsvaColor } | undefined>(undefined);
   const locked = !!(disabled || readOnly);
 
   const stored = colorToRgba(value);
   const { r, g, b, a } = stored ?? {};
+  /** What the picker last showed after a move of its own, and the colour it sent for it. */
+  const [picked, setPicked] = useState<{ rgba: RgbaColor; hsva: HsvaColor }>();
+  /** Text typed into an input that is not (yet) the colour: what the input shows instead of the colour. */
+  const [drafts, setDrafts] = useState<Partial<Record<TField, string>>>({});
+  const [problem, setProblem] = useState<IFieldProblem>();
+  const [helpOpen, setHelpOpen] = useState(false);
+  /** Where the caret goes after characters that could not be typed are left out. */
+  const caret = useRef<{ input: HTMLInputElement; at: number }>();
 
-  const color = useMemo((): HsvaColor => {
+  const shown = useMemo((): HsvaColor => {
     if (!isChannel(r) || !isChannel(g) || !isChannel(b) || !isChannel(a)) {
       return NO_COLOR;
     }
     const rgbaValue = { r, g, b, a };
-    return sent.current && sameRgba(sent.current.rgba, rgbaValue)
-      ? sent.current.hsva
-      : rgbaToHsva(rgbaValue);
-  }, [r, g, b, a]);
+    return picked && sameRgba(picked.rgba, rgbaValue) ? picked.hsva : rgbaToHsva(rgbaValue);
+  }, [r, g, b, a, picked]);
+
+  /** The colour the inputs show: the stored one, or the picker's starting colour. */
+  const current: RgbaColor = useMemo(
+    () => (stored ? { r: stored.r, g: stored.g, b: stored.b, a: stored.a } : hsvaToRgba(NO_COLOR)),
+    [r, g, b, a]
+  );
+  const texts = fieldTexts(current);
 
   // `inert` takes the picker out of reach of the pointer, the keyboard and assistive technology at once:
   // its sliders are focusable and move with the arrow keys. Set on the element, as React 18 and React 19
@@ -188,37 +530,357 @@ export const ColorFormField = ({
     }
   }, [locked]);
 
-  const handleChange = (result: ColorResult) => {
+  useLayoutEffect(() => {
+    if (caret.current) {
+      const { input, at } = caret.current;
+      caret.current = undefined;
+      if (document.activeElement === input) {
+        input.setSelectionRange(at, at);
+      }
+    }
+  });
+
+  /**
+   * Store a colour. `hsva` is how the picker showed it, when the picker made it: kept, so a grey keeps its
+   * hue. A colour typed in keeps the hue (and for black the strength) it cannot say.
+   */
+  const store = useCallback(
+    (next: RgbaColor, hsva?: HsvaColor) => {
+      if (locked) {
+        return;
+      }
+      // Without its slider the transparency is not the picker's to change. It would: a hex code typed in,
+      // or a swatch, is opaque.
+      const color = toStoredColor({ ...next, a: disableAlpha ? (stored?.a ?? 1) : next.a });
+      let showAs = hsva ?? rgbaToHsva(color);
+      if (!hsva) {
+        showAs =
+          showAs.v === 0 ? { ...showAs, h: shown.h, s: shown.s }
+          : showAs.s === 0 ? { ...showAs, h: shown.h }
+          : showAs;
+      }
+      setPicked({ rgba: color, hsva: { ...showAs, a: color.a } });
+      // A hue moved on a grey is the same colour: nothing to store.
+      if (stored && sameRgba(stored, color)) {
+        return;
+      }
+      onChange?.(color);
+    },
+    [locked, disableAlpha, stored, shown, onChange]
+  );
+
+  const pickerMoved = useCallback(
+    (hsva: HsvaColor) => store(hsvaToRgba(hsva), hsva),
+    [store]
+  );
+
+  const setDraft = (name: TField, draft?: string) =>
+    setDrafts((was) => {
+      const next = { ...was };
+      if (draft === undefined) {
+        delete next[name];
+      } else {
+        next[name] = draft;
+      }
+      return next;
+    });
+
+  const fieldName = (name: TField): string =>
+    name === 'hex' ? words.hex
+    : name === 'r' ? words.red
+    : name === 'g' ? words.green
+    : name === 'b' ? words.blue
+    : words.opacity.replace(/\s*%$/, '');
+
+  /** The colour with one input's number in it. */
+  const withChannel = (name: TChannel, n: number): RgbaColor =>
+    name === 'a' ? { ...current, a: n / 100 } : { ...current, [name]: n };
+
+  const typed = (name: TField) => (event: ChangeEvent<HTMLInputElement>) => {
     if (locked) {
       return;
     }
-    // Without its slider the transparency is not the picker's to change. It would: a hex colour written
-    // in, or a swatch tapped, comes back opaque.
-    const a = disableAlpha ? (stored?.a ?? 1) : result.rgba.a;
-    const next = { r: result.rgba.r, g: result.rgba.g, b: result.rgba.b, a };
-    sent.current = { rgba: next, hsva: { ...result.hsva, a } };
-    // A hue moved on a grey is the same colour: nothing to store.
-    if (stored && sameRgba(stored, next)) {
+    const input = event.target;
+    const { kept, dropped, long } = keepValid(name, input.value);
+    if (dropped && input.selectionStart !== null) {
+      // the caret stays after what was typed, not at the end
+      const before = keepValid(name, input.value.slice(0, input.selectionStart)).kept.length;
+      caret.current = { input, at: before };
+    }
+    setDraft(name, kept);
+
+    let message: string | undefined;
+    if (dropped) {
+      message = name === 'hex' ? words.notHex(dropped) : words.notDigits(dropped, fieldName(name));
+    } else if (long && name === 'hex') {
+      message = words.hexTooLong;
+    }
+
+    if (name === 'hex') {
+      // Six characters are a colour as they are typed; three may be the start of six, so they are one
+      // when the field is left (see `committed`).
+      if (kept.length === 6) {
+        store({ ...hexToRgba(`#${kept}`), a: current.a });
+      }
+      setProblem(message ? { field: name, message, invalid: false } : undefined);
       return;
     }
-    onChange?.(next);
+
+    const max = CHANNEL_MAX[name];
+    if (kept === '') {
+      setProblem(message ? { field: name, message, invalid: true } : undefined);
+      return;
+    }
+    const n = Number(kept);
+    if (n > max) {
+      const range = words.outOfRange(fieldName(name), max);
+      setProblem({ field: name, message: message ? `${message} ${range}` : range, invalid: true });
+      return;
+    }
+    store(withChannel(name, n));
+    setProblem(message ? { field: name, message, invalid: false } : undefined);
   };
+
+  /** The field was left, or Enter pressed in it: what it holds is a colour, or it shows the colour again. */
+  const committed = (name: TField) => {
+    const draft = drafts[name];
+    if (draft === undefined) {
+      return;
+    }
+    setDraft(name, undefined);
+    if (name === 'hex') {
+      if (draft.length === 3) {
+        store({ ...hexToRgba(`#${draft}`), a: current.a });
+      } else if (draft === '') {
+        setProblem({ field: name, message: words.hexEmpty, invalid: false });
+      } else if (draft.length !== 6) {
+        setProblem({ field: name, message: words.hexLength(draft), invalid: false });
+      }
+      return;
+    }
+    const max = CHANNEL_MAX[name];
+    if (draft === '') {
+      setProblem({ field: name, message: words.empty(fieldName(name), max), invalid: false });
+    } else if (Number(draft) > max) {
+      setProblem({ field: name, message: words.outOfRange(fieldName(name), max), invalid: false });
+    }
+  };
+
+  const keyDown = (name: TField) => (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') {
+      committed(name);
+      return;
+    }
+    if (name === 'hex' || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) {
+      return;
+    }
+    // a number steps with the arrow keys, by ten with Shift, and stays in its range
+    event.preventDefault();
+    const step = (event.key === 'ArrowUp' ? 1 : -1) * (event.shiftKey ? 10 : 1);
+    const from = Number(drafts[name] ?? texts[name]);
+    const n = clamp((Number.isFinite(from) ? Math.min(from, CHANNEL_MAX[name]) : 0) + step, 0, CHANNEL_MAX[name]);
+    setDraft(name, undefined);
+    setProblem(undefined);
+    store(withChannel(name, n));
+  };
+
+  const inputFor = (name: TField, label: string, grow: number, min: number): ReactNode => {
+    const inputId = `${id}-${name}`;
+    const invalid = problem?.field === name && problem.invalid;
+    return (
+      <StyledInputColumn key={name} $grow={grow} $min={min}>
+        <StyledLabel htmlFor={inputId} $text={text} $coarse={coarse}>
+          {label}
+        </StyledLabel>
+        <ReqoreInput
+          id={inputId}
+          className={`reqraft-color-field-${name}`}
+          data-field={name}
+          size={coarse ? 'big' : 'normal'}
+          fluid
+          value={drafts[name] ?? texts[name]}
+          intent={invalid ? 'danger' : undefined}
+          aria-invalid={invalid || undefined}
+          aria-describedby={problem?.field === name ? `${id}-problem` : undefined}
+          inputMode={name === 'hex' ? 'text' : 'numeric'}
+          autoCapitalize={name === 'hex' ? 'characters' : 'off'}
+          autoComplete='off'
+          autoCorrect='off'
+          spellCheck={false}
+          onChange={typed(name)}
+          onBlur={() => committed(name)}
+          onKeyDown={keyDown(name)}
+        />
+      </StyledInputColumn>
+    );
+  };
+
+  const shownRgba = hsvaToRgba(shown);
+  const opacityPercent = Math.round(current.a * 100);
+  const previewColor = stored ? `rgba(${stored.r}, ${stored.g}, ${stored.b}, ${stored.a})` : undefined;
+  const colorOpaque = `rgb(${shownRgba.r}, ${shownRgba.g}, ${shownRgba.b})`;
+  const slider = sliderStyles(sizes.track, sizes.reach);
+  const thumb = useCallback(
+    ({ left }: { left?: string }) => (
+      <StyledThumb style={{ left }} $height={sizes.track + 6} $width={coarse ? 14 : 8} />
+    ),
+    [sizes.track, coarse]
+  );
+  const areaThumb = useCallback(
+    ({ left, top, color }: Parameters<NonNullable<SaturationProps['pointer']>>[0]) => (
+      <StyledAreaThumb style={{ left, top, background: color }} $size={coarse ? 28 : 14} />
+    ),
+    [coarse]
+  );
+  const presets = presetColors === false ? [] : presetColors;
+  const currentHex = `#${texts.hex}`;
 
   return (
     <StyledColorField
       ref={field}
       className={className ? `reqraft-color-field ${className}` : 'reqraft-color-field'}
       aria-disabled={locked || undefined}
-      $coarse={coarse}
       $disabled={!!disabled}
-      $text={getReadableColor(theme)}
+      $text={text}
     >
-      <Sketch
-        color={color}
-        onChange={handleChange}
-        disableAlpha={disableAlpha}
-        {...(presetColors !== undefined ? { presetColors } : {})}
-      />
+      <StyledArea $height={sizes.area} $text={text}>
+        <Saturation
+          hsva={shown}
+          onChange={pickerMoved}
+          pointer={areaThumb}
+          style={{ width: '100%', height: '100%' }}
+          role='slider'
+          aria-label={words.area}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(shown.s)}
+          aria-valuetext={`${Math.round(shown.s)}%, ${Math.round(shown.v)}%`}
+        />
+      </StyledArea>
+      <StyledSliders>
+        <StyledPreview
+          className='reqraft-color-field-preview'
+          role='img'
+          aria-label={stored ? words.preview(currentHex, opacityPercent) : words.noColor}
+          $size={sizes.preview}
+          $text={text}
+          $color={previewColor}
+        />
+        <StyledSliderStack>
+          <Hue
+            className='reqraft-color-field-hue'
+            hue={shown.h}
+            width='100%'
+            height={slider.height}
+            style={slider.style}
+            bgProps={slider.bgProps}
+            pointer={thumb}
+            innerProps={{
+              role: 'slider',
+              'aria-label': words.hue,
+              'aria-valuemin': 0,
+              'aria-valuemax': 360,
+              'aria-valuenow': Math.round(shown.h),
+            }}
+            onChange={({ h }) => pickerMoved({ ...shown, h })}
+          />
+          {!disableAlpha && (
+            <Alpha
+              className='reqraft-color-field-alpha'
+              hsva={shown}
+              width='100%'
+              height={slider.height}
+              style={slider.style}
+              bgProps={{
+                style: {
+                  ...slider.bgProps.style,
+                  background: `linear-gradient(to right, rgba(0, 0, 0, 0), ${colorOpaque}), url(${BACKGROUND_IMG}) left center #fff`,
+                },
+              }}
+              pointer={thumb}
+              innerProps={{
+                role: 'slider',
+                'aria-label': fieldName('a'),
+                'aria-valuemin': 0,
+                'aria-valuemax': 100,
+                'aria-valuenow': Math.round(shown.a * 100),
+              }}
+              onChange={({ a: alpha }) => pickerMoved({ ...shown, a: alpha })}
+            />
+          )}
+        </StyledSliderStack>
+      </StyledSliders>
+      <StyledInputsBlock>
+        <StyledInputs>
+          {inputFor('hex', words.hex, 2, coarse ? 96 : 80)}
+          {inputFor('r', words.red, 1, coarse ? 52 : 44)}
+          {inputFor('g', words.green, 1, coarse ? 52 : 44)}
+          {inputFor('b', words.blue, 1, coarse ? 52 : 44)}
+          {!disableAlpha && inputFor('a', words.opacity, 1, coarse ? 64 : 56)}
+        </StyledInputs>
+        {/* always there, so what appears in it is read out */}
+        <div id={`${id}-problem`} aria-live='polite' className='reqraft-color-field-problem'>
+          {problem && (
+            <ReqoreMessage intent='danger' size='small' opaque={false}>
+              {problem.message}
+            </ReqoreMessage>
+          )}
+        </div>
+      </StyledInputsBlock>
+      <div>
+        <ReqoreButton
+          className='reqraft-color-field-help-toggle'
+          icon='QuestionLine'
+          size={coarse ? 'big' : 'small'}
+          flat
+          minimal
+          fixed
+          aria-expanded={helpOpen}
+          aria-controls={`${id}-help`}
+          onClick={() => setHelpOpen((open) => !open)}
+        >
+          {words.help}
+        </ReqoreButton>
+      </div>
+      {helpOpen && (
+        <StyledHelp id={`${id}-help`} className='reqraft-color-field-help' $text={text} $coarse={coarse}>
+          <p>{words.helpArea}</p>
+          <p>{words.helpHex}</p>
+          <p>{words.helpChannels}</p>
+          {!disableAlpha && <p>{words.helpOpacity}</p>}
+        </StyledHelp>
+      )}
+      {presets.length > 0 && (
+        <StyledSwatches className='reqraft-color-field-swatches' $text={text}>
+          {presets.map((preset) => {
+            const color = typeof preset === 'string' ? preset : preset.color;
+            const title = typeof preset === 'string' ? preset : (preset.title ?? preset.color);
+            const rgbaColor = colorToRgba(color);
+            return (
+              <StyledSwatch
+                key={color}
+                type='button'
+                className='reqraft-color-field-swatch'
+                data-color={color.toUpperCase()}
+                aria-label={words.swatch(title)}
+                aria-pressed={!!stored && !!rgbaColor && hexOf(rgbaColor) === hexOf(stored)}
+                disabled={!rgbaColor}
+                $size={sizes.swatch}
+                $color={color}
+                $text={text}
+                onClick={() => {
+                  if (rgbaColor) {
+                    setDrafts({});
+                    setProblem(undefined);
+                    // a swatch is a colour: the opacity stays as it was
+                    store({ ...rgbaColor, a: current.a });
+                  }
+                }}
+              />
+            );
+          })}
+        </StyledSwatches>
+      )}
     </StyledColorField>
   );
 };
