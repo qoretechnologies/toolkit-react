@@ -86,9 +86,9 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
   },
   {
     name: 'bool',
-    display_name: 'Boolean',
-    short_desc: 'Boolean value',
-    desc: 'Boolean value',
+    display_name: 'True or false',
+    short_desc: 'True or false',
+    desc: 'True or false',
     types_accepted: ['bool'],
     exact_match: ['bool'],
   },

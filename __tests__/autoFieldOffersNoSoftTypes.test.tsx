@@ -98,7 +98,7 @@ describe('the type picker of an untyped field', () => {
     expect(
       (picker.props?.items as { display_name: string }[]).map((item) => item.display_name)
     ).toEqual([
-      'True/False',
+      'True or false',
       'Date',
       'Text',
       'Binary',

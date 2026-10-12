@@ -183,7 +183,7 @@ describe('dpql/parse type analysis', () => {
     expect(result.suggested_fix).toBeUndefined();
     expect(result.diagnostics[0]).toMatchObject({
       severity: 'error',
-      message: 'The expression gives Integer, but this field takes Boolean, and Qorus cannot convert it.',
+      message: 'The expression gives Integer, but this field takes True or false, and Qorus cannot convert it.',
     });
   });
 

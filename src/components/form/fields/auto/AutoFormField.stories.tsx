@@ -54,7 +54,7 @@ const waitForText = async (text: string | RegExp) => {
 
 /** The readable names of the types an untyped field's picker offers. */
 const IMMEDIATE_TYPE_NAMES = [
-  'True/False',
+  'True or false',
   'Date',
   'Text',
   'Binary',
@@ -305,7 +305,7 @@ export const NoSoftTypes: Story = {
     docs: {
       description: {
         story:
-          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True/False, Date, Text, Binary, Decimal, List, Key/Value {}, Integer, RGB Color) and no soft type, and shows no item count.',
+          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True or false, Date, Text, Binary, Decimal, List, Key/Value {}, Integer, RGB Color) and no soft type, and shows no item count.',
       },
     },
   },

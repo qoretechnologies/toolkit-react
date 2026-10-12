@@ -209,7 +209,7 @@ export const mockExpressions: IExpressionSchema[] = [
   // boolean-returning op with one operand ("Value To Convert").
   {
     name: 'convert-to-boolean',
-    display_name: 'Convert to Boolean',
+    display_name: 'Convert to true or false',
     short_desc: 'Converts the given value to a boolean',
     desc: 'Converts the given value to a boolean value.',
     symbol: 'boolean',

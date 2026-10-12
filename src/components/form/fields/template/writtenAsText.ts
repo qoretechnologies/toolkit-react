@@ -208,7 +208,7 @@ export const templateTypeName = (type?: string): string => {
     case 'number':
       return 'A number';
     case 'bool':
-      return 'A yes / no value';
+      return 'True or false';
     case 'string':
       return 'Text';
     case 'date':

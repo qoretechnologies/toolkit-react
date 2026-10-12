@@ -1432,7 +1432,7 @@ export const ReorderOnPhone: Story = {
 
 // --- Wrap / unwrap family ---------------------------------------------------
 // Ported from the IDE `ExpressionCanBeWrapped` / `ExpressionCanBeUnwrapped`.
-// Adaptations: (1) the offline `Convert to Boolean` (base op) and `Join List
+// Adaptations: (1) the offline `Convert to true or false` (base op) and `Join List
 // Elements` (wrap target) fixture entries stand in for the live catalogue.
 // (2) The IDE starts from an empty `Default` and *selects* the base op fresh;
 // here a valued `convert-to-boolean` is *seeded* so the story stays focused
@@ -1441,7 +1441,7 @@ export const ReorderOnPhone: Story = {
 // modal collapsing the card panel — fixed in `SelectFormField`; fresh
 // selection is covered by `WithArgWithAllowedValues` above.)
 
-/** A seeded `Convert to Boolean` whose operand carries a template value. */
+/** A seeded `Convert to true or false` whose operand carries a template value. */
 const seededConvert: IExpression = {
   is_expression: true,
   value: {
@@ -1460,7 +1460,7 @@ export const ExpressionCanBeWrapped: Story = {
     docs: {
       description: {
         story:
-          'Renders a seeded "Convert to Boolean" expression, hovers the card and picks "Join List Elements" from the Wrap picker — the outer op mounts and the original expression becomes its first operand.',
+          'Renders a seeded "Convert to true or false" expression, hovers the card and picks "Join List Elements" from the Wrap picker — the outer op mounts and the original expression becomes its first operand.',
       },
     },
   },
@@ -1488,7 +1488,7 @@ export const ExpressionCanBeUnwrapped: Story = {
     docs: {
       description: {
         story:
-          'Renders the wrapped expression from ExpressionCanBeWrapped, then hovers and unwraps the outer op — the inner "Convert to Boolean" survives and the outer wrapper is removed.',
+          'Renders the wrapped expression from ExpressionCanBeWrapped, then hovers and unwraps the outer op — the inner "Convert to true or false" survives and the outer wrapper is removed.',
       },
     },
   },

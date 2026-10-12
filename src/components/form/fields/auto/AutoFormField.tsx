@@ -149,7 +149,7 @@ export interface IAutoFieldProps
  * one drew "Unknown type!".
  */
 export const getImmediateValueTypes = (): { name: IQorusType; display_name: string }[] => [
-  { name: 'bool', display_name: 'True/False' },
+  { name: 'bool', display_name: 'True or false' },
   { name: 'date', display_name: 'Date' },
   { name: 'string', display_name: 'Text' },
   { name: 'binary', display_name: 'Binary' },
