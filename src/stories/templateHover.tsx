@@ -58,6 +58,12 @@ const findHoverCard = (): HTMLElement | undefined =>
 /** The chip's hover card is open and draws its description: bold and code, and none of the marks. */
 export const expectDrawnHover = (): Promise<HTMLElement> =>
   waitFor(() => {
+    // said once: nothing else open beside the card (an editor's template list) repeats the description
+    expect(
+      Array.from(document.querySelectorAll('.reqore-popover-content')).filter((popover) =>
+        popover.textContent?.includes('full name')
+      )
+    ).toHaveLength(1);
     const card = findHoverCard();
     expect(card).toBeTruthy();
     expect(card!).toHaveTextContent(MARKDOWN_TEMPLATE_LABEL);

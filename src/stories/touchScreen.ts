@@ -154,6 +154,18 @@ const dispatchedTouches = (): Pick<ITouchScreen, 'tap' | 'drag'> => {
       })
     );
   const under = (point: ITouchPoint) => document.elementFromPoint(point.x, point.y) ?? document.body;
+  /**
+   * What a press moves the focus to, as a browser decides it: the nearest element that can take focus from a
+   * click - a control, a link, anything with a `tabindex` (-1 included), an editable area - or none, which
+   * leaves the focus nowhere. The element under the finger is often a label inside a chip, and focusing only
+   * that (or nothing) told an editor around the chip that the focus came from outside, so it opened its
+   * template list beside the chip's card: the same description twice, in Storybook's UI alone.
+   */
+  const focusTargetOf = (target: Element): HTMLElement | null =>
+    target.closest<HTMLElement>(
+      'a[href], area[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
+        'textarea:not([disabled]), iframe, summary, [tabindex], [contenteditable=""], [contenteditable="true"]'
+    );
 
   return {
     async tap(at) {
@@ -163,9 +175,14 @@ const dispatchedTouches = (): Pick<ITouchScreen, 'tap' | 'drag'> => {
       touch('touchstart', target, point);
       pointer('pointerup', target, point);
       touch('touchend', target, point);
-      mouse('mousedown', target, point);
-      if (target instanceof HTMLElement && target.tabIndex >= 0) {
-        target.focus();
+      // a press the page cancels moves no focus; otherwise the focus goes where a browser would put it
+      if (mouse('mousedown', target, point)) {
+        const focusTarget = focusTargetOf(target);
+        if (focusTarget) {
+          focusTarget.focus();
+        } else {
+          (document.activeElement as HTMLElement | null)?.blur?.();
+        }
       }
       mouse('mouseup', target, point);
       mouse('click', target, point);
