@@ -305,7 +305,7 @@ export const NoSoftTypes: Story = {
     docs: {
       description: {
         story:
-          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True or false, Date, Text, Binary, Decimal, List, Key/Value {}, Integer, RGB Color) and no soft type, and shows no item count.',
+          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True or false, Date, Text, Binary, Number, List, Key/Value {}, Whole number, RGB Color) and no soft type, and shows no item count.',
       },
     },
   },
