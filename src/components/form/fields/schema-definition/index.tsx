@@ -19,6 +19,7 @@ import {
   ReqoreTabsContent,
 } from '@qoretechnologies/reqore';
 import { memo, ReactNode, useCallback, useMemo, useRef, useState } from 'react';
+import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { Hint } from './Hint';
 import Loader from './Loader';
 import { CatalogGroupBody, CatalogNodeEditor } from './CatalogNodeEditor';
@@ -97,6 +98,8 @@ const SchemaEditorBody = memo(
     wrapperName,
     saveError,
   }: ISchemaEditorBodyProps) => {
+    // a section's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
+    const descriptions = useDescriptionTooltips();
     const definition = useMemo<IDataSchemaDefinition>(
       () => value ?? createEmptyDefinition(wrapperName),
       [value, wrapperName]
@@ -352,7 +355,7 @@ const SchemaEditorBody = memo(
                       collapsible
                       isCollapsed
                       label={node.display_name}
-                      tooltip={node.short_desc}
+                      tooltip={descriptionTooltip(node.short_desc, descriptions)}
                       icon={SECTION_ICONS[key]}
                       size='small'
                     >

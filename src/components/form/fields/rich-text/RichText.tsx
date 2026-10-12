@@ -5,11 +5,11 @@ import {
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
-import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import { isEqual } from 'lodash';
 import { KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
+import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { flattenToSingleLine, hasLineBreak } from '../../../../helpers/singleLineString';
 import {
   templateChipLabel,
@@ -22,7 +22,6 @@ import {
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
-import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 import { TEMPLATE_BROWSE_LIST_PROPS, useTemplateTags } from './useTemplateTags';
 import { CompletionMenu } from '../../../smartEditor/CompletionMenu';
 import { defaultSlateConverter } from '../../../smartEditor/helpers';
@@ -240,9 +239,9 @@ export const RichTextFormField = memo(({
     setLocalValue(val);
   };
 
-  // One renderer for both surfaces below — the chip's hover and the picker rows
-  // show the same strings, so they must be drawn the same way.
-  const renderMarkdown = useMarkdownRenderer();
+  // A chip's hover draws its description as the picker rows draw the same
+  // string, and opens on a tap where there is no hover.
+  const descriptions = useDescriptionTooltips();
 
   const descriptionByValue = useMemo(() => getChipTooltipDescriptions(naming), [JSON.stringify(naming)]);
 
@@ -265,7 +264,7 @@ export const RichTextFormField = memo(({
           icon: 'ExchangeDollarLine',
           leftIconProps: { image: metadata?.image },
           label: templateChipLabel(naming, tagValue),
-          tooltip: templateTooltip(naming, tagValue),
+          tooltip: templateTooltip(naming, tagValue, descriptions),
           ...getTemplateTagStyle(metadata),
         };
       }
@@ -283,35 +282,16 @@ export const RichTextFormField = memo(({
              author already chose, restating the label in engine syntax instead
              of telling them anything. The path stays discoverable in the
              field's help and in the picker row for an unlabelled value. */
-          /* Drawn, for the same reason the picker row is: this description is
-             the SAME string the row shows, so leaving it raw here would print
-             the punctuation the row no longer prints. A tooltip's `content`
-             takes a node, and without a host renderer it stays the plain
-             string it always was. */
-          /* Drawn, for the same reason the picker row is: this is the SAME
-             string the row shows, so leaving it raw here would print the
-             punctuation the row no longer prints. A drawn description travels
-             as the tooltip's `content` — the prop itself is `string |
-             IReqoreTooltip`, and only the object form takes a node. Without a
-             host renderer it stays the plain string it always was. */
-          tooltip:
-            descriptionByValue[tagValue] ?
-              renderMarkdown ?
-                {
-                  content: renderMarkdown({
-                    value: descriptionByValue[tagValue],
-                    compact: true,
-                  }) as IReqoreTooltip['content'],
-                }
-              : descriptionByValue[tagValue]
-            : undefined,
+          /* Drawn, as the picker row draws the same string (`descriptionTooltip`):
+             left raw, it printed the punctuation the row does not. */
+          tooltip: descriptionTooltip(descriptionByValue[tagValue], descriptions),
           ...getTemplateTagStyle(tag.metadata),
         };
       }
 
       return {};
     },
-    [descriptionByValue, renderMarkdown, isText, naming]
+    [descriptionByValue, descriptions, isText, naming]
   );
 
   const handleKeyDown = useCallback(

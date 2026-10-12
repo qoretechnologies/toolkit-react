@@ -8,6 +8,7 @@ import {
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
+import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 
 export interface IReadOnlyTemplateTagProps {
   /** The template reference value, e.g. `$local:test`. */
@@ -20,7 +21,9 @@ export interface IReadOnlyTemplateTagProps {
 /**
  * The read-only representation of a selected template — a picker-shaped chip:
  * the `$`-dollar icon, the resolved display name (and what the value IS in the
- * tooltip, not the reference that names it), the
+ * tooltip, not the reference that names it, drawn by the host's markdown
+ * renderer as the template list draws it, and opened by a tap on a touch
+ * screen), the
  * app image when present, coloured by qorus-ide's scheme (info / qorus purple /
  * success — see `getTemplateTagStyle`). Shared by `TemplateField`'s disabled
  * branch and the compact read-first row so a template reads identically wherever
@@ -30,13 +33,14 @@ export const ReadOnlyTemplateTag = memo(
   ({ value, templates, size }: IReadOnlyTemplateTagProps) => {
     const { label, item } = describeTemplateReference(templates, value);
     const metadata = item?.metadata as TTemplateMeta | undefined;
+    const descriptions = useDescriptionTooltips();
     return (
       <ReqoreTagGroup size={size}>
         <ReqoreTag
           icon='ExchangeDollarLine'
           leftIconProps={{ image: metadata?.image }}
           label={label}
-          tooltip={templateTooltip(templates, value)}
+          tooltip={templateTooltip(templates, value, descriptions)}
           {...getTemplateTagStyle(metadata)}
         />
       </ReqoreTagGroup>

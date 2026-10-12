@@ -13,6 +13,7 @@ import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/But
 import { IQorusAllowedValue, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size as count, isEqual } from 'lodash';
 import { memo, useMemo } from 'react';
+import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import {
   getSelectItemShortDescription,
   getSelectItemUnavailability,
@@ -97,6 +98,8 @@ export const FieldAllowedValuesCheckGroup = memo(
      */
     label?: string;
   }) => {
+    // a choice's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
+    const descriptions = useDescriptionTooltips();
     return (
       <ReqoreControlGroup vertical size={rest.size || 'small'} gapSize='tiny'>
         <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
@@ -114,7 +117,7 @@ export const FieldAllowedValuesCheckGroup = memo(
                  value the same "[object Object]". Its position stands in for a choice that has none. */
               key={JSON.stringify(item.value) ?? `#${index}`}
               label={item.display_name || JSON.stringify(item.value)}
-              tooltip={getSelectItemShortDescription(item)}
+              tooltip={descriptionTooltip(getSelectItemShortDescription(item), descriptions)}
               /* The reason is IN the row: a checkbox has no body to put it in,
                  and a hover is the one affordance a touch screen and a keyboard
                  never reach. */

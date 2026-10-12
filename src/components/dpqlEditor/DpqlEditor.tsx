@@ -21,6 +21,7 @@ import { makeDpqlTagRenderer } from './dpqlTags';
 import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
 import { useTemplateTags } from '../form/fields/rich-text/useTemplateTags';
+import { useDescriptionTooltips } from '../../helpers/descriptionTooltip';
 
 export type { IDpqlEditorProps, IDpqlEditorRef };
 
@@ -176,9 +177,11 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
 
     const templateTags = useTemplateTags(templates, !readOnly);
 
+    const descriptions = useDescriptionTooltips();
     const tagRenderer = useMemo(
-      () => makeDpqlTagRenderer(dpql.fieldMeta, { templateTagsUseIntent, templates }),
-      [dpql.fieldMeta, templateTagsUseIntent, templates]
+      () =>
+        makeDpqlTagRenderer(dpql.fieldMeta, { templateTagsUseIntent, templates, descriptions }),
+      [dpql.fieldMeta, templateTagsUseIntent, templates, descriptions]
     );
 
     useImperativeHandle(

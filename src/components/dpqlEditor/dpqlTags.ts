@@ -4,6 +4,7 @@
 
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/descriptionTooltip';
 import { describeTemplateReference, templateTooltip } from '../../helpers/templates';
 import { ISlateElement } from '../smartEditor/types';
 import { IDpqlFieldMeta } from './useDpqlSession';
@@ -64,6 +65,11 @@ export interface IDpqlTagRendererOptions {
    * that is not found keeps its path.
    */
   templates?: IReqoreFormTemplates;
+  /**
+   * How the editor shows a description's card (`useDescriptionTooltips`): a field's and a template's
+   * description is markdown, drawn as the template list draws it, and opened by a tap on a touch screen.
+   */
+  descriptions?: IDescriptionTooltipOptions;
 }
 
 /**
@@ -82,10 +88,13 @@ export function makeDpqlTagRenderer(
     if (tagValue.startsWith('@')) {
       const fieldName = tagValue.slice(1);
       const meta = fieldMeta[fieldName];
+      // the field's name and type head the card, and its description is drawn under them
       const tooltip = meta
-        ? `${meta.display_name || fieldName}${
-            meta.type?.name ? ` (${meta.type.name})` : ''
-          }${meta.short_desc ? `\n${meta.short_desc}` : ''}`
+        ? descriptionTooltip(
+            meta.short_desc,
+            options.descriptions ?? {},
+            `${meta.display_name || fieldName}${meta.type?.name ? ` (${meta.type.name})` : ''}`
+          )
         : undefined;
 
       return {
@@ -101,7 +110,10 @@ export function makeDpqlTagRenderer(
       return {
         icon: 'ExchangeDollarLine',
         ...(named?.item ?
-          { label: named.label, tooltip: templateTooltip(options.templates, tagValue) }
+          {
+            label: named.label,
+            tooltip: templateTooltip(options.templates, tagValue, options.descriptions ?? {}),
+          }
         : {}),
         ...(options.templateTagsUseIntent
           ? { intent: 'info' as const }

@@ -53,6 +53,7 @@ import {
   setKey,
   uniqueKey,
 } from './helpers';
+import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { ICatalogLeaf, ICatalogNode, ICatalogOptions } from './types';
 
 /** Translucent, blurred drawer styling — matches the IDE's detail-page drawers. */
@@ -200,6 +201,8 @@ export const CatalogGroupBody = memo(
     readOnly,
     nameField,
   }: ICatalogGroupBodyProps) => {
+    // a section's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
+    const descriptions = useDescriptionTooltips();
     const { leaves, nested } = partitionCatalogOptions(options);
 
     const handleNestedChange = useCallback(
@@ -239,7 +242,7 @@ export const CatalogGroupBody = memo(
               size='small'
               label={child.display_name}
               badge={badge.length ? badge : undefined}
-              tooltip={child.short_desc}
+              tooltip={descriptionTooltip(child.short_desc, descriptions)}
               icon={SECTION_ICONS[key]}
             >
               <CatalogNodeEditor

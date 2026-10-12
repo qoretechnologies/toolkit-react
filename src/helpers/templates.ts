@@ -8,6 +8,7 @@ import {
 import { cloneDeep, size } from 'lodash';
 import { createElement } from 'react';
 import { ReqraftTemplateExampleValueModal } from '../components/form/fields/template/ExampleValueModal';
+import { descriptionTooltip, IDescriptionTooltipOptions } from './descriptionTooltip';
 import { areQorusTypesCompatible } from './expressions';
 
 /**
@@ -370,19 +371,24 @@ export const describeTemplateReference = (
  * the field's own help, which teaches the grammar with a worked example, and
  * the picker, for the walks no list can hold.
  *
+ * The description is drawn by the host's markdown renderer, as the template
+ * list draws the same string, and opens on a tap where there is no hover
+ * (`descriptionTooltip`, with the surface's `useDescriptionTooltips`): a hover
+ * that printed it raw showed the reader the `**` and backticks the list beside
+ * it does not, and a finger could not open it at all.
+ *
  * Falls back to the resolved label (itself the stripped path when the catalogue
  * explains nothing), because a surface with no catalogue must still say what
  * the value is rather than nothing at all.
  */
 export const templateTooltip = (
   templates: IReqoreFormTemplates | undefined,
-  value: string
+  value: string,
+  descriptions: IDescriptionTooltipOptions
 ): TReqoreTooltipProp => {
   const { label, item } = describeTemplateReference(templates, value);
   const description = (item as { description?: unknown } | undefined)?.description;
-  return typeof description === 'string' && description.trim() ?
-      { title: label, content: description, maxWidth: '360px' }
-    : label || value;
+  return descriptionTooltip(description, descriptions, label || value) ?? value;
 };
 
 // Ported verbatim from qorus-ide `helpers/functions.tsx` (FIELD_STACK_REPORT

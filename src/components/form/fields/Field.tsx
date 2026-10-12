@@ -10,6 +10,7 @@ import { IQorusAllowedValue, IQorusFormFieldSchemaBase, IQorusFormSchema } from 
 import { isEqual, size } from 'lodash';
 import { useId } from 'react';
 import { typedToYaml } from '../../../helpers/common';
+import { descriptionTooltip, useDescriptionTooltips } from '../../../helpers/descriptionTooltip';
 import { useArgSchema } from '../../../hooks/useArgSchema';
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
 import BooleanFormField from './boolean/Boolean';
@@ -153,6 +154,8 @@ export const FormField = <T extends TFormFieldType>({
 }: IFormFieldProps<T>) => {
   const id = useId();
   const { schema: finalArgSchema, loading: argSchemaLoading } = useArgSchema(arg_schema);
+  // a choice's description card: drawn as markdown, opened by a tap on touch (`descriptionTooltip`)
+  const descriptions = useDescriptionTooltips();
 
   const handleChange = (value: TFormFieldValueType<T>, event?: unknown) => {
     onChange(value, event);
@@ -434,7 +437,7 @@ export const FormField = <T extends TFormFieldType>({
                       margin='right'
                       key={index}
                       label={item.display_name ?? String(itemValue)}
-                      tooltip={item.short_desc || item.desc}
+                      tooltip={descriptionTooltip(item.short_desc || item.desc, descriptions)}
                       checked={checked}
                       intent={checked ? 'info' : undefined}
                       onClick={() => {
@@ -669,7 +672,7 @@ export const FormField = <T extends TFormFieldType>({
                 margin='right'
                 key={index}
                 label={item.display_name ?? JSON.stringify(itemValue)}
-                tooltip={getSelectItemShortDescription(mapped)}
+                tooltip={descriptionTooltip(getSelectItemShortDescription(mapped), descriptions)}
                 /* The reason is IN the row, not only on its hover: a checkbox
                    has no body to bury it in, and a hover is the one affordance
                    a touch screen and a keyboard never reach. */

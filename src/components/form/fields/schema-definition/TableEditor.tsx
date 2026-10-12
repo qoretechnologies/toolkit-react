@@ -14,6 +14,7 @@ import {
   ReqoreTag,
 } from '@qoretechnologies/reqore';
 import { memo, useMemo, useState } from 'react';
+import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { partitionCatalogOptions } from './catalog';
 import { CatalogNodeEditor, RenameField } from './CatalogNodeEditor';
 import { SECTION_ICONS, sectionCount } from './helpers';
@@ -57,6 +58,8 @@ export const TableEditor = memo(
     onChange,
     readOnly,
   }: ITableEditorProps) => {
+    // a section's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
+    const descriptions = useDescriptionTooltips();
     const sections = useMemo(
       () => partitionCatalogOptions(options).nested,
       [options]
@@ -94,7 +97,7 @@ export const TableEditor = memo(
               label: node.display_name,
               icon: SECTION_ICONS[key],
               badge: count || undefined,
-              tooltip: node.short_desc,
+              tooltip: descriptionTooltip(node.short_desc, descriptions),
             };
           })}
         >

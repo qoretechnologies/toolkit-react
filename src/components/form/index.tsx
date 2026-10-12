@@ -30,6 +30,11 @@ export * from './engine/rendererTypes';
 // A host's own editor is a compact row's editor too, so the instruction a row
 // gives when the AUTHOR opens it into a picker is part of the public surface.
 export * from './engine/rowOpenPicker';
+// The renderer a host draws markdown with: `FormEngine` puts its `markdownRenderer` here, and a host that
+// mounts a template chip, a choice or a DPQL editor outside a form provides it once around them, so a
+// description and its card are drawn as the host draws markdown wherever they are shown.
+export { MarkdownRendererContext } from '../Description/markdownRendererContext';
+export type { TMarkdownRenderer } from '../Description/markdownRendererContext';
 export * from './expressions/types';
 export * from './expressions/useExpressions';
 // Named (not wildcard) so the `_resetRenderExpressionTransportForTests`
