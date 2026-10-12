@@ -2,6 +2,9 @@ import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 
+import { withCoarsePointer } from '../../../../stories/coarsePointer';
+import { withTouchScreen } from '../../../../stories/touchScreen';
+import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { StoryMeta } from '../../../../types';
 import { FormEngine } from '../../engine/FormEngine';
 import { FormField } from '../Field';
@@ -282,5 +285,63 @@ export const WithValidationBanner: Story = {
     await waitFor(() =>
       expect(canvas.queryAllByText(/name does not match/)).toHaveLength(0)
     );
+  },
+};
+
+/** A table's section tab, by the name it shows (its count badge aside). */
+const sectionTab = (canvasElement: HTMLElement, name: string) =>
+  Array.from(canvasElement.querySelectorAll<HTMLElement>('[class*="reqore-tabs-list-item"]')).find(
+    (tab) => tab.textContent?.trim().replace(/\d+$/, '') === name
+  );
+
+export const SectionsDescribedOnATouchScreen: Story = {
+  args: {
+    value: mockPopulatedDefinition,
+  },
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          "Renders the populated SchemaDefinition editor on a phone (390 px, touch), with the customers table open. A tap on its Primary Key tab only switches to it, and no card opens. The section's finger-sized ⓘ opens what Primary Key is for (\"Table primary key\"), which stays on the screen.",
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await withTouchScreen(async (touch) => {
+      await touch.tap(await canvas.findByText('Tables'));
+      await touch.tap(await canvas.findByText('customers'));
+      const primaryKey = await waitFor(() => {
+        const tab = sectionTab(canvasElement, 'Primary Key');
+        expect(tab).toBeTruthy();
+        return tab!;
+      });
+      await touch.tap(primaryKey);
+      const info = await waitFor(() => {
+        const button = canvasElement.querySelector<HTMLElement>(
+          '.reqraft-described-tab [aria-label="About Primary Key"]'
+        );
+        expect(button).toBeVisible();
+        return button!;
+      });
+      // the tab: switched, and nothing else
+      await expect(document.querySelector('.reqore-popover-content')).toBeNull();
+      await expect(info.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+      await touch.tap(info);
+      const card = await waitFor(() => {
+        const shown = Array.from(document.querySelectorAll<HTMLElement>('.reqore-popover-content')).find(
+          (each) => each.textContent?.includes('Table primary key')
+        );
+        expect(shown).toBeTruthy();
+        return shown!;
+      });
+      if (touch.narrowed) {
+        const box = card.getBoundingClientRect();
+        await expect(box.left).toBeGreaterThanOrEqual(0);
+        await expect(box.right).toBeLessThanOrEqual(window.innerWidth);
+      }
+    });
   },
 };

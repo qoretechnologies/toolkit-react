@@ -53,7 +53,8 @@ import {
   setKey,
   uniqueKey,
 } from './helpers';
-import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { describedPanelProps } from '../../../Description/describedControl';
 import { ICatalogLeaf, ICatalogNode, ICatalogOptions } from './types';
 
 /** Translucent, blurred drawer styling — matches the IDE's detail-page drawers. */
@@ -242,7 +243,7 @@ export const CatalogGroupBody = memo(
               size='small'
               label={child.display_name}
               badge={badge.length ? badge : undefined}
-              tooltip={descriptionTooltip(child.short_desc, descriptions)}
+              {...describedPanelProps(child.short_desc, descriptions, child.display_name)}
               icon={SECTION_ICONS[key]}
             >
               <CatalogNodeEditor

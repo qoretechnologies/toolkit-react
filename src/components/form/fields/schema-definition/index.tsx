@@ -19,7 +19,8 @@ import {
   ReqoreTabsContent,
 } from '@qoretechnologies/reqore';
 import { memo, ReactNode, useCallback, useMemo, useRef, useState } from 'react';
-import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { describedPanelProps } from '../../../Description/describedControl';
 import { Hint } from './Hint';
 import Loader from './Loader';
 import { CatalogGroupBody, CatalogNodeEditor } from './CatalogNodeEditor';
@@ -355,7 +356,7 @@ const SchemaEditorBody = memo(
                       collapsible
                       isCollapsed
                       label={node.display_name}
-                      tooltip={descriptionTooltip(node.short_desc, descriptions)}
+                      {...describedPanelProps(node.short_desc, descriptions, node.display_name)}
                       icon={SECTION_ICONS[key]}
                       size='small'
                     >

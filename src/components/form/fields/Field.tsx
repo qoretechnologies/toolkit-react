@@ -10,7 +10,8 @@ import { IQorusAllowedValue, IQorusFormFieldSchemaBase, IQorusFormSchema } from 
 import { isEqual, size } from 'lodash';
 import { useId } from 'react';
 import { typedToYaml } from '../../../helpers/common';
-import { descriptionTooltip, useDescriptionTooltips } from '../../../helpers/descriptionTooltip';
+import { useDescriptionTooltips } from '../../../helpers/descriptionTooltip';
+import { besideItsInfo, describedControl } from '../../Description/describedControl';
 import { useArgSchema } from '../../../hooks/useArgSchema';
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
 import BooleanFormField from './boolean/Boolean';
@@ -432,12 +433,14 @@ export const FormField = <T extends TFormFieldType>({
                 {element_allowed_values.map((item, index) => {
                   const itemValue = item.value?.value;
                   const checked = serverValue.some((v) => isEqual(v, itemValue));
-                  return (
+                  const label = item.display_name ?? String(itemValue);
+                  // with a mouse, the hover; on a touch screen, an ⓘ beside the box, whose tap only ticks it
+                  const described = describedControl(item.short_desc || item.desc, descriptions, label);
+                  return besideItsInfo(
                     <ReqoreCheckbox
                       margin='right'
-                      key={index}
-                      label={item.display_name ?? String(itemValue)}
-                      tooltip={descriptionTooltip(item.short_desc || item.desc, descriptions)}
+                      label={label}
+                      tooltip={described.tooltip}
                       checked={checked}
                       intent={checked ? 'info' : undefined}
                       onClick={() => {
@@ -447,7 +450,9 @@ export const FormField = <T extends TFormFieldType>({
                           : [...serverValue, itemValue];
                         handleChange(formatToServer(next) as TFormFieldValueType<T>);
                       }}
-                    />
+                    />,
+                    described.info,
+                    index
                   );
                 })}
               </ReqoreControlGroup>
@@ -667,12 +672,14 @@ export const FormField = <T extends TFormFieldType>({
             const checked = isEqual(value, itemValue);
             const mapped = mapAllowedValue(item, index);
             const unavailable = getSelectItemUnavailability(mapped);
-            return (
+            const label = item.display_name ?? JSON.stringify(itemValue);
+            // with a mouse, the hover; on a touch screen, an ⓘ beside the box, whose tap only ticks it
+            const described = describedControl(getSelectItemShortDescription(mapped), descriptions, label);
+            return besideItsInfo(
               <ReqoreCheckbox
                 margin='right'
-                key={index}
-                label={item.display_name ?? JSON.stringify(itemValue)}
-                tooltip={descriptionTooltip(getSelectItemShortDescription(mapped), descriptions)}
+                label={label}
+                tooltip={described.tooltip}
                 /* The reason is IN the row, not only on its hover: a checkbox
                    has no body to bury it in, and a hover is the one affordance
                    a touch screen and a keyboard never reach. */
@@ -705,7 +712,9 @@ export const FormField = <T extends TFormFieldType>({
                     () => handleChange((checked ? undefined : itemValue) as TFormFieldValueType<T>)
                   )
                 }
-              />
+              />,
+              described.info,
+              index
             );
           })}
         </ReqoreControlGroup>

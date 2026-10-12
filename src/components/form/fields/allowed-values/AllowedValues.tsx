@@ -13,7 +13,8 @@ import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/But
 import { IQorusAllowedValue, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size as count, isEqual } from 'lodash';
 import { memo, useMemo } from 'react';
-import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { besideItsInfo, describedControl } from '../../../Description/describedControl';
 import {
   getSelectItemShortDescription,
   getSelectItemUnavailability,
@@ -109,15 +110,15 @@ export const FieldAllowedValuesCheckGroup = memo(
         </ReqoreSpan>
         {items?.map((item, index) => {
           const unavailable = getSelectItemUnavailability(item);
+          const choiceName = item.display_name || JSON.stringify(item.value);
+          // with a mouse, the hover; on a touch screen, an ⓘ beside the box, whose tap only ticks it
+          const described = describedControl(getSelectItemShortDescription(item), descriptions, choiceName);
 
-          return (
+          return besideItsInfo(
             <ReqoreCheckbox
               margin='right'
-              /* The value, as JSON: `toString()` gave a choice not resolved yet no key, and every object
-                 value the same "[object Object]". Its position stands in for a choice that has none. */
-              key={JSON.stringify(item.value) ?? `#${index}`}
-              label={item.display_name || JSON.stringify(item.value)}
-              tooltip={descriptionTooltip(getSelectItemShortDescription(item), descriptions)}
+              label={choiceName}
+              tooltip={described.tooltip}
               /* The reason is IN the row: a checkbox has no body to put it in,
                  and a hover is the one affordance a touch screen and a keyboard
                  never reach. */
@@ -171,7 +172,11 @@ export const FieldAllowedValuesCheckGroup = memo(
                   }
                 )
               }
-            />
+            />,
+            described.info,
+            /* The value, as JSON: `toString()` gave a choice not resolved yet no key, and every object
+               value the same "[object Object]". Its position stands in for a choice that has none. */
+            JSON.stringify(item.value) ?? `#${index}`
           );
         })}
       </ReqoreControlGroup>
