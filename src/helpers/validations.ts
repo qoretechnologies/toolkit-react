@@ -1649,11 +1649,11 @@ export const _validateField = (
       // the field's own "show invalid only" filter listed a different set of
       // rows on a fast machine than on a slow one.
       if (!castedValue) {
-        return invalidResult('Expression value is empty');
+        return invalidResult('Fill in this expression.');
       }
 
       if (!castedValue.value?.exp) {
-        return invalidResult('Expression operation is required');
+        return invalidResult('Choose what this expression does.');
       }
 
       // Everything past this point needs the expression's definition, which
@@ -1670,7 +1670,7 @@ export const _validateField = (
       );
 
       if (!expressionDefinition) {
-        return invalidResult(`Expression definition ${String(castedValue.value?.exp)} not found`);
+        return invalidResult(`Qorus has no operation ${String(castedValue.value?.exp)}.`);
       }
 
       // If the expression has no required args, we can consider it valid
@@ -1748,7 +1748,7 @@ export const _validateField = (
 
           if (!result.isValid) {
             // said by the operand's name, as the editor shows it - not by its position in the call
-            return withContext(result, `The expression in ${operand ?? `"${argLabel}"`} is invalid`);
+            return withContext(result, `The expression in ${operand ?? `"${argLabel}"`} has an error`);
           }
 
           continue;

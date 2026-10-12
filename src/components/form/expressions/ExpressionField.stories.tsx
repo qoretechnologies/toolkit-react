@@ -889,6 +889,103 @@ export const TextModeOfAnUnfinishedExpression: Story = {
   },
 };
 
+/** A condition field (its host marks it one) that takes expressions and holds nothing yet, in a FormEngine. */
+const ConditionToggleForm = () => {
+  const [value, setValue] = useState<any>({});
+  return (
+    <FormEngine
+      name='conditionToggle'
+      options={
+        {
+          rule: {
+            type: 'bool',
+            ui_type: 'bool',
+            display_name: 'Rule',
+            preselected: true,
+            supports_expressions: true,
+            expressions: mockExpressions,
+            metadata: { condition: true },
+          },
+        } as any
+      }
+      value={value}
+      onChange={(_n, v) => setValue(v)}
+    />
+  );
+};
+
+/** Open the field's More menu, and the item that turns it into an expression. */
+const openMoreMenu = async (canvasElement: HTMLElement) => {
+  const more = await waitFor(
+    () => {
+      const el = canvasElement.querySelector<HTMLElement>('.template-more');
+      expect(el, 'the More menu').toBeTruthy();
+      return el as HTMLElement;
+    },
+    { timeout: 6000 }
+  );
+  await userEvent.click(more);
+  return waitFor(() => {
+    const item = document.querySelector<HTMLElement>('.function-selector');
+    expect(item, 'the expression item').toBeTruthy();
+    return item as HTMLElement;
+  });
+};
+
+export const WriteAConditionInFormEngine: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a FormEngine field that is a condition (its host marks it one) and holds nothing yet. Its More menu offers "Write a condition" - what the item is for, so it has no tooltip to repeat it - where a value field offers "Use Expression"; clicking it opens the condition on its Text view.',
+      },
+    },
+  },
+  render: () => <ConditionToggleForm />,
+  play: async ({ canvasElement }) => {
+    const item = await openMoreMenu(canvasElement);
+    expect(item).toHaveTextContent('Write a condition');
+    expect(document.body.textContent).not.toContain('Use Expression');
+    expect(document.body.textContent).not.toContain('Run a function on this value');
+    await userEvent.click(item);
+    await waitFor(
+      () => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument(),
+      { timeout: 6000 }
+    );
+  },
+};
+
+export const WriteAConditionInFormEngineOnAPhone: Story = {
+  ...WriteAConditionInFormEngine,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The same condition field on a phone (390 px, touch): its More menu offers "Write a condition", inside the screen, and a tap on it opens the condition.',
+      },
+    },
+  },
+  play: async (context) => {
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      const item = await openMoreMenu(context.canvasElement);
+      expect(item).toHaveTextContent('Write a condition');
+      if (narrowed) {
+        expect(item.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+      }
+      await userEvent.click(item);
+      await waitFor(
+        () =>
+          expect(
+            context.canvasElement.querySelector('.expression-field [data-slate-editor]')
+          ).toBeInTheDocument(),
+        { timeout: 6000 }
+      );
+    });
+  },
+};
+
 /**
  * A plain `bool` field with `supports_expressions` and no value — starts as
  * the normal field; the "Use Expression" toggle (More menu) switches it.

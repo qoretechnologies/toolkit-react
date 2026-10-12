@@ -255,6 +255,17 @@ export interface IValueTabsLabels {
   templateTooltip: string;
   /** Said on the Value tab for an expression that is not a lone value or template. */
   cannotShowExpression: string;
+  /**
+   * The Expression tab's label, in a field that is a condition (`isConditionOption`): what it holds is used as a
+   * condition, so it is called one. The Visual tab keeps its label.
+   */
+  condition: string;
+  /** The Expression tab's tooltip, in a condition field. */
+  conditionTooltip: string;
+  /** The Visual tab's tooltip, in a condition field. */
+  conditionVisualTooltip: string;
+  /** Said on the Value tab for a condition that is not a lone value or template. */
+  cannotShowCondition: string;
   /** Said on the Value tab for a template it cannot show; `tab` is the tab's own label. */
   templateShownOn: (tab: string) => string;
   replaceWithAValue: string;
@@ -287,6 +298,10 @@ export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = {
   visualTooltip: 'Build the expression visually',
   templateTooltip: 'Choose a template',
   cannotShowExpression: "This expression can't be shown as a value.",
+  condition: 'Condition',
+  conditionTooltip: 'Write the condition - it also takes templates',
+  conditionVisualTooltip: 'Build the condition visually',
+  cannotShowCondition: "This condition can't be shown as a value.",
   templateShownOn: (tab) => `A template is shown on the ${tab} tab, not here.`,
   replaceWithAValue: 'Replace it with a value',
   conversion: (from, to) =>
@@ -1560,9 +1575,10 @@ const TemplateFieldImpl = memo(
             ...(canOfferExpression && !functions.loading ?
               [
                 {
-                  label: 'Use Expression',
+                  // in a condition field the label says what it is for; the value's tooltip would only repeat it
+                  label: isConditionOption(rest) ? 'Write a condition' : 'Use Expression',
                   icon: 'Functions' as const,
-                  tooltip: 'Run a function on this value',
+                  ...(isConditionOption(rest) ? {} : { tooltip: 'Run a function on this value' }),
                   onClick: handleSelectFunctionChange,
                 },
               ]
@@ -1695,7 +1711,7 @@ const TemplateFieldImpl = memo(
                 label='Create New Expression'
                 className='function-selector'
                 icon='Functions'
-                tooltip='This field only accepts expressions'
+                tooltip='This field takes an expression.'
                 onClick={() => {
                   setIsTemplate(false);
                   setTemplateValue(null);
@@ -1774,10 +1790,10 @@ const TemplateFieldImpl = memo(
                   : <ReqoreButton
                       compact
                       transparent
-                      label='Use Expression'
+                      label={isConditionOption(rest) ? 'Write a condition' : 'Use Expression'}
                       className='function-selector'
                       icon='Functions'
-                      tooltip='Run a function on this value'
+                      tooltip={isConditionOption(rest) ? undefined : 'Run a function on this value'}
                       onClick={handleSelectFunctionChange}
                     />
 
@@ -1951,6 +1967,10 @@ const TemplateFieldImpl = memo(
     // ─── Value · Expression · Visual (or Value · Template) ───────────────────────────────────────────
     if (tabsKind && !rest.disabled) {
       const words: IValueTabsLabels = { ...DEFAULT_VALUE_TABS_LABELS, ...valueTabsLabels };
+      /* A condition field's Expression tab holds what is used as a condition, so it is called one (qorus#646):
+         "condition" where the value is used as a condition, "expression" everywhere else. */
+      const conditionField = isConditionOption(rest);
+      const expressionTabLabel = conditionField ? words.condition : words.expression;
       const tabButton = (
         key: TValueTab,
         label: string,
@@ -2011,7 +2031,7 @@ const TemplateFieldImpl = memo(
       );
       const valueBody = () => {
         if (valueIsExpression) {
-          return cannotShow(words.cannotShowExpression);
+          return cannotShow(conditionField ? words.cannotShowCondition : words.cannotShowExpression);
         }
         if (valueTabIsText) {
           return (
@@ -2065,7 +2085,7 @@ const TemplateFieldImpl = memo(
         }
         if (loneTemplate !== undefined || (typeof value === 'string' && isValueTemplate(value))) {
           return cannotShow(
-            words.templateShownOn(tabsKind === 'full' ? words.expression : words.template)
+            words.templateShownOn(tabsKind === 'full' ? expressionTabLabel : words.template)
           );
         }
         return (
@@ -2159,8 +2179,18 @@ const TemplateFieldImpl = memo(
               {tabButton('value', words.value, 'EditLine')}
               {tabsKind === 'full' ?
                 [
-                  tabButton('expression', words.expression, 'CodeLine', words.expressionTooltip),
-                  tabButton('visual', words.visual, 'NodeTree', words.visualTooltip),
+                  tabButton(
+                    'expression',
+                    expressionTabLabel,
+                    'CodeLine',
+                    conditionField ? words.conditionTooltip : words.expressionTooltip
+                  ),
+                  tabButton(
+                    'visual',
+                    words.visual,
+                    'NodeTree',
+                    conditionField ? words.conditionVisualTooltip : words.visualTooltip
+                  ),
                 ]
               : tabButton(
                   'template',
@@ -2389,7 +2419,7 @@ const TemplateFieldImpl = memo(
               icon='Functions'
               intent='info'
               className='dpql-detected-offer'
-              tooltip={`"${dpqlOffer.text}" reads as an expression. It is also valid text here, so nothing has been changed — use it as an expression?`}
+              tooltip={`"${dpqlOffer.text}" could be an expression. It is kept as text; use it as an expression instead?`}
               onClick={acceptDpqlOffer}
             >
               Use as expression

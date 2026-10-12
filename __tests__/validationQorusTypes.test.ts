@@ -848,7 +848,7 @@ describe('isFunction', () => {
   it('reports a missing operation', () => {
     const result = validateFieldWithResult('string', { args: [] }, { isFunction: true });
     expect(result.isValid).toBe(false);
-    expect(result.reason).toBe('Expression operation is required');
+    expect(result.reason).toBe('Choose what this expression does.');
   });
 
   it('accepts the option envelope a caller may still hold', () => {

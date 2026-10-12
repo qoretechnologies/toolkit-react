@@ -1476,7 +1476,7 @@ export const ExpressionOpensOnText: StoryObj<typeof meta> = {
       .filter((name) => name === 'Text' || name === 'Visual');
     expect(buttons).toEqual(['Text', 'Visual']);
     await waitFor(() => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeTruthy());
-    expect(canvasElement.textContent).not.toContain('Select an operation');
+    expect(canvasElement.textContent).not.toContain('Choose what this expression does');
   },
 };
 

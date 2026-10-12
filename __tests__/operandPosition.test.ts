@@ -52,7 +52,7 @@ describe('an operand named like another', () => {
   it('says which by its position when its expression is wrong', () => {
     const result = call('concat', [s('a'), { is_expression: true, value: { exp: 'concat', args: [s()] } }]);
     expect(result.isValid).toBe(false);
-    expect(result.reason ?? '').toMatch(/^The expression in the 2nd "Value" is invalid/);
+    expect(result.reason ?? '').toMatch(/^The expression in the 2nd "Value" has an error/);
   });
 
   /* David (qorus#646): a lone operand of a call that can take more - it has an "Add value" slot - says its

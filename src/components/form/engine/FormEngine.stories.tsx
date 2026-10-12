@@ -10427,6 +10427,96 @@ export const ValueTabPerOptionType: Story = {
   },
 };
 
+/** A form with a value field and a condition field (its host marks it one), each holding an expression. */
+const ConditionOptionForm = () => {
+  const [value, setValue] = useState<any>({
+    rule: { type: 'bool', value: true },
+    active: { type: 'bool', value: true },
+  });
+  return (
+    <FormEngine
+      compact
+      name='conditionOption'
+      stringTemplates={ROW_FIELDS as any}
+      options={
+        {
+          rule: {
+            type: 'bool',
+            display_name: 'Rule',
+            supports_templates: true,
+            supports_expressions: true,
+            expressions: mockExpressions,
+            metadata: { condition: true },
+          },
+          active: TEMPLATE_OR_EXPRESSION_OPTIONS.active,
+        } as any
+      }
+      value={value}
+      onChange={(_n, v) => setValue(v)}
+    />
+  );
+};
+
+/** A tab's label, and what its hover says. */
+const tabLabel = (row: HTMLElement, tab: string) =>
+  row.querySelector<HTMLElement>(`.value-tab[data-tab="${tab}"]`)?.textContent?.trim();
+const tabHoverText = async (row: HTMLElement, tab: string) => {
+  await userEvent.hover(row.querySelector<HTMLElement>(`.value-tab[data-tab="${tab}"]`) as HTMLElement);
+  const text = await waitFor(() => {
+    const popover = document.querySelector<HTMLElement>('.reqore-popover-content');
+    expect(popover, `${tab}'s hover`).toBeTruthy();
+    return popover!.textContent ?? '';
+  });
+  await userEvent.unhover(row.querySelector<HTMLElement>(`.value-tab[data-tab="${tab}"]`) as HTMLElement);
+  await waitFor(() => expect(document.querySelector('.reqore-popover-content')).toBeNull());
+  return text;
+};
+
+export const ConditionOptionTabsSayCondition: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a form with a condition field (Rule; its host marks it one) and a yes / no value (Active), and opens each. The condition\'s tabs read Value · Condition · Visual, their hovers "Write the condition - it also takes templates" and "Build the condition visually"; the value keeps Value · Expression · Visual.',
+      },
+    },
+  },
+  render: () => <ConditionOptionForm />,
+  play: async () => {
+    const rule = await editOption('rule');
+    await waitFor(() => expect(optionTabs(rule)).toEqual(['value', 'expression', 'visual']));
+    expect(tabLabel(rule, 'expression')).toBe('Condition');
+    expect(await tabHoverText(rule, 'expression')).toContain('Write the condition - it also takes templates');
+    expect(await tabHoverText(rule, 'visual')).toContain('Build the condition visually');
+    const active = await editOption('active');
+    await waitFor(() => expect(tabLabel(active, 'expression')).toBe('Expression'));
+  },
+};
+
+export const ConditionOptionTabsSayConditionOnAPhone: Story = {
+  ...ConditionOptionTabsSayCondition,
+  parameters: {
+    ...ConditionOptionTabsSayCondition.parameters,
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'The same form on a phone (390 px): the condition\'s tabs read Value · Condition · Visual and stay inside its row.',
+      },
+    },
+  },
+  play: async () => {
+    await _testsWithViewport(390, 844, async (narrowed) => {
+      const rule = await editOption('rule');
+      await waitFor(() => expect(tabLabel(rule, 'expression')).toBe('Condition'));
+      if (narrowed) {
+        const tabs = rule.querySelector<HTMLElement>('.value-tabs') as HTMLElement;
+        expect(tabs.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+      }
+    });
+  },
+};
+
 export const ValueToExpressionAndVisual: Story = {
   parameters: {
     docs: {

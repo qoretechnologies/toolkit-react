@@ -1556,7 +1556,7 @@ const SeededMismatchBase: Story = {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     // The modal mounts with its title and per-argument transform copy.
     await waitForText('Confirm type selection for mismatched arguments');
-    await waitForText(/will be transformed|deselect the arguments/i);
+    await waitForText(/Qorus converts them when it runs|deselect the arguments/i);
   },
 };
 

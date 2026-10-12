@@ -912,7 +912,7 @@ export const Expression = ({
       as={ReqorePanel}
       intent={validationData.isValid && !!returnType && isReturnTypeMatching ? 'muted' : 'danger'}
       description={
-        isExpressionServerHandled ? 'This expression will be executed outside of Qorus' : ''
+        isExpressionServerHandled ? 'This expression runs outside Qorus' : ''
       }
       flat
       readOnly={readOnly}
@@ -991,7 +991,7 @@ export const Expression = ({
             hideItemCount: true,
             onChange: handleWrapExpressionClick,
             showDescription: 'tooltip',
-            tooltip: 'Wrap this expression in another expression',
+            tooltip: 'Put this expression inside another one',
             size: 'tiny',
           },
         },
@@ -1000,7 +1000,7 @@ export const Expression = ({
           label: 'Remove',
           textAlign: 'center',
           icon: 'CloseLine',
-          tooltip: 'Remove this expression but keep the children',
+          tooltip: 'Remove this expression and keep what is inside it',
           fixed: true,
           onClick: unwrapExpression,
           show: value.value?.args?.[0]?.is_expression === true && !readOnly ? 'hover' : false,
@@ -1021,7 +1021,7 @@ export const Expression = ({
           intent: 'danger',
           textAlign: 'center',
           icon: 'DeleteBinLine',
-          tooltip: 'Remove this expression and its children',
+          tooltip: 'Remove this expression and everything inside it',
           fixed: true,
           minimal: true,
           show: readOnly ? false : 'hover',
@@ -1111,7 +1111,7 @@ export const Expression = ({
       )}
       {!selectedExpression && !serverExpression && !firstArgument?.value && level === 0 ? (
         <ReqoreMessage size='small' opaque={false} intent='info'>
-          Select an operation to start building your expression
+          Choose what this expression does.
         </ReqoreMessage>
       ) : (
         <ReqoreControlGroup
@@ -1430,7 +1430,7 @@ export const Expression = ({
             intent='danger'
             size='tiny'
             wrap
-            label={validationData.reason || 'Expression is not valid for unknown reasons'}
+            label={validationData.reason || 'Qorus could not check this expression.'}
           />
         </>
       ) : null}
@@ -1563,7 +1563,13 @@ export const ExpressionBuilder = ({
           customTheme={{
             main: darken(`0.0${level * 25}`, theme.main) as TReqoreHexColor,
           }}
-          label={isChild ? (value.value.exp === '||' ? 'OR group' : 'AND group') : 'IF group'}
+          label={
+            isChild ?
+              value.value.exp === '||' ?
+                'At least one of these is true (OR)'
+              : 'All of these are true (AND)'
+            : 'If'
+          }
           style={{
             marginLeft: isChild ? 10 : 0,
             // a nested group too: its indent is taken out of its width, not added past it
@@ -1580,7 +1586,7 @@ export const ExpressionBuilder = ({
                   `${path ? `${path}.` : ''}value.args.${size(value.value.args)}`
                 );
               },
-              tooltip: 'Add condition parameter',
+              tooltip: 'Add a condition',
             },
             {
               className: 'expression-explain',

@@ -45,8 +45,7 @@ export const ConfirmUnsupportedTypeModal = memo(
         ) : (
           <ReqoreControlGroup vertical fluid horizontalAlign='center' gapSize='big'>
             <ReqoreP style={{ textAlign: 'center' }}>
-              The type you have selected does not conform to the expected types for this argument.
-              Expected types are:{' '}
+              This value needs one of these types:
             </ReqoreP>
             <ReqoreTagGroup size='small' align='center'>
               {acceptedTypes?.map((t) => (
@@ -57,7 +56,7 @@ export const ConfirmUnsupportedTypeModal = memo(
               ))}
             </ReqoreTagGroup>
             <ReqoreP style={{ textAlign: 'center' }}>
-              Are you sure you want to proceed with this type?
+              Use this type anyway?
             </ReqoreP>
             <ReqoreCheckbox
               label="Don't show again"
