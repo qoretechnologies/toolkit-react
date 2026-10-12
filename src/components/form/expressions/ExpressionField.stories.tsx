@@ -1875,15 +1875,18 @@ export const VisualConditionSaysTheServersWordsOnAPhone: Story = {
       },
     },
   },
-  play: async (context) =>
-    _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
-      await VisualConditionSaysTheServersWords.play!(context);
+  play: async (context) => {
+    await VisualConditionSaysTheServersWords.play!(context);
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
       if (narrowed) {
-        const verdict = wholeConditionVerdict(context.canvasElement)!.getBoundingClientRect();
-        expect(verdict.right).toBeLessThanOrEqual(window.innerWidth + 0.5);
-        expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1);
+        await waitFor(() => {
+          const verdict = wholeConditionVerdict(context.canvasElement)!.getBoundingClientRect();
+          expect(verdict.right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+          expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1);
+        });
       }
-    }),
+    });
+  },
 };
 
 export const VisualConditionWithANumberPart: Story = {
