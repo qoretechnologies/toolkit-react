@@ -9,7 +9,7 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
-import { render, renderHook } from '@testing-library/react';
+import { fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -17,6 +17,7 @@ import {
   TMarkdownRenderer,
 } from '../src/components/Description/markdownRendererContext';
 import { makeDpqlTagRenderer } from '../src/components/dpqlEditor/dpqlTags';
+import { ReadOnlyTemplateTag } from '../src/components/form/fields/template/ReadOnlyTemplateTag';
 import {
   DESCRIPTION_TOOLTIP_MAX_WIDTH,
   descriptionTooltip,
@@ -149,5 +150,27 @@ describe('useDescriptionTooltips', () => {
     pointer(true);
     const { result } = renderHook(() => useDescriptionTooltips(), { wrapper });
     expect(result.current.tapToOpen).toBe(true);
+  });
+});
+
+describe('a template chip on a touch screen', () => {
+  it('opens its drawn card on a tap, and puts it away on the next', async () => {
+    pointer(true);
+    render(
+      <ReqoreUIProvider>
+        <MarkdownRendererContext.Provider value={hostRender}>
+          <ReadOnlyTemplateTag value='$local:customer' templates={TEMPLATES} />
+        </MarkdownRendererContext.Provider>
+      </ReqoreUIProvider>
+    );
+    const chip = screen.getByText('Customer name');
+    expect(document.querySelector(`[data-drawn]`)).toBeNull();
+    fireEvent.click(chip);
+    expect((await screen.findByText('Customer name', { selector: '.reqore-popover-content *' })).textContent).toBe(
+      'Customer name'
+    );
+    expect(document.querySelector('.reqore-popover-content [data-drawn]')).not.toBeNull();
+    fireEvent.click(chip);
+    expect(document.querySelector('.reqore-popover-content')).toBeNull();
   });
 });

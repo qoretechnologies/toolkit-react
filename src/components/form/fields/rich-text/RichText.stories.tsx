@@ -9,6 +9,7 @@ import {
   playTapIsDrawnOnAPhone,
   withHostMarkdown,
 } from '../../../../stories/templateHover';
+import { withCoarsePointer } from '../../../../stories/coarsePointer';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { StoryMeta } from '../../../../types';
 import { RichTextFormField } from './RichText';
@@ -110,7 +111,8 @@ export const TemplateHoverDrawsTheDescription: Story = {
 
 export const TemplateTappedOnAPhone: Story = {
   args: TemplateHoverDrawsTheDescription.args,
-  decorators: [withHostMarkdown],
+  // the pointer is a finger where the touches are dispatched too (Storybook's own UI), as on a phone
+  decorators: [withCoarsePointer, withHostMarkdown],
   parameters: {
     qlip: { viewport: PHONE_VIEWPORT },
     docs: {
