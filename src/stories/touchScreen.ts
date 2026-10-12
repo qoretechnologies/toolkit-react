@@ -53,6 +53,24 @@ const toPoint = (at: Element | ITouchPoint): ITouchPoint =>
 const nextFrame = (): Promise<void> =>
   new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
 
+/**
+ * Every animation on the page that will end has ended: a finger aims at where a thing comes to rest. A tap sent
+ * while a panel was still opening landed where its tab was a moment before, and switched nothing (SchemaDefinition
+ * › Sections Described On A Touch Screen, in Storybook's UI). An animation without an end (a spinner) is not waited
+ * for.
+ */
+const animationsSettled = (): Promise<unknown> =>
+  Promise.all(
+    document
+      .getAnimations()
+      .filter(
+        (animation) =>
+          animation.playState === 'running' &&
+          Number.isFinite(Number(animation.effect?.getComputedTiming().endTime))
+      )
+      .map((animation) => animation.finished.catch(() => undefined))
+  );
+
 const between = (from: ITouchPoint, to: ITouchPoint, step: number, steps: number): ITouchPoint => ({
   x: from.x + ((to.x - from.x) * step) / steps,
   y: from.y + ((to.y - from.y) * step) / steps,
@@ -169,6 +187,7 @@ const dispatchedTouches = (): Pick<ITouchScreen, 'tap' | 'drag'> => {
 
   return {
     async tap(at) {
+      await animationsSettled();
       const point = toPoint(at);
       const target = under(point);
       pointer('pointerdown', target, point);
@@ -188,6 +207,7 @@ const dispatchedTouches = (): Pick<ITouchScreen, 'tap' | 'drag'> => {
       mouse('click', target, point);
     },
     async drag(from, to, steps = 8) {
+      await animationsSettled();
       // a touch stays with the element it started on, wherever the finger goes
       const target = under(from);
       pointer('pointerdown', target, from);

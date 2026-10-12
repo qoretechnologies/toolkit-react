@@ -313,6 +313,8 @@ export const SectionsDescribedOnATouchScreen: Story = {
     await withTouchScreen(async (touch) => {
       await touch.tap(await canvas.findByText('Tables'));
       await touch.tap(await canvas.findByText('customers'));
+      // the table open, its columns drawn: what a finger waits for before it reaches for a tab
+      await canvas.findByText('Add column');
       const primaryKey = await waitFor(() => {
         const tab = sectionTab(canvasElement, 'Primary Key');
         expect(tab).toBeTruthy();
