@@ -9,6 +9,8 @@ import {
   SELECT_DIALOG_MIN_WIDTH,
   UNAVAILABLE_ITEM_CLASS,
 } from './SelectCollection';
+// an item's picture, from the story's own origin: a story loads nothing from a server (`realNetworkGuard`)
+import ITEM_IMAGE from '../../../../stories/Data/qorusAppLogo.svg';
 
 const meta = {
   component: SelectFormField,
@@ -97,25 +99,25 @@ export const ItemsWithDescription: Story = {
     forceDropdown: false,
     items: [
       { display_name: 'Item 1', desc: 'This is item 1', value: 'item1', icon: 'MoneyEuroCircleFill', groups: ['Miscellaneous'] },
-      { display_name: 'Item 2', desc: 'This is item 2', value: 'item2', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
+      { display_name: 'Item 2', desc: 'This is item 2', value: 'item2', image: ITEM_IMAGE },
       { display_name: 'Item 3', short_desc: 'This is item 3', value: 'item3', icon: 'AppleFill' },
-      { display_name: 'Item 4', short_desc: 'This is item 4', value: 'item4', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
+      { display_name: 'Item 4', short_desc: 'This is item 4', value: 'item4', image: ITEM_IMAGE },
       { display_name: 'Item 5', desc: 'This is item 5', value: 'item5', icon: 'MoneyEuroCircleFill' },
-      { display_name: 'Item 6', desc: 'This is item 6', value: 'item6', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
+      { display_name: 'Item 6', desc: 'This is item 6', value: 'item6', image: ITEM_IMAGE },
       { display_name: 'Item 7', short_desc: 'This is item 7', value: 'item7', icon: 'AppleFill' },
-      { display_name: 'Item 8', short_desc: 'This is item 8', value: 'item8', groups: ['Comparators'], image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
+      { display_name: 'Item 8', short_desc: 'This is item 8', value: 'item8', groups: ['Comparators'], image: ITEM_IMAGE },
       { display_name: 'Item 9', desc: 'This is item 9', value: 'item9', icon: 'MoneyEuroCircleFill' },
-      { display_name: 'Item 10', desc: 'This is item 10', value: 'item10', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
+      { display_name: 'Item 10', desc: 'This is item 10', value: 'item10', image: ITEM_IMAGE },
       { display_name: 'Item 11', short_desc: 'This is item 11', value: 'item11', icon: 'AppleFill', groups: ['Comparators'] },
-      { display_name: 'Item 12', short_desc: 'This is item 12', value: 'item12', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
+      { display_name: 'Item 12', short_desc: 'This is item 12', value: 'item12', image: ITEM_IMAGE },
       { display_name: 'Item 13', desc: 'This is item 13', value: 'item13', icon: 'MoneyEuroCircleFill' },
-      { display_name: 'Item 14', desc: 'This is item 14', value: 'item14', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
+      { display_name: 'Item 14', desc: 'This is item 14', value: 'item14', image: ITEM_IMAGE },
       { display_name: 'Item 15', short_desc: 'This is item 15', value: 'item15', icon: 'AppleFill' },
-      { display_name: 'Item 16', short_desc: 'This is item 16', value: 'item16', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
+      { display_name: 'Item 16', short_desc: 'This is item 16', value: 'item16', image: ITEM_IMAGE },
       { display_name: 'Item 17', desc: 'This is item 17', value: 'item17', icon: 'MoneyEuroCircleFill' },
-      { display_name: 'Item 18', desc: 'This is item 18', value: 'item18', image: 'https://avatars.githubusercontent.com/u/8861481?v=4', groups: ['Comparators'] },
+      { display_name: 'Item 18', desc: 'This is item 18', value: 'item18', image: ITEM_IMAGE, groups: ['Comparators'] },
       { display_name: 'Item 19', short_desc: 'This is item 19', value: 'item19', icon: 'AppleFill' },
-      { display_name: 'Item 20', short_desc: 'This is item 20', value: 'item20', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
+      { display_name: 'Item 20', short_desc: 'This is item 20', value: 'item20', image: ITEM_IMAGE },
     ],
   },
   async play({ canvasElement }) {
@@ -253,7 +255,7 @@ export const WithValueAndErrors: Story = {
     value: 'item2',
     items: [
       { display_name: 'Item 1', desc: 'This is item 1', intent: 'danger', value: 'item1' },
-      { display_name: 'Item 2', desc: 'This is item 1', value: 'item2', image: 'https://avatars.githubusercontent.com/u/8861481?v=4' },
+      { display_name: 'Item 2', desc: 'This is item 1', value: 'item2', image: ITEM_IMAGE },
     ],
   },
   parameters: {

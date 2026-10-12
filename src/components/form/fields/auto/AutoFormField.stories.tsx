@@ -16,7 +16,7 @@ import { useEffect, useState } from 'react';
 import { StoryMeta } from '../../../../types';
 import { buildTemplates } from '../../../../helpers/templates';
 import { FormEngine } from '../../engine/FormEngine';
-import templates from '../template/__fixtures__/templates.json';
+import { templates } from '../template/__fixtures__/templateFixtures';
 import { AutoFormField } from './AutoFormField';
 
 const meta = {

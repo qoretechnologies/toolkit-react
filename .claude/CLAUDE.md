@@ -222,6 +222,14 @@ yarn build:test         # Type-check without emit
   - CI reaches the live hq instance with a valid token, so a story that leaks a real
     request can pass in CI and hang locally. When a story passes in CI but times out on
     your machine, look for an unmocked request before anything else.
+  - The guard (`src/stories/realNetworkGuard.ts`) covers what an element loads as well:
+    an `<img>`, `<source>` or `srcset`, a frame, a script, a stylesheet, a medium. Anything
+    else loaded from another origin, such as a CSS `url()` or a font, is caught from the
+    browser's resource timing. A story image is a local asset or a `data:` URI, never a
+    server's URL. The template fixtures keep the URL the server gives an app's logo
+    (`<instance>/api/public/apps/<app>/logo`) and swap in a local copy
+    (`__fixtures__/templateFixtures.ts`, `src/stories/Data/qorusAppLogo.svg`), so import
+    the fixtures from there, not from the JSON.
 - **Visual regression via Qlip** (not Chromatic): the story run captures snapshots through the `qlip` Vitest plugin. Upload is gated on `QLIP_UPLOAD_TOKEN` (`vitest.config.ts`), so **local runs capture but never upload** — PNGs land in `qlip/screenshots/<ts>/stories/auto/<StoryId>.png` (gitignored); read the PNG to verify a visual change. CI (`.github/workflows/tests.yml`) sets the token and uploads a build for dashboard review. The full visual-change flow + the `qlip` MCP review skill live in the imported `stacks/frontend/FRONTEND.md`.
 
 ## Code Patterns & Conventions

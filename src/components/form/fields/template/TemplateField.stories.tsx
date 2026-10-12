@@ -21,8 +21,7 @@ import NumberFormField from '../number/Number';
 import { StringFormField } from '../string/String';
 import { LONG_EXAMPLE_VALUE } from './__fixtures__/longExampleValue';
 import { TemplateField } from './TemplateField';
-import multiLevelTemplates from './__fixtures__/multiLevelTemplates.json';
-import templates from './__fixtures__/templates.json';
+import { multiLevelTemplates, templates } from './__fixtures__/templateFixtures';
 
 // --- IDE leaf story components (2-arg field API over reqraft leafs) ---------
 

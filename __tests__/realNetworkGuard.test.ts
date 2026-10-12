@@ -4,7 +4,7 @@
  * Unanswered, such a request went to the instance the stories were configured with: every story file fetched
  * the current user from the live Qorus, and reqraft's useStorage stories passed only while it answered.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   BLOCKED_HTTP_URL,
   BLOCKED_WS_URL,
@@ -94,5 +94,114 @@ describe('guardRealNetwork', () => {
       'WebSocket wss://hq.qoretechnologies.com:8092/lsp',
       'beacon https://telemetry.example.com/v1',
     ]);
+  });
+});
+
+/**
+ * An element's own load is a request too: the template fixtures' app logo was an `<img>` on the live hq
+ * instance, which no mock could answer and the fetch guard never saw.
+ */
+describe('guardRealNetwork: what an element loads', () => {
+  const PAGE_HERE = window.location.href;
+  let release: (() => void) | undefined;
+
+  afterEach(() => {
+    release?.();
+    release = undefined;
+  });
+
+  const guarded = (extra: Partial<Parameters<typeof guardRealNetwork>[0]> = {}) => {
+    const network = guardRealNetwork({
+      location: { href: PAGE_HERE },
+      Element: window.Element,
+      HTMLImageElement: window.HTMLImageElement,
+      HTMLSourceElement: window.HTMLSourceElement,
+      HTMLIFrameElement: window.HTMLIFrameElement,
+      HTMLScriptElement: window.HTMLScriptElement,
+      HTMLLinkElement: window.HTMLLinkElement,
+      HTMLMediaElement: window.HTMLMediaElement,
+      HTMLEmbedElement: window.HTMLEmbedElement,
+      HTMLObjectElement: window.HTMLObjectElement,
+      ...extra,
+    });
+    release = network.release;
+    return network;
+  };
+
+  const LOGO = 'https://hq.qoretechnologies.com:8092/api/public/apps/Qorus/logo';
+
+  it('puts an image another origin serves nowhere, set as an attribute or as a property, and names it', () => {
+    const network = guarded();
+    const byAttribute = document.createElement('img');
+    byAttribute.setAttribute('src', LOGO);
+    const byProperty = new Image();
+    byProperty.src = `${LOGO}?v=2`;
+    expect(byAttribute.getAttribute('src')).toBe(BLOCKED_HTTP_URL);
+    expect(byProperty.getAttribute('src')).toBe(BLOCKED_HTTP_URL);
+    expect(network.take()).toEqual([`image ${LOGO}`, `image ${LOGO}`]);
+  });
+
+  it("puts a srcset nowhere when any of its images is another origin's", () => {
+    const network = guarded();
+    const source = document.createElement('source');
+    source.setAttribute('srcset', `/own.png 1x, ${LOGO} 2x`);
+    expect(source.getAttribute('srcset')).toBe(BLOCKED_HTTP_URL);
+    expect(network.take()).toEqual([`image ${LOGO}`]);
+  });
+
+  it('names a frame, a script and a stylesheet another origin serves', () => {
+    const network = guarded();
+    document.createElement('iframe').src = 'https://example.com/embed';
+    document.createElement('script').setAttribute('src', 'https://cdn.example.com/lib.js');
+    document.createElement('link').href = 'https://fonts.example.com/face.css';
+    expect(network.take()).toEqual([
+      'frame https://example.com/embed',
+      'script https://cdn.example.com/lib.js',
+      'stylesheet https://fonts.example.com/face.css',
+    ]);
+  });
+
+  it("leaves the page's own images, data and other attributes alone", () => {
+    const network = guarded();
+    const img = document.createElement('img');
+    img.setAttribute('src', '/assets/qorusAppLogo.svg');
+    img.setAttribute('alt', LOGO);
+    const inline = new Image();
+    inline.src = 'data:image/svg+xml,%3Csvg/%3E';
+    const link = document.createElement('a');
+    link.setAttribute('href', 'https://example.com/runbook');
+    expect(img.getAttribute('src')).toBe('/assets/qorusAppLogo.svg');
+    expect(img.getAttribute('alt')).toBe(LOGO);
+    expect(inline.getAttribute('src')).toBe('data:image/svg+xml,%3Csvg/%3E');
+    expect(link.getAttribute('href')).toBe('https://example.com/runbook');
+    expect(network.take()).toEqual([]);
+  });
+
+  it('names what else the page loaded from another origin, from the browser\'s record, once', () => {
+    const entries = [
+      { name: 'https://fonts.example.com/face.woff2', initiatorType: 'css' },
+      { name: `${BLOCKED_HTTP_URL}?x`, initiatorType: 'xmlhttprequest' },
+      { name: new URL('/own.css', PAGE_HERE).href, initiatorType: 'link' },
+    ];
+    class FakeObserver {
+      static supportedEntryTypes = ['resource'];
+      observe = vi.fn();
+      disconnect = vi.fn();
+      takeRecords = () => entries.splice(0) as unknown as PerformanceEntryList;
+      constructor(_callback: PerformanceObserverCallback) {}
+    }
+    const network = guarded({ PerformanceObserver: FakeObserver as unknown as typeof PerformanceObserver });
+    expect(network.take()).toEqual(['css https://fonts.example.com/face.woff2']);
+    expect(network.take()).toEqual([]);
+  });
+
+  it('puts back everything it replaced when released', () => {
+    const network = guarded();
+    network.release();
+    release = undefined;
+    const img = document.createElement('img');
+    img.setAttribute('src', LOGO);
+    expect(img.getAttribute('src')).toBe(LOGO);
+    expect(network.take()).toEqual([]);
   });
 });
