@@ -7,6 +7,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { expect, userEvent, waitFor } from 'storybook/test';
 import { MarkdownRendererContext } from '../components/Description/markdownRendererContext';
 import { defaultMarkdownRenderer } from '../components/form/fields/markdown/MarkdownView';
+import { _testsWithViewport } from './Tests/utils';
 import { withTouchScreen } from './touchScreen';
 
 /** The reference the stories' values hold. */
@@ -74,11 +75,28 @@ export const expectDrawnHover = (): Promise<HTMLElement> =>
     return card!;
   });
 
-/** Hovered with a mouse, the chip's card draws its description. */
-export const playHoverIsDrawn = async ({ canvasElement }: { canvasElement: HTMLElement }) => {
-  await userEvent.hover(await findTemplateChip(canvasElement));
-  await expectDrawnHover();
+/**
+ * The card is as wide as what it says, up to its readable maximum: a sentence that fits that width takes one line,
+ * not two. Measured without touching the page - `waitFor` runs again on every change to it - as the text's height
+ * against its line height.
+ */
+const expectOnOneLine = (card: HTMLElement) => {
+  const text = Array.from(card.querySelectorAll<HTMLElement>('p, div')).find(
+    (element) => element.textContent?.includes('full name') && !element.querySelector('p, div')
+  );
+  expect(text).toBeTruthy();
+  const style = getComputedStyle(text!);
+  const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
+  expect(text!.getBoundingClientRect().height).toBeLessThan(lineHeight * 1.8);
 };
+
+/** Hovered with a mouse on a wide screen, the chip's card draws its description, on one line. */
+export const playHoverIsDrawn = async ({ canvasElement }: { canvasElement: HTMLElement }) =>
+  _testsWithViewport(1280, 800, async () => {
+    await userEvent.hover(await findTemplateChip(canvasElement));
+    const card = await expectDrawnHover();
+    await waitFor(() => expectOnOneLine(card));
+  });
 
 /**
  * Tapped by a finger on a phone, the chip's card opens, draws its description, and stays on the screen.

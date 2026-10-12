@@ -37,7 +37,7 @@ export const HoverDrawsTheDescription: Story = {
     docs: {
       description: {
         story:
-          'Renders text with a template in it ("Dear Customer name, your order has shipped."), as a read row shows a value, in a host that draws markdown. Hovered, the chip\'s card shows the description drawn: "customer’s" in bold and customer.name as code, with no asterisks or backticks.',
+          'Renders text with a template in it ("Dear Customer name, your order has shipped."), as a read row shows a value, in a host that draws markdown. Hovered, the chip\'s card shows the description drawn: "customer’s" in bold and customer.name as code, with no asterisks or backticks, on one line on a wide screen (the card is as wide as what it says, up to 560px).',
       },
     },
   },

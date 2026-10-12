@@ -8,8 +8,12 @@ import {
 import { useCoarsePointer } from '../hooks/useCoarsePointer';
 import { plainTextNode } from './markdownText';
 
-/** How wide a hover that explains something grows: a readable line, and narrower than a phone. */
-export const DESCRIPTION_TOOLTIP_MAX_WIDTH = '360px';
+/**
+ * How wide a description's card grows: as wide as what it says, up to a readable line (about 80 characters of
+ * the card's text), and never wider than the screen. At 360px a one-sentence description broke onto two lines on
+ * any screen.
+ */
+export const DESCRIPTION_TOOLTIP_MAX_WIDTH = 'min(560px, calc(100vw - 24px))';
 
 /** How a surface shows a description's card: see `useDescriptionTooltips`. */
 export interface IDescriptionTooltipOptions {
