@@ -3,6 +3,7 @@ import { ReqoreMenu, ReqoreMenuDivider, ReqoreMenuItem } from '@qoretechnologies
 import { ReqorePopover } from '@qoretechnologies/reqore/dist/components/Popover';
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
 import React, { memo, useCallback, useMemo } from 'react';
+import { useCoarsePointer } from '../../hooks/useCoarsePointer';
 import { COMPLETION_ITEM_STYLE, COMPLETION_LIST_THEME, kindBadge } from './completionStyle';
 import { MarkdownDoc } from './MarkdownDoc';
 import { SMART_EDITOR_OVERLAY_EFFECT } from './styling';
@@ -46,16 +47,22 @@ function buildKindBadge(
   return undefined;
 }
 
+/** A row's LSP `documentation` as text and whether it is markdown, or undefined when it has none. */
+function docOf(item: ICompletionDropdownItem): { text: string; markdown: boolean } | undefined {
+  const doc = item.documentation;
+  if (!doc) return undefined;
+  const markdown = typeof doc === 'object' && doc !== null && doc.kind === 'markdown';
+  const text = typeof doc === 'string' ? doc : (doc?.value ?? '');
+  return text ? { text, markdown } : undefined;
+}
+
 // Tooltip prop rendering a row's LSP `documentation` (markdown/plaintext),
 // or undefined when there is none.
 function buildDocTooltip(item: ICompletionDropdownItem) {
-  const doc = item.documentation;
+  const doc = docOf(item);
   if (!doc) return undefined;
-  const isMarkdown = typeof doc === 'object' && doc !== null && doc.kind === 'markdown';
-  const text = typeof doc === 'string' ? doc : (doc?.value ?? '');
-  if (!text) return undefined;
   return {
-    content: <MarkdownDoc content={text} markdown={isMarkdown} />,
+    content: <MarkdownDoc content={doc.text} markdown={doc.markdown} />,
     placement: 'right' as const,
     delay: 200,
     // The cast covers popover props missing from the older tooltip type.
@@ -69,36 +76,95 @@ interface ICompletionMenuItemProps {
   item: ICompletionDropdownItem;
   isFocused: boolean;
   onSelect: (item: ICompletionDropdownItem) => void;
+  /** The pointer is a finger: no hover, and every row with documentation offers its ⓘ. */
+  coarse: boolean;
+  /** Its documentation is shown under it. */
+  docsShown: boolean;
+  onToggleDocs?: (value: string) => void;
+  /** The id of the documentation under it, for its ⓘ's `aria-controls`. */
+  docsId: string;
 }
+
+/* The ⓘ's press is not the editor's: the focus, and the caret with it, stay in the text. */
+const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
 
 // Memoized completion row so badge/tooltip derivation runs once per item,
 // not on every SmartEditor re-render.
-const CompletionMenuItem = memo(({ item, isFocused, onSelect }: ICompletionMenuItemProps) => {
-  const badge = useMemo(() => buildKindBadge(item), [item]);
-  const tooltip = useMemo(() => buildDocTooltip(item), [item]);
-  const handleClick = useCallback(() => onSelect(item), [onSelect, item]);
+const CompletionMenuItem = memo(
+  ({
+    item,
+    isFocused,
+    onSelect,
+    coarse,
+    docsShown,
+    onToggleDocs,
+    docsId,
+  }: ICompletionMenuItemProps) => {
+    const badge = useMemo(() => buildKindBadge(item), [item]);
+    // a hover where a pointer can hover; a finger has the ⓘ
+    const tooltip = useMemo(() => (coarse ? undefined : buildDocTooltip(item)), [item, coarse]);
+    const handleClick = useCallback(() => onSelect(item), [onSelect, item]);
+    const hasDocs = !!docOf(item);
+    /* The ⓘ that shows the documentation under the row: on the row the keyboard is on, and on every row with
+     documentation where the pointer is a finger, which cannot move the keyboard's row. Its press neither
+     selects the row nor takes the focus from the text. */
+    const docsToggle = useMemo(
+      () =>
+        hasDocs && onToggleDocs && (isFocused || coarse) ?
+          {
+            icon: 'InformationLine' as const,
+            className: 'completion-docs-toggle',
+            'aria-label': docsShown ? `Hide what ${item.label} is` : `Show what ${item.label} is`,
+            'aria-expanded': docsShown,
+            'aria-controls': docsId,
+            onMouseDown: keepTheFocus,
+            onClick: () => onToggleDocs(item.value),
+            ...(coarse ? { style: { minWidth: 44, minHeight: 44 } } : {}),
+          }
+        : undefined,
+      [hasDocs, onToggleDocs, isFocused, coarse, docsShown, docsId, item.label, item.value]
+    );
 
-  return (
-    <ReqoreMenuItem
-      // one option of the list the editor controls (`aria-controls`), selected as the keyboard moves
-      role='option'
-      aria-selected={isFocused}
-      icon={item.icon as any}
-      label={item.label}
-      description={item.description}
-      badge={badge as any}
-      tooltip={tooltip as any}
-      selected={isFocused}
-      active={isFocused}
-      minimal
-      scrollIntoView={isFocused}
-      onClick={handleClick}
-      compact
-      style={COMPLETION_ITEM_STYLE}
-    />
-  );
-});
+    return (
+      <ReqoreMenuItem
+        // one option of the list the editor controls (`aria-controls`), selected as the keyboard moves
+        role='option'
+        aria-selected={isFocused}
+        icon={item.icon as any}
+        label={item.label}
+        description={item.description}
+        badge={badge as any}
+        tooltip={tooltip as any}
+        selected={isFocused}
+        active={isFocused}
+        minimal
+        scrollIntoView={isFocused}
+        onClick={handleClick}
+        rightAction={docsToggle as any}
+        compact
+        style={COMPLETION_ITEM_STYLE}
+      />
+    );
+  }
+);
 CompletionMenuItem.displayName = 'CompletionMenuItem';
+
+/** A row's documentation, under the row: what its ⓘ or Ctrl+Space shows. */
+const CompletionDocs = memo(({ item, id }: { item: ICompletionDropdownItem; id: string }) => {
+  const doc = docOf(item);
+  return doc ?
+      <div
+        id={id}
+        className='completion-docs'
+        role='note'
+        aria-label={`What ${item.label} is`}
+        style={{ padding: '4px 8px 8px' }}
+      >
+        <MarkdownDoc content={doc.text} markdown={doc.markdown} maxWidth={284} maxHeight={220} />
+      </div>
+    : null;
+});
+CompletionDocs.displayName = 'CompletionDocs';
 
 export interface ICompletionListProps {
   /** The listbox's id, for the control that drives it (`aria-controls`). */
@@ -110,6 +176,10 @@ export interface ICompletionListProps {
   onSelect: (item: ICompletionDropdownItem) => void;
   /** Said in place of the rows while there are none: a loading or an empty list. */
   emptyLabel?: string;
+  /** The row whose documentation is shown under it (its `value`). */
+  docsFor?: string | null;
+  /** Show or put away a row's documentation (see `IUseLspAutocompleteResult.toggleDocs`). */
+  onToggleDocs?: (value: string) => void;
 }
 
 /**
@@ -117,7 +187,16 @@ export interface ICompletionListProps {
  * (`CompletionMenu`) or from a control (`TemplatePicker`).
  */
 export const CompletionList = memo(
-  ({ id, groups, focusedIndex, onSelect, emptyLabel }: ICompletionListProps) => {
+  ({
+    id,
+    groups,
+    focusedIndex,
+    onSelect,
+    emptyLabel,
+    docsFor,
+    onToggleDocs,
+  }: ICompletionListProps) => {
+    const coarse = useCoarsePointer();
     // Flatten groups into rows carrying a flat index to compare against
     // `focusedIndex` (which is flat across all groups).
     const completionGroups = useMemo(() => {
@@ -153,12 +232,20 @@ export const CompletionList = memo(
               />
             )}
             {group.items.map(({ item, index }) => (
-              <CompletionMenuItem
-                key={item.value}
-                item={item}
-                isFocused={index === focusedIndex}
-                onSelect={handleSelect}
-              />
+              <React.Fragment key={item.value}>
+                <CompletionMenuItem
+                  item={item}
+                  isFocused={index === focusedIndex}
+                  onSelect={handleSelect}
+                  coarse={coarse}
+                  docsShown={docsFor === item.value}
+                  onToggleDocs={onToggleDocs}
+                  docsId={`${id}-docs-${index}`}
+                />
+                {docsFor === item.value ?
+                  <CompletionDocs item={item} id={`${id}-docs-${index}`} />
+                : null}
+              </React.Fragment>
             ))}
           </React.Fragment>
         ))}
@@ -216,6 +303,8 @@ export const CompletionMenu = memo(
                 groups={autocomplete.groups}
                 focusedIndex={autocomplete.focusedIndex}
                 onSelect={onSelect}
+                docsFor={autocomplete.docsFor}
+                onToggleDocs={autocomplete.toggleDocs}
                 emptyLabel={
                   autocomplete.isReplaceMode || autocomplete.isFetching ?
                     (pendingLabel ??

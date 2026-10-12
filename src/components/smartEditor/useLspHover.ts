@@ -87,6 +87,12 @@ export interface IUseLspHoverResult {
   hoverPosition: { left: number; top: number } | null;
   /** Imperatively dismiss the current hover popover. */
   clearHover: () => void;
+  /**
+   * Show what the server says of the word at the caret, anchored at the caret: the hover where there is no
+   * pointer to hover with (a finger's "Details", see `SmartEditor`). Nothing when the caret is nowhere or the
+   * server says nothing of it.
+   */
+  showAtCaret: () => Promise<void>;
 }
 
 /**
@@ -226,5 +232,41 @@ export function useLspHover(
     // is stable across renders so it's not a dep here.
   }, [enabled, session.isReady, clearHover, editorRef]);
 
-  return { hoverContent, hoverPosition, clearHover };
+  const showAtCaret = useCallback(async () => {
+    const editor = editorRef.current;
+    const client = session.client;
+    if (!enabled || !editor || !client || !session.isReady || !session.isContextReady || !editor.selection) {
+      return;
+    }
+    const point = editor.selection.focus;
+    const nodes = editor.children as ISlateElement[];
+    const { line, character } = slatePointToLspPosition(
+      { path: point.path as number[], offset: point.offset },
+      nodes,
+      converter
+    );
+    let anchor: { left: number; top: number };
+    try {
+      const rect = ReactEditor.toDOMRange(editor, editor.selection).getBoundingClientRect();
+      anchor = { left: rect.left, top: rect.top };
+    } catch {
+      return;
+    }
+    fetchHover.current.cancel();
+    const reqId = ++requestIdRef.current;
+    try {
+      const content = await client.getHover(line, character);
+      if (reqId !== requestIdRef.current) return; // stale
+      if (!content) {
+        clearHover();
+        return;
+      }
+      setHoverContent(content);
+      setHoverPosition(anchor);
+    } catch {
+      clearHover();
+    }
+  }, [enabled, editorRef, session.client, session.isReady, session.isContextReady, converter, clearHover]);
+
+  return { hoverContent, hoverPosition, clearHover, showAtCaret };
 }

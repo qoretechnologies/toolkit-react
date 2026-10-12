@@ -123,6 +123,15 @@ export interface IUseLspAutocompleteResult {
   // fresh mount so its internal `showing` state stays in sync with ours.
   popoverKey: number;
   position: { top: number; left: number };
+  /**
+   * The row whose documentation is shown under it in the list (its `value`), or null. A row's documentation
+   * is otherwise a hover, which a keyboard and a finger cannot reach: its ⓘ, or Ctrl+Space on the row the
+   * keyboard is on, shows it.
+   */
+  docsFor: string | null;
+  /** Show the documentation of the row with `value`, or put it away when it is shown; the keyboard's row when
+   *  no value is given. */
+  toggleDocs: (value?: string) => void;
 }
 
 /**
@@ -283,6 +292,7 @@ export function useLspAutocomplete(
   const [isReplaceMode, setIsReplaceMode] = useState(false);
   // See `popoverKey` in the result interface — forces a popover re-mount.
   const [popoverKey, setPopoverKey] = useState(0);
+  const [docsFor, setDocsFor] = useState<string | null>(null);
 
   useEffect(() => {
     focusedIndexRef.current = focusedIndex;
@@ -412,6 +422,7 @@ export function useLspAutocomplete(
   }, [requestCompletions]);
 
   const close = useCallback(() => {
+    setDocsFor(null);
     setIsOpen(false);
     setItems([]);
     setFocusedIndex(0);
@@ -508,6 +519,16 @@ export function useLspAutocomplete(
     [close, inserter, converter]
   );
 
+  const toggleDocs = useCallback(
+    (value?: string) => {
+      const target = value ?? filteredItems[focusedIndexRef.current]?.value ?? null;
+      setDocsFor((shown) => (shown === target ? null : target));
+    },
+    [filteredItems]
+  );
+  const toggleDocsRef = useRef(toggleDocs);
+  toggleDocsRef.current = toggleDocs;
+
   useCompletionKeys({
     isOpen: isOpen && filteredItems.length > 0,
     count: filteredItems.length,
@@ -518,6 +539,11 @@ export function useLspAutocomplete(
     },
     onClose: close,
     onOtherKey: (e) => {
+      // Ctrl+Space: the documentation of the row the keyboard is on, shown under it or put away (VS Code's key)
+      if (e.key === ' ' && e.ctrlKey && !e.metaKey && !e.altKey) {
+        toggleDocsRef.current();
+        return true;
+      }
       // `commitCharacters`: typing a commit char accepts the item and
       // inserts the char (VS Code semantics).
       if (e.key.length !== 1) return false;
@@ -796,5 +822,7 @@ export function useLspAutocomplete(
     handleExternalClose,
     popoverKey,
     position,
+    docsFor,
+    toggleDocs,
   };
 }

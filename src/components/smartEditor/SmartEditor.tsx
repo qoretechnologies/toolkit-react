@@ -1,6 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 
 import {
+  ReqoreButton,
   ReqoreCallout,
   ReqoreControlGroup,
   ReqoreMessage,
@@ -36,6 +37,7 @@ import { ISlateElement, ISmartEditorProps, TCompletionInserter } from './types';
 import { ICompletionDropdownItem, useLspAutocomplete } from './useLspAutocomplete';
 import { severityToIntent, useLspDiagnosticDecorations } from './useLspDiagnosticDecorations';
 import { useLspHover } from './useLspHover';
+import { useCoarsePointer } from '../../hooks/useCoarsePointer';
 import { useLspSemanticTokens } from './useLspSemanticTokens';
 import { useLspSignatureHelp } from './useLspSignatureHelp';
 
@@ -276,6 +278,14 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const hover = useLspHover(session, editorRef as React.RefObject<any>, converter, {
       enabled: enableHover,
     });
+    /* A finger cannot hover: where the pointer is one, "Details" shows what the server says of the word at the
+       caret, in the same pop-up a mouse gets by hovering. Only where the server says anything (`hoverProvider`). */
+    const coarse = useCoarsePointer();
+    const showDetailsButton =
+      coarse &&
+      enableHover &&
+      session.isReady &&
+      !!(session.client?.capabilities as { hoverProvider?: unknown } | null | undefined)?.hoverProvider;
 
     /* What the editor has reported and the host has not handed back yet. A host can hand an emit back
        after the next key is already in the editor - one that debounces, or a render that lands between
@@ -634,6 +644,26 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             />
           )}
         </div>
+        {showDetailsButton && (
+          <ReqoreControlGroup fluid horizontalAlign='flex-end'>
+            <ReqoreButton
+              className='smart-editor-details'
+              icon='InformationLine'
+              fixed
+              flat
+              minimal
+              aria-label='Show what the word at the cursor is'
+              style={{ minHeight: 44 }}
+              // the press keeps the focus, and the caret the details are of, in the text
+              onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
+              onClick={() => {
+                void hover.showAtCaret();
+              }}
+            >
+              Details
+            </ReqoreButton>
+          </ReqoreControlGroup>
+        )}
         {showDiagnostics && session.diagnostics.length > 0 && (
           // One ReqoreMessage per diagnostic, severity → intent. Same
           // `session.diagnostics` source as the inline underline above.
