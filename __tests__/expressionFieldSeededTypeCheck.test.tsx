@@ -89,7 +89,7 @@ describe('an expression opened in the Text view', () => {
       timeout: 5000,
     });
     expect(container.textContent).toContain(
-      'The expression gives Integer, and this field takes Hash.'
+      'The expression gives Whole number, and this field takes Hash.'
     );
     expect(parsed).toEqual([{ text: '1 + 2', targetType: 'hash' }]);
   });

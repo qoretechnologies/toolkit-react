@@ -1,0 +1,22 @@
+{
+  "any": "Any",
+  "context": "Context",
+  "string": "Text",
+  "richtext": "Rich text",
+  "int": "Whole number",
+  "float": "Number",
+  "number": "Exact number",
+  "bool": "True or false",
+  "date": "Date",
+  "binary": "Binary",
+  "data": "Data",
+  "hash": "Hash",
+  "list": "List",
+  "rgbcolor": "Color",
+  "workflow": "Workflow",
+  "service": "Service",
+  "job": "Job",
+  "mapper": "Mapper",
+  "data-provider": "Data Provider",
+  "connection": "Connection"
+}

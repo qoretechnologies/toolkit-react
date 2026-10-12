@@ -155,7 +155,7 @@ describe('the type-fit message', () => {
     await type();
 
     await waitFor(() => expect(container.textContent).toContain('This does not fit'), { timeout: 5000 });
-    expect(container.textContent).toContain('The expression gives Integer, and this field takes Hash.');
+    expect(container.textContent).toContain('The expression gives Whole number, and this field takes Hash.');
     expect(container.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
   });
 
@@ -214,7 +214,7 @@ describe('the type-fit message', () => {
     await waitFor(
       () =>
         expect(container.textContent).toContain(
-          'The condition evaluates to String, but it must evaluate to true or false. Compare the value instead, for example @status == "open".'
+          'The condition evaluates to Text, but it must evaluate to true or false. Compare the value instead, for example @status == "open".'
         ),
       {
       timeout: 5000,

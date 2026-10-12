@@ -196,6 +196,13 @@ yarn build:test         # Type-check without emit
 - Wrap unit tests with `ReqraftProvider` (or at minimum `QueryClientProvider`)
 - Use `mock-socket` for WebSocket testing
 - Run: `yarn test` (unit) · `yarn test:stories [file-substring]` (stories) · `yarn precheck` (lint + unit + `build:test:prod`)
+- **Type names come from the server.** A data type's display name is the Qorus server's
+  (`QorusDataTypeCatalogue::Info`, served at `/system/qorus-type-info`): `defaultQorusTypes`
+  (`src/hooks/useQorusTypes.ts`) is reqraft's copy until the server's list arrives, and the
+  condition and type messages are worded with it. `__tests__/qorusTypeNames.test.ts` compares
+  it with `__tests__/fixtures/qorusTypeCatalogueNames.json`, the server catalogue's names. When the
+  server changes a name, refresh that file and fix the fallback until the test passes:
+  `yarn refresh:type-names ~/src/Qorus/git/qorus/Classes/QorusDataTypeCatalogue.qc`
 
 ### Storybook Stories & visual testing
 

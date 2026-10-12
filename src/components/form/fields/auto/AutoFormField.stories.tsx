@@ -58,10 +58,10 @@ const IMMEDIATE_TYPE_NAMES = [
   'Date',
   'Text',
   'Binary',
-  'Decimal',
+  'Number',
   'List',
   'Key/Value {}',
-  'Integer',
+  'Whole number',
   'RGB Color',
 ];
 
@@ -289,7 +289,7 @@ export const AllowedTypesSubset: Story = {
     await expect(within(canvasElement).queryByText('Please select data type')).not.toBeInTheDocument();
     const popover = await openTypePicker(canvasElement);
     await expectOffered(popover, ['Integer', 'Text']);
-    await expect(within(popover).queryByText('Decimal')).not.toBeInTheDocument();
+    await expect(within(popover).queryByText('Number', { exact: true })).not.toBeInTheDocument();
   },
 };
 
@@ -613,14 +613,14 @@ export const AllowedSoftTypesOfferedAsTheirBase: Story = {
     docs: {
       description: {
         story:
-          'Renders AutoFormField whose allowedTypes are softint, int and softstring. The type picker offers Integer once and Text, with no soft type and no item count.',
+          'Renders AutoFormField whose allowedTypes are softint, int and softstring. The type picker offers Whole number once and Text, with no soft type and no item count.',
       },
     },
   },
   async play({ canvasElement }) {
     const popover = await openTypePicker(canvasElement);
-    await expectOffered(popover, ['Integer', 'Text']);
-    await expect(within(popover).getAllByText('Integer', { exact: true })).toHaveLength(1);
+    await expectOffered(popover, ['Whole number', 'Text']);
+    await expect(within(popover).getAllByText('Whole number', { exact: true })).toHaveLength(1);
   },
 };
 
@@ -635,7 +635,7 @@ export const SavedSoftTypeEditsAsItsBase: Story = {
     docs: {
       description: {
         story:
-          'Renders an untyped AutoFormField holding 5, saved with the soft type softint. It is edited with the integer editor and the type picker reads Integer, instead of drawing "Unknown type!".',
+          'Renders an untyped AutoFormField holding 5, saved with the soft type softint. It is edited with the integer editor and the type picker reads Whole number, instead of drawing "Unknown type!".',
       },
     },
   },
@@ -643,7 +643,7 @@ export const SavedSoftTypeEditsAsItsBase: Story = {
     const canvas = within(canvasElement);
     await expect(await canvas.findByDisplayValue('5')).toBeInTheDocument();
     await expect(canvas.queryByText('Unknown type!')).not.toBeInTheDocument();
-    const popover = await openTypePicker(canvasElement, 'Integer');
+    const popover = await openTypePicker(canvasElement, 'Whole number');
     await expectOffered(popover, IMMEDIATE_TYPE_NAMES);
     // End on what the story is about: the integer editor, holding 5.
     await closeTypePicker(popover);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { offersTypeChoices } from '../src/components/form/engine/typeChoices';
 
 /**
- * Which options offer the per-type choices ("Integer", "Hash", …) in the row
+ * Which options offer the per-type choices ("Whole number", "Hash", …) in the row
  * menu.
  *
  * Reported from the live IDE: an assertion's Expected Value had no type

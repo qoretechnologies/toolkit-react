@@ -13,6 +13,7 @@
   "scripts": {
     "source": "source ~/.profile",
     "test": "vitest run --project unit",
+    "refresh:type-names": "node scripts/refresh-qorus-type-names.mjs",
     "test:watch": "vitest --project unit",
     "test:ci": "vitest run --project unit --reporter=json --outputFile=tests.json",
     "test:stories": "vitest run --project storybook",

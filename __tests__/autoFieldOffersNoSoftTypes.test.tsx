@@ -102,10 +102,10 @@ describe('the type picker of an untyped field', () => {
       'Date',
       'Text',
       'Binary',
-      'Decimal',
+      'Number',
       'List',
       'Key/Value {}',
-      'Integer',
+      'Whole number',
       'RGB Color',
     ]);
     // The text value resolved to `string`, which the picker shows as chosen.
@@ -161,7 +161,7 @@ describe('the type picker of an untyped field', () => {
     expect(picker.props?.items).toEqual([
       // The first entry for a base type wins; one with no name of its own takes
       // the base type's readable name.
-      { name: 'int', display_name: 'Integer' },
+      { name: 'int', display_name: 'Whole number' },
       { name: 'string', display_name: 'Some text' },
       { name: 'list<string>', display_name: undefined },
     ]);
