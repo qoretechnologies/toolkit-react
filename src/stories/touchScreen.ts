@@ -45,6 +45,14 @@ const pointIn = (element: Element, fx = 0.5, fy = 0.5): ITouchPoint => {
 const toPoint = (at: Element | ITouchPoint): ITouchPoint =>
   at instanceof Element ? pointIn(at) : at;
 
+/**
+ * The next frame: what the last event set in motion has been drawn, and the effects it scheduled have run. A
+ * finger's events come a frame or more apart, and a drag handler that starts listening for moves in an effect
+ * after the touch began (`@uiw/react-drag-event-interactive`) hears none sent in the same frame.
+ */
+const nextFrame = (): Promise<void> =>
+  new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
+
 const between = (from: ITouchPoint, to: ITouchPoint, step: number, steps: number): ITouchPoint => ({
   x: from.x + ((to.x - from.x) * step) / steps,
   y: from.y + ((to.y - from.y) * step) / steps,
@@ -167,13 +175,16 @@ const dispatchedTouches = (): Pick<ITouchScreen, 'tap' | 'drag'> => {
       const target = under(from);
       pointer('pointerdown', target, from);
       touch('touchstart', target, from);
+      await nextFrame();
       for (let step = 1; step <= steps; step++) {
         const point = between(from, to, step, steps);
         pointer('pointermove', target, point);
         touch('touchmove', target, point);
+        await nextFrame();
       }
       pointer('pointerup', target, to);
       touch('touchend', target, to);
+      await nextFrame();
     },
   };
 };
