@@ -9,6 +9,12 @@
 // answer here follows what the Qorus `/lsp` handler actually returned for the
 // same input, recorded in `__tests__/dpqlMockLanguage.test.ts`; only the subset
 // the stories exercise is modelled.
+import {
+  conditionBaseType,
+  conditionByTruthinessText,
+  conditionErrorText,
+} from '../../../helpers/expressions';
+import { getQorusTypes } from '../../../hooks/useQorusTypes';
 import { mockExpressions } from './mockExpressions';
 import { IExpressionSchema } from './types';
 
@@ -393,6 +399,10 @@ export const inferDpqlMockType = (node: IDpqlMockNode): string => {
 
 const capitalise = (word: string) => word[0].toUpperCase() + word.slice(1);
 
+/** A type as the server names it in what it says: its display name. */
+const typeDisplayName = (type: string): string =>
+  getQorusTypes().find((t) => t.name === conditionBaseType(type))?.display_name ?? type;
+
 /** What a successful parse says about fitting `target`, shaped as the server's answer. */
 const analyse = (
   text: string,
@@ -434,14 +444,25 @@ const analyse = (
         severity: coercible ? 'warning' : 'error',
         message:
           coercible ?
-            `Expression returns '${inferred}' but target expects '${target}' (auto-coercion available)`
-          : `Expression returns '${inferred}' but target expects '${target}'`,
+            `The expression gives ${typeDisplayName(inferred)}, but this field takes ${typeDisplayName(target)}. Qorus converts it when it runs.`
+          : `The expression gives ${typeDisplayName(inferred)}, but this field takes ${typeDisplayName(target)}, and Qorus cannot convert it.`,
         code: 'TYPE_MISMATCH',
         ...span,
       },
     ],
   };
 };
+
+/**
+ * The words the mock server says its condition diagnostics in. Unset, it says what the Qorus server says (the
+ * same texts as the editor's own fallbacks, `helpers/expressions`). A story sets other words - a server that
+ * answers in another language - to show that they reach the reader as they were said, never replaced by the
+ * fallback; it puts them back when it ends.
+ */
+export const dpqlMockConditionWords: {
+  notACondition?: (type: string) => string;
+  truthiness?: (type: string) => string;
+} = {};
 
 /** The words the server uses for a type a condition cannot give. */
 const NOT_A_CONDITION_TYPE_NAMES: Record<string, string> = { string: 'Text', date: 'Date', time: 'Time' };
@@ -540,7 +561,9 @@ const readAsCondition = (
           {
             severity: 'error',
             code: 'NOT_A_CONDITION',
-            message: `A condition can't give ${NOT_A_CONDITION_TYPE_NAMES[part.type.replace(/^\*/, '').replace(/^soft/, '')]}: compare it explicitly, for example @status == "open" or @note != ""`,
+            message:
+              dpqlMockConditionWords.notACondition?.(part.type) ??
+              conditionErrorText(NOT_A_CONDITION_TYPE_NAMES[conditionBaseType(part.type)], part.type),
             ...span,
           },
         ]
@@ -550,7 +573,7 @@ const readAsCondition = (
             severity: 'warning',
             code: 'CONDITION_BY_TRUTHINESS',
             message:
-              "This condition is true whenever its value isn't zero or empty. To say what you mean, compare it explicitly.",
+              dpqlMockConditionWords.truthiness?.(part.type) ?? conditionByTruthinessText(part.type),
             ...span,
           },
         ]
@@ -665,7 +688,9 @@ export const mockParseDpql = (
     return {
       success: true,
       expression: { is_expression: true, value: root },
-      ...(condition ? readAsCondition(trimmed, inferred, root, fields)
+      /* a condition's whole is typed by the record's fields, as its parts are and as the server types it: a
+         field's sum is judged as the number it gives, not left unknown */
+      ...(condition ? readAsCondition(trimmed, fields ? inferWithFields(root, fields) : inferred, root, fields)
       : target ? analyse(trimmed, inferred, target)
       : { inferred_type: inferred, diagnostics: [] }),
     } as IDpqlMockParseResult;

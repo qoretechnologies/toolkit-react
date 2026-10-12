@@ -25,11 +25,14 @@ import { incompleteExpressionText, serializableExpression } from './textOfExpres
 import { useExpressions } from './useExpressions';
 import { useRenderExpression } from './useRenderExpression';
 import {
+  conditionBaseType,
+  conditionByTruthinessText,
   conditionErrorText,
   conditionPartsWithMessages,
   conditionVerdict,
-  CONDITION_BY_TRUTHINESS_TEXT,
+  conditionWholeMessage,
 } from '../../../helpers/expressions';
+import { useQorusTypes } from '../../../hooks/useQorusTypes';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
 
 export type TExpressionMode = 'visual' | 'text';
@@ -147,8 +150,9 @@ const CONDITION_DIAGNOSTIC_CODES = ['NOT_A_CONDITION', 'CONDITION_BY_TRUTHINESS'
  * bound to the record's fields, as the Text view's document is - so the server judges what is built as it
  * judges what is written. Mounted only while the Visual view shows a whole expression it can type.
  *
- * A condition is read as one (`condition: true`): what the server says of each part of its `&&`, `||` and `!`
- * goes to `onConditionParts`, for the builder to draw on each part's card, and is not repeated here.
+ * A condition is read as one (`condition: true`): what the server says of the whole condition and of each part
+ * of its `&&`, `||` and `!` goes to `onConditionParts`, for the builder to draw on the cards it is about, and is
+ * not repeated here.
  */
 const ExpressionServerErrors = memo(
   ({
@@ -164,8 +168,15 @@ const ExpressionServerErrors = memo(
     provider?: string;
     recordType?: string;
     condition?: boolean;
-    /** The parts the server judged, for the expression with this key (its JSON). */
-    onConditionParts?: (expressionKey: string, parts: IDpqlParseResult['parts']) => void;
+    /**
+     * The parts the server judged, for the expression with this key (its JSON), and what it said of the whole
+     * condition, in its words.
+     */
+    onConditionParts?: (
+      expressionKey: string,
+      parts: IDpqlParseResult['parts'],
+      whole: string | undefined
+    ) => void;
   }) => {
     const dpql = useDpqlSession({ fields, provider, recordType });
     const ready = dpql.session.isReady && dpql.session.isContextReady;
@@ -179,6 +190,7 @@ const ExpressionServerErrors = memo(
       const check = async (): Promise<void> => {
         let said: string[] = [];
         let parts: IDpqlParseResult['parts'];
+        let whole: string | undefined;
         try {
           const text = await serialize(JSON.parse(expressionKey));
           if (text) {
@@ -192,6 +204,8 @@ const ExpressionServerErrors = memo(
               result.inferred_type,
               result.diagnostics
             );
+            whole =
+              condition ? conditionWholeMessage(result.inferred_type, result.diagnostics) : undefined;
             said = result.diagnostics
               .filter(
                 (d) =>
@@ -204,10 +218,11 @@ const ExpressionServerErrors = memo(
           // a server that cannot write or read it says nothing about it here
           said = [];
           parts = undefined;
+          whole = undefined;
         }
         if (cancelled) return;
         setErrors(said);
-        onConditionParts?.(expressionKey, parts);
+        onConditionParts?.(expressionKey, parts, whole);
       };
       void check();
       return () => {
@@ -404,15 +419,28 @@ export const ExpressionField = memo(
     const [conditionParts, setConditionParts] = useState<{
       key: string;
       parts: IDpqlParseResult['parts'];
+      whole: string | undefined;
     }>();
     const onConditionParts = useCallback(
-      (key: string, parts: IDpqlParseResult['parts']) => setConditionParts({ key, parts }),
+      (key: string, parts: IDpqlParseResult['parts'], whole: string | undefined) =>
+        setConditionParts({ key, parts, whole }),
       []
     );
-    const currentConditionParts =
+    const currentCondition =
       serverCheckable && conditionParts?.key === JSON.stringify(serverCheckable) ?
-        conditionParts.parts
+        conditionParts
       : undefined;
+    const currentConditionParts = currentCondition?.parts;
+    /* What the server says of the whole condition built in the Visual view, in its words: drawn there as the
+       Text view draws it, in place of the builder's own fallback. */
+    const currentConditionMessage = currentCondition?.whole;
+    const qorusTypes = useQorusTypes();
+    /** A type as its name is shown: the display name of what it is. */
+    const typeName = useCallback(
+      (type: string | undefined) =>
+        (type && qorusTypes.getTypeDisplayName(conditionBaseType(type))) || type || 'nothing',
+      [qorusTypes]
+    );
 
     /**
      * Read the type analysis off a parse result, or clear it.
@@ -843,8 +871,8 @@ export const ExpressionField = memo(
               >
                 {typeCheck.message ??
                   (typeCheck.condition === 'error' ?
-                    conditionErrorText(typeCheck.inferred ?? '')
-                  : CONDITION_BY_TRUTHINESS_TEXT)}
+                    conditionErrorText(typeName(typeCheck.inferred), typeCheck.inferred)
+                  : conditionByTruthinessText(typeCheck.inferred))}
               </ReqoreMessage>
             )}
             {typeCheck && !typeCheck.compatible && !typeCheck.condition && (
@@ -855,10 +883,8 @@ export const ExpressionField = memo(
                 opaque={false}
                 title={typeCheck.mayFail ? 'This may not fit' : 'This does not fit'}
               >
-                {`The expression returns ${typeCheck.inferred}, and this field holds ${typeCheck.target}.`}
-                {typeCheck.mayFail ?
-                  ' That conversion is attempted rather than guaranteed, so the value itself is checked when it runs.'
-                : ''}
+                {`The expression gives ${typeName(typeCheck.inferred)}, and this field takes ${typeName(typeCheck.target)}.`}
+                {typeCheck.mayFail ? ' Qorus converts the value when it runs, and checks it then.' : ''}
                 {typeCheck.fix ?
                   <>
                     <ReqoreVerticalSpacer height={6} />
@@ -924,6 +950,7 @@ export const ExpressionField = memo(
               serverHandled={serverHandled}
               condition={condition}
               conditionParts={currentConditionParts}
+              conditionMessage={currentConditionMessage}
               componentOverrides={componentOverrides}
               extraActions={extraActions}
               size={size}

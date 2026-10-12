@@ -6,7 +6,10 @@ import {
 import {
   areQorusTypesCompatible,
   conditionPartCards,
+  conditionByTruthinessText,
+  conditionErrorText,
   conditionPartsWithMessages,
+  conditionWholeMessage,
   conditionPartVerdict,
   expressionFitsReturnType,
   conditionVerdict,
@@ -327,5 +330,54 @@ describe('what the server says of each part (qorus#646)', () => {
     expect(
       conditionPartsWithMessages([int], 'bool', [{ code: 'DPQL-W004', message: 'w' }, WARN])
     ).toEqual([{ ...int, message: WARN.message }]);
+  });
+});
+
+/**
+ * What reqraft says of a condition when the server said nothing: the server's own words (qorus#646), so the IDE's
+ * convention test can compare them. An example by type for one that is not a condition, and how Qorus reads one
+ * by its value, by type.
+ */
+describe('the condition fallback texts', () => {
+  it('says how to make text, a date or a time a condition, with an example for its type', () => {
+    expect(conditionErrorText('Text', 'string')).toBe(
+      'The condition evaluates to Text, but it must evaluate to true or false. Compare the value instead, for example @status == "open".'
+    );
+    expect(conditionErrorText('Date', '*date')).toContain('for example @shipped_on > @ordered_on.');
+    expect(conditionErrorText('Time', 'softtime')).toContain('for example @starts_at < @ends_at.');
+  });
+
+  it('says how Qorus reads a condition by its value, by the type it gives', () => {
+    expect(conditionByTruthinessText('int')).toBe(
+      'The condition evaluates to a number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
+    );
+    expect(conditionByTruthinessText('*float')).toContain('evaluates to a number');
+    expect(conditionByTruthinessText('list<string>')).toBe(
+      'The condition evaluates to a list; Qorus treats it as true unless the list is empty. To make that explicit, compare its size, for example size(@items) > 0.'
+    );
+    expect(conditionByTruthinessText('hash')).toBe(
+      'The condition evaluates to a set of fields; Qorus treats it as true unless it has none. To make that explicit, compare its size, for example size(@details) > 0.'
+    );
+    for (const unknown of ['binary', undefined]) {
+      expect(conditionByTruthinessText(unknown)).toBe(
+        "The condition's value is not true or false; Qorus treats it as true unless it is 0 or empty. To make that explicit, compare it, for example @count > 0."
+      );
+    }
+  });
+
+  it('finds what the server says of the whole condition, in its words', () => {
+    const said = [
+      { code: 'CONDITION_BY_TRUTHINESS', message: 'whole' },
+      { code: 'NOT_A_CONDITION', message: 'part' },
+    ];
+    expect(conditionWholeMessage('int', said)).toBe('whole');
+    // true or false, or a type it cannot tell: nothing said of the whole
+    expect(conditionWholeMessage('bool', said)).toBeUndefined();
+    expect(conditionWholeMessage('any', said)).toBeUndefined();
+    // the first condition diagnostic is not the kind the whole's type gives: not the whole's
+    expect(conditionWholeMessage('string', said)).toBeUndefined();
+    expect(conditionWholeMessage('string', [{ code: 'NOT_A_CONDITION', message: 'refused' }])).toBe(
+      'refused'
+    );
   });
 });

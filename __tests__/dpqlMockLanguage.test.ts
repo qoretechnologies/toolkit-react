@@ -167,7 +167,7 @@ describe('dpql/parse type analysis', () => {
     });
     expect(result.diagnostics[0]).toMatchObject({
       severity: 'warning',
-      message: "Expression returns 'string' but target expects 'int' (auto-coercion available)",
+      message: 'The expression gives String, but this field takes Integer. Qorus converts it when it runs.',
       code: 'TYPE_MISMATCH',
     });
   });
@@ -183,7 +183,7 @@ describe('dpql/parse type analysis', () => {
     expect(result.suggested_fix).toBeUndefined();
     expect(result.diagnostics[0]).toMatchObject({
       severity: 'error',
-      message: "Expression returns 'int' but target expects 'bool'",
+      message: 'The expression gives Integer, but this field takes Boolean, and Qorus cannot convert it.',
     });
   });
 

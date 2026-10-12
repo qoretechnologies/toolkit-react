@@ -155,7 +155,7 @@ describe('the type-fit message', () => {
     await type();
 
     await waitFor(() => expect(container.textContent).toContain('This does not fit'), { timeout: 5000 });
-    expect(container.textContent).toContain('The expression returns int, and this field holds hash.');
+    expect(container.textContent).toContain('The expression gives Integer, and this field takes Hash.');
     expect(container.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
   });
 
@@ -211,7 +211,12 @@ describe('the type-fit message', () => {
     );
     await type();
 
-    await waitFor(() => expect(container.textContent).toContain("A condition can't give string"), {
+    await waitFor(
+      () =>
+        expect(container.textContent).toContain(
+          'The condition evaluates to String, but it must evaluate to true or false. Compare the value instead, for example @status == "open".'
+        ),
+      {
       timeout: 5000,
     });
     expect(container.textContent).not.toContain('This does not fit');
@@ -222,7 +227,10 @@ describe('the type-fit message', () => {
     await type();
 
     await waitFor(
-      () => expect(container.textContent).toContain("This condition is true whenever its value isn't zero or empty"),
+      () =>
+        expect(container.textContent).toContain(
+          'The condition evaluates to a number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
+        ),
       { timeout: 5000 }
     );
   });
@@ -236,8 +244,8 @@ describe('the type-fit message', () => {
     );
     await type();
     await settle();
-    expect(container.textContent).not.toContain('This condition is true whenever');
-    expect(container.textContent).not.toContain("A condition can't give");
+    expect(container.textContent).not.toContain('Qorus treats it as true');
+    expect(container.textContent).not.toContain('it must evaluate to true or false');
   });
 
   it('keeps the type check of a bool value that is not a condition', async () => {

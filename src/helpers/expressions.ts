@@ -145,13 +145,43 @@ export const conditionVerdict = (type: string | undefined): 'error' | 'warning' 
 export const isConditionOption = (field: { metadata?: Record<string, unknown> } | undefined): boolean =>
   field?.metadata?.condition === true;
 
-/** What is said of a condition that gives text, a date or a time: how to make it one. */
-export const conditionErrorText = (typeName: string): string =>
-  `A condition can't give ${typeName}: compare it explicitly, for example @status == "open" or @note != "".`;
+/** A type as a condition reads it: without the optional mark, `soft`, or what a list or hash holds. */
+export const conditionBaseType = (type: string | undefined): string =>
+  (type ?? '').replace(/^\*/, '').replace(/^soft/, '').replace(/<.*$/, '');
 
-/** What is said of a condition that gives a number, a list or a hash. */
-export const CONDITION_BY_TRUTHINESS_TEXT =
-  "This condition is true whenever its value isn't zero or empty. To say what you mean, compare it explicitly.";
+/** How a condition that gives this base type is made one: compare the value (qorus#646, as the server says). */
+const conditionExample = (baseType: string): string =>
+  baseType === 'date' ? '@shipped_on > @ordered_on'
+  : baseType === 'time' ? '@starts_at < @ends_at'
+  : '@status == "open"';
+
+/**
+ * What is said of a condition that gives text, a date or a time (NOT_A_CONDITION): what it gives, and how to make
+ * it one, with an example for its type. `typeName` is the type's display name ("Text"), `baseType` the type it is
+ * (`string`, `date`, `time`) - the example follows it. These are the server's words: a fallback for when it said
+ * none, never a second wording of them.
+ */
+export const conditionErrorText = (typeName: string, baseType: string | undefined): string =>
+  `The condition evaluates to ${typeName}, but it must evaluate to true or false. Compare the value instead, for example ${conditionExample(conditionBaseType(baseType))}.`;
+
+/**
+ * What is said of a condition that gives a number, a list, a hash or a type that is not known
+ * (CONDITION_BY_TRUTHINESS): how Qorus reads it, and how to say it explicitly, by the type it gives. These are
+ * the server's words: a fallback for when it said none.
+ */
+export const conditionByTruthinessText = (type: string | undefined): string => {
+  const base = conditionBaseType(type);
+  if (/^(int|integer|float|number)$/.test(base)) {
+    return 'The condition evaluates to a number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.';
+  }
+  if (base === 'list') {
+    return 'The condition evaluates to a list; Qorus treats it as true unless the list is empty. To make that explicit, compare its size, for example size(@items) > 0.';
+  }
+  if (base === 'hash') {
+    return 'The condition evaluates to a set of fields; Qorus treats it as true unless it has none. To make that explicit, compare its size, for example size(@details) > 0.';
+  }
+  return "The condition's value is not true or false; Qorus treats it as true unless it is 0 or empty. To make that explicit, compare it, for example @count > 0.";
+};
 
 /** The operators whose every part is read as true or false by its value: AND, OR and NOT. */
 export const LOGICAL_OPERATORS = ['&&', '||', '!'] as const;
@@ -171,6 +201,29 @@ export interface IConditionPart {
   /** What the server says of it, in its words, when it says anything. */
   message?: string;
 }
+
+/** The server's code for what it says of a condition read as this verdict. */
+const CONDITION_CODE_OF_VERDICT = { error: 'NOT_A_CONDITION', warning: 'CONDITION_BY_TRUTHINESS' } as const;
+
+/**
+ * What the server says of a whole condition, in its words: the first condition diagnostic, when the whole
+ * expression's type (`inferredType`) makes it one the server says something of and the diagnostic is that kind.
+ * Undefined when it says nothing of the whole - true or false, a type it cannot tell, or diagnostics that do not
+ * line up.
+ */
+export const conditionWholeMessage = (
+  inferredType: string | undefined,
+  diagnostics: Array<{ code?: string | number; message: string }>
+): string | undefined => {
+  const verdict = conditionVerdict(inferredType);
+  if (!verdict) {
+    return undefined;
+  }
+  const first = diagnostics.find(
+    (d) => d.code === 'NOT_A_CONDITION' || d.code === 'CONDITION_BY_TRUTHINESS'
+  );
+  return first?.code === CONDITION_CODE_OF_VERDICT[verdict] ? first.message : undefined;
+};
 
 /**
  * The parts the server judged, each with what it said of it.
@@ -195,8 +248,8 @@ export const conditionPartsWithMessages = (
     reading === 'not_a_condition' ? 'NOT_A_CONDITION'
     : reading === 'truthiness' ? 'CONDITION_BY_TRUTHINESS'
     : undefined;
-  const wholeVerdict = conditionVerdict(inferredType);
-  const rest = wholeVerdict ? said.slice(1) : said;
+  // the whole's diagnostic comes first, when its type gives it one (`conditionWholeMessage`)
+  const rest = conditionVerdict(inferredType) ? said.slice(1) : said;
   const partCodes = parts.map((part) => codeOf(part.reading)).filter(Boolean);
   if (rest.length !== partCodes.length || rest.some((d, index) => d.code !== partCodes[index])) {
     return parts;

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { storyApiUrl } from '../../../stories/storyNetwork';
 import { StoryMeta } from '../../../types';
 import { FormEngine } from '../engine/FormEngine';
+import { dpqlMockConditionWords } from './dpqlMockLanguage';
 import { dpqlMockParseCalls } from './dpqlMockLsp';
 import { withCoarsePointer } from '../../../stories/coarsePointer';
 import { _testsWithViewport } from '../../../stories/Tests/utils';
@@ -676,12 +677,15 @@ const readAsCondition = async (canvasElement: HTMLElement, text: string) => {
   await waitForLspIdle(canvasElement);
 };
 
-const CONDITION_BY_TRUTHINESS = "This condition is true whenever its value isn't zero or empty";
+/** What is said of a condition that gives a number, in the server's words. */
+const CONDITION_BY_TRUTHINESS = 'The condition evaluates to a number; Qorus treats it as true unless it is 0.';
+/** What is said of a condition that gives text, in the server's words. */
+const NOT_A_CONDITION_TEXT = 'The condition evaluates to Text, but it must evaluate to true or false.';
 
 export const TextModeConditionThatGivesANumber: Story = typedExpressionStory(
   'bool',
   '1 + 2',
-  "Types `1 + 2` into the Text view of a condition (a Qog if state's value, say). The result is a number, which the condition reads as true unless it is zero: the field says so, in the server's words, and that comparing it explicitly says what is meant.",
+  "Types `1 + 2` into the Text view of a condition (a Qog if state's value, say). The result is a number, which Qorus reads as true unless it is 0: the field says so in the server's words, and how to make that explicit (compare it, for example @count > 0).",
   async (canvasElement) => {
     await readAsCondition(canvasElement, '1 + 2');
     await waitFor(() => expect(canvasElement.textContent).toContain(CONDITION_BY_TRUTHINESS), {
@@ -696,14 +700,14 @@ export const TextModeConditionThatGivesANumber: Story = typedExpressionStory(
 export const TextModeConditionThatGivesText: Story = typedExpressionStory(
   'bool',
   '"a" + 1',
-  "Types `\"a\" + 1` into the Text view of a condition. The result is text, which does not say plainly whether it is true: the field refuses it, in the server's words, and says to compare it explicitly.",
+  "Types `\"a\" + 1` into the Text view of a condition. The result is text, which is not true or false: the field refuses it in the server's words, and says to compare the value instead, for example @status == \"open\".",
   async (canvasElement) => {
     await readAsCondition(canvasElement, '"a" + 1');
     await waitFor(
-      () => expect(canvasElement.textContent).toContain("A condition can't give Text"),
+      () => expect(canvasElement.textContent).toContain(NOT_A_CONDITION_TEXT),
       { timeout: 10000 }
     );
-    expect(canvasElement.textContent).toContain('compare it explicitly');
+    expect(canvasElement.textContent).toContain('Compare the value instead, for example @status == "open".');
     expect(canvasElement.textContent).not.toContain('This may not fit');
     expect(canvasElement.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
   },
@@ -717,7 +721,7 @@ export const TextModeConditionThatGivesTrueOrFalse: Story = typedExpressionStory
   async (canvasElement) => {
     await readAsCondition(canvasElement, '1 < 2');
     expect(canvasElement.textContent).not.toContain(CONDITION_BY_TRUTHINESS);
-    expect(canvasElement.textContent).not.toContain("A condition can't give");
+    expect(canvasElement.textContent).not.toContain('it must evaluate to true or false');
     expect(canvasElement.textContent).not.toContain('This does not fit');
   },
   CONDITION_SCHEMA
@@ -1790,6 +1794,98 @@ const readBuiltCondition = (text: string) =>
     { timeout: 10000 }
   );
 
+/** Words the server says a condition's verdict in, that are not the editor's own: a server answering in German. */
+const SERVER_TRUTHINESS = 'Wahr, solange der Wert nicht 0 ist. Vergleichen Sie ihn, zum Beispiel @count > 0.';
+const SERVER_NOT_A_CONDITION = 'Text ist nicht wahr oder falsch. Vergleichen Sie den Wert, zum Beispiel @status == "open".';
+
+/** The mock server answers the story's condition in its own words, and its usual words again after it. */
+const serverWordsForConditions = () => {
+  dpqlMockConditionWords.truthiness = () => SERVER_TRUTHINESS;
+  dpqlMockConditionWords.notACondition = () => SERVER_NOT_A_CONDITION;
+  return () => {
+    delete dpqlMockConditionWords.truthiness;
+    delete dpqlMockConditionWords.notACondition;
+  };
+};
+
+/** The verdict under the whole condition built in the Visual view. */
+const wholeConditionVerdict = (canvasElement: HTMLElement) =>
+  canvasElement.querySelector<HTMLElement>('.expression-condition-verdict');
+
+export const VisualConditionSaysTheServersWords: Story = {
+  args: {
+    value: N_PLUS_ONE,
+    fields: CONDITION_FIELDS,
+    condition: true,
+    defaultMode: 'visual',
+  },
+  beforeEach: serverWordsForConditions,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the condition `n + 1` built in the Visual view, where `n` is a whole number, with a server that answers in German. The warning under the condition is the server's own words for it, as the Text view shows them, not the editor's English fallback.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readBuiltCondition('$record:{n} + 1');
+    await waitFor(() => expect(wholeConditionVerdict(canvasElement)).toHaveTextContent(SERVER_TRUTHINESS), {
+      timeout: 10000,
+    });
+    expect(canvasElement.textContent).not.toContain('Qorus treats it as true');
+  },
+};
+
+export const VisualTextConditionSaysTheServersWords: Story = {
+  args: {
+    value: NAME_PLUS_ONE,
+    fields: CONDITION_FIELDS,
+    condition: true,
+    defaultMode: 'visual',
+  },
+  beforeEach: serverWordsForConditions,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the condition `name + 1` built in the Visual view, where `name` is text, with a server that answers in German. The error under the condition is the server's own words for it, not the editor's English fallback.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readBuiltCondition('$record:{name} + 1');
+    await waitFor(
+      () => expect(wholeConditionVerdict(canvasElement)).toHaveTextContent(SERVER_NOT_A_CONDITION),
+      { timeout: 10000 }
+    );
+    expect(canvasElement.textContent).not.toContain('it must evaluate to true or false');
+  },
+};
+
+export const VisualConditionSaysTheServersWordsOnAPhone: Story = {
+  ...VisualConditionSaysTheServersWords,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          "The condition `n + 1` built in the Visual view on a phone (390 px, touch): the server's own words under it wrap inside the field.",
+      },
+    },
+  },
+  play: async (context) =>
+    _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      await VisualConditionSaysTheServersWords.play!(context);
+      if (narrowed) {
+        const verdict = wholeConditionVerdict(context.canvasElement)!.getBoundingClientRect();
+        expect(verdict.right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+        expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1);
+      }
+    }),
+};
+
 export const VisualConditionWithANumberPart: Story = {
   args: {
     value: conditionOf('&&', N_PLUS_ONE, N_AT_LEAST_ONE),
@@ -1817,7 +1913,7 @@ export const VisualConditionWithANumberPart: Story = {
     expect(tag?.closest('.reqore-panel')).toBe(cards[0]);
     // a number part is no type mismatch: nothing is refused
     expect(errorsShown(canvasElement)).toEqual([]);
-    expect(canvasElement.textContent).not.toContain('but the expected return type is');
+    expect(canvasElement.textContent).not.toContain('but this field takes');
   },
 };
 
@@ -1841,7 +1937,7 @@ export const VisualConditionWithATextPart: Story = {
     await waitFor(() => expect(partVerdicts(canvasElement)).toEqual(['error']), { timeout: 10000 });
     expect(
       canvasElement.querySelector('.expression-condition-part-verdict')?.textContent
-    ).toContain("A condition can't give Text");
+    ).toContain(NOT_A_CONDITION_TEXT);
   },
 };
 

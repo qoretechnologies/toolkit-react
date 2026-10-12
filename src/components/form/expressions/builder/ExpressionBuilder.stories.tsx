@@ -1714,7 +1714,7 @@ export const ConditionThatGivesANumber: Story = {
     docs: {
       description: {
         story:
-          'Renders a condition (a true-or-false place, such as a Qog if state\'s) that adds two numbers. It is accepted, as the condition is read as true unless it is zero, and a warning under it says so and that comparing it explicitly says what is meant.',
+          'Renders a condition (a true-or-false place, such as a Qog if state\'s) that adds two numbers. It is accepted, as Qorus reads the condition as true unless it is 0, and a warning under it says so and how to make that explicit: compare it, for example @count > 0.',
       },
     },
   },
@@ -1722,11 +1722,11 @@ export const ConditionThatGivesANumber: Story = {
     await waitFor(
       () =>
         expect(conditionVerdict()?.textContent).toContain(
-          "This condition is true whenever its value isn't zero or empty"
+          'The condition evaluates to a number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
         ),
       { timeout: 10000 }
     );
-    await expect(document.body.textContent).not.toContain('but the expected return type is');
+    await expect(document.body.textContent).not.toContain('but this field takes');
   },
 };
 
@@ -1749,16 +1749,18 @@ export const ConditionThatGivesText: Story = {
     docs: {
       description: {
         story:
-          'Renders a condition that joins two pieces of text. Text does not say plainly whether it is true, so the condition is refused, and the error under it says to compare it explicitly.',
+          'Renders a condition that joins two pieces of text. Text is not true or false, so the condition is refused, and the error under it says what it evaluates to and to compare the value instead, for example @status == "open".',
       },
     },
   },
   play: async () => {
     await waitFor(
-      () => expect(conditionVerdict()?.textContent).toContain("A condition can't give"),
+      () =>
+        expect(conditionVerdict()?.textContent).toContain(
+          'but it must evaluate to true or false. Compare the value instead, for example @status == "open".'
+        ),
       { timeout: 10000 }
     );
-    await expect(conditionVerdict()?.textContent).toContain('compare it explicitly');
   },
 };
 
@@ -1780,7 +1782,7 @@ export const BoolValueThatGivesANumber: Story = {
   },
   play: async () => {
     await waitFor(
-      () => expect(document.body.textContent).toContain('but the expected return type is'),
+      () => expect(document.body.textContent).toContain('but this field takes'),
       { timeout: 10000 }
     );
     await expect(conditionVerdict()).toBeNull();

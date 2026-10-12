@@ -28,11 +28,12 @@ import {
   areQorusTypesCompatible,
   expressionFitsReturnType,
   getArgumentType,
+  conditionBaseType,
+  conditionByTruthinessText,
   conditionErrorText,
   conditionPartCards,
   conditionPartVerdict,
   conditionVerdict,
-  CONDITION_BY_TRUTHINESS_TEXT,
   IConditionPart,
   isConditionType,
   isTextOrDateType,
@@ -110,6 +111,12 @@ export interface IExpressionBuilderProps {
   /** Each part's verdict, by the path of the card it is drawn on: what the top builder hands its cards. */
   conditionPartCards?: Record<string, IConditionPart>;
   /**
+   * What the server says of the whole condition (NOT_A_CONDITION or CONDITION_BY_TRUTHINESS), in its words: drawn
+   * under the condition's card in place of the builder's own fallback, as the Text view and the part cards draw
+   * the server's words. Given to the top builder only; it is about the whole.
+   */
+  conditionMessage?: string;
+  /**
    * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the operand
    * fields below.
    *
@@ -177,6 +184,7 @@ export const Expression = ({
   componentOverrides,
   condition: isCondition,
   conditionPartCards: partCards,
+  conditionMessage,
   ...props
 }: IExpressionProps) => {
   const coarsePointer = useCoarsePointer();
@@ -1356,8 +1364,11 @@ export const Expression = ({
             label={
               part?.message ??
               (partVerdict === 'error' ?
-                conditionErrorText(types.getTypeDisplayName(part!.type) || part!.type)
-              : CONDITION_BY_TRUTHINESS_TEXT)
+                conditionErrorText(
+                  types.getTypeDisplayName(conditionBaseType(part!.type)) || part!.type,
+                  part!.type
+                )
+              : conditionByTruthinessText(part!.type))
             }
           />
         </>
@@ -1372,7 +1383,8 @@ export const Expression = ({
             intent='warning'
             size='tiny'
             wrap
-            label={CONDITION_BY_TRUTHINESS_TEXT}
+            // the server's words for the whole condition, where it said any; the same rule's own otherwise
+            label={conditionMessage ?? conditionByTruthinessText(expressionReturnType)}
           />
         </>
       )}
@@ -1388,7 +1400,14 @@ export const Expression = ({
               intent='danger'
               size='tiny'
               wrap
-              label={conditionErrorText(types.getTypeDisplayName(expressionReturnType))}
+              label={
+                (level === 0 ? conditionMessage : undefined) ??
+                conditionErrorText(
+                  types.getTypeDisplayName(conditionBaseType(expressionReturnType)) ||
+                    expressionReturnType,
+                  expressionReturnType
+                )
+              }
             />
           ) : (
             <ReqoreTag
@@ -1397,7 +1416,7 @@ export const Expression = ({
               intent='danger'
               size='tiny'
               wrap
-              label={`This expression returns ${types.getTypeDisplayName(expressionReturnType) || 'nothing'} but the expected return type is ${expectedReturnTypeText}. Please select an expression that returns ${expectedReturnTypeText} or wrap this expression inside another one that does.`}
+              label={`This expression gives ${types.getTypeDisplayName(expressionReturnType) || 'nothing'}, but this field takes ${expectedReturnTypeText}. Choose an expression that gives ${expectedReturnTypeText}, or put this one inside an expression that converts it.`}
             />
           )}
         </>
@@ -1441,6 +1460,7 @@ export const ExpressionBuilder = ({
   condition,
   conditionParts,
   conditionPartCards: givenPartCards,
+  conditionMessage,
 }: IExpressionBuilderProps) => {
   const templates = useTemplates(!isChild, localTemplates);
   /* The top builder places what the server says of each part of the condition on that part's card; a nested
@@ -1654,6 +1674,7 @@ export const ExpressionBuilder = ({
         reorder={reorder}
         condition={condition}
         conditionPartCards={partCards}
+        conditionMessage={conditionMessage}
       />
     </ReqoreErrorBoundary>
   );
