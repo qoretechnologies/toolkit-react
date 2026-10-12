@@ -665,7 +665,7 @@ export const OptionWithAnyType: Story = {
     docs: {
       description: {
         story:
-          'Renders four options typed as any that take templates and no expressions: each is entered on Value · Template. On Value, an untyped value is written as text (the number 1234 as typed); on Template, the template picker - a rich-text template picked there makes the value rich text, in its own editor. The operator can set a value of a type from the field menu - Boolean gives the yes / no control.',
+          'Renders four options typed as any that take templates and no expressions: each is entered on Value · Template. On Value, an untyped value is written as text (the number 1234 as typed); on Template, the template picker - a rich-text template picked there makes the value rich text, in its own editor. The operator can set a value of a type from the field menu - True or false gives the yes / no control.',
       },
     },
   },
@@ -750,10 +750,10 @@ export const OptionWithAnyType: Story = {
       )
     ).toBe(true);
 
-    // Another's field menu sets a value of a type: Boolean gives the yes / no control.
+    // Another's field menu sets a value of a type: True or false gives the yes / no control.
     // "Set Custom Value" is its only group, so that section opens itself rather than asking for a click first.
     await userEvent.click(last.querySelector('.template-more') as HTMLElement);
-    await _testsClickButton({ label: 'Boolean' });
+    await _testsClickButton({ label: 'True or false' });
     await waitFor(() => expect(canvasElement.querySelector('.value-tabs-field .reqore-checkbox')).toBeTruthy());
   },
 };
