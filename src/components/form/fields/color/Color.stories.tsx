@@ -74,6 +74,29 @@ const expectOnlyColorsStored = (onChange: unknown) => {
   }
 };
 
+/**
+ * Each input's label is centred over it, as the value in the input is: the same centre to within a pixel, and
+ * the label's own text centred.
+ */
+const expectLabelsCentred = (canvasElement: HTMLElement) => {
+  const inputs = canvasElement.querySelectorAll<HTMLInputElement>('input[data-field]');
+  expect(inputs.length).toBeGreaterThan(0);
+  for (const each of inputs) {
+    const label = canvasElement.querySelector<HTMLElement>(`label[for="${each.id}"]`)!;
+    expect(getComputedStyle(label).textAlign).toBe('center');
+    expect(getComputedStyle(each).textAlign).toBe('center');
+    const labelBox = label.getBoundingClientRect();
+    const inputBox = each.getBoundingClientRect();
+    expect(
+      Math.abs(labelBox.left + labelBox.width / 2 - (inputBox.left + inputBox.width / 2))
+    ).toBeLessThanOrEqual(1);
+  }
+};
+
+/** What the field's problem message says as data: its code spans. */
+const problemData = (canvasElement: HTMLElement) =>
+  Array.from(problem(canvasElement).querySelectorAll('code')).map((each) => each.textContent);
+
 const CORNFLOWER = { r: 100, g: 149, b: 237, a: 1 };
 
 export const WithValue: Story = {
@@ -84,7 +107,7 @@ export const WithValue: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field with cornflower blue chosen: the colour square, a preview of the colour beside the colour bar, the labelled Hex code, Red, Green and Blue inputs (6495ED; 100, 149, 237), "What do these mean?" and the swatches.',
+          'Renders the Color field with cornflower blue chosen: the colour square, a preview of the colour beside the colour bar, the Hex code, Red, Green and Blue inputs (6495ED; 100, 149, 237) with each label centred over its input, "What do these mean?" and the swatches.',
       },
     },
   },
@@ -100,6 +123,7 @@ export const WithValue: Story = {
     await expect(canvas.getByRole('img', { name: 'Chosen colour: #6495ED' })).toBe(preview(canvasElement));
     await expect(previewPaint(canvasElement)).toBe('rgb(100, 149, 237)');
     await expect(canvas.getByRole('button', { name: /What do these mean/ })).toBeVisible();
+    expectLabelsCentred(canvasElement);
   },
 };
 
@@ -204,6 +228,7 @@ export const WithTransparency: Story = {
     await expect(previewPaint(canvasElement)).toBe('rgba(100, 149, 237, 0.5)');
     // the checkerboard under it
     await expect(getComputedStyle(preview(canvasElement)).backgroundImage).toContain('url(');
+    expectLabelsCentred(canvasElement);
   },
 };
 
@@ -216,7 +241,7 @@ export const HelpExplainsTheControls: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field with transparency and its help open. "What do these mean?" says in plain words what the square and the colour bar do, what a hex code is, what Red, Green and Blue are (0 to 255), and what Opacity is (0% to 100%); clicked again it hides the help, and clicked a third time it shows it again.',
+          'Renders the Color field with transparency. When "What do these mean?" is clicked, its help says in plain words what the square and the colour bar do, what a hex code is, what Red, Green and Blue are and what Opacity is, with the example values (6495ED, F80, FF8800, 0, 0, 0 …) in the data style.',
       },
     },
   },
@@ -228,21 +253,32 @@ export const HelpExplainsTheControls: Story = {
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     const help = canvasElement.querySelector<HTMLElement>('.reqraft-color-field-help')!;
     await expect(help).toBeVisible();
-    await expect(help).toHaveTextContent('six characters, each 0–9 or A–F');
+    await expect(toggle).toHaveAttribute('aria-controls', help.id);
+    await expect(help).toHaveTextContent('the rainbow bar under it sets the colour itself');
     await expect(help).toHaveTextContent('each from 0 (none) to 255 (all)');
     await expect(help).toHaveTextContent('from 0% (you see through it) to 100% (solid)');
-    await expect(help).toHaveTextContent('the rainbow bar under it sets the colour itself');
-    await expect(toggle).toHaveAttribute('aria-controls', help.id);
-    await userEvent.click(toggle);
-    await expect(canvasElement.querySelector('.reqraft-color-field-help')).toBeNull();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    // open again, so the capture shows the help
-    await userEvent.click(toggle);
-    await expect(canvasElement.querySelector('.reqraft-color-field-help')).toBeVisible();
+    // one paragraph a control, spaced apart
+    const paragraphs = Array.from(help.querySelectorAll('p'));
+    await expect(paragraphs).toHaveLength(4);
+    await expect(
+      paragraphs[1].getBoundingClientRect().top - paragraphs[0].getBoundingClientRect().bottom
+    ).toBeGreaterThanOrEqual(4);
+    // the values are data: code spans, drawn in the data style
+    await expect(Array.from(help.querySelectorAll('code')).map((each) => each.textContent)).toEqual([
+      '6495ED',
+      'F80',
+      'FF8800',
+      '0',
+      '255',
+      '0, 0, 0',
+      '255, 255, 255',
+      '0%',
+      '100%',
+    ]);
   },
 };
 
-export const HexTakesOnlyAHexCode: Story = {
+export const HexTakesOnlyHexCharacters: Story = {
   args: {
     value: CORNFLOWER,
   },
@@ -250,38 +286,67 @@ export const HexTakesOnlyAHexCode: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field with cornflower blue. A character that cannot be in a hex code ("G") is not typed, and the field says why; DC3545 is stored as red. A code too short ("64") is not stored: on leaving the field it says why and shows the colour again. Three characters are short for six: F80 is stored as FF8800.',
+          'Renders the Color field with cornflower blue after DC3G is typed into Hex code: G cannot be in a hex code, so it is not typed, the field shows DC3, and the message under the inputs says why, with G in the data style. Nothing is stored.',
       },
     },
   },
   async play({ canvasElement, args }) {
     const hex = input(canvasElement, 'hex');
     await userEvent.clear(hex);
-    await userEvent.type(hex, 'DC3');
-    await userEvent.type(hex, 'G');
+    await userEvent.type(hex, 'DC3G');
     await expect(hex.value).toBe('DC3');
     await waitFor(() =>
       expect(problem(canvasElement)).toHaveTextContent(
-        '“G” cannot be in a hex code: use the digits 0–9 and the letters A–F.'
+        'G cannot be in a hex code: use the digits 0–9 and the letters A–F.'
       )
     );
-    await userEvent.type(hex, '545');
-    await waitFor(() =>
-      expect(args.onChange).toHaveBeenLastCalledWith({ r: 220, g: 53, b: 69, a: 1 })
-    );
-    await expect(problem(canvasElement)).toHaveTextContent('');
+    await expect(problemData(canvasElement)).toEqual(['G']);
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
 
+export const HexOfTheWrongLengthIsNotStored: Story = {
+  args: {
+    value: CORNFLOWER,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Color field with cornflower blue after 64 is typed into Hex code and the field is left: a hex code has six characters (or three), so nothing is stored, the field shows 6495ED again, and the message says why, with 64 in the data style.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    const hex = input(canvasElement, 'hex');
     await userEvent.clear(hex);
     await userEvent.type(hex, '64');
     await userEvent.tab();
     await waitFor(() =>
       expect(problem(canvasElement)).toHaveTextContent(
-        '“64” is not a colour: a hex code has six characters (or three, short for six).'
+        '64 is not a colour: a hex code has six characters (or three, short for six).'
       )
     );
-    await expect(hex.value).toBe('DC3545');
-    await expect(args.onChange).toHaveBeenLastCalledWith({ r: 220, g: 53, b: 69, a: 1 });
+    await expect(problemData(canvasElement)).toEqual(['64']);
+    await expect(hex.value).toBe('6495ED');
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
 
+export const HexOfThreeIsShortForSix: Story = {
+  args: {
+    value: CORNFLOWER,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Color field after #f80 is typed into Hex code and the field is left: three characters are short for six, so FF8800 is stored and shown, and the preview turns orange.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    const hex = input(canvasElement, 'hex');
     await userEvent.clear(hex);
     await userEvent.type(hex, '#f80');
     await userEvent.tab();
@@ -289,11 +354,12 @@ export const HexTakesOnlyAHexCode: Story = {
       expect(args.onChange).toHaveBeenLastCalledWith({ r: 255, g: 136, b: 0, a: 1 })
     );
     await expect(hex.value).toBe('FF8800');
+    await waitFor(() => expect(previewPaint(canvasElement)).toBe('rgb(255, 136, 0)'));
     expectOnlyColorsStored(args.onChange);
   },
 };
 
-export const NumbersStayInTheirRange: Story = {
+export const RedPastItsRangeIsNotStored: Story = {
   args: {
     value: { r: 100, g: 149, b: 237, a: 0.5 },
     disableAlpha: false,
@@ -302,52 +368,94 @@ export const NumbersStayInTheirRange: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field with transparency. Red takes 30 but not 300 ("Red goes from 0 to 255."): the field is marked and nothing is stored, and on leaving it shows 30 again. A letter is not typed into Green. Opacity goes from 0 to 100, left empty it shows its value again, and the arrow keys step it. No colour stored is ever outside its range.',
+          'Renders the Color field after 300 is typed into Red: Red goes from 0 to 255, so the field is marked, the message says so with the range in the data style, and nothing past the range is stored.',
       },
     },
   },
   async play({ canvasElement, args }) {
     const red = input(canvasElement, 'r');
     await userEvent.clear(red);
-    await userEvent.type(red, '30');
-    await waitFor(() => expect(lastStored(args.onChange)).toMatchObject({ r: 30 }));
-    await userEvent.type(red, '0');
+    await userEvent.type(red, '300');
     await waitFor(() => expect(problem(canvasElement)).toHaveTextContent('Red goes from 0 to 255.'));
+    await expect(problemData(canvasElement)).toEqual(['0', '255']);
     await expect(red).toHaveAttribute('aria-invalid', 'true');
     await expect(red.getAttribute('aria-describedby')).toBe(problem(canvasElement).id);
-    await expect(lastStored(args.onChange)).toMatchObject({ r: 30 });
-    await userEvent.tab();
-    await waitFor(() => expect(red.value).toBe('30'));
-    await expect(red).not.toHaveAttribute('aria-invalid');
+    await expect(args.onChange).not.toHaveBeenCalledWith(expect.objectContaining({ r: 300 }));
+    expectOnlyColorsStored(args.onChange);
+  },
+};
 
+export const GreenTakesOnlyDigits: Story = {
+  args: {
+    value: { r: 100, g: 149, b: 237, a: 0.5 },
+    disableAlpha: false,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Color field after x is typed into Green: a letter is not typed, Green still shows 149, and the message says why, with x in the data style.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
     const green = input(canvasElement, 'g');
     await userEvent.type(green, 'x');
     await expect(green.value).toBe('149');
     await waitFor(() =>
-      expect(problem(canvasElement)).toHaveTextContent('“x” cannot be in Green: type a whole number.')
+      expect(problem(canvasElement)).toHaveTextContent('x cannot be in Green: type a whole number.')
     );
+    await expect(problemData(canvasElement)).toEqual(['x']);
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
 
+export const OpacityLeftEmptyShowsItsValueAgain: Story = {
+  args: {
+    value: { r: 100, g: 149, b: 237, a: 0.5 },
+    disableAlpha: false,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Color field after Opacity % is emptied and left: the field shows 50 again, the message says what it needs, and nothing is stored.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
     const opacity = input(canvasElement, 'a');
-    await userEvent.clear(opacity);
-    await userEvent.type(opacity, '150');
-    await waitFor(() =>
-      expect(problem(canvasElement)).toHaveTextContent('Opacity goes from 0 to 100.')
-    );
     await userEvent.clear(opacity);
     await userEvent.tab();
     await waitFor(() =>
-      expect(problem(canvasElement)).toHaveTextContent(
-        'Opacity needs a whole number from 0 to 100.'
-      )
+      expect(problem(canvasElement)).toHaveTextContent('Opacity needs a whole number from 0 to 100.')
     );
-    await expect(opacity.value).toBe('15');
-    await expect(lastStored(args.onChange)).toMatchObject({ r: 30, a: 0.15 });
+    await expect(opacity.value).toBe('50');
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
 
+export const ArrowKeysStepANumber: Story = {
+  args: {
+    value: { r: 100, g: 149, b: 237, a: 0.5 },
+    disableAlpha: false,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the Color field after ↑ and then Shift+↓ are pressed in Opacity %: it steps by one and then by ten, 50 to 51 to 41, and each value is stored.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    const opacity = input(canvasElement, 'a');
     await userEvent.click(opacity);
     await userEvent.keyboard('{ArrowUp}');
-    await waitFor(() => expect(lastStored(args.onChange)).toMatchObject({ a: 0.16 }));
+    await waitFor(() => expect(lastStored(args.onChange)).toMatchObject({ a: 0.51 }));
     await userEvent.keyboard('{Shift>}{ArrowDown}{/Shift}');
-    await waitFor(() => expect(lastStored(args.onChange)).toMatchObject({ a: 0.06 }));
+    await waitFor(() => expect(lastStored(args.onChange)).toMatchObject({ a: 0.41 }));
+    await expect(opacity.value).toBe('41');
     expectOnlyColorsStored(args.onChange);
   },
 };
@@ -462,7 +570,7 @@ export const OnATouchScreen: Story = {
     docs: {
       description: {
         story:
-          "Renders the Color field on a phone (390 px, touch): the colour bar, the inputs, the help and the swatches are a finger's size and stay inside the field. A finger dragged across the colour square and along the colour bar picks the colour, a tapped swatch is stored, and a tap on \"What do these mean?\" shows the help.",
+          "Renders the Color field on a phone (390 px, touch): every target is a finger's size, each label is centred over its input, and nothing reaches past the field. A finger dragged across the colour square picks a quarter of its strength and three quarters of its brightness.",
       },
     },
   },
@@ -473,7 +581,7 @@ export const OnATouchScreen: Story = {
         await waitFor(() => expect(window.matchMedia('(hover: none)').matches).toBe(true));
       }
       await waitFor(() => expectFingerSized(canvasElement, touch.narrowed));
-
+      expectLabelsCentred(canvasElement);
       // across the colour square, to a quarter of its strength and three quarters of its brightness
       const area = square(canvasElement);
       await touch.drag(touch.pointIn(area, 0.8, 0.2), touch.pointIn(area, 0.25, 0.25));
@@ -483,27 +591,99 @@ export const OnATouchScreen: Story = {
         expect(Math.abs(hsv.v - 75)).toBeLessThan(4);
         expect(Math.abs(hsv.h - 219)).toBeLessThan(4);
       });
-
-      // along the colour bar, to its middle: cyan's hue
-      const bar = hueBar(canvasElement);
-      await touch.drag(touch.pointIn(bar, 0.6), touch.pointIn(bar, 0.5));
-      await waitFor(() => expect(Math.abs(rgbaToHsva(lastStored(args.onChange)).h - 180)).toBeLessThan(4));
-
-      await touch.tap(swatch(canvasElement, '#417505'));
-      await waitFor(() =>
-        expect(args.onChange).toHaveBeenLastCalledWith({ r: 65, g: 117, b: 5, a: 1 })
-      );
-
-      await touch.tap(helpToggle(canvasElement));
-      await waitFor(() =>
-        expect(canvasElement.querySelector('.reqraft-color-field-help')).toBeVisible()
-      );
       if (touch.narrowed) {
         await waitFor(() =>
           expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1)
         );
       }
       expectOnlyColorsStored(args.onChange);
+    });
+  },
+};
+
+export const ColourBarDraggedByAFinger: Story = {
+  args: {
+    value: CORNFLOWER,
+  },
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          "Renders the Color field on a phone (390 px, touch). A finger dragged along the colour bar to its middle picks cyan's hue.",
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    await withTouchScreen(async (touch) => {
+      await waitFor(() => expectFingerSized(canvasElement, touch.narrowed));
+      // along the colour bar, to its middle: cyan's hue
+      const bar = hueBar(canvasElement);
+      await touch.drag(touch.pointIn(bar, 0.6), touch.pointIn(bar, 0.5));
+      await waitFor(() =>
+        expect(Math.abs(rgbaToHsva(lastStored(args.onChange)).h - 180)).toBeLessThan(4)
+      );
+      expectOnlyColorsStored(args.onChange);
+    });
+  },
+};
+
+export const SwatchTappedByAFinger: Story = {
+  args: {
+    value: CORNFLOWER,
+  },
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders the Color field on a phone (390 px, touch). A finger taps the dark green swatch: it is stored, and the swatch shows it is the chosen one.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    await withTouchScreen(async (touch) => {
+      await waitFor(() => expectFingerSized(canvasElement, touch.narrowed));
+      await touch.tap(swatch(canvasElement, '#417505'));
+      await waitFor(() =>
+        expect(args.onChange).toHaveBeenLastCalledWith({ r: 65, g: 117, b: 5, a: 1 })
+      );
+      await expect(swatch(canvasElement, '#417505')).toHaveAttribute('aria-pressed', 'true');
+    });
+  },
+};
+
+export const HelpTappedByAFinger: Story = {
+  args: {
+    value: CORNFLOWER,
+  },
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders the Color field on a phone (390 px, touch). A finger taps "What do these mean?": the help opens, readable at the phone\'s width, with its example values in the data style.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await withTouchScreen(async (touch) => {
+      await waitFor(() => expectFingerSized(canvasElement, touch.narrowed));
+      await touch.tap(helpToggle(canvasElement));
+      const help = await waitFor(() => {
+        const shown = canvasElement.querySelector<HTMLElement>('.reqraft-color-field-help');
+        expect(shown).toBeVisible();
+        return shown!;
+      });
+      await expect(help.querySelector('code')).toHaveTextContent('6495ED');
+      if (touch.narrowed) {
+        await waitFor(() =>
+          expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1)
+        );
+      }
     });
   },
 };
@@ -564,6 +744,7 @@ export const InvalidEntryOnAPhone: Story = {
           expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1)
         );
       }
+      expectLabelsCentred(canvasElement);
       expectOnlyColorsStored(args.onChange);
       await expect(args.onChange).not.toHaveBeenCalledWith(expect.objectContaining({ r: 999 }));
     });

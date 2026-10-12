@@ -28,6 +28,8 @@ import {
 } from 'react';
 import styled, { css } from 'styled-components';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
+import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
+import { defaultMarkdownRenderer } from '../markdown/MarkdownView';
 
 /** The colour an `rgbcolor` field stores: red, green and blue from 0 to 255, alpha from 0 to 1. */
 export interface IColorFormFieldValue {
@@ -59,6 +61,10 @@ export interface IColorFormFieldLabels {
   noColor: string;
   /** The button that shows and hides what the controls mean. */
   help: string;
+  /*
+   * The help and the messages below are markdown: a value in them is a code span (`6495ED`), drawn in the
+   * data style by the host's markdown renderer, or reqraft's own where the host has none.
+   */
   helpArea: string;
   helpHex: string;
   helpChannels: string;
@@ -81,9 +87,16 @@ export interface IColorFormFieldLabels {
   empty: (field: string, max: number) => string;
 }
 
+/** Text as a markdown code span, whatever backticks it holds: drawn in the data style. */
+const code = (text: string): string => {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+  const fence = '`'.repeat(longest + 1);
+  return longest ? `${fence} ${text} ${fence}` : `${fence}${text}${fence}`;
+};
+
 const characters = (chars: string): string =>
   Array.from(new Set(chars.split('')))
-    .map((char) => (char === ' ' ? 'a space' : `“${char}”`))
+    .map((char) => (char === ' ' ? 'a space' : code(char)))
     .join(', ');
 
 export const DEFAULT_COLOR_FORM_FIELD_LABELS: IColorFormFieldLabels = {
@@ -101,21 +114,21 @@ export const DEFAULT_COLOR_FORM_FIELD_LABELS: IColorFormFieldLabels = {
   helpArea:
     'The square sets how strong the colour is (left to right) and how bright (bottom to top); the rainbow bar under it sets the colour itself.',
   helpHex:
-    'Hex code: the whole colour as six characters, each 0–9 or A–F, two each for red, green and blue - 6495ED is cornflower blue. Three characters are short for six: F80 is FF8800.',
+    'Hex code: the whole colour as six characters, each 0–9 or A–F, two each for red, green and blue: `6495ED` is cornflower blue. Three characters are short for six: `F80` is `FF8800`.',
   helpChannels:
-    'Red, Green, Blue: how much red, green and blue light make the colour, each from 0 (none) to 255 (all). 0, 0, 0 is black and 255, 255, 255 is white.',
+    'Red, Green, Blue: how much red, green and blue light make the colour, each from `0` (none) to `255` (all). `0, 0, 0` is black and `255, 255, 255` is white.',
   helpOpacity:
-    'Opacity: how solid the colour is, from 0% (you see through it) to 100% (solid). The squares behind the preview show through a colour that is not solid.',
+    'Opacity: how solid the colour is, from `0%` (you see through it) to `100%` (solid). The squares behind the preview show through a colour that is not solid.',
   swatch: (title) => `Use ${title}`,
   notHex: (chars) =>
     `${characters(chars)} cannot be in a hex code: use the digits 0–9 and the letters A–F.`,
   notDigits: (chars, field) => `${characters(chars)} cannot be in ${field}: type a whole number.`,
   hexTooLong: 'A hex code has six characters.',
   hexLength: (text) =>
-    `“${text}” is not a colour: a hex code has six characters (or three, short for six).`,
+    `${code(text)} is not a colour: a hex code has six characters (or three, short for six).`,
   hexEmpty: 'Type a hex code: six characters, each 0–9 or A–F.',
-  outOfRange: (field, max) => `${field} goes from 0 to ${max}.`,
-  empty: (field, max) => `${field} needs a whole number from 0 to ${max}.`,
+  outOfRange: (field, max) => `${field} goes from \`0\` to \`${max}\`.`,
+  empty: (field, max) => `${field} needs a whole number from \`0\` to \`${max}\`.`,
 };
 
 /** The colours offered as swatches when a host offers none of its own. */
@@ -405,7 +418,10 @@ const StyledInputColumn = styled.div<{ $grow: number; $min: number }>`
   }
 `;
 
+/* Centred over its input, as the value in the input is. */
 const StyledLabel = styled.label<{ $text: string; $coarse: boolean }>`
+  display: block;
+  text-align: center;
   font-size: ${({ $coarse }) => ($coarse ? 14 : 12)}px;
   line-height: 1.3;
   color: ${({ $text }) => rgba($text, 0.85)};
@@ -420,8 +436,12 @@ const StyledHelp = styled.div<{ $text: string; $coarse: boolean }>`
   line-height: 1.45;
   color: ${({ $text }) => rgba($text, 0.85)};
 
+  /* the help is one markdown document: its paragraphs are spaced as the field's other parts are */
   p {
     margin: 0;
+  }
+  p + p {
+    margin-top: 6px;
   }
 `;
 
@@ -491,6 +511,8 @@ export const ColorFormField = ({
   const coarse = useCoarsePointer();
   const sizes = sizesFor(coarse);
   const words = useMemo(() => ({ ...DEFAULT_COLOR_FORM_FIELD_LABELS, ...labels }), [labels]);
+  // the help's and the messages' markdown: the host's renderer, or reqraft's own (this is the field's own text)
+  const renderMarkdown = useMarkdownRenderer() ?? defaultMarkdownRenderer;
   const id = useId();
   const field = useRef<HTMLDivElement>(null);
   const locked = !!(disabled || readOnly);
@@ -822,7 +844,7 @@ export const ColorFormField = ({
         <div id={`${id}-problem`} aria-live='polite' className='reqraft-color-field-problem'>
           {problem && (
             <ReqoreMessage intent='danger' size='small' opaque={false}>
-              {problem.message}
+              {renderMarkdown({ value: problem.message, compact: true })}
             </ReqoreMessage>
           )}
         </div>
@@ -844,10 +866,15 @@ export const ColorFormField = ({
       </div>
       {helpOpen && (
         <StyledHelp id={`${id}-help`} className='reqraft-color-field-help' $text={text} $coarse={coarse}>
-          <p>{words.helpArea}</p>
-          <p>{words.helpHex}</p>
-          <p>{words.helpChannels}</p>
-          {!disableAlpha && <p>{words.helpOpacity}</p>}
+          {renderMarkdown({
+            value: [
+              words.helpArea,
+              words.helpHex,
+              words.helpChannels,
+              ...(disableAlpha ? [] : [words.helpOpacity]),
+            ].join('\n\n'),
+            compact: !coarse,
+          })}
         </StyledHelp>
       )}
       {presets.length > 0 && (

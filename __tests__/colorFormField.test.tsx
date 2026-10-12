@@ -135,7 +135,7 @@ describe('ColorFormField', () => {
     expect(input(container, 'hex').value).toBe('DC3545');
     expect(onChange).toHaveBeenLastCalledWith({ r: 220, g: 53, b: 69, a: 1 });
     expect(problem(container)).toBe(
-      '“Z”, “-” cannot be in a hex code: use the digits 0–9 and the letters A–F.'
+      'Z, - cannot be in a hex code: use the digits 0–9 and the letters A–F.'
     );
   });
 
@@ -164,7 +164,7 @@ describe('ColorFormField', () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(input(container, 'hex').value).toBe('6495ED');
     expect(problem(container)).toBe(
-      '“6495” is not a colour: a hex code has six characters (or three, short for six).'
+      '6495 is not a colour: a hex code has six characters (or three, short for six).'
     );
     typeAndLeave(container, 'hex', '');
     expect(problem(container)).toBe('Type a hex code: six characters, each 0–9 or A–F.');
@@ -200,10 +200,14 @@ describe('ColorFormField', () => {
     fireEvent.change(input(container, 'g'), { target: { value: '-1.5' } });
     expect(input(container, 'g').value).toBe('15');
     expect(onChange).toHaveBeenLastCalledWith({ r: 100, g: 15, b: 237, a: 1 });
-    expect(problem(container)).toBe('“-”, “.” cannot be in Green: type a whole number.');
+    expect(problem(container)).toBe('-, . cannot be in Green: type a whole number.');
+    // what was typed, and the range, are data: drawn as code
+    expect(
+      Array.from(container.querySelectorAll('.reqraft-color-field-problem code')).map((c) => c.textContent)
+    ).toEqual(['-', '.']);
     fireEvent.change(input(container, 'b'), { target: { value: '9e99' } });
     expect(problem(container)).toBe(
-      '“e” cannot be in Blue: type a whole number. Blue goes from 0 to 255.'
+      'e cannot be in Blue: type a whole number. Blue goes from 0 to 255.'
     );
     expect(onChange).toHaveBeenCalledTimes(1);
   });
