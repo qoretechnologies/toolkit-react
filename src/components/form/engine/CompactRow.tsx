@@ -73,6 +73,7 @@ import {
   isOptionValueEmpty,
   optionHasImages,
   getExpressionAst,
+  markdownToProse,
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
 import { DpqlRendering } from '../expressions/DpqlRendering';
@@ -1527,7 +1528,7 @@ export const CompactRow = memo(
                   size='small'
                   effect={{ opacity: 0.55 }}
                 >
-                  {labelShortDesc}
+                  {markdownToProse(labelShortDesc)}
                 </StyledLabelDesc>
               : null}
               {codeSizeNode}
@@ -2298,12 +2299,14 @@ export const CompactRow = memo(
             : null}
           </StyledRowLabel>
           {showLabelDesc ?
+            /* A sentence in the label's own type, clamped to three lines: drawn as the prose its markdown
+               renders to, never its marks (`markdownToProse`). */
             <StyledLabelDesc
               className='options-readfirst-label-desc'
               size='small'
               effect={{ opacity: 0.55 }}
             >
-              {labelShortDesc}
+              {markdownToProse(labelShortDesc)}
             </StyledLabelDesc>
           : null}
           {codeSizeNode}
@@ -2395,7 +2398,14 @@ export const CompactRow = memo(
               : renderReadFirstValue(optionField, schema, formatted, readOnly)}
             </span>}
           {readOnlyChoiceDesc ?
-            <span className='options-readfirst-choice-desc'>{readOnlyChoiceDesc}</span>
+            /* What the chosen option means, on its own line: the server writes it in markdown ("Each
+               `POST /conversations` ..."), so the host's renderer draws it, as it draws the schema messages
+               below; without one, it reads as the prose it renders to. A block, as what is drawn is. */
+            <div className='options-readfirst-choice-desc'>
+              {markdownRenderer ?
+                markdownRenderer({ value: readOnlyChoiceDesc, compact: true })
+              : markdownToProse(readOnlyChoiceDesc)}
+            </div>
           : null}
           {valueReasons.map((m, i) => (
             <span
@@ -2403,7 +2413,8 @@ export const CompactRow = memo(
               className='options-readfirst-reason'
               style={{ color: reasonColor(m.intent) }}
             >
-              {m.content}
+              {/* a reason is a line in the row's type; a default's description in it is the server's markdown */}
+              {typeof m.content === 'string' ? markdownToProse(m.content) : m.content}
             </span>
           ))}
           {/* Dedicated schema message PANELS render right here, directly under the

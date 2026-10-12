@@ -9540,6 +9540,138 @@ export const CompactReadOnlyDataProvider: Story = {
   },
 };
 
+/** Options as the server writes them: a field's, a choice's and a default's descriptions in markdown. */
+const ReadOnlyMarkdownDescriptionsSchema = {
+  mode: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Mode',
+    short_desc: 'How the endpoint answers: one **conversation** per `POST`',
+    allowed_values: [
+      {
+        value: 'chat',
+        display_name: 'Chat',
+        desc: 'Each `POST /conversations` starts a **new** thread.',
+      },
+      { value: 'completion', display_name: 'Completion', desc: 'One answer per request.' },
+    ],
+  },
+  timeout: {
+    type: 'number',
+    ui_type: 'number',
+    display_name: 'Timeout',
+    default_value: { type: 'number', value: 30 },
+    default_value_display_name: 'thirty',
+    default_value_desc: 'Falls back to `30` seconds, **per** request.',
+  },
+} as never;
+
+const readOnlyMarkdownDescriptionsArgs: Record<string, unknown> = {
+  compact: true,
+  readOnly: true,
+  options: ReadOnlyMarkdownDescriptionsSchema,
+  // a read-only form shows what is set
+  value: { mode: { type: 'string', value: 'chat' }, timeout: { type: 'number', value: 45 } },
+};
+
+const readFirstRow = (name: string) =>
+  document.querySelector(`.readfirst-row[data-field="${name}"]`) as HTMLElement | null;
+
+/** A read row says what its descriptions say, never their markdown marks. */
+const expectNoMarkdownMarks = (element: Element | null | undefined) => {
+  expect(element).toBeTruthy();
+  expect(element!.textContent).not.toMatch(/[`*]/);
+};
+
+/** The default's description, in the reason under the value, and the field's, under its name. */
+const expectProseReasonAndLabel = async () => {
+  await waitFor(() =>
+    expect(readFirstRow('timeout')?.querySelector('.options-readfirst-reason')).toHaveTextContent(
+      'Default: thirty — Falls back to 30 seconds, per request.'
+    )
+  );
+  await _testsClickButton({ selector: '.options-readfirst-descriptions' });
+  await waitFor(() =>
+    expect(readFirstRow('mode')?.querySelector('.options-readfirst-label-desc')).toHaveTextContent(
+      'How the endpoint answers: one conversation per POST'
+    )
+  );
+  expectNoMarkdownMarks(readFirstRow('mode')?.querySelector('.options-readfirst-label-desc'));
+};
+
+const playChoiceDescriptionDrawn = async () => {
+  await waitFor(() =>
+    expect(
+      readFirstRow('mode')?.querySelector('.options-readfirst-choice-desc code')
+    ).toHaveTextContent('POST /conversations')
+  );
+  const choice = readFirstRow('mode')!.querySelector('.options-readfirst-choice-desc');
+  expect(choice?.querySelector('strong')).toHaveTextContent('new');
+  expectNoMarkdownMarks(choice);
+  await expectProseReasonAndLabel();
+};
+
+export const CompactReadOnlyChoiceDescriptionDrawn: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a read-only compact form in a host that draws markdown, whose descriptions the server wrote in markdown. The chosen option\'s description ("Each POST /conversations starts a new thread.") is drawn under its value, POST /conversations as code and "new" in bold. The default\'s description in the reason under Timeout, and the field\'s description under Mode (descriptions shown), read as prose. No backtick or asterisk shows.',
+      },
+    },
+  },
+  args: { ...readOnlyMarkdownDescriptionsArgs, markdownRenderer: defaultMarkdownRenderer } as never,
+  play: playChoiceDescriptionDrawn,
+};
+
+export const CompactReadOnlyChoiceDescriptionDrawnOnAPhone: Story = {
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders the same read-only form on a phone (390 px): the chosen option\'s description is drawn under its value and stays inside its row, and no description shows a markdown mark.',
+      },
+    },
+  },
+  args: { ...readOnlyMarkdownDescriptionsArgs, markdownRenderer: defaultMarkdownRenderer } as never,
+  play: async () =>
+    _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      await playChoiceDescriptionDrawn();
+      if (narrowed) {
+        const row = readFirstRow('mode')!.getBoundingClientRect();
+        const choice = readFirstRow('mode')!
+          .querySelector('.options-readfirst-choice-desc')!
+          .getBoundingClientRect();
+        expect(choice.right).toBeLessThanOrEqual(row.right + 0.5);
+        expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth + 1);
+      }
+    }),
+};
+
+export const CompactReadOnlyChoiceDescriptionWithoutRenderer: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same read-only form where the host draws no markdown: the chosen option\'s description reads as the prose it renders to ("Each POST /conversations starts a new thread."), and the other descriptions read as prose too, with no backtick or asterisk.',
+      },
+    },
+  },
+  args: { ...readOnlyMarkdownDescriptionsArgs, markdownRenderer: undefined } as never,
+  play: async () => {
+    await waitFor(() =>
+      expect(readFirstRow('mode')?.querySelector('.options-readfirst-choice-desc')).toHaveTextContent(
+        'Each POST /conversations starts a new thread.'
+      )
+    );
+    const choice = readFirstRow('mode')!.querySelector('.options-readfirst-choice-desc');
+    expect(choice?.querySelector('code')).toBeNull();
+    expectNoMarkdownMarks(choice);
+    await expectProseReasonAndLabel();
+  },
+};
+
 /** The AI endpoint's Tools field as the Qorus IDE hands it to the form: a
  *  `tool-catalog` editor storing tool SELECTORS, with the tool catalogue's
  *  SOURCES (fetched by its `get_message`) hung on `allowed_values`. */

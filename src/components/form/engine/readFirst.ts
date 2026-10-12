@@ -539,30 +539,18 @@ const capSummary = (text: string): string => {
   return `${body.trimEnd()}…`;
 };
 
+
 /**
- * Summarise a markdown value as the prose it renders to.
- *
- * A read-first row has one line to work with, and for markdown that line was
- * the SOURCE: a description opening with a heading read as `## Partner portal`,
- * which is punctuation where the reader wanted the sentence. The markers are
- * stripped rather than the value truncated, because what the row is standing in
- * for is the rendered document, not the file behind it.
- *
- * Deliberately not a markdown parser: this feeds a one-line summary and the
- * row's hover title, and the real document renders in the inset below the row.
- *
- * The inline rules below are CommonMark-shaped on purpose, because the naive
- * versions corrupt exactly the text these descriptions are full of. `(\*|_)(.*?)\1`
- * turns "2 * 3 * 4 items" into "2 3 4 items" and `retry_count_max` into
- * `retrycountmax`: emphasis delimiters have to hug the text they wrap, and an
- * underscore must not be intraword, or an option key loses its underscores.
+ * Markdown as the prose it renders to, whole: `summariseMarkdown` without the cap. For a read row's slot that
+ * holds a sentence or two in the row's own type (a field's short description under its name, a reason under the
+ * value) and so cannot hold the blocks a renderer draws. Where a slot can, the host's renderer draws it.
  */
-export const summariseMarkdown = (value: unknown): string => {
+export const markdownToProse = (value: unknown): string => {
   if (typeof value !== 'string') {
     return '';
   }
 
-  const prose = value
+  return value
     // a fenced block is never the summary of the thing it sits in
     .replace(/```[\s\S]*?```/g, ' ')
     // images before links — an image's `!` prefix would otherwise survive
@@ -588,9 +576,27 @@ export const summariseMarkdown = (value: unknown): string => {
     .replace(/`+([^`]+)`+/g, '$1')
     .replace(/\s+/g, ' ')
     .trim();
-
-  return capSummary(prose);
 };
+
+/**
+ * Summarise a markdown value as the prose it renders to.
+ *
+ * A read-first row has one line to work with, and for markdown that line was
+ * the SOURCE: a description opening with a heading read as `## Partner portal`,
+ * which is punctuation where the reader wanted the sentence. The markers are
+ * stripped rather than the value truncated, because what the row is standing in
+ * for is the rendered document, not the file behind it.
+ *
+ * Deliberately not a markdown parser: this feeds a one-line summary and the
+ * row's hover title, and the real document renders in the inset below the row.
+ *
+ * The inline rules below are CommonMark-shaped on purpose, because the naive
+ * versions corrupt exactly the text these descriptions are full of. `(\*|_)(.*?)\1`
+ * turns "2 * 3 * 4 items" into "2 3 4 items" and `retry_count_max` into
+ * `retrycountmax`: emphasis delimiters have to hug the text they wrap, and an
+ * underscore must not be intraword, or an option key loses its underscores.
+ */
+export const summariseMarkdown = (value: unknown): string => capSummary(markdownToProse(value));
 
 /**
  * The expression AST a field holds, whichever shape it arrived in.
