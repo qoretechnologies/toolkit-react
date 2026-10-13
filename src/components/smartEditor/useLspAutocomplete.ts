@@ -293,6 +293,14 @@ export function useLspAutocomplete(
   // See `popoverKey` in the result interface — forces a popover re-mount.
   const [popoverKey, setPopoverKey] = useState(0);
   const [docsFor, setDocsFor] = useState<string | null>(null);
+  /* Which request is the one the list is waiting for. A newer request, or the list put away (`close`),
+     makes an answer still on its way stale, and a stale answer is dropped: it used to open the list after
+     the author had dismissed it - typed, pressed Escape before the list came, and the list came anyway,
+     under the next tap, which then took one of its rows (qorus#646). */
+  const requestGenerationRef = useRef(0);
+  /* A request typing has asked for and the list has not shown yet: the debounce running, or the server's
+     answer on its way. An Escape then puts it away too, as it puts away an open list. */
+  const pendingRequestRef = useRef(false);
 
   useEffect(() => {
     focusedIndexRef.current = focusedIndex;
@@ -345,6 +353,10 @@ export function useLspAutocomplete(
       // in no-suggestion spots (inside a string, a dead-end identifier).
       const { eager = true } = opts;
       if (!isReady) return;
+      const generation = ++requestGenerationRef.current;
+      pendingRequestRef.current = true;
+      // whether this answer is still the one the list is waiting for
+      const current = () => generation === requestGenerationRef.current;
       // Re-measure the caret now that the debounce expired and Slate has
       // committed the char to the DOM. The earlier measure in
       // `onSlateChangeImpl` can fire before the DOM commit, where
@@ -376,6 +388,7 @@ export function useLspAutocomplete(
       }
       try {
         const lspItems = await getCompletions(plainText, offset);
+        if (!current()) return;
         if (lspItems.length === 0) {
           setItems([]);
           // Replace mode keeps the popover open to show "No alternatives".
@@ -397,23 +410,35 @@ export function useLspAutocomplete(
         setFocusedIndex(0);
         setIsOpen(true);
       } catch {
+        if (!current()) return;
         setItems([]);
         setIsOpen(false);
       } finally {
-        if (fetchingTimerRef.current !== null) {
-          clearTimeout(fetchingTimerRef.current);
-          fetchingTimerRef.current = null;
+        // a stale answer leaves the state to the request that replaced it, or to `close`
+        if (current()) {
+          pendingRequestRef.current = false;
+          if (fetchingTimerRef.current !== null) {
+            clearTimeout(fetchingTimerRef.current);
+            fetchingTimerRef.current = null;
+          }
+          setIsFetching(false);
         }
-        setIsFetching(false);
       }
     },
     [getCompletions, isReady]
   );
 
-  const requestCompletions = useMemo(
-    () => debounce(performCompletionRequest, DEBOUNCE_MS),
-    [performCompletionRequest]
-  );
+  const requestCompletions = useMemo(() => {
+    const debounced = debounce(performCompletionRequest, DEBOUNCE_MS);
+    // asked for: pending from now, not only once the debounce runs out
+    const request = ((...args: Parameters<typeof performCompletionRequest>) => {
+      pendingRequestRef.current = true;
+      return debounced(...args);
+    }) as typeof debounced;
+    request.cancel = debounced.cancel;
+    request.flush = debounced.flush;
+    return request;
+  }, [performCompletionRequest]);
 
   useEffect(() => {
     return () => {
@@ -436,7 +461,31 @@ export function useLspAutocomplete(
     replacingChipPathRef.current = null;
     pendingChipRequestRef.current = null;
     requestCompletions.cancel();
+    // an answer still on its way is for a list that has been put away
+    requestGenerationRef.current++;
+    pendingRequestRef.current = false;
   }, [requestCompletions]);
+
+  /* Escape in the editor before the list has come puts the request away, as Escape puts a list with rows
+     away (`useCompletionKeys`, which hears it then). Not taken from the page: with no list shown, an Escape
+     may mean something else there too. */
+  const showsRows = isOpen && filteredItems.length > 0;
+  useEffect(() => {
+    if (showsRows) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !pendingRequestRef.current) return;
+      const editor = editorRef.current;
+      try {
+        if (!editor || !ReactEditor.toDOMNode(editor, editor).contains(event.target as Node)) return;
+      } catch {
+        // the editor is not drawn: nothing of it is in the page to have had the key
+        return;
+      }
+      close();
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [showsRows, close]);
 
   const positionTrigger = useCallback(
     (editor: BaseEditor & ReactEditor & HistoryEditor) => {
