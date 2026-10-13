@@ -15,7 +15,7 @@ import {
 describe("the compact row's summary of a color", () => {
   it('is the color, in every shape', () => {
     expect(formatColorValue('abcdef')).toBe('#ABCDEF');
-    expect(colorToCss('abcdef')).toBe('#abcdef');
+    expect(colorToCss('abcdef')).toBe('rgba(171, 205, 239, 1)');
   });
 
   it('is no color for a value that is not one - not a hex code and a swatch of nothing', () => {

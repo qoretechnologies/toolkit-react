@@ -43,6 +43,44 @@ const toHexPart = (n: number): string => clampChannel(n).toString(16).padStart(2
 const hasRgb = (c: IParsedColor): c is IParsedColor & { r: number; g: number; b: number } =>
   c.r !== undefined && c.g !== undefined && c.b !== undefined;
 
+/** A color's red, green and blue, each from 0 to 255, and its opacity, from 0 to 1. */
+export interface IReqraftRgba {
+  r: number;
+  g: number;
+  b: number;
+  a: number;
+}
+
+/**
+ * What a hex code says: its red, green and blue, and its opacity - the one hex reader in reqraft (qorus#646), for
+ * the color field, the readers here and a host that turns a hex code into a stored color. A hex code has 3, 4, 6 or 8
+ * hex digits, with or without its `#`, in either case. 3 and 4 are short for 6 and 8, each digit doubled: `F808` is
+ * `FF880088`. The last pair of 8 (the last digit of 4) is the opacity, `00` to `FF` read as 0 to 1; without one the
+ * color is opaque. Undefined when the text is not a hex code.
+ */
+export const readHexColor = (text: string): IReqraftRgba | undefined => {
+  const match = HEX_CODE.exec(text.trim());
+  if (!match) {
+    return undefined;
+  }
+  const digits = match[1];
+  const full =
+    digits.length <= 4 ?
+      digits
+        .split('')
+        .map((digit) => `${digit}${digit}`)
+        .join('')
+    : digits;
+  const [r, g, b, a] = (full.match(/../g) ?? []).map((pair) => parseInt(pair, 16));
+  return { r, g, b, a: a === undefined ? 1 : a / 255 };
+};
+
+/** Whether a hex code gives its own opacity: 4 or 8 digits. */
+export const hexGivesOpacity = (text: string): boolean => {
+  const match = HEX_CODE.exec(text.trim());
+  return !!match && (match[1].length === 4 || match[1].length === 8);
+};
+
 /** A hex code with its `#`, or undefined when the text is not one. */
 const hexCode = (text: string): string | undefined => {
   const trimmed = text.trim();
@@ -135,7 +173,15 @@ export const describeColorValue = (value: unknown): TReqraftColorValueDescriptio
       css: `rgba(${r}, ${g}, ${b}, ${c.a})`,
     };
   }
-  return { kind: 'color', text: c.hex!.toUpperCase(), css: c.hex! };
+  // written as it was stored; painted as the hex reader reads it, as the color field would store it - its own
+  // opacity where it has one (4 or 8 digits), or the opacity given beside it
+  const read = readHexColor(c.hex!)!;
+  return {
+    kind: 'color',
+    text: c.hex!.toUpperCase(),
+    // the opacity in hundredths, as the color field stores it
+    css: `rgba(${read.r}, ${read.g}, ${read.b}, ${hexGivesOpacity(c.hex!) ? Math.round(read.a * 100) / 100 : c.a})`,
+  };
 };
 
 /** How a color is written (`#0000FF`, or `rgba(…)` when see-through); undefined when the value is none. */

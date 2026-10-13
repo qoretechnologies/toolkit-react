@@ -372,9 +372,10 @@ describe('colorToCss', () => {
     expect(colorToCss({ r: 255, g: 0, b: 0, a: 0.5 })).toBe('rgba(255, 0, 0, 0.5)');
   });
 
-  it('passes through hex forms', () => {
-    expect(colorToCss({ hex: '#abcdef' })).toBe('#abcdef');
-    expect(colorToCss('#abcdef')).toBe('#abcdef');
+  // painted as reqraft's one hex reader reads it (qorus#646)
+  it('paints hex forms as the hex reader reads them', () => {
+    expect(colorToCss({ hex: '#abcdef' })).toBe('rgba(171, 205, 239, 1)');
+    expect(colorToCss('#abcdef')).toBe('rgba(171, 205, 239, 1)');
   });
 });
 

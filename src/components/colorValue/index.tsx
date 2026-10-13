@@ -15,10 +15,12 @@ export {
   colorToCss,
   describeColorValue,
   formatColorValue,
+  hexGivesOpacity,
   isStoredColor,
+  readHexColor,
   storedColorProblem,
 } from './colorValue';
-export type { TReqraftColorValueDescription } from './colorValue';
+export type { IReqraftRgba, TReqraftColorValueDescription } from './colorValue';
 export { DEFAULT_COLOR_VALUE_LABELS } from './labels';
 export type { IReqraftColorValueLabels } from './labels';
 

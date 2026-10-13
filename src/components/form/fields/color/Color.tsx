@@ -1,15 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 import { ReqoreButton, ReqoreInput, ReqoreMessage, useReqoreTheme } from '@qoretechnologies/reqore';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
-import {
-  hexToRgba,
-  HsvaColor,
-  hsvaToRgba,
-  RgbaColor,
-  rgbaToHex,
-  rgbaToHsva,
-  validHex,
-} from '@uiw/color-convert';
+import { HsvaColor, hsvaToRgba, RgbaColor, rgbaToHex, rgbaToHsva } from '@uiw/color-convert';
 import Alpha, { BACKGROUND_IMG } from '@uiw/react-color-alpha';
 import Hue from '@uiw/react-color-hue';
 import Saturation, { SaturationProps } from '@uiw/react-color-saturation';
@@ -28,7 +20,7 @@ import {
 } from 'react';
 import styled, { css } from 'styled-components';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
-import { isStoredColor } from '../../../colorValue/colorValue';
+import { hexGivesOpacity, isStoredColor, readHexColor } from '../../../colorValue/colorValue';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 import { defaultMarkdownRenderer } from '../markdown/MarkdownView';
 
@@ -194,8 +186,9 @@ const toStoredColor = ({ r, g, b, a }: RgbaColor): Required<IColorFormFieldValue
  */
 export const colorToRgba = (value: unknown): RgbaColor | undefined => {
   if (typeof value === 'string') {
-    const hex = value.trim();
-    return validHex(hex) ? hexToRgba(hex.startsWith('#') ? hex : `#${hex}`) : undefined;
+    // reqraft's one hex reader: 3, 4, 6 or 8 digits, the short ones doubled, the last pair (or digit) the opacity
+    const read = readHexColor(value);
+    return read ? toStoredColor(read) : undefined;
   }
   if (value && typeof value === 'object') {
     const { r, g, b, a, hex } = value as Partial<RgbaColor> & { hex?: unknown };
@@ -203,7 +196,11 @@ export const colorToRgba = (value: unknown): RgbaColor | undefined => {
       return toStoredColor({ r, g, b, a: isChannel(a) ? a : 1 });
     }
     if (typeof hex === 'string') {
-      return colorToRgba(hex);
+      // its own opacity where the code gives one, or the opacity beside it, as the readers paint it
+      const read = readHexColor(hex);
+      return read ?
+          toStoredColor({ ...read, a: !hexGivesOpacity(hex) && isChannel(a) ? a : read.a })
+        : undefined;
     }
   }
   return undefined;
@@ -644,8 +641,9 @@ export const ColorFormField = ({
     if (name === 'hex') {
       // Six characters are a color as they are typed; three may be the start of six, so they are one
       // when the field is left (see `committed`).
-      if (kept.length === 6) {
-        store({ ...hexToRgba(`#${kept}`), a: current.a });
+      const typedColor = kept.length === 6 ? readHexColor(kept) : undefined;
+      if (typedColor) {
+        store({ ...typedColor, a: current.a });
       }
       setProblem(message ? { field: name, message, invalid: false } : undefined);
       return;
@@ -674,8 +672,9 @@ export const ColorFormField = ({
     }
     setDraft(name, undefined);
     if (name === 'hex') {
-      if (draft.length === 3) {
-        store({ ...hexToRgba(`#${draft}`), a: current.a });
+      const shortColor = draft.length === 3 ? readHexColor(draft) : undefined;
+      if (shortColor) {
+        store({ ...shortColor, a: current.a });
       } else if (draft === '') {
         setProblem({ field: name, message: words.hexEmpty, invalid: false });
       } else if (draft.length !== 6) {

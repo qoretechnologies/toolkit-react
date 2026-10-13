@@ -24,11 +24,11 @@ describe('a color, described', () => {
       'rgba(255, 0, 0, 0.5)',
       'rgba(255, 0, 0, 0.5)',
     ],
-    ['a hex code', '#abcdef', '#ABCDEF', '#abcdef'],
-    ['a hex code without its #', 'abcdef', '#ABCDEF', '#abcdef'],
-    ['a three-digit hex code', '#f80', '#F80', '#f80'],
-    ['a hex code with its alpha', '#ff000080', '#FF000080', '#ff000080'],
-    ['{ hex }', { hex: '#6495ed' }, '#6495ED', '#6495ed'],
+    ['a hex code', '#abcdef', '#ABCDEF', 'rgba(171, 205, 239, 1)'],
+    ['a hex code without its #', 'abcdef', '#ABCDEF', 'rgba(171, 205, 239, 1)'],
+    ['a three-digit hex code', '#f80', '#F80', 'rgba(255, 136, 0, 1)'],
+    ['a hex code with its alpha', '#ff000080', '#FF000080', 'rgba(255, 0, 0, 0.5)'],
+    ['{ hex }', { hex: '#6495ed' }, '#6495ED', 'rgba(100, 149, 237, 1)'],
   ])('%s is a color', (_shape, value, text, css) => {
     expect(describeColorValue(value)).toEqual({ kind: 'color', text, css });
   });
