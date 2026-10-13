@@ -881,7 +881,7 @@ export const LiveDpqlEditorWithAlertPayload: Story = {
 
 /**
  * Demonstrates LSP-driven syntax highlighting (design doc §7) across a
- * representative DPQL expression touching every coloured token type:
+ * representative DPQL expression touching every colored token type:
  * field references, templates, operators, string / number / boolean /
  * null literals, regex, range, keywords, parens.
  *
@@ -901,7 +901,7 @@ export const WithSemanticTokens: Story = {
     docs: {
       description: {
         story:
-          'Every coloured DPQL token category. Variables (`@status`, ' +
+          'Every colored DPQL token category. Variables (`@status`, ' +
           '`@age`, …) in red, operators (`==`, `&&`, `=~`, `between`) ' +
           'in cyan, strings in green, numbers in orange, keywords ' +
           '(`in`, `between`, `and`, `not`, `true`) in purple, regex ' +
@@ -910,16 +910,16 @@ export const WithSemanticTokens: Story = {
     },
   },
   // CI guard for the semantic-token pipeline (server tokens → decode →
-  // decorate → coloured leaf). Assert the editor rendered spans carrying
-  // the palette colours: keyword purple (#c678dd → rgb(198,120,221)) and
+  // decorate → colored leaf). Assert the editor rendered spans carrying
+  // the palette colors: keyword purple (#c678dd → rgb(198,120,221)) and
   // string green (#98c379 → rgb(152,195,121)). If the decoration breaks,
-  // the tokens render uncoloured and these are absent.
+  // the tokens render uncolored and these are absent.
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
-    // Poll until the semantic-token pipeline has coloured the leaves
+    // Poll until the semantic-token pipeline has colored the leaves
     // (server tokens → decode → decorate). Before the round-trip lands
-    // the spans are uncoloured and these assertions fail.
+    // the spans are uncolored and these assertions fail.
     await waitFor(
       () => {
         const colors = Array.from(editable.querySelectorAll('span'))

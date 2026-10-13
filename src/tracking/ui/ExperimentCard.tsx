@@ -59,7 +59,7 @@ export interface IExperimentCardProps {
   test?: IExperimentEntry | null;
   /** The card's title. Default: the experiment's name, else its key. */
   name?: string;
-  /** The version this page shows now: its row takes the info colour (and `aria-current`). */
+  /** The version this page shows now: its row takes the info color (and `aria-current`). */
   shown?: string;
   /** The versions the page's code renders (`data-variants`); a server version outside it cannot be shown. */
   codeVariants?: string[];
@@ -99,7 +99,7 @@ export interface IExperimentCardProps {
 
 type TTagIntent = 'success' | 'warning' | 'danger' | 'muted' | 'info';
 
-// Soft tags: an outlined pill over a wash of its colour, readable on dark and light themes.
+// Soft tags: an outlined pill over a wash of its color, readable on dark and light themes.
 const soft = (intent: TTagIntent) => ({ intent, appearance: 'soft' as const });
 
 type THighlight = 'winner' | 'leading' | undefined;
@@ -113,13 +113,13 @@ const GLOW_ROOM = 6;
 /**
  * How a version's row stands out, drawn around and over the row without taking the pointer:
  *
- * - the version this page shows: an inset ring and a flat wash in the info colour (the row itself
+ * - the version this page shows: an inset ring and a flat wash in the info color (the row itself
  *   keeps no intent, so its actions stay neutral);
- * - the leading version: a ring and a soft glow in the success colour, and a wash from the left;
+ * - the leading version: a ring and a soft glow in the success color, and a wash from the left;
  * - the winner (a likely-winner verdict or an ended test's winner): the same, clearly stronger.
  *
  * Static (nothing animates, so there is nothing for reduced motion to stop), and in the theme's
- * own intent colours, so it reads on dark and light.
+ * own intent colors, so it reads on dark and light.
  */
 const StyledVersion = styled.div<{
   $highlight: THighlight;

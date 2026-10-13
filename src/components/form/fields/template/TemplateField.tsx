@@ -2313,7 +2313,7 @@ const TemplateFieldImpl = memo(
       if (isTemplate) {
         // SEAM (reqraft): the IDE renders a bare `<ReqoreTag label={templateValue}/>`
         // here; reqraft upgrades the read-only template to a proper picker chip —
-        // the $-dollar icon + resolved display name + app image, coloured by the
+        // the $-dollar icon + resolved display name + app image, colored by the
         // IDE's intent scheme. Shared with the compact read-first row.
         return <ReadOnlyTemplateTag value={templateValue} templates={templates} size={rest.size} />;
       }

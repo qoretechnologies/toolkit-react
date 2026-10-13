@@ -12,7 +12,7 @@ import { COMPLETION_LIST_THEME, styleTemplateItems } from '../../../smartEditor/
 
 /**
  * How the list a field's templates are browsed in is drawn, wherever it opens - an editor's (its `tagsListProps`)
- * or a control's (`TemplateBrowser`): the completion list's colour, at least as wide as it.
+ * or a control's (`TemplateBrowser`): the completion list's color, at least as wide as it.
  */
 export const TEMPLATE_BROWSE_LIST_PROPS = {
   minWidth: '300px',

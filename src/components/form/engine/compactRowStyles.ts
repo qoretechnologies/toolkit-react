@@ -56,7 +56,7 @@ export const PANEL_LEFT_CSS = `calc(${LABEL_COL} + ${COMPACT_ROW_PAD_X + COMPACT
 // gives its sticky header) with a translucent theme tint + a moderate blur, the
 // way the IDE's DashboardModule overrides its own header. `translateZ(0)`
 // promotes the header to its own GPU layer, which stops the backdrop-filter
-// repaint flicker on scroll. `$headerBg` is a pre-mixed translucent colour so
+// repaint flicker on scroll. `$headerBg` is a pre-mixed translucent color so
 // content blurs softly through.
 export const StyledCompactPanel = styled(ReqorePanel)<{
   $headerBg: string;
@@ -218,7 +218,7 @@ export const StyledGroupHeaderLine = styled.span<{ $color: string }>`
 
 // A status box (Needs attention / Set / Optional). Matches the "Focus" prototype:
 // a barely-there accent border + a ~5%-opacity tint, NOT the loud intent border a
-// stock ReqorePanel draws. `$accent` is the box's theme colour (warning/success/
+// stock ReqorePanel draws. `$accent` is the box's theme color (warning/success/
 // muted).
 export const StyledStatusBox = styled(ReqorePanel)<{
   $accent: string;
@@ -229,7 +229,7 @@ export const StyledStatusBox = styled(ReqorePanel)<{
   &&& {
     border: 1px solid ${({ $accent }) => `${$accent}33`};
     /* $bg lets the muted "Optional" box opt into a darker, recessed surface
-       instead of the faint accent tint the coloured boxes use. */
+       instead of the faint accent tint the colored boxes use. */
     background: ${({ $accent, $bg }) => $bg || `${$accent}1f`};
     border-radius: 10px;
   }
@@ -417,9 +417,9 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
   align-items: baseline;
   column-gap: 10px;
   row-gap: 2px;
-  /* The muted/translucent colour applies to the VALUE TEXT only — not the whole
+  /* The muted/translucent color applies to the VALUE TEXT only — not the whole
      cell — so the message panels and the structured preview below render at full
-     opacity instead of inheriting the dimmed value colour. */
+     opacity instead of inheriting the dimmed value color. */
   .options-readfirst-valuetext {
     min-width: 0;
     max-width: 100%;
@@ -478,7 +478,7 @@ export const StyledRowActions = styled.div`
   gap: 6px;
 `;
 
-// A single status mark pinned at the row's trailing edge: one dot, colour =
+// A single status mark pinned at the row's trailing edge: one dot, color =
 // severity (danger/warning/success). This is the "Focus" read-first signal that
 // replaces the recessed value surface's intent stripe — attention dots carry a
 // faint ring, a plain "set" dot does not. `unset` rows render no dot.
@@ -552,9 +552,9 @@ export const StyledGroupBody = styled.div<{
   $success: string;
   $rowBg: string;
   $lineColor: string;
-  /** Edge colour for the "N more fields" row. Its own value because the row
+  /** Edge color for the "N more fields" row. Its own value because the row
       HAS to be seen — the divider tint that separates two fields is ~8% of the
-      text colour, which disappears entirely as a 1px dashed border. */
+      text color, which disappears entirely as a 1px dashed border. */
   $moreBorder: string;
 }>`
   display: flex;

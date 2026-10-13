@@ -42,7 +42,7 @@ import { isEmptyUiEnvelope, isUiEncodedValue } from './structuredData';
  * A read-only rendering of a value THROUGH the schema that describes it.
  *
  * `StructuredDataView` renders data nobody has described: it has to announce
- * what it found ("Object · 2 fields"), print raw keys, and colour values by
+ * what it found ("Object · 2 fields"), print raw keys, and color values by
  * inferred type, because inference is all it has. That is the right rendering
  * for untyped data and the wrong one for ours — a form field with an
  * `arg_schema` is a value whose shape, names and choices are all known in
@@ -209,7 +209,7 @@ const StyledItemFields = styled.div<{ $border: string; $rule: boolean }>`
  *
  * A variant rather than a change to `StyledRowLabel`: that one is the FORM's own
  * option-row label, and the form's fields are not read-only furniture — they are
- * the things you are about to edit. Composing it keeps the colour, weight base
+ * the things you are about to edit. Composing it keeps the color, weight base
  * and wrapping behaviour in one place instead of copying them.
  *
  * Applies to the label only. A VALUE is never uppercased: values are frequently
@@ -282,12 +282,12 @@ export interface ISchemaDataViewProps {
   /** Show each field's declared type beside its name. */
   showTypes?: boolean;
   /**
-   * Colours, taken from the row so the preview matches its surroundings.
+   * Colors, taken from the row so the preview matches its surroundings.
    *
    * `accent` marks the identifying heading. It comes from the consuming row's
    * THEME rather than a literal here, so an app that registers its own intent
    * (BRAND_DESIGN §1 names qorus-ide's brand purple as exactly this case) gets
-   * its own colour without this component knowing anything about it. It is only
+   * its own color without this component knowing anything about it. It is only
    * ever a fill or a bar, never applied to text: an intent used as text fails
    * contrast — a muted label measures 1.3:1.
    */

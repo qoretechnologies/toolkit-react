@@ -13,9 +13,9 @@ import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
 /**
- * qorus#646 (found by the IDE agent): a template or an expression on a colour option read "Set" in its
- * collapsed row. The row's colour branch came before its template and expression branches, and the colour
- * summary calls anything that is not a colour "Set". A template is the field it names and an expression
+ * qorus#646 (found by the IDE agent): a template or an expression on a color option read "Set" in its
+ * collapsed row. The row's color branch came before its template and expression branches, and the color
+ * summary calls anything that is not a color "Set". A template is the field it names and an expression
  * reads as DPQL, whatever the field's type: those checks come first, before any type draws its own value.
  * A file had the same order and the same "Set".
  */
@@ -79,7 +79,7 @@ describe.each(TYPES)('a %s option, read', (type) => {
     const { container } = renderRow(type, { type, value: '$record:{pos}' });
     const row = await readRow(container);
     // the template's chip names the field as the catalogue does; the type's own rendering printed
-    // "Set" (a colour) or the raw reference (a file)
+    // "Set" (a color) or the raw reference (a file)
     await waitFor(() => expect(row.textContent).toContain('Position'));
     expect(row.textContent).not.toContain('Set');
     expect(row.textContent).not.toContain('$record');
@@ -104,7 +104,7 @@ describe.each(TYPES)('a %s option, read', (type) => {
   });
 });
 
-describe('a colour, read', () => {
+describe('a color, read', () => {
   it('is still summarised as its hex code', () => {
     expect(
       formatOptionValue(
@@ -116,7 +116,7 @@ describe('a colour, read', () => {
     ).toBe('#FF0000');
   });
 
-  it('still shows its hex code on a wash of the colour in the collapsed row', async () => {
+  it('still shows its hex code on a wash of the color in the collapsed row', async () => {
     const { container } = renderRow('rgbcolor', {
       type: 'rgbcolor',
       value: { r: 255, g: 0, b: 0, a: 1 },

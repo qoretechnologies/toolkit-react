@@ -148,7 +148,7 @@ export interface ICompactRowContext {
   /** A collapsed row's summary drawn by the host, by `ui_type` (see `TReadSummary`). */
   readSummaries?: Record<string, TReadSummary>;
 
-  // Theme + theme-derived colours
+  // Theme + theme-derived colors
   theme: IReqoreTheme;
   cText: string;
   cMuted: string;

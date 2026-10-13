@@ -22,7 +22,7 @@ describe('Description markdown', () => {
     );
 
     // A backtick span marks an identifier, so it has to render as one. Mapping
-    // it to a ReqoreTag with an explicit near-white colour auto-contrasted the
+    // it to a ReqoreTag with an explicit near-white color auto-contrasted the
     // text to near-black: on a dark form, a description listing option keys
     // read as a row of glaring labels rather than as prose.
     const code = container.querySelectorAll('code');

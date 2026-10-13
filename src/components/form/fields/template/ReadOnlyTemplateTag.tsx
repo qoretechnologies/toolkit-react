@@ -24,7 +24,7 @@ export interface IReadOnlyTemplateTagProps {
  * tooltip, not the reference that names it, drawn by the host's markdown
  * renderer as the template list draws it, and opened by a tap on a touch
  * screen), the
- * app image when present, coloured by qorus-ide's scheme (info / qorus purple /
+ * app image when present, colored by qorus-ide's scheme (info / qorus purple /
  * success — see `getTemplateTagStyle`). Shared by `TemplateField`'s disabled
  * branch and the compact read-first row so a template reads identically wherever
  * it's shown non-editably.

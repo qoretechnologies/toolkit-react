@@ -353,14 +353,14 @@ describe('formatColorValue', () => {
 
   it('prefers rgba over an accompanying opaque hex when alpha is below 1', () => {
     // react-color emits both `hex` (opaque) and `{ r, g, b, a }`; a semi-
-    // transparent colour must render as rgba(), not the opaque hex.
+    // transparent color must render as rgba(), not the opaque hex.
     expect(formatColorValue({ hex: '#0000ff', r: 0, g: 0, b: 255, a: 0.5 })).toBe(
       'rgba(0, 0, 255, 0.5)'
     );
   });
 
-  it('returns undefined for unrecognisable colour values', () => {
-    expect(formatColorValue('not-a-colour')).toBeUndefined();
+  it('returns undefined for unrecognisable color values', () => {
+    expect(formatColorValue('not-a-color')).toBeUndefined();
     expect(formatColorValue({})).toBeUndefined();
     expect(formatColorValue(undefined)).toBeUndefined();
   });

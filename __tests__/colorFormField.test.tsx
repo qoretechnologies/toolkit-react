@@ -2,7 +2,7 @@
 /**
  * The `rgbcolor` field. It was react-color's Sketch picker, a function component that set its defaults with
  * `defaultProps`, which React 19 no longer applies to function components; it is now drawn from the
- * `@uiw` picker's parts, with the field's own preview, labelled inputs that take only what a colour can
+ * `@uiw` picker's parts, with the field's own preview, labelled inputs that take only what a color can
  * be, help and swatches.
  */
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
@@ -66,7 +66,7 @@ const typeAndLeave = (container: HTMLElement, name: TField, text: string) => {
   fireEvent.blur(input(container, name));
 };
 
-/** Where the colour bar's handle is, as a percentage of its width. */
+/** Where the color bar's handle is, as a percentage of its width. */
 const huePosition = (container: HTMLElement) =>
   parseFloat(
     Array.from(container.querySelectorAll<HTMLElement>('.reqraft-color-field-hue div')).find(
@@ -88,19 +88,19 @@ describe('ColorFormField', () => {
     expect(said.filter((message) => message.includes('defaultProps'))).toEqual([]);
   });
 
-  it('shows the stored colour in labelled inputs and in its preview', () => {
+  it('shows the stored color in labelled inputs and in its preview', () => {
     const { container, getByLabelText, getByRole } = renderField({ value: CORNFLOWER });
     expect(getByLabelText('Hex code')).toHaveProperty('value', '6495ED');
     expect(getByLabelText('Red')).toHaveProperty('value', '100');
     expect(getByLabelText('Green')).toHaveProperty('value', '149');
     expect(getByLabelText('Blue')).toHaveProperty('value', '237');
     expect(input(container, 'a')).toBeNull();
-    expect(getByRole('img', { name: 'Chosen colour: #6495ED' })).toBeTruthy();
+    expect(getByRole('img', { name: 'Chosen color: #6495ED' })).toBeTruthy();
   });
 
-  it('says it holds no colour yet when it holds none', () => {
+  it('says it holds no color yet when it holds none', () => {
     const { getByRole } = renderField({});
-    expect(getByRole('img', { name: 'No colour chosen yet' })).toBeTruthy();
+    expect(getByRole('img', { name: 'No color chosen yet' })).toBeTruthy();
   });
 
   it('takes its words from the host', () => {
@@ -112,7 +112,7 @@ describe('ColorFormField', () => {
     expect(getByRole('img', { name: 'Farbe #6495ED' })).toBeTruthy();
   });
 
-  it('stores the colour written as hex as red, green, blue and alpha', () => {
+  it('stores the color written as hex as red, green, blue and alpha', () => {
     const onChange = vi.fn();
     const { container } = renderField({ value: CORNFLOWER, onChange });
     fireEvent.change(input(container, 'hex'), { target: { value: 'DC3545' } });
@@ -157,14 +157,14 @@ describe('ColorFormField', () => {
     expect(onChange).toHaveBeenLastCalledWith({ r: 255, g: 136, b: 0, a: 1 });
   });
 
-  it('stores nothing for a hex code of another length, says why and shows the colour again', () => {
+  it('stores nothing for a hex code of another length, says why and shows the color again', () => {
     const onChange = vi.fn();
     const { container } = renderField({ value: CORNFLOWER, onChange });
     typeAndLeave(container, 'hex', '6495');
     expect(onChange).not.toHaveBeenCalled();
     expect(input(container, 'hex').value).toBe('6495ED');
     expect(problem(container)).toBe(
-      '6495 is not a colour: a hex code has six characters (or three, short for six).'
+      '6495 is not a color: a hex code has six characters (or three, short for six).'
     );
     typeAndLeave(container, 'hex', '');
     expect(problem(container)).toBe('Type a hex code: six characters, each 0–9 or A–F.');
@@ -247,7 +247,7 @@ describe('ColorFormField', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the opacity when a hex code or a swatch picks the colour', () => {
+  it('keeps the opacity when a hex code or a swatch picks the color', () => {
     const onChange = vi.fn();
     const { container } = renderField({
       value: { ...CORNFLOWER, a: 0.5 },
@@ -287,7 +287,7 @@ describe('ColorFormField', () => {
     expect(container.querySelector('.reqraft-color-field-alpha')).not.toBeNull();
   });
 
-  it('shows a colour stored as hex, bare or as { hex }', () => {
+  it('shows a color stored as hex, bare or as { hex }', () => {
     expect(input(renderField({ value: '#dc3545' as never }).container, 'hex').value).toBe('DC3545');
     expect(input(renderField({ value: { hex: '#6495ed' } as never }).container, 'hex').value).toBe(
       '6495ED'
@@ -307,7 +307,7 @@ describe('ColorFormField', () => {
     ).toBeNull();
   });
 
-  it('goes back to its starting colour when the value is cleared', () => {
+  it('goes back to its starting color when the value is cleared', () => {
     const { container, rerender } = renderField({});
     const starting = input(container, 'hex').value;
     rerender(
@@ -324,7 +324,7 @@ describe('ColorFormField', () => {
     expect(input(container, 'hex').value).toBe(starting);
   });
 
-  it('keeps the hue it was chosen from when the colour it sent comes back as a grey', () => {
+  it('keeps the hue it was chosen from when the color it sent comes back as a grey', () => {
     const onChange = vi.fn();
     // hue 210, saturation 2%: one step from grey on the saturation's arrow keys
     const { container } = renderControlled({ initial: { r: 125, g: 127, b: 130, a: 1 }, onChange });
@@ -341,7 +341,7 @@ describe('ColorFormField', () => {
     // the field now stores a grey, which has no hue of its own
     const stored = onChange.mock.lastCall![0];
     expect(stored.r === stored.g && stored.g === stored.b).toBe(true);
-    // and the colour bar stays where it was instead of jumping back to red
+    // and the color bar stays where it was instead of jumping back to red
     expect(huePosition(container)).toBeCloseTo(hue, 0);
   });
 
@@ -354,7 +354,7 @@ describe('ColorFormField', () => {
     expect(huePosition(container)).toBeCloseTo(hue, 0);
   });
 
-  it('stores nothing when the hue moves on a grey: the colour is the same', () => {
+  it('stores nothing when the hue moves on a grey: the color is the same', () => {
     const onChange = vi.fn();
     const { container } = renderField({ value: { r: 128, g: 128, b: 128, a: 1 }, onChange });
     const hue = container.querySelector<HTMLElement>('.reqraft-color-field-hue .w-color-interactive')!;
@@ -368,7 +368,7 @@ describe('ColorFormField', () => {
     expect(container.querySelector('.reqraft-color-field-help')).toBeNull();
     fireEvent.click(toggle);
     const help = container.querySelector('.reqraft-color-field-help')!;
-    expect(help.textContent).toContain('Hex code: the whole colour as six characters');
+    expect(help.textContent).toContain('Hex code: the whole color as six characters');
     expect(help.textContent).toContain('Red, Green, Blue');
     // no opacity offered, none explained
     expect(help.textContent).not.toContain('Opacity');
@@ -408,18 +408,18 @@ describe('colorToRgba', () => {
     expect(colorToRgba({ hex: '#fff' })).toEqual({ r: 255, g: 255, b: 255, a: 1 });
   });
 
-  it('brings a channel past its range into it, so it is a colour', () => {
+  it('brings a channel past its range into it, so it is a color', () => {
     expect(colorToRgba({ r: 300, g: -4, b: 12.6, a: 2 })).toEqual({ r: 255, g: 0, b: 13, a: 1 });
     expect(colorToRgba({ r: 1, g: 2, b: 3, a: 0.456 })).toEqual({ r: 1, g: 2, b: 3, a: 0.46 });
   });
 
-  it('is undefined for anything that is not a colour', () => {
+  it('is undefined for anything that is not a color', () => {
     expect(colorToRgba(undefined)).toBeUndefined();
     expect(colorToRgba(null)).toBeUndefined();
     expect(colorToRgba({})).toBeUndefined();
     expect(colorToRgba({ r: 1, g: 2 })).toBeUndefined();
     expect(colorToRgba({ r: '1', g: 2, b: 3 })).toBeUndefined();
-    expect(colorToRgba('not a colour')).toBeUndefined();
+    expect(colorToRgba('not a color')).toBeUndefined();
     expect(colorToRgba({ hex: 'zz' })).toBeUndefined();
   });
 });

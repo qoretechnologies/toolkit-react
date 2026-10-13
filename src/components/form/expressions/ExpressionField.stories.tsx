@@ -393,14 +393,14 @@ export const ViaFormEngineTextMode: Story = {
       },
       { timeout: 10000 }
     );
-    // …and highlighted: the server colours its own copy of the text, which it
+    // …and highlighted: the server colors its own copy of the text, which it
     // only holds if a value SET after mount reaches it as well as typing does.
     await waitFor(
       () => {
         const literal = Array.from(editable.querySelectorAll<HTMLElement>('span[style]')).find(
           (span) => span.textContent === '"John"' && !!span.style.color
         );
-        expect(literal, 'the seeded text is coloured by the server').toBeTruthy();
+        expect(literal, 'the seeded text is colored by the server').toBeTruthy();
       },
       { timeout: 10000 }
     );

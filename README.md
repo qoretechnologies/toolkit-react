@@ -150,7 +150,7 @@ client.disconnect();
 
 ### `ReqraftColorValue`
 
-A stored colour, read-only: a swatch painted the colour, beside the colour written out (`#6495ED`, or `rgba(255, 0, 0, 0.5)` when it is see-through), on a wash of the colour. A compact form row draws its colours with it, so a page and a form show a colour the same way.
+A stored color, read-only: a swatch painted the color, beside the color written out (`#6495ED`, or `rgba(255, 0, 0, 0.5)` when it is see-through), on a wash of the color. A compact form row draws its colors with it, so a page and a form show a color the same way.
 
 ```tsx
 import { ReqraftColorValue } from '@qoretechnologies/reqraft';
@@ -159,10 +159,10 @@ import { ReqraftColorValue } from '@qoretechnologies/reqraft';
 <ReqraftColorValue value={option.value} size='compact' />           // one-line summary (row, cell)
 ```
 
-- **Values:** `{ r, g, b }`, `{ r, g, b, a }` (as the colour field stores it), `{ hex }`, or a hex code of 3, 4, 6 or 8 digits, with or without its `#`. A channel past its range is brought into it, as the colour field does.
-- **A value that is not a colour** (`#zzz`, `red`, a channel that is not a number) draws no swatch: it says what the value is ("Not a colour: “#zzz”"). With no value it says "No colour".
+- **Values:** `{ r, g, b }`, `{ r, g, b, a }` (as the color field stores it), `{ hex }`, or a hex code of 3, 4, 6 or 8 digits, with or without its `#`. A channel past its range is brought into it, as the color field does.
+- **A value that is not a color** (`#zzz`, `red`, a channel that is not a number) draws no swatch: it says what the value is ("Not a color: “#zzz”"). With no value it says "No color".
 - **Sizes:** `normal` (default; a 20px swatch over a checkerboard, so transparency shows; the text wraps) and `compact` (a 12px swatch; one line ending in an ellipsis). `wrap` overrides the line behaviour.
-- **Accessible:** the colour is text (it reads, copies and is found like any text); the swatch is an image named for the colour ("Colour #6495ED").
+- **Accessible:** the color is text (it reads, copies and is found like any text); the swatch is an image named for the color ("Color #6495ED").
 - **Words:** `labels` replaces any of `swatch(color)`, `invalid(shown)` and `empty` for a host that translates its interface.
 
 `describeColorValue(value)` is the reader on its own: `{ kind: 'color', text, css }`, `{ kind: 'invalid', shown }` or `{ kind: 'empty' }`.

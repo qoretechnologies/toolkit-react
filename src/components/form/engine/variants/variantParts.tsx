@@ -285,7 +285,7 @@ export const ComplexPreview = ({ value, onOpen }: { value: unknown; onOpen?: () 
 
 /** Inline editor: mounts the REAL field editor (AutoFormField) for the row's
  *  schema + value, so clicking a field edits it for real (string, number, bool,
- *  colour, file, richtext, list, date, …). Local state only — the prototype
+ *  color, file, richtext, list, date, …). Local state only — the prototype
  *  doesn't persist; in the engine this flows through handleValueChange. */
 export const InlineEdit = ({ row, onDone }: { row: IVariantRow; onDone: () => void }) => {
   const [value, setValue] = React.useState(row.field?.value);

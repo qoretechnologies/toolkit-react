@@ -31,7 +31,7 @@ import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 import { defaultMarkdownRenderer } from '../markdown/MarkdownView';
 
-/** The colour an `rgbcolor` field stores: red, green and blue from 0 to 255, alpha from 0 to 1. */
+/** The color an `rgbcolor` field stores: red, green and blue from 0 to 255, alpha from 0 to 1. */
 export interface IColorFormFieldValue {
   r: number;
   g: number;
@@ -39,11 +39,11 @@ export interface IColorFormFieldValue {
   a?: number;
 }
 
-/** A colour offered as a swatch: a hex colour, or one with a name to read it by. */
+/** A color offered as a swatch: a hex color, or one with a name to read it by. */
 export type TColorPreset = string | { color: string; title?: string };
 
 /**
- * The words of the colour field. A host that translates its interface passes its own; English where it
+ * The words of the color field. A host that translates its interface passes its own; English where it
  * does not. A text that holds a value is a function of it, so a host keeps its language's word order.
  */
 export interface IColorFormFieldLabels {
@@ -52,12 +52,12 @@ export interface IColorFormFieldLabels {
   green: string;
   blue: string;
   opacity: string;
-  /** The square in which the colour's strength and brightness are chosen. */
+  /** The square in which the color's strength and brightness are chosen. */
   area: string;
   hue: string;
-  /** What the preview says of the colour, for a screen reader. */
+  /** What the preview says of the color, for a screen reader. */
   preview: (hex: string, opacityPercent: number) => string;
-  /** What the preview says when the field holds no colour yet. */
+  /** What the preview says when the field holds no color yet. */
   noColor: string;
   /** The button that shows and hides what the controls mean. */
   help: string;
@@ -69,7 +69,7 @@ export interface IColorFormFieldLabels {
   helpHex: string;
   helpChannels: string;
   helpOpacity: string;
-  /** A swatch's name, for a screen reader: the colour it picks. */
+  /** A swatch's name, for a screen reader: the color it picks. */
   swatch: (title: string) => string;
   /** Characters typed into a hex code that cannot be in one. */
   notHex: (characters: string) => string;
@@ -106,32 +106,32 @@ export const DEFAULT_COLOR_FORM_FIELD_LABELS: IColorFormFieldLabels = {
   blue: 'Blue',
   opacity: 'Opacity %',
   area: 'Strength and brightness',
-  hue: 'Colour',
+  hue: 'Color',
   preview: (hex, opacity) =>
-    opacity === 100 ? `Chosen colour: ${hex}` : `Chosen colour: ${hex}, ${opacity}% opaque`,
-  noColor: 'No colour chosen yet',
+    opacity === 100 ? `Chosen color: ${hex}` : `Chosen color: ${hex}, ${opacity}% opaque`,
+  noColor: 'No color chosen yet',
   help: 'What do these mean?',
   helpArea:
-    'The square sets how strong the colour is (left to right) and how bright (bottom to top); the rainbow bar under it sets the colour itself.',
+    'The square sets how strong the color is (left to right) and how bright (bottom to top); the rainbow bar under it sets the color itself.',
   helpHex:
-    'Hex code: the whole colour as six characters, each 0–9 or A–F, two each for red, green and blue: `6495ED` is cornflower blue. Three characters are short for six: `F80` is `FF8800`.',
+    'Hex code: the whole color as six characters, each 0–9 or A–F, two each for red, green and blue: `6495ED` is cornflower blue. Three characters are short for six: `F80` is `FF8800`.',
   helpChannels:
-    'Red, Green, Blue: how much red, green and blue light make the colour, each from `0` (none) to `255` (all). `0, 0, 0` is black and `255, 255, 255` is white.',
+    'Red, Green, Blue: how much red, green and blue light make the color, each from `0` (none) to `255` (all). `0, 0, 0` is black and `255, 255, 255` is white.',
   helpOpacity:
-    'Opacity: how solid the colour is, from `0%` (you see through it) to `100%` (solid). The squares behind the preview show through a colour that is not solid.',
+    'Opacity: how solid the color is, from `0%` (you see through it) to `100%` (solid). The squares behind the preview show through a color that is not solid.',
   swatch: (title) => `Use ${title}`,
   notHex: (chars) =>
     `${characters(chars)} cannot be in a hex code: use the digits 0–9 and the letters A–F.`,
   notDigits: (chars, field) => `${characters(chars)} cannot be in ${field}: type a whole number.`,
   hexTooLong: 'A hex code has six characters.',
   hexLength: (text) =>
-    `${code(text)} is not a colour: a hex code has six characters (or three, short for six).`,
+    `${code(text)} is not a color: a hex code has six characters (or three, short for six).`,
   hexEmpty: 'Type a hex code: six characters, each 0–9 or A–F.',
   outOfRange: (field, max) => `${field} goes from \`0\` to \`${max}\`.`,
   empty: (field, max) => `${field} needs a whole number from \`0\` to \`${max}\`.`,
 };
 
-/** The colours offered as swatches when a host offers none of its own. */
+/** The colors offered as swatches when a host offers none of its own. */
 export const DEFAULT_COLOR_PRESETS: TColorPreset[] = [
   '#D0021B',
   '#F5A623',
@@ -165,7 +165,7 @@ export interface IColorFormFieldProps {
 }
 
 /**
- * What the picker shows while the field holds no colour: a starting colour. A constant, so clearing the
+ * What the picker shows while the field holds no color: a starting color. A constant, so clearing the
  * value moves the picker back to it, and an empty field does not reset it on every render.
  */
 const NO_COLOR: HsvaColor = { h: 209, s: 36, v: 90, a: 1 };
@@ -175,7 +175,7 @@ const isChannel = (n: unknown): n is number => typeof n === 'number' && Number.i
 const clamp = (n: number, min: number, max: number): number => Math.min(max, Math.max(min, n));
 
 /**
- * A colour as it may be stored: red, green and blue whole numbers from 0 to 255, and the alpha from 0 to 1
+ * A color as it may be stored: red, green and blue whole numbers from 0 to 255, and the alpha from 0 to 1
  * in hundredths, which is what the opacity field shows. Nothing past these is ever stored.
  */
 const toStoredColor = ({ r, g, b, a }: RgbaColor): Required<IColorFormFieldValue> => ({
@@ -186,9 +186,9 @@ const toStoredColor = ({ r, g, b, a }: RgbaColor): Required<IColorFormFieldValue
 });
 
 /**
- * A stored colour as red, green, blue and alpha: `{ r, g, b, a? }` as the field stores it, or a hex colour,
+ * A stored color as red, green, blue and alpha: `{ r, g, b, a? }` as the field stores it, or a hex color,
  * bare or as `{ hex }`, as a value written by hand or by another client can be. Undefined when it is none
- * of these. A channel past its range is brought into it, so what is shown, and stored from it, is a colour.
+ * of these. A channel past its range is brought into it, so what is shown, and stored from it, is a color.
  */
 export const colorToRgba = (value: unknown): RgbaColor | undefined => {
   if (typeof value === 'string') {
@@ -217,7 +217,7 @@ export const TAP_TARGET_PX = 44;
 
 /** The sizes of the picker's parts, for a mouse and for a finger. */
 const sizesFor = (coarse: boolean) => ({
-  /** The colour square's height. */
+  /** The color square's height. */
   area: coarse ? 160 : 100,
   /** A slider's visible bar. */
   track: coarse ? 28 : 12,
@@ -234,7 +234,7 @@ type TField = 'hex' | TChannel;
 
 const CHANNEL_MAX: Record<TChannel, number> = { r: 255, g: 255, b: 255, a: 100 };
 
-/** What the field shows in each input for a colour. */
+/** What the field shows in each input for a color. */
 const fieldTexts = (color: RgbaColor): Record<TField, string> => ({
   hex: hexOf(color),
   r: String(color.r),
@@ -341,7 +341,7 @@ const StyledPreview = styled.div<{ $size: number; $text: string; $color?: string
           background: ${$color};
         `
       : css`
-          /* no colour yet: struck through */
+          /* no color yet: struck through */
           background: linear-gradient(
             to top right,
             transparent calc(50% - 1.5px),
@@ -478,22 +478,22 @@ const StyledSwatch = styled.button<{ $size: number; $color: string; $text: strin
 interface IFieldProblem {
   field: TField;
   message: string;
-  /** The text in the field is not a colour while it says so; once put back, only the message stays. */
+  /** The text in the field is not a color while it says so; once put back, only the message stays. */
   invalid: boolean;
 }
 
 /**
- * The `rgbcolor` field: a colour picker that stores `{ r, g, b, a }`.
+ * The `rgbcolor` field: a color picker that stores `{ r, g, b, a }`.
  *
- * It is drawn from the `@uiw` picker's parts - the colour square, the hue bar and the opacity bar - and
- * around them the field's own: a preview of the colour, its hex code and its red, green, blue (and
- * opacity) as labelled inputs that take only what a colour can be, a "What do these mean?" help, and
+ * It is drawn from the `@uiw` picker's parts - the color square, the hue bar and the opacity bar - and
+ * around them the field's own: a preview of the color, its hex code and its red, green, blue (and
+ * opacity) as labelled inputs that take only what a color can be, a "What do these mean?" help, and
  * swatches. On a touch screen every target is a finger's size.
  *
- * The picker works in hue, saturation and value, and a stored colour is red, green and blue. A colour the
+ * The picker works in hue, saturation and value, and a stored color is red, green and blue. A color the
  * picker sent comes back as the field's value, and turned back into hue it can lose what the picker had:
- * a grey has no hue, so moving the saturation to a grey would throw the hue bar back to red. So the colour
- * the picker last showed is kept with the colour it sent, and only a value that changed somewhere else is
+ * a grey has no hue, so moving the saturation to a grey would throw the hue bar back to red. So the color
+ * the picker last showed is kept with the color it sent, and only a value that changed somewhere else is
  * converted.
  */
 export const ColorFormField = ({
@@ -519,9 +519,9 @@ export const ColorFormField = ({
 
   const stored = colorToRgba(value);
   const { r, g, b, a } = stored ?? {};
-  /** What the picker last showed after a move of its own, and the colour it sent for it. */
+  /** What the picker last showed after a move of its own, and the color it sent for it. */
   const [picked, setPicked] = useState<{ rgba: RgbaColor; hsva: HsvaColor }>();
-  /** Text typed into an input that is not (yet) the colour: what the input shows instead of the colour. */
+  /** Text typed into an input that is not (yet) the color: what the input shows instead of the color. */
   const [drafts, setDrafts] = useState<Partial<Record<TField, string>>>({});
   const [problem, setProblem] = useState<IFieldProblem>();
   const [helpOpen, setHelpOpen] = useState(false);
@@ -536,7 +536,7 @@ export const ColorFormField = ({
     return picked && sameRgba(picked.rgba, rgbaValue) ? picked.hsva : rgbaToHsva(rgbaValue);
   }, [r, g, b, a, picked]);
 
-  /** The colour the inputs show: the stored one, or the picker's starting colour. */
+  /** The color the inputs show: the stored one, or the picker's starting color. */
   const current: RgbaColor = useMemo(
     () => (stored ? { r: stored.r, g: stored.g, b: stored.b, a: stored.a } : hsvaToRgba(NO_COLOR)),
     [r, g, b, a]
@@ -563,8 +563,8 @@ export const ColorFormField = ({
   });
 
   /**
-   * Store a colour. `hsva` is how the picker showed it, when the picker made it: kept, so a grey keeps its
-   * hue. A colour typed in keeps the hue (and for black the strength) it cannot say.
+   * Store a color. `hsva` is how the picker showed it, when the picker made it: kept, so a grey keeps its
+   * hue. A color typed in keeps the hue (and for black the strength) it cannot say.
    */
   const store = useCallback(
     (next: RgbaColor, hsva?: HsvaColor) => {
@@ -582,7 +582,7 @@ export const ColorFormField = ({
           : showAs;
       }
       setPicked({ rgba: color, hsva: { ...showAs, a: color.a } });
-      // A hue moved on a grey is the same colour: nothing to store.
+      // A hue moved on a grey is the same color: nothing to store.
       if (stored && sameRgba(stored, color)) {
         return;
       }
@@ -614,7 +614,7 @@ export const ColorFormField = ({
     : name === 'b' ? words.blue
     : words.opacity.replace(/\s*%$/, '');
 
-  /** The colour with one input's number in it. */
+  /** The color with one input's number in it. */
   const withChannel = (name: TChannel, n: number): RgbaColor =>
     name === 'a' ? { ...current, a: n / 100 } : { ...current, [name]: n };
 
@@ -639,7 +639,7 @@ export const ColorFormField = ({
     }
 
     if (name === 'hex') {
-      // Six characters are a colour as they are typed; three may be the start of six, so they are one
+      // Six characters are a color as they are typed; three may be the start of six, so they are one
       // when the field is left (see `committed`).
       if (kept.length === 6) {
         store({ ...hexToRgba(`#${kept}`), a: current.a });
@@ -663,7 +663,7 @@ export const ColorFormField = ({
     setProblem(message ? { field: name, message, invalid: false } : undefined);
   };
 
-  /** The field was left, or Enter pressed in it: what it holds is a colour, or it shows the colour again. */
+  /** The field was left, or Enter pressed in it: what it holds is a color, or it shows the color again. */
   const committed = (name: TField) => {
     const draft = drafts[name];
     if (draft === undefined) {
@@ -899,7 +899,7 @@ export const ColorFormField = ({
                   if (rgbaColor) {
                     setDrafts({});
                     setProblem(undefined);
-                    // a swatch is a colour: the opacity stays as it was
+                    // a swatch is a color: the opacity stays as it was
                     store({ ...rgbaColor, a: current.a });
                   }
                 }}

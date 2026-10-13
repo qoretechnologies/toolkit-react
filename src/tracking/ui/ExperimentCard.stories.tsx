@@ -90,7 +90,7 @@ const runningTwo: Story = {
     await expect(row(canvasElement, 'b').dataset.highlight).toBe('winner');
     await expect(c.getAllByText('Show analytics')).toHaveLength(2);
     await expect(c.queryByText('Shown')).toBeNull();
-    // The shown version is marked by its colour and for assistive tech.
+    // The shown version is marked by its color and for assistive tech.
     await expect(row(canvasElement, 'a').getAttribute('aria-current')).toBe('true');
     await expect(
       c.getByText(/1,228 visitors · 11.3% “Started a sign-up” · 91% chance to beat the original/)
@@ -182,7 +182,7 @@ const concluded: Story = {
   },
 };
 const CONCLUDED_TEXT =
-  'Renders an ended test whose winner (Short copy) is live: the "Ended" tag, the final verdict, the winner first with a "Winner" tag, the winner\'s glow and the blue shown colour, "Show analytics" on every version, and no lifecycle buttons; Accept and Remove are disabled.';
+  'Renders an ended test whose winner (Short copy) is live: the "Ended" tag, the final verdict, the winner first with a "Winner" tag, the winner\'s glow and the blue shown color, "Show analytics" on every version, and no lifecycle buttons; Accept and Remove are disabled.';
 export const Concluded = variant(concluded, CONCLUDED_TEXT, 'Dark');
 export const ConcludedLight = variant(concluded, CONCLUDED_TEXT, 'Light');
 export const ConcludedPhone = variant(concluded, CONCLUDED_TEXT, 'Phone');

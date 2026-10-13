@@ -303,7 +303,7 @@ export const CompactRow = memo(
     // A markdown value renders as a document in the row's inset; the host's
     // renderer when it supplied one, reqraft's own otherwise.
 
-    // Value-cell content: colour adds a swatch, file an icon + size; hash keeps
+    // Value-cell content: color adds a swatch, file an icon + size; hash keeps
     // its "N fields" summary (sub-fields reveal beneath the row).
     const renderReadFirstValue = (
       field: IQorusFormField,
@@ -389,8 +389,8 @@ export const CompactRow = memo(
       const templateGrammar = (schema as TFieldWithOwnTemplates | undefined)?.templateToken;
 
       /* A template or an expression is shown as one, whatever the field's type, so these two come before
-         any type draws a value of its own (qorus#646). A colour's branch came first and called a template
-         or an expression on a colour option "Set"; a file's printed the raw reference as a file name. */
+         any type draws a value of its own (qorus#646). A color's branch came first and called a template
+         or an expression on a color option "Set"; a file's printed the raw reference as a file name. */
       if (
         typeof field?.value === 'string' &&
         !isExpression &&
@@ -401,7 +401,7 @@ export const CompactRow = memo(
 
       // An expression reads as DPQL wherever it is shown without being edited:
       // the same rendering its Explain panel and Preview use — monospace,
-      // coloured by the language server, template references as chips — so a
+      // colored by the language server, template references as chips — so a
       // collapsed row and the editor it opens never disagree about what the
       // value looks like. See `DpqlRendering`. In either shape the editor stores
       // it: the flag on the option, or the envelope nested in its value as a
@@ -414,7 +414,7 @@ export const CompactRow = memo(
         );
       }
 
-      // a colour reads as ReqraftColorValue draws one, at its one-line size; a sensitive one is not shown
+      // a color reads as ReqraftColorValue draws one, at its one-line size; a sensitive one is not shown
       if (valueType === 'rgbcolor' && !(schema as { sensitive?: boolean } | undefined)?.sensitive) {
         return <ReqraftColorValue value={field?.value} size='compact' wrap={full} />;
       }
@@ -459,7 +459,7 @@ export const CompactRow = memo(
       // only surface still printing them as prose.
       //
       // `intent` is a FILL, which is what a tag is — the hazard the other
-      // branches warn about is only ever using an intent as a TEXT colour.
+      // branches warn about is only ever using an intent as a TEXT color.
       //
       // Falls through to the plain summary unless EVERY entry yields a name: a
       // partly-chipped row would read as though the unnamed cases were missing.
@@ -1239,7 +1239,7 @@ export const CompactRow = memo(
         }).map((m) => ({ intent: m.intent as string, content: String(m.label) }))
       : [];
     // TWO display channels, matching the Focus prototype:
-    //  • dedicated schema `messages` → prominent coloured PANELS below the row;
+    //  • dedicated schema `messages` → prominent colored PANELS below the row;
     //  • everything else (validation reasons, the unmet-dependency hint, the
     //    default-value note) → a compact INLINE reason strip — not a panel.
     const panelMessages = schemaMessages;
@@ -2473,7 +2473,7 @@ export const CompactRow = memo(
                         // lives (qorus-ide registers its brand purple there).
                         // Falling back to `info` keeps this working for a
                         // consumer that registers nothing — the heading is
-                        // accented either way, just in the theme's own colour
+                        // accented either way, just in the theme's own color
                         // rather than one this library picked.
                         accent:
                           (theme?.intents as Record<string, string> | undefined)?.custom1 || cInfo,

@@ -1,18 +1,18 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// What a stored colour is: the one reader for every read-only view of a colour (qorus#646).
+// What a stored color is: the one reader for every read-only view of a color (qorus#646).
 //
-// A colour reaches a page in the shapes it is stored in - `{ r, g, b }` or `{ r, g, b, a }` as the colour
+// A color reaches a page in the shapes it is stored in - `{ r, g, b }` or `{ r, g, b, a }` as the color
 // field stores it (with a `hex` beside them when react-color wrote it), `{ hex }`, or a hex code, with or
 // without its `#`, as a value written by hand or by another client can be. `ReqraftColorValue` draws what
-// this reads, and a compact form row summarises a colour with it, so the two never disagree.
+// this reads, and a compact form row summarises a color with it, so the two never disagree.
 
-/** What a stored value is, as a colour. */
+/** What a stored value is, as a color. */
 export type TReqraftColorValueDescription =
-  /** A colour: `text` is how it is written (`#6495ED`, or `rgba(…)` when it is see-through), `css` paints it. */
+  /** A color: `text` is how it is written (`#6495ED`, or `rgba(…)` when it is see-through), `css` paints it. */
   | { kind: 'color'; text: string; css: string }
-  /** No colour: nothing, an empty string or an empty hash. */
+  /** No color: nothing, an empty string or an empty hash. */
   | { kind: 'empty' }
-  /** A value that is not a colour; `shown` is the value as text (a string in quotes), to say what it is. */
+  /** A value that is not a color; `shown` is the value as text (a string in quotes), to say what it is. */
   | { kind: 'invalid'; shown: string };
 
 /** A hex code as CSS takes one: 3, 4, 6 or 8 hex digits (the last digit or pair is the alpha). */
@@ -33,7 +33,7 @@ interface IParsedColor {
 
 const isFiniteNumber = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
 
-/** A channel brought into its range, as a whole number: the colour field does the same. */
+/** A channel brought into its range, as a whole number: the color field does the same. */
 const clampChannel = (n: number): number => Math.max(0, Math.min(255, Math.round(n)));
 
 const clampAlpha = (n: number): number => Math.max(0, Math.min(1, n));
@@ -62,7 +62,7 @@ const isEmpty = (value: unknown): boolean =>
   (typeof value === 'string' && value.trim() === '') ||
   (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0);
 
-/** A stored colour's parts, or undefined when the value is not a colour. */
+/** A stored color's parts, or undefined when the value is not a color. */
 const parseColor = (value: unknown): IParsedColor | undefined => {
   if (typeof value === 'string') {
     const hex = hexCode(value);
@@ -76,7 +76,7 @@ const parseColor = (value: unknown): IParsedColor | undefined => {
       a?: unknown;
       hex?: unknown;
     };
-    // an alpha that is given is a number, or this is not a colour (null is an alpha not given)
+    // an alpha that is given is a number, or this is not a color (null is an alpha not given)
     if (a !== undefined && a !== null && !isFiniteNumber(a)) {
       return undefined;
     }
@@ -92,7 +92,7 @@ const parseColor = (value: unknown): IParsedColor | undefined => {
   return undefined;
 };
 
-/** A value that is not a colour, as text: a string in quotes, anything else as JSON, cut when long. */
+/** A value that is not a color, as text: a string in quotes, anything else as JSON, cut when long. */
 const showValue = (value: unknown): string => {
   let shown: string;
   if (typeof value === 'string') {
@@ -109,10 +109,10 @@ const showValue = (value: unknown): string => {
 };
 
 /**
- * What a stored value is, as a colour: a colour (how it is written, and how CSS paints it), no colour, or
- * a value that is not a colour (shown as it is). A channel past its range is brought into it, as the colour
+ * What a stored value is, as a color: a color (how it is written, and how CSS paints it), no color, or
+ * a value that is not a color (shown as it is). A channel past its range is brought into it, as the color
  * field does; a channel that is not a finite number, a hex code that is not one (`#zzz`, seven digits) or
- * a colour name is not a colour.
+ * a color name is not a color.
  */
 export const describeColorValue = (value: unknown): TReqraftColorValueDescription => {
   if (isEmpty(value)) {
@@ -127,7 +127,7 @@ export const describeColorValue = (value: unknown): TReqraftColorValueDescriptio
     const alpha = Math.round(c.a * 100) / 100;
     return {
       kind: 'color',
-      // rgba(…) for a see-through colour: the hex shortcut would drop its alpha
+      // rgba(…) for a see-through color: the hex shortcut would drop its alpha
       text:
         c.a < 1 ?
           `rgba(${r}, ${g}, ${b}, ${alpha})`
@@ -138,13 +138,13 @@ export const describeColorValue = (value: unknown): TReqraftColorValueDescriptio
   return { kind: 'color', text: c.hex!.toUpperCase(), css: c.hex! };
 };
 
-/** How a colour is written (`#0000FF`, or `rgba(…)` when see-through); undefined when the value is none. */
+/** How a color is written (`#0000FF`, or `rgba(…)` when see-through); undefined when the value is none. */
 export const formatColorValue = (value: unknown): string | undefined => {
   const description = describeColorValue(value);
   return description.kind === 'color' ? description.text : undefined;
 };
 
-/** The CSS colour a swatch is painted (alpha kept); undefined when the value is none. */
+/** The CSS color a swatch is painted (alpha kept); undefined when the value is none. */
 export const colorToCss = (value: unknown): string | undefined => {
   const description = describeColorValue(value);
   return description.kind === 'color' ? description.css : undefined;

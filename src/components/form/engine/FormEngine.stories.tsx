@@ -2380,7 +2380,7 @@ export const CompactConditionalMessage: Story = {
     docs: {
       description: {
         story:
-          "A schema `messages` entry carrying `when` / `unless` appears only while the condition holds against the form's current values, using the same grammar as `depends_on`. Here the warning on `permissions` is declared `when: ['allow_anonymous=true']`, so it is absent until the exemption is switched on. A warning about a COMBINATION cannot be static: an always-on warning sitting over a valid configuration is one people learn to scroll past, so it is not there when it finally means something. The filter is applied everywhere the messages are read — including the read-first status — so a hidden message cannot colour a row or inflate the attention count.",
+          "A schema `messages` entry carrying `when` / `unless` appears only while the condition holds against the form's current values, using the same grammar as `depends_on`. Here the warning on `permissions` is declared `when: ['allow_anonymous=true']`, so it is absent until the exemption is switched on. A warning about a COMBINATION cannot be static: an always-on warning sitting over a valid configuration is one people learn to scroll past, so it is not there when it finally means something. The filter is applied everywhere the messages are read — including the read-first status — so a hidden message cannot color a row or inflate the attention count.",
       },
     },
   },
@@ -3285,7 +3285,7 @@ export const CompactBasic: Story = {
     docs: {
       description: {
         story:
-          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colours as hex, hashes as field-count summaries), disabled and dependency-locked rows stay non-interactive, and the dependency lock's popover navigates to blockers. The play scrolls the richtext editor into view to type into it, so the captured frame sits mid-form.",
+          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colors as hex, hashes as field-count summaries), disabled and dependency-locked rows stay non-interactive, and the dependency lock's popover navigates to blockers. The play scrolls the richtext editor into view to type into it, so the captured frame sits mid-form.",
       },
     },
     chromatic: { disable: true },
@@ -3305,7 +3305,7 @@ export const CompactBasic: Story = {
     // the collapsed Optional box — open it so they're on screen.
     await _expandOptionalBox();
     // Values resolve in read-first rows: a template shows its display name (from
-    // the supplied templates list), colour as hex, hash as a field-count summary.
+    // the supplied templates list), color as hex, hash as a field-count summary.
     await _testsWaitForText('Test (local)');
     await _testsWaitForText('#0000FF');
     await _testsWaitForText('Selected option'); // multilevel hash option
@@ -3701,7 +3701,7 @@ export const CompactReadOnlyValues: Story = {
 };
 
 // A raw (NON-envelope) order-style payload, contrasting the fixture's
-// envelope-encoded hashes: no LIST chips, JS-type colouring, opaque YAML string.
+// envelope-encoded hashes: no LIST chips, JS-type coloring, opaque YAML string.
 const ORDER_STATE_SAMPLE = {
   stage: 'enriching',
   retries: 3,
@@ -5152,7 +5152,7 @@ const FieldTypeCatalogGroups: Record<string, IFormEngineGroup> = {
   number: { label: 'Numbers', sort: 1 },
   choice: { label: 'Choice & toggles', sort: 2 },
   structured: { label: 'Structured (list / hash)', sort: 3 },
-  visual: { label: 'Colour & file', sort: 4 },
+  visual: { label: 'Color & file', sort: 4 },
   special: { label: 'Any & special', sort: 5 },
   interface: { label: 'Interface references', sort: 6 },
   chrome: { label: 'Field chrome (icon / image / intent / badge / actions / tags)', sort: 7 },
@@ -5593,7 +5593,7 @@ export const CompactFieldTypes: Story = {
     docs: {
       description: {
         story:
-          "Renders a compact form that exercises the full catalogue of ui_type renderers — every type (string, richtext, hash, list, file, colour, byte-size, cron, connection, enum, etc.) is present with a representative value. The play leaves the `String` row expanded with its editor focused; the form leaves scrolling to its host (`compactScroll` defaults to `'host'`), so that focus scrolls the page — the captured frame sits mid-form with the toolbar pinned over the rows, not at the top of the form.",
+          "Renders a compact form that exercises the full catalogue of ui_type renderers — every type (string, richtext, hash, list, file, color, byte-size, cron, connection, enum, etc.) is present with a representative value. The play leaves the `String` row expanded with its editor focused; the form leaves scrolling to its host (`compactScroll` defaults to `'host'`), so that focus scrolls the page — the captured frame sits mid-form with the toolbar pinned over the rows, not at the top of the form.",
       },
     },
   },
@@ -5733,12 +5733,12 @@ export const CompactFieldTypes: Story = {
         display_name: 'Hash (many fields)',
         group: 'structured',
       },
-      // Colour & file
-      colour: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Colour', group: 'visual' },
+      // Color & file
+      colour: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Color', group: 'visual' },
       tint: {
         type: 'rgbcolor',
         ui_type: 'rgbcolor',
-        display_name: 'Colour (with alpha)',
+        display_name: 'Color (with alpha)',
         group: 'visual',
       },
       upload: { type: 'file', ui_type: 'file', display_name: 'File', group: 'visual' },
@@ -5961,7 +5961,7 @@ export const CompactFieldTypes: Story = {
           backoff: 'expo',
         },
       },
-      // Colour & file
+      // Color & file
       colour: { type: 'rgbcolor', value: { r: 0, g: 0, b: 255, a: 1 } },
       tint: { type: 'rgbcolor', value: { r: 255, g: 0, b: 0, a: 0.5 } },
       upload: { type: 'file', value: { name: 'config.txt', size: 1234, content: 'data' } },
@@ -6008,7 +6008,7 @@ export const CompactFieldTypes: Story = {
   play: async () => {
     // Each type renders a read-first value (no editor mounted yet). Representative
     // assertions across the display behaviours: scalars, Yes/No, allowed-value
-    // labels, list joins, richtext flattening, colour hex/rgba, filename, and
+    // labels, list joins, richtext flattening, color hex/rgba, filename, and
     // the hash "N fields" summary.
     await _testsWaitForText('hello'); // string
     await _testsWaitForText('$config:billing_url'); // templated string
@@ -6025,8 +6025,8 @@ export const CompactFieldTypes: Story = {
     await _testsWaitForText('Orders, Batch');
     await _testsWaitForText('a, b'); // list joined
     await _testsWaitForText('x, y, z'); // YAML-serialized list summarised
-    await _testsWaitForText('#0000FF'); // colour → uppercase hex
-    await _testsWaitForText('rgba(255, 0, 0, 0.5)'); // colour with alpha → rgba()
+    await _testsWaitForText('#0000FF'); // color → uppercase hex
+    await _testsWaitForText('rgba(255, 0, 0, 0.5)'); // color with alpha → rgba()
     await _testsWaitForText('config.txt'); // file → filename
     // A hash the schema DESCRIBES needs no count: its preview names every field,
     // so "3 fields" above "Host / Port / Secure" would be the same fact twice.
@@ -6165,7 +6165,7 @@ const _compactExpandAllRows = async () => {
   await expect(editors).toBeGreaterThan(40);
 };
 
-/** The colours of `CompactColourRows`, in each shape the form takes a colour in. */
+/** The colors of `CompactColourRows`, in each shape the form takes a color in. */
 const COMPACT_COLOUR_VALUES = {
   colour: { r: 100, g: 149, b: 237, a: 1 },
   noOpacity: { r: 46, g: 125, b: 50 },
@@ -6174,21 +6174,21 @@ const COMPACT_COLOUR_VALUES = {
   shortHex: { hex: '#f80' },
 };
 
-export const CompactColourRows: Story = {
+export const CompactColorRows: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a compact form of five colours, in each shape the form takes a colour in: { r, g, b, a } (cornflower blue, #6495ED), { r, g, b } (#2E7D32), a see-through { r, g, b, a } (rgba(255, 0, 0, 0.5)), { hex } (#7B1FA2) and a three-digit { hex } (#F80). Each row draws its colour as ReqraftColorValue does at its compact size: a 12px swatch beside the colour written out, on a wash of the colour, the swatch named for it.',
+          'Renders a compact form of five colors, in each shape the form takes a color in: { r, g, b, a } (cornflower blue, #6495ED), { r, g, b } (#2E7D32), a see-through { r, g, b, a } (rgba(255, 0, 0, 0.5)), { hex } (#7B1FA2) and a three-digit { hex } (#F80). Each row draws its color as ReqraftColorValue does at its compact size: a 12px swatch beside the color written out, on a wash of the color, the swatch named for it.',
       },
     },
   },
   args: {
     compact: true,
     options: {
-      colour: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Colour' },
-      noOpacity: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Colour without opacity' },
-      seeThrough: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'See-through colour' },
+      colour: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Color' },
+      noOpacity: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Color without opacity' },
+      seeThrough: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'See-through color' },
       hexObject: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Hex code' },
       shortHex: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Three-digit hex code' },
     },
@@ -6216,10 +6216,10 @@ export const CompactColourRows: Story = {
     for (const colour of colours) {
       await expect(colour).toHaveAttribute('data-size', 'compact');
       const swatch = colour.querySelector<HTMLElement>('[role="img"]')!;
-      await expect(swatch).toHaveAccessibleName(`Colour ${colour.getAttribute('data-color')}`);
+      await expect(swatch).toHaveAccessibleName(`Color ${colour.getAttribute('data-color')}`);
       await expect(swatch.getBoundingClientRect().width).toBe(12);
     }
-    // every colour is one the form takes: none needs attention
+    // every color is one the form takes: none needs attention
     await expect(canvasElement.textContent).not.toContain('RGB color is invalid');
   },
 };
@@ -8841,8 +8841,8 @@ export const CompactMaxFieldsShown: Story = {
     expect(more.getAttribute('aria-expanded')).toBe('false');
 
     // The dashed edge is the thing that says "not a field". Asserting the
-    // COMPUTED style, because the first cut of this took its colour from the
-    // inter-row divider tint (~8% of the text colour) and rendered an invisible
+    // COMPUTED style, because the first cut of this took its color from the
+    // inter-row divider tint (~8% of the text color) and rendered an invisible
     // border — the rule was there, the affordance was not.
     const edge = getComputedStyle(more);
     expect(edge.borderStyle).toBe('dashed');
@@ -10658,7 +10658,7 @@ export const ListsLookAndBehaveAlike: Story = {
     docs: {
       description: {
         story:
-          "Renders the form and opens Note: a click in its text opens the list its templates are browsed in, and `$` typed in Computed's Text view the completion list. The two are one family (David's review): the same colour and row font, the focus left in the text, the arrow keys moving through the rows, and Escape putting the list away and nothing else.",
+          "Renders the form and opens Note: a click in its text opens the list its templates are browsed in, and `$` typed in Computed's Text view the completion list. The two are one family (David's review): the same color and row font, the focus left in the text, the arrow keys moving through the rows, and Escape putting the list away and nothing else.",
       },
     },
   },
@@ -10700,7 +10700,7 @@ export const ListsLookAndBehaveAlike: Story = {
       return list;
     });
     expect(dpql.contains(document.activeElement), 'the focus stays in the text').toBe(true);
-    // one family: the same colour, the same row font
+    // one family: the same color, the same row font
     expect(complete.background).toBe(browse.background);
     expect(complete.rowFont).toBe(browse.rowFont);
     // the arrow keys move through the rows

@@ -10,10 +10,10 @@ import { COMPLETION_KIND_CHIPS } from './useLspAutocomplete';
  * One look for the two lists a field offers what can be written in (qorus#646, David: "use the same
  * components ... a consistent UX"): the completion list typing opens (`CompletionList`) and the list a field's
  * templates are browsed in (`TemplateBrowser`, kept apart because a large catalogue needs its hierarchy). Both
- * take their colour, their rows' font, and their kinds' icons and chips from here, so they cannot drift.
+ * take their color, their rows' font, and their kinds' icons and chips from here, so they cannot drift.
  */
 
-/** The lists' own colour. */
+/** The lists' own color. */
 export const COMPLETION_LIST_THEME: IReqoreCustomTheme = { main: '#1e0d29' };
 
 /** A row's text: monospace, as what it writes. Module-scoped, so a memoized row keeps its reference. */

@@ -47,9 +47,9 @@ const StyledDescriptionMarkdown = styled.div<{ $compact?: boolean }>`
    * the sentence around it.
    *
    * This used to map the code element to a ReqoreTag with an explicit near-white
-   * colour, which auto-contrasted to near-black text: on a dark form a description
+   * color, which auto-contrasted to near-black text: on a dark form a description
    * full of option names read as a row of glaring labels rather than as prose with
-   * identifiers in it. Keeping the reading colour and tinting the background
+   * identifiers in it. Keeping the reading color and tinting the background
    * behind it says "literal" without shouting it.
    */
   code {

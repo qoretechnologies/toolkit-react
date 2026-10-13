@@ -42,7 +42,7 @@ import { useLspSemanticTokens } from './useLspSemanticTokens';
 import { useLspSignatureHelp } from './useLspSignatureHelp';
 
 // One-Dark-ish palette keyed off the LSP semantic-token legend; absent
-// types fall through to Slate's default text colour.
+// types fall through to Slate's default text color.
 const SEMANTIC_TOKEN_COLORS: Record<string, string> = {
   keyword: '#c678dd', // purple — control flow, `in`, `not`, `between`, …
   operator: '#56b6c2', // cyan — ==, !=, &&, ||, =~, !~, …
@@ -254,7 +254,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
        from outside — a leading chip gains an empty text leaf before it — without
        changing its text, so `value` never changes and the cache above kept the
        tree the editor no longer had. Every offset computed from it (token
-       colours, diagnostics, signature help) then pointed one leaf off: a Text
+       colors, diagnostics, signature help) then pointed one leaf off: a Text
        view seeded with `"$local:name" == "John"` was never highlighted. */
     const [editorTreeVersion, noteEditorTree] = useReducer((count: number) => count + 1, 0);
 
@@ -316,7 +316,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
     /* A value set from outside is a change to the document as much as typing
        is — a Text view seeded after mount, a Preview following the author. The
-       server colours and diagnoses its own copy of the text, so it must hold
+       server colors and diagnoses its own copy of the text, so it must hold
        this one; typing already sent its text, and is not resent. */
     const { didChange: syncDocument } = session;
     useEffect(() => {
@@ -359,7 +359,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       [decorate, semanticDecorate, diagnosticDecorate, showDiagnostics]
     );
 
-    // Paints semantic-token colours and diagnostic underlines, falling
+    // Paints semantic-token colors and diagnostic underlines, falling
     // through to the consumer's `customRenderLeaf` for everything else.
     const renderLeafWithMarks = useCallback(
       (props: RenderLeafProps) => {
@@ -396,7 +396,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           }
         }
 
-        // Underline outermost so it overlays the syntax colour; hex
+        // Underline outermost so it overlays the syntax color; hex
         // fallbacks cover host themes that omit a diagnostic intent.
         if (leaf.error) {
           const underlineColor =

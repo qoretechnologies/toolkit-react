@@ -409,7 +409,7 @@ describe('expressions the catalogue spells', () => {
 
 describe('semantic tokens', () => {
   // Legend indices: 6 function, 11 string, 12 number, 14 operator.
-  it('colours an expression', () => {
+  it('colors an expression', () => {
     expect(decodeTokens('1 + 2 == "John"')).toEqual([
       ['1', 12],
       ['+', 14],
@@ -419,7 +419,7 @@ describe('semantic tokens', () => {
     ]);
   });
 
-  it('colours a readable rendering too, as the server does', () => {
+  it('colors a readable rendering too, as the server does', () => {
     const tokens = decodeTokens('$local:input contains "es" (ignore case)');
 
     expect(tokens).toContainEqual(['contains', 6]);
@@ -428,7 +428,7 @@ describe('semantic tokens', () => {
     expect(tokens).toContainEqual(['case', 6]);
   });
 
-  it('colours a word comparison and leaves punctuation alone', () => {
+  it('colors a word comparison and leaves punctuation alone', () => {
     expect(decodeTokens('"test" startsWith "t" || startsWith("test", "t", false)')).toEqual([
       ['"test"', 11],
       ['startsWith', 6],
@@ -443,7 +443,7 @@ describe('semantic tokens', () => {
 });
 
 describe('the stand-in tokenizer reads field names in any script, as the server does', () => {
-  it('colours a whole non-ASCII name as one field', () => {
+  it('colors a whole non-ASCII name as one field', () => {
     const ascii = decodeTokens('@qty > 0')[0][1];
     expect(decodeTokens('@menge_bestätigt > 0')[0]).toEqual(['@menge_bestätigt', ascii]);
     expect(decodeTokens('@名前 == "x"')[0]).toEqual(['@名前', ascii]);

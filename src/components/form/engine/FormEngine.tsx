@@ -298,7 +298,7 @@ const PositiveColorEffect: any = {
 };
 
 // Compact (read-first) layout: flat label | value | action rows in collapsible
-// group panels; colours come in as props so the layout follows the Reqore theme.
+// group panels; colors come in as props so the layout follows the Reqore theme.
 
 const StyledCompactWrap = styled.div<{ $ownScroll?: boolean }>`
   display: flex;
@@ -2545,7 +2545,7 @@ const FormEngineImpl = ({
   const schemaMsgIntent = useCallback(
     (name: string): 'danger' | 'warning' | undefined => {
       // Filtered, not raw: a message hidden by its own `when`/`unless` must not
-      // colour the row or push the field into "Needs attention" — the whole point
+      // color the row or push the field into "Needs attention" — the whole point
       // of a conditional warning is that it is absent while it does not apply.
       const msgs = getShownSchemaMessages(
         (options?.[name] as { messages?: Array<{ intent?: string }> } | undefined)?.messages,
@@ -3301,11 +3301,11 @@ const FormEngineImpl = ({
   );
 
   // Compact (read-first) rendering.
-  // Theme-derived colours so the flat-row layout adapts to light/dark/custom themes.
+  // Theme-derived colors so the flat-row layout adapts to light/dark/custom themes.
   const cText = theme?.text?.color || '#f1f0ee';
-  // Text emphasis tiers via reqore's readable-colour helper (key = full readable
+  // Text emphasis tiers via reqore's readable-color helper (key = full readable
   // text, muted = its dimmed variant, faint = the dimmed variant softened
-  // further) instead of hand-rolled hex-alpha suffixes on the raw text colour.
+  // further) instead of hand-rolled hex-alpha suffixes on the raw text color.
   const cKey = getReadableColor(theme);
   const cMuted = getReadableColor(theme, undefined, undefined, true);
   const cFaint = `${cMuted}99`;
@@ -4045,7 +4045,7 @@ const FormEngineImpl = ({
 
                   {/* A read-only form is one flat list of what is set: no
                       "Set" heading with a count over it (there is nothing else
-                      it could be), no green tint (a colour that means "done"
+                      it could be), no green tint (a color that means "done"
                       on a form nobody is doing), nothing to collapse — and no
                       `maxFieldsShown` fold: "12 more fields" behind a click is
                       the reader's record withheld, and a page scrolls. */}

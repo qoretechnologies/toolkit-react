@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A colour, read: a swatch beside the colour written out - the one read-only rendering of a stored colour,
+// A color, read: a swatch beside the color written out - the one read-only rendering of a stored color,
 // drawn by a compact form row and by any page that shows one (qorus#646).
 
 import { useReqoreTheme } from '@qoretechnologies/reqore';
@@ -23,7 +23,7 @@ export type { IReqraftColorValueLabels } from './labels';
 export type TReqraftColorValueSize = 'normal' | 'compact';
 
 export interface IReqraftColorValueProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
-  /** The stored colour: `{ r, g, b }`, `{ r, g, b, a }`, `{ hex }` or a hex code, with or without its `#`. */
+  /** The stored color: `{ r, g, b }`, `{ r, g, b, a }`, `{ hex }` or a hex code, with or without its `#`. */
   value: unknown;
   /** `normal` (default) or `compact`. */
   size?: TReqraftColorValueSize;
@@ -40,12 +40,12 @@ const SIZES: Record<
   TReqraftColorValueSize,
   { swatch: number; swatchRadius: number; gap: number; padding: string; radius: number }
 > = {
-  // a compact form row's colour, as it has always been drawn
+  // a compact form row's color, as it has always been drawn
   compact: { swatch: 12, swatchRadius: 3, gap: 6, padding: '1px 8px', radius: 4 },
   normal: { swatch: 20, swatchRadius: 4, gap: 8, padding: '2px 10px', radius: 6 },
 };
 
-/** The swatch: the colour over a checkerboard at the normal size, so that transparency shows. */
+/** The swatch: the color over a checkerboard at the normal size, so that transparency shows. */
 const StyledSwatch = styled.span<{
   $color: string;
   $border: string;
@@ -72,12 +72,12 @@ const StyledSwatch = styled.span<{
 `;
 
 /**
- * A stored colour, read: a swatch painted the colour, beside the colour written out (`#6495ED`, or `rgba(…)`
- * when it is see-through), on a wash of the colour. The text is the value, so it reads, copies and is found
- * like any text; the swatch is an image whose text alternative names the colour.
+ * A stored color, read: a swatch painted the color, beside the color written out (`#6495ED`, or `rgba(…)`
+ * when it is see-through), on a wash of the color. The text is the value, so it reads, copies and is found
+ * like any text; the swatch is an image whose text alternative names the color.
  *
- * A value that is not a colour draws no swatch: it says what the value is ("Not a colour: “#zzz”"). With no
- * value it says there is no colour. Every shape a colour is stored in is read (`describeColorValue`).
+ * A value that is not a color draws no swatch: it says what the value is ("Not a color: “#zzz”"). With no
+ * value it says there is no color. Every shape a color is stored in is read (`describeColorValue`).
  */
 export const ReqraftColorValue = memo(
   ({
@@ -147,7 +147,7 @@ export const ReqraftColorValue = memo(
         data-color={description.text}
         style={{
           ...layout,
-          // a slight wash of the colour behind the swatch and its text
+          // a slight wash of the color behind the swatch and its text
           background: `color-mix(in srgb, ${description.css} 14%, transparent)`,
           padding: metrics.padding,
           borderRadius: metrics.radius,

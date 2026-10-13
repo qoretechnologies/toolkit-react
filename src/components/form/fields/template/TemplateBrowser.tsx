@@ -26,7 +26,7 @@ export interface ITemplateBrowserProps extends Omit<IReqoreDropdownProps, 'items
  * template-only value (qorus#646). Kept apart from the completion list typing opens (`CompletionList`) by
  * David's decision: a large catalogue needs its hierarchy - groups to drill into, a record's "+" to take it
  * whole, an example's "?" - which a completion list has no place for. Drawn as the completion list is (its
- * colour, its rows' kinds and font: `completionStyle`), with the same keys: the arrows move, Enter takes a row,
+ * color, its rows' kinds and font: `completionStyle`), with the same keys: the arrows move, Enter takes a row,
  * → opens a group and ← leaves it, Escape puts the list away and nothing else. Every Reqore dropdown that lists
  * templates in this package is this one (`oneCompletionList.test`).
  */

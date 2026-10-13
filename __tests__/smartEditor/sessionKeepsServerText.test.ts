@@ -4,9 +4,9 @@
 // A session told the server about text only when the author typed it: `didOpen`
 // carried the text the editor had at mount, and a value set afterwards — the
 // DPQL a Text view is seeded with once `dpql/serialize` answers, a Preview that
-// follows the author's typing — never reached it. The server went on colouring
+// follows the author's typing — never reached it. The server went on coloring
 // and diagnosing its own stale copy: a seeded Text view was never highlighted,
-// and a Preview was coloured for text it no longer showed.
+// and a Preview was colored for text it no longer showed.
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 

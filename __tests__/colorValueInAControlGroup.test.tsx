@@ -78,7 +78,7 @@ describe('ReqraftColorValue in a control group', () => {
       <ReqraftColorValue
         value='#6495ed'
         id='brand'
-        title='Brand colour'
+        title='Brand color'
         aria-describedby='brand-help'
         data-field='brand'
         onClick={onClick}
@@ -86,7 +86,7 @@ describe('ReqraftColorValue in a control group', () => {
     );
     const value = container.querySelector('.reqraft-color-value') as HTMLElement;
     expect(value.id).toBe('brand');
-    expect(value.title).toBe('Brand colour');
+    expect(value.title).toBe('Brand color');
     expect(value.getAttribute('aria-describedby')).toBe('brand-help');
     expect(value.getAttribute('data-field')).toBe('brand');
     value.click();

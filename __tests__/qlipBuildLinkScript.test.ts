@@ -34,7 +34,7 @@ const resolveLink = (log?: string) => {
 };
 
 describe('qlip-build-link.sh', () => {
-  it("reads the build id without the colon qlip writes after it, through qlip's colours", () => {
+  it("reads the build id without the colon qlip writes after it, through qlip's colors", () => {
     expect(
       resolveLink(
         [

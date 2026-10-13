@@ -12,8 +12,8 @@ import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
 /**
- * qorus#646: a compact form row draws a colour with ReqraftColorValue at its compact size - the look the row
- * has always had - so a page and a row show a colour the same way, and a value that is not a colour says
+ * qorus#646: a compact form row draws a color with ReqraftColorValue at its compact size - the look the row
+ * has always had - so a page and a row show a color the same way, and a value that is not a color says
  * what it is in the row too, instead of a hex code beside a swatch of nothing.
  */
 const renderRow = (field: unknown, schema: Record<string, unknown> = {}) =>
@@ -36,7 +36,7 @@ const readRow = async (container: HTMLElement): Promise<HTMLElement> => {
   return container.querySelector('.readfirst-row') as HTMLElement;
 };
 
-describe('a colour in a compact row', () => {
+describe('a color in a compact row', () => {
   it('is drawn by ReqraftColorValue at its compact size, its swatch named', async () => {
     const { container } = renderRow({ type: 'rgbcolor', value: { r: 100, g: 149, b: 237, a: 1 } });
     const row = await readRow(container);
@@ -44,19 +44,19 @@ describe('a colour in a compact row', () => {
     const value = row.querySelector('.reqraft-color-value') as HTMLElement;
     expect(value.getAttribute('data-size')).toBe('compact');
     expect(value.getAttribute('data-color')).toBe('#6495ED');
-    expect(value.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Colour #6495ED');
+    expect(value.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Color #6495ED');
   });
 
-  it('says what a value that is not a colour is, with no swatch', async () => {
+  it('says what a value that is not a color is, with no swatch', async () => {
     const { container } = renderRow({ type: 'rgbcolor', value: '#zzz' });
     const row = await readRow(container);
-    await waitFor(() => expect(row.textContent).toContain('Not a colour: “#zzz”'));
+    await waitFor(() => expect(row.textContent).toContain('Not a color: “#zzz”'));
     expect(row.querySelector('.reqraft-color-value[data-invalid="true"]')).not.toBeNull();
     expect(row.querySelector('[role="img"]')).toBeNull();
     expect(row.textContent).not.toContain('#ZZZ');
   });
 
-  it('shows a sensitive colour as hidden, with no swatch to give it away', async () => {
+  it('shows a sensitive color as hidden, with no swatch to give it away', async () => {
     const { container } = renderRow(
       { type: 'rgbcolor', value: { r: 100, g: 149, b: 237, a: 1 } },
       { sensitive: true }
@@ -64,7 +64,7 @@ describe('a colour in a compact row', () => {
     const row = await readRow(container);
     await waitFor(() => expect(row.textContent).toContain('••••••'));
     expect(row.querySelector('.reqraft-color-value')).toBeNull();
-    // no swatch and no wash of the colour: the row drew both beside the dots
+    // no swatch and no wash of the color: the row drew both beside the dots
     expect(row.querySelector('[style*="color-mix"]')).toBeNull();
     expect(row.textContent).not.toContain('#6495ED');
   });

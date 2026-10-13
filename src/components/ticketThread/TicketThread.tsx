@@ -35,7 +35,7 @@ import {
  * Rendered as a comment feed: an avatar beside a bordered, accent-tinted card per
  * message, each hugging its own side. Built on Reqore's `ReqoreBubble` (which
  * supplies the avatar, the bold author label, the alignment and the tint), so the
- * accent follows whatever the host app themes `custom1` to rather than a colour
+ * accent follows whatever the host app themes `custom1` to rather than a color
  * baked in here. Interface references render via the shared
  * `InterfaceReferenceTags`; the status/priority/category vocabularies live in
  * `../supportTicket/meta`.
@@ -115,7 +115,7 @@ const AUTHOR_META: Record<TTicketMessageAuthor, IAuthorMeta> = {
 };
 
 // Both sides share one accent: the side, the avatar and the author label already
-// carry who is speaking, which frees colour to mean "internal note" and nothing
+// carry who is speaking, which frees color to mean "internal note" and nothing
 // else. `custom1` is a theme slot, so each host app supplies its own hue.
 const ACCENT: ComponentProps<typeof ReqoreBubble>['customTheme'] = { main: 'custom1' };
 
@@ -308,7 +308,7 @@ interface IStyledMarkdownProps {
 
 // The message body, washed a step below the bright author name in the card's
 // header so the two read as different things; in-body **bold** lifts back toward
-// full strength as emphasis. Every colour derives from the active Reqore theme
+// full strength as emphasis. Every color derives from the active Reqore theme
 // rather than a hardcoded hex, so the thread reads correctly on any host app.
 const StyledMarkdown = styled.div<IStyledMarkdownProps>`
   color: ${({ $color }) => $color};
@@ -668,7 +668,7 @@ export const TicketThread = ({
                 timestamp={message.created ? <ReqoreTimeAgo time={message.created} /> : undefined}
                 // Own messages read as info-blue, the other party's as the purple
                 // accent — so the two sides of the conversation are told apart by
-                // colour as well as by side, and "which of these did I write?" is
+                // color as well as by side, and "which of these did I write?" is
                 // answerable at a glance. Deliberately keyed off `viewerRole`, so it
                 // stays correct on the staff surface too (staff replies are the blue
                 // ones there). Internal notes keep their warning intent and are not

@@ -29,7 +29,7 @@ export interface IDescriptionTooltipOptions {
  *
  * A hover card does not open on a touch screen. Reqore opens it on `mouseenter` and closes it on any click,
  * and a tap is both, so the card closed the moment it opened and what it says was out of a finger's reach.
- * Where the pointer is a finger (`useCoarsePointer`, as the colour field and the expression builder ask), the
+ * Where the pointer is a finger (`useCoarsePointer`, as the color field and the expression builder ask), the
  * card opens on a tap of what it describes and closes on the next tap, there or anywhere else.
  */
 export const useDescriptionTooltips = (): IDescriptionTooltipOptions => {

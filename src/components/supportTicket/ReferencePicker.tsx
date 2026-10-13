@@ -241,7 +241,7 @@ export interface IReferencePickerProps {
    * vocabulary.
    */
   resolveKindLabel?: (kind: string) => string;
-  /** the underline / selected-kind colour. Defaults to the support surfaces' violet. */
+  /** the underline / selected-kind color. Defaults to the support surfaces' violet. */
   accent?: string;
   /** shown above the panes — the composer's picked-reference chips, typically */
   header?: ReactNode;

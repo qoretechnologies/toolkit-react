@@ -355,7 +355,7 @@ export const getAllowedValueIcon = (
   return (match.icon as string) || undefined;
 };
 
-// A colour is read by the one reader every read-only view of a colour uses (ReqraftColorValue's), so a
+// A color is read by the one reader every read-only view of a color uses (ReqraftColorValue's), so a
 // row's summary and the swatch it draws agree; re-exported for the readers that import it from here.
 export { colorToCss, formatColorValue } from '../../colorValue/colorValue';
 
@@ -426,7 +426,7 @@ export const formatBytes = (bytes: number): string => {
 
 /**
  * Short read-first summary of a value; '' when unset (the caller renders the
- * placeholder). Bools → Yes/No, allowed_values → display label, colour →
+ * placeholder). Bools → Yes/No, allowed_values → display label, color →
  * hex/rgba, file → filename, richtext → plain text, timeout → scaled duration
  * ("45 seconds"), list → joined names, hash → "N fields" (generic "Set"
  * fallback).
@@ -581,7 +581,7 @@ export const formatOptionValue = (
   }
 
   /* A template is the field it names, whatever the field's type, so it is summarised before any type
-     summarises a value of its own: a colour or a file called it "Set", a yes/no "Yes" (qorus#646). */
+     summarises a value of its own: a color or a file called it "Set", a yes/no "Yes" (qorus#646). */
   if (typeof value === 'string' && isValueTemplate(value)) {
     return value;
   }
@@ -600,7 +600,7 @@ export const formatOptionValue = (
     // there is no prose behind it — and CompactRow reads `formatted === ''` as
     // "no value" and renders a faint em-dash. A field holding a whole code
     // block would show as empty. `'Set'` is this file's established answer for
-    // "there is a value here that does not reduce to a line" (colours, files,
+    // "there is a value here that does not reduce to a line" (colors, files,
     // richtext all use it), and the block itself still renders in the inset.
     return summariseMarkdown(value) || 'Set';
   }
@@ -617,7 +617,7 @@ export const formatOptionValue = (
     return allowedLabel;
   }
 
-  // a colour as it is written; a value that is not one says what it is, as the row's swatch does
+  // a color as it is written; a value that is not one says what it is, as the row's swatch does
   if (type === 'rgbcolor') {
     const color = describeColorValue(value);
     return (

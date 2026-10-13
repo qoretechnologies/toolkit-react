@@ -163,7 +163,7 @@ export interface ISmartEditorProps {
    * for read-only display surfaces showing text that is not expected to
    * be valid in the session's language — e.g. the expression "Explain"
    * panel, which renders the server's human-readable rendering through
-   * the editor for chips + token colours but is not parseable DPQL.
+   * the editor for chips + token colors but is not parseable DPQL.
    */
   showDiagnostics?: boolean;
 

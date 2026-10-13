@@ -147,7 +147,7 @@ const DPQL_FUNCTIONS = new Set([
  * `textDocument/semanticTokens/full` for `text`: the LSP delta-encoded 5-tuple
  * array, with type indices into `SEMANTIC_TOKENS_LEGEND`. It covers readable
  * renderings as well as DPQL, as the server's does — `contains` and
- * `(ignore case)` in an explanation are coloured too.
+ * `(ignore case)` in an explanation are colored too.
  */
 export function mockTokenizeDpql(text: string): number[] {
   // Longer operators must come first so `==` isn't matched as two `=`.
@@ -161,7 +161,7 @@ export function mockTokenizeDpql(text: string): number[] {
       `(\\$[A-Za-z_-][\\w-]*:(?:\\{[^}]*\\}|[\\w.{}]+))`, // 5: $context:value
       `(\\b\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?\\b)`, // 6: number
       `(==|!=|<=|>=|&&|\\|\\||=~|!~|[+\\-*/%<>!=])`, // 7: operator
-      // 8: punctuation — matched so it is not misread, but the server leaves it uncoloured
+      // 8: punctuation — matched so it is not misread, but the server leaves it uncolored
       `(\\.\\.|[,(){}\\[\\].])`,
       `(\\b[A-Za-z_][\\w]*\\b)`, // 9: identifier (keyword check)
     ].join('|'),

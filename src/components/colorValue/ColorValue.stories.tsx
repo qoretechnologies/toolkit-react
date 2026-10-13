@@ -20,12 +20,12 @@ const CORNFLOWER = { r: 100, g: 149, b: 237 };
 const HALF_RED = { r: 255, g: 0, b: 0, a: 0.5 };
 const NOT_COLOURS: { label: string; value: unknown }[] = [
   { label: 'Letters past F', value: '#zzz' },
-  { label: 'A colour name', value: 'red' },
+  { label: 'A color name', value: 'red' },
   { label: 'A channel that is not a number', value: { r: 'a', g: 0, b: 0 } },
   { label: 'A number', value: 42 },
   {
     label: 'A long hash',
-    value: { note: 'this is not a colour, and it goes on for a while longer' },
+    value: { note: 'this is not a color, and it goes on for a while longer' },
   },
 ];
 
@@ -36,12 +36,12 @@ const swatchOf = (value: HTMLElement) =>
 const textOf = (value: HTMLElement) =>
   value.querySelector<HTMLElement>('.reqraft-color-value-text')!;
 
-/** A value shows a colour: its text, a swatch of its size named for it and painted the colour. */
+/** A value shows a color: its text, a swatch of its size named for it and painted the color. */
 const expectColour = async (value: HTMLElement, text: string, paint: string, swatchPx: number) => {
   await expect(textOf(value)).toHaveTextContent(text);
   const swatch = swatchOf(value);
   await expect(swatch).toHaveAttribute('role', 'img');
-  await expect(swatch).toHaveAccessibleName(`Colour ${text}`);
+  await expect(swatch).toHaveAccessibleName(`Color ${text}`);
   await expect(swatch.getBoundingClientRect().width).toBe(swatchPx);
   await expect(swatch.getBoundingClientRect().height).toBe(swatchPx);
   await expect(
@@ -87,7 +87,7 @@ export const RgbObject: Story = {
     docs: {
       description: {
         story:
-          'Renders a colour stored as { r: 100, g: 149, b: 237 }: a 20px swatch painted cornflower blue, beside its hex code #6495ED, on a wash of the colour. The swatch is an image named "Colour #6495ED"; the hex code is text.',
+          'Renders a color stored as { r: 100, g: 149, b: 237 }: a 20px swatch painted cornflower blue, beside its hex code #6495ED, on a wash of the color. The swatch is an image named "Color #6495ED"; the hex code is text.',
       },
     },
   },
@@ -104,14 +104,14 @@ export const RgbaObject: Story = {
     docs: {
       description: {
         story:
-          'Renders a see-through colour stored as { r: 255, g: 0, b: 0, a: 0.5 }: it is written rgba(255, 0, 0, 0.5), since a hex code would drop its opacity, and its swatch is painted over a checkerboard, so the transparency shows.',
+          'Renders a see-through color stored as { r: 255, g: 0, b: 0, a: 0.5 }: it is written rgba(255, 0, 0, 0.5), since a hex code would drop its opacity, and its swatch is painted over a checkerboard, so the transparency shows.',
       },
     },
   },
   async play({ canvasElement }) {
     const [value] = values(canvasElement);
     await expectColour(value, 'rgba(255, 0, 0, 0.5)', 'rgba(255, 0, 0, 0.5)', 20);
-    // the checkerboard under the colour
+    // the checkerboard under the color
     await expect(getComputedStyle(swatchOf(value)).backgroundImage).toContain('url(');
   },
 };
@@ -122,7 +122,7 @@ export const HexCode: Story = {
     docs: {
       description: {
         story:
-          'Renders a colour stored as the hex code #6495ed: written #6495ED, its swatch cornflower blue.',
+          'Renders a color stored as the hex code #6495ed: written #6495ED, its swatch cornflower blue.',
       },
     },
   },
@@ -137,7 +137,7 @@ export const HexCodeWithoutItsHash: Story = {
     docs: {
       description: {
         story:
-          'Renders a colour stored as the three-digit hex code f80, with no # (a value written by hand): it is the colour #FF8800, written #F80 as it was stored, its swatch orange.',
+          'Renders a color stored as the three-digit hex code f80, with no # (a value written by hand): it is the color #FF8800, written #F80 as it was stored, its swatch orange.',
       },
     },
   },
@@ -152,7 +152,7 @@ export const HexObject: Story = {
     docs: {
       description: {
         story:
-          "Renders a colour stored as { hex: '#2e7d32' }: written #2E7D32, its swatch dark green.",
+          "Renders a color stored as { hex: '#2e7d32' }: written #2E7D32, its swatch dark green.",
       },
     },
   },
@@ -161,7 +161,7 @@ export const HexObject: Story = {
   },
 };
 
-export const NotAColour: Story = {
+export const NotAColor: Story = {
   args: { value: undefined },
   render: () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -174,7 +174,7 @@ export const NotAColour: Story = {
     docs: {
       description: {
         story:
-          'Renders five values that are not colours: #zzz (letters past F), red (a colour name), a channel that is not a number, the number 42 and a long hash. None draws a swatch or a wash: each says what it is - Not a colour: “#zzz”, … - the hash cut short with an ellipsis.',
+          'Renders five values that are not colors: #zzz (letters past F), red (a color name), a channel that is not a number, the number 42 and a long hash. None draws a swatch or a wash: each says what it is - Not a color: “#zzz”, … - the hash cut short with an ellipsis.',
       },
     },
   },
@@ -182,10 +182,10 @@ export const NotAColour: Story = {
     const shown = values(canvasElement);
     await expect(shown).toHaveLength(NOT_COLOURS.length);
     await expect(within(canvasElement).queryByRole('img')).toBeNull();
-    await expect(shown[0]).toHaveTextContent('Not a colour: “#zzz”');
-    await expect(shown[1]).toHaveTextContent('Not a colour: “red”');
-    await expect(shown[2]).toHaveTextContent('Not a colour: {"r":"a","g":0,"b":0}');
-    await expect(shown[3]).toHaveTextContent('Not a colour: 42');
+    await expect(shown[0]).toHaveTextContent('Not a color: “#zzz”');
+    await expect(shown[1]).toHaveTextContent('Not a color: “red”');
+    await expect(shown[2]).toHaveTextContent('Not a color: {"r":"a","g":0,"b":0}');
+    await expect(shown[3]).toHaveTextContent('Not a color: 42');
     await expect(textOf(shown[4]).textContent!.endsWith('…')).toBe(true);
     for (const value of shown) {
       await expect(value).toHaveAttribute('data-invalid', 'true');
@@ -194,17 +194,17 @@ export const NotAColour: Story = {
   },
 };
 
-export const NoColour: Story = {
+export const NoColor: Story = {
   args: { value: null },
   parameters: {
     docs: {
       description: {
-        story: 'Renders a colour that holds nothing: it says No colour, with no swatch.',
+        story: 'Renders a color that holds nothing: it says No color, with no swatch.',
       },
     },
   },
   async play({ canvasElement }) {
-    await expect(values(canvasElement)[0]).toHaveTextContent('No colour');
+    await expect(values(canvasElement)[0]).toHaveTextContent('No color');
     await expect(within(canvasElement).queryByRole('img')).toBeNull();
   },
 };
@@ -252,10 +252,10 @@ export const OnAPhone: Story = {
   args: { value: CORNFLOWER },
   render: () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
-      <Labelled label='A colour' value={CORNFLOWER} />
+      <Labelled label='A color' value={CORNFLOWER} />
       <Labelled label='See-through' value={HALF_RED} />
       <Labelled label='Compact' value={HALF_RED} compact />
-      <Labelled label='Not a colour' value={NOT_COLOURS[4].value} />
+      <Labelled label='Not a color' value={NOT_COLOURS[4].value} />
     </div>
   ),
   parameters: {
@@ -263,7 +263,7 @@ export const OnAPhone: Story = {
     docs: {
       description: {
         story:
-          'Renders colours on a phone (390 px, touch): cornflower blue, a see-through red, the same red compact, and a long value that is not a colour. Each fits the screen: nothing reaches past its edge, the long value wraps, and each swatch is named for the colour it shows.',
+          'Renders colors on a phone (390 px, touch): cornflower blue, a see-through red, the same red compact, and a long value that is not a color. Each fits the screen: nothing reaches past its edge, the long value wraps, and each swatch is named for the color it shows.',
       },
     },
   },
@@ -289,16 +289,16 @@ export const OnALightTheme: Story = {
   ],
   render: () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <Labelled label='A colour' value={CORNFLOWER} />
+      <Labelled label='A color' value={CORNFLOWER} />
       <Labelled label='White' value={{ r: 255, g: 255, b: 255 }} />
-      <Labelled label='Not a colour' value='#zzz' />
+      <Labelled label='Not a color' value='#zzz' />
     </div>
   ),
   parameters: {
     docs: {
       description: {
         story:
-          "Renders cornflower blue, white and a value that is not a colour on a light theme: the swatch's edge is drawn in the theme's text colour, so a white swatch still shows on a light page, and the text is the theme's.",
+          "Renders cornflower blue, white and a value that is not a color on a light theme: the swatch's edge is drawn in the theme's text color, so a white swatch still shows on a light page, and the text is the theme's.",
       },
     },
   },
@@ -315,8 +315,8 @@ export const OnALightTheme: Story = {
 export const InAControlGroup: Story = {
   args: { value: CORNFLOWER },
   render: () => (
-    <ReqoreControlGroup fluid spaceBetween size='small' className='colour-group'>
-      <ReqoreTag label='Brand colour' />
+    <ReqoreControlGroup fluid spaceBetween size='small' className='color-group'>
+      <ReqoreTag label='Brand color' />
       <ReqraftColorValue value={CORNFLOWER} />
       <ReqraftColorValue value={HALF_RED} size='compact' />
     </ReqoreControlGroup>
@@ -325,7 +325,7 @@ export const InAControlGroup: Story = {
     docs: {
       description: {
         story:
-          "Renders two colours in a control group beside a tag, as a page's table of options shows them: the group hands each its layout props (fluid, spaceBetween, its small size), and the colours take none of them onto the DOM - React gives no warning - and draw at their own sizes, normal (the group's small is not one of theirs) and compact.",
+          "Renders two colors in a control group beside a tag, as a page's table of options shows them: the group hands each its layout props (fluid, spaceBetween, its small size), and the colors take none of them onto the DOM - React gives no warning - and draw at their own sizes, normal (the group's small is not one of theirs) and compact.",
       },
     },
   },

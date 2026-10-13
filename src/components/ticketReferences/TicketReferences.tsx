@@ -106,7 +106,7 @@ interface IFileType {
   color: TReqoreEffectColor;
   label: string;
 }
-// MIME → a type icon (glyph) + a category tint, Fluent-style: colour distinguishes
+// MIME → a type icon (glyph) + a category tint, Fluent-style: color distinguishes
 // the file family, the glyph its shape. Tints stay moderate for a dark surface.
 const fileType = (contentType: string): IFileType => {
   const ct = contentType.toLowerCase();

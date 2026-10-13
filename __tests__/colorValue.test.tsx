@@ -6,15 +6,15 @@ import { describeColorValue, ReqraftColorValue } from '../src/components/colorVa
 import * as reqraft from '../src/index';
 
 /**
- * qorus#646: a colour shown read-only - a swatch beside its value - is one component, `ReqraftColorValue`,
- * drawn the way a compact form row has drawn it (the row now uses it). It takes every shape a colour is
+ * qorus#646: a color shown read-only - a swatch beside its value - is one component, `ReqraftColorValue`,
+ * drawn the way a compact form row has drawn it (the row now uses it). It takes every shape a color is
  * stored in, says what an invalid value is instead of drawing a swatch for it, and is readable without
  * seeing the swatch.
  */
 
 const renderValue = (ui: React.ReactElement) => render(<ReqoreUIProvider>{ui}</ReqoreUIProvider>);
 
-describe('a colour, described', () => {
+describe('a color, described', () => {
   it.each([
     ['{ r, g, b }', { r: 100, g: 149, b: 237 }, '#6495ED', 'rgba(100, 149, 237, 1)'],
     ['{ r, g, b, a } opaque', { r: 0, g: 0, b: 255, a: 1 }, '#0000FF', 'rgba(0, 0, 255, 1)'],
@@ -29,11 +29,11 @@ describe('a colour, described', () => {
     ['a three-digit hex code', '#f80', '#F80', '#f80'],
     ['a hex code with its alpha', '#ff000080', '#FF000080', '#ff000080'],
     ['{ hex }', { hex: '#6495ed' }, '#6495ED', '#6495ed'],
-  ])('%s is a colour', (_shape, value, text, css) => {
+  ])('%s is a color', (_shape, value, text, css) => {
     expect(describeColorValue(value)).toEqual({ kind: 'color', text, css });
   });
 
-  it('brings a channel past its range into it, as the colour field does', () => {
+  it('brings a channel past its range into it, as the color field does', () => {
     expect(describeColorValue({ r: 300, g: -5, b: 0 })).toMatchObject({
       kind: 'color',
       text: '#FF0000',
@@ -47,16 +47,16 @@ describe('a colour, described', () => {
   it.each([
     ['a hex code of letters past F', '#zzz', '“#zzz”'],
     ['a hex code of seven digits', '#abcdefa', '“#abcdefa”'],
-    ['a colour name', 'red', '“red”'],
+    ['a color name', 'red', '“red”'],
     ['a channel that is not a number', { r: 'a', g: 0, b: 0 }, '{"r":"a","g":0,"b":0}'],
     ['a channel that is not finite', { r: Number.NaN, g: 0, b: 0 }, '{"r":null,"g":0,"b":0}'],
-    ['a hash with no colour in it', { name: 'blue' }, '{"name":"blue"}'],
+    ['a hash with no color in it', { name: 'blue' }, '{"name":"blue"}'],
     ['a number', 42, '42'],
-  ])('%s is not a colour, and is shown as it is', (_shape, value, shown) => {
+  ])('%s is not a color, and is shown as it is', (_shape, value, shown) => {
     expect(describeColorValue(value)).toEqual({ kind: 'invalid', shown });
   });
 
-  it('shortens a long value that is not a colour', () => {
+  it('shortens a long value that is not a color', () => {
     const description = describeColorValue({ note: 'x'.repeat(200) });
     expect(description.kind).toBe('invalid');
     expect((description as { shown: string }).shown.length).toBeLessThanOrEqual(61);
@@ -68,7 +68,7 @@ describe('a colour, described', () => {
     ['null', null],
     ['an empty string', ''],
     ['an empty hash', {}],
-  ])('%s is no colour', (_shape, value) => {
+  ])('%s is no color', (_shape, value) => {
     expect(describeColorValue(value)).toEqual({ kind: 'empty' });
   });
 });
@@ -79,19 +79,19 @@ describe('ReqraftColorValue', () => {
     expect(reqraft.describeColorValue).toBe(describeColorValue);
   });
 
-  it('shows the colour as text and gives its swatch a text alternative', () => {
+  it('shows the color as text and gives its swatch a text alternative', () => {
     const { container } = renderValue(<ReqraftColorValue value={{ r: 100, g: 149, b: 237 }} />);
-    const swatch = screen.getByRole('img', { name: 'Colour #6495ED' });
-    expect(swatch?.getAttribute('title')).toBe('Colour #6495ED');
+    const swatch = screen.getByRole('img', { name: 'Color #6495ED' });
+    expect(swatch?.getAttribute('title')).toBe('Color #6495ED');
     expect(container.querySelector('.reqraft-color-value-text')?.textContent).toContain('#6495ED');
     expect(container.querySelector('.reqraft-color-value')?.getAttribute('data-color')).toBe(
       '#6495ED'
     );
   });
 
-  it('paints the swatch the colour it names, transparency kept', () => {
+  it('paints the swatch the color it names, transparency kept', () => {
     renderValue(<ReqraftColorValue value={{ r: 255, g: 0, b: 0, a: 0.5 }} />);
-    const swatch = screen.getByRole('img', { name: 'Colour rgba(255, 0, 0, 0.5)' });
+    const swatch = screen.getByRole('img', { name: 'Color rgba(255, 0, 0, 0.5)' });
     expect(swatch?.getAttribute('data-swatch')).toBe('rgba(255, 0, 0, 0.5)');
   });
 
@@ -111,21 +111,21 @@ describe('ReqraftColorValue', () => {
     expect(text('normal').style.whiteSpace).toBe('pre-wrap');
   });
 
-  it('says what a value that is not a colour is, and draws no swatch for it', () => {
+  it('says what a value that is not a color is, and draws no swatch for it', () => {
     const { container } = renderValue(<ReqraftColorValue value='#zzz' />);
     expect(screen.queryByRole('img')).toBeNull();
     expect(container.querySelector('.reqraft-color-value')?.getAttribute('data-invalid')).toBe(
       'true'
     );
     expect(container.querySelector('.reqraft-color-value')?.textContent).toBe(
-      'Not a colour: “#zzz”'
+      'Not a color: “#zzz”'
     );
   });
 
-  it('says there is no colour, and draws no swatch, when there is none', () => {
+  it('says there is no color, and draws no swatch, when there is none', () => {
     const { container } = renderValue(<ReqraftColorValue value={undefined} />);
     expect(screen.queryByRole('img')).toBeNull();
-    expect(container.querySelector('.reqraft-color-value')?.textContent).toContain('No colour');
+    expect(container.querySelector('.reqraft-color-value')?.textContent).toContain('No color');
   });
 
   it("speaks the host's language", () => {

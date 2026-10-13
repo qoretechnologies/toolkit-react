@@ -261,7 +261,7 @@ export const FormattedMessages: Story = {
     docs: {
       description: {
         story:
-          'Renders ReqraftLog with a messageFormatter that assigns intents by content — WARNING lines colour warning, ERROR lines danger and ALL-CAPS lines info.',
+          'Renders ReqraftLog with a messageFormatter that assigns intents by content — WARNING lines color warning, ERROR lines danger and ALL-CAPS lines info.',
       },
     },
   },

@@ -56,15 +56,15 @@ const alphaBar = (canvasElement: HTMLElement) =>
 const helpToggle = (canvasElement: HTMLElement) =>
   canvasElement.querySelector<HTMLElement>('.reqraft-color-field-help-toggle')!;
 
-/** The colour the preview paints, over its checkerboard. */
+/** The color the preview paints, over its checkerboard. */
 const previewPaint = (canvasElement: HTMLElement) =>
   getComputedStyle(preview(canvasElement), '::after').backgroundColor;
 
-/** The colour the field last stored. */
+/** The color the field last stored. */
 const lastStored = (onChange: unknown) =>
   (onChange as ReturnType<typeof fn>).mock.lastCall?.[0] as Required<IColorFormFieldValue>;
 
-/** Every colour the field stored is one: whole channels from 0 to 255, alpha from 0 to 1. */
+/** Every color the field stored is one: whole channels from 0 to 255, alpha from 0 to 1. */
 const expectOnlyColorsStored = (onChange: unknown) => {
   for (const [color] of (onChange as ReturnType<typeof fn>).mock.calls as [IColorFormFieldValue][]) {
     for (const channel of [color.r, color.g, color.b]) {
@@ -107,7 +107,7 @@ export const WithValue: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field with cornflower blue chosen: the colour square, a preview of the colour beside the colour bar, the Hex code, Red, Green and Blue inputs (6495ED; 100, 149, 237) with each label centred over its input, "What do these mean?" and the swatches.',
+          'Renders the Color field with cornflower blue chosen: the color square, a preview of the color beside the color bar, the Hex code, Red, Green and Blue inputs (6495ED; 100, 149, 237) with each label centred over its input, "What do these mean?" and the swatches.',
       },
     },
   },
@@ -120,7 +120,7 @@ export const WithValue: Story = {
     await expect(canvas.getByLabelText('Blue')).toHaveValue('237');
     // no transparency offered, so no opacity
     await expect(canvas.queryByLabelText('Opacity %')).toBeNull();
-    await expect(canvas.getByRole('img', { name: 'Chosen colour: #6495ED' })).toBe(preview(canvasElement));
+    await expect(canvas.getByRole('img', { name: 'Chosen color: #6495ED' })).toBe(preview(canvasElement));
     await expect(previewPaint(canvasElement)).toBe('rgb(100, 149, 237)');
     await expect(canvas.getByRole('button', { name: /What do these mean/ })).toBeVisible();
     expectLabelsCentred(canvasElement);
@@ -149,13 +149,13 @@ export const Empty: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field with no colour stored: the picker opens on its starting colour, the preview is struck through (no colour chosen yet), and nothing is stored until a colour is chosen.',
+          'Renders the Color field with no color stored: the picker opens on its starting color, the preview is struck through (no color chosen yet), and nothing is stored until a color is chosen.',
       },
     },
   },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole('img', { name: 'No colour chosen yet' })).toBe(preview(canvasElement));
+    await expect(canvas.getByRole('img', { name: 'No color chosen yet' })).toBe(preview(canvasElement));
     await expect(args.onChange).not.toHaveBeenCalled();
   },
 };
@@ -214,7 +214,7 @@ export const WithTransparency: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field with transparency offered: cornflower blue at 50%, the opacity bar under the colour bar, an Opacity % input after Red, Green and Blue, and the preview showing its checkerboard through the colour.',
+          'Renders the Color field with transparency offered: cornflower blue at 50%, the opacity bar under the color bar, an Opacity % input after Red, Green and Blue, and the preview showing its checkerboard through the color.',
       },
     },
   },
@@ -223,7 +223,7 @@ export const WithTransparency: Story = {
     await expect(alphaBar(canvasElement)).toBeInTheDocument();
     await expect(canvas.getByLabelText('Opacity %')).toHaveValue('50');
     await expect(
-      canvas.getByRole('img', { name: 'Chosen colour: #6495ED, 50% opaque' })
+      canvas.getByRole('img', { name: 'Chosen color: #6495ED, 50% opaque' })
     ).toBeInTheDocument();
     await expect(previewPaint(canvasElement)).toBe('rgba(100, 149, 237, 0.5)');
     // the checkerboard under it
@@ -241,7 +241,7 @@ export const HelpExplainsTheControls: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field with transparency. When "What do these mean?" is clicked, its help says in plain words what the square and the colour bar do, what a hex code is, what Red, Green and Blue are and what Opacity is, with the example values (6495ED, F80, FF8800, 0, 0, 0 …) in the data style.',
+          'Renders the Color field with transparency. When "What do these mean?" is clicked, its help says in plain words what the square and the color bar do, what a hex code is, what Red, Green and Blue are and what Opacity is, with the example values (6495ED, F80, FF8800, 0, 0, 0 …) in the data style.',
       },
     },
   },
@@ -254,7 +254,7 @@ export const HelpExplainsTheControls: Story = {
     const help = canvasElement.querySelector<HTMLElement>('.reqraft-color-field-help')!;
     await expect(help).toBeVisible();
     await expect(toggle).toHaveAttribute('aria-controls', help.id);
-    await expect(help).toHaveTextContent('the rainbow bar under it sets the colour itself');
+    await expect(help).toHaveTextContent('the rainbow bar under it sets the color itself');
     await expect(help).toHaveTextContent('each from 0 (none) to 255 (all)');
     await expect(help).toHaveTextContent('from 0% (you see through it) to 100% (solid)');
     // one paragraph a control, spaced apart
@@ -324,7 +324,7 @@ export const HexOfTheWrongLengthIsNotStored: Story = {
     await userEvent.tab();
     await waitFor(() =>
       expect(problem(canvasElement)).toHaveTextContent(
-        '64 is not a colour: a hex code has six characters (or three, short for six).'
+        '64 is not a color: a hex code has six characters (or three, short for six).'
       )
     );
     await expect(problemData(canvasElement)).toEqual(['64']);
@@ -469,7 +469,7 @@ export const Disabled: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field disabled: the picker is dimmed, and nothing in it can be reached by pointer or keyboard, so writing a colour into Hex code stores nothing.',
+          'Renders the Color field disabled: the picker is dimmed, and nothing in it can be reached by pointer or keyboard, so writing a color into Hex code stores nothing.',
       },
     },
   },
@@ -491,7 +491,7 @@ export const ReadOnly: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field read-only: the colour and its preview are shown at full strength, and nothing in the picker can be reached, so writing a colour into Hex code stores nothing.',
+          'Renders the Color field read-only: the color and its preview are shown at full strength, and nothing in the picker can be reached, so writing a color into Hex code stores nothing.',
       },
     },
   },
@@ -571,7 +571,7 @@ export const OnATouchScreen: Story = {
     docs: {
       description: {
         story:
-          "Renders the Color field on a phone (390 px, touch): every target is a finger's size, each label is centred over its input, and nothing reaches past the field. A finger dragged across the colour square picks a quarter of its strength and three quarters of its brightness.",
+          "Renders the Color field on a phone (390 px, touch): every target is a finger's size, each label is centred over its input, and nothing reaches past the field. A finger dragged across the color square picks a quarter of its strength and three quarters of its brightness.",
       },
     },
   },
@@ -583,7 +583,7 @@ export const OnATouchScreen: Story = {
       }
       await waitFor(() => expectFingerSized(canvasElement, touch.narrowed));
       expectLabelsCentred(canvasElement);
-      // across the colour square, to a quarter of its strength and three quarters of its brightness
+      // across the color square, to a quarter of its strength and three quarters of its brightness
       const area = square(canvasElement);
       await touch.drag(touch.pointIn(area, 0.8, 0.2), touch.pointIn(area, 0.25, 0.25));
       await waitFor(() => {
@@ -602,7 +602,7 @@ export const OnATouchScreen: Story = {
   },
 };
 
-export const ColourBarDraggedByAFinger: Story = {
+export const ColorBarDraggedByAFinger: Story = {
   tags: ['touch'],
   args: {
     value: CORNFLOWER,
@@ -613,14 +613,14 @@ export const ColourBarDraggedByAFinger: Story = {
     docs: {
       description: {
         story:
-          "Renders the Color field on a phone (390 px, touch). A finger dragged along the colour bar to its middle picks cyan's hue.",
+          "Renders the Color field on a phone (390 px, touch). A finger dragged along the color bar to its middle picks cyan's hue.",
       },
     },
   },
   async play({ canvasElement, args }) {
     await withTouchScreen(async (touch) => {
       await waitFor(() => expectFingerSized(canvasElement, touch.narrowed));
-      // along the colour bar, to its middle: cyan's hue
+      // along the color bar, to its middle: cyan's hue
       const bar = hueBar(canvasElement);
       await touch.drag(touch.pointIn(bar, 0.6), touch.pointIn(bar, 0.5));
       await waitFor(() =>
@@ -704,7 +704,7 @@ export const WithTransparencyOnATouchScreen: Story = {
     docs: {
       description: {
         story:
-          "Renders the Color field with transparency on a phone (390 px, touch): the opacity bar is a finger's height, and a finger dragged along it to a quarter stores the colour about 25% opaque, as the Opacity % input then says.",
+          "Renders the Color field with transparency on a phone (390 px, touch): the opacity bar is a finger's height, and a finger dragged along it to a quarter stores the color about 25% opaque, as the Opacity % input then says.",
       },
     },
   },
