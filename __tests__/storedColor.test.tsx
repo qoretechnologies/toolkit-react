@@ -17,7 +17,8 @@ import { validateFieldWithResult } from '../src/helpers/validations';
  * it, and the color field stores the hash when it edits it.
  *
  * The validator took a six-digit `{ hex }` and any `r`, `g` and `b` that were there - `{ r: 'a', g: 0, b: 0 }`, a
- * channel of 300, an alpha of 128 - and said only "RGB color is invalid" of the rest.
+ * channel of 300, an alpha of 128 - and said only "RGB color is invalid" of the rest. A stored color has no field
+ * beside its own: the server refuses `{ r, g, b, hex }` (Qore's RgbColorDataType: "unsupported fields in value").
  */
 const said = (value: unknown, type = 'rgbcolor') => validateFieldWithResult(type, value);
 
@@ -32,10 +33,6 @@ describe('a stored color', () => {
     ['black', { r: 0, g: 0, b: 0 }],
     ['white', { r: 255, g: 255, b: 255 }],
     ['an opacity given as nothing', { r: 1, g: 2, b: 3, a: null }],
-    [
-      'a hex beside its channels, as react-color wrote it',
-      { r: 100, g: 149, b: 237, a: 1, hex: '#6495ED' },
-    ],
   ])('is valid: %s', (_name, value) => {
     expect(said(value).isValid).toBe(true);
     expect(isStoredColor(value)).toBe(true);
@@ -96,7 +93,27 @@ describe('a stored color', () => {
     ],
     ['one channel missing', { g: 0, b: 0 }, 'Red (r) is missing.'],
     ['two channels missing', { r: 255 }, 'Green (g) and blue (b) are missing.'],
-    ['no channels', { name: 'blue' }, 'Red (r), green (g) and blue (b) are missing.'],
+    [
+      'no channels, and a field of its own',
+      { name: 'blue' },
+      "Red (r), green (g) and blue (b) are missing; the color also has “name”, which a stored color can't have.",
+    ],
+    // the server refuses a field beside the color's own: "unsupported fields in value: ["hex"]" (Qore)
+    [
+      'a hex beside its channels, as react-color wrote it',
+      { r: 100, g: 149, b: 237, a: 1, hex: '#6495ED' },
+      "The color also has “hex”, which a stored color can't have.",
+    ],
+    [
+      'two fields beside its channels',
+      { r: 1, g: 2, b: 3, hex: '#010203', source: 'picker' },
+      "The color also has “hex” and “source”, which a stored color can't have.",
+    ],
+    [
+      'a field beside a channel that is wrong',
+      { r: 1, g: 2, b: 300, rgb: 'x' },
+      "Blue (b) must be a whole number from 0 to 255, not 300; the color also has “rgb”, which a stored color can't have.",
+    ],
     [
       'more than one thing wrong',
       { r: 'a', g: 300, a: 2 },
@@ -138,12 +155,17 @@ describe('the color field, editing a value not stored as a color', () => {
   it.each([
     ['a bare hex code', '#6495ED'],
     ['{ hex }', { hex: '#6495ed' }],
-  ])('stores %s as the hash, even when the color is the same', (_name, value) => {
-    const onChange = vi.fn();
-    const { container } = renderField({ value: value as never, onChange });
-    typeAndLeave(container, 'hex', '6495ed');
-    expect(onChange).toHaveBeenCalledWith({ r: 100, g: 149, b: 237, a: 1 });
-  });
+    ['a color with a hex beside it', { r: 100, g: 149, b: 237, a: 1, hex: '#6495ED' }],
+  ])(
+    'stores %s as the hash, and only the hash, even when the color is the same',
+    (_name, value) => {
+      const onChange = vi.fn();
+      const { container } = renderField({ value: value as never, onChange });
+      typeAndLeave(container, 'hex', '6495ed');
+      // toHaveBeenCalledWith is exact: no field beside r, g, b and a
+      expect(onChange).toHaveBeenCalledWith({ r: 100, g: 149, b: 237, a: 1 });
+    }
+  );
 
   it('stores a channel past its range as the channel it shows', () => {
     const onChange = vi.fn();

@@ -160,7 +160,7 @@ import { ReqraftColorValue } from '@qoretechnologies/reqraft';
 ```
 
 - **Values:** `{ r, g, b }`, `{ r, g, b, a }` (as the color field stores it), `{ hex }`, or a hex code of 3, 4, 6 or 8 digits, with or without its `#`. A channel past its range is brought into it, as the color field does.
-- **A stored color** is `{ r, g, b, a? }`: `r`, `g` and `b` whole numbers from 0 to 255, `a` its opacity from 0 to 1 (none: opaque). A hex code, bare or as `{ hex }`, is drawn so a value stored that way is seen, but it is not a stored color: the `rgbcolor` validator says what is wrong with it (`storedColorProblem(value)`), and the color field stores the hash when it edits it.
+- **A stored color** is `{ r, g, b, a? }` and nothing more: `r`, `g` and `b` whole numbers from 0 to 255, `a` its opacity from 0 to 1 (none: opaque). A hex code, bare or as `{ hex }`, and a color with another field beside its own (`{ r, g, b, hex }`, which the server refuses), are drawn so a value stored that way is seen, but they are not stored colors: the `rgbcolor` validator says what is wrong (`storedColorProblem(value)`), and the color field stores the hash, and only the hash, when it edits such a value.
 - **A value that is not a color** (`#zzz`, `red`, a channel that is not a number) draws no swatch: it says what the value is ("Not a color: “#zzz”"). With no value it says "No color".
 - **Sizes:** `normal` (default; a 20px swatch over a checkerboard, so transparency shows; the text wraps) and `compact` (a 12px swatch; one line ending in an ellipsis). `wrap` overrides the line behaviour.
 - **Accessible:** the color is text (it reads, copies and is found like any text); the swatch is an image named for the color ("Color #6495ED").

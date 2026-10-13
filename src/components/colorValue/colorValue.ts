@@ -2,7 +2,8 @@
 // What a stored color is: the one reader for every read-only view of a color (qorus#646).
 //
 // A color reaches a page in the shapes it is stored in - `{ r, g, b }` or `{ r, g, b, a }` as the color
-// field stores it (with a `hex` beside them when react-color wrote it), `{ hex }`, or a hex code, with or
+// field stores it - and in shapes a stored color is not, which are drawn so a value stored that way is seen:
+// `{ r, g, b, a }` with other fields beside them (react-color wrote a `hex`), `{ hex }`, or a hex code, with or
 // without its `#`, as a value written by hand or by another client can be. `ReqraftColorValue` draws what
 // this reads, and a compact form row summarises a color with it, so the two never disagree.
 
@@ -209,11 +210,14 @@ const isWholeChannel = (n: unknown): boolean =>
 const isOpacity = (n: unknown): boolean =>
   typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1;
 
-/** "red (r)", "red (r) and blue (b)", "red (r), green (g) and blue (b)". */
+/** "red (r)", "red (r) and blue (b)", "red (r), green (g) and blue (b)" - and the same for any words. */
 const listChannels = (channels: string[]): string =>
   channels.length < 2 ?
     channels.join('')
   : `${channels.slice(0, -1).join(', ')} and ${channels[channels.length - 1]}`;
+
+/** The fields a stored color has: its channels and its opacity. */
+const STORED_FIELDS = ['r', 'g', 'b', 'a'];
 
 /** The stored shape, said where a value is not in it at all. */
 const STORED_AS = 'A color is stored as its red, green and blue values (r, g, b)';
@@ -221,10 +225,12 @@ const STORED_AS = 'A color is stored as its red, green and blue values (r, g, b)
 /**
  * What is wrong with a value stored as an `rgbcolor`, in plain words; undefined when it is a stored color (qorus#646,
  * David): the hash `{ r, g, b, a? }`, `r`, `g` and `b` whole numbers from 0 to 255 and `a` its opacity, a number from
- * 0 to 1 (without one, the color is opaque). Other fields beside them are left alone (react-color wrote a `hex`).
+ * 0 to 1 (without one, the color is opaque), and no other field: the server refuses one (Qore's RgbColorDataType:
+ * "unsupported fields in value").
  *
- * A hex code, bare or as `{ hex }`, is not a stored color: the readers above still draw one, so a value stored that
- * way is seen, and this says why it is wrong. The color field stores the hash when it edits such a value.
+ * A hex code, bare or as `{ hex }`, and a color with other fields beside its own (react-color wrote a `hex`) are not
+ * stored colors: the readers above still draw them, so a value stored that way is seen, and this says why it is
+ * wrong. The color field stores the hash, and only the hash, when it edits such a value.
  */
 export const storedColorProblem = (value: unknown): string | undefined => {
   if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
@@ -260,6 +266,13 @@ export const storedColorProblem = (value: unknown): string | undefined => {
   // an opacity that is not given is a color that is opaque
   if (color.a !== undefined && color.a !== null && !isOpacity(color.a)) {
     problems.push(`opacity (a) must be a number from 0 to 1, not ${showValue(color.a)}`);
+  }
+  // a field beside its own, which the server refuses
+  const extra = Object.keys(color).filter((key) => !STORED_FIELDS.includes(key));
+  if (extra.length) {
+    problems.push(
+      `the color also has ${listChannels(extra.map((key) => showValue(key)))}, which a stored color can't have`
+    );
   }
   if (!problems.length) {
     return undefined;
