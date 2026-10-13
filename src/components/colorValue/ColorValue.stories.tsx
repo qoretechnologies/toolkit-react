@@ -48,6 +48,15 @@ const expectColour = async (value: HTMLElement, text: string, paint: string, swa
   ).toContain(paint);
 };
 
+/**
+ * A value is as wide as what it shows, not as wide as the column it is in: in a flex column it stretched,
+ * and its wash ran across the column.
+ */
+const expectAsWideAsItsContent = async (value: HTMLElement) => {
+  const column = value.parentElement!.getBoundingClientRect().width;
+  await expect(value.getBoundingClientRect().width).toBeLessThan(column / 2);
+};
+
 /** Nothing in the canvas reaches past its right edge. */
 const expectNothingPastTheEdge = async (canvasElement: HTMLElement) => {
   const edge = canvasElement.getBoundingClientRect().right;
@@ -223,6 +232,8 @@ export const Compact: Story = {
     await expectColour(compact, '#6495ED', 'rgb(100, 149, 237)', 12);
     await expectColour(normal, '#6495ED', 'rgb(100, 149, 237)', 20);
     await expect(compact).toHaveAttribute('data-size', 'compact');
+    await expectAsWideAsItsContent(compact);
+    await expectAsWideAsItsContent(normal);
     const box = canvasElement
       .querySelector<HTMLElement>('.narrow-summary')!
       .getBoundingClientRect();
@@ -261,6 +272,7 @@ export const OnAPhone: Story = {
     await expectColour(seeThrough, 'rgba(255, 0, 0, 0.5)', 'rgba(255, 0, 0, 0.5)', 20);
     await expectColour(compact, 'rgba(255, 0, 0, 0.5)', 'rgba(255, 0, 0, 0.5)', 12);
     await expect(invalid).toHaveAttribute('data-invalid', 'true');
+    await expectAsWideAsItsContent(colour);
     await expectNothingPastTheEdge(canvasElement);
   },
 };
@@ -290,8 +302,9 @@ export const OnALightTheme: Story = {
     },
   },
   async play({ canvasElement }) {
-    const [, white, invalid] = values(canvasElement);
+    const [colour, white, invalid] = values(canvasElement);
     await waitFor(() => expectColour(white, '#FFFFFF', 'rgb(255, 255, 255)', 20));
+    await expectAsWideAsItsContent(colour);
     // the edge is not white: it is a tint of the theme's dark text
     await expect(getComputedStyle(swatchOf(white)).borderTopColor).not.toBe('rgb(255, 255, 255)');
     await expect(getComputedStyle(invalid).color).not.toBe('rgb(255, 255, 255)');

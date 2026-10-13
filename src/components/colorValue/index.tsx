@@ -99,6 +99,8 @@ export const ReqraftColorValue = memo(
       display: 'inline-flex',
       alignItems: 'center',
       gap: metrics.gap,
+      // as wide as what it shows: as an item of a flex column it would stretch, its wash across the column
+      width: 'fit-content',
       minWidth: 0,
       maxWidth: '100%',
       ...(wraps ? { flexWrap: 'wrap' } : {}),
