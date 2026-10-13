@@ -6,19 +6,19 @@
  * The server's type catalogue (QorusDataTypeCatalogue::Info, served at /system/qorus-type-info) is the one source
  * of a type's name. Until it arrives reqraft draws with its own copy, `defaultQorusTypes`, and words its condition
  * and type messages with it - so a copy that drifts says one name in a fallback and another once the server
- * answers. fixtures/qorusTypeCatalogueNames.json is the server catalogue's names. When the server's catalogue
- * changes, refresh it from the qorus checkout and fix the fallback until this passes:
- *
- *   yarn refresh:type-names ~/src/Qorus/git/qorus/Classes/QorusDataTypeCatalogue.qc
+ * answers. fixtures/qorusTypeInfo.json is a recorded answer of the server; qorusTypeCatalogue.test.ts compares the
+ * whole copy with it, and these tests the names reqraft words with.
  */
 import { describe, expect, it } from 'vitest';
 import { getImmediateValueTypes } from '../src/components/form/fields/auto/AutoFormField';
 import { conditionErrorText } from '../src/helpers/expressions';
 import { defaultQorusTypes } from '../src/hooks/useQorusTypes';
-import catalogue from './fixtures/qorusTypeCatalogueNames.json';
+import recorded from './fixtures/qorusTypeInfo.json';
 
 /** The server catalogue's names for each type: its display name (a label) and its sentence form. */
-const serverNames = catalogue as Record<string, { display_name: string; sentence_form: string }>;
+const serverNames: Record<string, { display_name: string; sentence_form: string }> = Object.fromEntries(
+  recorded.map(({ name, display_name, sentence_form }) => [name, { display_name, sentence_form }])
+);
 const serverName = Object.fromEntries(
   Object.entries(serverNames).map(([type, names]) => [type, names.display_name])
 );

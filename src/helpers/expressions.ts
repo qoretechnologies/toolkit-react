@@ -10,6 +10,7 @@ import {
   IExpressionSchemaArg,
 } from '../components/form/expressions/types';
 import { defaultQorusTypes, getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
+import { catalogueTypeName } from './qorusTypeCatalogue';
 
 export const getArgumentType = (
   expressions: IExpressionSchema[],
@@ -57,8 +58,12 @@ export const argumentMatchesType = (
  * template from it, and the picker offered a group header with nothing under
  * it. The field was not "a field with no templates" — it was a field whose
  * templates had all been filtered away by a name mismatch.
+ *
+ * Qore's other names for a type (`integer`, `boolean`) are the catalogue's name for it too: the server's catalogue
+ * lists and converts each type by one name only (qorus#646).
  */
-const normalizeAnyLikeTypeName = (name: string): string => (name === 'auto' ? 'any' : name);
+const normalizeAnyLikeTypeName = (name: string): string =>
+  name === 'auto' ? 'any' : catalogueTypeName(name);
 
 export const areQorusTypesCompatible = (
   mainType: string | string[],

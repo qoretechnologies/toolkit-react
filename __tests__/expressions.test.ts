@@ -96,6 +96,16 @@ describe('helpers/expressions', () => {
       expect(areQorusTypesCompatible('data', 'binary')).toBe(true);
     });
 
+    // the server's catalogue knows each type by one name: Qore's other name for it is the same type (qorus#646)
+    it("takes Qore's other name for a type as the type it names", () => {
+      expect(areQorusTypesCompatible('integer', 'float')).toBe(true);
+      expect(areQorusTypesCompatible('number', 'integer')).toBe(true);
+      expect(areQorusTypesCompatible('boolean', 'bool')).toBe(true);
+      expect(areQorusTypesCompatible('bool', 'boolean')).toBe(true);
+      expect(areQorusTypesCompatible('integer', 'string')).toBe(false);
+      expect(areQorusTypesCompatible('boolean', 'int')).toBe(false);
+    });
+
     it('rejects unrelated scalar types', () => {
       expect(areQorusTypesCompatible('int', 'string')).toBe(false);
       expect(areQorusTypesCompatible('date', 'bool')).toBe(false);

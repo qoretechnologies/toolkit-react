@@ -1,0 +1,315 @@
+[
+  {
+    "name": "any",
+    "display_name": "Any",
+    "sentence_form": "any value",
+    "short_desc": "Any data type",
+    "desc": "Any data type",
+    "types_accepted": [
+      "any"
+    ],
+    "exact_match": [
+      "any"
+    ]
+  },
+  {
+    "name": "context",
+    "display_name": "Context",
+    "sentence_form": "a value of the context's type",
+    "short_desc": "The data type is determined by the context value chosen",
+    "desc": "The data type is determined by the context value chosen",
+    "types_accepted": [
+      "any"
+    ],
+    "exact_match": [
+      "any"
+    ]
+  },
+  {
+    "name": "string",
+    "display_name": "Text",
+    "sentence_form": "text",
+    "short_desc": "Text",
+    "desc": "Text",
+    "types_accepted": [
+      "any"
+    ],
+    "exact_match": [
+      "string",
+      "richtext"
+    ]
+  },
+  {
+    "name": "richtext",
+    "display_name": "Rich text",
+    "sentence_form": "formatted text",
+    "short_desc": "Text with formatting",
+    "desc": "Text with formatting",
+    "types_accepted": [
+      "any"
+    ],
+    "exact_match": [
+      "string",
+      "richtext"
+    ]
+  },
+  {
+    "name": "int",
+    "display_name": "Whole number",
+    "sentence_form": "a whole number",
+    "short_desc": "A whole number (64-bit)",
+    "desc": "A whole number (64-bit)",
+    "types_accepted": [
+      "int",
+      "float",
+      "number"
+    ],
+    "exact_match": [
+      "int",
+      "float",
+      "number"
+    ]
+  },
+  {
+    "name": "float",
+    "display_name": "Number",
+    "sentence_form": "a number",
+    "short_desc": "A number with a fractional part (double precision)",
+    "desc": "A number with a fractional part (double precision)",
+    "types_accepted": [
+      "float",
+      "int",
+      "number"
+    ],
+    "exact_match": [
+      "float",
+      "int",
+      "number"
+    ]
+  },
+  {
+    "name": "number",
+    "display_name": "Exact number",
+    "sentence_form": "an exact number",
+    "short_desc": "A decimal number kept exactly",
+    "desc": "A decimal number kept exactly",
+    "types_accepted": [
+      "number",
+      "float",
+      "int"
+    ],
+    "exact_match": [
+      "number",
+      "float",
+      "int"
+    ]
+  },
+  {
+    "name": "bool",
+    "display_name": "True or false",
+    "sentence_form": "true or false",
+    "short_desc": "True or false",
+    "desc": "True or false",
+    "types_accepted": [
+      "bool"
+    ],
+    "exact_match": [
+      "bool"
+    ]
+  },
+  {
+    "name": "date",
+    "display_name": "Date",
+    "sentence_form": "a date and time",
+    "short_desc": "A date and time",
+    "desc": "A date and time",
+    "types_accepted": [
+      "date"
+    ],
+    "exact_match": [
+      "date"
+    ]
+  },
+  {
+    "name": "time",
+    "display_name": "Time",
+    "sentence_form": "a time of day",
+    "short_desc": "A time of day",
+    "desc": "A time of day",
+    "types_accepted": [
+      "date"
+    ],
+    "exact_match": [
+      "date"
+    ]
+  },
+  {
+    "name": "binary",
+    "display_name": "Binary data",
+    "sentence_form": "binary data",
+    "short_desc": "Binary data",
+    "desc": "Binary data",
+    "types_accepted": [
+      "binary"
+    ],
+    "exact_match": [
+      "binary"
+    ]
+  },
+  {
+    "name": "data",
+    "display_name": "Text or binary data",
+    "sentence_form": "text or binary data",
+    "short_desc": "Text or binary data",
+    "desc": "Text or binary data",
+    "types_accepted": [
+      "string",
+      "richtext",
+      "binary",
+      "data"
+    ],
+    "exact_match": [
+      "string",
+      "richtext",
+      "binary",
+      "data"
+    ]
+  },
+  {
+    "name": "hash",
+    "display_name": "Set of fields",
+    "sentence_form": "a set of fields",
+    "short_desc": "Named fields with their values",
+    "desc": "Named fields with their values",
+    "types_accepted": [
+      "hash"
+    ],
+    "exact_match": [
+      "hash"
+    ]
+  },
+  {
+    "name": "list",
+    "display_name": "List",
+    "sentence_form": "a list",
+    "short_desc": "List",
+    "desc": "List",
+    "types_accepted": [
+      "list"
+    ],
+    "exact_match": [
+      "list"
+    ]
+  },
+  {
+    "name": "rgbcolor",
+    "display_name": "Color",
+    "sentence_form": "a color",
+    "short_desc": "An RGB color",
+    "desc": "An RGB color",
+    "types_accepted": [
+      "rgbcolor"
+    ],
+    "exact_match": [
+      "rgbcolor"
+    ]
+  },
+  {
+    "name": "workflow",
+    "display_name": "Workflow",
+    "sentence_form": "a workflow",
+    "short_desc": "Qorus workflow",
+    "desc": "Qorus workflow",
+    "types_accepted": [
+      "workflow",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "workflow",
+      "string",
+      "richtext"
+    ]
+  },
+  {
+    "name": "service",
+    "display_name": "Service",
+    "sentence_form": "a service",
+    "short_desc": "Qorus service",
+    "desc": "Qorus service",
+    "types_accepted": [
+      "service",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "service",
+      "string",
+      "richtext"
+    ]
+  },
+  {
+    "name": "job",
+    "display_name": "Job",
+    "sentence_form": "a job",
+    "short_desc": "Qorus job",
+    "desc": "Qorus job",
+    "types_accepted": [
+      "job",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "job",
+      "string",
+      "richtext"
+    ]
+  },
+  {
+    "name": "mapper",
+    "display_name": "Mapper",
+    "sentence_form": "a mapper",
+    "short_desc": "Qorus mapper",
+    "desc": "Qorus mapper",
+    "types_accepted": [
+      "mapper",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "mapper",
+      "string",
+      "richtext"
+    ]
+  },
+  {
+    "name": "data-provider",
+    "display_name": "Data provider",
+    "sentence_form": "a data provider",
+    "short_desc": "Qorus data provider",
+    "desc": "Qorus data provider",
+    "types_accepted": [
+      "data-provider"
+    ],
+    "exact_match": [
+      "data-provider"
+    ]
+  },
+  {
+    "name": "connection",
+    "display_name": "Connection",
+    "sentence_form": "a connection",
+    "short_desc": "Qorus connection",
+    "desc": "Qorus connection",
+    "types_accepted": [
+      "connection",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "connection",
+      "string",
+      "richtext"
+    ]
+  }
+]

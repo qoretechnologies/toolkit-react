@@ -23,6 +23,11 @@ export interface IQorusTypeObject {
 
 export const compactTypesList = ['richtext', 'float', 'hash', 'list', 'bool', 'date', 'binary'];
 
+/**
+ * reqraft's copy of the server's type catalogue (GET /system/qorus-type-info), used until the server answers: the
+ * same types, in the same order, with the same fields. __tests__/qorusTypeCatalogue.test.ts compares it with a
+ * recorded response (__tests__/fixtures/qorusTypeInfo.json), so a copy that drifts from the server fails.
+ */
 export const defaultQorusTypes: IQorusTypeObject[] = [
   {
     name: 'any',
@@ -55,8 +60,8 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     name: 'richtext',
     display_name: 'Rich text',
     sentence_form: 'formatted text',
-    short_desc: 'Rich text string data',
-    desc: 'Rich text string data',
+    short_desc: 'Text with formatting',
+    desc: 'Text with formatting',
     types_accepted: ['any'],
     exact_match: ['string', 'richtext'],
   },
@@ -66,26 +71,26 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     sentence_form: 'a whole number',
     short_desc: 'A whole number (64-bit)',
     desc: 'A whole number (64-bit)',
-    types_accepted: ['int', 'integer'],
-    exact_match: ['int', 'integer'],
+    types_accepted: ['int', 'float', 'number'],
+    exact_match: ['int', 'float', 'number'],
   },
   {
     name: 'float',
     display_name: 'Number',
     sentence_form: 'a number',
-    short_desc: 'Double-precision floating-point number',
-    desc: 'Double-precision floating-point number',
-    types_accepted: ['float', 'int', 'integer'],
-    exact_match: ['float', 'int', 'integer'],
+    short_desc: 'A number with a fractional part (double precision)',
+    desc: 'A number with a fractional part (double precision)',
+    types_accepted: ['float', 'int', 'number'],
+    exact_match: ['float', 'int', 'number'],
   },
   {
     name: 'number',
     display_name: 'Exact number',
     sentence_form: 'an exact number',
-    short_desc: 'A number of any size and precision',
-    desc: 'A number of any size and precision',
-    types_accepted: ['number', 'float', 'int', 'integer'],
-    exact_match: ['number', 'float', 'int', 'integer'],
+    short_desc: 'A decimal number kept exactly',
+    desc: 'A decimal number kept exactly',
+    types_accepted: ['number', 'float', 'int'],
+    exact_match: ['number', 'float', 'int'],
   },
   {
     name: 'bool',
@@ -100,8 +105,8 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     name: 'date',
     display_name: 'Date',
     sentence_form: 'a date and time',
-    short_desc: 'Date-time value',
-    desc: 'Date-time value',
+    short_desc: 'A date and time',
+    desc: 'A date and time',
     types_accepted: ['date'],
     exact_match: ['date'],
   },
@@ -118,8 +123,8 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     name: 'binary',
     display_name: 'Binary data',
     sentence_form: 'binary data',
-    short_desc: 'Binary value',
-    desc: 'Binary value',
+    short_desc: 'Binary data',
+    desc: 'Binary data',
     types_accepted: ['binary'],
     exact_match: ['binary'],
   },
@@ -127,17 +132,17 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     name: 'data',
     display_name: 'Text or binary data',
     sentence_form: 'text or binary data',
-    short_desc: 'Binary or string value',
-    desc: 'Binary or string value',
-    types_accepted: ['string', 'richtext', 'binary'],
-    exact_match: ['string', 'richtext', 'binary'],
+    short_desc: 'Text or binary data',
+    desc: 'Text or binary data',
+    types_accepted: ['string', 'richtext', 'binary', 'data'],
+    exact_match: ['string', 'richtext', 'binary', 'data'],
   },
   {
     name: 'hash',
     display_name: 'Set of fields',
     sentence_form: 'a set of fields',
-    short_desc: 'Ordered key-value pair / hash',
-    desc: 'Ordered key-value pair / hash',
+    short_desc: 'Named fields with their values',
+    desc: 'Named fields with their values',
     types_accepted: ['hash'],
     exact_match: ['hash'],
   },
@@ -154,8 +159,8 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     name: 'rgbcolor',
     display_name: 'Color',
     sentence_form: 'a color',
-    short_desc: 'RGB Color value',
-    desc: 'RGB Color value',
+    short_desc: 'An RGB color',
+    desc: 'An RGB color',
     types_accepted: ['rgbcolor'],
     exact_match: ['rgbcolor'],
   },
@@ -196,6 +201,15 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     exact_match: ['mapper', 'string', 'richtext'],
   },
   {
+    name: 'data-provider',
+    display_name: 'Data provider',
+    sentence_form: 'a data provider',
+    short_desc: 'Qorus data provider',
+    desc: 'Qorus data provider',
+    types_accepted: ['data-provider'],
+    exact_match: ['data-provider'],
+  },
+  {
     name: 'connection',
     display_name: 'Connection',
     sentence_form: 'a connection',
@@ -210,6 +224,12 @@ export const getQorusTypes = (): IQorusTypeObject[] => defaultQorusTypes;
 
 /** Qore's other names for a type the catalogue lists under its own (qorus#646). */
 const QORE_TYPE_ALIASES: Record<string, string> = { boolean: 'bool', integer: 'int' };
+
+/**
+ * A type's name as the catalogue lists it: Qore's other name for a type (`integer`, `boolean`) is the type it names
+ * (`int`, `bool`). The server's catalogue knows each type by one name only, and says which it converts by that name.
+ */
+export const catalogueTypeName = (typeName: string): string => QORE_TYPE_ALIASES[typeName] ?? typeName;
 
 /**
  * The catalogue's entry for a type (the server's catalogue, or reqraft's copy until it answers).

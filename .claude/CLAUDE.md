@@ -196,13 +196,14 @@ yarn build:test         # Type-check without emit
 - Wrap unit tests with `ReqraftProvider` (or at minimum `QueryClientProvider`)
 - Use `mock-socket` for WebSocket testing
 - Run: `yarn test` (unit) · `yarn test:stories [file-substring]` (stories) · `yarn precheck` (lint + unit + `build:test:prod`)
-- **Type names come from the server.** A data type's display name is the Qorus server's
-  (`QorusDataTypeCatalogue::Info`, served at `/system/qorus-type-info`): `defaultQorusTypes`
-  (`src/hooks/useQorusTypes.ts`) is reqraft's copy until the server's list arrives, and the
-  condition and type messages are worded with it. `__tests__/qorusTypeNames.test.ts` compares
-  it with `__tests__/fixtures/qorusTypeCatalogueNames.json`, the server catalogue's names. When the
-  server changes a name, refresh that file and fix the fallback until the test passes:
-  `yarn refresh:type-names ~/src/Qorus/git/qorus/Classes/QorusDataTypeCatalogue.qc`
+- **The type catalogue comes from the server.** A data type's names (its display name, a label, and its
+  sentence form, its name inside a sentence), descriptions and conversions (`types_accepted`, `exact_match`) are
+  the Qorus server's (`QorusDataTypeCatalogue::Info`, served at `/system/qorus-type-info`): `defaultQorusTypes`
+  (`src/helpers/qorusTypeCatalogue.ts`) is reqraft's copy until the server's list arrives, and the condition and
+  type messages are worded with it. `__tests__/qorusTypeCatalogue.test.ts` compares it, field for field, with
+  `__tests__/fixtures/qorusTypeInfo.json`, a recorded answer of the server. When the server's catalogue changes,
+  record its answer again and fix the copy until the test passes:
+  `qrest -j system/qorus-type-info | yarn -s record:type-info`
 
 ### Storybook Stories & visual testing
 

@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 
 import { StoryMeta } from '../../../../types';
 import { buildTemplates } from '../../../../helpers/templates';
+import { defaultQorusTypes } from '../../../../hooks/useQorusTypes';
 import { FormEngine } from '../../engine/FormEngine';
 import { templates } from '../template/__fixtures__/templateFixtures';
 import { AutoFormField } from './AutoFormField';
@@ -416,8 +417,10 @@ export const ViaFormEngineMenuOpensItsOnlyGroup: Story = {
       () => expect(document.body.textContent).toContain('Set Custom Value'),
       { timeout: 10000 }
     );
-    // ...and the rows are there to click, with no header click in between.
-    await waitFor(() => expect(document.body.textContent).toContain('Ordered key-value pair'), {
+    // ...and the rows are there to click, with no header click in between: each type with the description the
+    // server's catalogue gives it (a set of fields: "Named fields with their values").
+    const setOfFields = defaultQorusTypes.find((type) => type.name === 'hash')!.short_desc!;
+    await waitFor(() => expect(document.body.textContent).toContain(setOfFields), {
       timeout: 10000,
     });
   },
