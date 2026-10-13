@@ -1,5 +1,5 @@
 import { ReqoreIcon, ReqoreP, ReqoreSpan } from '@qoretechnologies/reqore';
-import { uniq } from 'lodash';
+import { compact, uniq } from 'lodash';
 import { argumentMatchesType, getArgumentType } from '../../../../helpers/expressions';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
@@ -50,7 +50,9 @@ export const ExpressionBuilderArgumentLabel = ({
     ...types.getAcceptedTypes(schema.ui_type),
   ]);
   /** The types this argument takes, named inside a sentence: "a whole number or a number" (qorus#646). */
-  const acceptedTypeNames = uniq(acceptedTypes.map((t) => types.getTypeSentenceForm(t))).join(' or ');
+  const acceptedTypeNames = uniq(compact(acceptedTypes.map((t) => types.getTypeSentenceForm(t)))).join(
+    ' or '
+  );
   /* `arg` is optional — an operand the author has not filled in yet has no
      entry at all, and a literal carried straight from a parse can be the null
      literal itself. Both were dereferenced unguarded here, which took the whole
@@ -127,8 +129,11 @@ export const ExpressionBuilderArgumentLabel = ({
             tooltip={
               matchesType
                 ? 'The type fits; Qorus may convert the value'
-                : // the sentence starts with them
-                  `${acceptedTypeNames.charAt(0).toUpperCase()}${acceptedTypeNames.slice(1)} is needed here`
+                : acceptedTypeNames
+                  ? // the sentence starts with them
+                    `${acceptedTypeNames.charAt(0).toUpperCase()}${acceptedTypeNames.slice(1)} is needed here`
+                  : // a place whose types are not known names none
+                    'A value of another type is needed here'
             }
           >
             {types.getTypeDisplayName(argumentType)}

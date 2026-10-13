@@ -27,9 +27,10 @@ export interface IUseTypes {
   compactValue?: IQorusTypeObject[];
   getAcceptedTypes: (typeName: string) => string[];
   getExactMatches: (typeName: string) => string[];
-  getTypeDisplayName: (typeName: string) => string;
-  /** The type's name inside a sentence; see `qorusTypeSentenceForm`. */
-  getTypeSentenceForm: (typeName: string) => string;
+  /** The type's name as a label; see `qorusTypeDisplayName`. `undefined` for no type. */
+  getTypeDisplayName: (typeName: string | undefined) => string | undefined;
+  /** The type's name inside a sentence; see `qorusTypeSentenceForm`. `undefined` for no type. */
+  getTypeSentenceForm: (typeName: string | undefined) => string | undefined;
 }
 
 export const useQorusTypes = (): IUseTypes => {
@@ -58,12 +59,12 @@ export const useQorusTypes = (): IUseTypes => {
   );
 
   const getTypeDisplayName = useCallback(
-    (typeName: string): string => qorusTypeDisplayName(value, typeName),
+    (typeName: string | undefined): string | undefined => qorusTypeDisplayName(value, typeName),
     [value]
   );
 
   const getTypeSentenceForm = useCallback(
-    (typeName: string): string => qorusTypeSentenceForm(value, typeName),
+    (typeName: string | undefined): string | undefined => qorusTypeSentenceForm(value, typeName),
     [value]
   );
 

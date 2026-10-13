@@ -263,7 +263,14 @@ const isValueDefined = (type: string, value: any): boolean => {
  * A type named inside a sentence: its sentence form in the server's type catalogue ("a whole number"), as reqraft
  * keeps it - the form's own words, said before and without any server (qorus#646).
  */
-const typeInSentence = (type: string): string => qorusTypeSentenceForm(defaultQorusTypes, type);
+const typeInSentence = (type: string): string | undefined =>
+  qorusTypeSentenceForm(defaultQorusTypes, type);
+
+/** What is said of a value that is not of its field's type, the type named where there is one (qorus#646). */
+const valueMustBe = (type: string): string => {
+  const named = typeInSentence(type);
+  return named ? `Value must be ${named}` : "Value must be of this field's type";
+};
 
 /** The types a value is written as text in, where text around a template makes it text and not one of them. */
 const NOT_TEXT_WITH_A_TEMPLATE = new Set([
@@ -287,7 +294,9 @@ const NOT_TEXT_WITH_A_TEMPLATE = new Set([
  * happened?"). `undefined` where the type is text, or the value is not text around a template.
  */
 const textAroundATemplateReason = (type: string, value: unknown): string | undefined => {
-  const notA = NOT_TEXT_WITH_A_TEMPLATE.has(type) ? typeInSentence(type) : undefined;
+  const notA = NOT_TEXT_WITH_A_TEMPLATE.has(type)
+    ? (typeInSentence(type) ?? "of this field's type")
+    : undefined;
   const around = notA ? textAroundATemplate(value) : undefined;
   if (!around) {
     return undefined;
@@ -427,7 +436,7 @@ export const _validateField = (
         value === true ||
           value === false ||
           (value === undefined && field?.has_to_have_value === false),
-        `Value must be ${typeInSentence('bool')}`
+        valueMustBe('bool')
       );
     case 'connection': {
       if (!value) {
@@ -717,18 +726,18 @@ export const _validateField = (
     }
     case 'number': {
       if (!isNumericValue(value)) {
-        return invalidResult(`Value must be ${typeInSentence('number')}`);
+        return invalidResult(valueMustBe('number'));
       }
       return checkNumericBounds(value, field);
     }
     case 'int':
       if (!(!Number.isNaN(value) && getTypeFromValue(value) === 'int')) {
-        return invalidResult(`Value must be ${typeInSentence('int')}`);
+        return invalidResult(valueMustBe('int'));
       }
       return checkNumericBounds(value, field);
     case 'float':
       if (!isNumericValue(value)) {
-        return invalidResult(`Value must be ${typeInSentence('float')}`);
+        return invalidResult(valueMustBe('float'));
       }
       return checkNumericBounds(value, field);
     case 'select-array':
@@ -789,7 +798,7 @@ export const _validateField = (
       }
 
       if (!parsedValue || !isObject(parsedValue)) {
-        return invalidResult(`Value must be ${typeInSentence('hash')}`);
+        return invalidResult(valueMustBe('hash'));
       }
 
       return validResult();

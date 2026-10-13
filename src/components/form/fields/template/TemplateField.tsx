@@ -1969,8 +1969,9 @@ const TemplateFieldImpl = memo(
     // ─── Value · Expression · Visual (or Value · Template) ───────────────────────────────────────────
     if (tabsKind && !rest.disabled) {
       const words: IValueTabsLabels = { ...DEFAULT_VALUE_TABS_LABELS, ...valueTabsLabels };
-      /** A type named inside a sentence: the host's own words, or the type catalogue's sentence form. */
-      const typeInSentence = words.typeName ?? qorusTypes.getTypeSentenceForm;
+      /** A type named inside a sentence: the host's own words, or the type catalogue's sentence form (none for no type). */
+      const typeInSentence: (type: string | undefined) => string | undefined =
+        words.typeName ?? qorusTypes.getTypeSentenceForm;
       /* A condition field's Expression tab holds what is used as a condition, so it is called one (qorus#646):
          "condition" where the value is used as a condition, "expression" everywhere else. */
       const conditionField = isConditionOption(rest);
@@ -2005,14 +2006,14 @@ const TemplateFieldImpl = memo(
         loneTemplate && !typeIsAnyLike ?
           findTemplate(templates ?? {}, loneTemplate)?.badge
         : undefined;
-      const conversionNote =
-        (
-          typeof loneTemplateType === 'string' &&
-          loneTemplateType &&
-          !sameValueType(loneTemplateType, type as string)
-        ) ?
-          words.conversion(typeInSentence(loneTemplateType), typeInSentence(type as string))
+      // the types inside the sentence; with either one not known there is nothing to say converts to what
+      const conversionFrom =
+        typeof loneTemplateType === 'string' && !sameValueType(loneTemplateType, type as string) ?
+          typeInSentence(loneTemplateType)
         : undefined;
+      const conversionTo = conversionFrom ? typeInSentence(type as string) : undefined;
+      const conversionNote =
+        conversionFrom && conversionTo ? words.conversion(conversionFrom, conversionTo) : undefined;
       const cannotShow = (message: string) => (
         <ReqoreMessage
           size='small'

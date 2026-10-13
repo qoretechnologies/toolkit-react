@@ -165,19 +165,36 @@ const conditionExample = (baseType: string): string =>
  * it one, with an example for its type. `typeInSentence` is the type named inside a sentence - its sentence form
  * ("text"), as `qorusTypeSentenceForm` gives it - and `baseType` the type it is (`string`, `date`, `time`): the
  * example follows it. These are the server's words: a fallback for when it said none, never a second wording of
- * them.
+ * them. With no type to name, the sentence names none: "The condition must evaluate to true or false. …".
  */
-export const conditionErrorText = (typeInSentence: string, baseType: string | undefined): string =>
-  `The condition evaluates to ${typeInSentence}, but it must evaluate to true or false. Compare the value instead, for example ${conditionExample(conditionBaseType(baseType))}.`;
+export const conditionErrorText = (
+  typeInSentence: string | undefined,
+  baseType: string | undefined
+): string =>
+  `${typeInSentence ? `The condition evaluates to ${typeInSentence}, but it` : 'The condition'} must evaluate to true or false. Compare the value instead, for example ${conditionExample(conditionBaseType(baseType))}.`;
 
 /**
  * What the expression builder says of an expression whose result does not fit its place: what it gives, what the
  * place takes, and what to do. `gives` and `takes` name the types inside the sentence - their sentence forms ("a
  * whole number"), as `qorusTypeSentenceForm` gives them, `takes` joined with "or" where a place takes more than
- * one - and `gives` is undefined for an expression that gives nothing yet (qorus#646).
+ * one - and `gives` is undefined for an expression that gives nothing yet, `takes` for a place whose type is not
+ * known: the sentence then says what it gives without naming a type it cannot name (qorus#646).
  */
-export const expressionTypeMismatchText = (gives: string | undefined, takes: string): string =>
-  `This expression gives ${gives ?? 'nothing'}, but this field takes ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`;
+export const expressionTypeMismatchText = (
+  gives: string | undefined,
+  takes: string | undefined
+): string =>
+  takes ?
+    `This expression gives ${gives ?? 'nothing'}, but this field takes ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`
+  : `This expression gives ${gives ?? 'nothing'}, which this field does not take. Choose another expression, or put this one inside an expression that converts it.`;
+
+/**
+ * What the builder's conversion list says of an argument it converts: from what to what. `from` and `to` name the
+ * types inside the sentence - their sentence forms, as `qorusTypeSentenceForm` gives them - and either is undefined
+ * where the type is not known; the sentence then names only the other, or neither (qorus#646).
+ */
+export const conversionText = (from: string | undefined, to: string | undefined): string =>
+  `Converted${from ? ` from ${from}` : ''}${to ? ` to ${to}` : ''}`;
 
 /**
  * What is said of a condition that gives a number, a list, a hash or a type that is not known

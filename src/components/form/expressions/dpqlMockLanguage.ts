@@ -399,9 +399,12 @@ export const inferDpqlMockType = (node: IDpqlMockNode): string => {
 
 const capitalise = (word: string) => word[0].toUpperCase() + word.slice(1);
 
-/** A type as the server names it inside what it says: its sentence form ("a whole number", qorus c6b3fb97c). */
-const typeInSentence = (type: string): string =>
-  qorusTypeSentenceForm(getQorusTypes(), conditionBaseType(type));
+/**
+ * A type as the server names it inside what it says: its sentence form ("a whole number", qorus c6b3fb97c);
+ * "nothing" where there is no type to name.
+ */
+const typeInSentence = (type: string | undefined): string =>
+  qorusTypeSentenceForm(getQorusTypes(), conditionBaseType(type)) ?? 'nothing';
 
 /** What a successful parse says about fitting `target`, shaped as the server's answer. */
 const analyse = (
@@ -412,7 +415,14 @@ const analyse = (
   diagnostics: IDpqlMockDiagnostic[];
 } => {
   const base = { inferred_type: inferred, target_type: target };
-  if (inferred === 'auto' || target === 'auto' || target === 'any' || inferred === target) {
+  // a field with no type takes any value, as the builder reads it (`!returnType`)
+  if (
+    !target ||
+    inferred === 'auto' ||
+    target === 'auto' ||
+    target === 'any' ||
+    inferred === target
+  ) {
     return {
       ...base,
       type_compatible: true,
@@ -466,7 +476,7 @@ export const dpqlMockConditionWords: {
 
 /** The types a condition cannot give, as the server names them inside what it says: their sentence forms. */
 const NOT_A_CONDITION_TYPE_NAMES: Record<string, string> = Object.fromEntries(
-  ['string', 'date', 'time'].map((type) => [type, qorusTypeSentenceForm(getQorusTypes(), type)])
+  ['string', 'date', 'time'].map((type) => [type, typeInSentence(type)])
 );
 
 /** How a condition reads a type: true or false, not a condition (text, a date or a time), unknown, or by its value. */

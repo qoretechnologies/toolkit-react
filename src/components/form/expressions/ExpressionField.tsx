@@ -438,7 +438,7 @@ export const ExpressionField = memo(
     /** A type named inside a sentence: the sentence form of what it is ("a whole number"), or nothing (qorus#646). */
     const typeInSentence = useCallback(
       (type: string | undefined) =>
-        type ? qorusTypes.getTypeSentenceForm(conditionBaseType(type)) : 'nothing',
+        qorusTypes.getTypeSentenceForm(conditionBaseType(type)) ?? 'nothing',
       [qorusTypes]
     );
 

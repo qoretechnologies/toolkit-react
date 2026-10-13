@@ -2,7 +2,7 @@ import { ReqoreButton, ReqoreControlGroup, ReqoreModal, ReqoreP } from '@qoretec
 import { IReqoreModalProps } from '@qoretechnologies/reqore/dist/components/Modal';
 import { omit, size } from 'lodash';
 import { memo, useState } from 'react';
-import { getArgumentType } from '../../../../helpers/expressions';
+import { conversionText, getArgumentType } from '../../../../helpers/expressions';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { IExpression, IExpressionSchema } from '../types';
 
@@ -95,7 +95,12 @@ export const ConfirmMismatchedTypesModal = memo(
                 description={
                   fixedArgs[index].types_mismatch === false
                     ? // the types named inside a sentence, by their sentence forms (qorus#646)
-                      `Converted from ${types.getTypeSentenceForm(getArgumentType(expressions, arg, expression.args[index]))} to ${types.getTypeSentenceForm(expression.args[index].ui_type)}`
+                      conversionText(
+                        types.getTypeSentenceForm(
+                          getArgumentType(expressions, arg, expression.args[index])
+                        ),
+                        types.getTypeSentenceForm(expression.args[index].ui_type)
+                      )
                     : fixedArgs[index].types_mismatch === true
                       ? 'Cleared, not converted'
                       : 'No conversion needed'

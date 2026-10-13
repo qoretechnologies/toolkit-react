@@ -263,11 +263,15 @@ const qorusTypeEntry = (
 /**
  * What a type is called as a label ("Whole number"), by the type catalogue; a type it lists under no name keeps its
  * name. See `qorusTypeEntry` for the names a type goes by.
+ *
+ * No type (`undefined` or an empty name: a place whose type is not known yet) has no name: `undefined`, and the
+ * caller draws or words its text without one (qorus#646).
  */
 export const qorusTypeDisplayName = (
   types: IQorusTypeObject[] | undefined,
-  typeName: string
-): string => qorusTypeEntry(types, typeName)?.display_name ?? typeName;
+  typeName: string | undefined
+): string | undefined =>
+  typeName ? (qorusTypeEntry(types, typeName)?.display_name ?? typeName) : undefined;
 
 /**
  * What a type is called inside a sentence ("a whole number": "The expression gives a whole number"), by the type
@@ -277,11 +281,18 @@ export const qorusTypeDisplayName = (
  * "a value of type Whole number" - with its display name, or the type's own name where the catalogue lists it under
  * none. An English article is never built from a display name: "a Exact number", "a Whole number" in a sentence
  * of another language.
+ *
+ * No type (`undefined` or an empty name) has no sentence form: `undefined`, and the caller words its sentence
+ * without a type ("This expression gives nothing", "Converted to a whole number") rather than "a value of type
+ * undefined" (qorus#646).
  */
 export const qorusTypeSentenceForm = (
   types: IQorusTypeObject[] | undefined,
-  typeName: string
-): string => {
+  typeName: string | undefined
+): string | undefined => {
+  if (!typeName) {
+    return undefined;
+  }
   const entry = qorusTypeEntry(types, typeName);
   return entry?.sentence_form || `a value of type ${entry?.display_name ?? typeName}`;
 };
