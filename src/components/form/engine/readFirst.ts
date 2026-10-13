@@ -476,6 +476,29 @@ const capSummary = (text: string): string => {
 
 
 /**
+ * Markdown without its fenced code blocks. A fence opens on a line of its own (up to three spaces in) and closes
+ * on the next such line, or runs to the end when nothing closes it, as markdown reads it. Three backticks inside
+ * a line open no block: they are a code span, and what it holds is summarised as written (qorus#646) - taking
+ * every ``` to ``` out dropped the span's text.
+ */
+const withoutFencedBlocks = (value: string): string => {
+  const kept: string[] = [];
+  let fenced = false;
+  for (const line of value.replace(/\r\n?/g, '\n').split('\n')) {
+    if (/^\s{0,3}```/.test(line)) {
+      fenced = !fenced;
+      // the block parts what was before it from what comes after
+      kept.push('');
+      continue;
+    }
+    if (!fenced) {
+      kept.push(line);
+    }
+  }
+  return kept.join('\n');
+};
+
+/**
  * Summarise a markdown value as the prose it renders to.
  *
  * A read-first row has one line to work with, and for markdown that line was
@@ -496,7 +519,7 @@ const capSummary = (text: string): string => {
 export const summariseMarkdown = (value: unknown): string =>
   typeof value === 'string' ?
     // a fenced block is never the summary of the thing it sits in
-    capSummary(markdownToProse(value.replace(/```[\s\S]*?```/g, ' ')))
+    capSummary(markdownToProse(withoutFencedBlocks(value)))
   : '';
 
 /** The prose a description's markdown renders to, on one line (`helpers/markdownText`). */
