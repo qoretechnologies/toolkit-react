@@ -6165,6 +6165,65 @@ const _compactExpandAllRows = async () => {
   await expect(editors).toBeGreaterThan(40);
 };
 
+/** The colours of `CompactColourRows`, in each shape the form takes a colour in. */
+const COMPACT_COLOUR_VALUES = {
+  colour: { r: 100, g: 149, b: 237, a: 1 },
+  noOpacity: { r: 46, g: 125, b: 50 },
+  seeThrough: { r: 255, g: 0, b: 0, a: 0.5 },
+  hexObject: { hex: '#7b1fa2' },
+  shortHex: { hex: '#f80' },
+};
+
+export const CompactColourRows: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form of five colours, in each shape the form takes a colour in: { r, g, b, a } (cornflower blue, #6495ED), { r, g, b } (#2E7D32), a see-through { r, g, b, a } (rgba(255, 0, 0, 0.5)), { hex } (#7B1FA2) and a three-digit { hex } (#F80). Each row draws its colour as ReqraftColorValue does at its compact size: a 12px swatch beside the colour written out, on a wash of the colour, the swatch named for it.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    options: {
+      colour: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Colour' },
+      noOpacity: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Colour without opacity' },
+      seeThrough: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'See-through colour' },
+      hexObject: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Hex code' },
+      shortHex: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Three-digit hex code' },
+    },
+    value: Object.fromEntries(
+      Object.entries(COMPACT_COLOUR_VALUES).map(([name, value]) => [
+        name,
+        { type: 'rgbcolor', value },
+      ])
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('#6495ED');
+    await _testsWaitForText('rgba(255, 0, 0, 0.5)');
+    const colours = Array.from(
+      canvasElement.querySelectorAll<HTMLElement>('.readfirst-row .reqraft-color-value')
+    );
+    // in the form's own order
+    await expect(colours.map((colour) => colour.getAttribute('data-color')).sort()).toEqual([
+      '#2E7D32',
+      '#6495ED',
+      '#7B1FA2',
+      '#F80',
+      'rgba(255, 0, 0, 0.5)',
+    ]);
+    for (const colour of colours) {
+      await expect(colour).toHaveAttribute('data-size', 'compact');
+      const swatch = colour.querySelector<HTMLElement>('[role="img"]')!;
+      await expect(swatch).toHaveAccessibleName(`Colour ${colour.getAttribute('data-color')}`);
+      await expect(swatch.getBoundingClientRect().width).toBe(12);
+    }
+    // every colour is one the form takes: none needs attention
+    await expect(canvasElement.textContent).not.toContain('RGB color is invalid');
+  },
+};
+
 export const CompactFieldTypesEditing: Story = {
   // chromatic off: every catalog editor mounts live (async) — flaky and snapshot-heavy.
   parameters: {
