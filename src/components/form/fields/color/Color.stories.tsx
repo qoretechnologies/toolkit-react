@@ -107,7 +107,7 @@ export const WithValue: Story = {
     docs: {
       description: {
         story:
-          'Renders the Color field with cornflower blue chosen: the color square, a preview of the color beside the color bar, the Hex code, Red, Green and Blue inputs (6495ED; 100, 149, 237) with each label centred over its input, "What do these mean?" and the swatches.',
+          'Renders the Color field with cornflower blue chosen: the color square, a preview of the color beside the color bar, the Hex code, Red, Green and Blue inputs (6495ED; 100, 149, 237) with each label centered over its input, "What do these mean?" and the swatches.',
       },
     },
   },
@@ -571,7 +571,7 @@ export const OnATouchScreen: Story = {
     docs: {
       description: {
         story:
-          "Renders the Color field on a phone (390 px, touch): every target is a finger's size, each label is centred over its input, and nothing reaches past the field. A finger dragged across the color square picks a quarter of its strength and three quarters of its brightness.",
+          "Renders the Color field on a phone (390 px, touch): every target is a finger's size, each label is centered over its input, and nothing reaches past the field. A finger dragged across the color square picks a quarter of its strength and three quarters of its brightness.",
       },
     },
   },

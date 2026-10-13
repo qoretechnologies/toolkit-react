@@ -47,7 +47,7 @@ export const Empty: Story = {
     docs: {
       description: {
         story:
-          'Renders the SchemaDefinition editor with no existing value — the Schema, Tables, Sequences and Migrations tabs mount straight from the catalogue.',
+          'Renders the SchemaDefinition editor with no existing value — the Schema, Tables, Sequences and Migrations tabs mount straight from the catalog.',
       },
     },
   },
@@ -138,7 +138,7 @@ export const CatalogError: Story = {
     docs: {
       description: {
         story:
-          'Renders the SchemaDefinition editor when the catalogue fetch fails — a "Could not load schema options" callout replaces the form.',
+          'Renders the SchemaDefinition editor when the catalog fetch fails — a "Could not load schema options" callout replaces the form.',
       },
     },
   },
@@ -158,7 +158,7 @@ export const ViaFormField: Story = {
     docs: {
       description: {
         story:
-          'Renders the SchemaDefinition editor through the FormField dispatcher (type="schema-definition"). The catalogue is injected via fieldProps and the Schema and Tables tabs mount as usual.',
+          'Renders the SchemaDefinition editor through the FormField dispatcher (type="schema-definition"). The catalog is injected via fieldProps and the Schema and Tables tabs mount as usual.',
       },
     },
   },
@@ -192,7 +192,7 @@ export const ViaFormEngineUiType: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine schema whose "definition" option declares ui_type: schema-definition — FormEngine flows through TemplateField and FormField and mounts the schema editor with the injected catalogue.',
+          'Renders a FormEngine schema whose "definition" option declares ui_type: schema-definition — FormEngine flows through TemplateField and FormField and mounts the schema editor with the injected catalog.',
       },
     },
   },
@@ -245,7 +245,7 @@ export const Sandboxed: Story = {
     docs: {
       description: {
         story:
-          'Renders the SchemaDefinition editor for an untrusted (sandboxed) caller using the sandboxed catalogue — the Advanced tab and every trusted-only section are hidden.',
+          'Renders the SchemaDefinition editor for an untrusted (sandboxed) caller using the sandboxed catalog — the Advanced tab and every trusted-only section are hidden.',
       },
     },
   },

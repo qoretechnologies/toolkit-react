@@ -351,7 +351,7 @@ export const TemplateValue: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a whole number holding a template ($local:id). There is no separate template selector and no number input: the value is written in one text field, and the template is a chip in it, named as the catalogue names it ("Interface ID"). A click in the field lists the templates of its type. Typing is never blocked; the form flags a value that is not a whole number, one template alone or an expression, and says what to delete - e.g. “"abc" makes this text, not a whole number. Delete it to keep the template alone.” - and the form cannot be saved until it is fixed.',
+          'Renders TemplateField for a whole number holding a template ($local:id). There is no separate template selector and no number input: the value is written in one text field, and the template is a chip in it, named as the catalog names it ("Interface ID"). A click in the field lists the templates of its type. Typing is never blocked; the form flags a value that is not a whole number, one template alone or an expression, and says what to delete - e.g. “"abc" makes this text, not a whole number. Delete it to keep the template alone.” - and the form cannot be saved until it is fixed.',
       },
     },
   },
@@ -442,7 +442,7 @@ export const AliasedStateTemplateValue: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField holding a state-output reference spelled with the state id ($data:{dc_ai_reply.choices}) while the catalogue offers the same item spelled with the states-hash key ($data:{3.choices}) — the chip resolves through the item alias and shows "Choices", where it used to print the raw token.',
+          'Renders TemplateField holding a state-output reference spelled with the state id ($data:{dc_ai_reply.choices}) while the catalog offers the same item spelled with the states-hash key ($data:{3.choices}) — the chip resolves through the item alias and shows "Choices", where it used to print the raw token.',
       },
     },
   },
@@ -491,7 +491,7 @@ export const ExtendedPathTemplateValue: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField holding a path extended past the named field it starts from ($data:{dc_ai_reply.choices[0].message.content}, where the catalogue only offers "choices") — the chip is named after its nearest ancestor as "Choices[0].message.content" instead of printing the raw token.',
+          'Renders TemplateField holding a path extended past the named field it starts from ($data:{dc_ai_reply.choices[0].message.content}, where the catalog only offers "choices") — the chip is named after its nearest ancestor as "Choices[0].message.content" instead of printing the raw token.',
       },
     },
   },
@@ -811,7 +811,7 @@ export const TemplatesWithMultipleLevels: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a string with a hierarchical template catalogue. Drilling into "Testing Hash" narrows the list to templates that resolve to a string (Testing Int Item is filtered out).',
+          'Renders TemplateField for a string with a hierarchical template catalog. Drilling into "Testing Hash" narrows the list to templates that resolve to a string (Testing Int Item is filtered out).',
       },
     },
   },
@@ -828,7 +828,7 @@ export const TemplatesWithMultipleLevelsAndHashField: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a hash type with a hierarchical template catalogue — switching to template mode and opening the popover exposes the nested template groups.',
+          'Renders TemplateField for a hash type with a hierarchical template catalog — switching to template mode and opening the popover exposes the nested template groups.',
       },
     },
   },
@@ -864,7 +864,7 @@ export const TemplateWithItemsCanBeSelected: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField for a hash type with a hierarchical catalogue. Selecting an item from a nested group updates the template value to the picked entry (Testing Hash).',
+          'Renders TemplateField for a hash type with a hierarchical catalog. Selecting an item from a nested group updates the template value to the picked entry (Testing Hash).',
       },
     },
   },
@@ -1111,7 +1111,7 @@ export const TemplateReferencesInText: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField holding the string "Interface $local:id failed at $timestamp:now". Template mode draws each reference as a chip named from the catalogue (Interface ID, Current Timestamp) inside an editor that can still be typed into; the text between them reads as typed.',
+          'Renders TemplateField holding the string "Interface $local:id failed at $timestamp:now". Template mode draws each reference as a chip named from the catalog (Interface ID, Current Timestamp) inside an editor that can still be typed into; the text between them reads as typed.',
       },
     },
   },
@@ -1359,7 +1359,7 @@ export const WrittenAsTextChipOfAnotherType: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders a yes/no field holding the whole-number field pos with text after it. Its chip reads "pos", as the catalogue names it, though a yes/no field offers only yes/no fields: chips used to be named from that offered list, and a field not on it read as its reference ("record: pos").',
+          'Renders a yes/no field holding the whole-number field pos with text after it. Its chip reads "pos", as the catalog names it, though a yes/no field offers only yes/no fields: chips used to be named from that offered list, and a field not on it read as its reference ("record: pos").',
       },
     },
   },

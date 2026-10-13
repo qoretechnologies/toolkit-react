@@ -5,50 +5,122 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 /**
- * qorus#646: the product speaks American English, and so does the server: "Color", "a color". reqraft said
- * "Colour" - the color field's labels and help ("Chosen colour", "No colour chosen yet"), ReqraftColorValue's texts
- * ("Not a colour", "No colour", "Colour #6495ED"), its stories and its README - beside the server's "Color".
+ * qorus#646: reqraft is written in American English, as Qorus and the IDE are. The server's type catalogue says
+ * "Color", and reqraft said "Colour" beside it; its texts said "centred", "labelled", "summarises", "catalogue" too.
  *
- * Every text reqraft shows or documents is read here: each string, template and JSX text in its source, the name of
- * each story, and the README. Code identifiers are not words a reader sees, so they are not read.
+ * What is read is every text reqraft shows or documents: the prose of its sources - string literals, template
+ * literals and JSX text with words in them, or one capitalized word (a label) - in its components, its stories and
+ * their data (a story's description is read by people, and mock data is shown); the title of each story; and the
+ * README. Code spans (`` `cancelled` ``), placeholders (`{count}`, `${value}`), URLs and words in capitals (a status
+ * such as CANCELLED) are not prose, and identifiers, import paths and keys have no spaces, so they are not read.
+ * Comments are not read, and nor are tests.
+ *
+ * The list of British spellings is the IDE's (qorus-ide __tests__/conventions/americanEnglish.test.ts), so the two
+ * say the same words the same way; a spelling added to one is added to the other.
  */
 const root = join(__dirname, '..');
-const BRITISH = /colour/i;
 
-/** Every TypeScript file under a directory, relative to the root. */
-const filesUnder = (dir: string): string[] =>
+/** British spellings, each with its American one, with or without a prefix (unfavourited, reauthorise). */
+const BRITISH: [RegExp, string][] = [
+  [/\b(?:un|re|de|pre|dis)?colour(s|ed|ing|ful|less)?\b/i, 'color'],
+  [/\b(?:un|re|de|pre|dis)?behaviour(s|al)?\b/i, 'behavior'],
+  [/\b(?:un|re|de|pre|dis)?organis(e|es|ed|ing|er|ers|ation|ations)\b/i, 'organiz…'],
+  [/\b(?:un|re|de|pre|dis)?centre(s|d)?\b|\bcentring\b/i, 'center'],
+  [/\b(?:un|re|de|pre|dis)?licences?\b/i, 'license (the noun too)'],
+  [/\b(?:un|re|de|pre|dis)?favour(s|ed|ing|ite|ites|ited|iting|able)?\b/i, 'favor'],
+  [/\b(?:un|re|de|pre|dis)?honour(s|ed|ing)?\b/i, 'honor'],
+  [/\b(?:un|re|de|pre|dis)?catalogue(s|d)?\b/i, 'catalog'],
+  [/\b(?:un|re|de|pre|dis)?cancell(ed|ing)\b/i, 'canceled, canceling'],
+  [/\b(?:un|re|de|pre|dis)?(labour|neighbour|flavour|humour|harbour)(s|ed|ing|hood)?\b/i, '-or'],
+  [/\b(?:un|re|de|pre|dis)?analys(e|ed|ing)\b/i, 'analyz…'],
+  [
+    /\b(?:un|re|de|pre|dis)?(normal|summar|recogn|priorit|initial|final|custom|optim|serial|author|util|visual|synchron|categor|standard|local|real|emphas|minim|maxim|capital|character|special|memor|sanit|token|parameter|material|apolog)is(e|es|ed|ing|ation|ations|able|er|ers)\b/i,
+    '-ize, -ization',
+  ],
+  [/\b(?:un|re|de|pre|dis)?grey(s|ed|ing)?\b/i, 'gray'],
+  [/\b(?:un|re|de|pre|dis)?(defence|offence)\b/i, 'defense, offense'],
+  [
+    /\b(?:un|re|de|pre|dis)?(travell|modell|labell|signall|levell|totall|fuell|marshall|channell)(ed|ing|er|ers)\b/i,
+    'one l',
+  ],
+  [/\b(?:un|re|de|pre|dis)?enrolment\b|\bfulfil(s|ment)?\b/i, 'enrollment, fulfill'],
+  [/\b(?:un|re|de|pre|dis)?(learnt|spelt)\b/i, 'learned, spelled'],
+  [/\b(?:un|re|de|pre|dis)?(metre|litre|fibre)s?\b/i, '-er'],
+  [/\b(?:un|re|de|pre|dis)?artefacts?\b/i, 'artifact'],
+  [/\b(?:un|re|de|pre|dis)?focuss(ed|ing)\b/i, 'focused'],
+  [/\b(?:un|re|de|pre|dis)?enquir(y|ies)\b/i, 'inquiry'],
+  [
+    /\b(?:un|re|de|pre|dis)?(skilful|manoeuvr\w*|sceptic\w*|whilst|programmes?)\b/i,
+    'skillful, maneuver, skeptic, while, program',
+  ],
+];
+
+/** Code spans, placeholders, interpolations and URLs: not prose. */
+const prose = (text: string): string =>
+  text
+    .replace(/\\?`[^`]*\\?`/g, ' ')
+    .replace(/\$\{[^}]*\}/g, ' ')
+    .replace(/\{[^}]*\}/g, ' ')
+    .replace(/https?:\/\/\S+/g, ' ');
+
+/** The British spellings in `text`, as written. */
+const britishIn = (text: string): string[] => {
+  const words = prose(text);
+  return BRITISH.flatMap(([pattern]) =>
+    [...words.matchAll(new RegExp(pattern.source, 'gi'))]
+      .map((match) => match[0])
+      // a word in capitals is a name Qorus gives (a status such as CANCELLED), not prose
+      .filter((word) => word !== word.toUpperCase())
+  );
+};
+
+/** Words with a space between them, or one capitalized word - a label; a key is neither. */
+const isProse = (text: string): boolean => {
+  const trimmed = text.trim();
+  return (/\s/.test(trimmed) && /[a-z]/.test(trimmed)) || /^[A-Z][a-z]+$/.test(trimmed);
+};
+
+/** Every TypeScript source under a directory, relative to the root, tests left out. */
+const sourcesUnder = (dir: string): string[] =>
   readdirSync(join(root, dir), { withFileTypes: true }).flatMap((entry) =>
-    entry.isDirectory() ? filesUnder(join(dir, entry.name))
-    : /\.(ts|tsx)$/.test(entry.name) ? [join(dir, entry.name)]
+    entry.isDirectory() ? sourcesUnder(join(dir, entry.name))
+    : /\.(ts|tsx)$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) ? [join(dir, entry.name)]
     : []
   );
 
-const sourceFiles = (): string[] => filesUnder('src');
-
-/** Each text in a source file that a reader sees: strings, templates and JSX text, with its line. */
-const textsOf = (file: string): { line: number; text: string }[] => {
-  const text = readFileSync(join(root, file), 'utf8');
-  const source = ts.createSourceFile(
+const parse = (file: string): ts.SourceFile =>
+  ts.createSourceFile(
     file,
-    text,
+    readFileSync(join(root, file), 'utf8'),
     ts.ScriptTarget.Latest,
     true,
     file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
   );
+
+/** Each prose text of a source - string, template and JSX text - with its line. */
+const proseOf = (file: string): { line: number; text: string }[] => {
+  const source = parse(file);
   const found: { line: number; text: string }[] = [];
+  const add = (text: string, node: ts.Node) => {
+    if (isProse(text)) {
+      found.push({
+        line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+        text,
+      });
+    }
+  };
   const visit = (node: ts.Node) => {
     if (
       ts.isStringLiteral(node) ||
       ts.isNoSubstitutionTemplateLiteral(node) ||
-      ts.isTemplateHead(node) ||
-      ts.isTemplateMiddle(node) ||
-      ts.isTemplateTail(node) ||
       ts.isJsxText(node)
     ) {
-      found.push({
-        line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
-        text: node.getText(source),
-      });
+      add(node.text, node);
+    } else if (ts.isTemplateExpression(node)) {
+      add(
+        [node.head.text, ...node.templateSpans.map((span) => span.literal.text)].join(' ${} '),
+        node
+      );
     }
     ts.forEachChild(node, visit);
   };
@@ -56,47 +128,116 @@ const textsOf = (file: string): { line: number; text: string }[] => {
   return found;
 };
 
-/** The stories a story file exports: their names are the stories' titles. */
-const storyNamesOf = (file: string): string[] =>
-  [...readFileSync(join(root, file), 'utf8').matchAll(/^export const (\w+)/gm)].map(
-    ([, name]) => name
-  );
+/** The title of each story a story file exports: its `name`, or its export name in words, as Storybook says it. */
+const storyTitlesOf = (file: string): string[] => {
+  const titles: string[] = [];
+  for (const statement of parse(file).statements) {
+    if (
+      !ts.isVariableStatement(statement) ||
+      !statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+    ) {
+      continue;
+    }
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name)) {
+        continue;
+      }
+      const name =
+        declaration.initializer && ts.isObjectLiteralExpression(declaration.initializer) ?
+          declaration.initializer.properties.find(
+            (property): property is ts.PropertyAssignment =>
+              ts.isPropertyAssignment(property) &&
+              ts.isIdentifier(property.name) &&
+              property.name.text === 'name' &&
+              ts.isStringLiteral(property.initializer)
+          )
+        : undefined;
+      titles.push(
+        name ?
+          (name.initializer as ts.StringLiteral).text
+        : declaration.name.text
+            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+            .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+      );
+    }
+  }
+  return titles;
+};
 
-describe('reqraft speaks American English', () => {
-  it('in every text its source shows a reader', () => {
-    const british = sourceFiles().flatMap((file) =>
-      textsOf(file)
-        .filter(({ text }) => BRITISH.test(text))
-        .map(({ line, text }) => `${file}:${line}: ${text.slice(0, 80)}`)
+describe('reqraft writes American English', () => {
+  it('in the prose of its sources, its stories and their data', () => {
+    const offences = sourcesUnder('src').flatMap((file) =>
+      proseOf(file)
+        .filter(({ text }) => britishIn(text).length)
+        .map(({ line, text }) => `${file}:${line}: ${britishIn(text).join(', ')}`)
     );
-    expect(british).toEqual([]);
+    expect(offences).toEqual([]);
   });
 
-  it('in the names of its stories', () => {
-    const british = sourceFiles()
+  it('in the titles of its stories', () => {
+    const offences = sourcesUnder('src')
       .filter((file) => file.endsWith('.stories.tsx'))
       .flatMap((file) =>
-        storyNamesOf(file)
-          .filter((name) => BRITISH.test(name))
-          .map((name) => `${file}: ${name}`)
+        storyTitlesOf(file)
+          .filter((title) => britishIn(title).length)
+          .map((title) => `${file}: ${title}`)
       );
-    expect(british).toEqual([]);
+    expect(offences).toEqual([]);
   });
 
   it('in its README', () => {
-    const british = readFileSync(join(root, 'README.md'), 'utf8')
+    const offences = readFileSync(join(root, 'README.md'), 'utf8')
       .split('\n')
-      .map((line, index) => ({ line: index + 1, text: line }))
-      .filter(({ text }) => BRITISH.test(text))
-      .map(({ line, text }) => `README.md:${line}: ${text.slice(0, 80)}`);
-    expect(british).toEqual([]);
+      .flatMap((line, index) =>
+        britishIn(line).length ? [`README.md:${index + 1}: ${britishIn(line).join(', ')}`] : []
+      );
+    expect(offences).toEqual([]);
   });
 
   // the reader reads what it should: a text it skipped would pass the tests above for the wrong reason
-  it('reads strings, templates and JSX text, and not identifiers', () => {
-    const texts = textsOf('src/components/colorValue/labels.ts').map(({ text }) => text);
-    expect(texts.some((text) => text.includes('Not a color'))).toBe(true);
-    expect(texts.some((text) => text.includes('No color'))).toBe(true);
-    expect(storyNamesOf('src/components/colorValue/ColorValue.stories.tsx')).toContain('NotAColor');
+  it('reads strings, templates, JSX text and story titles', () => {
+    expect(proseOf('src/components/colorValue/labels.ts').map(({ text }) => text)).toContain(
+      'No color'
+    );
+    expect(storyTitlesOf('src/components/colorValue/ColorValue.stories.tsx')).toContain(
+      'Not A Color'
+    );
+    expect(storyTitlesOf('src/components/form/engine/FormEngine.stories.tsx')).toContain(
+      'Compact Expression Without Catalog'
+    );
+  });
+
+  it('catches each spelling, and leaves code, placeholders and identifiers alone', () => {
+    expect(britishIn('Pick a colour, then save the favourite one')).toEqual([
+      'colour',
+      'favourite',
+    ]);
+    expect(britishIn('Reauthorise it, or leave it unfavourited and unlabelled')).toEqual([
+      'unfavourited',
+      'Reauthorise',
+      'unlabelled',
+    ]);
+    expect(britishIn('The run was cancelled and its behaviour normalised')).toEqual([
+      'behaviour',
+      'cancelled',
+      'normalised',
+    ]);
+    expect(britishIn('Centred on a grey row, the catalogue summarises it')).toEqual([
+      'Centred',
+      'catalogue',
+      'summarises',
+      'grey',
+    ]);
+    expect(
+      britishIn(
+        'The status `cancelled` is {cancelled}, or CANCELLED: see https://example.com/catalogue'
+      )
+    ).toEqual([]);
+    // words that only look British
+    expect(
+      britishIn('characteristics of an organism, a specialist realist, the cancellation')
+    ).toEqual([]);
+    expect(isProse('catalogue')).toBe(false);
+    expect(isProse('Catalogue')).toBe(true);
   });
 });

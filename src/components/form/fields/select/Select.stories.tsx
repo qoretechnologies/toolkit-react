@@ -378,7 +378,7 @@ export const ItemValuesAreObjectsAndCanBeSelected: Story = {
     docs: {
       description: {
         story:
-          'Renders the Select field with items whose values are hashes rather than primitives. The unlabelled first item shows its JSON as the trigger label; picking the second item swaps the selection to its display_name.',
+          'Renders the Select field with items whose values are hashes rather than primitives. The unlabeled first item shows its JSON as the trigger label; picking the second item swaps the selection to its display_name.',
       },
     },
   },

@@ -126,7 +126,7 @@ const boxHeader = (label: string): HTMLElement => {
     (el.querySelector(':scope > .reqore-panel-title')?.textContent ?? '').includes(label)
   );
   if (!box) {
-    throw new Error(`no status box labelled ${label}`);
+    throw new Error(`no status box labeled ${label}`);
   }
   return box.querySelector(':scope > .reqore-panel-title') as HTMLElement;
 };

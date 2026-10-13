@@ -1329,7 +1329,7 @@ export const CompactRowAbsorbsLanguage: Story = {
     docs: {
       description: {
         story:
-          'Renders a code-editor row that absorbs its Language sibling — the language control sits inside the Source Code container above the editor instead of on a row of its own, and the collapsed row summarises it as a chip beside the code size.',
+          'Renders a code-editor row that absorbs its Language sibling — the language control sits inside the Source Code container above the editor instead of on a row of its own, and the collapsed row summarizes it as a chip beside the code size.',
       },
     },
   },
@@ -2005,7 +2005,7 @@ export const CompactNestedListRowsStayCompact: Story = {
       methods: {
         type: 'list',
         value: [
-          { type: 'hash', value: { name: 'init', desc: 'initialises the service' } },
+          { type: 'hash', value: { name: 'init', desc: 'initializes the service' } },
           { type: 'hash', value: { name: 'run', desc: 'does the work' } },
         ],
       },
@@ -2066,7 +2066,7 @@ export const CompactNestedListRowsStayCompact: Story = {
     );
 
     // Each row shows its own values through the compact read-first summary.
-    await _testsWaitForText('initialises the service');
+    await _testsWaitForText('initializes the service');
     await _testsWaitForText('does the work');
   },
 };
@@ -2914,7 +2914,7 @@ export const Compact: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine in compact mode over the CompactSchema fixture with groups — options collapse to read-first rows grouped under labelled group headers, with formatted value summaries per row.',
+          'Renders FormEngine in compact mode over the CompactSchema fixture with groups — options collapse to read-first rows grouped under labeled group headers, with formatted value summaries per row.',
       },
     },
   },
@@ -5594,7 +5594,7 @@ export const CompactFieldTypes: Story = {
     docs: {
       description: {
         story:
-          "Renders a compact form that exercises the full catalogue of ui_type renderers — every type (string, richtext, hash, list, file, color, byte-size, cron, connection, enum, etc.) is present with a representative value. The play leaves the `String` row expanded with its editor focused; the form leaves scrolling to its host (`compactScroll` defaults to `'host'`), so that focus scrolls the page — the captured frame sits mid-form with the toolbar pinned over the rows, not at the top of the form.",
+          "Renders a compact form that exercises the full catalog of ui_type renderers — every type (string, richtext, hash, list, file, color, byte-size, cron, connection, enum, etc.) is present with a representative value. The play leaves the `String` row expanded with its editor focused; the form leaves scrolling to its host (`compactScroll` defaults to `'host'`), so that focus scrolls the page — the captured frame sits mid-form with the toolbar pinned over the rows, not at the top of the form.",
       },
     },
   },
@@ -6682,7 +6682,7 @@ export const CompactAnyType: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with any-typed options — the read rows summarise the current value and the editor lets the operator pick the concrete type through the More menu.',
+          'Renders a compact form with any-typed options — the read rows summarize the current value and the editor lets the operator pick the concrete type through the More menu.',
       },
     },
     chromatic: { disable: true },
@@ -7636,7 +7636,7 @@ const CompactLateEditorSchema = {
     // connection and interface selectors.
     ui_type: 'late-editor',
     display_name: 'Connection',
-    short_desc: 'A host editor that resolves its catalogue before it can draw a control',
+    short_desc: 'A host editor that resolves its catalog before it can draw a control',
     required: true,
   },
 } as unknown as IOptionsSchema;
@@ -8042,7 +8042,7 @@ export const CompactListOfHashReadsInSchemaWords: Story = {
     docs: {
       description: {
         story:
-          'A list-of-hash option whose sub-schema names its fields and values. The collapsed row summarises by those names ("Default RBAC, Cookie") and the preview renders as labelled schema rows — "Scheme Type · Default RBAC" per numbered item — instead of an untyped data tree over the stored `type: default`.',
+          'A list-of-hash option whose sub-schema names its fields and values. The collapsed row summarizes by those names ("Default RBAC, Cookie") and the preview renders as labeled schema rows — "Scheme Type · Default RBAC" per numbered item — instead of an untyped data tree over the stored `type: default`.',
       },
     },
   },
@@ -8235,7 +8235,7 @@ export const CompactExpressionTemplateChips: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact read-first row whose value is an expression wrapping a template reference — the summary reads as DPQL and the reference inside it is a chip named from the form\'s template catalogue, trim(Choices[0].message.content), rather than its raw $data token or its path.',
+          'Renders a compact read-first row whose value is an expression wrapping a template reference — the summary reads as DPQL and the reference inside it is a chip named from the form\'s template catalog, trim(Choices[0].message.content), rather than its raw $data token or its path.',
       },
     },
     chromatic: { disable: true },
@@ -8290,7 +8290,7 @@ export const CompactExpressionTemplateChips: Story = {
     await waitFor(() => {
       const summary = canvasElement.querySelector('.readfirst-row .dpql-rendering');
       // The summary keeps its literal text…
-      expect(summary?.textContent, 'the row summarises the expression as DPQL').toContain('trim(');
+      expect(summary?.textContent, 'the row summarizes the expression as DPQL').toContain('trim(');
       // …and the reference inside it is a chip named from the catalogue.
       const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
         tag.textContent?.includes('Choices[0].message.content')
@@ -8309,7 +8309,9 @@ export const CompactExpressionTemplateChips: Story = {
  * reference to, so the chip carries the reference's own path: the wrapper still
  * reads as `trim("…")` text, and the reference stops reading as code.
  */
+// titled in American English; the export keeps its name, so the story keeps its id (and its qlip baseline)
 export const CompactExpressionWithoutCatalogue: Story = {
+  name: 'Compact Expression Without Catalog',
   parameters: {
     docs: {
       description: {
@@ -8352,11 +8354,11 @@ export const CompactExpressionWithoutCatalogue: Story = {
   play: async ({ canvasElement }) => {
     await waitFor(() => {
       const summary = canvasElement.querySelector('.readfirst-row .dpql-rendering');
-      expect(summary?.textContent, 'the row summarises the expression as DPQL').toContain('trim(');
+      expect(summary?.textContent, 'the row summarizes the expression as DPQL').toContain('trim(');
       const chip = Array.from(summary?.querySelectorAll('.reqore-tag') ?? []).find((tag) =>
         tag.textContent?.includes('dc_ai_reply.choices[0].message.content')
       );
-      expect(chip, 'the reference chips even with no catalogue').toBeTruthy();
+      expect(chip, 'the reference chips even with no catalog').toBeTruthy();
       expect(summary?.textContent, 'the row prints no raw token').not.toContain('$data:{');
     });
   },
@@ -9779,7 +9781,7 @@ export const ToolSelectorsAreNotJudgedAsChoices: Story = {
     docs: {
       description: {
         story:
-          "An AI endpoint's Tools field holds the server's default, `*` (all tools), and needs no attention: its tool-catalog editor stores selectors, and the catalogue sources listed beside it are not choices the value must be one of. The Channel field below has fixed choices and a value that is none of them, so it alone needs attention.",
+          "An AI endpoint's Tools field holds the server's default, `*` (all tools), and needs no attention: its tool-catalog editor stores selectors, and the catalog sources listed beside it are not choices the value must be one of. The Channel field below has fixed choices and a value that is none of them, so it alone needs attention.",
       },
     },
   },

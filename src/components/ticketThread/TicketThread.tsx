@@ -259,7 +259,7 @@ const ConversationSkeleton = () => (
 // as pressed into the surface rather than announced.
 const StyledEmpty = styled.div`
   /*
-   * Centre the placeholder in the space it's given rather than letting it sit at the
+   * Center the placeholder in the space it's given rather than letting it sit at the
    * top. Like the thread, this fills its scroll parent (min-height: 100%, which needs a
    * definite height to resolve — the drawer body provides one; where a consumer doesn't,
    * it collapses to auto and the state keeps its natural top-aligned flow).

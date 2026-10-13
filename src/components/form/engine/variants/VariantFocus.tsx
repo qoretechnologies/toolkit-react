@@ -41,7 +41,7 @@ const Wrap = styled.div<{ $hover: string; $faint: string }>`
     column-gap: 16px;
     row-gap: 2px;
     align-items: center;
-    /* Single-line rows: centre the content within the min-height. */
+    /* Single-line rows: center the content within the min-height. */
     align-content: center;
     min-height: 38px;
     padding: 6px 12px;
@@ -49,7 +49,7 @@ const Wrap = styled.div<{ $hover: string; $faint: string }>`
     cursor: pointer;
   }
   /* Rows with a description / preview / editor below: pin the name+value to the
-     top instead of centring the whole block. */
+     top instead of centering the whole block. */
   .vf-row.vf-tall {
     align-content: start;
   }

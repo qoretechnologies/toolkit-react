@@ -73,13 +73,13 @@ const PRIMARY_SECTIONS = [
 
 /** Extracts a human-readable message from a catalogue fetch error. */
 const errorMessage = (error: unknown): string => {
-  if (!error) return 'The schema option catalogue could not be loaded.';
+  if (!error) return 'The schema option catalog could not be loaded.';
   if (typeof error === 'string') return error;
   const e = error as { desc?: string; message?: string };
   return (
     e.desc ??
     e.message ??
-    'The schema option catalogue could not be loaded.'
+    'The schema option catalog could not be loaded.'
   );
 };
 

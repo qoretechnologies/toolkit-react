@@ -1342,7 +1342,7 @@ export const TextViewSurvivesALateHostChange: Story = {
     docs: {
       description: {
         story:
-          "Accepts the offer in a compact row, then has the host re-type the field a moment later (as qorus-ide does when its reference catalogue answers) — the Text view must not be swapped out from under the author.",
+          "Accepts the offer in a compact row, then has the host re-type the field a moment later (as qorus-ide does when its reference catalog answers) — the Text view must not be swapped out from under the author.",
       },
     },
   },
@@ -1671,7 +1671,7 @@ export const Live: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField against a live Qorus instance — the picker fetches the real ~121-function catalogue rather than the mock, and the seeded "contains" expression exercises the schema-driven operators and operands.',
+          'Renders ExpressionField against a live Qorus instance — the picker fetches the real ~121-function catalog rather than the mock, and the seeded "contains" expression exercises the schema-driven operators and operands.',
       },
     },
   },
