@@ -12,6 +12,7 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
+import { storedColorProblem } from '../../colorValue/colorValue';
 import {
   _testsChangeRichText,
   _testsChangeStringField,
@@ -6165,7 +6166,10 @@ const _compactExpandAllRows = async () => {
   await expect(editors).toBeGreaterThan(40);
 };
 
-/** The colors of `CompactColourRows`, in each shape the form takes a color in. */
+/**
+ * The colors of `CompactColorRows`: three stored as a color is, `{ r, g, b, a? }`, and two stored as hex codes,
+ * which a stored color is not (qorus#646, David) but which are still drawn.
+ */
 const COMPACT_COLOUR_VALUES = {
   colour: { r: 100, g: 149, b: 237, a: 1 },
   noOpacity: { r: 46, g: 125, b: 50 },
@@ -6179,7 +6183,7 @@ export const CompactColorRows: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form of five colors, in each shape the form takes a color in: { r, g, b, a } (cornflower blue, #6495ED), { r, g, b } (#2E7D32), a see-through { r, g, b, a } (rgba(255, 0, 0, 0.5)), { hex } (#7B1FA2) and a three-digit { hex } (#F80). Each row draws its color as ReqraftColorValue does at its compact size: a 12px swatch beside the color written out, on a wash of the color, the swatch named for it.',
+          'Renders a compact form of five colors. Three are stored as a color is, { r, g, b, a? }: cornflower blue { r, g, b, a } (#6495ED), { r, g, b } (#2E7D32) and a see-through { r, g, b, a } (rgba(255, 0, 0, 0.5)). Two are stored as hex codes, which a color is not: { hex } (#7B1FA2) and a three-digit { hex } (#F80). Each row draws its color as ReqraftColorValue does at its compact size - a 12px swatch beside the color written out, on a wash of the color, the swatch named for it - so a color stored the wrong way is still seen; the two hex rows need attention, each saying what is wrong: "A color is stored as its red, green and blue values (r, g, b), not as the hex code “#7b1fa2”."',
       },
     },
   },
@@ -6219,8 +6223,12 @@ export const CompactColorRows: Story = {
       await expect(swatch).toHaveAccessibleName(`Color ${colour.getAttribute('data-color')}`);
       await expect(swatch.getBoundingClientRect().width).toBe(12);
     }
-    // every color is one the form takes: none needs attention
-    await expect(canvasElement.textContent).not.toContain('RGB color is invalid');
+    // the two hex codes need attention, each saying what is wrong; the three stored colors do not
+    await waitFor(() =>
+      expect(canvasElement.textContent).toContain(storedColorProblem(COMPACT_COLOUR_VALUES.hexObject))
+    );
+    await expect(canvasElement.textContent).toContain(storedColorProblem(COMPACT_COLOUR_VALUES.shortHex));
+    await expect(canvasElement.textContent).not.toMatch(/must be a whole number|is missing|opacity \(a\)/i);
   },
 };
 

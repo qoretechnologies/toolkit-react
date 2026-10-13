@@ -11,7 +11,13 @@ import { htmlElementProps } from '../../helpers/domProps';
 import { describeColorValue } from './colorValue';
 import { DEFAULT_COLOR_VALUE_LABELS, IReqraftColorValueLabels } from './labels';
 
-export { colorToCss, describeColorValue, formatColorValue } from './colorValue';
+export {
+  colorToCss,
+  describeColorValue,
+  formatColorValue,
+  isStoredColor,
+  storedColorProblem,
+} from './colorValue';
 export type { TReqraftColorValueDescription } from './colorValue';
 export { DEFAULT_COLOR_VALUE_LABELS } from './labels';
 export type { IReqraftColorValueLabels } from './labels';

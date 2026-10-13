@@ -28,6 +28,7 @@ import {
 } from 'react';
 import styled, { css } from 'styled-components';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
+import { isStoredColor } from '../../../colorValue/colorValue';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 import { defaultMarkdownRenderer } from '../markdown/MarkdownView';
 
@@ -189,6 +190,7 @@ const toStoredColor = ({ r, g, b, a }: RgbaColor): Required<IColorFormFieldValue
  * A stored color as red, green, blue and alpha: `{ r, g, b, a? }` as the field stores it, or a hex color,
  * bare or as `{ hex }`, as a value written by hand or by another client can be. Undefined when it is none
  * of these. A channel past its range is brought into it, so what is shown, and stored from it, is a color.
+ * Only `{ r, g, b, a? }` is a stored color (`isStoredColor`); the others are read so they can be seen and fixed.
  */
 export const colorToRgba = (value: unknown): RgbaColor | undefined => {
   if (typeof value === 'string') {
@@ -582,13 +584,14 @@ export const ColorFormField = ({
           : showAs;
       }
       setPicked({ rgba: color, hsva: { ...showAs, a: color.a } });
-      // A hue moved on a grey is the same color: nothing to store.
-      if (stored && sameRgba(stored, color)) {
+      // A hue moved on a grey is the same color: nothing to store - unless the value is not stored as a color
+      // is (a hex code, `{ hex }`, a channel past its range): an edit stores it as one (qorus#646, David).
+      if (stored && sameRgba(stored, color) && isStoredColor(value)) {
         return;
       }
       onChange?.(color);
     },
-    [locked, disableAlpha, stored, shown, onChange]
+    [locked, disableAlpha, stored, shown, onChange, value]
   );
 
   const pickerMoved = useCallback(

@@ -122,7 +122,7 @@ export const HexCode: Story = {
     docs: {
       description: {
         story:
-          'Renders a color stored as the hex code #6495ed: written #6495ED, its swatch cornflower blue.',
+          'Renders a color stored as the hex code #6495ed: written #6495ED, its swatch cornflower blue. A hex code is not how a color is stored - that is { r, g, b, a? }, and a form flags this value - but it is drawn, so a value stored this way is seen.',
       },
     },
   },
@@ -137,7 +137,7 @@ export const HexCodeWithoutItsHash: Story = {
     docs: {
       description: {
         story:
-          'Renders a color stored as the three-digit hex code f80, with no # (a value written by hand): it is the color #FF8800, written #F80 as it was stored, its swatch orange.',
+          'Renders a color stored as the three-digit hex code f80, with no # (a value written by hand): it is the color #FF8800, written #F80 as it was stored, its swatch orange. A hex code is not how a color is stored - that is { r, g, b, a? }, and a form flags this value - but it is drawn, so a value stored this way is seen.',
       },
     },
   },
@@ -152,7 +152,7 @@ export const HexObject: Story = {
     docs: {
       description: {
         story:
-          "Renders a color stored as { hex: '#2e7d32' }: written #2E7D32, its swatch dark green.",
+          "Renders a color stored as { hex: '#2e7d32' }: written #2E7D32, its swatch dark green. A hex code is not how a color is stored - that is { r, g, b, a? }, and a form flags this value - but it is drawn, so a value stored this way is seen.",
       },
     },
   },

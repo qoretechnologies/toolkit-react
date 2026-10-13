@@ -149,3 +149,78 @@ export const colorToCss = (value: unknown): string | undefined => {
   const description = describeColorValue(value);
   return description.kind === 'color' ? description.css : undefined;
 };
+
+/** The channels of a stored color, with the words a reader knows them by. */
+const STORED_CHANNELS = [
+  ['r', 'red'],
+  ['g', 'green'],
+  ['b', 'blue'],
+] as const;
+
+const isWholeChannel = (n: unknown): boolean =>
+  typeof n === 'number' && Number.isInteger(n) && n >= 0 && n <= 255;
+
+const isOpacity = (n: unknown): boolean =>
+  typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 1;
+
+/** "red (r)", "red (r) and blue (b)", "red (r), green (g) and blue (b)". */
+const listChannels = (channels: string[]): string =>
+  channels.length < 2 ?
+    channels.join('')
+  : `${channels.slice(0, -1).join(', ')} and ${channels[channels.length - 1]}`;
+
+/** The stored shape, said where a value is not in it at all. */
+const STORED_AS = 'A color is stored as its red, green and blue values (r, g, b)';
+
+/**
+ * What is wrong with a value stored as an `rgbcolor`, in plain words; undefined when it is a stored color (qorus#646,
+ * David): the hash `{ r, g, b, a? }`, `r`, `g` and `b` whole numbers from 0 to 255 and `a` its opacity, a number from
+ * 0 to 1 (without one, the color is opaque). Other fields beside them are left alone (react-color wrote a `hex`).
+ *
+ * A hex code, bare or as `{ hex }`, is not a stored color: the readers above still draw one, so a value stored that
+ * way is seen, and this says why it is wrong. The color field stores the hash when it edits such a value.
+ */
+export const storedColorProblem = (value: unknown): string | undefined => {
+  if (value === undefined || value === null || (typeof value === 'string' && value.trim() === '')) {
+    return 'No color is set.';
+  }
+  if (typeof value === 'string') {
+    const hex = hexCode(value);
+    return `${STORED_AS}, not as ${hex ? `the hex code ${showValue(value)}` : showValue(value)}.`;
+  }
+  if (typeof value !== 'object' || Array.isArray(value)) {
+    return `${STORED_AS}, not as ${showValue(value)}.`;
+  }
+  const color = value as Record<string, unknown>;
+  const missing = STORED_CHANNELS.filter(
+    ([key]) => color[key] === undefined || color[key] === null
+  );
+  if (missing.length === STORED_CHANNELS.length && typeof color.hex === 'string') {
+    return `${STORED_AS}, not as the hex code ${showValue(color.hex)}.`;
+  }
+  const problems: string[] = [];
+  if (missing.length) {
+    const names = missing.map(([key, name]) => `${name} (${key})`);
+    problems.push(`${listChannels(names)} ${missing.length === 1 ? 'is' : 'are'} missing`);
+  }
+  for (const [key, name] of STORED_CHANNELS) {
+    const channel = color[key];
+    if (channel !== undefined && channel !== null && !isWholeChannel(channel)) {
+      problems.push(
+        `${name} (${key}) must be a whole number from 0 to 255, not ${showValue(channel)}`
+      );
+    }
+  }
+  // an opacity that is not given is a color that is opaque
+  if (color.a !== undefined && color.a !== null && !isOpacity(color.a)) {
+    problems.push(`opacity (a) must be a number from 0 to 1, not ${showValue(color.a)}`);
+  }
+  if (!problems.length) {
+    return undefined;
+  }
+  const said = problems.join('; ');
+  return `${said.charAt(0).toUpperCase()}${said.slice(1)}.`;
+};
+
+/** Whether a value is a stored color, `{ r, g, b, a? }`; see `storedColorProblem`. */
+export const isStoredColor = (value: unknown): boolean => storedColorProblem(value) === undefined;

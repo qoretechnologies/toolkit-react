@@ -1,4 +1,3 @@
-import { isValidSixCharHex } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { IQorusFormSchema, TQorusForm, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import { isValidCron } from 'cron-validator';
 import jsyaml from 'js-yaml';
@@ -18,6 +17,7 @@ import { getListElementValue, getOptionsFromRequiredGroups } from './options';
 import { IProviderType, TVariableActionValue, maybeBuildOptionProvider } from './providerValue';
 import { getTemplateKey, getTemplateValue, isValueTemplate, textAroundATemplate } from './templates';
 import { getUnlistedChoiceReason } from './allowedValues';
+import { storedColorProblem } from '../components/colorValue/colorValue';
 
 /** The five cron fields, in order, as a schedule hash may name them. */
 const CRON_FIELDS: [string, string][] = [
@@ -804,13 +804,10 @@ export const _validateField = (
       return validResult();
     }
     case 'rgbcolor': {
-      return resultFromBoolean(
-        isValidSixCharHex(value?.hex) ||
-          ((value?.r || value?.r === 0) &&
-            (value?.g || value?.g === 0) &&
-            (value?.b || value?.b === 0)),
-        'RGB color is invalid'
-      );
+      // the hash { r, g, b, a? } (qorus#646, David): a hex code, bare or as { hex }, is shown but not stored
+      const problem = storedColorProblem(value);
+
+      return problem ? invalidResult(problem) : validResult();
     }
     case 'list':
     case 'free-list': {
