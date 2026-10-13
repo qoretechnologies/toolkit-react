@@ -3,7 +3,8 @@ import { compact, uniq } from 'lodash';
 import { argumentMatchesType, getArgumentType } from '../../../../helpers/expressions';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
-import { IExpression, IExpressionSchema, IExpressionSchemaArg } from '../types';
+import { IExpression, IExpressionSchema, IExpressionSchemaArg, IExpressionValue } from '../types';
+import { useExpressionType } from '../useExpressionType';
 
 export interface IExpressionBuilderArgumentLabelProps {
   label: string;
@@ -21,6 +22,8 @@ export const ExpressionBuilderArgumentLabel = ({
   type,
 }: IExpressionBuilderArgumentLabelProps) => {
   const types = useQorusTypes();
+  // an expression's type is the server's (getArgumentType reads it); this re-renders the label when it arrives
+  useExpressionType(arg?.is_expression ? (arg.value as IExpressionValue) : undefined);
 
   if (!schema) {
     return (

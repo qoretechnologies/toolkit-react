@@ -63,6 +63,7 @@ import {
   TExpressionReorder,
   TExpressionReorderSurface,
 } from '../types';
+import { useExpressionType } from '../useExpressionType';
 import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
 import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
@@ -243,27 +244,9 @@ export const Expression = ({
     [extraActions, selectedExpression, JSON.stringify(value)]
   );
 
-  // If the `return_type_first_arg` is set, we need to get the return type from the first arguments type
-  const expressionReturnType = useMemo(() => {
-    if (selectedExpression?.return_type_first_arg && firstArgument) {
-      if (firstArgument.is_expression && firstArgument.value?.exp) {
-        const firstArgExpression = expressions.value?.find(
-          (exp) => exp.name === firstArgument.value.exp
-        );
-
-        return firstArgExpression?.ui_return_type;
-      }
-
-      return firstArgument.type;
-    }
-
-    return selectedExpression?.ui_return_type;
-  }, [
-    JSON.stringify(selectedExpression),
-    JSON.stringify(firstArgument),
-    returnType,
-    JSON.stringify(expressions.value),
-  ]);
+  // The type the expression gives is the server's, the same as everywhere else in Qorus
+  // (qoretechnologies/qorus#713); it is not known, and nothing is judged by it, until the server gives it
+  const expressionReturnType = useExpressionType(value.value)?.ui_type;
   // the type(s) this place takes, named inside a sentence: their sentence forms; none where no type is known
   // (qorus#646)
   const expectedReturnTypeText =
@@ -647,6 +630,7 @@ export const Expression = ({
   const takesCondition =
     level === 0 ? !!isCondition : isConditionType(returnType as string | string[] | undefined);
   const isReturnTypeMatching =
+    !expressionReturnType ||
     expressionReturnType === 'any' ||
     (isArray(returnType)
       ? areQorusTypesCompatible(returnType, expressionReturnType)
