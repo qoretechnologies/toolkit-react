@@ -545,16 +545,6 @@ export const StyledCodePreview = styled.pre<{ $bg: string; $border: string; $fg:
   max-width: 100%;
 `;
 
-// A small inline colour swatch shown before an rgbcolor value's hex string.
-export const StyledColorSwatch = styled.span<{ $color: string; $border: string }>`
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  flex: 0 0 auto;
-  background: ${({ $color }) => $color};
-  border: 1px solid ${({ $border }) => $border};
-`;
-
 export const StyledGroupBody = styled.div<{
   $divider: string;
   $hover: string;

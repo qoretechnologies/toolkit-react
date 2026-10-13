@@ -79,6 +79,7 @@ export * from './components/ticketThread';
 export * from './components/ticketReferences';
 export * from './components/searchFilterBar';
 export * from './components/codeSize';
+export * from './components/colorValue';
 // First-party tracking, consent and A/B testing (design/TRACKING.md). Also importable
 // on its own, without the rest of Reqraft: `@qoretechnologies/reqraft/dist/tracking`
 // (the engine, React only) and `@qoretechnologies/reqraft/dist/tracking/ui` (the A/B test UI).

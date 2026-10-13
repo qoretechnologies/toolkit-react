@@ -6,6 +6,8 @@ import {
   TQorusType,
 } from '@qoretechnologies/ts-toolkit';
 import { isValueTemplate } from '../../../helpers/templates';
+import { describeColorValue } from '../../colorValue/colorValue';
+import { DEFAULT_COLOR_VALUE_LABELS } from '../../colorValue/labels';
 import { isRendererOnlyUiType } from './rendererTypes';
 import { isEmptyUiEnvelope, isUiEncodedValue } from './_structuredData/structuredData';
 import { renderExpressionToText } from '../expressions/renderExpressionToText';
@@ -353,78 +355,9 @@ export const getAllowedValueIcon = (
   return (match.icon as string) || undefined;
 };
 
-/** Clamp an RGB channel to a 0–255 integer. */
-const clampChannel = (n: number): number => Math.max(0, Math.min(255, Math.round(n)));
-const toHexPart = (n: number): string => clampChannel(n).toString(16).padStart(2, '0');
-
-/** The shape the rgbcolor field stores (react-color's RGBA result). */
-type TColorValue = { r?: number; g?: number; b?: number; a?: number; hex?: string };
-
-/** Normalised colour parts parsed from any shape the rgbcolor field can store. */
-interface IParsedColor {
-  hex?: string;
-  r?: number;
-  g?: number;
-  b?: number;
-  a: number;
-}
-
-/** Whether parsed colour parts carry usable RGB channels. */
-const hasRgb = (c: IParsedColor): c is IParsedColor & { r: number; g: number; b: number } =>
-  c.r !== undefined && c.g !== undefined && c.b !== undefined;
-
-/** Parse an `rgbcolor` into normalised parts: accepts `{ r, g, b, a }` (may
- * carry `hex`), `{ hex }`, or a raw hex string; undefined when unrecognisable. */
-const parseColor = (value: unknown): IParsedColor | undefined => {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed.startsWith('#') ? { hex: trimmed, a: 1 } : undefined;
-  }
-  if (value && typeof value === 'object') {
-    const c = value as TColorValue;
-    const a = typeof c.a === 'number' ? c.a : 1;
-    const hex = typeof c.hex === 'string' && c.hex.trim() ? c.hex.trim() : undefined;
-    if (typeof c.r === 'number' && typeof c.g === 'number' && typeof c.b === 'number') {
-      return { r: c.r, g: c.g, b: c.b, a, hex };
-    }
-    if (hex) {
-      return { hex, a };
-    }
-  }
-  return undefined;
-};
-
-/** Uppercase hex (`#0000FF`), or `rgba(…)` when non-opaque; undefined when
- * unrecognisable (the caller falls back to the generic marker). */
-export const formatColorValue = (value: unknown): string | undefined => {
-  const c = parseColor(value);
-  if (!c) {
-    return undefined;
-  }
-  // Prefer rgba(…) for non-opaque colours; the hex shortcut would drop alpha.
-  if (c.a < 1 && hasRgb(c)) {
-    const alpha = Math.round(c.a * 100) / 100;
-    return `rgba(${clampChannel(c.r)}, ${clampChannel(c.g)}, ${clampChannel(c.b)}, ${alpha})`;
-  }
-  if (c.hex) {
-    return c.hex.toUpperCase();
-  }
-  return hasRgb(c) ?
-      `#${toHexPart(c.r)}${toHexPart(c.g)}${toHexPart(c.b)}`.toUpperCase()
-    : undefined;
-};
-
-/** CSS colour for the swatch preview (keeps alpha); undefined when
- * unrecognisable. */
-export const colorToCss = (value: unknown): string | undefined => {
-  const c = parseColor(value);
-  if (!c) {
-    return undefined;
-  }
-  return hasRgb(c) ?
-      `rgba(${clampChannel(c.r)}, ${clampChannel(c.g)}, ${clampChannel(c.b)}, ${c.a})`
-    : c.hex;
-};
+// A colour is read by the one reader every read-only view of a colour uses (ReqraftColorValue's), so a
+// row's summary and the swatch it draws agree; re-exported for the readers that import it from here.
+export { colorToCss, formatColorValue } from '../../colorValue/colorValue';
 
 /** Filename for a `file` value: accepts `{ name, content, size }`, the
  * build-tab `{ name: { value } }` shape, or a raw path; undefined when no
@@ -661,8 +594,14 @@ export const formatOptionValue = (
     return allowedLabel;
   }
 
+  // a colour as it is written; a value that is not one says what it is, as the row's swatch does
   if (type === 'rgbcolor') {
-    return formatColorValue(value) ?? 'Set';
+    const color = describeColorValue(value);
+    return (
+      color.kind === 'color' ? color.text
+      : color.kind === 'invalid' ? DEFAULT_COLOR_VALUE_LABELS.invalid(color.shown)
+      : DEFAULT_COLOR_VALUE_LABELS.empty
+    );
   }
 
   // Raw milliseconds read poorly at a glance — scale to the largest exact

@@ -41,7 +41,6 @@ import {
   StyledCardHeading,
   StyledCardLabel,
   StyledCodePreview,
-  StyledColorSwatch,
   StyledColumn,
   StyledEditCard,
   StyledLabelBlock,
@@ -60,7 +59,6 @@ import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDat
 import { queryUnlessCancelled } from '../../../utils/queryUnlessCancelled';
 import { plainTextNode } from '../../../helpers/markdownText';
 import {
-  colorToCss,
   findAllowedValueOption,
   formatBytes,
   formatOptionValue,
@@ -78,6 +76,7 @@ import {
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
 import { DpqlRendering } from '../expressions/DpqlRendering';
+import { ReqraftColorValue } from '../../colorValue';
 import { TFieldWithOwnTemplates } from './rendererTypes';
 
 /**
@@ -415,28 +414,9 @@ export const CompactRow = memo(
         );
       }
 
-      if (valueType === 'rgbcolor') {
-        const swatch = colorToCss(field?.value);
-        return (
-          <span
-            style={
-              swatch ?
-                {
-                  ...wrapStyle,
-                  // a slight wash of the chosen colour behind the swatch + hex
-                  background: `color-mix(in srgb, ${swatch} 14%, transparent)`,
-                  padding: '1px 8px',
-                  borderRadius: 4,
-                }
-              : wrapStyle
-            }
-          >
-            {swatch ?
-              <StyledColorSwatch aria-hidden $color={swatch} $border={cDivider} />
-            : null}
-            <span style={textStyle}>{formatted}</span>
-          </span>
-        );
+      // a colour reads as ReqraftColorValue draws one, at its one-line size; a sensitive one is not shown
+      if (valueType === 'rgbcolor' && !(schema as { sensitive?: boolean } | undefined)?.sensitive) {
+        return <ReqraftColorValue value={field?.value} size='compact' wrap={full} />;
       }
 
       if (valueType === 'file') {
