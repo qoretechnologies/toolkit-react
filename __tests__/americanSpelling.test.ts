@@ -15,8 +15,10 @@ import { describe, expect, it } from 'vitest';
  * such as CANCELLED) are not prose, and identifiers, import paths and keys have no spaces, so they are not read.
  * Comments are not read, and nor are tests.
  *
- * The list of British spellings is the IDE's (qorus-ide __tests__/conventions/americanEnglish.test.ts), so the two
- * say the same words the same way; a spelling added to one is added to the other.
+ * The list of British spellings and these rules are the IDE's (qorus-ide __tests__/conventions/americanEnglish.test.ts),
+ * so the two check the same words the same way: a word joined to a name - `x-`, `x_`, `x/`, `x.` or `x:` before it,
+ * `_x`, `/x`, `.x` or `:x` after it - is part of the name, not prose. A spelling or a rule added to one is added to
+ * the other.
  */
 const root = join(__dirname, '..');
 
@@ -68,9 +70,16 @@ const britishIn = (text: string): string[] => {
   const words = prose(text);
   return BRITISH.flatMap(([pattern]) =>
     [...words.matchAll(new RegExp(pattern.source, 'gi'))]
-      .map((match) => match[0])
       // a word in capitals is a name Qorus gives (a status such as CANCELLED), not prose
-      .filter((word) => word !== word.toUpperCase())
+      .filter(([word]) => word !== word.toUpperCase())
+      // a word joined to the one before it, or to a path or key after it, is part of a name:
+      // `order-fulfilment:1.3`, `$sysinfo:licence.routing`, `catalogue.ts`
+      .filter((match) => {
+        const before = words.slice(Math.max(0, match.index - 2), match.index);
+        const after = words.slice(match.index + match[0].length, match.index + match[0].length + 2);
+        return !/[\w$][-_/.:]$/.test(before) && !/^[_/.:][\w$]/.test(after);
+      })
+      .map(([word]) => word)
   );
 };
 
@@ -233,6 +242,20 @@ describe('reqraft writes American English', () => {
         'The status `cancelled` is {cancelled}, or CANCELLED: see https://example.com/catalogue'
       )
     ).toEqual([]);
+    // a word joined into a name, a key or a path
+    expect(
+      britishIn(
+        'the workflow order-fulfilment:1.3, key $sysinfo:licence.routing, file catalogue.ts'
+      )
+    ).toEqual([]);
+    // joined after a name, or before a key or a path: x-, x_, x/, x., x: before it, _x, /x, .x, :x after it
+    expect(
+      britishIn(
+        'data-colour, my_colour, a/colour, a.colour, ns:colour, colour_x, colour/x, colour.x, colour:x'
+      )
+    ).toEqual([]);
+    // a word that ends a sentence, or has a dash after it, is still prose
+    expect(britishIn('Pick a colour. A colour-blind reader')).toEqual(['colour', 'colour']);
     // words that only look British
     expect(
       britishIn('characteristics of an organism, a specialist realist, the cancellation')
