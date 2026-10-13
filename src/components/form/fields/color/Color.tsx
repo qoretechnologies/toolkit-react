@@ -32,6 +32,19 @@ export interface IColorFormFieldValue {
   a?: number;
 }
 
+/**
+ * What the color field reads as a color (qorus#646): a stored color, `{ r, g, b, a? }`, or a value stored the wrong
+ * way, which it still reads so it can show it and store it right - a hex code (3, 4, 6 or 8 digits, with or without
+ * its `#`), `{ hex }` (with an opacity beside it), or a color with fields beside its own (react-color stored a
+ * `hex`). Only the first is a stored color (`isStoredColor`); the field stores that shape whenever it edits any of
+ * them, even when the edit leaves the color as it was. A host passes the value as it is stored, not converted.
+ */
+export type TColorFormFieldInput =
+  | IColorFormFieldValue
+  | (IColorFormFieldValue & Record<string, unknown>)
+  | { hex: string; a?: number }
+  | string;
+
 /** A color offered as a swatch: a hex color, or one with a name to read it by. */
 export type TColorPreset = string | { color: string; title?: string };
 
@@ -144,7 +157,8 @@ export const DEFAULT_COLOR_PRESETS: TColorPreset[] = [
 ];
 
 export interface IColorFormFieldProps {
-  value?: IColorFormFieldValue;
+  /** The value as it is stored: see `TColorFormFieldInput`. */
+  value?: TColorFormFieldInput;
   onChange?: (value: Required<IColorFormFieldValue>) => void;
   disabled?: boolean;
   readOnly?: boolean;
