@@ -184,6 +184,32 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
 
 export const getQorusTypes = (): IQorusTypeObject[] => defaultQorusTypes;
 
+/** Qore's other names for a type the catalogue lists under its own (qorus#646). */
+const QORE_TYPE_ALIASES: Record<string, string> = { boolean: 'bool', integer: 'int' };
+
+/**
+ * What a type is called, by the type catalogue (the server's, or reqraft's copy until it answers).
+ *
+ * The catalogue lists each type once, by its own name; a type named the way Qore also names it is called what
+ * the catalogue calls the type it is: `boolean` and `integer` are `bool` and `int`, and a soft type
+ * (`softint`, `softbool`, ...) is a declaration that converts a value to its base type, so it is called by its
+ * base's name. The catalogue's own entry for a name always wins, and a type it does not list under any name
+ * keeps its name.
+ */
+export const qorusTypeDisplayName = (
+  types: IQorusTypeObject[] | undefined,
+  typeName: string
+): string => {
+  const named = (name: string) => types?.find((type) => type.name === name)?.display_name;
+  const softBase = /^soft[a-z]/.test(typeName) ? typeName.slice(4) : undefined;
+  return (
+    named(typeName) ??
+    (QORE_TYPE_ALIASES[typeName] && named(QORE_TYPE_ALIASES[typeName])) ??
+    (softBase && named(QORE_TYPE_ALIASES[softBase] ?? softBase)) ??
+    typeName
+  );
+};
+
 export const useQorusTypes = (): IUseTypes => {
   const { data, loading, error, load } = useFetch<IQorusTypeObject[]>({
     url: '/system/qorus-type-info',
@@ -210,10 +236,7 @@ export const useQorusTypes = (): IUseTypes => {
   );
 
   const getTypeDisplayName = useCallback(
-    (typeName: string): string => {
-      const type = value?.find((t) => t.name === typeName);
-      return type ? type.display_name : typeName;
-    },
+    (typeName: string): string => qorusTypeDisplayName(value, typeName),
     [value]
   );
 
