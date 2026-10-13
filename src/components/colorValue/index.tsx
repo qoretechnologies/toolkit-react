@@ -7,6 +7,7 @@ import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { BACKGROUND_IMG } from '@uiw/react-color-alpha';
 import { CSSProperties, HTMLAttributes, memo } from 'react';
 import styled, { css } from 'styled-components';
+import { htmlElementProps } from '../../helpers/domProps';
 import { describeColorValue } from './colorValue';
 import { DEFAULT_COLOR_VALUE_LABELS, IReqraftColorValueLabels } from './labels';
 
@@ -81,7 +82,7 @@ const StyledSwatch = styled.span<{
 export const ReqraftColorValue = memo(
   ({
     value,
-    size = 'normal',
+    size: askedSize,
     wrap,
     labels,
     className,
@@ -91,6 +92,10 @@ export const ReqraftColorValue = memo(
     const theme = useReqoreTheme();
     const words = { ...DEFAULT_COLOR_VALUE_LABELS, ...labels };
     const description = describeColorValue(value);
+    // a control group hands its own size (small, big, ...) to what it holds: any size but compact is normal
+    const size: TReqraftColorValueSize = (askedSize as string) === 'compact' ? 'compact' : 'normal';
+    // what a span takes, and nothing a control group hands it (fluid, spaceBetween, ...)
+    const elementProps = htmlElementProps(rest);
     const metrics = SIZES[size];
     const wraps = wrap ?? size === 'normal';
     const cText = theme?.text?.color || '#f1f0ee';
@@ -113,7 +118,7 @@ export const ReqraftColorValue = memo(
     if (description.kind !== 'color') {
       return (
         <span
-          {...rest}
+          {...elementProps}
           className={`reqraft-color-value${className ? ` ${className}` : ''}`}
           data-size={size}
           {...(description.kind === 'invalid' ?
@@ -136,7 +141,7 @@ export const ReqraftColorValue = memo(
 
     return (
       <span
-        {...rest}
+        {...elementProps}
         className={`reqraft-color-value${className ? ` ${className}` : ''}`}
         data-size={size}
         data-color={description.text}

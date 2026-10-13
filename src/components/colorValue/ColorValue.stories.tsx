@@ -1,5 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 import { StoryObj } from '@storybook/react-vite';
+import { ReqoreControlGroup, ReqoreTag } from '@qoretechnologies/reqore';
 import { expect, waitFor, within } from 'storybook/test';
 
 import { LightTheme, PHONE_VIEWPORT } from '../../stories/tracking';
@@ -308,5 +309,34 @@ export const OnALightTheme: Story = {
     // the edge is not white: it is a tint of the theme's dark text
     await expect(getComputedStyle(swatchOf(white)).borderTopColor).not.toBe('rgb(255, 255, 255)');
     await expect(getComputedStyle(invalid).color).not.toBe('rgb(255, 255, 255)');
+  },
+};
+
+export const InAControlGroup: Story = {
+  args: { value: CORNFLOWER },
+  render: () => (
+    <ReqoreControlGroup fluid spaceBetween size='small' className='colour-group'>
+      <ReqoreTag label='Brand colour' />
+      <ReqraftColorValue value={CORNFLOWER} />
+      <ReqraftColorValue value={HALF_RED} size='compact' />
+    </ReqoreControlGroup>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders two colours in a control group beside a tag, as a page's table of options shows them: the group hands each its layout props (fluid, spaceBetween, its small size), and the colours take none of them onto the DOM - React gives no warning - and draw at their own sizes, normal (the group's small is not one of theirs) and compact.",
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const [normal, compact] = values(canvasElement);
+    await expectColour(normal, '#6495ED', 'rgb(100, 149, 237)', 20);
+    await expectColour(compact, 'rgba(255, 0, 0, 0.5)', 'rgba(255, 0, 0, 0.5)', 12);
+    for (const value of [normal, compact]) {
+      for (const name of ['fluid', 'spacebetween', 'size', 'intent', 'customtheme']) {
+        await expect(value).not.toHaveAttribute(name);
+      }
+    }
   },
 };
