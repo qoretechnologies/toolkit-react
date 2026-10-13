@@ -10,7 +10,7 @@ import {
 import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { isEqual, map, size } from 'lodash';
 import { recordIdentity } from '../../engine/readFirst';
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
 import { validateFieldWithResult } from '../../../../helpers/validations';
@@ -244,19 +244,22 @@ export const ArrayAutoField = memo(
 
           <ReqoreControlGroup fluid>
             <div style={{ flex: 1 }}>
-              {renderItem({
-                value: inputValue,
-                onChange: (v) => setInputValue(v),
-                index: -1,
-                type,
-                arg_schema,
-                allowed_values,
-                allowed_values_creatable,
-                disabled,
-                readOnly,
-                size: fieldSize,
-                key: inputKeyRef.current,
-              } as any)}
+              {/* a new key remounts the input empty once its value is added; a key goes on an element, not in
+                  the props the item is drawn from, which the field spreads into JSX (React warned) */}
+              <Fragment key={inputKeyRef.current}>
+                {renderItem({
+                  value: inputValue,
+                  onChange: (v) => setInputValue(v),
+                  index: -1,
+                  type,
+                  arg_schema,
+                  allowed_values,
+                  allowed_values_creatable,
+                  disabled,
+                  readOnly,
+                  size: fieldSize,
+                })}
+              </Fragment>
             </div>
             {!disabled && !readOnly && (
               <>
