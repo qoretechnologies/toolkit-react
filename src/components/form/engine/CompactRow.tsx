@@ -329,6 +329,12 @@ export const CompactRow = memo(
           { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
         : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
 
+      // The expression the value holds, in either shape the editor stores it: the flag on the option, or
+      // the envelope nested in its value as a reloaded draft has it.
+      const expressionAst = getExpressionAst(field as { is_expression?: boolean; value?: unknown });
+      const isExpression =
+        !!(field as { is_expression?: boolean })?.is_expression || expressionAst !== undefined;
+
       /* A row has to SAY when its value is an expression.
       
          Reported from the live IDE: an author accepted the *Use as expression*
@@ -341,7 +347,7 @@ export const CompactRow = memo(
          The same Σ the expression editor uses, so the mark means the same thing
          wherever it appears. */
       const withExpressionMarker = (rendered: React.ReactNode): React.ReactNode => {
-        if (!(field as { is_expression?: boolean })?.is_expression) {
+        if (!isExpression) {
           return rendered;
         }
 
@@ -365,6 +371,49 @@ export const CompactRow = memo(
           </span>
         );
       };
+
+      // Template value ($local:…): the read-only template picker — the SAME chip
+      // TemplateField renders when disabled, so a template reads identically here
+      // and in the editor (qorus-ide intent scheme: info / qorus purple).
+      //
+      // A field may also declare templates OF ITS OWN, and a value drawn from
+      // that list is just as much a template even when it does not look like
+      // `$name:key` — `isValueTemplate` is a guess at the shape of the built-in
+      // grammar, and a host's own grammar (a Qorus test's `$.order.id`) fails it.
+      // Asking the field's list whether it CONTAINS the value settles it without
+      // guessing at syntax, and hands back the entry whose label the chip prints,
+      // so a reference reads as the name it was chosen by here as well as in the
+      // editor rather than as a raw path.
+      const ownTemplates = (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates;
+      // The grammar the field declares its references in, when it speaks one of
+      // its own — the same schema key its rich-text editor is given.
+      const templateGrammar = (schema as TFieldWithOwnTemplates | undefined)?.templateToken;
+
+      /* A template or an expression is shown as one, whatever the field's type, so these two come before
+         any type draws a value of its own (qorus#646). A colour's branch came first and called a template
+         or an expression on a colour option "Set"; a file's printed the raw reference as a file name. */
+      if (
+        typeof field?.value === 'string' &&
+        !isExpression &&
+        (isValueTemplate(field.value) || !!findTemplate(ownTemplates ?? {}, field.value))
+      ) {
+        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} size='small' />;
+      }
+
+      // An expression reads as DPQL wherever it is shown without being edited:
+      // the same rendering its Explain panel and Preview use — monospace,
+      // coloured by the language server, template references as chips — so a
+      // collapsed row and the editor it opens never disagree about what the
+      // value looks like. See `DpqlRendering`. In either shape the editor stores
+      // it: the flag on the option, or the envelope nested in its value as a
+      // reloaded draft has it (`getExpressionAst`).
+      if (isExpression && formatted) {
+        return withExpressionMarker(
+          <span style={{ minWidth: 0, flex: '1 1 auto', ...(full ? {} : { overflow: 'hidden' }) }}>
+            <DpqlRendering text={formatted} templates={ownTemplates} />
+          </span>
+        );
+      }
 
       if (valueType === 'rgbcolor') {
         const swatch = colorToCss(field?.value);
@@ -406,11 +455,8 @@ export const CompactRow = memo(
         );
       }
 
-      // a yes/no holding a template reads as the template, below, not as Yes (qorus#646)
-      if (
-        (valueType === 'bool' || valueType === 'boolean') &&
-        !(typeof field?.value === 'string' && isValueTemplate(field.value))
-      ) {
+      // a yes/no holding a template has read as the template, above, not as Yes (qorus#646)
+      if (valueType === 'bool' || valueType === 'boolean') {
         const truthy = field?.value === true || field?.value === 'true';
         return (
           <ReqoreTag
@@ -550,30 +596,6 @@ export const CompactRow = memo(
         );
       }
 
-      // Template value ($local:…): the read-only template picker — the SAME chip
-      // TemplateField renders when disabled, so a template reads identically here
-      // and in the editor (qorus-ide intent scheme: info / qorus purple).
-      //
-      // A field may also declare templates OF ITS OWN, and a value drawn from
-      // that list is just as much a template even when it does not look like
-      // `$name:key` — `isValueTemplate` is a guess at the shape of the built-in
-      // grammar, and a host's own grammar (a Qorus test's `$.order.id`) fails it.
-      // Asking the field's list whether it CONTAINS the value settles it without
-      // guessing at syntax, and hands back the entry whose label the chip prints,
-      // so a reference reads as the name it was chosen by here as well as in the
-      // editor rather than as a raw path.
-      const ownTemplates = (schema as TFieldWithOwnTemplates | undefined)?.templates ?? templates;
-      // The grammar the field declares its references in, when it speaks one of
-      // its own — the same schema key its rich-text editor is given.
-      const templateGrammar = (schema as TFieldWithOwnTemplates | undefined)?.templateToken;
-      if (
-        typeof field?.value === 'string' &&
-        !(field as { is_expression?: boolean }).is_expression &&
-        (isValueTemplate(field.value) || !!findTemplate(ownTemplates ?? {}, field.value))
-      ) {
-        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} size='small' />;
-      }
-
       // A LIST whose elements are rich-text envelopes is a list of strings, so it
       // reads as those strings. Without this the row fell through to the generic
       // list summary and printed a bare count ("1 item") above the structured
@@ -596,19 +618,6 @@ export const CompactRow = memo(
         if (segments.some((segment) => segment.kind === 'tag')) {
           return <TemplateText segments={segments} templates={ownTemplates} full={full} />;
         }
-      }
-
-      // An expression reads as DPQL wherever it is shown without being edited:
-      // the same rendering its Explain panel and Preview use — monospace,
-      // coloured by the language server, template references as chips — so a
-      // collapsed row and the editor it opens never disagree about what the
-      // value looks like. See `DpqlRendering`.
-      if ((field as { is_expression?: boolean })?.is_expression && formatted) {
-        return withExpressionMarker(
-          <span style={{ minWidth: 0, flex: '1 1 auto', ...(full ? {} : { overflow: 'hidden' }) }}>
-            <DpqlRendering text={formatted} templates={ownTemplates} />
-          </span>
-        );
       }
 
       /* A value that MENTIONS a reference rather than being one.

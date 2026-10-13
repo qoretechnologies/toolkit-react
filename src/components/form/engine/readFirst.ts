@@ -624,6 +624,12 @@ export const formatOptionValue = (
     return renderExpressionToText(expressionAst) || 'Expression';
   }
 
+  /* A template is the field it names, whatever the field's type, so it is summarised before any type
+     summarises a value of its own: a colour or a file called it "Set", a yes/no "Yes" (qorus#646). */
+  if (typeof value === 'string' && isValueTemplate(value)) {
+    return value;
+  }
+
   // schema-definition is stored as a hash envelope; summarise it as the schema
   // name + table count rather than a meaningless top-level key count.
   if ((schema as { ui_type?: string } | undefined)?.ui_type === 'schema-definition') {
@@ -645,12 +651,8 @@ export const formatOptionValue = (
 
   const type = getValueType(option, schema);
 
-  /* A template is the field it names, in a yes/no as in any type: it is not "Yes" because it is not
-     empty. Only a value that is true or false reads as Yes or No (qorus#646). */
-  if (
-    (type === 'bool' || type === 'boolean') &&
-    !(typeof value === 'string' && isValueTemplate(value))
-  ) {
+  // a template has been summarised as itself, above: only a value that is true or false reads Yes or No
+  if (type === 'bool' || type === 'boolean') {
     return value ? 'Yes' : 'No';
   }
 
