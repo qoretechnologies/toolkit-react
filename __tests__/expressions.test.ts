@@ -1,8 +1,29 @@
+import { vi } from 'vitest';
+
+const client = vi.hoisted(() => ({
+  connect: vi.fn<() => Promise<void>>(),
+  customRequest: vi.fn<() => Promise<unknown>>(),
+  disconnect: vi.fn(),
+}));
+
+vi.mock('../src/utils/lspClient', () => ({
+  // Constructed with `new`, so a class — every instance is the one fake client.
+  ReqraftLspClient: class {
+    constructor() {
+      return client;
+    }
+  },
+}));
+
 import {
   IExpression,
   IExpressionSchema,
   IExpressionSchemaArg,
 } from '../src/components/form/expressions/types';
+import {
+  _resetExpressionTypeTransportForTests,
+  fetchExpressionType,
+} from '../src/components/form/expressions/useExpressionType';
 import {
   areQorusTypesCompatible,
   expressionFitsReturnType,
@@ -21,16 +42,35 @@ const arg = (partial: Partial<IExpression>): IExpression => partial as IExpressi
 const schema = (partial: Partial<IExpressionSchemaArg>): IExpressionSchemaArg =>
   partial as IExpressionSchemaArg;
 
+/** The server gives the type of `1 + 2.5`: a float, which the UI names a number. */
+const serveFloat = () => {
+  client.connect.mockResolvedValue(undefined);
+  client.customRequest.mockResolvedValue({ inferred_type: 'float', ui_type: 'number', known: true });
+};
+
+const SUM = { exp: '+', args: [{ type: 'int', value: 1 }, { type: 'float', value: 2.5 }] };
+
+beforeEach(() => {
+  _resetExpressionTypeTransportForTests();
+  client.connect.mockReset();
+  client.customRequest.mockReset();
+});
+
 describe('helpers/expressions', () => {
   describe('getArgumentType', () => {
-    it('resolves a sub-expression to its return type', () => {
-      const subExp = arg({ is_expression: true, value: { exp: 'COUNT' } });
-      expect(getArgumentType(expressions, subExp)).toBe('int');
+    it('gives a sub-expression the type the server gave it, not the catalogue', async () => {
+      serveFloat();
+      const subExp = arg({ is_expression: true, value: SUM });
+      await fetchExpressionType(SUM as never);
+      expect(client.customRequest).toHaveBeenCalledWith('dpql/expressionType', { expression: SUM });
+      expect(getArgumentType(expressions, subExp)).toBe('number');
     });
 
-    it('returns undefined for a sub-expression with an unknown operation', () => {
-      const subExp = arg({ is_expression: true, value: { exp: 'NOPE' } });
-      expect(getArgumentType(expressions, subExp)).toBeUndefined();
+    it('does not judge a sub-expression whose type the server has not given', () => {
+      // the catalogue says COUNT gives an int: the builder no longer works a type out from it
+      const subExp = arg({ is_expression: true, value: { exp: 'COUNT' } });
+      expect(getArgumentType(expressions, subExp)).toBe('any');
+      expect(client.customRequest).not.toHaveBeenCalled();
     });
 
     it('prefers the literal argument type over the schema type', () => {
@@ -64,9 +104,13 @@ describe('helpers/expressions', () => {
       ).toBe(true);
     });
 
-    it('matches a sub-expression by its return type', () => {
-      const subExp = arg({ is_expression: true, value: { exp: 'COUNT' } });
-      expect(argumentMatchesType(expressions, subExp, schema({ ui_type: 'int' }))).toBe(true);
+    it('matches a sub-expression by the type the server gave it', async () => {
+      serveFloat();
+      const subExp = arg({ is_expression: true, value: SUM });
+      // not known yet: not judged
+      expect(argumentMatchesType(expressions, subExp, schema({ ui_type: 'date' }))).toBe(true);
+      await fetchExpressionType(SUM as never);
+      expect(argumentMatchesType(expressions, subExp, schema({ ui_type: 'number' }))).toBe(true);
       expect(argumentMatchesType(expressions, subExp, schema({ ui_type: 'date' }))).toBe(false);
     });
 

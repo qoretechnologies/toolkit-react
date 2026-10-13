@@ -1,5 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Expression / type-compatibility helpers — ported verbatim from qorus-ide
+// Expression / type-compatibility helpers — ported from qorus-ide
 // (`src/helpers/expressions.ts` + `areQorusTypesCompatible` from
 // `src/helpers/functions.tsx`), import paths adapted to reqraft. Used by the
 // ported ExpressionBuilder.
@@ -8,18 +8,25 @@ import {
   IExpression,
   IExpressionSchema,
   IExpressionSchemaArg,
+  IExpressionValue,
 } from '../components/form/expressions/types';
+import { getCachedExpressionType } from '../components/form/expressions/useExpressionType';
 import { defaultQorusTypes, getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
 
+/**
+ * The UI type of an argument: a value's own type, or, for an expression, the
+ * type the server gave for it (`useExpressionType`) — an expression's type is
+ * never worked out here, so it is the same as everywhere else in Qorus
+ * (qoretechnologies/qorus#713). `any`, which nothing is judged by, until the
+ * server has given it.
+ */
 export const getArgumentType = (
-  expressions: IExpressionSchema[],
+  _expressions: IExpressionSchema[],
   arg?: IExpression,
   schema?: IExpressionSchemaArg
 ) => {
   if (arg?.is_expression) {
-    return expressions?.find(
-      (exp) => exp.name === (arg.value as { exp?: string })?.exp
-    )?.ui_return_type;
+    return getCachedExpressionType(arg.value as IExpressionValue)?.ui_type ?? 'any';
   }
 
   return arg?.type || schema?.ui_type;
