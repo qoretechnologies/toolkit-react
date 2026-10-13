@@ -1218,6 +1218,8 @@ export const CompactRow = memo(
     // Info tiers: Tier 1 (danger/warning + dependency hints) must be visible
     // without interaction; Tier 2 (info/success, default notes) sits behind ⓘ.
     const infoActive = !hidden;
+    /* `content` is said as it is: reqraft's own sentences quote values (`"__other__"`) that markdown would
+       take for marks. Markdown a server wrote is made prose where it comes in (qorus#646). */
     type TInfoMsg = { intent?: string; title?: string; content: string };
     const schemaMessages: TInfoMsg[] =
       infoActive ?
@@ -1258,8 +1260,9 @@ export const CompactRow = memo(
       ...(infoActive && schema?.default_value_desc ?
         [
           {
+            // the default's description is the server's markdown: its words, not its marks
             content:
-              `Default: ${schema.default_value_display_name || ''} — ${schema.default_value_desc}`.trim(),
+              `Default: ${schema.default_value_display_name || ''} — ${markdownToProse(schema.default_value_desc)}`.trim(),
           },
         ]
       : []),
@@ -2415,8 +2418,8 @@ export const CompactRow = memo(
               className='options-readfirst-reason'
               style={{ color: reasonColor(m.intent) }}
             >
-              {/* a reason is a line in the row's type; a default's description in it is the server's markdown */}
-              {typeof m.content === 'string' ? markdownToProse(m.content) : m.content}
+              {/* a reason is a line in the row's type, said as it is (see `TInfoMsg`) */}
+              {m.content}
             </span>
           ))}
           {/* Dedicated schema message PANELS render right here, directly under the

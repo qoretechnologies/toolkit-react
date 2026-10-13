@@ -1,7 +1,12 @@
 import { ReqoreControlGroup, ReqoreTag, ReqoreVerticalSpacer } from '@qoretechnologies/reqore';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
-import { IQorusFormField, IQorusFormSchema, TQorusForm } from '@qoretechnologies/ts-toolkit';
+import {
+  IQorusAllowedValue,
+  IQorusFormField,
+  IQorusFormSchema,
+  TQorusForm,
+} from '@qoretechnologies/ts-toolkit';
 import { isArray, size } from 'lodash';
 import { useMemo } from 'react';
 import { useContextSelector } from 'use-context-selector';
@@ -101,6 +106,13 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
   }
 
   const label = `"${dependencySchema.display_name || name}"`;
+  /* The value is named as the reader sees it in that field: an allowed value by its display name
+     ("Other"), not by the value it stands for (`__other__`, qorus#646). A value with no display name is
+     quoted as it is. */
+  const allowed = (dependencySchema.allowed_values as IQorusAllowedValue[] | undefined)?.find(
+    (entry) => typeof entry?.value === 'object' && String(entry.value?.value) === value
+  );
+  const shown = allowed?.display_name || value;
 
   // `!name` names no value to compare against — it is satisfied by the sibling
   // being unanswered — so it gets a sentence of its own rather than the
@@ -109,7 +121,7 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
     return `${label} must have no value`;
   }
 
-  return op ? `${label} must ${op === '!=' ? 'not ' : ''}be "${value}"` : label;
+  return op ? `${label} must ${op === '!=' ? 'not ' : ''}be "${shown}"` : label;
 };
 
 /**
