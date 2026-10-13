@@ -10216,11 +10216,12 @@ export const WholeNumberLiteralAndExpressionStayValid: Story = {
   },
 };
 
-const textAroundOf = (type: string, label: string, message: string): Story => ({
+/** An option of `type`, which takes `sentence` (the type's sentence form, qorus#646), holding text around a template. */
+const textAroundOf = (type: string, sentence: string, message: string): Story => ({
   parameters: {
     docs: {
       description: {
-        story: `Renders a ${label} option holding "$record:{pos} Stk.", text around the field pos. It is not ${label === 'true or false' ? 'true or false' : `a ${label}`}: the option says which text makes it so and how to fix it - "${message}" - and the form cannot be saved.`,
+        story: `Renders an option that takes ${sentence}, holding "$record:{pos} Stk.", text around the field pos. It is not ${sentence}: the option says which text makes it so and how to fix it - "${message}" - and the form cannot be saved.`,
       },
     },
   },
@@ -10233,8 +10234,8 @@ const textAroundOf = (type: string, label: string, message: string): Story => ({
 
 export const NumberWithTextAroundATemplate = textAroundOf(
   'number',
-  'number',
-  '"Stk." makes this text, not a number. Delete it to keep the template alone.'
+  'an exact number',
+  '"Stk." makes this text, not an exact number. Delete it to keep the template alone.'
 );
 export const TrueOrFalseWithTextAroundATemplate = textAroundOf(
   'bool',
@@ -10243,8 +10244,8 @@ export const TrueOrFalseWithTextAroundATemplate = textAroundOf(
 );
 export const DateWithTextAroundATemplate = textAroundOf(
   'date',
-  'date',
-  '"Stk." makes this text, not a date. Delete it to keep the template alone.'
+  'a date and time',
+  '"Stk." makes this text, not a date and time. Delete it to keep the template alone.'
 );
 
 /** A whole-number option whose host says, in its own words, what is wrong with it. */

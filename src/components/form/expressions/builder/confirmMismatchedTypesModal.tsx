@@ -94,7 +94,8 @@ export const ConfirmMismatchedTypesModal = memo(
                 key={index}
                 description={
                   fixedArgs[index].types_mismatch === false
-                    ? `Converted from ${types.getTypeDisplayName(getArgumentType(expressions, arg, expression.args[index]))} to ${types.getTypeDisplayName(expression.args[index].ui_type)}`
+                    ? // the types named inside a sentence, by their sentence forms (qorus#646)
+                      `Converted from ${types.getTypeSentenceForm(getArgumentType(expressions, arg, expression.args[index]))} to ${types.getTypeSentenceForm(expression.args[index].ui_type)}`
                     : fixedArgs[index].types_mismatch === true
                       ? 'Cleared, not converted'
                       : 'No conversion needed'

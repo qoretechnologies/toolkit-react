@@ -1,22 +1,86 @@
 {
-  "any": "Any",
-  "context": "Context",
-  "string": "Text",
-  "richtext": "Rich text",
-  "int": "Whole number",
-  "float": "Number",
-  "number": "Exact number",
-  "bool": "True or false",
-  "date": "Date",
-  "binary": "Binary",
-  "data": "Data",
-  "hash": "Hash",
-  "list": "List",
-  "rgbcolor": "Color",
-  "workflow": "Workflow",
-  "service": "Service",
-  "job": "Job",
-  "mapper": "Mapper",
-  "data-provider": "Data Provider",
-  "connection": "Connection"
+  "any": {
+    "display_name": "Any",
+    "sentence_form": "any value"
+  },
+  "context": {
+    "display_name": "Context",
+    "sentence_form": "a value of the context's type"
+  },
+  "string": {
+    "display_name": "Text",
+    "sentence_form": "text"
+  },
+  "richtext": {
+    "display_name": "Rich text",
+    "sentence_form": "formatted text"
+  },
+  "int": {
+    "display_name": "Whole number",
+    "sentence_form": "a whole number"
+  },
+  "float": {
+    "display_name": "Number",
+    "sentence_form": "a number"
+  },
+  "number": {
+    "display_name": "Exact number",
+    "sentence_form": "an exact number"
+  },
+  "bool": {
+    "display_name": "True or false",
+    "sentence_form": "true or false"
+  },
+  "date": {
+    "display_name": "Date",
+    "sentence_form": "a date and time"
+  },
+  "time": {
+    "display_name": "Time",
+    "sentence_form": "a time of day"
+  },
+  "binary": {
+    "display_name": "Binary data",
+    "sentence_form": "binary data"
+  },
+  "data": {
+    "display_name": "Text or binary data",
+    "sentence_form": "text or binary data"
+  },
+  "hash": {
+    "display_name": "Set of fields",
+    "sentence_form": "a set of fields"
+  },
+  "list": {
+    "display_name": "List",
+    "sentence_form": "a list"
+  },
+  "rgbcolor": {
+    "display_name": "Color",
+    "sentence_form": "a color"
+  },
+  "workflow": {
+    "display_name": "Workflow",
+    "sentence_form": "a workflow"
+  },
+  "service": {
+    "display_name": "Service",
+    "sentence_form": "a service"
+  },
+  "job": {
+    "display_name": "Job",
+    "sentence_form": "a job"
+  },
+  "mapper": {
+    "display_name": "Mapper",
+    "sentence_form": "a mapper"
+  },
+  "data-provider": {
+    "display_name": "Data provider",
+    "sentence_form": "a data provider"
+  },
+  "connection": {
+    "display_name": "Connection",
+    "sentence_form": "a connection"
+  }
 }

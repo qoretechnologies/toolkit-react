@@ -200,20 +200,3 @@ export const sameValueType = (templateType: string, fieldType?: string): boolean
   return !a || !b || a === b || (a === 'int' && b === 'number');
 };
 
-/** A type in words: "a whole number", "text". */
-export const templateTypeName = (type?: string): string => {
-  switch (valueKindOf(type)) {
-    case 'int':
-      return 'A whole number';
-    case 'number':
-      return 'A number';
-    case 'bool':
-      return 'True or false';
-    case 'string':
-      return 'Text';
-    case 'date':
-      return 'A date';
-    default:
-      return type ?? 'A value';
-  }
-};

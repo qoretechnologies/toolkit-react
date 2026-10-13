@@ -32,10 +32,10 @@ describe('text around a template', () => {
       'softint',
       '"Stk." makes this text, not a whole number. Delete it to keep the template alone.',
     ],
-    ['number', '"Stk." makes this text, not a number. Delete it to keep the template alone.'],
+    ['number', '"Stk." makes this text, not an exact number. Delete it to keep the template alone.'],
     ['float', '"Stk." makes this text, not a number. Delete it to keep the template alone.'],
     ['bool', '"Stk." makes this text, not true or false. Delete it to keep the template alone.'],
-    ['date', '"Stk." makes this text, not a date. Delete it to keep the template alone.'],
+    ['date', '"Stk." makes this text, not a date and time. Delete it to keep the template alone.'],
   ];
 
   for (const [type, message] of cases) {

@@ -57,7 +57,7 @@ const IMMEDIATE_TYPE_NAMES = [
   'True or false',
   'Date',
   'Text',
-  'Binary',
+  'Binary data',
   'Number',
   'List',
   'Key/Value {}',

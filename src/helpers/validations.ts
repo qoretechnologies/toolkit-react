@@ -10,6 +10,7 @@ import isNaN from 'lodash/isNaN';
 import isNumber from 'lodash/isNumber';
 import isObject from 'lodash/isPlainObject';
 import size from 'lodash/size';
+import { defaultQorusTypes, qorusTypeSentenceForm } from './qorusTypeCatalogue';
 import uniqWith from 'lodash/uniqWith';
 import { fixOperatorValue, getAddress, getProtocol, splitByteSize } from './common';
 import { isOptionInterfaceUiType } from './optionUiTypes';
@@ -258,27 +259,27 @@ const isValueDefined = (type: string, value: any): boolean => {
   return !isOptionValueEmpty(value);
 };
 
-/** What a value of each type that is not text is called, where text around a template makes it text. */
-const TEXT_AROUND_A_TEMPLATE_NOT_A: Record<string, string> = (() => {
-  const wholeNumber = 'a whole number';
-  const number = 'a number';
-  const yesNo = 'true or false';
-  const date = 'a date';
-  return {
-    int: wholeNumber,
-    integer: wholeNumber,
-    softint: wholeNumber,
-    number,
-    float: number,
-    softfloat: number,
-    softnumber: number,
-    bool: yesNo,
-    boolean: yesNo,
-    softbool: yesNo,
-    date,
-    softdate: date,
-  };
-})();
+/**
+ * A type named inside a sentence: its sentence form in the server's type catalogue ("a whole number"), as reqraft
+ * keeps it - the form's own words, said before and without any server (qorus#646).
+ */
+const typeInSentence = (type: string): string => qorusTypeSentenceForm(defaultQorusTypes, type);
+
+/** The types a value is written as text in, where text around a template makes it text and not one of them. */
+const NOT_TEXT_WITH_A_TEMPLATE = new Set([
+  'int',
+  'integer',
+  'softint',
+  'number',
+  'float',
+  'softfloat',
+  'softnumber',
+  'bool',
+  'boolean',
+  'softbool',
+  'date',
+  'softdate',
+]);
 
 /**
  * What is said of a value of a type that is not text, written with text around a template: what makes it
@@ -286,7 +287,7 @@ const TEXT_AROUND_A_TEMPLATE_NOT_A: Record<string, string> = (() => {
  * happened?"). `undefined` where the type is text, or the value is not text around a template.
  */
 const textAroundATemplateReason = (type: string, value: unknown): string | undefined => {
-  const notA = TEXT_AROUND_A_TEMPLATE_NOT_A[type];
+  const notA = NOT_TEXT_WITH_A_TEMPLATE.has(type) ? typeInSentence(type) : undefined;
   const around = notA ? textAroundATemplate(value) : undefined;
   if (!around) {
     return undefined;
@@ -426,7 +427,7 @@ export const _validateField = (
         value === true ||
           value === false ||
           (value === undefined && field?.has_to_have_value === false),
-        'Value must be a True or False value'
+        `Value must be ${typeInSentence('bool')}`
       );
     case 'connection': {
       if (!value) {
@@ -716,18 +717,18 @@ export const _validateField = (
     }
     case 'number': {
       if (!isNumericValue(value)) {
-        return invalidResult('Value must be a number');
+        return invalidResult(`Value must be ${typeInSentence('number')}`);
       }
       return checkNumericBounds(value, field);
     }
     case 'int':
       if (!(!Number.isNaN(value) && getTypeFromValue(value) === 'int')) {
-        return invalidResult('Value must be an integer');
+        return invalidResult(`Value must be ${typeInSentence('int')}`);
       }
       return checkNumericBounds(value, field);
     case 'float':
       if (!isNumericValue(value)) {
-        return invalidResult('Value must be a float');
+        return invalidResult(`Value must be ${typeInSentence('float')}`);
       }
       return checkNumericBounds(value, field);
     case 'select-array':
@@ -788,7 +789,7 @@ export const _validateField = (
       }
 
       if (!parsedValue || !isObject(parsedValue)) {
-        return invalidResult('Hash value must be an object');
+        return invalidResult(`Value must be ${typeInSentence('hash')}`);
       }
 
       return validResult();

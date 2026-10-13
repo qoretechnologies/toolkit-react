@@ -53,9 +53,24 @@ vi.mock('../src/components/dpqlEditor', () => ({
 
 import { ExpressionField } from '../src/components/form/expressions/ExpressionField';
 import { FetchContext } from '../src/contexts/FetchContext';
-import { emptyFetchContext } from './support/fetchContext';
+import { defaultQorusTypes } from '../src/hooks/useQorusTypes';
+import { emptyFetchContext, okResponse } from './support/fetchContext';
 
-const fetchContext = emptyFetchContext();
+/** What the form's fetches answer: by default nothing (reqraft's own type catalogue is used). */
+let fetchContext = emptyFetchContext();
+
+/** A server before qorus c6b3fb97c: its type catalogue gives display names (its own: "Hash"), no sentence forms. */
+const olderServer = () => {
+  const context = emptyFetchContext();
+  context.get = vi.fn(async () =>
+    okResponse(
+      defaultQorusTypes.map(({ sentence_form: _sentence, ...type }) =>
+        type.name === 'hash' ? { ...type, display_name: 'Hash' } : type
+      ) as never
+    )
+  );
+  return context;
+};
 
 const analysedAs = (
   type: string,
@@ -91,7 +106,8 @@ const analysedAs = (
   const view = render(<Harness />);
   return {
     ...view,
-    type: async () => fireEvent.change(await screen.findByTestId('fake-dpql'), { target: { value: text } }),
+    type: async () =>
+      fireEvent.change(await screen.findByTestId('fake-dpql'), { target: { value: text } }),
   };
 };
 
@@ -137,7 +153,9 @@ describe('the type-fit message', () => {
     });
     await type();
 
-    await waitFor(() => expect(container.textContent).toContain('This may not fit'), { timeout: 5000 });
+    await waitFor(() => expect(container.textContent).toContain('This may not fit'), {
+      timeout: 5000,
+    });
     expect(container.textContent).not.toContain('This does not fit');
     expect(container.querySelector('[data-testid="expression-type-fix"]')?.textContent).toContain(
       'toInt("a" + 1)'
@@ -154,9 +172,37 @@ describe('the type-fit message', () => {
     });
     await type();
 
-    await waitFor(() => expect(container.textContent).toContain('This does not fit'), { timeout: 5000 });
-    expect(container.textContent).toContain('The expression gives Whole number, and this field takes Hash.');
+    await waitFor(() => expect(container.textContent).toContain('This does not fit'), {
+      timeout: 5000,
+    });
+    // the types inside the sentence by their sentence forms (qorus#646, the server's catalogue)
+    expect(container.textContent).toContain(
+      'The expression gives a whole number, and this field takes a set of fields.'
+    );
     expect(container.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
+  });
+
+  it('says what a server with no sentence forms calls each type, with no article built from it', async () => {
+    fetchContext = olderServer();
+    try {
+      const { container, type } = analysedAs('hash', '1 + 2', {
+        inferred_type: 'int',
+        target_type: 'hash',
+        type_compatible: false,
+        auto_coercible: false,
+        coercion_may_fail: false,
+      });
+      await type();
+      await waitFor(
+        () =>
+          expect(container.textContent).toContain(
+            'The expression gives a value of type Whole number, and this field takes a value of type Hash.'
+          ),
+        { timeout: 5000 }
+      );
+    } finally {
+      fetchContext = emptyFetchContext();
+    }
   });
 
   /* A condition (a field its host marks as one) is not a type to fit (qorus#646): the server reads it as
@@ -170,7 +216,7 @@ describe('the type-fit message', () => {
     expect(parseAsked).toEqual([{ targetType: 'bool', condition: true }]);
   });
 
-  it("says of a condition that gives a number what the server says of it", async () => {
+  it('says of a condition that gives a number what the server says of it', async () => {
     const { container, type } = analysedAs(
       'bool',
       '1 + 2',
@@ -181,15 +227,20 @@ describe('the type-fit message', () => {
         type_compatible: false,
         auto_coercible: true,
         coercion_may_fail: true,
-        diagnostics: [{ code: 'CONDITION_BY_TRUTHINESS', message: 'Wahr, solange der Wert nicht null ist.' }],
+        diagnostics: [
+          { code: 'CONDITION_BY_TRUTHINESS', message: 'Wahr, solange der Wert nicht null ist.' },
+        ],
       },
       true
     );
     await type();
 
-    await waitFor(() => expect(container.textContent).toContain('Wahr, solange der Wert nicht null ist.'), {
-      timeout: 5000,
-    });
+    await waitFor(
+      () => expect(container.textContent).toContain('Wahr, solange der Wert nicht null ist.'),
+      {
+        timeout: 5000,
+      }
+    );
     expect(container.textContent).not.toContain('This may not fit');
     expect(container.textContent).not.toContain('This does not fit');
   });
@@ -214,11 +265,12 @@ describe('the type-fit message', () => {
     await waitFor(
       () =>
         expect(container.textContent).toContain(
-          'The condition evaluates to Text, but it must evaluate to true or false. Compare the value instead, for example @status == "open".'
+          'The condition evaluates to text, but it must evaluate to true or false. Compare the value instead, for example @status == "open".'
         ),
       {
-      timeout: 5000,
-    });
+        timeout: 5000,
+      }
+    );
     expect(container.textContent).not.toContain('This does not fit');
   });
 
@@ -258,7 +310,9 @@ describe('the type-fit message', () => {
     });
     await type();
 
-    await waitFor(() => expect(container.textContent).toContain('This does not fit'), { timeout: 5000 });
+    await waitFor(() => expect(container.textContent).toContain('This does not fit'), {
+      timeout: 5000,
+    });
     expect(parseAsked).toEqual([{ targetType: 'bool', condition: undefined }]);
   });
 

@@ -31,6 +31,7 @@ import {
   conditionBaseType,
   conditionByTruthinessText,
   conditionErrorText,
+  expressionTypeMismatchText,
   conditionPartCards,
   conditionPartVerdict,
   conditionVerdict,
@@ -263,9 +264,10 @@ export const Expression = ({
     returnType,
     JSON.stringify(expressions.value),
   ]);
+  // the type(s) this place takes, named inside a sentence: their sentence forms (qorus#646)
   const expectedReturnTypeText = isArray(returnType)
-    ? returnType.map(types.getTypeDisplayName).join(' or ')
-    : types.getTypeDisplayName(returnType);
+    ? returnType.map(types.getTypeSentenceForm).join(' or ')
+    : types.getTypeSentenceForm(returnType);
 
   // Server Handler expressions is either defined by the option
   // then it's always the first level
@@ -1364,10 +1366,7 @@ export const Expression = ({
             label={
               part?.message ??
               (partVerdict === 'error' ?
-                conditionErrorText(
-                  types.getTypeDisplayName(conditionBaseType(part!.type)) || part!.type,
-                  part!.type
-                )
+                conditionErrorText(types.getTypeSentenceForm(conditionBaseType(part!.type)), part!.type)
               : conditionByTruthinessText(part!.type))
             }
           />
@@ -1403,8 +1402,7 @@ export const Expression = ({
               label={
                 (level === 0 ? conditionMessage : undefined) ??
                 conditionErrorText(
-                  types.getTypeDisplayName(conditionBaseType(expressionReturnType)) ||
-                    expressionReturnType,
+                  types.getTypeSentenceForm(conditionBaseType(expressionReturnType)),
                   expressionReturnType
                 )
               }
@@ -1416,7 +1414,10 @@ export const Expression = ({
               intent='danger'
               size='tiny'
               wrap
-              label={`This expression gives ${types.getTypeDisplayName(expressionReturnType) || 'nothing'}, but this field takes ${expectedReturnTypeText}. Choose an expression that gives ${expectedReturnTypeText}, or put this one inside an expression that converts it.`}
+              label={expressionTypeMismatchText(
+                expressionReturnType ? types.getTypeSentenceForm(expressionReturnType) : undefined,
+                expectedReturnTypeText
+              )}
             />
           )}
         </>

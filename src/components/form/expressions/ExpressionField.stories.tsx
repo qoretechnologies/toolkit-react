@@ -680,7 +680,7 @@ const readAsCondition = async (canvasElement: HTMLElement, text: string) => {
 /** What is said of a condition that gives a number, in the server's words. */
 const CONDITION_BY_TRUTHINESS = 'The condition evaluates to a number; Qorus treats it as true unless it is 0.';
 /** What is said of a condition that gives text, in the server's words. */
-const NOT_A_CONDITION_TEXT = 'The condition evaluates to Text, but it must evaluate to true or false.';
+const NOT_A_CONDITION_TEXT = 'The condition evaluates to text, but it must evaluate to true or false.';
 
 export const TextModeConditionThatGivesANumber: Story = typedExpressionStory(
   'bool',

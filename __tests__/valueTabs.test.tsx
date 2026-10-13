@@ -83,7 +83,8 @@ import {
   loneValueOf,
 } from '../src/components/form/fields/template/writtenAsText';
 import { FetchContext } from '../src/contexts/FetchContext';
-import { emptyFetchContext } from './support/fetchContext';
+import { defaultQorusTypes } from '../src/hooks/useQorusTypes';
+import { emptyFetchContext, okResponse } from './support/fetchContext';
 
 const TEMPLATES = {
   items: [
@@ -153,10 +154,13 @@ const Host = ({
   );
 };
 
+/** What the form's fetches answer; by default nothing, so reqraft's own type catalogue names the types. */
+let fetchContextFor = () => emptyFetchContext();
+
 const show = (props: Partial<ITemplateFieldProps> & { initial: unknown; isFunction?: boolean }) =>
   render(
     <ReqoreUIProvider>
-      <FetchContext.Provider value={emptyFetchContext()}>
+      <FetchContext.Provider value={fetchContextFor()}>
         <RowMenuContext.Provider value={registry}>
           <Host {...props} />
         </RowMenuContext.Provider>
@@ -533,6 +537,26 @@ describe('a template of another type than the field', () => {
         'Text is converted to a whole number'
       )
     );
+  });
+
+  it('names the types as a server with no sentence forms gives them, with no article built from them', async () => {
+    fetchContextFor = () => {
+      const context = emptyFetchContext();
+      context.get = vi.fn(async () =>
+        okResponse(defaultQorusTypes.map(({ sentence_form: _sentence, ...type }) => type) as never)
+      );
+      return context;
+    };
+    try {
+      const { container } = show({ type: 'int' as never, initial: '$record:{bezeichnung}' });
+      await waitFor(() =>
+        expect(container.querySelector('.value-tab-conversion')?.textContent).toContain(
+          'A value of type Text is converted to a value of type Whole number'
+        )
+      );
+    } finally {
+      fetchContextFor = () => emptyFetchContext();
+    }
   });
 
   it('of the same kind, says nothing', async () => {

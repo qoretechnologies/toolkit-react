@@ -101,7 +101,7 @@ describe('the type picker of an untyped field', () => {
       'True or false',
       'Date',
       'Text',
-      'Binary',
+      'Binary data',
       'Number',
       'List',
       'Key/Value {}',

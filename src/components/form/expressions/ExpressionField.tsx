@@ -435,10 +435,10 @@ export const ExpressionField = memo(
        Text view draws it, in place of the builder's own fallback. */
     const currentConditionMessage = currentCondition?.whole;
     const qorusTypes = useQorusTypes();
-    /** A type as its name is shown: the display name of what it is. */
-    const typeName = useCallback(
+    /** A type named inside a sentence: the sentence form of what it is ("a whole number"), or nothing (qorus#646). */
+    const typeInSentence = useCallback(
       (type: string | undefined) =>
-        (type && qorusTypes.getTypeDisplayName(conditionBaseType(type))) || type || 'nothing',
+        type ? qorusTypes.getTypeSentenceForm(conditionBaseType(type)) : 'nothing',
       [qorusTypes]
     );
 
@@ -871,7 +871,7 @@ export const ExpressionField = memo(
               >
                 {typeCheck.message ??
                   (typeCheck.condition === 'error' ?
-                    conditionErrorText(typeName(typeCheck.inferred), typeCheck.inferred)
+                    conditionErrorText(typeInSentence(typeCheck.inferred), typeCheck.inferred)
                   : conditionByTruthinessText(typeCheck.inferred))}
               </ReqoreMessage>
             )}
@@ -883,7 +883,7 @@ export const ExpressionField = memo(
                 opaque={false}
                 title={typeCheck.mayFail ? 'This may not fit' : 'This does not fit'}
               >
-                {`The expression gives ${typeName(typeCheck.inferred)}, and this field takes ${typeName(typeCheck.target)}.`}
+                {`The expression gives ${typeInSentence(typeCheck.inferred)}, and this field takes ${typeInSentence(typeCheck.target)}.`}
                 {typeCheck.mayFail ? ' Qorus converts the value when it runs, and checks it then.' : ''}
                 {typeCheck.fix ?
                   <>

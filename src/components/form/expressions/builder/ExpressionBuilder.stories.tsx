@@ -177,12 +177,18 @@ export const DefaultBoolean: Story = {
     docs: {
       description: {
         story:
-          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation.',
+          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation. It says what it gives and what its place takes, the types named inside the sentence as the server names them (their sentence forms): "This expression gives nothing, but this field takes true or false."',
       },
     },
   },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    // the types inside the sentence by their sentence forms, not their labels ("True or false")
+    await waitFor(() =>
+      expect(document.body.textContent).toContain(
+        'This expression gives nothing, but this field takes true or false. Choose an expression that gives true or false'
+      )
+    );
   },
 };
 

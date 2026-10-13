@@ -49,8 +49,8 @@ export const ExpressionBuilderArgumentLabel = ({
     ...types.getExactMatches(schema.ui_type),
     ...types.getAcceptedTypes(schema.ui_type),
   ]);
-  /** The types this argument takes, as their names are shown: "Integer or Number". */
-  const acceptedTypeNames = uniq(acceptedTypes.map((t) => types.getTypeDisplayName(t))).join(' or ');
+  /** The types this argument takes, named inside a sentence: "a whole number or a number" (qorus#646). */
+  const acceptedTypeNames = uniq(acceptedTypes.map((t) => types.getTypeSentenceForm(t))).join(' or ');
   /* `arg` is optional — an operand the author has not filled in yet has no
      entry at all, and a literal carried straight from a parse can be the null
      literal itself. Both were dereferenced unguarded here, which took the whole
@@ -127,7 +127,8 @@ export const ExpressionBuilderArgumentLabel = ({
             tooltip={
               matchesType
                 ? 'The type fits; Qorus may convert the value'
-                : `${acceptedTypeNames} is needed here`
+                : // the sentence starts with them
+                  `${acceptedTypeNames.charAt(0).toUpperCase()}${acceptedTypeNames.slice(1)} is needed here`
             }
           >
             {types.getTypeDisplayName(argumentType)}

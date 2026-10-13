@@ -17,7 +17,11 @@ import { conditionErrorText } from '../src/helpers/expressions';
 import { defaultQorusTypes } from '../src/hooks/useQorusTypes';
 import catalogue from './fixtures/qorusTypeCatalogueNames.json';
 
-const serverName = catalogue as Record<string, string>;
+/** The server catalogue's names for each type: its display name (a label) and its sentence form. */
+const serverNames = catalogue as Record<string, { display_name: string; sentence_form: string }>;
+const serverName = Object.fromEntries(
+  Object.entries(serverNames).map(([type, names]) => [type, names.display_name])
+);
 
 describe("reqraft's fallback type list", () => {
   it('calls every type what the server catalogue calls it', () => {
@@ -29,16 +33,36 @@ describe("reqraft's fallback type list", () => {
     }
   });
 
+  it('names every type inside a sentence as the server catalogue does', () => {
+    for (const type of defaultQorusTypes) {
+      expect({ type: type.name, sentence: type.sentence_form }).toEqual({
+        type: type.name,
+        sentence: serverNames[type.name]?.sentence_form,
+      });
+    }
+  });
+
   it('lists the data types the server catalogue has', () => {
     for (const name of [
-      'any', 'string', 'richtext', 'int', 'float', 'number', 'bool', 'date', 'binary', 'hash', 'list',
+      'any',
+      'string',
+      'richtext',
+      'int',
+      'float',
+      'number',
+      'bool',
+      'date',
+      'time',
+      'binary',
+      'hash',
+      'list',
     ]) {
       expect(defaultQorusTypes.map((type) => type.name)).toContain(name);
       expect(serverName[name]).toBeTruthy();
     }
   });
 
-  it("names each type as David decided, and no two the same", () => {
+  it('names each type as David decided, and no two the same', () => {
     expect(
       Object.fromEntries(
         ['string', 'richtext', 'int', 'float', 'number', 'bool', 'date'].map((name) => [
@@ -62,14 +86,18 @@ describe("reqraft's fallback type list", () => {
 
 describe('the words that name a type before the server answers', () => {
   it("the type picker calls a type the catalogue's name, where David named it", () => {
-    const picker = Object.fromEntries(getImmediateValueTypes().map((type) => [type.name, type.display_name]));
+    const picker = Object.fromEntries(
+      getImmediateValueTypes().map((type) => [type.name, type.display_name])
+    );
     for (const name of ['string', 'int', 'float', 'bool', 'date', 'binary', 'list']) {
       expect({ type: name, name: picker[name] }).toEqual({ type: name, name: serverName[name] });
     }
   });
 
-  it('a condition of text says "Text", as the server does', () => {
-    const name = defaultQorusTypes.find((type) => type.name === 'string')!.display_name;
-    expect(conditionErrorText(name, 'string')).toMatch(/^The condition evaluates to Text, but it must evaluate to true or false\./);
+  it('a condition of text says "text", as the server does', () => {
+    const name = defaultQorusTypes.find((type) => type.name === 'string')!.sentence_form!;
+    expect(conditionErrorText(name, 'string')).toMatch(
+      /^The condition evaluates to text, but it must evaluate to true or false\./
+    );
   });
 });

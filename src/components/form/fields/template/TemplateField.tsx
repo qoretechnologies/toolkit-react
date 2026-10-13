@@ -73,7 +73,6 @@ import {
   loneValueOf,
   expressionTextOfValue,
   sameValueType,
-  templateTypeName,
   valueTextOf,
   TValueTab,
   templateTextValue,
@@ -269,10 +268,13 @@ export interface IValueTabsLabels {
   /** Said on the Value tab for a template it cannot show; `tab` is the tab's own label. */
   templateShownOn: (tab: string) => string;
   replaceWithAValue: string;
-  /** A template of another type than the field's; `from` and `to` are the types' names. */
+  /** A template of another type than the field's; `from` and `to` name the types inside the sentence. */
   conversion: (from: string, to: string) => string;
-  /** The name of a type in `conversion`. */
-  typeName: (type: string) => string;
+  /**
+   * The name of a type inside `conversion`'s sentence. Unless a host gives its own, it is the type catalogue's
+   * sentence form ("a whole number"), in the language the server answered in (qorus#646).
+   */
+  typeName?: (type: string) => string;
   undo: string;
   /** The undo's tooltip; `text` is what was typed. */
   undoTooltip: (text: string) => string;
@@ -304,9 +306,9 @@ export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = {
   cannotShowCondition: "This condition can't be shown as a value.",
   templateShownOn: (tab) => `A template is shown on the ${tab} tab, not here.`,
   replaceWithAValue: 'Replace it with a value',
+  // the sentence starts with the first type
   conversion: (from, to) =>
-    `${from} is converted to ${to.toLowerCase()} when the value is used; a value that does not convert fails`,
-  typeName: templateTypeName,
+    `${from.charAt(0).toUpperCase()}${from.slice(1)} is converted to ${to} when the value is used; a value that does not convert fails`,
   undo: 'Undo',
   undoTooltip: (text) => `Keep "${text}" as a value instead`,
 };
@@ -1967,6 +1969,8 @@ const TemplateFieldImpl = memo(
     // ─── Value · Expression · Visual (or Value · Template) ───────────────────────────────────────────
     if (tabsKind && !rest.disabled) {
       const words: IValueTabsLabels = { ...DEFAULT_VALUE_TABS_LABELS, ...valueTabsLabels };
+      /** A type named inside a sentence: the host's own words, or the type catalogue's sentence form. */
+      const typeInSentence = words.typeName ?? qorusTypes.getTypeSentenceForm;
       /* A condition field's Expression tab holds what is used as a condition, so it is called one (qorus#646):
          "condition" where the value is used as a condition, "expression" everywhere else. */
       const conditionField = isConditionOption(rest);
@@ -2007,7 +2011,7 @@ const TemplateFieldImpl = memo(
           loneTemplateType &&
           !sameValueType(loneTemplateType, type as string)
         ) ?
-          words.conversion(words.typeName(loneTemplateType), words.typeName(type as string))
+          words.conversion(typeInSentence(loneTemplateType), typeInSentence(type as string))
         : undefined;
       const cannotShow = (message: string) => (
         <ReqoreMessage

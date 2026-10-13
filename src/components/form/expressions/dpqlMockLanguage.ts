@@ -14,7 +14,7 @@ import {
   conditionByTruthinessText,
   conditionErrorText,
 } from '../../../helpers/expressions';
-import { getQorusTypes } from '../../../hooks/useQorusTypes';
+import { getQorusTypes, qorusTypeSentenceForm } from '../../../hooks/useQorusTypes';
 import { mockExpressions } from './mockExpressions';
 import { IExpressionSchema } from './types';
 
@@ -399,9 +399,9 @@ export const inferDpqlMockType = (node: IDpqlMockNode): string => {
 
 const capitalise = (word: string) => word[0].toUpperCase() + word.slice(1);
 
-/** A type as the server names it in what it says: its display name. */
-const typeDisplayName = (type: string): string =>
-  getQorusTypes().find((t) => t.name === conditionBaseType(type))?.display_name ?? type;
+/** A type as the server names it inside what it says: its sentence form ("a whole number", qorus c6b3fb97c). */
+const typeInSentence = (type: string): string =>
+  qorusTypeSentenceForm(getQorusTypes(), conditionBaseType(type));
 
 /** What a successful parse says about fitting `target`, shaped as the server's answer. */
 const analyse = (
@@ -444,8 +444,8 @@ const analyse = (
         severity: coercible ? 'warning' : 'error',
         message:
           coercible ?
-            `The expression gives ${typeDisplayName(inferred)}, but this field takes ${typeDisplayName(target)}. Qorus converts it when it runs.`
-          : `The expression gives ${typeDisplayName(inferred)}, but this field takes ${typeDisplayName(target)}, and Qorus cannot convert it.`,
+            `The expression gives ${typeInSentence(inferred)}, but this field takes ${typeInSentence(target)}. Qorus converts it when it runs.`
+          : `The expression gives ${typeInSentence(inferred)}, but this field takes ${typeInSentence(target)}, and Qorus cannot convert it.`,
         code: 'TYPE_MISMATCH',
         ...span,
       },
@@ -464,8 +464,10 @@ export const dpqlMockConditionWords: {
   truthiness?: (type: string) => string;
 } = {};
 
-/** The words the server uses for a type a condition cannot give. */
-const NOT_A_CONDITION_TYPE_NAMES: Record<string, string> = { string: 'Text', date: 'Date', time: 'Time' };
+/** The types a condition cannot give, as the server names them inside what it says: their sentence forms. */
+const NOT_A_CONDITION_TYPE_NAMES: Record<string, string> = Object.fromEntries(
+  ['string', 'date', 'time'].map((type) => [type, qorusTypeSentenceForm(getQorusTypes(), type)])
+);
 
 /** How a condition reads a type: true or false, not a condition (text, a date or a time), unknown, or by its value. */
 const conditionReadingOf = (type: string): TMockConditionReading => {

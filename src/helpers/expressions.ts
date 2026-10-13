@@ -157,12 +157,22 @@ const conditionExample = (baseType: string): string =>
 
 /**
  * What is said of a condition that gives text, a date or a time (NOT_A_CONDITION): what it gives, and how to make
- * it one, with an example for its type. `typeName` is the type's display name ("Text"), `baseType` the type it is
- * (`string`, `date`, `time`) - the example follows it. These are the server's words: a fallback for when it said
- * none, never a second wording of them.
+ * it one, with an example for its type. `typeInSentence` is the type named inside a sentence - its sentence form
+ * ("text"), as `qorusTypeSentenceForm` gives it - and `baseType` the type it is (`string`, `date`, `time`): the
+ * example follows it. These are the server's words: a fallback for when it said none, never a second wording of
+ * them.
  */
-export const conditionErrorText = (typeName: string, baseType: string | undefined): string =>
-  `The condition evaluates to ${typeName}, but it must evaluate to true or false. Compare the value instead, for example ${conditionExample(conditionBaseType(baseType))}.`;
+export const conditionErrorText = (typeInSentence: string, baseType: string | undefined): string =>
+  `The condition evaluates to ${typeInSentence}, but it must evaluate to true or false. Compare the value instead, for example ${conditionExample(conditionBaseType(baseType))}.`;
+
+/**
+ * What the expression builder says of an expression whose result does not fit its place: what it gives, what the
+ * place takes, and what to do. `gives` and `takes` name the types inside the sentence - their sentence forms ("a
+ * whole number"), as `qorusTypeSentenceForm` gives them, `takes` joined with "or" where a place takes more than
+ * one - and `gives` is undefined for an expression that gives nothing yet (qorus#646).
+ */
+export const expressionTypeMismatchText = (gives: string | undefined, takes: string): string =>
+  `This expression gives ${gives ?? 'nothing'}, but this field takes ${takes}. Choose an expression that gives ${takes}, or put this one inside an expression that converts it.`;
 
 /**
  * What is said of a condition that gives a number, a list, a hash or a type that is not known

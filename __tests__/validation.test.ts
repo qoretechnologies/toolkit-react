@@ -1343,7 +1343,7 @@ describe('expression argument whose envelope carries no type', () => {
 
     expect(result.isValid).toBe(false);
     expect(result.reason ?? '').toMatch(/^"[^"]+" is invalid/);
-    expect(result.reason ?? '').toContain('integer');
+    expect(result.reason ?? '').toContain('a whole number');
   });
 
   it('prefers the operand\'s own type when it has one', () => {

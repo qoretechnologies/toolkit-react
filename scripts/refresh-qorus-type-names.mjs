@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * Refreshes reqraft's copy of the names the Qorus server gives its data types:
- * __tests__/fixtures/qorusTypeCatalogueNames.json.
+ * Refreshes reqraft's copy of the names the Qorus server gives its data types - each type's display name (a label)
+ * and its sentence form (its name inside a sentence): __tests__/fixtures/qorusTypeCatalogueNames.json.
  *
  * The server's type catalogue (QorusDataTypeCatalogue::Info in the qorus repository, served at
- * /system/qorus-type-info) is the one source of a type's display name. reqraft draws with its own copy of the list
+ * /system/qorus-type-info) is the one source of a type's display name and sentence form. reqraft draws with its own copy of the list
  * (`defaultQorusTypes`, src/hooks/useQorusTypes.ts) until the server's arrives, and words its condition and type
  * messages from it; __tests__/qorusTypeNames.test.ts fails when that copy says another name than the server.
  *
@@ -33,11 +33,14 @@ if (start < 0 || end < 0) {
   process.exit(1);
 }
 
+// each type's name, its display name (a label) and its sentence form (its name inside a sentence)
 const names = {};
-for (const [, name, displayName] of text
+for (const [, name, displayName, sentenceForm] of text
   .slice(start, end)
-  .matchAll(/"name":\s*"([^"]+)",\s*\n\s*"display_name":\s*"([^"]+)"/g)) {
-  names[name] = displayName;
+  .matchAll(
+    /"name":\s*"([^"]+)",\s*\n\s*"display_name":\s*"([^"]+)",\s*\n\s*"sentence_form":\s*"([^"]+)"/g
+  )) {
+  names[name] = { display_name: displayName, sentence_form: sentenceForm };
 }
 if (!Object.keys(names).length) {
   console.error(`${source}: no type names found in the catalogue`);

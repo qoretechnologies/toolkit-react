@@ -152,7 +152,7 @@ export const getImmediateValueTypes = (): { name: IQorusType; display_name: stri
   { name: 'bool', display_name: 'True or false' },
   { name: 'date', display_name: 'Date' },
   { name: 'string', display_name: 'Text' },
-  { name: 'binary', display_name: 'Binary' },
+  { name: 'binary', display_name: 'Binary data' },
   { name: 'float', display_name: 'Number' },
   { name: 'list', display_name: 'List' },
   { name: 'hash', display_name: 'Key/Value {}' },
