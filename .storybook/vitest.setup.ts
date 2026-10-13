@@ -1,7 +1,9 @@
 import { setProjectAnnotations } from '@storybook/react-vite';
 import { createElement } from 'react';
-import { afterEach, beforeAll } from 'vitest';
+import { afterEach, beforeAll, beforeEach, expect } from 'vitest';
+import { server } from 'vitest/browser';
 import { guardRealNetwork } from '../src/stories/realNetworkGuard';
+import { TOUCH_STORY_PROJECT } from '../src/stories/touchScreen';
 import * as previewAnnotations from './preview';
 // storybook-addon-mock drives `parameters.mockData` through `faker`, which
 // patches window.fetch/XHR. Its own `withRoundTrip` decorator only (re)configures
@@ -85,3 +87,16 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+/* Each story's browser is the one its project promises (vitest.config.ts): a desktop with a mouse, or, for
+   the stories tagged `touch`, a phone. The phone's stories run first, so every desktop story checks, after
+   them, that it still has its mouse: a touch screen that left a desktop page without one (qorus#646) fails
+   the next story here. */
+beforeEach(() => {
+  // a project's browser runs as a project of its own, named after both: "storybook-touch (chromium)"
+  const project = server.config.name ?? '';
+  const phone = project === TOUCH_STORY_PROJECT || project.startsWith(`${TOUCH_STORY_PROJECT} (`);
+  const promised = phone ? '(hover: none) and (pointer: coarse)' : '(hover: hover) and (pointer: fine)';
+
+  expect(matchMedia(promised).matches, `the "${project}" project's browser matches ${promised}`).toBe(true);
+});

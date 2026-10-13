@@ -240,11 +240,14 @@ yarn build:test         # Type-check without emit
 - **Touch stories carry `tags: ['touch']`.** A story whose play calls `withTouchScreen`
   (`src/stories/touchScreen.ts`), directly or through a helper such as
   `playTapIsDrawnOnAPhone`, is tagged `touch`. `yarn test:stories` runs those stories in their
-  own Vitest project (`storybook-touch`), and so their own browser page, after the others; an
-  untagged one fails with the reason. Chromium cannot give a page its mouse back after touch
-  emulation: it takes the machine's hover and pointer, and a Linux CI runner has no mouse, so
-  every later story in the same page would find `(hover: none)`. This never shows on a Mac,
-  which always reports a mouse.
+  own Vitest project (`storybook-touch`), whose browser context is a phone from the start
+  (Playwright's `isMobile` and `hasTouch`, 390×844), and before the others; an untagged one fails
+  with the reason. Never turn Chromium's touch emulation on or off over the DevTools protocol:
+  turning it off leaves the page with the machine's hover and pointer, not the mouse Playwright
+  launched it with, and a Linux CI runner has none, so every later story in the page finds
+  `(hover: none)` (it never shows on a Mac, which always reports a mouse).
+  `.storybook/vitest.setup.ts` checks every story's browser is its project's:
+  `(hover: hover) and (pointer: fine)`, or on the phone `(hover: none) and (pointer: coarse)`.
 - **Visual regression via Qlip** (not Chromatic): the story run captures snapshots through the `qlip` Vitest plugin. Upload is gated on `QLIP_UPLOAD_TOKEN` (`vitest.config.ts`), so **local runs capture but never upload** — PNGs land in `qlip/screenshots/<ts>/stories/auto/<StoryId>.png` (gitignored); read the PNG to verify a visual change. CI (`.github/workflows/tests.yml`) sets the token and uploads a build for dashboard review. The full visual-change flow + the `qlip` MCP review skill live in the imported `stacks/frontend/FRONTEND.md`.
 
 ## Code Patterns & Conventions
