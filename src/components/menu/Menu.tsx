@@ -143,7 +143,8 @@ export const ReqraftMenu = ({
   bottomChildren,
   ...rest
 }: IReqraftMenuProps) => {
-  const [query, setQuery] = useState<string>(defaultQuery);
+  // text from the start, empty with no query: a filter with no value became controlled at the first key
+  const [query, setQuery] = useState<string>(defaultQuery ?? '');
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [canScrollDown, setCanScrollDown] = useState<boolean>(false);
 
