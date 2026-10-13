@@ -3,11 +3,16 @@ import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  describeColorValue,
   formatColorValue,
   isStoredColor,
   storedColorProblem,
 } from '../src/components/colorValue/colorValue';
-import { ColorFormField, IColorFormFieldProps } from '../src/components/form/fields/color/Color';
+import {
+  ColorFormField,
+  colorToRgba,
+  IColorFormFieldProps,
+} from '../src/components/form/fields/color/Color';
 import { validateFieldWithResult } from '../src/helpers/validations';
 
 /**
@@ -127,6 +132,19 @@ describe('a stored color', () => {
 
   it('may be nothing where the field may be empty', () => {
     expect(said(undefined, '*rgbcolor').isValid).toBe(true);
+  });
+
+  // Qore a208824c7: a null opacity is an opaque color, as a missing one is - valid, read and shown opaque
+  it('is opaque, and valid, with an opacity given as nothing', () => {
+    const nullOpacity = { r: 1, g: 2, b: 3, a: null };
+    expect(said(nullOpacity).isValid).toBe(true);
+    expect(isStoredColor(nullOpacity)).toBe(true);
+    expect(describeColorValue(nullOpacity)).toEqual({
+      kind: 'color',
+      text: '#010203',
+      css: 'rgba(1, 2, 3, 1)',
+    });
+    expect(colorToRgba(nullOpacity)).toEqual({ r: 1, g: 2, b: 3, a: 1 });
   });
 
   // a value stored the wrong way is still seen, so it can be fixed
