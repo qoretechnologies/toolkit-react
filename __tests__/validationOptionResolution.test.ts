@@ -84,7 +84,7 @@ describe('validateFieldWithResult options', () => {
     const result = validateFieldWithResult('options', options, { optionSchema });
 
     expect(result.isValid).toBe(false);
-    expect(result.reason).toBe('Option input_data is invalid: Value must be a set of fields');
+    expect(result.reason).toBe('Option input_data is invalid: Value must be key-value pairs (a hash)');
   });
 
   it('does not block forms on empty optional options with unmet dependencies', () => {

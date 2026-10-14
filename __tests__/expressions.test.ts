@@ -357,16 +357,20 @@ describe('the condition fallback texts', () => {
     expect(conditionErrorText('Time', 'softtime')).toContain('for example @starts_at < @ends_at.');
   });
 
+  // the type named by its sentence form, as the server names it (QonsoleDesignI18n::conditionByTruthinessText)
   it('says how Qorus reads a condition by its value, by the type it gives', () => {
     expect(conditionByTruthinessText('int')).toBe(
-      'The condition evaluates to a number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
+      'The condition evaluates to a whole number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
     );
-    expect(conditionByTruthinessText('*float')).toContain('evaluates to a number');
+    expect(conditionByTruthinessText('*float')).toContain('evaluates to a number;');
+    expect(conditionByTruthinessText('number')).toContain('evaluates to an exact number;');
+    expect(conditionByTruthinessText('softinteger')).toContain('evaluates to a whole number;');
+    expect(conditionByTruthinessText('hash<auto>')).toContain('evaluates to key-value pairs (a hash);');
     expect(conditionByTruthinessText('list<string>')).toBe(
-      'The condition evaluates to a list; Qorus treats it as true unless the list is empty. To make that explicit, compare its size, for example size(@items) > 0.'
+      'The condition evaluates to a list; Qorus treats it as true unless it is empty. To make that explicit, compare its size, for example size(@items) > 0.'
     );
     expect(conditionByTruthinessText('hash')).toBe(
-      'The condition evaluates to a set of fields; Qorus treats it as true unless it has none. To make that explicit, compare its size, for example size(@details) > 0.'
+      'The condition evaluates to key-value pairs (a hash); Qorus treats it as true unless it holds no pairs. To make that explicit, compare its size, for example size(@details) > 0.'
     );
     for (const unknown of ['binary', undefined]) {
       expect(conditionByTruthinessText(unknown)).toBe(

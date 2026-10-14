@@ -1728,7 +1728,7 @@ export const ConditionThatGivesANumber: Story = {
     await waitFor(
       () =>
         expect(conditionVerdict()?.textContent).toContain(
-          'The condition evaluates to a number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
+          'The condition evaluates to a whole number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
         ),
       { timeout: 10000 }
     );

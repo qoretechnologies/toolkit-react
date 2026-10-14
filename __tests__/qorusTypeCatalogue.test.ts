@@ -7,8 +7,9 @@
  * expressions fit a place. A copy that differs from the server says other names, and offers or refuses other
  * expressions, than it does once the server answers.
  *
- * fixtures/qorusTypeInfo.json is a server's answer, recorded from professor (qorus 8.0.0 develop 354e7eafa, which has
- * the catalogue of c6b3fb97c). When the server's catalogue changes, record its answer again and change the copy
+ * fixtures/qorusTypeInfo.json is a server's answer, recorded from professor (qorus 8.0.0 e7600de62, with the catalogue
+ * of develop 04e6c502f: the hash type is "Key-value pairs (hash)", and 113756c40's rgbcolor descriptions). When the
+ * server's catalogue changes, record its answer again and change the copy
  * until this passes:
  *
  *   qrest -j system/qorus-type-info | yarn -s record:type-info

@@ -15,7 +15,7 @@ import { emptyFetchContext, okResponse } from './support/fetchContext';
  * qorus#646: a type has two names in the server's catalogue (GET /system/qorus-type-info, qorus c6b3fb97c): its
  * display name labels it ("Whole number"), and its sentence form names it inside a sentence ("a whole number").
  * Every reqraft message that names a type in a sentence says its sentence form: "The expression gives a whole
- * number, and this field takes a set of fields". A server that gives no sentence form (an older one) is answered
+ * number, and this field takes key-value pairs (a hash)". A server that gives no sentence form (an older one) is answered
  * with a wording that needs no article - "a value of type Whole number" - never an English article built from the
  * display name.
  */
@@ -34,7 +34,7 @@ describe("a type's sentence form", () => {
     ['string', 'text'],
     ['date', 'a date and time'],
     ['time', 'a time of day'],
-    ['hash', 'a set of fields'],
+    ['hash', 'key-value pairs (a hash)'],
     ['list', 'a list'],
   ])('%s is %s', (type, sentence) => {
     expect(qorusTypeSentenceForm(defaultQorusTypes, type)).toBe(sentence);
@@ -46,7 +46,7 @@ describe("a type's sentence form", () => {
     ['softint', 'a whole number'],
     ['*string', 'text'],
     ['*softbool', 'true or false'],
-    ['hash<auto>', 'a set of fields'],
+    ['hash<auto>', 'key-value pairs (a hash)'],
     ['list<string>', 'a list'],
   ])(
     '%s, another name for a type or an optional, soft or complex one, is named by its base type: %s',
@@ -70,7 +70,7 @@ describe("a type's sentence form", () => {
 describe("a type's display name", () => {
   it('names an optional or complex type by its base type too', () => {
     expect(qorusTypeDisplayName(defaultQorusTypes, '*string')).toBe('Text');
-    expect(qorusTypeDisplayName(defaultQorusTypes, 'hash<auto>')).toBe('Set of fields');
+    expect(qorusTypeDisplayName(defaultQorusTypes, 'hash<auto>')).toBe('Key-value pairs (hash)');
   });
 });
 

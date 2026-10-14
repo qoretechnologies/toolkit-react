@@ -89,7 +89,7 @@ describe('an expression opened in the Text view', () => {
       timeout: 5000,
     });
     expect(container.textContent).toContain(
-      'The expression gives a whole number, and this field takes a set of fields.'
+      'The expression gives a whole number, and this field takes key-value pairs (a hash).'
     );
     expect(parsed).toEqual([{ text: '1 + 2', targetType: 'hash' }]);
   });

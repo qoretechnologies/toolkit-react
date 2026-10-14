@@ -10,7 +10,7 @@ import {
   IExpressionSchemaArg,
 } from '../components/form/expressions/types';
 import { defaultQorusTypes, getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
-import { catalogueTypeName } from './qorusTypeCatalogue';
+import { catalogueTypeName, qorusTypeSentenceForm } from './qorusTypeCatalogue';
 
 export const getArgumentType = (
   expressions: IExpressionSchema[],
@@ -198,19 +198,22 @@ export const conversionText = (from: string | undefined, to: string | undefined)
 
 /**
  * What is said of a condition that gives a number, a list, a hash or a type that is not known
- * (CONDITION_BY_TRUTHINESS): how Qorus reads it, and how to say it explicitly, by the type it gives. These are
- * the server's words: a fallback for when it said none.
+ * (CONDITION_BY_TRUTHINESS): how Qorus reads it, and how to say it explicitly, by the type it gives - named by its
+ * sentence form ("a whole number", "key-value pairs (a hash)"), as the server names it
+ * (`QonsoleDesignI18n::conditionByTruthinessText`, qorus 04e6c502f). These are the server's words: a fallback for
+ * when it said none.
  */
 export const conditionByTruthinessText = (type: string | undefined): string => {
   const base = conditionBaseType(type);
+  const named = qorusTypeSentenceForm(getQorusTypes(), base);
   if (/^(int|integer|float|number)$/.test(base)) {
-    return 'The condition evaluates to a number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.';
+    return `The condition evaluates to ${named}; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.`;
   }
   if (base === 'list') {
-    return 'The condition evaluates to a list; Qorus treats it as true unless the list is empty. To make that explicit, compare its size, for example size(@items) > 0.';
+    return `The condition evaluates to ${named}; Qorus treats it as true unless it is empty. To make that explicit, compare its size, for example size(@items) > 0.`;
   }
   if (base === 'hash') {
-    return 'The condition evaluates to a set of fields; Qorus treats it as true unless it has none. To make that explicit, compare its size, for example size(@details) > 0.';
+    return `The condition evaluates to ${named}; Qorus treats it as true unless it holds no pairs. To make that explicit, compare its size, for example size(@details) > 0.`;
   }
   return "The condition's value is not true or false; Qorus treats it as true unless it is 0 or empty. To make that explicit, compare it, for example @count > 0.";
 };

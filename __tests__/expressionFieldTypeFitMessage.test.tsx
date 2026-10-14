@@ -177,7 +177,7 @@ describe('the type-fit message', () => {
     });
     // the types inside the sentence by their sentence forms (qorus#646, the server's catalogue)
     expect(container.textContent).toContain(
-      'The expression gives a whole number, and this field takes a set of fields.'
+      'The expression gives a whole number, and this field takes key-value pairs (a hash).'
     );
     expect(container.querySelector('[data-testid="expression-type-fix"]')).toBeNull();
   });
@@ -281,7 +281,7 @@ describe('the type-fit message', () => {
     await waitFor(
       () =>
         expect(container.textContent).toContain(
-          'The condition evaluates to a number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
+          'The condition evaluates to a whole number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
         ),
       { timeout: 5000 }
     );

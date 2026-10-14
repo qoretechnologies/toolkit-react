@@ -418,7 +418,7 @@ export const ViaFormEngineMenuOpensItsOnlyGroup: Story = {
       { timeout: 10000 }
     );
     // ...and the rows are there to click, with no header click in between: each type with the description the
-    // server's catalogue gives it (a set of fields: "Named fields with their values").
+    // server's catalogue gives it (key-value pairs: "Key-value pairs (hash)").
     const setOfFields = defaultQorusTypes.find((type) => type.name === 'hash')!.short_desc!;
     await waitFor(() => expect(document.body.textContent).toContain(setOfFields), {
       timeout: 10000,

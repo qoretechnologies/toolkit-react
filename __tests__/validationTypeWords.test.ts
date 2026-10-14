@@ -15,7 +15,7 @@ describe('a value not of its field type', () => {
     ['float', 'abc', 'Value must be a number'],
     ['number', 'abc', 'Value must be an exact number'],
     ['bool', 'abc', 'Value must be true or false'],
-    ['hash', 'abc', 'Value must be a set of fields'],
+    ['hash', 'abc', 'Value must be key-value pairs (a hash)'],
   ])('of type %s, %j, says %j', (type, value, said) => {
     expect(reason(type, value)).toBe(said);
   });
