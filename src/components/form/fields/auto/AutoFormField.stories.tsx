@@ -261,9 +261,10 @@ export const Nullable: Story = {
 
     await userEvent.click(toggle);
 
-    // Value cleared to null, toggle flips, the field shows the null sentinel.
+    // Value cleared to null - a value, not an expression (the last argument) - the toggle flips, and the
+    // field shows the null sentinel.
     await waitFor(() =>
-      expect(args.onChange).toHaveBeenLastCalledWith(undefined, null, 'string', true)
+      expect(args.onChange).toHaveBeenLastCalledWith(undefined, null, 'string', false)
     );
     await expect(canvas.getByText('Unset null')).toBeInTheDocument();
     await expect(canvas.queryByDisplayValue('some text')).not.toBeInTheDocument();
