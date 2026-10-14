@@ -682,20 +682,28 @@ const middleOf = (editable: HTMLElement, word: string) => {
   throw new Error(`"${word}" is not in the editor`);
 };
 
+interface IVitestMouse {
+  userEvent: { hover(element: Element, options?: unknown): Promise<void> };
+  cdp(): { send(method: string, params?: Record<string, unknown>): Promise<unknown> };
+}
+
+/** The test runner's browser, or none where the play runs in Storybook's UI (see `withTouchScreen`). */
+const vitestBrowser = async (): Promise<IVitestMouse | undefined> => {
+  try {
+    return (await import('vitest/browser')) as unknown as IVitestMouse;
+  } catch {
+    return undefined;
+  }
+};
+
 /**
  * Rests the mouse on `at` in `element`. In the test runner it is the browser's own mouse, moved there by
  * Playwright, whose pointer events say "mouse" as a person's do; in Storybook's UI, where there is none to
- * move, a mouse's pointer event at that point. `vitest/browser` is imported when called: it throws outside
- * the runner (see `withTouchScreen`).
+ * move, a mouse's pointer event at that point. A story that moves the browser's mouse puts it back off the
+ * page when it ends (`mouseOffThePage`).
  */
 const restMouseOn = async (element: HTMLElement, at: { clientX: number; clientY: number }) => {
-  let browser:
-    { userEvent: { hover(element: Element, options?: unknown): Promise<void> } } | undefined;
-  try {
-    browser = (await import('vitest/browser')) as unknown as typeof browser;
-  } catch {
-    browser = undefined;
-  }
+  const browser = await vitestBrowser();
   if (!browser) {
     fireEvent.pointerMove(element, { pointerType: 'mouse', ...at });
     return;
@@ -704,6 +712,17 @@ const restMouseOn = async (element: HTMLElement, at: { clientX: number; clientY:
   await browser.userEvent.hover(element, {
     position: { x: at.clientX - box.left, y: at.clientY - box.top },
   });
+};
+
+/**
+ * The browser's mouse off the page, where it is before anything moves it: nothing is under it. Left where a
+ * story rested it, it stayed over the stories that came after it in the same browser, and whatever they drew
+ * there was hovered - a card's title opened its hover, which said the title a second time
+ * (Tracking/Experiment Card, in CI).
+ */
+const mouseOffThePage = async () => {
+  const browser = await vitestBrowser();
+  await browser?.cdp().send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: -1, y: -1 });
 };
 
 /** The hovers shown, as their text. */
@@ -737,16 +756,20 @@ export const HoverFollowsTheMouseToTheNextWord: Story = {
       { timeout: 10000 }
     );
 
-    // a mouse: its pointer events say so, as a finger's emulated mouse events do not
-    await restMouseOn(editable, middleOf(editable, 'forEach'));
-    await waitFor(() => expect(shownHovers()).toEqual(['forEach: the word under the mouse.']), {
-      timeout: 10000,
-    });
+    try {
+      // a mouse: its pointer events say so, as a finger's emulated mouse events do not
+      await restMouseOn(editable, middleOf(editable, 'forEach'));
+      await waitFor(() => expect(shownHovers()).toEqual(['forEach: the word under the mouse.']), {
+        timeout: 10000,
+      });
 
-    await restMouseOn(editable, middleOf(editable, 'map'));
-    await waitFor(() => expect(shownHovers()).toEqual(['map: the word under the mouse.']), {
-      timeout: 10000,
-    });
+      await restMouseOn(editable, middleOf(editable, 'map'));
+      await waitFor(() => expect(shownHovers()).toEqual(['map: the word under the mouse.']), {
+        timeout: 10000,
+      });
+    } finally {
+      await mouseOffThePage();
+    }
   },
 };
 
