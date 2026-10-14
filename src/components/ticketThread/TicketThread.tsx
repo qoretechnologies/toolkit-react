@@ -6,10 +6,12 @@ import {
   ReqoreEmptyState,
   ReqoreIcon,
   ReqoreP,
+  ReqorePanel,
   ReqoreSkeleton,
   ReqoreTimeAgo,
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
+import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { rgba } from 'polished';
@@ -19,8 +21,10 @@ import styled from 'styled-components';
 import { formatBytes, isImage } from '../../helpers/common';
 import { ImageLightbox } from '../imageLightbox';
 import {
+  dedupeInterfaceReferences,
   IInterfaceReference,
   InterfaceReferenceTags,
+  ticketSystemEventMeta,
   TResolveInterfaceIcon,
   TTicketMessageAuthor,
   TTicketViewerRole,
@@ -69,6 +73,23 @@ export interface ITicketThreadMessage {
   attachments?: ITicketThreadAttachment[];
   /** Qorus interfaces this message references, as `{kind, name}` snapshots. */
   referenced_interfaces?: IInterfaceReference[];
+  /** For a `system` message: the event it records (`support_access.requested`, …); see
+   *  `ITicketMessage.system_event`. Decides the line's mark, and the card variant. */
+  system_event?: string;
+  /** For a `system` message: the event's structured payload, as the server wrote it. */
+  system_detail?: Record<string, unknown>;
+}
+
+/**
+ * An action a consumer attaches to a system event's card — the customer's Grant on a
+ * `support_access.requested` card. The thread renders it as the card's action; what it
+ * does (open the grant drawer, call the API) is the consumer's.
+ */
+export interface ITicketSystemEventAction {
+  label: string;
+  icon?: IReqoreIconName;
+  intent?: TReqoreIntent;
+  onClick: () => void;
 }
 
 export interface ITicketThreadProps {
@@ -97,6 +118,17 @@ export interface ITicketThreadProps {
   /** open a referenced interface; reference chips are static when omitted (e.g. the staff
    *  view, which can't reach the customer's instance, leaves this out). */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
+  /** Whether a reference chip can be opened right now, and why not; passed through to
+   *  every message's `InterfaceReferenceTags` — see the cases there. */
+  isInterfaceLinkable?: (reference: IInterfaceReference) => boolean;
+  unlinkableReason?: (reference: IInterfaceReference) => string | undefined;
+  /**
+   * The action to offer on a system event's card, if any — asked per system message, so a
+   * consumer answers for the events and states it handles (the IDE offers Grant on a
+   * `support_access.requested` card while the request is open; the staff portal offers
+   * nothing). Omitted ⇒ cards carry no action.
+   */
+  systemEventAction?: (message: ITicketThreadMessage) => ITicketSystemEventAction | undefined;
   /** The TICKET's own references (picked when filing). Echoed as chips on the opening
    *  message so the conversation carries them too — when they lived only in the header
    *  rail + References tab, readers looked for them in the thread and concluded the
@@ -530,6 +562,60 @@ const AttachmentList = ({
   );
 };
 
+/**
+ * A system message. The request for workspace access renders as a card — it asks the
+ * reader something, and can carry the customer's answer — while every other event stays
+ * the centred muted line, marked with its event's icon when the event is known.
+ */
+const SystemMessage = ({
+  message,
+  action,
+}: {
+  message: ITicketThreadMessage;
+  action?: ITicketSystemEventAction;
+}) => {
+  const meta = ticketSystemEventMeta(message.system_event);
+  if (message.system_event === 'support_access.requested') {
+    return (
+      <ReqorePanel
+        id={ticketMessageDomId(message.message_id)}
+        className='reqore-ticket-system-card'
+        size='small'
+        icon={meta.icon}
+        intent={meta.intent}
+        label={meta.label}
+        flat={false}
+        minimal
+        actions={
+          action
+            ? [
+                {
+                  label: action.label,
+                  icon: action.icon,
+                  intent: action.intent ?? 'success',
+                  className: 'reqore-ticket-system-card-action',
+                  // the answer keeps its label at every width: a phone is where the
+                  // customer is most likely to read the request, and where a tooltip
+                  // would never show the word behind an icon
+                  responsive: false,
+                  onClick: action.onClick,
+                },
+              ]
+            : undefined
+        }
+      >
+        <MessageBody>{message.body}</MessageBody>
+      </ReqorePanel>
+    );
+  }
+  return (
+    <StyledSystemRow id={ticketMessageDomId(message.message_id)}>
+      <ReqoreIcon icon={meta.icon} size='tiny' />
+      <ReactMarkdown>{message.body}</ReactMarkdown>
+    </StyledSystemRow>
+  );
+};
+
 type TThreadSegment =
   | { kind: 'system'; message: ITicketThreadMessage }
   | { kind: 'bubbles'; messages: ITicketThreadMessage[] };
@@ -565,6 +651,9 @@ export const TicketThread = ({
   resolveInterfaceIcon,
   preferKindImage,
   onInterfaceClick,
+  isInterfaceLinkable,
+  unlinkableReason,
+  systemEventAction,
   ticketReferences,
 }: ITicketThreadProps) => {
   // Open scrolled to the newest message, and follow new arrivals down — a thread is read
@@ -608,15 +697,7 @@ export const TicketThread = ({
       return undefined;
     }
     const opening = messages.find((m) => m.message_id === openingMessageId);
-    const seen = new Set<string>();
-    return [...ticketReferences, ...(opening?.referenced_interfaces ?? [])].filter((ref) => {
-      const key = `${ref.interface_kind}:${ref.interface_name}`;
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    });
+    return dedupeInterfaceReferences([...ticketReferences, ...(opening?.referenced_interfaces ?? [])]);
   }, [ticketReferences, messages, openingMessageId]);
 
   const refsFor = (message: ITicketThreadMessage): IInterfaceReference[] | undefined =>
@@ -645,13 +726,11 @@ export const TicketThread = ({
     <StyledThread ref={threadRef}>
       {segments.map((segment, index) =>
         segment.kind === 'system' ? (
-          <StyledSystemRow
+          <SystemMessage
             key={segment.message.message_id}
-            id={ticketMessageDomId(segment.message.message_id)}
-          >
-            <ReqoreIcon icon='InformationLine' size='tiny' />
-            <ReactMarkdown>{segment.message.body}</ReactMarkdown>
-          </StyledSystemRow>
+            message={segment.message}
+            action={systemEventAction?.(segment.message)}
+          />
         ) : (
           <ReqoreBubbleGroup key={`group-${index}`}>
             {segment.messages.map((message) => (
@@ -703,6 +782,8 @@ export const TicketThread = ({
                       resolveInterfaceIcon={resolveInterfaceIcon}
                       preferKindImage={preferKindImage}
                       onInterfaceClick={onInterfaceClick}
+                      isInterfaceLinkable={isInterfaceLinkable}
+                      unlinkableReason={unlinkableReason}
                     />
                   </div>
                 ) : null}

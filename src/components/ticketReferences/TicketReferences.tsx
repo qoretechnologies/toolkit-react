@@ -23,6 +23,7 @@ import { ImageLightbox } from '../imageLightbox';
 import {
   defaultInterfaceIcon,
   IInterfaceReference,
+  interfaceReferenceKey,
   toInterfaceKindMark,
   TResolveInterfaceIcon,
   TTicketViewerRole,
@@ -73,6 +74,15 @@ export interface ITicketReferencesProps {
   onDownloadAttachment?: (attachmentId: string, filename: string) => void;
   /** open a referenced interface; reference chips are static (informational) when omitted */
   onInterfaceClick?: (reference: IInterfaceReference) => void;
+  /**
+   * Whether a reference can be opened right now; consulted only when `onInterfaceClick`
+   * is given. A refused row offers no Open action and carries `unlinkableReason` in its
+   * metadata line — in the row itself, so it reads on a touch screen too, where a
+   * tooltip would never show. See `InterfaceReferenceTags` for the cases.
+   */
+  isInterfaceLinkable?: (reference: IInterfaceReference) => boolean;
+  /** Why a reference is not linkable, shown in the row's metadata after its kind. */
+  unlinkableReason?: (reference: IInterfaceReference) => string | undefined;
   /** Reveal the message a reference or file came from, in the conversation.
    *  Omitted ⇒ the action is not offered. It is also omitted per-row for anything filed
    *  against the ticket itself rather than a reply, which has no message to reveal. */
@@ -197,7 +207,9 @@ export interface IResolvedInterfaceReference extends IInterfaceReference {
 const dedupeRefs = (refs: IResolvedInterfaceReference[]): IResolvedInterfaceReference[] => {
   const byKey = new Map<string, IResolvedInterfaceReference>();
   for (const r of refs) {
-    const key = `${r.interface_kind}:${r.interface_name}`;
+    // identity by normalized kind + name, so a `qog` cited in a reply and the `fsm` the
+    // server stored on the ticket are one row
+    const key = interfaceReferenceKey(r);
     const kept = byKey.get(key);
     if (!kept) {
       byKey.set(key, r);
@@ -421,6 +433,8 @@ export const TicketReferences = ({
   fetchAttachmentUrl,
   onDownloadAttachment,
   onInterfaceClick,
+  isInterfaceLinkable,
+  unlinkableReason,
   onShowInChat,
   resolveInterfaceIcon,
   preferKindImage = false,
@@ -791,28 +805,28 @@ export const TicketReferences = ({
               // the same vocabulary and precedence as the reference chips: the kind's
               // font icon, and the chosen image once it has loaded
               const { icon, image } = markOf(reference);
+              // a row the consumer refuses offers no Open, and says why in its metadata
+              // line rather than in a tooltip, so the reason reads on touch as well
+              const linkable = !!onInterfaceClick && (isInterfaceLinkable?.(reference) ?? true);
+              const reason =
+                onInterfaceClick && !linkable ? unlinkableReason?.(reference) : undefined;
               return (
                 <ReqoreEntityRow
-                  key={
-                    reference.reference_id ??
-                    `${reference.interface_kind}:${reference.interface_name}`
-                  }
+                  key={reference.reference_id ?? interfaceReferenceKey(reference)}
                   icon={icon}
                   iconImage={isImageLoaded(image) ? image : undefined}
                   label={reference.interface_name}
                   metadata={
                     <ReqoreTextEffect effect={META_EFFECT}>
-                      {reference.interface_kind}
+                      {reason ? `${reference.interface_kind} · ${reason}` : reference.interface_kind}
                     </ReqoreTextEffect>
                   }
                   flat
                   tooltip={
-                    onInterfaceClick ?
-                      `Open ${reference.interface_kind} ${reference.interface_name}`
-                    : undefined
+                    linkable ? `Open ${reference.interface_kind} ${reference.interface_name}` : undefined
                   }
                   actions={rowActions(
-                    onInterfaceClick ?
+                    linkable ?
                       {
                         icon: 'ArrowRightUpLine',
                         tooltip: 'Open',

@@ -16,6 +16,7 @@ import {
   IInterfaceReference,
   toInterfaceKindMark,
   TResolveInterfaceIcon,
+  normalizeInterfaceKind,
 } from './meta';
 import { useLoadedImages } from './useLoadedImages';
 
@@ -342,7 +343,9 @@ export const ReferencePicker = ({
     () =>
       new Set(
         (picked ?? [])
-          .filter((reference) => reference.interface_kind === kind)
+          .filter(
+            (reference) => normalizeInterfaceKind(reference.interface_kind) === normalizeInterfaceKind(kind)
+          )
           .map((reference) => reference.interface_name)
       ),
     [picked, kind]
