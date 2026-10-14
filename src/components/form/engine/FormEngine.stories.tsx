@@ -2370,50 +2370,35 @@ export const CompactUnlockedRequiredNeedsAttention: Story = {
   },
 };
 
-/** The guided check of qorus-ide's Test Cases stories: some kinds take no expected value. */
-const checkWithKindsThatLockItsValueOptions = {
-  kind: {
-    type: 'string',
-    ui_type: 'string',
-    display_name: 'Check',
-    preselected: true,
-    allowed_values: [
-      { value: { type: 'string', value: 'equals' }, display_name: 'Equals' },
-      { value: { type: 'string', value: 'exists' }, display_name: 'Exists' },
-      { value: { type: 'string', value: 'is_nothing' }, display_name: 'Is nothing' },
-      { value: { type: 'string', value: 'between' }, display_name: 'Between' },
-      { value: { type: 'string', value: 'is_true' }, display_name: 'Is true' },
-      { value: { type: 'string', value: 'is_false' }, display_name: 'Is false' },
-    ],
-  },
+/**
+ * A check whose Expected value is empty, and whose host says why it cannot be read: a reason longer than the room
+ * beside the value's dash. (It was a field locked by its dependency; such a field is not in the form now - qorus#646 -
+ * and a host's reason is the long reason a row still shows beside a dash.)
+ */
+const checkWithAReasonBesideItsDashOptions = {
   expected: {
     type: 'string',
     ui_type: 'string',
     display_name: 'Expected value',
     preselected: true,
-    depends_on: [
-      'kind!=exists',
-      'kind!=is_nothing',
-      'kind!=between',
-      'kind!=is_true',
-      'kind!=is_false',
-    ],
+    invalid_reason:
+      'The record has no field named "pos", so this check cannot read it: pick a field the record has, or add the field to the record first.',
   },
 } as IOptionsSchema;
 
-export const CompactLockedReasonBesideItsDash: Story = {
+export const CompactReasonBesideItsDash: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a check whose kind, Exists, leaves its Expected value locked. The row shows no value, a dash, and beside it the reason, which wraps in its own space: "This field is disabled because some dependencies are not fulfilled", and each kind that locks it. The reason starts on the dash\'s line rather than below it, where the dash read as a bullet with its text on the next line.',
+          'Renders a check whose Expected value is empty, with the reason its host gives for it. The row shows no value, a dash, and beside it the reason, which wraps in its own space. The reason starts on the dash\'s line rather than below it, where the dash read as a bullet with its text on the next line.',
       },
     },
   },
   args: {
     compact: true,
-    options: checkWithKindsThatLockItsValueOptions,
-    value: { kind: { type: 'string', value: 'exists' } } as IOptions,
+    options: checkWithAReasonBesideItsDashOptions,
+    value: {} as IOptions,
   },
   render: (args) => (
     <div style={{ width: 700 }}>
@@ -2435,7 +2420,7 @@ export const CompactLockedReasonBesideItsDash: Story = {
     const reason = row.querySelector<HTMLElement>('.options-readfirst-reason')!;
 
     await expect(dash.textContent).toBe('—');
-    await expect(reason.textContent).toContain('dependencies are not fulfilled');
+    await expect(reason.textContent).toContain('The record has no field named "pos"');
     // the reason is longer than its line: it wraps
     await expect(reason.getBoundingClientRect().height).toBeGreaterThan(
       dash.getBoundingClientRect().height * 1.5
