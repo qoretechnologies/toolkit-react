@@ -221,7 +221,7 @@ export interface IInterfaceReference {
   groupid?: number;
   /** That group's portable namespace — set by the server on read; absent for the host's
    *  DEFAULT group. What a support reader needs to find the interface after a move. */
-  group_namespace?: string;
+  group_namespace?: number;
   /** For an app-triggered interface (a qog): the triggering app's name. A viewer
    *  with the app catalogue (the customer's IDE) resolves it to the app's logo the
    *  same way the qogs list does — see `resolveInterfaceImage` on the tags. */
