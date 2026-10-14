@@ -127,10 +127,11 @@ describe('the unmet-dependency message', () => {
 });
 
 /*
- * The row says reqraft's own sentence as it is (qorus#646): a dependency on the value `__other__` read as
- * markdown, its underscores taken for bold, and the row said the field must be "other".
+ * The form says reqraft's own sentence as it is (qorus#646): a dependency on the value `__other__` read as
+ * markdown, its underscores taken for bold, and the row said the field must be "other". A field whose dependency
+ * does not hold is hidden now, and one that holds a value is said in the form's note, which quotes it the same way.
  */
-describe('the unmet-dependency reason in a read row', () => {
+describe('the unmet-dependency reason for a hidden field that holds a value', () => {
   it('quotes a value as it is, never as markdown', async () => {
     const { container } = render(
       <ReqoreUIProvider>
@@ -141,7 +142,7 @@ describe('the unmet-dependency reason in a read row', () => {
             name='dependencies'
             value={{
               raw: { type: 'string', value: 'x' },
-              // a field that holds a value stays listed when its dependency stops holding, with the reason
+              // a field that holds a value is hidden when its dependency stops holding, and said in the note
               byValue: { type: 'string', value: 'abc' },
             }}
             options={
@@ -156,11 +157,12 @@ describe('the unmet-dependency reason in a read row', () => {
       </ReqoreUIProvider>
     );
 
-    const reason = await waitFor(() => {
-      const found = container.querySelector('[data-field="byValue"] .options-readfirst-reason');
+    const note = await waitFor(() => {
+      const found = container.querySelector('[data-field-hidden="byValue"]');
       expect(found).toBeTruthy();
       return found!;
     });
-    expect(reason.textContent).toContain('"Raw" must be "__other__"');
+    expect(note.textContent).toContain('"Raw" must be "__other__"');
+    expect(container.querySelector('[data-field="byValue"]')).toBeNull();
   });
 });

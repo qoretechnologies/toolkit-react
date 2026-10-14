@@ -44,7 +44,7 @@ import { optionRowActions, resolveOptionActions, TOptionActions } from './option
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
 import { revealRow } from './revealRow';
 import { useEmittedValues } from '../fields/emittedValues';
-import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last, uniq } from 'lodash';
+import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last, omit, uniq } from 'lodash';
 import map from 'lodash/map';
 import reduce from 'lodash/reduce';
 import size from 'lodash/size';
@@ -103,8 +103,10 @@ import {
   ICompactToolbarContext,
   TCompactSort,
 } from './compactToolbarContext';
+import { HiddenFieldsNote, IHiddenFieldWithValue } from './HiddenFieldsNote';
 import {
   OptionFieldMessages,
+  describeDependencies,
   getAllowedValueAvailability,
   getShownSchemaMessages,
 } from './OptionFieldMessages';
@@ -2381,13 +2383,13 @@ const FormEngineImpl = ({
     (optionName: string, type: TQorusType, optionValue: any) => {
       // the same "not set" the row's status reads: an empty list is no value
       const isEmpty = isOptionValueEmpty(optionValue);
-      // An empty field locked by an unmet `depends_on` does not apply, so it is
-      // not missing — the same rule the read-first status follows.
-      if (
-        isEmpty &&
-        ((!options?.[optionName]?.required && !options?.[optionName]?.required_groups) ||
-          dependencyLockedNames.includes(optionName))
-      ) {
+      // A field whose `depends_on` does not hold does not apply: it is hidden, and nothing in it can make the
+      // form invalid - a value it holds is kept, and said in the form's note, valid or not (qorus#646).
+      if (dependencyLockedNames.includes(optionName)) {
+        return true;
+      }
+      // An empty field that is not required is not missing.
+      if (isEmpty && !options?.[optionName]?.required && !options?.[optionName]?.required_groups) {
         return true;
       }
 
@@ -2452,9 +2454,11 @@ const FormEngineImpl = ({
            nobody can fill in would say Incomplete with nothing to act on. A
            locked field that still HOLDS a value is validated as before. */
           if (
-            isEmpty &&
-            ((!isRequired && !hasRequiredGroups) || dependencyLockedNames.includes(optionName))
+            dependencyLockedNames.includes(optionName) ||
+            (isEmpty && !isRequired && !hasRequiredGroups)
           ) {
+            /* A field whose `depends_on` does not hold is hidden and does not apply: nothing in it makes the
+               form invalid, empty or holding a value (kept, and said in the form's note - qorus#646). */
             validation = { isValid: true, reasons: [] };
           } else {
             validation = validateFieldWithResult(getType(type), optionValue, {
@@ -2504,10 +2508,17 @@ const FormEngineImpl = ({
     onValidityChange?.(optionsAreValid, validityData);
   }, [JSON.stringify(validityData)]);
 
+  /* A field whose `depends_on` does not hold is not shown (qorus#646, David): it is not of use until it applies,
+     so it is left out of the form - not shown waiting, locked - and appears once its dependency holds (and
+     flashes - see `dependencyLockedNames`). Its value is kept; one it holds meanwhile is said in the form's
+     note (`hiddenFieldsWithValues`). */
   const shownOptions = useMemo((): TQorusForm => {
     return reduce(
       availableOptions,
       (newValue, option, optionName) => {
+        if (dependencyLockedNames.includes(optionName)) {
+          return newValue;
+        }
         if (
           showInvalidOptionsOnly &&
           isOptionValid(
@@ -2531,6 +2542,7 @@ const FormEngineImpl = ({
       {}
     );
   }, [
+    dependencyLockedNames,
     showInvalidOptionsOnly,
     isRendererOnly,
     JSON.stringify(availableOptions),
@@ -2631,9 +2643,11 @@ const FormEngineImpl = ({
   // How many fields are in the "Needs attention" box — drives the header link.
   const readFirstAttentionCount = useMemo(
     () =>
-      Object.keys(availableOptions || {}).filter((name) => getOptionBucket(name) === 'attention')
-        .length,
-    [JSON.stringify(availableOptions), getOptionBucket]
+      Object.keys(availableOptions || {}).filter(
+        // a hidden field (its `depends_on` does not hold) is not in the form, nor in its counts
+        (name) => !dependencyLockedNames.includes(name) && getOptionBucket(name) === 'attention'
+      ).length,
+    [JSON.stringify(availableOptions), getOptionBucket, dependencyLockedNames]
   );
 
   const getIntent = useCallback(
@@ -2851,10 +2865,56 @@ const FormEngineImpl = ({
   const readFirstCompletion = useMemo(
     () =>
       getReadFirstCompletion(
-        availableOptions as Record<string, IQorusFormField | undefined>,
+        // a hidden field (its `depends_on` does not hold) is not in the form, nor in its meter
+        omit(availableOptions, dependencyLockedNames) as Record<string, IQorusFormField | undefined>,
         (name) => getOptionBucket(name) === 'attention'
       ),
-    [JSON.stringify(availableOptions), getOptionBucket]
+    [JSON.stringify(availableOptions), getOptionBucket, dependencyLockedNames]
+  );
+
+  /* The hidden fields (their `depends_on` does not hold) that hold a value: kept, not dropped silently, so the form
+     says so in a note - and whether the value is valid, as no field shows it (qorus#646, David). */
+  const hiddenFieldsWithValues = useMemo(
+    (): IHiddenFieldWithValue[] =>
+      dependencyLockedNames
+        .filter((name) => !isOptionValueEmpty((availableOptions as TQorusForm)?.[name]?.value))
+        .map((name) => {
+          const field = (availableOptions as TQorusForm)[name] as IQorusFormField;
+          const schema = options?.[name];
+          const type = getOptionFieldStorageType(
+            name,
+            field.type,
+            options,
+            operators,
+            field.op,
+            isRendererOnly,
+            optionHoldsExpression(field)
+          );
+          const validation = validateFieldWithResult(getType(type), field.value, {
+            has_to_have_value: true,
+            optionSchema: options,
+            options: availableOptions,
+            ...schema,
+            isFunction: (field as { is_expression?: boolean }).is_expression,
+            hasOwnEditor: isRendererOnly(schema?.ui_type as TQorusType),
+          } as any);
+          return {
+            name,
+            label: (schema?.display_name as string) || name,
+            conditions: describeDependencies(
+              (schema?.depends_on || []) as (string | string[])[],
+              options || {}
+            ),
+            invalidReason: validation.isValid ? undefined : validation.reason,
+          };
+        }),
+    [
+      dependencyLockedNames,
+      JSON.stringify(availableOptions),
+      JSON.stringify(options),
+      JSON.stringify(operators),
+      isRendererOnly,
+    ]
   );
 
   const optionalFields = useMemo(
@@ -4035,6 +4095,8 @@ const FormEngineImpl = ({
                     ...compactPanelProps?.contentStyle,
                   }}
                 >
+                  {/* the hidden fields that hold a value: kept, and said (qorus#646) */}
+                  <HiddenFieldsNote fields={hiddenFieldsWithValues} />
                   {size(groupKeys) === 0 || (readOnly && !bucketCount('set')) ?
                     <ReqoreMessage flat opaque={false} size='small'>
                       {readOnly && !query ?
@@ -4440,6 +4502,8 @@ const FormEngineImpl = ({
                   <ReqoreVerticalSpacer height={10} />
                 </>
               : null}
+              {/* the hidden fields that hold a value: kept, and said (qorus#646) */}
+              <HiddenFieldsNote fields={hiddenFieldsWithValues} />
               {children}
               {size(filteredOptions) >= 1 && !readOnly ?
                 <>

@@ -545,12 +545,18 @@ export const WithRequiredGroupsFulfilled: Story = {
   },
 };
 
+/** The classic form's row for an option, by the name it shows. */
+const optionRowNamed = (label: string) =>
+  [...document.querySelectorAll<HTMLElement>('.system-option')].find((row) =>
+    row.textContent?.includes(label)
+  );
+
 export const OptionDependsOnOptionOrAnotherOption: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders FormEngine with a required option that depends on Required Option 2 OR Required Option 5 — the field is disabled until either dependency is filled, then the disabled note clears.',
+          'Renders FormEngine with a required option that depends on Required Option 2 OR Required Option 5 — the field is not in the form until either holds a value (qorus#646, David: a field that cannot be used yet is left out, not shown waiting), then it appears.',
       },
     },
   },
@@ -569,17 +575,15 @@ export const OptionDependsOnOptionOrAnotherOption: Story = {
     },
   },
   play: async () => {
-    await waitFor(() => expect(document.querySelectorAll('.system-option').length).toBe(6), {
+    // Required Option 6 waits for 2 or 5: it is not in the form
+    await waitFor(() => expect(document.querySelectorAll('.system-option').length).toBe(5), {
       timeout: 10000,
     });
-
-    await _testsWaitForText(
-      'This field is disabled because some dependencies are not fulfilled: ("Required Option 2" or "Required Option 5")'
-    );
+    await expect(optionRowNamed('Required Option 6')).toBeUndefined();
     await _testsChangeRichText('I have value', 5);
-    await _testsWaitForTextToNotExist(
-      'This field is disabled because some dependencies are not fulfilled: ("Required Option 2" or "Required Option 5")'
-    );
+    // Required Option 5 holds a value: it appears
+    await waitFor(() => expect(optionRowNamed('Required Option 6')).toBeTruthy(), { timeout: 10000 });
+    await expect(document.querySelectorAll('.system-option').length).toBe(6);
   },
 };
 
@@ -588,7 +592,7 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
     docs: {
       description: {
         story:
-          'Renders FormEngine with a required option that depends on Required Option 2 alone — filling Required Option 2 clears the disabled note. Option 2 settles the first required group, but the second (Required Option 4 or 5) is still empty, so options 4, 5 and 6 need attention: 3 fields.',
+          'Renders FormEngine with a required option that depends on Required Option 2 alone — it is not in the form until Required Option 2 holds a value, and filling Required Option 2 brings it in. Option 2 settles the first required group, but the second (Required Option 4 or 5) is still empty, so options 4, 5 and 6 need attention: 3 fields.',
       },
     },
   },
@@ -607,13 +611,11 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
     },
   },
   play: async () => {
-    await waitFor(() => expect(document.querySelectorAll('.system-option').length).toBe(6), {
+    // Required Option 6 waits for 2: it is not in the form
+    await waitFor(() => expect(document.querySelectorAll('.system-option').length).toBe(5), {
       timeout: 10000,
     });
-
-    await _testsWaitForText(
-      'This field is disabled because some dependencies are not fulfilled: "Required Option 2"'
-    );
+    await expect(optionRowNamed('Required Option 6')).toBeUndefined();
     // typed into Required Option 2 once it has the focus, and every character kept: waiting on the field's
     // own state, not on time, so the picture is of the settled form (a capture taken mid-update lost
     // characters - "I he value")
@@ -622,10 +624,7 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
     await waitFor(() => expect(editor.contains(document.activeElement)).toBe(true));
     await userEvent.keyboard('I have value');
     await waitFor(() => expect(editor.textContent).toBe('I have value'));
-    await _testsWaitForTextToNotExist(
-      'This field is disabled because some dependencies are not fulfilled: "Required Option 2"'
-    );
-    // Required Option 6, unlocked, is empty: it says it is required
+    // Required Option 6 appears, and is empty: it says it is required
     await waitFor(() =>
       expect(
         [...document.querySelectorAll('.system-option')].some(
@@ -2313,7 +2312,7 @@ export const CompactLockedRequiredNeedsNoAttention: Story = {
     docs: {
       description: {
         story:
-          'Renders a check whose Expected value, Minimum and Maximum are required but locked until a kind is picked. A locked field is not listed under "Needs attention": the author can do nothing with it yet. Each stays on the form, locked, among the optional fields, saying what unlocks it. With no kind picked, nothing needs attention and the header reads Ready: the locked fields do not apply yet.',
+          'Renders a check whose Expected value, Minimum and Maximum are required but apply only once a kind is picked. Until then they are not in the form at all (qorus#646, David: a field that cannot be used yet is left out, not shown waiting): nothing needs attention, and the header reads Ready.',
       },
     },
   },
@@ -2324,18 +2323,13 @@ export const CompactLockedRequiredNeedsNoAttention: Story = {
     value: {} as IOptions,
   },
   play: async () => {
-    await _testsWaitForText('Expected value');
-    await waitFor(
-      () =>
-        expect(
-          document.querySelector(
-            '.readfirst-row[data-field="expected"] .options-readfirst-lock-deps'
-          )
-        ).toBeTruthy(),
-      { timeout: 10000 }
-    );
-    await expect(document.querySelector('[data-field="min"]')).toBeTruthy();
-    await expect(document.querySelector('[data-field="max"]')).toBeTruthy();
+    await waitFor(() => expect(document.querySelector('[data-field="kind"]')).toBeTruthy(), {
+      timeout: 10000,
+    });
+    // the fields a kind brings are not in the form until one is picked
+    for (const field of ['expected', 'min', 'max']) {
+      await expect(document.querySelector(`[data-field="${field}"]`)).toBeNull();
+    }
     await _testsWaitForTextToNotExist('Needs attention');
     // Nothing the author can fill in is missing, so the form is Ready — the
     // locked fields do not apply until a kind is picked.
@@ -2916,63 +2910,6 @@ const _expandOptionalBox = async () => {
   }
 };
 
-/**
- * Put one row of the Optional box on screen: open the box, and its "N more
- * optional fields" fold if the row is behind it. A required field locked by an
- * unmet dependency waits here rather than under "Needs attention", and a box
- * that shows its preselected rows folds the rest.
- */
-const _revealOptionalRow = async (field: string): Promise<{ refold: () => Promise<void> }> => {
-  await _expandOptionalBox();
-  const row = () => document.querySelector(`.readfirst-row[data-field="${field}"]`);
-  const opensFold = !row();
-  if (opensFold) {
-    await _testsClickButton({ selector: '.options-readfirst-more' });
-  }
-  await waitFor(() => expect(row()).toBeTruthy(), { timeout: 10000 });
-  return {
-    /** Close the fold again if this opened it, so the form is laid out as before. */
-    refold: async () => {
-      if (opensFold) {
-        await fireEvent.click(document.querySelector('.options-readfirst-more') as HTMLElement);
-        await waitFor(() => expect(row()).toBeNull(), { timeout: 10000 });
-      }
-    },
-  };
-};
-
-/** Every scrolled element in the page, with its scroll offsets. */
-const _scrollPositions = () =>
-  new Map(
-    [document.scrollingElement, ...Array.from(document.querySelectorAll('*'))]
-      .filter((element): element is Element => !!element)
-      .map((element) => [element, [element.scrollTop, element.scrollLeft] as const])
-  );
-
-/**
- * Run `check` and leave the page scrolled exactly as it was. Opening a box or a
- * fold to reach a row moves focus and scrolls the frame, and a story whose
- * snapshot is its reference frame must not end somewhere else.
- */
-const _withoutScrolling = async (check: () => Promise<void>) => {
-  const before = _scrollPositions();
-  await check();
-  const elements = [document.scrollingElement, ...Array.from(document.querySelectorAll('*'))];
-  for (const element of elements) {
-    if (!element) {
-      continue;
-    }
-    const [top, left] = before.get(element) ?? [0, 0];
-    if (element.scrollTop !== top || element.scrollLeft !== left) {
-      element.scrollTop = top;
-      element.scrollLeft = left;
-    }
-  }
-  (document.activeElement as HTMLElement | null)?.blur?.();
-  const top = before.get(document.scrollingElement as Element)?.[0] ?? 0;
-  await waitFor(() => expect(document.scrollingElement?.scrollTop ?? 0).toBe(top));
-};
-
 // CompactSchema plus one optional (non-preselected) field, to exercise the
 // "Fields" menu add / select-all / reset actions.
 const CompactFieldsMenuSchema: Record<string, TCompactField> = {
@@ -3363,7 +3300,7 @@ export const CompactBasic: Story = {
     docs: {
       description: {
         story:
-          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colors as hex, hashes as field-count summaries), disabled and dependency-locked rows stay non-interactive, and the dependency lock's popover navigates to blockers. The play scrolls the richtext editor into view to type into it, so the captured frame sits mid-form.",
+          "Renders FormEngine in compact mode over the full Basic fixture — every value renders in its read-first form (templates by name, colors as hex, hashes as field-count summaries), disabled rows stay non-interactive, and a field whose dependency does not hold is not in the form until it does (qorus#646, David). The play scrolls the richtext editor into view to type into it, so the captured frame sits mid-form.",
       },
     },
     chromatic: { disable: true },
@@ -3406,44 +3343,11 @@ export const CompactBasic: Story = {
       )
     ).toBeFalsy();
 
-    // Dependency locks are navigable: the lock's popover lists the blockers
-    // with their state; clicking one scrolls to + flashes it. The locked row is
-    // required, but locked it needs no attention, so it waits in Optional.
-    const lockedRow = await _revealOptionalRow('optionWithShortDescription');
-    const depLock = document.querySelector(
-      '.readfirst-row[data-field="optionWithShortDescription"] .options-readfirst-lock-deps'
-    ) as HTMLElement;
-    await expect(depLock).toBeTruthy();
-    // userEvent (real pointer sequence) keeps the dropdown popover open —
-    // fireEvent's synthetic click opened it then immediately closed it via the
-    // outside-click handler in the Vitest browser. Wait for the menu ITEM, not
-    // just the "Unlocked by:" divider, before clicking it.
-    await userEvent.click(depLock);
-    await _testsWaitForText('Unlocked by:');
-    let depEntry: HTMLElement | undefined;
-    await waitFor(() => {
-      depEntry = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
-        element.textContent?.includes('basicOption')
-      ) as HTMLElement;
-      expect(depEntry).toBeTruthy();
-    });
-    await userEvent.click(depEntry as HTMLElement);
-    await waitFor(
-      () =>
-        expect(
-          document
-            .querySelector('.readfirst-row[data-field="basicOption"]')
-            ?.className.includes('readfirst-row-flash')
-        ).toBe(true),
-      { timeout: 10000 }
-    );
-    await fireEvent.click(depLock); // close the popover
-    // Fold the Optional box's extra rows back, so the rest of the play (and the
-    // captured frame) sees the form laid out as before; once unlocked, the row
-    // moves to Needs attention and is on screen again.
-    await lockedRow.refold();
+    // A field whose dependency does not hold is not in the form (qorus#646, David): it depends on basicOption,
+    // which is empty, so it has no row, in any box.
+    await expect(compactRow('optionWithShortDescription')).toBeNull();
 
-    // Fulfilling the dependency UNLOCKS the dependent row and flashes it.
+    // Fulfilling the dependency brings the dependent row in (and flashes it).
     await _testsClickText('basicOption');
     await waitFor(
       () =>
@@ -3466,27 +3370,15 @@ export const CompactBasic: Story = {
     await sleep(500);
     await userEvent.keyboard('unlock-me');
     await sleep(500);
-    // The live (debounced) unlock's flash can expire mid-typing — assert the
-    // durable outcome instead: the lock is gone before Done is pressed.
-    await waitFor(
-      () =>
-        expect(
-          document.querySelector(
-            '.readfirst-row[data-field="optionWithShortDescription"] .options-readfirst-lock-deps'
-          )
-        ).toBeFalsy(),
-      { timeout: 10000 }
-    );
+    // The live (debounced) change's flash can expire mid-typing — assert the
+    // durable outcome instead: the row is there before Done is pressed.
+    await waitFor(() => expect(compactRow('optionWithShortDescription')).toBeTruthy(), {
+      timeout: 10000,
+    });
     await _testsClickButton({ selector: '.options-readfirst-done' });
-    await waitFor(
-      () =>
-        expect(
-          document.querySelector(
-            '.readfirst-row[data-field="optionWithShortDescription"] .options-readfirst-lock-deps'
-          )
-        ).toBeFalsy(),
-      { timeout: 10000 }
-    );
+    await waitFor(() => expect(compactRow('optionWithShortDescription')).toBeTruthy(), {
+      timeout: 10000,
+    });
 
     // A scalar row (Number option = 42, ui_type number) edits inline. (The
     // '123' options are ui_type richtext — complex — and open the card.)
@@ -3513,6 +3405,8 @@ export const CompactBasic: Story = {
         document.querySelector('.readfirst-row[data-field="basicOption"] .options-readfirst-revert')
       ).toBeFalsy()
     );
+    // the dependency is empty again: the dependent leaves the form
+    await waitFor(() => expect(compactRow('optionWithShortDescription')).toBeNull());
   },
 };
 
@@ -6545,15 +6439,17 @@ const _compactTypeIntoCardRichText = async (field: string, value: string) => {
   await sleep(500);
 };
 
-// Mirror of `OptionDependsOnOptionOrAnotherOption`: an ANY-OF dependency
-// (`[[a, b]]`) locks the row; the lock popover renders the "any of:" group;
-// fulfilling EITHER blocker unlocks (and flashes) the dependent row.
+/** A compact form's row for an option, when the form shows it. */
+const compactRow = (field: string) => document.querySelector(`.readfirst-row[data-field="${field}"]`);
+
+// Mirror of `OptionDependsOnOptionOrAnotherOption`: an ANY-OF dependency (`[[a, b]]`) leaves the row out of the
+// form; fulfilling EITHER brings it in (and flashes it).
 export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a compact form with an option that depends on A OR B — the row is locked with a dependency popover listing both alternatives; fulfilling either unlocks the row.',
+          'Renders a compact form with an option that depends on A OR B: it is not in the form until either holds a value (qorus#646, David: a field that cannot be used yet is left out, not shown waiting). Filling B brings it in; taking B\'s value back leaves it out again.',
       },
     },
     chromatic: { disable: true },
@@ -6576,39 +6472,11 @@ export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
     value: {} as IOptions,
   },
   play: async () => {
-    await _testsWaitForText('Required Option 6');
+    await _testsWaitForText('Required Option 5');
+    // neither holds a value: Required Option 6 is not in the form
+    await expect(compactRow('RequiredOption6')).toBeNull();
 
-    // Locked, with the navigable popover showing the ANY-OF group.
-    const depLock = document.querySelector(
-      '.readfirst-row[data-field="RequiredOption6"] .options-readfirst-lock-deps'
-    ) as HTMLElement;
-    await expect(depLock).toBeTruthy();
-    // userEvent keeps the dropdown popover open (see note above).
-    await userEvent.click(depLock);
-    await _testsWaitForText('Unlocked by:');
-    await _testsWaitForText('any of:');
-
-    // Locate the second blocker from the popover (scroll + flash).
-    let depEntry: HTMLElement | undefined;
-    await waitFor(() => {
-      depEntry = Array.from(document.querySelectorAll('.reqore-menu-item')).find((element) =>
-        element.textContent?.includes('Required Option 5')
-      ) as HTMLElement;
-      expect(depEntry).toBeTruthy();
-    });
-    await userEvent.click(depEntry as HTMLElement);
-    await waitFor(
-      () =>
-        expect(
-          document
-            .querySelector('.readfirst-row[data-field="RequiredOption5"]')
-            ?.className.includes('readfirst-row-flash')
-        ).toBe(true),
-      { timeout: 10000 }
-    );
-    await fireEvent.click(depLock); // close the popover
-
-    // Fulfilling EITHER side of the any-of unlocks the dependent row.
+    // Fulfilling EITHER side of the any-of brings the dependent row in.
     await _testsClickText('Required Option 5');
     await waitFor(
       () =>
@@ -6617,60 +6485,30 @@ export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
         ).toBeTruthy(),
       { timeout: 10000 }
     );
-    // Short value on purpose: the unlock-flash fires on the FIRST keystroke
-    // that makes the dependency truthy and only lasts ~1.6s — typing a long
-    // string into the richtext card can outlive the flash window before the
-    // assertion below starts polling.
     await _compactTypeIntoCardRichText('RequiredOption5', 'ok');
-    // The unlock is LIVE (debounced) — the dependent row's lock drops while
-    // the card is still open. Don't race the 1.4s unlock flash here (the
-    // popover-click flash above covers the animation); assert the lock state.
-    await waitFor(
-      () =>
-        expect(
-          document.querySelector(
-            '.readfirst-row[data-field="RequiredOption6"] .options-readfirst-lock-deps'
-          )
-        ).toBeFalsy(),
-      { timeout: 10000 }
-    );
+    // The change is LIVE (debounced): the row appears while the card is still open.
+    await waitFor(() => expect(compactRow('RequiredOption6')).toBeTruthy(), { timeout: 10000 });
     await _testsClickButton({ selector: '.options-readfirst-done' });
-    await waitFor(
-      () =>
-        expect(
-          document.querySelector(
-            '.readfirst-row[data-field="RequiredOption6"] .options-readfirst-lock-deps'
-          )
-        ).toBeFalsy(),
-      { timeout: 10000 }
-    );
+    await waitFor(() => expect(compactRow('RequiredOption6')).toBeTruthy(), { timeout: 10000 });
 
-    // Settle to a deterministic snapshot: revert the fulfilling edit (the card
-    // is already closed above; the compact-card richtext editor types
-    // char-by-char), re-locking the dependent back to the initial state.
+    // Settle to a deterministic snapshot: revert the fulfilling edit, which leaves the dependent out again.
     await fireEvent.click(
       document.querySelector(
         '.readfirst-row[data-field="RequiredOption5"] .options-readfirst-revert'
       ) as HTMLElement
     );
-    await waitFor(() =>
-      expect(
-        document.querySelector(
-          '.readfirst-row[data-field="RequiredOption6"] .options-readfirst-lock-deps'
-        )
-      ).toBeTruthy()
-    );
+    await waitFor(() => expect(compactRow('RequiredOption6')).toBeNull());
   },
 };
 
-// The dependency targets a required-group MEMBER: fulfilling it unlocks the
-// dependent row AND satisfies the group — both linkage systems on one form.
+// The dependency targets a required-group MEMBER: fulfilling it brings the dependent row in AND satisfies the
+// group - both linkage systems on one form.
 export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a compact form with an option that depends on a required-group member — the row locks until the required-group option is filled.',
+          'Renders a compact form with an option that depends on a required-group member: it is not in the form until the required-group option holds a value (qorus#646), and filling it brings the row in and satisfies the group.',
       },
     },
     chromatic: { disable: true },
@@ -6693,23 +6531,11 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
     value: {} as IOptions,
   },
   play: async () => {
-    await _testsWaitForText('Required Option 6');
-
-    // Both linkage systems are visible at once: group chips on the members,
-    // the dependency lock on the dependent row.
+    // the group's chips are on its members; the dependent is not in the form
     await _testsWaitForText('One of');
-    const depLock = document.querySelector(
-      '.readfirst-row[data-field="RequiredOption6"] .options-readfirst-lock-deps'
-    ) as HTMLElement;
-    await expect(depLock).toBeTruthy();
-    // userEvent keeps the dropdown popover open (see note above).
-    await userEvent.click(depLock);
-    await _testsWaitForText('Unlocked by:');
-    // A single flat dependency — no "any of:" grouping.
-    await _testsWaitForTextToNotExist('any of:');
-    await fireEvent.click(depLock); // close the popover
+    await expect(compactRow('RequiredOption6')).toBeNull();
 
-    // Fulfil the group member: the dependent row unlocks…
+    // Fulfil the group member: the dependent row comes in...
     await _testsClickText('Required Option 2');
     await waitFor(
       () =>
@@ -6719,37 +6545,68 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
       { timeout: 10000 }
     );
     await _compactTypeIntoCardRichText('RequiredOption2', 'I have value');
-    // The live (debounced) unlock can land seconds after the last keystroke
-    // under test-runner load — give it the suite-standard 10s.
-    await waitFor(
-      () =>
-        expect(
-          document.querySelector(
-            '.readfirst-row[data-field="RequiredOption6"] .options-readfirst-lock-deps'
-          )
-        ).toBeFalsy(),
-      { timeout: 10000 }
-    );
+    // The live (debounced) change can land seconds after the last keystroke under test-runner load - give it
+    // the suite-standard 10s.
+    await waitFor(() => expect(compactRow('RequiredOption6')).toBeTruthy(), { timeout: 10000 });
     await _testsClickButton({ selector: '.options-readfirst-done' });
 
-    // …and the required group is satisfied: empty siblings' chips explain why.
+    // ...and the required group is satisfied: empty siblings' chips explain why.
     await _testsWaitForText('Covered by “Required Option 2”');
 
-    // Settle to a deterministic snapshot: revert the fulfilling edit (the
-    // compact-card richtext editor types char-by-char), re-locking the
-    // dependent back to the initial state.
+    // Settle to a deterministic snapshot: revert the fulfilling edit, which leaves the dependent out again.
     await fireEvent.click(
       document.querySelector(
         '.readfirst-row[data-field="RequiredOption2"] .options-readfirst-revert'
       ) as HTMLElement
     );
-    await waitFor(() =>
-      expect(
-        document.querySelector(
-          '.readfirst-row[data-field="RequiredOption6"] .options-readfirst-lock-deps'
-        )
-      ).toBeTruthy()
+    await waitFor(() => expect(compactRow('RequiredOption6')).toBeNull());
+  },
+};
+
+// A field whose dependency stops holding while it holds a value: hidden, its value kept, and said.
+export const HiddenFieldKeepsItsValue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose scheme is Permissive, with a Redirect URL saved while it was Cookie, and a Port that is not a number. Both apply to the Cookie scheme alone, so neither is in the form (qorus#646, David). Their values are kept, not dropped silently: the form says so in a note, and that the port is not valid; neither holds the form back, as neither applies.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    options: {
+      scheme: {
+        type: 'string',
+        display_name: 'Scheme',
+        preselected: true,
+        allowed_values: [
+          { display_name: 'Permissive', value: { type: 'string', value: 'permissive' } },
+          { display_name: 'Cookie', value: { type: 'string', value: 'cookie' } },
+        ],
+      },
+      redirect_url: { type: 'string', display_name: 'Redirect URL', depends_on: ['scheme=cookie'] },
+      port: { type: 'int', display_name: 'Port', depends_on: ['scheme=cookie'] },
+    } as IOptionsSchema,
+    value: {
+      scheme: { type: 'string', value: 'permissive' },
+      redirect_url: { type: 'string', value: 'https://example.com/login' },
+      port: { type: 'int', value: 'eighty' },
+    } as IOptions,
+  },
+  play: async () => {
+    const note = (field: string) =>
+      document.querySelector(`.form-hidden-field-notes [data-field-hidden="${field}"]`);
+    await waitFor(() => expect(note('redirect_url')).toBeTruthy(), { timeout: 10000 });
+    await expect(note('redirect_url')?.textContent).toBe(
+      '"Redirect URL" is hidden until it applies ("Scheme" must be "Cookie"). Its value is kept, and not used until then.'
     );
+    await expect(note('port')?.textContent).toMatch(
+      /^"Port" is hidden until it applies \("Scheme" must be "Cookie"\)\. Its value is kept, but it is not valid: /
+    );
+    await expect(compactRow('redirect_url')).toBeNull();
+    await expect(compactRow('port')).toBeNull();
   },
 };
 
@@ -7111,30 +6968,8 @@ export const CompactShowcase: Story = {
     await expect(document.querySelectorAll('.options-readfirst-info-panel').length).toBeGreaterThan(
       0
     );
-    // The unmet-dependency hint surfaces on the dependent field's row — locked,
-    // so in the Optional box rather than under "Needs attention". Not under
-    // Needs attention is a DOM fact; reaching the row means opening the
-    // Optional box's fold, which scrolls, so the frame is put back afterwards:
-    // this story's snapshot is the form's top.
-    const attentionBox = Array.from(document.querySelectorAll('.options-readfirst-group')).find(
-      (group) => (group.textContent || '').startsWith('Needs attention')
-    );
-    await expect(
-      attentionBox?.querySelector('[data-field="optionWithShortDescription"]')
-    ).toBeFalsy();
-    await _withoutScrolling(async () => {
-      const lockedRow = await _revealOptionalRow('optionWithShortDescription');
-      const optionalBox = Array.from(document.querySelectorAll('.options-readfirst-group')).find(
-        (group) => (group.textContent || '').startsWith('Optional')
-      );
-      await expect(
-        optionalBox?.querySelector('[data-field="optionWithShortDescription"]')
-      ).toBeTruthy();
-      await _testsWaitForText(
-        'This field is disabled because some dependencies are not fulfilled: "basicOption"'
-      );
-      await lockedRow.refold();
-    });
+    // A field whose dependency does not hold is not in the form (qorus#646, David): no row, in any box.
+    await expect(document.querySelector('[data-field="optionWithShortDescription"]')).toBeNull();
     // ONE info mechanism: no subtitle lines, no badge — just the panel + ⓘ.
     await expect(document.querySelectorAll('.options-readfirst-subtitle')).toHaveLength(0);
     await expect(document.querySelectorAll('.options-readfirst-info-badge')).toHaveLength(0);
