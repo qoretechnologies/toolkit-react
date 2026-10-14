@@ -85,8 +85,17 @@ export interface IUseLspHoverResult {
   hoverContent: ILspMarkupContent | null;
   /** Viewport-coordinate position to anchor the popover. */
   hoverPosition: { left: number; top: number } | null;
-  /** Imperatively dismiss the current hover popover. */
-  clearHover: () => void;
+  /**
+   * Which hover is shown: a new number each time one is, so a popover can be keyed by it and dismiss it
+   * alone (see `clearHover`). `0` before the first.
+   */
+  hoverId: number;
+  /**
+   * Dismiss the hover shown. Given the `hoverId` of the hover being dismissed, only that one: a popover
+   * closing as the next hover replaces it - it unmounts, and says it closed - dismissed that next hover
+   * too, so the mouse resting on the next word, or "Details" pressed while a hover was up, showed nothing.
+   */
+  clearHover: (hoverId?: number) => void;
   /**
    * Show what the server says of the word at the caret, anchored at the caret: the hover where there is no
    * pointer to hover with (a finger's "Details", see `SmartEditor`). Nothing when the caret is nowhere or the
@@ -124,10 +133,28 @@ export function useLspHover(
   // server replied).
   const requestIdRef = useRef(0);
 
-  const clearHover = useCallback(() => {
+  const [hoverId, setHoverId] = useState(0);
+  // the hover shown now, read by `clearHover` when it is called from a popover that may be an older one's
+  const hoverIdRef = useRef(0);
+
+  const clearHover = useCallback((ofHover?: number) => {
+    if (ofHover !== undefined && ofHover !== hoverIdRef.current) {
+      return;
+    }
     setHoverContent(null);
     setHoverPosition(null);
   }, []);
+
+  /** Shows `content` at `position` as a hover of its own. */
+  const showHover = useCallback(
+    (content: ILspMarkupContent, position: { left: number; top: number }) => {
+      hoverIdRef.current += 1;
+      setHoverId(hoverIdRef.current);
+      setHoverContent(content);
+      setHoverPosition(position);
+    },
+    []
+  );
 
   // Debounced fetch. Re-created in the effect below whenever any of
   // its inputs change. Started as a no-op so the ref is always a
@@ -175,12 +202,11 @@ export function useLspHover(
           clearHover();
           return;
         }
-        setHoverContent(content);
         // Anchor the popover at the mouse cursor. The design doc calls
         // for "token center" — that requires building a Range over the
         // word boundaries and reading its rect. Defer to a follow-up
         // refinement; mouse-coord positioning already feels natural.
-        setHoverPosition({ left: clientX, top: clientY });
+        showHover(content, { left: clientX, top: clientY });
       } catch {
         clearHover();
       }
@@ -195,6 +221,7 @@ export function useLspHover(
     enabled,
     debounceMs,
     clearHover,
+    showHover,
   ]);
 
   useEffect(() => {
@@ -261,12 +288,11 @@ export function useLspHover(
         clearHover();
         return;
       }
-      setHoverContent(content);
-      setHoverPosition(anchor);
+      showHover(content, anchor);
     } catch {
       clearHover();
     }
-  }, [enabled, editorRef, session.client, session.isReady, session.isContextReady, converter, clearHover]);
+  }, [enabled, editorRef, session.client, session.isReady, session.isContextReady, converter, clearHover, showHover]);
 
-  return { hoverContent, hoverPosition, clearHover, showAtCaret };
+  return { hoverContent, hoverPosition, hoverId, clearHover, showAtCaret };
 }

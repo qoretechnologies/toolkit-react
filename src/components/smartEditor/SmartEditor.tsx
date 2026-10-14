@@ -278,6 +278,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const hover = useLspHover(session, editorRef as React.RefObject<any>, converter, {
       enabled: enableHover,
     });
+    /* The hover the popover drawn in this render is of: what it dismisses when it closes, and nothing newer. */
+    const shownHoverId = hover.hoverId;
     /* A finger cannot hover: where the pointer is one, "Details" shows what the server says of the word at the
        caret, in the same pop-up a mouse gets by hovering. Only where the server says anything (`hoverProvider`). */
     const coarse = useCoarsePointer();
@@ -605,7 +607,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             // Non-interactive (`pointerEvents: none`) so typing/clicking
             // doesn't dismiss it via a focus trap.
             <ReqorePopover
-              key={`hover-${hover.hoverPosition.left}-${hover.hoverPosition.top}`}
+              // one popover per hover: the next one is a popover of its own, wherever it is
+              key={`hover-${hover.hoverId}`}
               component='span'
               wrapperStyle={{
                 position: 'fixed',
@@ -633,7 +636,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               transparent
               backgroundBlur={20}
               onToggleChange={(open: boolean) => {
-                if (!open) hover.clearHover();
+                // this hover only: a popover replaced by the next hover says it closed as it goes
+                if (!open) hover.clearHover(shownHoverId);
               }}
             />
           )}

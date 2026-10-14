@@ -8,7 +8,7 @@
 // component proper.
 
 import { StoryObj } from '@storybook/react-vite';
-import { fn, userEvent, waitFor, within, expect } from 'storybook/test';
+import { fn, fireEvent, userEvent, waitFor, within, expect } from 'storybook/test';
 import { sleep } from '../../../__tests__/utils';
 import { useState } from 'react';
 import { StoryMeta } from '../../types';
@@ -646,6 +646,83 @@ export const CompletionDocsOnATouchScreen: Story = {
   },
 };
 
+/** A server whose hover names the word at the position it is asked about, and says nothing of anything else. */
+const wordNamingServer = () =>
+  createMockLspServer(MOCK_LSP_URL, {
+    capabilities: { hoverProvider: true },
+    handlers: {
+      'textDocument/hover': (msg, lsp) => {
+        const line =
+          lsp.textOf(msg.params?.textDocument?.uri).split('\n')[msg.params?.position?.line ?? 0] ??
+          '';
+        const at = msg.params?.position?.character ?? 0;
+        const word = `${line.slice(0, at).match(/\w*$/)?.[0] ?? ''}${line.slice(at).match(/^\w*/)?.[0] ?? ''}`;
+        return word ?
+            { contents: { kind: 'markdown', value: `**${word}**: the word under the mouse.` } }
+          : null;
+      },
+    },
+  });
+
+/** The middle of `word` in the editor's text, on the screen. */
+const middleOf = (editable: HTMLElement, word: string) => {
+  const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const at = node.textContent?.indexOf(word) ?? -1;
+    if (at >= 0) {
+      const range = document.createRange();
+      range.setStart(node, at + Math.floor(word.length / 2));
+      range.setEnd(node, at + Math.floor(word.length / 2) + 1);
+      const box = range.getBoundingClientRect();
+      return { clientX: box.left + box.width / 2, clientY: box.top + box.height / 2 };
+    }
+  }
+  throw new Error(`"${word}" is not in the editor`);
+};
+
+/** The hovers shown, as their text. */
+const shownHovers = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('.reqore-popover-content'))
+    .map((popover) => popover.textContent?.trim() ?? '')
+    .filter((text) => text.includes('the word under the mouse'));
+
+export const HoverFollowsTheMouseToTheNextWord: Story = {
+  args: { languageId: 'demo', initialValue: 'forEach map' },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the SmartEditor holding "forEach map" and rests the mouse on forEach, then on map: the hover says what the server says of forEach, then of map. A hover replaced by the next one used to take that one with it as it went - closing, it cleared whatever hover was shown - so the mouse resting on the next word showed nothing.',
+      },
+    },
+  },
+  async beforeEach() {
+    const lsp = wordNamingServer();
+    return () => lsp.close();
+  },
+  play: async ({ canvasElement }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    // a hover is asked for once the server is connected and its schema loaded: the overlay goes then
+    await waitFor(
+      () =>
+        expect(canvasElement.textContent).not.toMatch(
+          /Connecting to language server|Loading schema/
+        ),
+      { timeout: 10000 }
+    );
+
+    fireEvent.mouseMove(editable, middleOf(editable, 'forEach'));
+    await waitFor(() => expect(shownHovers()).toEqual(['forEach: the word under the mouse.']), {
+      timeout: 10000,
+    });
+
+    fireEvent.mouseMove(editable, middleOf(editable, 'map'));
+    await waitFor(() => expect(shownHovers()).toEqual(['map: the word under the mouse.']), {
+      timeout: 10000,
+    });
+  },
+};
+
 export const HoverDetailsOnATouchScreen: Story = {
   tags: ['touch'],
   args: { languageId: 'demo', initialValue: '', triggerCharacters: new Set(['.']) },
@@ -669,14 +746,16 @@ export const HoverDetailsOnATouchScreen: Story = {
       await userEvent.click(editable);
       await typeEachKey(args.onChange, '', 'forEach');
       await userEvent.keyboard('{Escape}');
-      // the button waits for the server's `initialize` (it says whether there is a hover), a round trip
+      // the button waits for the server's `initialize` (it says whether there is a hover), a round trip. Each
+      // wait here is well inside the test's own 30s: a wait as long as the test is cut off by it, which says
+      // only that the test timed out, never which step it was on (CI, 1c78382b)
       const details = await waitFor(
         () => {
           const button = canvasElement.querySelector<HTMLElement>('.smart-editor-details');
-          expect(button).toBeTruthy();
+          expect(button, 'the Details button').toBeTruthy();
           return button!;
         },
-        { timeout: 30000 }
+        { timeout: 10000 }
       );
       await expect(details.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
       await touch.tap(details);
@@ -686,10 +765,10 @@ export const HoverDetailsOnATouchScreen: Story = {
           const popover = Array.from(
             document.querySelectorAll<HTMLElement>('.reqore-popover-content')
           ).find((each) => each.textContent?.includes('invoke a callback for each element'));
-          expect(popover).toBeTruthy();
+          expect(popover, 'the hover Details shows').toBeTruthy();
           return popover!;
         },
-        { timeout: 30000 }
+        { timeout: 10000 }
       );
       await expect(shown.querySelector('strong')).toHaveTextContent('forEach');
       if (touch.narrowed) {
