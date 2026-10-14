@@ -440,6 +440,15 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     font-size: 12px;
     line-height: 1.3;
   }
+  /* The reason that follows the value shares its line and wraps within its own box. As a flex item
+     sized to its text it could only share the line whole: a reason longer than the room beside the
+     value went to the line below as a block, and an empty value's dash was left alone on its line,
+     the reason under it like the text of a list item under its bullet (qorus#646). It goes below
+     only when the value leaves it less than 16em. */
+  .options-readfirst-valuetext + .options-readfirst-reason {
+    flex: 1 1 16em;
+    min-width: 0;
+  }
   /* Schema message panels: full width of the value column, on their own line
      directly beneath the value. */
   .options-readfirst-info-panel {

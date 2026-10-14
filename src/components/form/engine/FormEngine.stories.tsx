@@ -2376,6 +2376,83 @@ export const CompactUnlockedRequiredNeedsAttention: Story = {
   },
 };
 
+/** The guided check of qorus-ide's Test Cases stories: some kinds take no expected value. */
+const checkWithKindsThatLockItsValueOptions = {
+  kind: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Check',
+    preselected: true,
+    allowed_values: [
+      { value: { type: 'string', value: 'equals' }, display_name: 'Equals' },
+      { value: { type: 'string', value: 'exists' }, display_name: 'Exists' },
+      { value: { type: 'string', value: 'is_nothing' }, display_name: 'Is nothing' },
+      { value: { type: 'string', value: 'between' }, display_name: 'Between' },
+      { value: { type: 'string', value: 'is_true' }, display_name: 'Is true' },
+      { value: { type: 'string', value: 'is_false' }, display_name: 'Is false' },
+    ],
+  },
+  expected: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Expected value',
+    preselected: true,
+    depends_on: [
+      'kind!=exists',
+      'kind!=is_nothing',
+      'kind!=between',
+      'kind!=is_true',
+      'kind!=is_false',
+    ],
+  },
+} as IOptionsSchema;
+
+export const CompactLockedReasonBesideItsDash: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a check whose kind, Exists, leaves its Expected value locked. The row shows no value, a dash, and beside it the reason, which wraps in its own space: "This field is disabled because some dependencies are not fulfilled", and each kind that locks it. The reason starts on the dash\'s line rather than below it, where the dash read as a bullet with its text on the next line.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    options: checkWithKindsThatLockItsValueOptions,
+    value: { kind: { type: 'string', value: 'exists' } } as IOptions,
+  },
+  render: (args) => (
+    <div style={{ width: 700 }}>
+      <FormEngine {...args} />
+    </div>
+  ),
+  play: async () => {
+    const row = await waitFor(
+      () => {
+        const element = document.querySelector<HTMLElement>(
+          '.readfirst-row[data-field="expected"]'
+        );
+        expect(element?.querySelector('.options-readfirst-reason')).toBeTruthy();
+        return element!;
+      },
+      { timeout: 10000 }
+    );
+    const dash = row.querySelector<HTMLElement>('.options-readfirst-valuetext')!;
+    const reason = row.querySelector<HTMLElement>('.options-readfirst-reason')!;
+
+    await expect(dash.textContent).toBe('—');
+    await expect(reason.textContent).toContain('dependencies are not fulfilled');
+    // the reason is longer than its line: it wraps
+    await expect(reason.getBoundingClientRect().height).toBeGreaterThan(
+      dash.getBoundingClientRect().height * 1.5
+    );
+    // and it starts on the dash's line, to the right of it
+    const dashBox = dash.getBoundingClientRect();
+    await expect(reason.getBoundingClientRect().top).toBeLessThan(dashBox.bottom);
+    await expect(reason.getBoundingClientRect().left).toBeGreaterThan(dashBox.right);
+  },
+};
+
 export const CompactConditionalMessage: Story = {
   parameters: {
     docs: {
