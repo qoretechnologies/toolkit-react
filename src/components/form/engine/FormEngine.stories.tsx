@@ -11146,3 +11146,87 @@ export const TemplateOnlyOptionHasValueAndTemplateOnAPhone: Story = {
   ...TemplateOnlyOptionHasValueAndTemplate,
   parameters: { ...TemplateOnlyOptionHasValueAndTemplate.parameters, qlip: { viewport: { width: 390, height: 844 } } },
 };
+
+// A value picked from a set row's allowed values is a value, not an expression.
+export const PickFromSetAllowedValuesRow: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose Field, a field that may be left empty, is set to "status", one of its allowed values, and picks "paid (bool)" from them, then "Other field...", which the Path field depends on. The Qorus IDE got a pick back as an expression, which it reads as no value, so the row fell back to "Please select" and Path never appeared (qorus#646). The row shows each pick, the form is given it as a plain value, and Path appears for "Other field...".',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    flat: true,
+    transparent: true,
+    padded: false,
+    showTypeToggle: false,
+    wrapperPadding: 'none',
+    minColumnWidth: '300px',
+    size: 'small',
+    compactToolbar: { completion: false },
+    options: {
+      field: {
+        type: '*string',
+        display_name: 'Field',
+        short_desc: "A field of what the step's target returned; leave empty to check the whole result",
+        preselected: true,
+        allowed_values: [
+          {
+            value: { type: 'string', value: 'total' },
+            display_name: 'total (number)',
+            desc: 'the order total',
+          },
+          { value: { type: 'string', value: 'status' }, display_name: 'status (string)' },
+          { value: { type: 'string', value: 'customer' }, display_name: 'customer (*hash<auto>)' },
+          { value: { type: 'string', value: 'paid' }, display_name: 'paid (bool)' },
+          {
+            value: { type: 'string', value: '__other__' },
+            display_name: 'Other field...',
+            desc: 'Name a part that is not in the list by its path',
+          },
+        ],
+      },
+      path: {
+        type: '*string',
+        display_name: 'Path',
+        preselected: true,
+        depends_on: ['field=__other__'],
+      },
+      // nullable types (`*string`), as the server sends them; the schema's type union does not name them
+    } as unknown as IOptionsSchema,
+    value: {
+      field: { type: '*string', value: 'status' },
+    } as unknown as IOptions,
+  },
+  play: async ({ args }) => {
+    const lastField = () =>
+      (args.onChange as ReturnType<typeof fn>).mock.calls.at(-1)?.[1]?.field as
+        | Record<string, unknown>
+        | undefined;
+    const pick = async (shown: string, item: string) => {
+      await userEvent.click(within(compactRow('field') as HTMLElement).getByText(shown));
+      await waitFor(() =>
+        expect(compactRow('field')?.querySelector('.reqore-dropdown-control')).toBeTruthy()
+      );
+      await userEvent.click(
+        compactRow('field')?.querySelector('.reqore-dropdown-control') as HTMLElement
+      );
+      await userEvent.click(
+        await screen.findByText(item, { selector: '.reqore-popover-content *' })
+      );
+    };
+
+    await waitFor(() => expect(compactRow('field')).toBeTruthy(), { timeout: 10000 });
+    await pick('status (string)', 'paid (bool)');
+    // a plain value of the field's type: no expression flag
+    await waitFor(() => expect(lastField()).toEqual({ type: 'string', value: 'paid' }));
+    await expect(compactRow('field')?.textContent).toContain('paid (bool)');
+
+    await pick('paid (bool)', 'Other field...');
+    await waitFor(() => expect(lastField()).toEqual({ type: 'string', value: '__other__' }));
+    await waitFor(() => expect(compactRow('path')).toBeTruthy());
+  },
+};

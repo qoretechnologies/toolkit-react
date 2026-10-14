@@ -76,7 +76,12 @@ export interface IAutoFieldProps
   value?: any;
   default_value?: any;
   type?: IQorusType;
-  onChange?: (name: string, value: any, type?: IQorusType, canBeNull?: boolean) => void;
+  /**
+   * The value changed. The fourth argument says whether it is an expression, as every field's `onChange` does
+   * (TemplateField, the form engine and the expression builder read it so): a value this field edits itself is not
+   * one; a host editor (`componentOverrides`) says for its own.
+   */
+  onChange?: (name: string, value: any, type?: IQorusType, isFunction?: boolean) => void;
   /** From IDE FieldWrapper `IField` — lets `type-depends-on` query sibling fields. */
   requestFieldData?: (name: string, key: string) => any;
   canBeNull?: boolean;
@@ -395,9 +400,12 @@ function AutoField<T = any>({
   const handleChange: (name: string, val: any, type?: IQorusType) => void = useCallback(
     (name, val, type) => {
       const returnType: IQorusType = type || currentType;
-      // Run the onchange
+      /* A value edited here - typed, picked from the allowed values, set to null - is a value, not an
+         expression. This argument used to carry whether the type can be null, which every reader takes for
+         the expression flag: a value picked from a '*string' field's list reached the form as an expression
+         (qorus#646), which a host reads as no value at all. */
       if (onChange && returnType) {
-        onChange(name, val, returnType, _canBeNull(returnType));
+        onChange(name, val, returnType, false);
       }
     },
     [currentInternalType, currentType, onChange]
