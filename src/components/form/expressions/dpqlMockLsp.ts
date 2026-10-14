@@ -17,6 +17,7 @@ import {
 import {
   IDpqlMockNode,
   mockParseDpql,
+  mockExpressionTypeDpql,
   mockRenderDpql,
   mockSerializeDpql,
   mockTokenizeDpql,
@@ -159,6 +160,8 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
   'dpql/validate': () => ({ diagnostics: [] }),
 
   'dpql/renderExpression': (msg) => mockRenderDpql(msg.params?.expression as IDpqlMockNode),
+
+  'dpql/expressionType': (msg) => mockExpressionTypeDpql(msg.params?.expression as IDpqlMockNode),
 };
 
 export interface IStartDpqlMockLspOptions {

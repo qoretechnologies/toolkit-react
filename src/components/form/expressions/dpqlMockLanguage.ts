@@ -860,6 +860,55 @@ export const dpqlMockRichtext = (text: string) => {
   return { type: 'richtext', value: [{ type: 'paragraph', children }] };
 };
 
+/**
+ * The type an expression gives, by the server's rules (`QorusExpressionHandler::inferArgType`) as far as the
+ * stories' catalogue can tell them: a conversion its type, a comparison or a logical operator true or false,
+ * arithmetic by its operands, and an operation of the catalogue its declared result (or its first operand's,
+ * where the catalogue says so). `auto` where the type is known only when the expression is evaluated.
+ */
+const inferDpqlMockExpressionType = (node: IDpqlMockNode): string => {
+  if (!node.exp) {
+    return node.type ?? 'auto';
+  }
+  if (node.exp === 'value') return 'auto';
+  if (RETURN_TYPES[node.exp]) return RETURN_TYPES[node.exp];
+  if (['==', '!=', '<', '>', '<=', '>=', '&&', '||', '!'].includes(node.exp)) return 'bool';
+  const operands = (node.args ?? []).map((arg) => inferDpqlMockExpressionType(nodeOf(arg)));
+  if (['+', '-', '*', '/'].includes(node.exp)) {
+    if (operands.includes('auto')) return 'auto';
+    if (node.exp === '+' && operands.includes('string')) return 'string';
+    return operands.includes('float') ? 'float' : 'int';
+  }
+  const info = CATALOGUE.get(node.exp) as (IExpressionSchema & { return_type_first_arg?: boolean }) | undefined;
+  if (info?.return_type_first_arg) {
+    return operands[0] ?? 'auto';
+  }
+  const declared = info?.return_type;
+  return !declared || declared === 'any' ? 'auto' : declared;
+};
+
+/** A type's name as the UI names it (`SystemRestClassV8::getUiType`): text is richtext, a number a number. */
+const UI_TYPES: Record<string, string> = {
+  string: 'richtext',
+  int: 'number',
+  integer: 'number',
+  float: 'number',
+  boolean: 'bool',
+  auto: 'any',
+  nothing: 'any',
+};
+
+const uiTypeOf = (type: string): string => {
+  const base = type.replace(/^\*/, '').replace(/^soft/, '');
+  return UI_TYPES[base] ?? base.replace(/<.*>$/, '');
+};
+
+/** `dpql/expressionType`: the type an expression in the UI form gives (`getExpressionTypeInfo`). */
+export const mockExpressionTypeDpql = (expression: IDpqlMockNode | undefined) => {
+  const inferred = inferDpqlMockExpressionType(rootOf(expression));
+  return { inferred_type: inferred, ui_type: uiTypeOf(inferred), known: inferred !== 'auto' };
+};
+
 /** `dpql/serialize`: DPQL text that parses back to the same expression. */
 export const mockSerializeDpql = (expression: IDpqlMockNode | undefined) => {
   const dpql = printNode(rootOf(expression), false);

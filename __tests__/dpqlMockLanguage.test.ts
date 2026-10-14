@@ -14,6 +14,7 @@ import {
   mockSerializeDpql,
   mockTokenizeDpql,
   mockPublishedDiagnostics,
+  mockExpressionTypeDpql,
 } from '../src/components/form/expressions/dpqlMockLanguage';
 
 /** Decode LSP semantic tokens into `[text, typeIndex]` pairs for one line. */
@@ -527,5 +528,46 @@ describe('each part of && || ! is read as a condition (qorus#646)', () => {
 
   it('has no parts outside an AND, an OR or a NOT', () => {
     expect(mockParseDpql('@n', undefined, true, fields).parts).toEqual([]);
+  });
+});
+
+describe('dpql/expressionType in the mock (the server: getExpressionTypeInfo)', () => {
+  it('gives the type the server works out, and its UI name', () => {
+    expect(
+      mockExpressionTypeDpql({
+        is_expression: true,
+        value: {
+          exp: '+',
+          args: [
+            { type: 'int', value: 1 },
+            { type: 'float', value: 2.5 },
+          ],
+        },
+      } as never)
+    ).toEqual({ inferred_type: 'float', ui_type: 'number', known: true });
+    expect(
+      mockExpressionTypeDpql({ exp: 'concat', args: [{ type: 'string', value: 'a' }] } as never)
+    ).toEqual({ inferred_type: 'string', ui_type: 'richtext', known: true });
+    expect(
+      mockExpressionTypeDpql({
+        exp: '==',
+        args: [
+          { type: 'int', value: 1 },
+          { type: 'int', value: 1 },
+        ],
+      } as never)
+    ).toEqual({ inferred_type: 'bool', ui_type: 'bool', known: true });
+  });
+
+  it('says a type is not known when it is known only when the expression runs', () => {
+    expect(
+      mockExpressionTypeDpql({
+        exp: '+',
+        args: [
+          { type: 'auto', value: '$local:x' },
+          { type: 'int', value: 1 },
+        ],
+      } as never)
+    ).toEqual({ inferred_type: 'auto', ui_type: 'any', known: false });
   });
 });

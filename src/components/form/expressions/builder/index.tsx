@@ -245,8 +245,15 @@ export const Expression = ({
   );
 
   // The type the expression gives is the server's, the same as everywhere else in Qorus
-  // (qoretechnologies/qorus#713); it is not known, and nothing is judged by it, until the server gives it
-  const expressionReturnType = useExpressionType(value.value)?.ui_type;
+  // (qoretechnologies/qorus#713); it is not known, and nothing is judged by it, until the server gives it.
+  // `ui_type` is compared with the types this place takes, which are UI types; what the expression gives is
+  // named, and judged as a condition, by the type's own name, as the Text view names it (`inferred_type`:
+  // "a whole number", where the UI type of every number is `number`).
+  const serverType = useExpressionType(value.value);
+  const expressionReturnType = serverType?.ui_type;
+  const expressionGivesType = serverType?.inferred_type;
+  // An empty card gives nothing, which is known without asking: it does not fit a place that takes something.
+  const typeNotKnownYet = !!value.value?.exp && !serverType;
   // the type(s) this place takes, named inside a sentence: their sentence forms; none where no type is known
   // (qorus#646)
   const expectedReturnTypeText =
@@ -618,7 +625,7 @@ export const Expression = ({
      it gives is said as every condition editor says it: a number or a list is accepted with a warning under
      it, text, a date or a time is refused. Only where the host says it is a condition: a value of type bool
      is checked as a bool, and an int does not fit it. */
-  const condition = level === 0 && isCondition ? conditionVerdict(expressionReturnType) : undefined;
+  const condition = level === 0 && isCondition ? conditionVerdict(expressionGivesType) : undefined;
   /* A part of the condition's AND, OR or NOT (this card's own, or the one a NOT reads): read as true or false
      by its value as the whole condition is, and judged by the server by the same rule (qorus#646). Its verdict
      is the server's, drawn here; nothing on this side checks a part as a bool. */
@@ -629,20 +636,24 @@ export const Expression = ({
      value on a Qorus that reads them as conditions). */
   const takesCondition =
     level === 0 ? !!isCondition : isConditionType(returnType as string | string[] | undefined);
+  /* A condition the server says gives text, a date or a time is refused, whatever this place declares: a
+     condition field need not declare `bool`, and a mismatch was then never drawn - the refusal was shown only
+     because the type worked out here happened to be a number's (a warning, in the server's words). */
   const isReturnTypeMatching =
-    !expressionReturnType ||
-    expressionReturnType === 'any' ||
-    (isArray(returnType)
-      ? areQorusTypesCompatible(returnType, expressionReturnType)
-      : returnType === 'auto' ||
-        returnType === 'any' ||
-        returnType === 'context' ||
-        expressionReturnType === 'any' ||
-        areQorusTypesCompatible(returnType, expressionReturnType) ||
-        returnType === expressionReturnType ||
-        !returnType) ||
-    // a condition is decided by any result but text, a date or a time
-    (takesCondition && !!expressionReturnType && !isTextOrDateType(expressionReturnType));
+    condition !== 'error' &&
+    (typeNotKnownYet ||
+      expressionReturnType === 'any' ||
+      (isArray(returnType)
+        ? areQorusTypesCompatible(returnType, expressionReturnType)
+        : returnType === 'auto' ||
+          returnType === 'any' ||
+          returnType === 'context' ||
+          expressionReturnType === 'any' ||
+          areQorusTypesCompatible(returnType, expressionReturnType) ||
+          returnType === expressionReturnType ||
+          !returnType) ||
+      // a condition is decided by any result but text, a date or a time
+      (takesCondition && !!expressionReturnType && !isTextOrDateType(expressionReturnType)));
 
   const defaultItems = useMemo(
     () =>
@@ -1369,14 +1380,14 @@ export const Expression = ({
             size='tiny'
             wrap
             // the server's words for the whole condition, where it said any; the same rule's own otherwise
-            label={conditionMessage ?? conditionByTruthinessText(expressionReturnType)}
+            label={conditionMessage ?? conditionByTruthinessText(expressionGivesType)}
           />
         </>
       )}
       {!isReturnTypeMatching && (
         <>
           <ReqoreVerticalSpacer height={5} />
-          {takesCondition && !!expressionReturnType && isTextOrDateType(expressionReturnType) ? (
+          {takesCondition && !!expressionGivesType && isTextOrDateType(expressionGivesType) ? (
             // a condition that gives text, a date or a time: say how to make it one
             <ReqoreTag
               minimal
@@ -1388,8 +1399,8 @@ export const Expression = ({
               label={
                 (level === 0 ? conditionMessage : undefined) ??
                 conditionErrorText(
-                  types.getTypeSentenceForm(conditionBaseType(expressionReturnType)),
-                  expressionReturnType
+                  types.getTypeSentenceForm(conditionBaseType(expressionGivesType)),
+                  expressionGivesType
                 )
               }
             />
@@ -1401,7 +1412,7 @@ export const Expression = ({
               size='tiny'
               wrap
               label={expressionTypeMismatchText(
-                expressionReturnType ? types.getTypeSentenceForm(expressionReturnType) : undefined,
+                expressionGivesType ? types.getTypeSentenceForm(expressionGivesType) : undefined,
                 expectedReturnTypeText
               )}
             />
