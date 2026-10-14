@@ -53,13 +53,24 @@ export const templateCompletionItems = (templates?: IReqoreFormTemplates): ILspC
   return items;
 };
 
-/** Inserts a template chosen from the completion list as the chip it is, in place of the `$…` typed so far. */
+/**
+ * The signs a template is asked for by, as it is typed: `$`, as a template is written, and `@`, as a field is
+ * named in an expression - the list opens on either (`useLspAutocomplete`'s sigil tokens), so the template chosen
+ * takes either's place.
+ */
+const TEMPLATE_SIGILS = new Set(['$', '@']);
+
+/**
+ * Inserts a template chosen from the completion list as the chip it is, in place of what was typed for it: the `$`
+ * or `@` that opened the list and the word after it. The `@` stayed in front of the chip (qorus#646, David's
+ * review): only a `$` was taken away.
+ */
 export const templateChipInserter: TCompletionInserter = (item, editor, ctx) => {
   const value = item.insertText ?? item.label;
   if (editor.selection) {
     let start = ctx.cursorOffset - 1;
     while (start >= 0 && /[\w.:{}-]/.test(ctx.plainText[start])) start--;
-    if (!(start >= 0 && ctx.plainText[start] === '$')) start++;
+    if (!(start >= 0 && TEMPLATE_SIGILS.has(ctx.plainText[start]))) start++;
     for (let left = ctx.cursorOffset - start; left > 0; left--) {
       Editor.deleteBackward(editor, { unit: 'character' });
     }

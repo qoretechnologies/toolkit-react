@@ -10818,6 +10818,81 @@ export const SavedTemplateOpensOnValue: Story = {
   },
 };
 
+/** A whole number with nothing in it yet, taking a template or an expression. */
+const EmptyWholeNumberForm = () => {
+  const [value, setValue] = useState<any>({});
+  return (
+    <>
+      <FormEngine
+        compact
+        name='emptyWholeNumber'
+        stringTemplates={ROW_FIELDS as any}
+        options={
+          {
+            count: {
+              type: 'int',
+              display_name: 'Count',
+              preselected: true,
+              supports_templates: true,
+              supports_expressions: true,
+              expressions: mockExpressions,
+            },
+          } as unknown as IQorusFormSchema
+        }
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+      />
+      <code className='form-held' data-held={JSON.stringify(value)} style={{ display: 'none' }} />
+    </>
+  );
+};
+
+/** The background a chip is drawn with. */
+const chipPaint = (root: Element | null | undefined) => {
+  const chip = root?.querySelector<HTMLElement>('.reqore-tag');
+  return chip ? getComputedStyle(chip).backgroundColor : undefined;
+};
+
+export const TemplatePickedAfterAnAtSign: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a whole number with nothing in it, on its Value tab. `@` typed in its text opens the list of the row's fields and templates, and Enter picks the first, pos: the chip takes the `@`'s place, and the form holds the template alone. On the Expression tab the chip is drawn as the Value tab draws it, blue (David's review: the `@` stayed in front of the chip, and the Expression tab drew it gray).",
+      },
+    },
+  },
+  render: () => <EmptyWholeNumberForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('count');
+    const text = await waitFor(() => {
+      const el = row.querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(text);
+    await userEvent.keyboard('@');
+    await waitFor(() =>
+      expect(document.querySelector('.reqore-popover-content .completion-menu')?.textContent).toContain('pos')
+    );
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(heldOption(canvasElement, 'count')).toEqual({ type: 'int', value: '$record:{pos}' }));
+    const valueText = optionRow('count').querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
+    expect(valueText?.textContent).not.toContain('@');
+    const valuePaint = chipPaint(valueText);
+    expect(valuePaint).toBeTruthy();
+
+    await chooseTab(optionRow('count'), 'expression');
+    const expressionText = await waitFor(() => {
+      const el = optionRow('count').querySelector<HTMLElement>('.expression-field [data-slate-editor]');
+      expect(el?.textContent).toContain('pos');
+      return el as HTMLElement;
+    });
+    expect(expressionText.textContent).not.toContain('@');
+    await waitFor(() => expect(chipPaint(expressionText)).toBe(valuePaint));
+  },
+};
+
 export const SavedTemplateOnAYesNoOpensOnExpression: Story = {
   parameters: {
     docs: {

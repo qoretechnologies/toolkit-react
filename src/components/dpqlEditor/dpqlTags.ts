@@ -5,7 +5,12 @@
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/descriptionTooltip';
-import { describeTemplateReference, templateTooltip } from '../../helpers/templates';
+import {
+  describeTemplateReference,
+  getTemplateTagStyle,
+  templateTooltip,
+  TTemplateMeta,
+} from '../../helpers/templates';
 import { ISlateElement } from '../smartEditor/types';
 import { IDpqlFieldMeta } from './useDpqlSession';
 
@@ -49,13 +54,11 @@ export const getTemplatePrefixColor = (value: string): string => {
 
 export interface IDpqlTagRendererOptions {
   /**
-   * Color template (`$…`) tags with the `info` intent instead of the per-prefix
-   * palette. For read-only render surfaces (the Explain panel) that mirror
-   * qorus-ide, where template tags are uniformly `info`. The server's
-   * `renderExpression` carries no built-in / event-trigger metadata (verified
-   * against the live LSP), so `info` is the whole scheme here — there's nothing
-   * to promote to qorus purple / success. The editable editor omits this and
-   * keeps the per-prefix palette for telling prefixes apart at a glance.
+   * Draw a template (`$…`) chip as every other template chip is drawn - in a value's text, a template field, a
+   * read row (`getTemplateTagStyle`): `info`, or the catalogue entry's built-in (`custom1`) or event-trigger
+   * (`success`) intent. The default (qorus#646, David's review: a template picked on a value's Value tab was blue
+   * there and gray on its Expression tab). `false` keeps the per-prefix palette (`TEMPLATE_COLORS`), which drew a
+   * prefix it did not list (`$record:`) gray.
    */
   templateTagsUseIntent?: boolean;
   /**
@@ -115,9 +118,9 @@ export function makeDpqlTagRenderer(
             tooltip: templateTooltip(options.templates, tagValue, options.descriptions ?? {}),
           }
         : {}),
-        ...(options.templateTagsUseIntent
-          ? { intent: 'info' as const }
-          : { color: getTemplatePrefixColor(tagValue) as `#${string}` }),
+        ...(options.templateTagsUseIntent === false ?
+          { color: getTemplatePrefixColor(tagValue) as `#${string}` }
+        : getTemplateTagStyle(named?.item?.metadata as TTemplateMeta | undefined)),
       };
     }
 

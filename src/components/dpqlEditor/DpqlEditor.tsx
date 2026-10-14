@@ -45,7 +45,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       readOnly = false,
       showDiagnostics = true,
       enableHover = true,
-      templateTagsUseIntent = false,
+      templateTagsUseIntent = true,
       loadingIndicator,
       templates,
       onBlur,

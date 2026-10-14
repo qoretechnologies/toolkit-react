@@ -120,10 +120,9 @@ export interface IDpqlEditorProps {
   /** Whether to show hover popovers (`textDocument/hover`). Default `true`. */
   enableHover?: boolean;
   /**
-   * Color template (`$…`) tags with the `info` intent instead of the per-prefix
-   * palette — for read-only render surfaces (the Explain panel) that mirror
-   * qorus-ide's uniform `info` template styling. Default `false` (per-prefix
-   * palette, the editor's at-a-glance prefix coloring).
+   * Draw a template (`$…`) chip as every other template chip is drawn (`getTemplateTagStyle`: `info`, or the
+   * catalogue entry's built-in or event-trigger intent). Default `true` (qorus#646): a template was blue in a
+   * value's text and gray in an expression's. `false` keeps the per-prefix palette (`TEMPLATE_COLORS`).
    */
   templateTagsUseIntent?: boolean;
   /**
