@@ -11,11 +11,15 @@ import { sleep } from '../../../../../__tests__/utils';
 import { StoryMeta } from '../../../../types';
 import { templateChipLabel } from '../../../../helpers/templateText';
 import { mockExpressions } from '../mockExpressions';
-import { IExpression } from '../types';
+import { IExpression, IExpressionSchema } from '../types';
 import { ExpressionBuilder } from './index';
 import { withCoarsePointer } from '../../../../stories/coarsePointer';
 import { _testsWithViewport } from '../../../../stories/Tests/utils';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
+import {
+  IStringifiedObjectWatch,
+  watchForStringifiedObjects,
+} from '../../../../stories/stringifiedObjects';
 
 // --- inlined test helpers (equivalents of the IDE `../Tests/utils`) ---------
 
@@ -1509,6 +1513,124 @@ export const ExpressionCanBeUnwrapped: Story = {
     await clickSelector('.expression-unwrap');
 
     await waitFor(() => expect(expressionCount(args.canvasElement)).toBe(1), { timeout: 10000 });
+  },
+};
+
+// --- A rich-text operand of a nested `in(...)` ---------------------------------
+
+/**
+ * `in`, as the server serves it (qorus Classes/QorusExpressions.qc QO_IN, as the IDE's Expression Builder
+ * fixture holds it). Only this story's catalogue has it: added to the shared one, it would change the
+ * count every operation picker shows.
+ */
+const inListExpression: IExpressionSchema = {
+  name: 'in',
+  display_name: 'In List',
+  short_desc: 'Returns True if the first argument is found in the second argument',
+  desc: 'Returns `True` if the first argument is found in the second argument; the optional third argument provides the location of the value to compare if list elements are complex objects themselves',
+  symbol: 'in',
+  render_template: '$arg[0] in $arg[1]${arg[2] ? [loc $arg[2]]:}',
+  type: 1,
+  subtype: 1,
+  return_type: 'bool',
+  ui_return_type: 'bool',
+  varargs: false,
+  groups: ['Comparison'],
+  args: [
+    { name: 'auto', display_name: 'Value', ui_type: 'any', required: true, label_after: 'in' },
+    {
+      name: 'softlist<auto>',
+      display_name: 'List of Values',
+      ui_type: 'list',
+      required: true,
+      label_after: 'and',
+    },
+    { name: 'string', display_name: 'Value Location', ui_type: 'richtext', required: false },
+  ],
+} as IExpressionSchema;
+
+const IN_LIST_EXPRESSIONS = [...mockExpressions, inListExpression];
+
+/** Rich text holding one template, as the builder stores it: a document, not text. */
+const richTextHoldingATemplate = [
+  {
+    type: 'paragraph',
+    children: [
+      {
+        type: 'tag',
+        label: 'Richtext Template',
+        value: '$local:some-richtext',
+        children: [{ text: '' }],
+      },
+    ],
+  },
+];
+
+/** `true && (true in <rich text>)`: an `in(...)` nested in another expression, its list rich text. */
+const nestedInListHoldingRichText: IExpression = {
+  is_expression: true,
+  value: {
+    exp: '&&',
+    args: [
+      {
+        is_expression: true,
+        value: {
+          exp: 'in',
+          args: [
+            { type: 'bool', value: true, is_expression: false },
+            { type: 'richtext', value: richTextHoldingATemplate },
+          ],
+        },
+      },
+    ],
+  },
+};
+
+let stringifiedObjects: IStringifiedObjectWatch | undefined;
+
+export const NestedInListWithARichTextOperand: Story = {
+  args: {
+    returnType: 'bool',
+    expressions: IN_LIST_EXPRESSIONS,
+    value: nestedInListHoldingRichText,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders `true in <rich text>` nested in a Logical And, the rich text holding a template. Its list operand is drawn as rich text, the template a chip in it, from its first render: a field was drawn as untyped until it had mounted, and for that first render its text editor was handed the rich text - a document - as text, so it read `[object Object]` (the Qorus IDE's Expression Builder stories).",
+      },
+    },
+  },
+  // watched from before it renders: the wrong text was there only until the field's next render
+  beforeEach: () => {
+    stringifiedObjects = watchForStringifiedObjects();
+    return () => {
+      stringifiedObjects?.stop();
+      stringifiedObjects = undefined;
+    };
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.queryAllByText('In List')[0]).toBeTruthy(), {
+      timeout: 10000,
+    });
+    // the list operand holds the template as a chip in rich text
+    const listOperand = await waitFor(
+      () => {
+        const operand = Array.from(canvasElement.querySelectorAll('.expression-arg')).find((arg) =>
+          arg.textContent?.includes('List of Values')
+        );
+        expect(operand).toBeTruthy();
+        expect(within(operand as HTMLElement).queryAllByText('Richtext Template')[0]).toBeTruthy();
+        return operand as HTMLElement;
+      },
+      { timeout: 10000 }
+    );
+
+    await expect(listOperand.textContent).not.toContain('[object Object]');
+    // and never showed anything else, from the first render on
+    await expect(stringifiedObjects?.hits).toEqual([]);
   },
 };
 

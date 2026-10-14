@@ -175,6 +175,32 @@ export const DefaultNoSoftTypes = getImmediateValueTypes();
 export const editorTypeOf = <T extends string | undefined | null>(type: T): T =>
   (typeof type === 'string' && /^soft[a-z]/.test(type) ? type.slice(4) : type) as T;
 
+/**
+ * The type a field is declared as (`type`) and the type its value is edited as (`internalType`), as it
+ * mounts: the declared `defaultType`, or the value's own type where none is declared; an untyped field
+ * holding a value is edited as that value's type, unless `defaultInternalType` says otherwise.
+ *
+ * Both are known from the field's props, so the field is drawn with them from its first render. It was
+ * drawn first as the untyped `any` and given them only after it had mounted: for that first render a
+ * rich-text value - a document, not text - was put through the untyped field's text editor, which
+ * wrote it as `[object Object]` (reqraft's expression builder, an `in(...)` operand holding rich text).
+ */
+export const resolveAutoFieldTypes = (
+  defaultType: IQorusType | undefined,
+  defaultInternalType: IQorusType | undefined,
+  value: unknown
+): { type: IQorusType; internalType: IQorusType } => {
+  const type: IQorusType =
+    (defaultType && (defaultType.replace(/"/g, '').trim() as IQorusType)) ||
+    (getTypeFromValue(maybeParseYaml(value)) as IQorusType);
+  const internalType: IQorusType =
+    value && isUntypedOptionType(type) && !defaultInternalType ?
+      (getTypeFromValue(maybeParseYaml(value)) as IQorusType)
+    : defaultInternalType || type;
+
+  return { type, internalType };
+};
+
 function AutoField<T = any>({
   name,
   onChange,
@@ -214,10 +240,12 @@ function AutoField<T = any>({
   expandFirstRequired,
   ...rest
 }: IAutoFieldProps & T) {
-  const [currentType, setType] = useState<IQorusType>(defaultInternalType || null);
-  const [storedInternalType, setInternalType] = useState<IQorusType>(
-    defaultInternalType || 'any'
+  // drawn as declared from the first render; see `resolveAutoFieldTypes`
+  const [mountTypes] = useState(() =>
+    resolveAutoFieldTypes(defaultType, defaultInternalType, value)
   );
+  const [currentType, setType] = useState<IQorusType>(mountTypes.type);
+  const [storedInternalType, setInternalType] = useState<IQorusType>(mountTypes.internalType);
   // What the value is edited as; see `editorTypeOf`.
   const currentInternalType = editorTypeOf(storedInternalType);
   const [isSetToNull, setIsSetToNull] = useState<boolean>(false);
@@ -295,24 +323,7 @@ function AutoField<T = any>({
   }, [JSON.stringify(arg_schema)]);
 
   useMount(() => {
-    let defType: IQorusType = defaultType && (defaultType.replace(/"/g, '').trim() as any);
-
-    // If default type was not provided, get the type from the value
-    if (!defType) {
-      defType = getTypeFromValue(maybeParseYaml(value)) as IQorusType;
-    }
-
-    let internalType: IQorusType;
-    // If value already exists, but the type is auto or any
-    // set the type based on the value
-    if (value && isUntypedOptionType(defType) && !defaultInternalType) {
-      internalType = getTypeFromValue(maybeParseYaml(value)) as IQorusType;
-    } else {
-      internalType = defaultInternalType || defType;
-    }
-
-    setInternalType(internalType);
-    setType(defType);
+    const defType = mountTypes.type;
     // If the value is null and can be null, set the null flag
     if (
       (getValueOrDefaultValue(value, default_value, _canBeNull(defType)) === 'null' ||
