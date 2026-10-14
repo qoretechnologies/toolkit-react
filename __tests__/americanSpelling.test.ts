@@ -1,6 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { startCase } from 'lodash';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
@@ -137,10 +138,22 @@ const proseOf = (file: string): { line: number; text: string }[] => {
   return found;
 };
 
-/** The title of each story a story file exports: its `name`, or its export name in words, as Storybook says it. */
-const storyTitlesOf = (file: string): string[] => {
-  const titles: string[] = [];
-  for (const statement of parse(file).statements) {
+/**
+ * The words Storybook shows for each story a stories file exports: the export's name split into its words, as
+ * Storybook's `storyNameFromExport` does (lodash's `startCase`). A story that gives its own `name` is shown by it
+ * instead - a string, which the prose check reads - so it is left out here (`{ ... } as Story` and
+ * `{ ... } satisfies Story` are the story object too). Read as the IDE reads its own (qorus-ide bb11c267c).
+ */
+const storyNamesIn = (code: string): string[] => {
+  const names: string[] = [];
+  const source = ts.createSourceFile(
+    'story.tsx',
+    code,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX
+  );
+  for (const statement of source.statements) {
     if (
       !ts.isVariableStatement(statement) ||
       !statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
@@ -151,27 +164,33 @@ const storyTitlesOf = (file: string): string[] => {
       if (!ts.isIdentifier(declaration.name)) {
         continue;
       }
-      const name =
-        declaration.initializer && ts.isObjectLiteralExpression(declaration.initializer) ?
-          declaration.initializer.properties.find(
-            (property): property is ts.PropertyAssignment =>
-              ts.isPropertyAssignment(property) &&
-              ts.isIdentifier(property.name) &&
-              property.name.text === 'name' &&
-              ts.isStringLiteral(property.initializer)
-          )
-        : undefined;
-      titles.push(
-        name ?
-          (name.initializer as ts.StringLiteral).text
-        : declaration.name.text
-            .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-            .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
-      );
+      let init = declaration.initializer;
+      while (init && (ts.isAsExpression(init) || ts.isSatisfiesExpression(init))) {
+        init = init.expression;
+      }
+      const named =
+        !!init &&
+        ts.isObjectLiteralExpression(init) &&
+        init.properties.some(
+          (property) =>
+            ts.isPropertyAssignment(property) &&
+            ts.isIdentifier(property.name) &&
+            property.name.text === 'name'
+        );
+      if (!named) {
+        names.push(storyNameFromExport(declaration.name.text));
+      }
     }
   }
-  return titles;
+  return names;
 };
+
+const storyNamesOf = (file: string): string[] =>
+  storyNamesIn(readFileSync(join(root, file), 'utf8'));
+
+/** A story export's name as Storybook shows it (`storyNameFromExport` is lodash's `startCase`):
+ *  `UnlabeledServiceOnAPhone` is "Unlabeled Service On A Phone". */
+const storyNameFromExport = (exported: string): string => startCase(exported);
 
 describe('reqraft writes American English', () => {
   it('in the prose of its sources, its stories and their data', () => {
@@ -183,13 +202,13 @@ describe('reqraft writes American English', () => {
     expect(offences).toEqual([]);
   });
 
-  it('in the titles of its stories', () => {
+  it('in the names Storybook shows for its stories', () => {
     const offences = sourcesUnder('src')
-      .filter((file) => file.endsWith('.stories.tsx'))
+      .filter((file) => /\.stories\.tsx?$/.test(file))
       .flatMap((file) =>
-        storyTitlesOf(file)
-          .filter((title) => britishIn(title).length)
-          .map((title) => `${file}: ${title}`)
+        storyNamesOf(file)
+          .filter((name) => britishIn(name).length)
+          .map((name) => `${file}: "${name}": ${britishIn(name).join(', ')}`)
       );
     expect(offences).toEqual([]);
   });
@@ -208,12 +227,35 @@ describe('reqraft writes American English', () => {
     expect(proseOf('src/components/colorValue/labels.ts').map(({ text }) => text)).toContain(
       'No color'
     );
-    expect(storyTitlesOf('src/components/colorValue/ColorValue.stories.tsx')).toContain(
+    expect(storyNamesOf('src/components/colorValue/ColorValue.stories.tsx')).toContain(
       'Not A Color'
     );
-    expect(storyTitlesOf('src/components/form/engine/FormEngine.stories.tsx')).toContain(
-      'Compact Expression Without Catalog'
+    // a story that gives its own name is shown by it: a string the prose check reads, not its export
+    expect(storyNamesOf('src/components/form/engine/FormEngine.stories.tsx')).not.toContain(
+      'Compact Expression Without Catalogue'
     );
+    expect(
+      proseOf('src/components/form/engine/FormEngine.stories.tsx').map(({ text }) => text)
+    ).toContain('Compact Expression Without Catalog');
+  });
+
+  it('reads a story export as the words Storybook shows for it', () => {
+    expect(storyNameFromExport('UnlabelledServiceOnAPhone')).toBe('Unlabelled Service On A Phone');
+    expect(storyNameFromExport('FxModeRail')).toBe('Fx Mode Rail');
+    expect(storyNameFromExport('Oauth2Tab')).toBe('Oauth 2 Tab');
+    expect(storyNameFromExport('CsvUtf16Only')).toBe('Csv Utf 16 Only');
+    expect(
+      storyNamesIn(
+        [
+          'export const LargeFileCheckCancelled: Story = { args: {} };',
+          'export const AllLabelled = { args: {} } as Story;',
+          "export const Shown = { name: 'Shown by its name', args: {} } satisfies Story;",
+          'const NotAStory = {};',
+        ].join('\n')
+      )
+    ).toEqual(['Large File Check Cancelled', 'All Labelled']);
+    expect(britishIn(storyNameFromExport('AppNotInCatalogue'))).toEqual(['Catalogue']);
+    expect(britishIn(storyNameFromExport('TerminalCancelled'))).toEqual(['Cancelled']);
   });
 
   it('catches each spelling, and leaves code, placeholders and identifiers alone', () => {
