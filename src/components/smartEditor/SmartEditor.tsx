@@ -235,6 +235,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       tags,
       loadingIndicator,
       enableHover = true,
+      hoverDelayMs,
       isLoading = false,
       enableSignatureHelp = true,
     },
@@ -277,6 +278,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
 
     const hover = useLspHover(session, editorRef as React.RefObject<any>, converter, {
       enabled: enableHover,
+      debounceMs: hoverDelayMs,
     });
     /* The hover the popover drawn in this render is of: what it dismisses when it closes, and nothing newer. */
     const shownHoverId = hover.hoverId;

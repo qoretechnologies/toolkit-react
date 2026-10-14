@@ -194,6 +194,12 @@ export interface ISmartEditorProps {
   enableHover?: boolean;
 
   /**
+   * How long the mouse rests before its hover is asked for, in ms. Default 300: a mouse passing over the
+   * text asks nothing. Only a mouse (or a pen held above the screen) hovers; a finger has "Details".
+   */
+  hoverDelayMs?: number;
+
+  /**
    * Generic "this editor is busy" flag — when `true`, the loading
    * overlay is shown regardless of `session.isReady`. Used by wrappers
    * that have their own busy state (e.g. DpqlEditor's

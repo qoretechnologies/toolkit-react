@@ -1,7 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Hover-tooltip support for SmartEditor. Listens for `mousemove` on
-// the editor's contenteditable element, debounces to 300ms idle, then
-// asks the LSP for hover info at that mouse position. The consumer
+// Hover-tooltip support for SmartEditor. Listens for a hovering pointer
+// (`isHoveringPointer`: a mouse, not a finger) moving over the editor's
+// contenteditable element, debounces to 300ms idle, then asks the LSP for
+// hover info at that position. The consumer
 // gets back `{ hoverContent, hoverPosition }` and renders a popover.
 //
 // Position mapping: mouse coords → DOM caret range
@@ -14,6 +15,7 @@ import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { BaseEditor, Point } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
+import { isHoveringPointer } from '../../helpers/hoveringPointer';
 import { ILspMarkupContent } from '../../utils/lspClient.types';
 import { offsetToLspPosition } from './helpers';
 import { ISlateConverter, ISlateElement } from './types';
@@ -74,7 +76,7 @@ function mousePositionToSlatePoint(
 }
 
 export interface IUseLspHoverOptions {
-  /** Default `true`. Set to `false` to disable the mousemove listener. */
+  /** Default `true`. Set to `false` to disable the hovering pointer's listener. */
   enabled?: boolean;
   /** Debounce window before issuing the LSP request. Default 300ms. */
   debounceMs?: number;
@@ -105,10 +107,10 @@ export interface IUseLspHoverResult {
 }
 
 /**
- * Hover-tooltip state for the SmartEditor. Attaches a `mousemove`
- * listener to the editor's contenteditable element via the supplied
- * editor ref and resolves LSP hover content under the cursor when the
- * mouse goes idle for `debounceMs`.
+ * Hover-tooltip state for the SmartEditor. Attaches a `pointermove`
+ * listener for a hovering pointer to the editor's contenteditable element
+ * via the supplied editor ref and resolves LSP hover content under the
+ * cursor when the mouse goes idle for `debounceMs`.
  */
 export function useLspHover(
   session: IUseLspSessionResult,
@@ -158,7 +160,7 @@ export function useLspHover(
 
   // Debounced fetch. Re-created in the effect below whenever any of
   // its inputs change. Started as a no-op so the ref is always a
-  // function — avoids null-checks in the mousemove listener. The dep
+  // function — avoids null-checks in the pointermove listener. The dep
   // array lists the stable primitives inside `session`, not the object
   // itself — `useLspSession` rebuilds its return object every render,
   // which would cancel and recreate this debounce on every parent
@@ -236,23 +238,33 @@ export function useLspHover(
     }
     if (!dom) return undefined;
 
-    const onMove = (e: MouseEvent) => {
+    /* A pointer event, not a mouse event: the mouse events a browser emulates after a tap say nothing of the
+       finger they came from, and opened the hover where a tap had put the caret, on a touch screen whose way
+       to the hover is "Details" (see `isHoveringPointer`). A finger's pointer events start nothing here. */
+    const onMove = (e: PointerEvent) => {
+      if (!isHoveringPointer(e)) {
+        return;
+      }
       // Cancel any pending hover the moment the mouse moves — the
       // previous coords are stale. The debounced trailing call only
       // fires after `debounceMs` of true idle.
       fetchHover.current.cancel();
       fetchHover.current(e.clientX, e.clientY);
     };
-    const onLeave = () => {
+    // the mouse leaving takes its hover with it; a finger lifted leaves a hover "Details" showed
+    const onLeave = (e: PointerEvent) => {
+      if (!isHoveringPointer(e)) {
+        return;
+      }
       fetchHover.current.cancel();
       clearHover();
     };
 
-    dom.addEventListener('mousemove', onMove);
-    dom.addEventListener('mouseleave', onLeave);
+    dom.addEventListener('pointermove', onMove);
+    dom.addEventListener('pointerleave', onLeave);
     return () => {
-      dom?.removeEventListener('mousemove', onMove);
-      dom?.removeEventListener('mouseleave', onLeave);
+      dom?.removeEventListener('pointermove', onMove);
+      dom?.removeEventListener('pointerleave', onLeave);
       fetchHover.current.cancel();
     };
     // Re-attach on enabled / session.isReady changes; the editor itself

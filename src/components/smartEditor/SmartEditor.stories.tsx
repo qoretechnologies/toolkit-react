@@ -12,7 +12,7 @@ import { fn, fireEvent, userEvent, waitFor, within, expect } from 'storybook/tes
 import { sleep } from '../../../__tests__/utils';
 import { useState } from 'react';
 import { StoryMeta } from '../../types';
-import { createMockLspServer, MOCK_LSP_URL } from './__fixtures__/mockLspServer';
+import { createMockLspServer, IMockLspServer, MOCK_LSP_URL } from './__fixtures__/mockLspServer';
 import { SmartEditor } from './SmartEditor';
 import { useLspSession } from './useLspSession';
 import { withCoarsePointer } from '../../stories/coarsePointer';
@@ -26,6 +26,7 @@ interface IDemoArgs {
   height?: string;
   readOnly?: boolean;
   initialMetadata?: Record<string, any>;
+  hoverDelayMs?: number;
   onChange?: (v: string) => void;
 }
 
@@ -48,6 +49,7 @@ function SmartEditorPlayground(props: IDemoArgs) {
       triggerCharacters={props.triggerCharacters}
       height={props.height}
       readOnly={props.readOnly}
+      hoverDelayMs={props.hoverDelayMs}
     />
   );
 }
@@ -680,6 +682,30 @@ const middleOf = (editable: HTMLElement, word: string) => {
   throw new Error(`"${word}" is not in the editor`);
 };
 
+/**
+ * Rests the mouse on `at` in `element`. In the test runner it is the browser's own mouse, moved there by
+ * Playwright, whose pointer events say "mouse" as a person's do; in Storybook's UI, where there is none to
+ * move, a mouse's pointer event at that point. `vitest/browser` is imported when called: it throws outside
+ * the runner (see `withTouchScreen`).
+ */
+const restMouseOn = async (element: HTMLElement, at: { clientX: number; clientY: number }) => {
+  let browser:
+    { userEvent: { hover(element: Element, options?: unknown): Promise<void> } } | undefined;
+  try {
+    browser = (await import('vitest/browser')) as unknown as typeof browser;
+  } catch {
+    browser = undefined;
+  }
+  if (!browser) {
+    fireEvent.pointerMove(element, { pointerType: 'mouse', ...at });
+    return;
+  }
+  const box = element.getBoundingClientRect();
+  await browser.userEvent.hover(element, {
+    position: { x: at.clientX - box.left, y: at.clientY - box.top },
+  });
+};
+
 /** The hovers shown, as their text. */
 const shownHovers = () =>
   Array.from(document.querySelectorAll<HTMLElement>('.reqore-popover-content'))
@@ -711,71 +737,128 @@ export const HoverFollowsTheMouseToTheNextWord: Story = {
       { timeout: 10000 }
     );
 
-    fireEvent.mouseMove(editable, middleOf(editable, 'forEach'));
+    // a mouse: its pointer events say so, as a finger's emulated mouse events do not
+    await restMouseOn(editable, middleOf(editable, 'forEach'));
     await waitFor(() => expect(shownHovers()).toEqual(['forEach: the word under the mouse.']), {
       timeout: 10000,
     });
 
-    fireEvent.mouseMove(editable, middleOf(editable, 'map'));
+    await restMouseOn(editable, middleOf(editable, 'map'));
     await waitFor(() => expect(shownHovers()).toEqual(['map: the word under the mouse.']), {
       timeout: 10000,
     });
   },
 };
 
+/** The server of the story playing now, for its play to read what it was asked. */
+let storyServer: IMockLspServer | undefined;
+
+/** The hovers the editor shows, as their text, each time one is shown. */
+const watchHoverPopovers = () => {
+  const shown: string[] = [];
+  const observer = new MutationObserver((records) =>
+    records.forEach((record) =>
+      record.addedNodes.forEach((node) => {
+        if (node instanceof HTMLElement) {
+          [node, ...Array.from(node.querySelectorAll<HTMLElement>('.reqore-popover-content'))]
+            .filter((element) => element.matches('.reqore-popover-content'))
+            .forEach((popover) => shown.push(popover.textContent?.trim() ?? ''));
+        }
+      })
+    )
+  );
+  observer.observe(document.body, { childList: true, subtree: true });
+  return { shown, stop: () => observer.disconnect() };
+};
+
 export const HoverDetailsOnATouchScreen: Story = {
   tags: ['touch'],
-  args: { languageId: 'demo', initialValue: '', triggerCharacters: new Set(['.']) },
+  // a hover is asked for as soon as the pointer rests: one a tap had started is asked for before Details asks,
+  // on the same connection, so it is seen however soon Details is tapped
+  args: {
+    languageId: 'demo',
+    initialValue: '',
+    triggerCharacters: new Set(['.']),
+    hoverDelayMs: 0,
+  },
   decorators: [withCoarsePointer],
   parameters: {
     qlip: { viewport: PHONE_VIEWPORT },
     docs: {
       description: {
         story:
-          'Renders the SmartEditor on a phone (390 px, touch) holding "forEach", with a Details button under it, where a finger cannot hover. A tap on Details shows what the server says of the word at the caret ("forEach: invoke a callback for each element."), on the screen.',
+          'Renders the SmartEditor on a phone (390 px, touch), taps it to put the caret in it and types "forEach". The tap opens no hover - a finger cannot hover, and the mouse events a browser emulates after a tap are not one, where they opened the hover the server gives anywhere beside the Details button. A tap on Details shows what the server says of the word at the caret ("forEach: invoke a callback for each element."), on the screen.',
       },
     },
   },
   async beforeEach() {
     const lsp = explainingServer();
-    return () => lsp.close();
+    storyServer = lsp;
+    return () => {
+      lsp.close();
+      storyServer = undefined;
+    };
   },
   play: async ({ canvasElement, args }) => {
-    await withTouchScreen(async (touch) => {
-      const editable = within(canvasElement).getByRole('textbox');
-      await userEvent.click(editable);
-      await typeEachKey(args.onChange, '', 'forEach');
-      await userEvent.keyboard('{Escape}');
-      // the button waits for the server's `initialize` (it says whether there is a hover), a round trip. Each
-      // wait here is well inside the test's own 30s: a wait as long as the test is cut off by it, which says
-      // only that the test timed out, never which step it was on (CI, 1c78382b)
-      const details = await waitFor(
-        () => {
-          const button = canvasElement.querySelector<HTMLElement>('.smart-editor-details');
-          expect(button, 'the Details button').toBeTruthy();
-          return button!;
-        },
-        { timeout: 10000 }
-      );
-      await expect(details.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
-      await touch.tap(details);
-      // the server's hover is a round trip too: as the other stories here, never a short wait
-      const shown = await waitFor(
-        () => {
-          const popover = Array.from(
-            document.querySelectorAll<HTMLElement>('.reqore-popover-content')
-          ).find((each) => each.textContent?.includes('invoke a callback for each element'));
-          expect(popover, 'the hover Details shows').toBeTruthy();
-          return popover!;
-        },
-        { timeout: 10000 }
-      );
-      await expect(shown.querySelector('strong')).toHaveTextContent('forEach');
-      if (touch.narrowed) {
-        const box = shown.getBoundingClientRect();
-        await expect(box.left).toBeGreaterThanOrEqual(0);
-        await expect(box.right).toBeLessThanOrEqual(window.innerWidth);
-      }
-    });
+    const hovers = watchHoverPopovers();
+    const hoversAsked = () =>
+      (storyServer?.received ?? []).filter((message) => message.method === 'textDocument/hover');
+    try {
+      await withTouchScreen(async (touch) => {
+        const editable = within(canvasElement).getByRole('textbox');
+        // connected, its schema loaded: a hover asked for from now on is answered
+        await waitFor(
+          () =>
+            expect(canvasElement.textContent).not.toMatch(
+              /Connecting to language server|Loading schema/
+            ),
+          { timeout: 10000 }
+        );
+        // a finger puts the caret in the editor
+        await touch.tap(editable);
+        await waitFor(() => expect(editable).toHaveFocus());
+        await typeEachKey(args.onChange, '', 'forEach');
+        await userEvent.keyboard('{Escape}');
+        // the button waits for the server's `initialize` (it says whether there is a hover), a round trip.
+        // Each wait here is well inside the test's own 30s: a wait as long as the test is cut off by it,
+        // which says only that the test timed out, never which step it was on (CI, 1c78382b)
+        const details = await waitFor(
+          () => {
+            const button = canvasElement.querySelector<HTMLElement>('.smart-editor-details');
+            expect(button, 'the Details button').toBeTruthy();
+            return button!;
+          },
+          { timeout: 10000 }
+        );
+        await expect(details.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+        // the tap and the typing asked for no hover, and none was shown
+        await expect(hoversAsked()).toHaveLength(0);
+        await expect(hovers.shown).toEqual([]);
+
+        await touch.tap(details);
+        // the server's hover is a round trip too: as the other stories here, never a short wait
+        const shown = await waitFor(
+          () => {
+            const popover = Array.from(
+              document.querySelectorAll<HTMLElement>('.reqore-popover-content')
+            ).find((each) => each.textContent?.includes('invoke a callback for each element'));
+            expect(popover, 'the hover Details shows').toBeTruthy();
+            return popover!;
+          },
+          { timeout: 10000 }
+        );
+        await expect(shown.querySelector('strong')).toHaveTextContent('forEach');
+        // asked for once, by Details, and shown once
+        await expect(hoversAsked()).toHaveLength(1);
+        await expect(hovers.shown).toHaveLength(1);
+        if (touch.narrowed) {
+          const box = shown.getBoundingClientRect();
+          await expect(box.left).toBeGreaterThanOrEqual(0);
+          await expect(box.right).toBeLessThanOrEqual(window.innerWidth);
+        }
+      });
+    } finally {
+      hovers.stop();
+    }
   },
 };

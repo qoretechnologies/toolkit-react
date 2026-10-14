@@ -78,6 +78,7 @@ import { StructuredDataView } from './_structuredData/StructuredDataView';
 import { DpqlRendering } from '../expressions/DpqlRendering';
 import { ReqraftColorValue } from '../../colorValue';
 import { TFieldWithOwnTemplates } from './rendererTypes';
+import { isHoveringPointer } from '../../../helpers/hoveringPointer';
 
 /**
  * Does this markdown value have more document in it than one row can show?
@@ -754,10 +755,13 @@ export const CompactRow = memo(
           role='presentation'
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
-          onMouseEnter={() =>
-            setHighlightedOptions(requiredGroupsInfo.members[chipGroups[0]] || [])
-          }
-          onMouseLeave={() => setHighlightedOptions([])}
+          // a mouse's hover, not a tap's emulated one: see `isHoveringPointer`
+          onPointerEnter={(e) => {
+            if (isHoveringPointer(e)) {
+              setHighlightedOptions(requiredGroupsInfo.members[chipGroups[0]] || []);
+            }
+          }}
+          onPointerLeave={() => setHighlightedOptions([])}
         >
           <ReqoreDropdown
             className='options-readfirst-required-group'
@@ -1357,8 +1361,13 @@ export const CompactRow = memo(
     const clusterHoverProps =
       clustered && clusterMembers.length ?
         {
-          onMouseEnter: () => setHighlightedOptions(clusterMembers),
-          onMouseLeave: () => setHighlightedOptions([]),
+          // a mouse's hover, not a tap's emulated one: see `isHoveringPointer`
+          onPointerEnter: (e: React.PointerEvent) => {
+            if (isHoveringPointer(e)) {
+              setHighlightedOptions(clusterMembers);
+            }
+          },
+          onPointerLeave: () => setHighlightedOptions([]),
         }
       : {};
 
@@ -2115,8 +2124,13 @@ export const CompactRow = memo(
           role='presentation'
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
-          onMouseEnter={() => setHighlightedOptions(depHighlightNames)}
-          onMouseLeave={() => setHighlightedOptions([])}
+          // a mouse's hover, not a tap's emulated one: see `isHoveringPointer`
+          onPointerEnter={(e) => {
+            if (isHoveringPointer(e)) {
+              setHighlightedOptions(depHighlightNames);
+            }
+          }}
+          onPointerLeave={() => setHighlightedOptions([])}
         >
           <ReqoreDropdown
             className='options-readfirst-lock-deps'
