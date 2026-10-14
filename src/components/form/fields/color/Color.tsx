@@ -376,6 +376,23 @@ const sliderStyles = (track: number, reach: number) => ({
   bgProps: { style: { inset: `${(reach - track) / 2}px 0`, borderRadius: track / 2 } },
 });
 
+/**
+ * Where a thumb travels: its bar or area, less the half of the thumb - and its ring - that would reach past an end.
+ * A thumb at an end (the area's corner for black or white, the opacity bar's end for an opaque color) was cut by the
+ * area, or by whatever is around the field (qorus#646). Laid out by class, not by an inline style, so the thumb is
+ * still the one element with a `left`.
+ */
+const StyledThumbTrack = styled.div<{ $x: number; $y: number }>`
+  position: absolute;
+  inset: ${({ $y }) => $y}px ${({ $x }) => $x}px;
+  pointer-events: none;
+`;
+
+/** A slider thumb's ring, past its edge. */
+const THUMB_RING = 1;
+/** An area thumb's rings (white, then dark), past its edge. */
+const AREA_THUMB_RING = 3;
+
 const StyledThumb = styled.div<{ $height: number; $width: number }>`
   position: absolute;
   top: 50%;
@@ -458,11 +475,19 @@ const StyledHelp = styled.div<{ $text: string; $coarse: boolean }>`
   }
 `;
 
+/**
+ * How far a swatch draws past its edge: its picked ring (2px) and, focused, its outline (2px, 2px off it). The
+ * swatches keep that much room on every side, so a swatch at an edge is drawn whole even where something around the
+ * field cuts off what reaches past it - a picked swatch's ring was cut on its left and bottom in a host's form
+ * (qorus#646).
+ */
+const SWATCH_REACH = 4;
+
 const StyledSwatches = styled.div<{ $text: string }>`
   display: flex;
   flex-flow: row wrap;
   gap: 8px;
-  padding-top: 10px;
+  padding: 10px ${SWATCH_REACH}px ${SWATCH_REACH}px;
   border-top: 1px solid ${({ $text }) => rgba($text, 0.15)};
 `;
 
@@ -758,17 +783,35 @@ export const ColorFormField = ({
   const previewColor = stored ? `rgba(${stored.r}, ${stored.g}, ${stored.b}, ${stored.a})` : undefined;
   const colorOpaque = `rgb(${shownRgba.r}, ${shownRgba.g}, ${shownRgba.b})`;
   const slider = sliderStyles(sizes.track, sizes.reach);
+  const thumbWidth = coarse ? 14 : 8;
   const thumb = useCallback(
     ({ left }: { left?: string }) => (
-      <StyledThumb style={{ left }} $height={sizes.track + 6} $width={coarse ? 14 : 8} />
+      <StyledThumbTrack $x={thumbWidth / 2 + THUMB_RING} $y={0}>
+        <StyledThumb
+          className='reqraft-color-field-thumb'
+          style={{ left }}
+          $height={sizes.track + 6}
+          $width={thumbWidth}
+        />
+      </StyledThumbTrack>
     ),
-    [sizes.track, coarse]
+    [sizes.track, thumbWidth]
   );
+  const areaThumbSize = coarse ? 28 : 14;
   const areaThumb = useCallback(
     ({ left, top, color }: Parameters<NonNullable<SaturationProps['pointer']>>[0]) => (
-      <StyledAreaThumb style={{ left, top, background: color }} $size={coarse ? 28 : 14} />
+      <StyledThumbTrack
+        $x={areaThumbSize / 2 + AREA_THUMB_RING}
+        $y={areaThumbSize / 2 + AREA_THUMB_RING}
+      >
+        <StyledAreaThumb
+          className='reqraft-color-field-area-thumb'
+          style={{ left, top, background: color }}
+          $size={areaThumbSize}
+        />
+      </StyledThumbTrack>
     ),
-    [coarse]
+    [areaThumbSize]
   );
   const presets = presetColors === false ? [] : presetColors;
   const currentHex = `#${texts.hex}`;

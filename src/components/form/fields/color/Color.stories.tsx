@@ -755,3 +755,55 @@ export const InvalidEntryOnAPhone: Story = {
     });
   },
 };
+
+/** Whether `inner`, with what it draws past its edge (`reach`), is inside `outer` (to half a pixel). */
+const drawnWhole = (inner: HTMLElement, outer: HTMLElement, reach: number) => {
+  const a = inner.getBoundingClientRect();
+  const b = outer.getBoundingClientRect();
+  return (
+    a.left - reach >= b.left - 0.5 &&
+    a.top - reach >= b.top - 0.5 &&
+    a.right + reach <= b.right + 0.5 &&
+    a.bottom + reach <= b.bottom + 0.5
+  );
+};
+
+export const HighlightsAreDrawnWhole: Story = {
+  args: {
+    value: { r: 0, g: 0, b: 0, a: 1 },
+    presetColors: ['#000000', '#D0021B', '#FFFFFF'],
+    disableAlpha: false,
+  },
+  render(args) {
+    // a host's form cell that cuts off what reaches past it, as an options form's does
+    return (
+      <div style={{ overflow: 'hidden', width: 320 }}>
+        <ColorFormField {...args} />
+      </div>
+    );
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the Color field holding black, in a box that cuts off whatever reaches past it, as a host's form can. Every highlight is drawn whole, inside the field: the picked swatch (black, the first, at the field's left edge) with its ring and its focus outline; the square's marker, at its bottom-left corner; the color bar's thumb, at its left end; and the opacity bar's thumb, at its right end. The picked swatch's ring was cut on its left and bottom, and the markers at an end were cut in half.",
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const black = swatch(canvasElement, '#000000');
+    await waitFor(() => expect(black).toHaveAttribute('aria-pressed', 'true'));
+    // the picked ring (2px), and the focus outline (2px, 2px off the swatch)
+    black.focus();
+    await expect(drawnWhole(black, field(canvasElement), 4)).toBe(true);
+    // the square's marker, white and dark rings (3px), inside the square that clips it
+    const marker = canvasElement.querySelector<HTMLElement>('.reqraft-color-field-area-thumb')!;
+    await expect(drawnWhole(marker, square(canvasElement), 3)).toBe(true);
+    // each bar's thumb (1px ring) inside its bar
+    for (const bar of [hueBar(canvasElement), alphaBar(canvasElement)]) {
+      const thumb = bar.querySelector<HTMLElement>('.reqraft-color-field-thumb')!;
+      await expect(drawnWhole(thumb, bar, 1)).toBe(true);
+      await expect(drawnWhole(thumb, field(canvasElement), 1)).toBe(true);
+    }
+  },
+};
