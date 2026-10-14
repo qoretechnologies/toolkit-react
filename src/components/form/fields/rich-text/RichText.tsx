@@ -138,8 +138,21 @@ export const RichTextFormField = memo(({
   const isText = valueFormat === 'text';
   /** What chips are named from: the whole catalogue, not only what is offered (see the prop). */
   const naming = namingTemplates ?? templates;
+  /* The document a rich-text value stands for. Rich text the server holds is its string type, so a value
+     arrives as a string as often as a document - a saved `$local:name`, or text - and a string handed to
+     the editor as its document was drawn as raw text, each reference spelled out rather than its chip. It
+     is read as text with references, as the `text` format reads it; until it is edited, nothing is sent
+     back, so a string held stays a string. (A field mounted through an untyped first render was handed
+     the string in the `text` format, and kept the chips it drew then, by accident: that first render is
+     gone - see `resolveAutoFieldTypes`.) */
+  const documentOf = (held: unknown) =>
+    typeof held === 'string' ? templateTextToNodes(held, naming, templateToken) : held;
+  /** The same document: a chip read from a string carries `metadata: undefined`, which the editor's own
+   *  copy of it may leave out. */
+  const sameDocument = (a: unknown, b: unknown) =>
+    isEqual(a, b) || JSON.stringify(a) === JSON.stringify(b);
   const [localValue, setLocalValue] = useState<any>(() =>
-    isText ? templateTextToNodes(String(value ?? ''), naming, templateToken) : value
+    isText ? templateTextToNodes(String(value ?? ''), naming, templateToken) : documentOf(value)
   );
   /* In text mode, the string the editor's document stands for. The value that
      comes back from the parent is usually that same string, and rebuilding the
@@ -163,8 +176,9 @@ export const RichTextFormField = memo(({
       }
       return;
     }
-    if (JSON.stringify(value) !== JSON.stringify(localValue)) {
-      setLocalValue(value);
+    const held = documentOf(value);
+    if (JSON.stringify(held) !== JSON.stringify(localValue)) {
+      setLocalValue(held);
     }
   }, [JSON.stringify(value)]);
 
@@ -185,7 +199,8 @@ export const RichTextFormField = memo(({
         }
         return;
       }
-      if (!isEqual(localValue, emitted.settled(value))) {
+      // the document a string held stands for is that string, not an edit of it
+      if (!sameDocument(localValue, documentOf(emitted.settled(value)))) {
         emitted.record(localValue);
         onChange?.(localValue);
       }
@@ -231,11 +246,17 @@ export const RichTextFormField = memo(({
       return;
     }
     if (JSON.stringify(val) === '[{"type":"paragraph","children":[{"text":""}]}]') {
+      // the empty text a held '' stands for is no edit of it (a click into the field reports it)
+      if (sameDocument(val, documentOf(settled()))) {
+        pending.current = undefined;
+        setLocalValue(val);
+        return;
+      }
       pending.current = isEqual(undefined, settled()) ? undefined : { edit: undefined };
       setLocalValue(undefined);
       return;
     }
-    pending.current = isEqual(val, settled()) ? undefined : { edit: val };
+    pending.current = sameDocument(val, documentOf(settled())) ? undefined : { edit: val };
     setLocalValue(val);
   };
 
