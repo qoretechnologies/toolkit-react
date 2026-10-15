@@ -4,6 +4,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
+import { usePendingEdit } from '../pendingEdit';
 // Const-only usage at render time — the cycle (Number → TemplateField → Number)
 // is safe the same way Field → AutoFormField → Field is.
 import { TemplateBrowser } from '../template/TemplateBrowser';
@@ -62,10 +63,21 @@ export const NumberFormField = ({
   // over the local value lost what was typed since. See `EmittedValues`.
   const emitted = useEmittedValues<number | string | undefined>();
 
+  /* What is typed and not yet reported: the pause below dies with the field, and Done closes the field
+     inside it. See `usePendingEdit`. */
+  const pending = usePendingEdit<number | string>((next) => {
+    if (next !== emitted.settled(value)) {
+      emitted.record(next);
+      onChange?.(next);
+    }
+  });
+
   useEffect(() => {
     if (emitted.isEcho(value)) {
       return;
     }
+    // the parent has a value of its own: what was typed before it is no edit to send any more
+    pending.release();
     if (value !== localValue) {
       setText(value === undefined || value === null ? '' : String(value));
     }
@@ -73,6 +85,7 @@ export const NumberFormField = ({
 
   useDebounce(
     () => {
+      pending.release();
       if (localValue !== emitted.settled(value)) {
         emitted.record(localValue);
         onChange?.(localValue);
@@ -82,9 +95,16 @@ export const NumberFormField = ({
     [localValue, onChange]
   );
 
-  const handleChange = useCallback((rawValue: number | string): void => {
-    setText(String(rawValue));
-  }, []);
+  /** What the field will report for this text: the number it writes, or the text when it writes none. */
+  const reportedFor = (raw: string) => (raw === '' ? '' : typedNumber(raw, type));
+
+  const handleChange = useCallback(
+    (rawValue: number | string): void => {
+      setText(String(rawValue));
+      pending.hold(reportedFor(String(rawValue)));
+    },
+    [pending, type]
+  );
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>): void => {
@@ -95,9 +115,10 @@ export const NumberFormField = ({
 
   const handleResetClick = useCallback((): void => {
     setText('0');
+    pending.release();
     emitted.record(0);
     onChange?.(0);
-  }, [onChange]);
+  }, [onChange, pending]);
 
   const focusRules = useMemo(
     () =>
@@ -110,7 +131,13 @@ export const NumberFormField = ({
     [autoFocus]
   );
 
-  const handleItemSelect = useCallback((item) => setText(String(item.value)), []);
+  const handleItemSelect = useCallback(
+    (item) => {
+      setText(String(item.value));
+      pending.hold(reportedFor(String(item.value)));
+    },
+    [pending, type]
+  );
 
   // The schema's bounds are the form's to check (a text input has no min or max); they are named in the
   // props only to keep them off the DOM node.

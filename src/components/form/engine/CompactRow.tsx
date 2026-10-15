@@ -28,6 +28,7 @@ import { hasAllDependenciesFullfilled, parseDependency } from '../../../helpers/
 import { findTemplate, isValueTemplate } from '../../../helpers/templates';
 import { getDefaultValue, richtextToSegments, richtextToString } from '../../../helpers/common';
 import { hasTemplateText, templateTextSegments } from '../../../helpers/templateText';
+import { PendingEditsContext, usePendingEdits } from '../fields/pendingEdit';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
 import { TemplateText } from '../fields/template/TemplateText';
 import { describeCodeSize, formatCodeChars, formatCodeLines } from '../../codeSize';
@@ -997,15 +998,22 @@ export const CompactRow = memo(
       !!editEntryValue.current &&
       !isEqual(editEntryValue.current.value, optionField?.value);
 
+    // What this row's own editor has typed and not yet reported: its fields report after a pause, and the
+    // row closing takes the pause with it. Done sends it before the row closes; Cancel and Escape drop it
+    // (see `usePendingEdit`).
+    const pendingEdits = usePendingEdits();
+
     // Discard whatever was typed since the field was opened and close it. Used
     // by both the Cancel button and Escape, so the two cannot diverge.
     const cancelEdit = React.useCallback(() => {
+      // an edit still waiting for its pause is part of what is discarded
+      pendingEdits.discard();
       const snapshot = editEntryValue.current;
       if (snapshot && !isEqual(snapshot.value, optionField?.value)) {
         handleValueChange(optionName, snapshot.value, snapshot.type);
       }
       toggleExpandedOption(optionName);
-    }, [handleValueChange, optionField?.value, optionName, toggleExpandedOption]);
+    }, [handleValueChange, optionField?.value, optionName, toggleExpandedOption, pendingEdits]);
 
     // The sub-schema describing this field's value, when it has one. A value the
     // form knows the shape of is previewed THROUGH that shape (see
@@ -1205,7 +1213,11 @@ export const CompactRow = memo(
         icon={isPassiveCloseAction ? 'CloseLine' : 'CheckLine'}
         aria-label={isPassiveCloseAction ? 'Close field' : 'Done'}
         tooltip={isPassiveCloseAction ? 'Close field' : 'Done'}
-        onClick={() => toggleExpandedOption(optionName)}
+        onClick={() => {
+          // what was typed inside the field's pause reaches the form before the row closes
+          pendingEdits.flush();
+          toggleExpandedOption(optionName);
+        }}
       />
     );
 
@@ -1485,7 +1497,11 @@ export const CompactRow = memo(
 
     if (isExpanded && !readOnly) {
       if (inlineEditable) {
-        const collapse = () => toggleExpandedOption(optionName);
+        // closing the row by its label keeps what was typed, as Done does
+        const collapse = () => {
+          pendingEdits.flush();
+          toggleExpandedOption(optionName);
+        };
         const editingRow = (
           <div
             key={optionName}
@@ -1596,7 +1612,9 @@ export const CompactRow = memo(
                   are other fields, which this row did not open. */}
               <RowOpenPickerContext.Provider value={openThePicker}>
                 <RowMenuContext.Provider value={rowMenu}>
-                  {renderOption(optionName, optionField, 'small', true)}
+                  <PendingEditsContext.Provider value={pendingEdits}>
+                    {renderOption(optionName, optionField, 'small', true)}
+                  </PendingEditsContext.Provider>
                 </RowMenuContext.Provider>
               </RowOpenPickerContext.Provider>
               {/* Why a value already right is still in this box: an open field stays where it was opened
@@ -1665,7 +1683,9 @@ export const CompactRow = memo(
                   shortDescription={schema?.short_desc}
                   longDescriptionShownByDefault
                 />
-                {renderOption(optionName, optionField)}
+                <PendingEditsContext.Provider value={pendingEdits}>
+                  {renderOption(optionName, optionField)}
+                </PendingEditsContext.Provider>
               </FocusedEditing>
             : null}
           </StyledColumn>
@@ -1854,7 +1874,9 @@ export const CompactRow = memo(
                 />
               : null}
               <RowMenuContext.Provider value={rowMenu}>
-                {renderOption(optionName, optionField)}
+                <PendingEditsContext.Provider value={pendingEdits}>
+                  {renderOption(optionName, optionField)}
+                </PendingEditsContext.Provider>
               </RowMenuContext.Provider>
             </FocusedEditing>
           </div>

@@ -9,6 +9,7 @@ import { isEqual } from 'lodash';
 import { KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
+import { usePendingEdit } from '../pendingEdit';
 import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { flattenToSingleLine, hasLineBreak } from '../../../../helpers/singleLineString';
 import {
@@ -164,10 +165,24 @@ export const RichTextFormField = memo(({
      them away. See `EmittedValues`. */
   const emitted = useEmittedValues<unknown>(isEqual);
 
+  /* The edit the debounce below has yet to send. The field can go away before it fires - a value's tab
+     switched, a row closed, right after a pick - and the edit went with it (qorus#646): a read-first row's
+     Done sends it before the row closes, Cancel and Escape drop it, and any other way out sends it (see
+     `usePendingEdit`). */
+  type TEdit = string | IReqoreRichTextEditorProps['value'];
+  const pendingEdit = usePendingEdit<TEdit>((edit) => {
+    emitted.record(edit);
+    onChange?.(edit);
+  });
+  const setPending = (next: { edit: TEdit } | undefined) =>
+    next ? pendingEdit.hold(next.edit) : pendingEdit.release();
+
   useEffect(() => {
     if (emitted.isEcho(isText ? String(value ?? '') : value)) {
       return;
     }
+    // the parent has a value of its own: what was typed before it is no edit to send any more
+    pendingEdit.release();
     if (isText) {
       const text = String(value ?? '');
       if (text !== lastTextRef.current) {
@@ -182,16 +197,9 @@ export const RichTextFormField = memo(({
     }
   }, [JSON.stringify(value)]);
 
-  /* The edit the debounce below has yet to send, and how to send it. The field can go away before it fires -
-     a value's tab switched, a row closed, right after a pick - and the edit went with it (qorus#646): it is
-     sent on the way out instead. */
-  const pending = useRef<{ edit: string | IReqoreRichTextEditorProps['value'] } | undefined>(undefined);
-  const latestOnChange = useRef(onChange);
-  latestOnChange.current = onChange;
-
   useDebounce(
     () => {
-      pending.current = undefined;
+      pendingEdit.release();
       if (isText) {
         if (lastTextRef.current !== emitted.settled(String(value ?? ''))) {
           emitted.record(lastTextRef.current);
@@ -220,15 +228,6 @@ export const RichTextFormField = memo(({
   /** The text as an edit to send, or nothing where it is what the host will hold. */
   const changedFrom = (text: string) => (text === settled() ? undefined : { edit: text });
 
-  useEffect(
-    () => () => {
-      if (pending.current) {
-        latestOnChange.current?.(pending.current.edit);
-      }
-    },
-    []
-  );
-
   const handleChange = (val: any): void => {
     if (isText) {
       const text = templateNodesToText(val);
@@ -236,27 +235,27 @@ export const RichTextFormField = memo(({
       // stopped below. Flattened text is shown as the one line it now is.
       if (singleLine && hasLineBreak(text)) {
         lastTextRef.current = flattenToSingleLine(text);
-        pending.current = changedFrom(lastTextRef.current);
+        setPending(changedFrom(lastTextRef.current));
         setLocalValue(templateTextToNodes(lastTextRef.current, naming, templateToken));
         return;
       }
       lastTextRef.current = text;
-      pending.current = changedFrom(text);
+      setPending(changedFrom(text));
       setLocalValue(val);
       return;
     }
     if (JSON.stringify(val) === '[{"type":"paragraph","children":[{"text":""}]}]') {
       // the empty text a held '' stands for is no edit of it (a click into the field reports it)
       if (sameDocument(val, documentOf(settled()))) {
-        pending.current = undefined;
+        setPending(undefined);
         setLocalValue(val);
         return;
       }
-      pending.current = isEqual(undefined, settled()) ? undefined : { edit: undefined };
+      setPending(isEqual(undefined, settled()) ? undefined : { edit: undefined });
       setLocalValue(undefined);
       return;
     }
-    pending.current = sameDocument(val, documentOf(settled())) ? undefined : { edit: val };
+    setPending(sameDocument(val, documentOf(settled())) ? undefined : { edit: val });
     setLocalValue(val);
   };
 

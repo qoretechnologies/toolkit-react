@@ -22,6 +22,10 @@ export * from './fields/rich-text/RichText';
 // change: a host's own field (the Qorus IDE's rich text) tracks its reports as reqraft's own fields do.
 export { EmittedValues, useEmittedValues } from './fields/emittedValues';
 export type { TEmittedValuesEquals } from './fields/emittedValues';
+// The edit a debounced field has not reported yet, kept for whoever closes its editor: a read-first row's Done
+// sends it, Cancel and Escape drop it. A host's own field (the Qorus IDE's rich text) takes part as reqraft's do.
+export { usePendingEdit } from './fields/pendingEdit';
+export type { IPendingEdit } from './fields/pendingEdit';
 export * from './fields/select/Select';
 export * from './fields/select/SelectCollection';
 export * from './fields/string/String';

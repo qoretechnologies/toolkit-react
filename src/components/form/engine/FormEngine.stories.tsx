@@ -1104,6 +1104,64 @@ export const CompactRowCancelEdit: Story = {
   },
 };
 
+export const DoneStraightAfterTypingKeepsTheEdit: Story = {
+  parameters: {
+    /* Nothing to SEE in the end frame - two filled rows; what this pins is that they are filled at all. */
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with a required text field and a required number field. Each is opened, typed into and closed with Done at once, inside the pause after which a field reports what is typed. Each row reads what was typed, and the form counts both as set (qorus#646: Done used to close the field with the edit still waiting, and the edit was lost).',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {},
+    options: {
+      name: {
+        type: 'string',
+        ui_type: 'string',
+        display_name: 'Name',
+        required: true,
+        sort: 1,
+      },
+      port: {
+        type: 'int',
+        ui_type: 'int',
+        display_name: 'Port',
+        required: true,
+        sort: 2,
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const row = (field: string) =>
+      canvasElement.querySelector<HTMLElement>(`[data-field="${field}"]`);
+    const typeAndDone = async (field: string, text: string) => {
+      await waitFor(() => expect(row(field)).toBeTruthy());
+      fireEvent.click(row(field)!);
+      const control = await waitFor(() => {
+        const el = canvasElement.querySelector<HTMLInputElement>(
+          `[data-field="${field}"] input, [data-field="${field}"] textarea`
+        );
+        expect(el).toBeTruthy();
+        return el!;
+      });
+      // typed and closed with nothing in between: the field has not reported it yet
+      fireEvent.change(control, { target: { value: text } });
+      fireEvent.click(canvasElement.querySelector<HTMLElement>('.options-readfirst-done')!);
+      await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeNull());
+      await expect(row(field)!.textContent).toContain(text);
+    };
+    await typeAndDone('name', 'production');
+    await typeAndDone('port', '1883');
+    await expect(canvasElement.textContent).not.toContain('This field is required');
+    await waitFor(() => expect(canvasElement.textContent).toContain('2/2 set'));
+  },
+};
+
 export const CompactRowSaysWhereItMoves: Story = {
   parameters: {
     /* Nothing to SEE in the end frame: the note this story asserts is shown only while the field is open,

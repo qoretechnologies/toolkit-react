@@ -13,6 +13,7 @@ import { recordIdentity } from '../../engine/readFirst';
 import React, { Fragment, memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
+import { usePendingEdit } from '../pendingEdit';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 
 export interface IArrayAutoFieldProps {
@@ -82,15 +83,35 @@ export const ArrayAutoField = memo(
     // over the local list lost what was edited since. See `EmittedValues`.
     const emitted = useEmittedValues<unknown>(isEqual);
 
+    /* What is edited and not yet reported: the pause below dies with the field, and Done closes the field
+       inside it. See `usePendingEdit`. */
+    const pending = usePendingEdit<typeof localValue>((next) => {
+      if (!isEqual(next, emitted.settled(value))) {
+        emitted.record(next);
+        onChange(name, next);
+      }
+    });
+
     useEffect(() => {
       if (emitted.isEcho(value)) {
         return;
       }
+      // the parent has a value of its own: what was edited before it is no edit to send any more
+      pending.release();
       setLocalValue(value);
     }, [JSON.stringify(value)]);
 
+    useEffect(() => {
+      if (!isEqual(localValue, emitted.settled(value))) {
+        pending.hold(localValue);
+      } else {
+        pending.release();
+      }
+    }, [JSON.stringify(localValue)]);
+
     useDebounce(
       () => {
+        pending.release();
         emitted.record(localValue);
         onChange(name, localValue);
       },

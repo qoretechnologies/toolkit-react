@@ -42,6 +42,14 @@ checklist the IDE-integration PR ticks off so that can't happen.
   from a render, `settled` for what the parent will hold. Which values are the same is the caller's `equals`
   (default `Object.is`, under which `''`, `undefined`, `null` and an empty document all differ); the IDE's rich
   text passes one that reads them as one empty value (qorus-ide f1c58c2d0).
+- A host's own debounced field keeps the edit it has not reported yet for whoever closes its editor:
+  `usePendingEdit(send)` (and the `IPendingEdit` type) is exported from the package root. `hold(value)` where
+  the edit is typed, `release()` where it is reported at once, by the pause or by a clear, and where a value
+  from outside replaces it; `send` is called with what is held, and decides itself whether it is still a
+  change. A read-first row's Done (and closing the row by its label) sends it before the row closes, Cancel
+  and Escape drop it, and any other way out sends it as the field goes away. Without it, a value typed and Done
+  pressed inside the field's pause was lost: the pause's timer died with the field (qorus#646; story
+  _Form/Engine/FormEngine › Done Straight After Typing Keeps The Edit_).
 - Most seams are story-tested in reqraft EXCEPT `componentOverrides`,
   which has no coverage yet — worth a seam smoke-test before the IDE
   relies on it. *Revised 2026-09-07:* this used to point at B3 in
