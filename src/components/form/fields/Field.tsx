@@ -9,6 +9,7 @@ import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { IQorusAllowedValue, IQorusFormFieldSchemaBase, IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { isEqual, size } from 'lodash';
 import { useId } from 'react';
+import { useReadableOpacity } from '../../../hooks/useReadableOpacity';
 import { typedToYaml } from '../../../helpers/common';
 import { useDescriptionTooltips } from '../../../helpers/descriptionTooltip';
 import { besideItsInfo, describedControl } from '../../Description/describedControl';
@@ -153,6 +154,8 @@ export const FormField = <T extends TFormFieldType>({
   options, // eslint-disable-line @typescript-eslint/no-unused-vars
   ...rest
 }: IFormFieldProps<T>) => {
+  // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+  const unavailableOpacity = useReadableOpacity(0.55);
   const id = useId();
   const { schema: finalArgSchema, loading: argSchemaLoading } = useArgSchema(arg_schema);
   // a choice's description card: drawn as markdown, opened by a tap on touch (`descriptionTooltip`)
@@ -697,7 +700,7 @@ export const FormField = <T extends TFormFieldType>({
                    never appeared at all. And the NAME is the right thing to
                    dim: `description` carries the reason, and a reason has to
                    stay readable. Same rule the collection rows follow. */
-                labelEffect={unavailable ? { opacity: 0.55 } : undefined}
+                labelEffect={unavailable ? { opacity: unavailableOpacity } : undefined}
                 /* `cursor: not-allowed` from reqore's own `ReadOnlyElement`
                    rather than a hand-rolled inline style. It leaves the
                    pointer events intact, which is what the tooltip is read

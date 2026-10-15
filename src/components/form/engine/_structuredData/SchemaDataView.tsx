@@ -14,6 +14,7 @@ import {
 import { IRichtextSegment } from '../../../../helpers/common';
 import { templateTextSegments } from '../../../../helpers/templateText';
 import React from 'react';
+import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import styled from 'styled-components';
 import { useContextSelector } from 'use-context-selector';
 import { CompactRowContext } from '../compactRowContext';
@@ -216,11 +217,11 @@ const StyledItemFields = styled.div<{ $border: string; $rule: boolean }>`
  * case-sensitive — a service method is `onOrderStatus`, not `ONORDERSTATUS` —
  * and the item heading is a value.
  */
-const StyledFieldLabel = styled(StyledRowLabel)`
+const StyledFieldLabel = styled(StyledRowLabel)<{ $opacity: number }>`
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  opacity: 0.55;
+  opacity: ${({ $opacity }) => $opacity};
 `;
 
 const StyledFields = styled.div`
@@ -502,6 +503,8 @@ const SchemaRecord = ({
   // deep, and the renderer is a property of the form, not of any one level.
   const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
   const cHover = useContextSelector(CompactRowContext, (v) => v.cHover);
+  // a field's name, softer than its value: as soft as it still reads (qorus#646)
+  const labelOpacity = useReadableOpacity(0.55);
 
   return (
     <StyledFields className='schema-view-fields'>
@@ -536,7 +539,7 @@ const SchemaRecord = ({
             return (
               <React.Fragment key={key}>
                 <StyledNestedLabel>
-                  <StyledFieldLabel $color={colors.key}>{labelWithType}</StyledFieldLabel>
+                  <StyledFieldLabel $color={colors.key} $opacity={labelOpacity}>{labelWithType}</StyledFieldLabel>
                 </StyledNestedLabel>
                 <StyledNested $border={colors.border}>
                   <SchemaLevel
@@ -559,7 +562,7 @@ const SchemaRecord = ({
             return (
               <React.Fragment key={key}>
                 <StyledNestedLabel>
-                  <StyledFieldLabel $color={colors.key}>{labelWithType}</StyledFieldLabel>
+                  <StyledFieldLabel $color={colors.key} $opacity={labelOpacity}>{labelWithType}</StyledFieldLabel>
                 </StyledNestedLabel>
                 <StyledCodeCell onClick={(event) => event.stopPropagation()}>
                   <ReqoreCollapsibleContent
@@ -591,7 +594,7 @@ const SchemaRecord = ({
 
           return (
             <React.Fragment key={key}>
-              <StyledFieldLabel $color={colors.key} title={label}>
+              <StyledFieldLabel $color={colors.key} $opacity={labelOpacity} title={label}>
                 {labelWithType}
               </StyledFieldLabel>
               <FieldValue

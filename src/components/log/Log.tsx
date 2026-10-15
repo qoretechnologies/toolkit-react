@@ -11,6 +11,12 @@ import { IReqoreParagraphProps } from '@qoretechnologies/reqore/dist/components/
 import count from 'lodash/size';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useScroll } from 'react-use';
+import { READABLE_ICON } from '../../helpers/readableColors';
+import { useReadableIntentShade } from '../../hooks/useReadableIntentShade';
+import { useReadableOpacity } from '../../hooks/useReadableOpacity';
+
+/** How faded reqore draws a panel's title icon. */
+const PANEL_TITLE_ICON_ALPHA = 0.7;
 import {
   IReqraftWebSocketMessage,
   IUseReqraftWebSocketOptions,
@@ -72,6 +78,8 @@ export const ReqraftLog = ({
   size = 'small',
   ...panelProps
 }: IReqraftLogProps) => {
+  // a message's time, softer than the message: as soft as it still reads (main:lighten:8 was 2.6:1; qorus#646)
+  const timestampOpacity = useReadableOpacity(0.35);
   const [query, setQuery] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [contentRef, setContentRef] = useState<HTMLDivElement | null>(null);
@@ -99,6 +107,16 @@ export const ReqraftLog = ({
       ...socketOptions,
     },
     defaultMessages
+  );
+  /* the connection's state, as a dot in the title: its intent in a shade that stands out where reqore draws a
+     panel's title icon, at 70% (the success green was 2.1:1) */
+  const statusColor = useReadableIntentShade(
+    status === 'CLOSED' ? 'danger'
+    : status === 'CONNECTING' ? 'pending'
+    : status === 'PAUSED' ? 'warning'
+    : 'success',
+    READABLE_ICON,
+    PANEL_TITLE_ICON_ALPHA
   );
 
   const filteredMessages = useMemo(
@@ -148,14 +166,7 @@ export const ReqraftLog = ({
       getContentRef={setContentRef}
       {...panelProps}
       icon='CheckboxBlankCircleFill'
-      iconColor={
-        status === 'CLOSED' ? 'danger'
-        : status === 'CONNECTING' ?
-          'pending'
-        : status === 'PAUSED' ?
-          'warning'
-        : 'success'
-      }
+      iconColor={statusColor}
       actions={[
         {
           icon: 'ArrowDownLine',
@@ -210,7 +221,7 @@ export const ReqraftLog = ({
                 <ReqoreParagraph
                   size={size}
                   style={{ fontFamily: 'monospace', flexShrink: 0 }}
-                  customTheme={{ text: { color: 'main:lighten:8' } }}
+                  effect={{ opacity: timestampOpacity }}
                 >
                   {timestamp}
                 </ReqoreParagraph>

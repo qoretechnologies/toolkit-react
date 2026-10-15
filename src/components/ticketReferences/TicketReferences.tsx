@@ -15,6 +15,7 @@ import { TReqoreEffectColor } from '@qoretechnologies/reqore/dist/components/Eff
 import type { IReqoreEntityRowAction } from '@qoretechnologies/reqore/dist/components/EntityRow';
 import type { IReqorePanelSubAction } from '@qoretechnologies/reqore/dist/components/Panel';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useReadableOpacity } from '../../hooks/useReadableOpacity';
 import timeago from 'epoch-timeago';
 import { SearchFilterBar } from '../searchFilterBar';
 import styled from 'styled-components';
@@ -214,7 +215,9 @@ const dedupeRefs = (refs: IResolvedInterfaceReference[]): IResolvedInterfaceRefe
   return Array.from(byKey.values());
 };
 
-const META_EFFECT = { textSize: 'small', opacity: 0.55 } as const;
+/* A row's kind and provenance, smaller. Not faded here: the entity row already draws its metadata softer than its
+   name, and fading it again on top took it to 2.3:1 (qorus#646). */
+const META_EFFECT = { textSize: 'small' } as const;
 
 // ---------------------------------------------------------------------------
 // image URLs — fetch every screenshot's bytes once as an object URL, cached, and
@@ -311,6 +314,8 @@ const ThumbTile = styled.div`
 `;
 
 const Thumb = styled.button`
+  /* the page's text color, not a button's default (black): the name drawn while the image loads read 1.1:1 */
+  color: inherit;
   appearance: none;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
@@ -365,50 +370,55 @@ const Screenshot = ({
   url: string | null | undefined;
   onOpen: () => void;
   menu?: IReqorePanelSubAction[];
-}) => (
-  <ThumbTile>
-    <Thumb type='button' title={att.filename} onClick={onOpen}>
-      {url ?
-        <img src={url} alt={att.filename} />
-      : <ReqoreSpan effect={{ opacity: 0.5, textSize: 'small' }}>
-          {url === null ? att.filename : '…'}
-        </ReqoreSpan>
-      }
-      <ThumbCaption>{att.filename}</ThumbCaption>
-    </Thumb>
-    {/* One action doesn't earn a menu. With a single entry the overlay IS that
+}) => {
+  // the name drawn while the image loads, softer: as soft as it still reads
+  const placeholderOpacity = useReadableOpacity(0.5);
+
+  return (
+    <ThumbTile>
+      <Thumb type='button' title={att.filename} onClick={onOpen}>
+        {url ?
+          <img src={url} alt={att.filename} />
+        : <ReqoreSpan effect={{ opacity: placeholderOpacity, textSize: 'small' }}>
+            {url === null ? att.filename : '…'}
+          </ReqoreSpan>
+        }
+        <ThumbCaption>{att.filename}</ThumbCaption>
+      </Thumb>
+      {/* One action doesn't earn a menu. With a single entry the overlay IS that
         action, so a tile and a file row offer the same thing the same way instead of
         hiding a download behind a caret on one surface and not the other. */}
-    {menu?.length === 1 ?
-      <ReqoreButton
-        className='screenshot-menu'
-        icon={menu[0].icon}
-        tooltip={menu[0].label as string}
-        size='small'
-        flat
-        minimal
-        fixed
-        onClick={(event: React.MouseEvent<HTMLElement>) => {
-          event.stopPropagation();
-          menu[0].onClick?.(menu[0]);
-        }}
-      />
-    : menu?.length ?
-      <ReqoreDropdown
-        className='screenshot-menu'
-        icon='More2Line'
-        tooltip='More actions'
-        size='small'
-        flat
-        minimal
-        fixed
-        useTargetWidth={false}
-        items={menu}
-        onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()}
-      />
-    : null}
-  </ThumbTile>
-);
+      {menu?.length === 1 ?
+        <ReqoreButton
+          className='screenshot-menu'
+          icon={menu[0].icon}
+          tooltip={menu[0].label as string}
+          size='small'
+          flat
+          minimal
+          fixed
+          onClick={(event: React.MouseEvent<HTMLElement>) => {
+            event.stopPropagation();
+            menu[0].onClick?.(menu[0]);
+          }}
+        />
+      : menu?.length ?
+        <ReqoreDropdown
+          className='screenshot-menu'
+          icon='More2Line'
+          tooltip='More actions'
+          size='small'
+          flat
+          minimal
+          fixed
+          useTargetWidth={false}
+          items={menu}
+          onClick={(event: React.MouseEvent<HTMLElement>) => event.stopPropagation()}
+        />
+      : null}
+    </ThumbTile>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // main

@@ -294,6 +294,7 @@ export const CompactRow = memo(
     const renderOption = useContextSelector(CompactRowContext, (v) => v.renderOption);
     const theme = useContextSelector(CompactRowContext, (v) => v.theme);
     const cMuted = useContextSelector(CompactRowContext, (v) => v.cMuted);
+    const rowInks = useContextSelector(CompactRowContext, (v) => v.rowInks);
     const templates = useContextSelector(CompactRowContext, (v) => v.templates);
     const cKey = useContextSelector(CompactRowContext, (v) => v.cKey);
     const cDivider = useContextSelector(CompactRowContext, (v) => v.cDivider);
@@ -1284,7 +1285,7 @@ export const CompactRow = memo(
         <ReqoreIcon
           icon='QuestionLine'
           size='12px'
-          effect={{ opacity: 0.55 }}
+          effect={{ opacity: rowInks.helpOpacity }}
           margin='left'
           marginSize='tiny'
           role='button'
@@ -1332,12 +1333,12 @@ export const CompactRow = memo(
         : plainTextNode(m.content)}
       </ReqoreMessage>
     );
+    // in the intent's shade that reads on the row (the intents themselves did not: a danger reason was 2.7:1)
     const reasonColor = (intent?: string) =>
-      intent === 'danger' ? cDanger
-      : intent === 'warning' ? cWarning
-      : intent === 'success' ?
-        (theme?.intents as Record<string, string> | undefined)?.success || cInfo
-      : `${cMuted}cc`;
+      intent === 'danger' ? rowInks.danger
+      : intent === 'warning' ? rowInks.warning
+      : intent === 'success' ? rowInks.success
+      : rowInks.mutedReason;
 
     const infoToggle = null;
 
@@ -1473,7 +1474,7 @@ export const CompactRow = memo(
             <ReqoreP
               className='options-readfirst-label-code-size'
               size='tiny'
-              effect={{ opacity: 0.45, textAlign: 'left' }}
+              effect={{ opacity: rowInks.noteOpacity, textAlign: 'left' }}
               style={{ fontFamily: 'monospace' }}
             >
               {`${formatCodeChars(chars)} ${formatCodeLines(lines)}`}
@@ -1516,7 +1517,7 @@ export const CompactRow = memo(
               >
                 {label}
                 {required ?
-                  <ReqoreIcon icon='Asterisk' color='danger' size='10px' />
+                  <ReqoreIcon icon='Asterisk' color={rowInks.danger} size='10px' />
                 : null}
                 {helpIcon}
               </StyledRowLabel>
@@ -1528,7 +1529,7 @@ export const CompactRow = memo(
                 <StyledLabelDesc
                   className='options-readfirst-label-desc'
                   size='small'
-                  effect={{ opacity: 0.55 }}
+                  effect={{ opacity: rowInks.descOpacity }}
                 >
                   {markdownToProse(labelShortDesc)}
                 </StyledLabelDesc>
@@ -1604,7 +1605,9 @@ export const CompactRow = memo(
                 <ReqoreP
                   size='small'
                   className='options-readfirst-moves-to'
-                  intent={movesTo === 'attention' ? 'warning' : 'success'}
+                  effect={{
+                    color: movesTo === 'attention' ? rowInks.warning : rowInks.success,
+                  }}
                   style={{ marginTop: 4 }}
                 >
                   {`Moves to "${BOX_NAMES[movesTo]}" when you close it (✓)`}
@@ -1722,7 +1725,7 @@ export const CompactRow = memo(
                 <span>
                   {label}
                   {required ?
-                    <ReqoreIcon icon='Asterisk' color='danger' size='10px' />
+                    <ReqoreIcon icon='Asterisk' color={rowInks.danger} size='10px' />
                   : null}
                   {/* The `?` belongs here too. The read row and the inline
                       editor both carry it; the edit CARD did not — and the card
@@ -2293,7 +2296,7 @@ export const CompactRow = memo(
               {requiredMark ?
                 <ReqoreIcon
                   icon='Asterisk'
-                  color='danger'
+                  color={rowInks.danger}
                   size='10px'
                   margin='left'
                   marginSize='tiny'
@@ -2302,7 +2305,12 @@ export const CompactRow = memo(
               {helpIcon}
             </span>
             {typeLabel ?
-              <ReqoreTag size='tiny' minimal label={typeLabel} labelEffect={{ opacity: 0.55 }} />
+              <ReqoreTag
+                size='tiny'
+                minimal
+                label={typeLabel}
+                labelEffect={{ opacity: rowInks.descOpacity }}
+              />
             : null}
           </StyledRowLabel>
           {showLabelDesc ?
@@ -2311,7 +2319,7 @@ export const CompactRow = memo(
             <StyledLabelDesc
               className='options-readfirst-label-desc'
               size='small'
-              effect={{ opacity: 0.55 }}
+              effect={{ opacity: rowInks.descOpacity }}
             >
               {markdownToProse(labelShortDesc)}
             </StyledLabelDesc>
@@ -2321,7 +2329,7 @@ export const CompactRow = memo(
             <ReqoreP
               className='options-readfirst-label-lines'
               size='tiny'
-              effect={{ opacity: 0.45, textAlign: 'left' }}
+              effect={{ opacity: rowInks.noteOpacity, textAlign: 'left' }}
               style={{ fontFamily: 'monospace' }}
             >
               {lineCountNote}
@@ -2356,7 +2364,7 @@ export const CompactRow = memo(
           // actual data — crucial when stacked under a (muted) description on
           // mobile, where a dim value blends into the prose. The bold name still
           // outranks it; the empty dash stays faint.
-          $color={empty || hidden ? `${cMuted}66` : cKey}
+          $color={empty || hidden ? rowInks.emptyValue : cKey}
           $empty={empty || hidden}
         >
           {/* A markdown value with a host renderer draws in full in the inset

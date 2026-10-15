@@ -17,7 +17,15 @@ import { IReqoreCollectionItemProps } from '@qoretechnologies/reqore/dist/compon
 import { IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Panel';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TFieldWithOwnTemplates } from './rendererTypes';
+import { getReadFirstInks } from './readFirstColors';
+import {
+  getReadableShade,
+  getReadableTextOpacity,
+  getThemeSurfaces,
+  READABLE_ICON,
+} from '../../../helpers/readableColors';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
+import { TReqoreHexColor } from '@qoretechnologies/reqore/dist/components/Effect';
 import {
   changeDarkness,
   getMainBackgroundColor,
@@ -1220,6 +1228,8 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
 
 // Option types rendered full-width (IDE Options parity, commit 8e6b7781).
 const STRECHABLE_TYPES = new Set<TQorusType>(['tool-catalog' as TQorusType]);
+/** How faded reqore draws a panel's title icon. */
+const PANEL_TITLE_ICON_ALPHA = 0.7;
 
 const FormEngineImpl = ({
   name,
@@ -3375,6 +3385,22 @@ const FormEngineImpl = ({
   const cWarning = theme?.intents?.warning || '#ffdf34';
   const cInfo = theme?.intents?.info || '#3b8eea';
   const cSuccess = theme?.intents?.success || '#36b37e';
+  // the rows' own words and marks, in colors that read on every surface a row is drawn on
+  const rowInks = useMemo(() => getReadFirstInks(theme), [theme]);
+  // an option panel's short description, faint: as faint as it still reads in the theme
+  const optionDescOpacity = useMemo(() => getReadableTextOpacity(theme, 0.3), [theme]);
+  /* an invalid option's mark in its panel's title: the danger, in the shade of it that stands out as reqore draws a
+     title icon, at 70% (danger:lighten:5 was 2.9:1) */
+  const invalidOptionIconColor = useMemo(
+    () =>
+      getReadableShade(
+        cDanger,
+        getThemeSurfaces(theme),
+        READABLE_ICON,
+        PANEL_TITLE_ICON_ALPHA
+      ) as TReqoreHexColor,
+    [theme, cDanger]
+  );
   const cBg = (theme as { main?: string } | undefined)?.main || '#181818';
   const cRowBg = changeDarkness(getMainBackgroundColor(theme), 0.01);
   const cGroupLine = `${cText}1f`;
@@ -3461,6 +3487,7 @@ const FormEngineImpl = ({
       cWarning,
       cInfo,
       cBg,
+      rowInks,
     }),
     [
       templates.value,
@@ -3511,6 +3538,7 @@ const FormEngineImpl = ({
       cWarning,
       cInfo,
       cBg,
+      rowInks,
     ]
   );
 
@@ -3936,8 +3964,9 @@ const FormEngineImpl = ({
             $border={`${cWarning}33`}
             $tint={`${cWarning}0d`}
           >
-            <StyledRequiredClusterHeader $color={cWarning}>
-              <ReqoreIcon icon='LinkM' size='11px' style={{ color: cWarning }} />
+            {/* the words and the mark in a shade of the warning that reads on the cluster's tint */}
+            <StyledRequiredClusterHeader $color={rowInks.warning}>
+              <ReqoreIcon icon='LinkM' size='11px' style={{ color: rowInks.warning }} />
               One of the below is required
             </StyledRequiredClusterHeader>
             {railed}
@@ -4561,7 +4590,7 @@ const FormEngineImpl = ({
                 : options[optionName].short_desc || '',
               descriptionEffect: {
                 textSize: '11px',
-                opacity: 0.3,
+                opacity: optionDescOpacity,
                 underline: options[optionName]?.desc ? 'underline dotted #878787' : undefined,
               },
               customTheme: {
@@ -4573,7 +4602,7 @@ const FormEngineImpl = ({
                 : undefined,
               iconColor:
                 !isOptionValid(optionName, type as TQorusType, (other as any).value) ?
-                  'danger:lighten:5'
+                  invalidOptionIconColor
                 : undefined,
               transparent: false,
               intent: getIntent(

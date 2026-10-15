@@ -3,6 +3,9 @@ import { compact, uniq } from 'lodash';
 import { argumentMatchesType, getArgumentType } from '../../../../helpers/expressions';
 import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
+import { useReadableIntentShade } from '../../../../hooks/useReadableIntentShade';
+import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
+import { READABLE_ICON } from '../../../../helpers/readableColors';
 import { IExpression, IExpressionSchema, IExpressionSchemaArg, IExpressionValue } from '../types';
 import { useExpressionType } from '../useExpressionType';
 
@@ -21,6 +24,12 @@ export const ExpressionBuilderArgumentLabel = ({
   expressions,
   type,
 }: IExpressionBuilderArgumentLabelProps) => {
+  // the type and the hint after a name, light and softer: as soft as they still read (qorus#646)
+  const hintOpacity = useReadableOpacity(0.5);
+  // the marks beside a name - invalid, required, the wrong type, a type that fits - in shades that stand out
+  const dangerMark = useReadableIntentShade('danger', READABLE_ICON);
+  const warningMark = useReadableIntentShade('warning', READABLE_ICON);
+  const pendingMark = useReadableIntentShade('pending', READABLE_ICON);
   const types = useQorusTypes();
   // an expression's type is the server's (getArgumentType reads it); this re-renders the label when it arrives
   useExpressionType(arg?.is_expression ? (arg.value as IExpressionValue) : undefined);
@@ -75,7 +84,9 @@ export const ExpressionBuilderArgumentLabel = ({
         weight: 'thick',
       }}
     >
-      {!isValid && <ReqoreIcon icon='ErrorWarningLine' color='danger' size='10px' margin='right' />}
+      {!isValid && (
+        <ReqoreIcon icon='ErrorWarningLine' color={dangerMark} size='10px' margin='right' />
+      )}
       {schema.display_name && (
         <ReqoreSpan
           effect={{
@@ -93,19 +104,19 @@ export const ExpressionBuilderArgumentLabel = ({
           {schema.display_name}
         </ReqoreSpan>
       )}{' '}
-      {schema.required && <ReqoreIcon icon='Asterisk' color='danger' size='10px' />} {label}
+      {schema.required && <ReqoreIcon icon='Asterisk' color={dangerMark} size='10px' />} {label}
       <ReqoreSpan
         effect={{
           italic: true,
           weight: 'light',
-          opacity: 0.5,
+          opacity: hintOpacity,
         }}
       >
         {'['}
         {types.getTypeDisplayName(schema.ui_type)}
       </ReqoreSpan>
       {!matchesType ? (
-        <ReqoreIcon icon='ErrorWarningLine' color='warning' size='10px' margin='both' />
+        <ReqoreIcon icon='ErrorWarningLine' color={warningMark} size='10px' margin='both' />
       ) : null}
       {(argumentType || (arg?.is_expression && arg.value?.exp)) &&
       types.getTypeDisplayName(argumentType) !== types.getTypeDisplayName(schema.ui_type) &&
@@ -114,7 +125,7 @@ export const ExpressionBuilderArgumentLabel = ({
           {matchesType ? (
             <ReqoreIcon
               icon='CheckLine'
-              color='pending'
+              color={pendingMark}
               size='10px'
               margin='both'
               tooltip='The type fits; Qorus may convert the value'
@@ -147,7 +158,7 @@ export const ExpressionBuilderArgumentLabel = ({
         effect={{
           italic: true,
           weight: 'light',
-          opacity: 0.5,
+          opacity: hintOpacity,
         }}
       >
         {']'}

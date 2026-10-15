@@ -1,4 +1,5 @@
 import { IReqoreTheme } from '@qoretechnologies/reqore/dist/constants/theme';
+import type { IReadFirstInks } from './readFirstColors';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { useReqoreProperty } from '@qoretechnologies/reqore';
 import {
@@ -160,6 +161,8 @@ export interface ICompactRowContext {
   cWarning: string;
   cInfo: string;
   cBg: string;
+  /** The rows' own words and marks in colors that read on every surface a row is drawn on. */
+  rowInks: IReadFirstInks;
 }
 
 export const CompactRowContext = createContext<ICompactRowContext>({} as ICompactRowContext);

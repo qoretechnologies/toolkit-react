@@ -10,6 +10,8 @@ import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { thinScrollbar } from '../../helpers/scrollbar';
 import { usePhoneViewport } from '../../hooks/usePhoneViewport';
+import { useReadableOpacity } from '../../hooks/useReadableOpacity';
+import { READABLE_ICON } from '../../helpers/readableColors';
 import {
   defaultInterfaceIcon,
   defaultInterfaceKindLabel,
@@ -59,6 +61,9 @@ const BORDER = 'rgba(123, 104, 238, 0.25)';
  * list to say what the interfaces on the right are. Quiet, but pickable.
  */
 const DIMMED_CLASS = 'reqore-reference-picker-dimmed';
+/* How far such a row is dimmed, at most; reqore draws a row's icon at 70% of it. */
+const DIMMED_OPACITY = 0.35;
+const BUTTON_ICON_ALPHA = 0.7;
 /*
  * Marks an already-referenced row. Reqore paints `selected` purely through styled
  * props — no class, no aria state — so "is this row picked" is unobservable from the
@@ -104,7 +109,7 @@ const Nested = styled.div`
   border-left: 1px solid ${BORDER};
 `;
 
-const Frame = styled.div<{ $bare?: boolean }>`
+const Frame = styled.div<{ $bare?: boolean; $dimmedOpacity: number }>`
   ${({ $bare }) => ($bare ? '' : `border: 1px solid ${BORDER}; border-radius: 8px;`)}
   overflow: hidden;
 
@@ -112,7 +117,7 @@ const Frame = styled.div<{ $bare?: boolean }>`
      stated once, and on the row itself (not a wrapper) so it can't disturb the
      menu's own flex layout. */
   .${DIMMED_CLASS} {
-    opacity: 0.35;
+    opacity: ${({ $dimmedOpacity }) => $dimmedOpacity};
   }
 `;
 
@@ -146,8 +151,8 @@ const Search = styled.div<{ $accent: string; $active?: boolean }>`
   }
 `;
 
-const Note = styled.div`
-  opacity: 0.4;
+const Note = styled.div<{ $opacity: number }>`
+  opacity: ${({ $opacity }) => $opacity};
   padding: 8px 6px;
   font-size: 12px;
 `;
@@ -311,6 +316,19 @@ export const ReferencePicker = ({
   presentation = 'auto',
 }: IReferencePickerProps) => {
   const [query, setQuery] = useState<string>('');
+  // the "nothing matches" note, faint: as faint as it still reads (0.4 was 3.6:1; qorus#646)
+  const noteOpacity = useReadableOpacity(0.4);
+  /* a kind the search doesn't match, dimmed as far as its name still reads and its icon - which reqore draws at
+     70% - still stands out (0.35 left the icon at 2.0:1) */
+  const dimmedNameOpacity = useReadableOpacity(DIMMED_OPACITY);
+  const dimmedIconOpacity = useReadableOpacity(DIMMED_OPACITY * BUTTON_ICON_ALPHA, READABLE_ICON);
+  const dimmedOpacity = Math.min(
+    1,
+    Math.max(
+      dimmedNameOpacity,
+      Math.ceil((dimmedIconOpacity / BUTTON_ICON_ALPHA) * 100 - 1e-9) / 100
+    )
+  );
   const needle = query.trim().toLowerCase();
 
   const [frameRef, narrow] = useIsNarrow(layout === 'auto');
@@ -460,7 +478,7 @@ export const ReferencePicker = ({
     }
 
     if (!visibleItems.length) {
-      return <Note>{emptyNote()}</Note>;
+      return <Note $opacity={noteOpacity}>{emptyNote()}</Note>;
     }
 
     return (
@@ -508,7 +526,7 @@ export const ReferencePicker = ({
   const splitAt = selectedIndex === -1 ? visibleKinds.length : selectedIndex + 1;
 
   const body = (
-    <Frame ref={frameRef} $bare={asModal}>
+    <Frame ref={frameRef} $bare={asModal} $dimmedOpacity={dimmedOpacity}>
       {header}
       <Search $accent={accent} $active={!!needle}>
         <ReqoreInput

@@ -46,6 +46,7 @@ import {
   ICatalogLeafFormNameField,
 } from './CatalogLeafForm';
 import { moveItem } from '../../../../helpers/common';
+import { getReadableTextOpacity } from '../../../../helpers/readableColors';
 import {
   removeKey,
   renameKey,
@@ -138,11 +139,11 @@ const MonoText = styled.span<{ $color: string }>`
 const renderCell = (
   leaf: ICatalogLeaf,
   value: unknown,
-  mono: { color: string; bg: string }
+  mono: { color: string; bg: string; faint: number }
 ): ReactNode => {
   if (value === undefined || value === null || value === '') {
     return (
-      <ReqoreP size='small' effect={{ opacity: 0.3 }}>
+      <ReqoreP size='small' effect={{ opacity: mono.faint }}>
         —
       </ReqoreP>
     );
@@ -428,6 +429,11 @@ const CatalogMapEditor = memo(
       () => ({
         color: getReadableColor(theme, undefined, undefined, true),
         bg: `${getReadableColor(theme)}14`,
+        // an empty cell's dash, faint: as faint as it still reads (qorus#646)
+        faint: getReadableTextOpacity(theme, 0.3),
+        // a note ("No … defined yet") and an item's number: softer, as far as they still read
+        soft: getReadableTextOpacity(theme, 0.5),
+        index: getReadableTextOpacity(theme, 0.55),
       }),
       [theme]
     );
@@ -492,7 +498,7 @@ const CatalogMapEditor = memo(
     return (
       <ReqoreControlGroup vertical fluid gapSize='normal'>
         {rows.length === 0 ? (
-          <ReqoreP size='small' effect={{ opacity: 0.5 }}>
+          <ReqoreP size='small' effect={{ opacity: mono.soft }}>
             No {title.toLowerCase()} defined yet.
           </ReqoreP>
         ) : (
@@ -577,6 +583,11 @@ const CatalogListEditor = memo(
       () => ({
         color: getReadableColor(theme, undefined, undefined, true),
         bg: `${getReadableColor(theme)}14`,
+        // an empty cell's dash, faint: as faint as it still reads (qorus#646)
+        faint: getReadableTextOpacity(theme, 0.3),
+        // a note ("No … defined yet") and an item's number: softer, as far as they still read
+        soft: getReadableTextOpacity(theme, 0.5),
+        index: getReadableTextOpacity(theme, 0.55),
       }),
       [theme]
     );
@@ -610,7 +621,7 @@ const CatalogListEditor = memo(
           align: 'center',
           cell: {
             content: (data) => (
-              <ReqoreP size='small' effect={{ opacity: 0.55 }}>
+              <ReqoreP size='small' effect={{ opacity: mono.index }}>
                 {(data._index as number) + 1}
               </ReqoreP>
             ),
@@ -666,7 +677,7 @@ const CatalogListEditor = memo(
     return (
       <ReqoreControlGroup vertical fluid gapSize='normal'>
         {rows.length === 0 ? (
-          <ReqoreP size='small' effect={{ opacity: 0.5 }}>
+          <ReqoreP size='small' effect={{ opacity: mono.soft }}>
             No {title.toLowerCase()} defined yet.
           </ReqoreP>
         ) : (

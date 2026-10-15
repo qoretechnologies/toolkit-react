@@ -197,6 +197,17 @@ it — hence the engine takes group display via the `groups` prop rather than ha
   (`StyledCompactWrap`, `StyledGroupBody`, `StyledEditCard`) with theme-derived colours. The classic path
   is left exactly as it was.
 
+- [`readFirstColors.ts`](../src/components/form/engine/readFirstColors.ts) and
+  [`compactToolbarColors.ts`](../src/components/form/engine/compactToolbarColors.ts) — the colors the
+  read-first summary and rows draw their own words and marks in, so they stand out from what they are drawn
+  on (WCAG AA: 4.5:1 text, 3:1 icons; qorus#646). A row may be drawn on the page, a status box's tint (the
+  attention box's warning, the set box's success, both at 12%), the optional box's darker surface, or any
+  of them hovered: intent words (reasons, "Moves to …", the required asterisk, "Ready" / "Incomplete") are a
+  shade of the intent that reads on all of them, and faded notes (size and line notes, a label's short
+  description, the type tag, an empty value's dash, the help mark) fade only as far as they still read.
+  The helpers are reqraft's own (`src/helpers/readableColors.ts`, `useReadableOpacity`) until reqraft builds
+  on the reqore release with qoretechnologies/reqore#708, which has them.
+
 ## Usage
 
 ```tsx

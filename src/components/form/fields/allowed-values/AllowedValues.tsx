@@ -13,6 +13,7 @@ import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/But
 import { IQorusAllowedValue, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size as count, isEqual } from 'lodash';
 import { memo, useMemo } from 'react';
+import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { besideItsInfo, describedControl } from '../../../Description/describedControl';
 import {
@@ -99,6 +100,8 @@ export const FieldAllowedValuesCheckGroup = memo(
      */
     label?: string;
   }) => {
+    // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+    const unavailableOpacity = useReadableOpacity(0.55);
     // a choice's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
     const descriptions = useDescriptionTooltips();
     return (
@@ -129,7 +132,7 @@ export const FieldAllowedValuesCheckGroup = memo(
                  this asked for never appeared. The NAME is also the right
                  thing to dim — `description` above carries the reason, and a
                  reason has to stay readable. */
-              labelEffect={unavailable ? { opacity: 0.55 } : undefined}
+              labelEffect={unavailable ? { opacity: unavailableOpacity } : undefined}
               uncheckedIcon={unavailable ? 'LockLine' : undefined}
               /* The FIELD's `disabled` still goes through reqore — a field nobody
                  may edit has no explanation to protect. A refused VALUE never
