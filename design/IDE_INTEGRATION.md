@@ -36,6 +36,12 @@ checklist the IDE-integration PR ticks off so that can't happen.
   replaces what it holds with any value it is handed that differs - the IDE's rich text does - otherwise lost
   what was typed after an emptied value came back a second way (qorus#646; story *Components/Form/Auto ›
   Host Editor Keeps What Is Typed When Its Report Comes Back*).
+- A host's own debounced field tracks its reports as reqraft's fields do: `EmittedValues` / `useEmittedValues`
+  (and the `TEmittedValuesEquals` type) are exported from the package root. `record` each report, ask
+  `isEcho` once where an incoming `value` is committed (an echo is no change; anything else is), `includes`
+  from a render, `settled` for what the parent will hold. Which values are the same is the caller's `equals`
+  (default `Object.is`, under which `''`, `undefined`, `null` and an empty document all differ); the IDE's rich
+  text passes one that reads them as one empty value (qorus-ide f1c58c2d0).
 - Most seams are story-tested in reqraft EXCEPT `componentOverrides`,
   which has no coverage yet — worth a seam smoke-test before the IDE
   relies on it. *Revised 2026-09-07:* this used to point at B3 in

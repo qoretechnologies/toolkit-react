@@ -18,6 +18,10 @@ export * from './fields/number/Number';
 export * from './fields/object/Object';
 export * from './fields/radio-group/RadioGroup';
 export * from './fields/rich-text/RichText';
+// What a debounced field has reported and not yet heard back, so the echo of a report is not taken for a
+// change: a host's own field (the Qorus IDE's rich text) tracks its reports as reqraft's own fields do.
+export { EmittedValues, useEmittedValues } from './fields/emittedValues';
+export type { TEmittedValuesEquals } from './fields/emittedValues';
 export * from './fields/select/Select';
 export * from './fields/select/SelectCollection';
 export * from './fields/string/String';

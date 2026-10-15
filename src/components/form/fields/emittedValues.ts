@@ -1,6 +1,17 @@
 import { useRef } from 'react';
 
 /**
+ * Whether two values are the same value, as a field reads them: what an echo is recognised by.
+ *
+ * Nothing is the same value but what this says is: the default is `Object.is`, under which `''`, `undefined`,
+ * `null` and an empty document are four different values, and a document handed back as a copy is not the
+ * one that was reported. A field whose parent stores a value another way than it reported it says so here
+ * (the Qorus IDE's rich text reads `''`, `undefined`, `null` and an empty document as one empty value, and a
+ * reference as the document holding only it).
+ */
+export type TEmittedValuesEquals<T> = (a: T, b: T) => boolean;
+
+/**
  * What a debounced field has told its parent and not yet heard back.
  *
  * A field that keeps a local copy of what is being typed reports it after a
@@ -19,6 +30,16 @@ import { useRef } from 'react';
  * A genuine external change that happens to equal an emit still in flight is
  * indistinguishable from its echo, and is treated as one — harmless, because it
  * sets the very value the field already reported.
+ *
+ * How a field uses it (`useEmittedValues` keeps one for the life of the component):
+ * - `record(value)` as it reports a value to its parent;
+ * - `isEcho(incoming)` once, where an incoming `value` is committed (an effect on it): `true` - the parent
+ *   catching up - leaves what is being typed alone; `false` is a change from outside, to take;
+ * - `includes(incoming)` where a render needs the same answer without acknowledging anything;
+ * - `settled(current)` for what the parent will hold once every emit has come back: an edit is a change only
+ *   when it differs from that.
+ *
+ * Which values are the same is the caller's to say (`TEmittedValuesEquals`); see it for the default.
  */
 export class EmittedValues<T> {
   private pending: T[] = [];
@@ -26,7 +47,7 @@ export class EmittedValues<T> {
   /** Bounded: a parent that never feeds its value back never acknowledges. */
   private static readonly LIMIT = 50;
 
-  constructor(private readonly equals: (a: T, b: T) => boolean = Object.is) {}
+  constructor(private readonly equals: TEmittedValuesEquals<T> = Object.is) {}
 
   /** Record a value just reported to the parent. */
   record(value: T): void {
@@ -71,8 +92,11 @@ export class EmittedValues<T> {
   }
 }
 
-/** One `EmittedValues` for the life of the component. */
-export const useEmittedValues = <T>(equals?: (a: T, b: T) => boolean): EmittedValues<T> => {
+/**
+ * One `EmittedValues` for the life of the component, comparing with `equals` (default `Object.is`; see
+ * `TEmittedValuesEquals`). The `equals` of the first render is the one kept.
+ */
+export const useEmittedValues = <T>(equals?: TEmittedValuesEquals<T>): EmittedValues<T> => {
   const ref = useRef<EmittedValues<T>>();
   if (!ref.current) {
     ref.current = new EmittedValues<T>(equals);
