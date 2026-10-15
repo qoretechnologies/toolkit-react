@@ -50,6 +50,13 @@ checklist the IDE-integration PR ticks off so that can't happen.
   and Escape drop it, and any other way out sends it as the field goes away. Without it, a value typed and Done
   pressed inside the field's pause was lost: the pause's timer died with the field (qorus#646; story
   _Form/Engine/FormEngine › Done Straight After Typing Keeps The Edit_).
+- A `value` the host changes while the form holds edits of its own is merged with them: a field the form
+  changed and the host did not keeps the form's value, and every other field takes the host's (a field both
+  changed included). A host that switches the form to a DIFFERENT record or object must therefore say so, or
+  an edit to the old record still on its way is merged into the new one: it remounts the form with a React
+  `key` (which also closes its open rows), or passes the record's id as `valueKey`, after which the form
+  takes the new `value` as it is. Before this, a host change landing in the same commit as an edit made the
+  form and the host trade the two values forever (qorus#646; the OPC UA node editor's namespace).
 - Most seams are story-tested in reqraft EXCEPT `componentOverrides`,
   which has no coverage yet — worth a seam smoke-test before the IDE
   relies on it. *Revised 2026-09-07:* this used to point at B3 in

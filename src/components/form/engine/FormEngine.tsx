@@ -650,6 +650,40 @@ const normalizeEmptyFieldValues = (fields: TQorusForm | TQorusFlatForm | undefin
   );
 
 /**
+ * The value as a host can hand it back: without the fields that hold nothing. A host that stores only the
+ * fields holding a value (the Qorus IDE's editors) hands a form's report back without its empty fields, and
+ * a report is recognised by its values, not by which empty fields came with it. Compared field for field
+ * (`normalizeEmptyFieldValues`), the report never came back as itself: the form took it for the host's own
+ * change and went back to it, losing what had been typed since, and the two chased each other's reports on
+ * every echo (qorus#646).
+ *
+ * For recognising a value only. Whether a rebuild adds anything is still read with the empty fields in
+ * (`isMirrorOfValue`): a new schema's empty required field is a row the form has to add.
+ */
+const withoutEmptyFields = (fields: TQorusForm | TQorusFlatForm | undefined): TQorusForm =>
+  reduce(
+    (fields as TQorusForm) || {},
+    (acc, field, name) => {
+      const fieldValue = (field as IQorusFormField)?.value;
+      if (!(
+        field &&
+        typeof field === 'object' &&
+        (fieldValue === '' || fieldValue === undefined)
+      )) {
+        acc[name] = field as IQorusFormField;
+      }
+      return acc;
+    },
+    {} as TQorusForm
+  );
+
+/** The same value, as a report coming back from a host is recognised. */
+const sameReportedValue = (
+  a: TQorusForm | TQorusFlatForm | undefined,
+  b: TQorusForm | TQorusFlatForm | undefined
+): boolean => isEqual(withoutEmptyFields(a), withoutEmptyFields(b));
+
+/**
  * Does this rebuild say anything the parent does not already hold?
  *
  * `false` means the rebuild is a MIRROR: `fixOptions` found no default to
@@ -682,6 +716,58 @@ export const agreementFromRebuild = (
   value: TQorusForm | TQorusFlatForm | undefined
 ): TQorusForm | TQorusFlatForm | undefined =>
   isMirrorOfValue(fixedValue, value) ? fixedValue : undefined;
+
+/**
+ * A field as the form compares one host value with another: an empty field ('' or none, whatever its type) is
+ * the same as no field, and a field is its value, however it is written (`{ type, value }` or the bare value).
+ */
+const comparableField = (field: unknown): unknown => {
+  const fieldValue =
+    field !== null && typeof field === 'object' && !Array.isArray(field) && 'value' in field ?
+      (field as IQorusFormField).value
+    : field !== null && typeof field === 'object' && !Array.isArray(field) && 'type' in field ?
+      undefined
+    : field;
+  return fieldValue === '' ? undefined : fieldValue;
+};
+
+const sameField = (a: unknown, b: unknown): boolean =>
+  isEqual(comparableField(a), comparableField(b));
+
+/**
+ * The host's change, with the form's own edits kept: a three-way merge of `theirs` (the `value` the host
+ * hands down now) and `ours` (the form's copy) against `base` (the `value` the form last saw).
+ *
+ * A field the form changed and the host did not keeps the form's value; every other field takes the host's,
+ * a field both changed included. The host and the form can change the value in the same commit - a host
+ * renaming something as the user's edit reaches the form - and taking either side whole lost the other's
+ * change; sending the form's copy over the host's change made the two trade places forever (qorus#646).
+ *
+ * Returns `theirs` itself when the form has nothing of its own to keep.
+ */
+export const mergeOwnEdits = (
+  theirs: TQorusForm | TQorusFlatForm | undefined,
+  ours: TQorusForm | TQorusFlatForm | undefined,
+  base: TQorusForm | TQorusFlatForm | undefined
+): TQorusForm | TQorusFlatForm | undefined => {
+  let merged: Record<string, unknown> | undefined;
+  const names = new Set([...Object.keys(ours || {}), ...Object.keys(base || {})]);
+  names.forEach((name) => {
+    const own = (ours as Record<string, unknown> | undefined)?.[name];
+    const before = (base as Record<string, unknown> | undefined)?.[name];
+    const host = (theirs as Record<string, unknown> | undefined)?.[name];
+    if (sameField(own, before) || !sameField(host, before) || sameField(host, own)) {
+      return;
+    }
+    merged = merged ?? { ...(theirs || {}) };
+    if (own === undefined) {
+      delete merged[name];
+    } else {
+      merged[name] = own;
+    }
+  });
+  return (merged as TQorusForm | undefined) ?? theirs;
+};
 
 /** The state the emit decision is made against. */
 export interface IEmitDecision {
@@ -1209,6 +1295,17 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   initialExpandedOptions?: string[];
 
   /**
+   * Which record or object `value` belongs to. When it changes, the form takes the new `value` as it is: an
+   * edit made to the previous record and still on its way is not carried into the new one.
+   *
+   * Without it, a `value` that changes while the form holds an edit of its own is taken as the host changing
+   * the same record, and the two are merged (the form keeps what it edited and the host did not). A host
+   * that switches the form to a different record therefore passes its id here - or remounts the form with a
+   * React `key`, which also resets which rows are open (see design/IDE_INTEGRATION.md).
+   */
+  valueKey?: string | number;
+
+  /**
    * Cap how many rows a status box shows before the rest fold behind a
    * "N more fields" control. Applies to every box — Needs attention, Set and
    * Optional alike — so a long form stays scannable instead of making the
@@ -1293,6 +1390,7 @@ const FormEngineImpl = ({
   autoFocusFirstRequired,
   expandFirstRequired,
   initialExpandedOptions,
+  valueKey,
   maxFieldsShown,
   // The form's own props, read here and never handed on to the collection drawn below (`{...rest}`).
   options: optionsSchema,
@@ -1655,9 +1753,21 @@ const FormEngineImpl = ({
    * reset the form to it: the field under the cursor went back a step and the keys typed since were lost
    * ("I have value" came out as "I he value" in a story under load).
    */
-  const inFlight = useEmittedValues<TQorusForm | TQorusFlatForm | undefined>((a, b) =>
-    isEqual(normalizeEmptyFieldValues(a), normalizeEmptyFieldValues(b))
-  );
+  const inFlight = useEmittedValues<TQorusForm | TQorusFlatForm | undefined>(sameReportedValue);
+  /**
+   * The `value` (and `valueKey`) as of the last commit: what a new `value` is a change from. The sync-down
+   * merges the host's change against it, and the emit effect tells by it that the host changed the value in
+   * the very commit it runs in. Updated by the last effect of each commit (below the sync-down).
+   */
+  const seenValue = useRef<TQorusForm | TQorusFlatForm | undefined>(value);
+  const seenValueKey = useRef<string | number | undefined>(valueKey);
+  /** Whether `value` is the host's own change, made since the last commit: neither seen before nor a report of
+   *  this form's coming back. */
+  const isHostsOwnChange = (): boolean =>
+    valueKey !== seenValueKey.current ||
+    (!sameReportedValue(value, seenValue.current) &&
+      !inFlight.includes(value) &&
+      !sameReportedValue(value, lastEmittedValue.current));
 
   if (originalValue.current === undefined && size(value)) {
     originalValue.current = localValue.fields;
@@ -1678,6 +1788,15 @@ const FormEngineImpl = ({
        again when the skeleton cleared: the default was shown and never emitted, so never saved. A value that
        adds nothing still emits nothing. */
     if (!schemaInForce) {
+      return;
+    }
+    /* The host changed the value in this same commit (effects run in order, and this one runs before the
+       sync-down that takes the change in). The form's copy was made before that change: sent, it overwrote
+       the host's change, the sync-down then took the host's value in, and the next commit sent that back -
+       the form and the host traded places on every commit, forever (qorus#646: the Qorus IDE's OPC UA node
+       editor, its namespace flipping between the old and the renamed one). The sync-down below merges the
+       change with the form's own edits, and the next commit reports the result. */
+    if (isHostsOwnChange()) {
       return;
     }
     if (
@@ -1878,16 +1997,28 @@ const FormEngineImpl = ({
     // change and re-fixes forever (e.g. byte-size / expression / ruled string fields).
     // Note: compare fixedValue against value, not localValue.fields — localValue may have been
     // updated by nested FormEngine emissions, so comparing against it would never skip.
-    const normalizedValue = normalizeEmptyFieldValues(value);
     /* What this rebuild lets us agree with the parent on — `undefined` when it
        contributed something the parent has yet to learn. */
     const agreed = agreementFromRebuild(fixedValue, value);
+    // a different record: nothing of the previous one is carried into it (see `valueKey`)
+    const sameRecord = valueKey === seenValueKey.current;
     // the echo of an emit still in flight - the last or an older one - is not the parent's change
     const echo = inFlight.isEcho(value);
-    if (
-      (echo || isEqual(normalizedValue, normalizeEmptyFieldValues(lastEmittedValue.current))) &&
-      agreed !== undefined
-    ) {
+    if (sameRecord && (echo || sameReportedValue(value, lastEmittedValue.current))) {
+      /* The form's own report coming back. Whatever the rebuild adds - a schema that changed in the same
+         commit, a field the host does not store - is added to the form's copy, never by going back to the
+         report: the report may be older than edits made since (an echo of "a" arriving after "ab" was
+         reported lost the "b"). Nothing changes when the form's copy has it all already. */
+      const rebuild = (fields: TQorusForm | TQorusFlatForm) =>
+        fixOptions(fields, options || {}, undefined, isRendererOnly);
+      if (!isEqual(rebuild(localValue.fields), localValue.fields)) {
+        // the parent has to learn what the rebuild added
+        mirroredValue.current = undefined;
+      }
+      setLocalValue((current) => {
+        const rebuilt = rebuild(current.fields);
+        return isEqual(rebuilt, current.fields) ? current : { fields: rebuilt, meta: current.meta };
+      });
       return;
     }
 
@@ -1903,8 +2034,29 @@ const FormEngineImpl = ({
       lastEmittedValue.current = agreed;
     }
 
-    setLocalValue?.({ fields: fixedValue, meta: undefined });
-  }, [JSON.stringify(options), JSON.stringify(value), isRendererOnly]);
+    if (!sameRecord) {
+      setLocalValue({ fields: fixedValue, meta: undefined });
+      return;
+    }
+    // The host's change, with the form's own edits it did not touch kept (see `mergeOwnEdits`).
+    const base = seenValue.current;
+    setLocalValue((current) => {
+      const merged = mergeOwnEdits(value, current.fields, base);
+      return {
+        fields:
+          merged === value ? fixedValue : (
+            fixOptions(merged, options || {}, undefined, isRendererOnly)
+          ),
+        meta: undefined,
+      };
+    });
+  }, [JSON.stringify(options), JSON.stringify(value), isRendererOnly, valueKey]);
+
+  // Last of the value effects: what the next commit's `value` is a change from.
+  useEffect(() => {
+    seenValue.current = value;
+    seenValueKey.current = valueKey;
+  });
 
   const handleValueChange = useCallback(
     (optionName: string, val?: any, _type?: string, isFunction?: boolean) => {
