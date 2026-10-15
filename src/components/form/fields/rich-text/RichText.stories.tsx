@@ -49,6 +49,33 @@ export const WithValue: Story = {
   },
 };
 
+export const WithChoiceValue: Story = {
+  args: {
+    value: 'C07ERBFS0P6',
+    allowed_values: [
+      {
+        display_name: 'general',
+        short_desc: 'Company-wide announcements',
+        value: { type: 'richtext', value: 'C07ERBFS0P6' },
+      },
+      { display_name: 'random', value: { type: 'richtext', value: 'C07RANDOM01' } },
+    ] as never,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the RichText field holding the value of one of its own choices — the Slack channel id C07ERBFS0P6 — drawn as one chip named "general"; the id itself is not shown, and stays the stored value.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('general')).toBeInTheDocument();
+    await expect(canvas.queryByText('C07ERBFS0P6')).not.toBeInTheDocument();
+  },
+};
+
 export const Empty: Story = {
   parameters: {
     docs: {

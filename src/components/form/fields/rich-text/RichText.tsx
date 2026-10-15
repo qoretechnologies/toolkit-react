@@ -5,10 +5,12 @@ import {
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
+import { IQorusAllowedValue } from '@qoretechnologies/ts-toolkit';
 import { isEqual, size } from 'lodash';
 import { KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
+import { choiceForValue, choiceToNodes, choiceValueOfNodes } from '../../../../helpers/choiceChip';
 import { flattenToSingleLine, hasLineBreak } from '../../../../helpers/singleLineString';
 import {
   renderTemplateItemDescriptions,
@@ -57,6 +59,15 @@ export interface IRichTextFormFieldProps extends Omit<
   valueFormat?: 'richtext' | 'text';
   /** With `valueFormat: 'text'`: the value holds one line, so Enter adds none. */
   singleLine?: boolean;
+  /**
+   * The choices the field offers, when it offers any. A value that IS one of
+   * them — the whole string, as picked from the field's suggestions — is drawn
+   * as one chip named from the choice (`general` rather than `C07ERBFS0P6`),
+   * and is still emitted as that value: the chip's own value is the choice's,
+   * and a document that is nothing but the chip reads back as it. A field
+   * spreads its schema here, so this is the schema's own key.
+   */
+  allowed_values?: IQorusAllowedValue[];
   /**
    * With `valueFormat: 'text'`: the token grammar the value's references are
    * WRITTEN in, when the host speaks one of its own.
@@ -119,12 +130,22 @@ export const RichTextFormField = memo(({
   valueFormat = 'richtext',
   singleLine,
   templateToken,
+  allowed_values,
   ...rest
 }: IRichTextFormFieldProps) => {
   const isText = valueFormat === 'text';
-  const [localValue, setLocalValue] = useState<any>(() =>
-    isText ? templateTextToNodes(String(value ?? ''), templates, templateToken) : value
-  );
+  /* The document the editor shows for a value: a choice by its chip, a text
+     with its references as chips, a document as it is. */
+  const toLocal = (next: unknown): any => {
+    if (isText) {
+      const text = String(next ?? '');
+      const choice = choiceForValue(text, allowed_values);
+      return choice ? choiceToNodes(choice) : templateTextToNodes(text, templates, templateToken);
+    }
+    const choice = choiceForValue(next, allowed_values);
+    return choice ? choiceToNodes(choice) : next;
+  };
+  const [localValue, setLocalValue] = useState<any>(() => toLocal(value));
   /* In text mode, the string the editor's document stands for. The value that
      comes back from the parent is usually that same string, and rebuilding the
      document from it would hand the editor a new tree on every keystroke —
@@ -143,14 +164,34 @@ export const RichTextFormField = memo(({
       const text = String(value ?? '');
       if (text !== lastTextRef.current) {
         lastTextRef.current = text;
-        setLocalValue(templateTextToNodes(text, templates, templateToken));
+        setLocalValue(toLocal(text));
       }
       return;
     }
-    if (JSON.stringify(value) !== JSON.stringify(localValue)) {
-      setLocalValue(value);
+    // Compared as what the document stands for: a lone choice chip IS the
+    // value it draws, so the value coming back is not a change to it.
+    if (JSON.stringify(value) !== JSON.stringify(choiceValueOfNodes(localValue) ?? localValue)) {
+      setLocalValue(toLocal(value));
     }
   }, [JSON.stringify(value)]);
+
+  /* The choices usually arrive after the value — they are fetched — so a
+     value already shown as text becomes its chip once they do. Only while the
+     editor still shows the stored value as it is: an edit in progress is
+     never redrawn from under the author. */
+  const choiceKey = JSON.stringify(
+    allowed_values?.map((choice) => [choice.value, choice.display_name]) ?? null
+  );
+  useEffect(() => {
+    if (!allowed_values?.length) {
+      return;
+    }
+    const shown = isText ? templateNodesToText(localValue) : (choiceValueOfNodes(localValue) ?? localValue);
+    const stored = isText ? String(value ?? '') : value;
+    if (isEqual(shown, stored) && choiceForValue(stored, allowed_values)) {
+      setLocalValue(toLocal(stored));
+    }
+  }, [choiceKey]);
 
   useDebounce(
     () => {
@@ -161,9 +202,12 @@ export const RichTextFormField = memo(({
         }
         return;
       }
-      if (!isEqual(localValue, value)) {
-        emitted.record(localValue);
-        onChange?.(localValue);
+      // A document that is nothing but one choice chip is emitted as the
+      // choice's value — what was stored and what the server resolves.
+      const next = choiceValueOfNodes(localValue) ?? localValue;
+      if (!isEqual(next, value)) {
+        emitted.record(next);
+        onChange?.(next);
       }
     },
     100,
@@ -182,7 +226,7 @@ export const RichTextFormField = memo(({
       // stopped below. Flattened text is shown as the one line it now is.
       if (singleLine && hasLineBreak(text)) {
         lastTextRef.current = flattenToSingleLine(text);
-        setLocalValue(templateTextToNodes(lastTextRef.current, templates, templateToken));
+        setLocalValue(toLocal(lastTextRef.current));
         return;
       }
       lastTextRef.current = text;
@@ -210,6 +254,16 @@ export const RichTextFormField = memo(({
 
       if (!tagValue) {
         return {};
+      }
+
+      /* One of the field's own choices, drawn by the name it was picked by;
+         what it stands for on hover. */
+      if (tag.metadata?.allowedValue) {
+        return {
+          icon: 'ListCheck',
+          label: tag.label ?? tagValue,
+          tooltip: tag.metadata?.description,
+        };
       }
 
       /* A reference in a string is drawn exactly as the collapsed row draws the
