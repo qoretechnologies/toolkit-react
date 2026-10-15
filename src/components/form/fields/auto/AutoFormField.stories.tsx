@@ -827,3 +827,102 @@ export const NamedArgSchemaFetchFails: Story = {
     await waitForText(/Failed to fetch the field schema|could not be loaded/);
   },
 };
+
+// --- A host editor's own report, handed back -------------------------------------------------------------
+
+/** How long the host editor below waits before it reports what is typed: wide, so the play can act inside it. */
+const HOST_EDITOR_PAUSE = 1000;
+
+/** What the story's form listens for: it stores an emptied field again, as `undefined` rather than `''`. */
+const STORE_EMPTY_AS_UNDEFINED = 'story-store-empty-as-undefined';
+
+/**
+ * A host editor as the Qorus IDE's rich text is one (`componentOverrides`): it keeps what is typed, reports it
+ * after a pause, and takes any value it is handed that differs from what it holds for a change from outside,
+ * putting it in place of what it holds.
+ */
+const HostTextEditor = ({
+  value,
+  onChange,
+}: {
+  value?: unknown;
+  onChange?: (value: unknown) => void;
+}) => {
+  const [local, setLocal] = useState<unknown>(value);
+  useEffect(() => {
+    if (local !== value) {
+      setLocal(value);
+    }
+  }, [JSON.stringify(value)]);
+  useEffect(() => {
+    if (local === value) {
+      return undefined;
+    }
+    const timer = setTimeout(() => onChange?.(local), HOST_EDITOR_PAUSE);
+    return () => clearTimeout(timer);
+  }, [local]);
+  return (
+    <input
+      aria-label='Host editor'
+      className='host-editor'
+      value={typeof local === 'string' ? local : ''}
+      onChange={(event) => setLocal(event.target.value)}
+    />
+  );
+};
+
+const HOST_EDITORS = { 'host-text': HostTextEditor };
+
+/** A form holding one field, which stores an emptied field once more, as `undefined`, when told to. */
+const FormStoringEmptyTwice = () => {
+  const [held, setHeld] = useState<unknown>('$local:pos');
+  useEffect(() => {
+    const store = () => setHeld((current: unknown) => (current === '' ? undefined : current));
+    window.addEventListener(STORE_EMPTY_AS_UNDEFINED, store);
+    return () => window.removeEventListener(STORE_EMPTY_AS_UNDEFINED, store);
+  }, []);
+  return (
+    <>
+      <AutoFormField
+        name='checked_value'
+        type={'host-text' as any}
+        defaultType={'host-text' as any}
+        value={held}
+        componentOverrides={HOST_EDITORS}
+        onChange={(_name: string, value: unknown) => setHeld(value)}
+      />
+      <code className='held-value'>{held === undefined ? '(no value)' : JSON.stringify(held)}</code>
+    </>
+  );
+};
+
+export const HostEditorKeepsWhatIsTypedWhenItsReportComesBack: Story = {
+  render: () => <FormStoringEmptyTwice />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a field drawn by a host editor (`componentOverrides`) that, as the Qorus IDE\'s rich text does, keeps what is typed, reports it after a pause and takes any other value it is handed for a change from outside. The field is emptied - it reports "" - and the form, as a form engine does once it has stored it, hands the empty value back again as undefined, after a 1 is typed and before it is reported. The 1 stays and is then reported: the field hands a host editor its own report back as it reported it, so an empty value stored a second way is no change. It was taken for one, and the 1 was wiped (the IDE\'s test-case Value, under load, qorus#646).',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editor = within(canvasElement).getByLabelText('Host editor') as HTMLInputElement;
+    const held = () => canvasElement.querySelector('.held-value')?.textContent;
+    await waitFor(() => expect(editor.value).toBe('$local:pos'));
+
+    // emptied: reported "" after the pause, and held as ""
+    await userEvent.clear(editor);
+    await waitFor(() => expect(held()).toBe('""'), { timeout: HOST_EDITOR_PAUSE * 5 });
+
+    // a key typed, and before it is reported, the form hands the empty value back once more, as undefined
+    await userEvent.type(editor, '1');
+    window.dispatchEvent(new Event(STORE_EMPTY_AS_UNDEFINED));
+    await waitFor(() => expect(held()).toBe('(no value)'));
+
+    // what was typed is still there, and is reported
+    await expect(editor.value).toBe('1');
+    await waitFor(() => expect(held()).toBe('"1"'), { timeout: HOST_EDITOR_PAUSE * 5 });
+    await expect(editor.value).toBe('1');
+  },
+};

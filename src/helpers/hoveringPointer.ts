@@ -2,8 +2,8 @@
 
 /** What `isHoveringPointer` reads of a pointer event: a DOM `PointerEvent` or React's own. */
 export interface IHoveringPointerEvent {
-  pointerType: string;
-  buttons: number;
+  pointerType?: string;
+  buttons?: number;
 }
 
 /**
@@ -19,6 +19,11 @@ export interface IHoveringPointerEvent {
  * It is asked of each event, not of the device: a touch laptop's mouse hovers, and so does a mouse plugged
  * into a tablet, whose screen is still a finger's. A pen hovers while it is held above the screen
  * (`buttons` 0); pressed to it, it is drawing, not hovering.
+ *
+ * Only what cannot hover is turned away: a finger, and a pen pressed to the screen. A pointer the event does
+ * not name (`pointerType` '' - which the specification allows where the type cannot be told, and which
+ * user-event sends under some jsdom setups - or none at all) is taken for one that hovers, as reqore's
+ * `isHoveringPointer` takes it: taken for a finger, it hovered nothing in a consumer's test.
  */
 export const isHoveringPointer = ({ pointerType, buttons }: IHoveringPointerEvent): boolean =>
-  pointerType === 'mouse' || (pointerType === 'pen' && buttons === 0);
+  pointerType !== 'touch' && !(pointerType === 'pen' && buttons !== 0);

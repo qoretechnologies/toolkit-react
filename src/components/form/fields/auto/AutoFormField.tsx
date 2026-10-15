@@ -13,7 +13,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
 import { TQorusFormFieldSchema, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { isEqual, size, uniqBy } from 'lodash';
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import useMount from 'react-use/lib/useMount';
 import { typedToYaml, yamlToTyped } from '../../../../helpers/common';
@@ -49,6 +49,7 @@ import { ReqraftObjectFormField } from '../object/Object';
 import RadioGroupFormField from '../radio-group/RadioGroup';
 import { RichTextFormField } from '../rich-text/RichText';
 import { SchemaDefinitionEditor } from '../schema-definition';
+import { useHostEditorValue } from './hostEditorValue';
 import { IDataSchemaDefinition } from '../schema-definition/types';
 import { ISelectFormFieldItem, SelectFormField } from '../select/Select';
 import { StringFormField } from '../string/String';
@@ -258,6 +259,17 @@ function AutoField<T = any>({
     typeof arg_schema === 'string' ? undefined : arg_schema
   );
   const [error, setError] = useState<string>();
+  /* What a host editor (`componentOverrides`) is handed and how its reports go on: see `useHostEditorValue`.
+     Its `onChange` is one function for the life of the field - a new one with each render of the form
+     restarted the pause a host editor waits for before it reports, so under load it never reported. */
+  const hostEditor = useHostEditorValue(value);
+  const hostEditorReport =
+    useRef<(val: any, emittedType?: IQorusType, emittedIsFunction?: boolean) => void>();
+  const handleHostEditorChange = useCallback(
+    (val: any, emittedType?: IQorusType, emittedIsFunction?: boolean) =>
+      hostEditorReport.current?.(val, emittedType, emittedIsFunction),
+    []
+  );
 
   useWhyDidYouUpdate(`Auto field ${name} ${currentType}`, {
     name,
@@ -442,6 +454,13 @@ function AutoField<T = any>({
   // selectors, code-editor, …).
   const Override =
     componentOverrides?.[type as string] || componentOverrides?.[(rest as any).ui_type];
+  hostEditorReport.current = (val, emittedType, emittedIsFunction) => {
+    hostEditor.record(val);
+    const returnType = emittedType || currentType;
+    if (onChange && returnType) {
+      onChange(name, val, returnType, emittedIsFunction);
+    }
+  };
   if (Override) {
     return (
       <Override
@@ -466,13 +485,8 @@ function AutoField<T = any>({
         // downstream saw `undefined` and silently did nothing.
         inheritedFromParent={inheritedFromParent}
         name={name}
-        value={value}
-        onChange={(val: any, emittedType?: IQorusType, emittedIsFunction?: boolean) => {
-          const returnType = emittedType || currentType;
-          if (onChange && returnType) {
-            onChange(name, val, returnType, emittedIsFunction);
-          }
-        }}
+        value={hostEditor.value}
+        onChange={handleHostEditorChange}
       />
     );
   }

@@ -20,7 +20,10 @@ describe('isHoveringPointer', () => {
     expect(isHoveringPointer({ pointerType: 'touch', buttons: 1 })).toBe(false);
   });
 
-  it('is nothing a browser does not name', () => {
-    expect(isHoveringPointer({ pointerType: '', buttons: 0 })).toBe(false);
+  it('is a pointer the event does not name: one it cannot tell, or none at all', () => {
+    // '' where the type cannot be told - and what user-event sends under some jsdom setups
+    expect(isHoveringPointer({ pointerType: '', buttons: 0 })).toBe(true);
+    expect(isHoveringPointer({ pointerType: undefined, buttons: undefined })).toBe(true);
+    expect(isHoveringPointer({})).toBe(true);
   });
 });

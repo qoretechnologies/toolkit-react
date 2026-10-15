@@ -28,6 +28,14 @@ checklist the IDE-integration PR ticks off so that can't happen.
 
 - "Silent" markers are the dangerous ones — they compile clean and only
   surface as a missing feature in the running IDE. Tick each row.
+- What a `componentOverrides` editor is handed: `value`, never its own report coming back as a change
+  (`useHostEditorValue`, `src/components/form/fields/auto/hostEditorValue.ts`). A host editor's last report,
+  or one still on its way back, is handed down as the editor reported it - the same object - with `''` and
+  `undefined` read as one empty value (`null` is a value of its own); anything else is a change from outside
+  and is handed down as it is. Its `onChange` is one function for the life of the field. A host editor that
+  replaces what it holds with any value it is handed that differs - the IDE's rich text does - otherwise lost
+  what was typed after an emptied value came back a second way (qorus#646; story *Components/Form/Auto ›
+  Host Editor Keeps What Is Typed When Its Report Comes Back*).
 - Most seams are story-tested in reqraft EXCEPT `componentOverrides`,
   which has no coverage yet — worth a seam smoke-test before the IDE
   relies on it. *Revised 2026-09-07:* this used to point at B3 in
