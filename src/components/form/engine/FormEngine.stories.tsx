@@ -9723,3 +9723,95 @@ const stickyBoxesStory = (layout: 'own' | 'host' | 'padded-host'): Story => ({
 export const BoxHeaderSlidesUnderToolbarOwnScroll: Story = stickyBoxesStory('own');
 export const BoxHeaderSlidesUnderToolbarHostScroll: Story = stickyBoxesStory('host');
 export const BoxHeaderSlidesUnderToolbarPaddedHost: Story = stickyBoxesStory('padded-host');
+
+/**
+ * A rich-text option's choices are picked from "Saved & Suggested Values",
+ * and picking one writes the choice's value: an author who chose the Slack
+ * channel "general" read `C07ERBFS0P6` in the editor. The value is what the
+ * server resolves, so it stays the value; the editor draws it by the name it
+ * was picked by. These two stories are the guard: one opens on the stored
+ * value, one performs the pick.
+ */
+const RICH_TEXT_CHOICE_OPTIONS = {
+  channel: {
+    type: 'richtext',
+    ui_type: 'richtext',
+    display_name: 'Channel',
+    short_desc: 'The channel to send the message to',
+    required: true,
+    allowed_values_creatable: true,
+    allowed_values: [
+      {
+        display_name: 'general',
+        short_desc: 'Company-wide announcements',
+        value: { type: 'richtext', value: 'C07ERBFS0P6' },
+      },
+      {
+        display_name: 'random',
+        short_desc: 'Anything goes',
+        value: { type: 'richtext', value: 'C07RANDOM01' },
+      },
+    ],
+  },
+} as never;
+
+const expectChannelChip = async (canvasElement: HTMLElement) => {
+  await waitFor(
+    () => {
+      const row = canvasElement.querySelector('[data-field="channel"]') as HTMLElement | null;
+      expect(row).toBeTruthy();
+      expect(row?.querySelector('.reqore-tag')?.textContent).toContain('general');
+      expect(row?.textContent).not.toContain('C07ERBFS0P6');
+    },
+    { timeout: 10000 }
+  );
+};
+
+export const RichTextChoiceIsShownByName: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose rich-text Channel option holds the stored id of one of its choices, C07ERBFS0P6 — the editor shows one chip reading "general", and the id is not shown anywhere on the row.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['channel'],
+    value: { channel: { type: 'richtext', value: 'C07ERBFS0P6' } },
+    options: RICH_TEXT_CHOICE_OPTIONS,
+  },
+  play: async ({ canvasElement }) => {
+    await expectChannelChip(canvasElement);
+  },
+};
+
+export const PickingARichTextChoiceShowsItsName: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with an empty rich-text Channel option. When "general" is picked from Saved & Suggested Values, the editor shows a chip reading "general" rather than the channel id it stores.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['channel'],
+    value: {},
+    options: RICH_TEXT_CHOICE_OPTIONS,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsClickText('Saved & Suggested Values');
+    await waitFor(
+      () => expect(within(document.body).getByText('general')).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
+    await fireEvent.click(within(document.body).getByText('general'));
+
+    await expectChannelChip(canvasElement);
+  },
+};
