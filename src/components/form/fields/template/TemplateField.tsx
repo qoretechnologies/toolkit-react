@@ -57,7 +57,7 @@ import BooleanFormField, { yesNoShown } from '../boolean/Boolean';
 import { DateFormField } from '../date/Date';
 import { ReqraftFileFormField } from '../file/File';
 import LongStringFormField from '../long-string/LongString';
-import NumberFormField from '../number/Number';
+import NumberFormField, { numberKindOf } from '../number/Number';
 import { ReadOnlyTemplateTag } from './ReadOnlyTemplateTag';
 import { RichTextFormField } from '../rich-text/RichText';
 import { TemplateBrowser } from './TemplateBrowser';
@@ -124,8 +124,14 @@ const LongStringField = ({ name, onChange, type, level, allowTemplates, ...rest 
     onChange={(value: string) => onChange?.(name, value)}
   />
 );
+// `type` becomes the kind of number it holds: without it, a float field took every number for a
+// whole one.
 const Number = ({ name, onChange, type, level, allowTemplates, ...rest }: any) => (
-  <NumberFormField {...rest} onChange={(value: number | string) => onChange?.(name, value)} />
+  <NumberFormField
+    {...rest}
+    type={numberKindOf(type)}
+    onChange={(value: number | string) => onChange?.(name, value)}
+  />
 );
 const BooleanField = ({ name, onChange, value, type, level, allowTemplates, ...rest }: any) => (
   <BooleanFormField

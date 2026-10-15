@@ -40,6 +40,14 @@ const DECIMAL_NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
  * (`@qty * 2`) is taken up by the field around it, and anything else is kept as typed for the form to flag
  * as not a number. `parseInt` cut `12abc` to 12 without a word.
  */
+/**
+ * The kind of number a field of this type holds: a decimal for `float` and `number` (and their soft and
+ * nullable forms), a whole number for anything else. A field handed no kind took every number for a whole
+ * one, so a float field reported `12.5` as the text "12.5" (qorus#646).
+ */
+export const numberKindOf = (type?: string): 'int' | 'float' =>
+  /float|number/.test(type ?? '') ? 'float' : 'int';
+
 export const typedNumber = (text: string, type: 'int' | 'float'): number | string => {
   const trimmed = text.trim();
   return (type === 'int' ? WHOLE_NUMBER : DECIMAL_NUMBER).test(trimmed) ? Number(trimmed) : text;

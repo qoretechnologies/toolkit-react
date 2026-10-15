@@ -44,7 +44,7 @@ import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
 import LongStringFormField from '../long-string/LongString';
 import MarkdownFormField from '../markdown/Markdown';
 import { MultiSelectFormField } from '../multi-select/MultiSelectFormField';
-import NumberFormField from '../number/Number';
+import NumberFormField, { numberKindOf } from '../number/Number';
 import { ReqraftObjectFormField } from '../object/Object';
 import RadioGroupFormField from '../radio-group/RadioGroup';
 import { RichTextFormField } from '../rich-text/RichText';
@@ -962,6 +962,8 @@ function AutoField<T = any>({
           return (
             <NumberFormField
               {...rest}
+              // the kind of number it holds: without it a float field took every number for a whole one
+              type={numberKindOf(currentType)}
               onChange={(value) => handleChange(name, value)}
               value={value}
             />
