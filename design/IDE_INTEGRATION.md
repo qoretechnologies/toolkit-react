@@ -57,6 +57,12 @@ checklist the IDE-integration PR ticks off so that can't happen.
   `key` (which also closes its open rows), or passes the record's id as `valueKey`, after which the form
   takes the new `value` as it is. Before this, a host change landing in the same commit as an edit made the
   form and the host trade the two values forever (qorus#646; the OPC UA node editor's namespace).
+- `ReferencePicker` says why a kind has no list. `error` (with `onRetry`) is a fetch that failed: a red
+  "Couldn't load <kind>" with a retry, the failure in its tooltip. `unavailable` (a string) is a kind the
+  user may not list - a refused permission, e.g. a missing AI-COLLECTION-READ: one muted item with a lock and
+  the reason as its words (and its accessible name), no danger color, nothing to retry. It wins over
+  `error` and `loading`, and like them it is about the selected `kind`: a host sets it when the kind is
+  selected (qorus#646; story _Components/ReferencePicker › Kind Unavailable_).
 - Most seams are story-tested in reqraft EXCEPT `componentOverrides`,
   which has no coverage yet — worth a seam smoke-test before the IDE
   relies on it. *Revised 2026-09-07:* this used to point at B3 in

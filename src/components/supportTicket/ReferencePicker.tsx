@@ -225,6 +225,13 @@ export interface IReferencePickerProps {
   error?: string;
   /** Retry the failed fetch. The error state is pressable when given. */
   onRetry?: () => void;
+  /**
+   * The selected kind cannot be listed for this user, and why - a permission refused (a missing
+   * AI-COLLECTION-READ), a feature not licensed. Shown in place of the list as one muted item with a lock
+   * and the reason as its words: not a failure (no danger color, nothing to retry), and the reason is read,
+   * not hidden in a tooltip. Wins over `error` and `loading`: it is the answer, not a pending question.
+   */
+  unavailable?: string;
   /** Already-picked references. Anything of the current kind that is already picked
    *  renders selected in place — never removed from the list. */
   picked?: IInterfaceReference[];
@@ -302,6 +309,7 @@ export const ReferencePicker = ({
   loading,
   error,
   onRetry,
+  unavailable,
   picked,
   onAdd,
   onRemove,
@@ -453,6 +461,22 @@ export const ReferencePicker = ({
   ));
 
   const interfaces = (() => {
+    if (unavailable) {
+      return (
+        <ReqoreMenu transparent flat padded={false} width='100%' size='small'>
+          <ReqoreMenuItem
+            className='reqraft-reference-picker-unavailable'
+            icon='LockLine'
+            label={unavailable}
+            aria-label={unavailable}
+            wrap
+            readOnly
+            effect={{ opacity: noteOpacity }}
+          />
+        </ReqoreMenu>
+      );
+    }
+
     if (error) {
       return (
         <ReqoreMenu transparent flat padded={false} width='100%' size='small'>
