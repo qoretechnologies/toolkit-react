@@ -124,6 +124,7 @@ import {
   TMarkdownRenderer,
 } from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
+import { isTypingControl } from './rowFocus';
 import { firstDeclaredType, isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
   TReadFirstStatus,
@@ -2725,8 +2726,14 @@ const FormEngineImpl = ({
     setShowHelpForOption(optionName);
   }, []);
 
+  /** Whether the first-required scan below has run, or is spent (see it). Only a remount arms it again. */
+  const hasAutoFocusedRef = useRef(false);
+
   const toggleExpandedOption = useCallback(
     (optionName: string) => {
+      // A row the user opens or closes is where they have chosen to work: the first-required scan, if it is
+      // still waiting for the focus to be free, does not run after it (qorus#646).
+      hasAutoFocusedRef.current = true;
       setExpandedOptions((prev) =>
         prev.includes(optionName) ? prev.filter((name) => name !== optionName)
           // single (default): opening a row collapses any other open one.
@@ -2769,6 +2776,41 @@ const FormEngineImpl = ({
   }, [initialExpandedOptions, compact, availableOptions]);
 
   // --- First-attention-field autofocus (opt-in) -----------------------------
+  /** The first row that needs an answer and can take one, if any: what the first-required scan opens. */
+  const firstAttentionRow = (): string | undefined =>
+    getFirstAttentionOptionName(Object.keys(availableOptions), (fieldName) => {
+      const schema = options?.[fieldName];
+      if (!schema) {
+        return undefined;
+      }
+      return {
+        focusable:
+          !readOnly &&
+          !schema.disabled &&
+          !(schema as { readonly?: boolean }).readonly &&
+          !dependencyLockedNames.includes(fieldName),
+        // Single source of truth: the same bucket the read-first status boxes
+        // show, so a filled-but-invalid required row is a target too.
+        needsAttention: getOptionBucket(fieldName) === 'attention',
+      };
+    });
+
+  const openFirstAttentionRow = (target: string | undefined) => {
+    if (target) {
+      setExpandedOptions((prev) =>
+        prev.includes(target) ? prev
+        : expandMode === 'multi' ? [...prev, target]
+          // `expandMode: 'single'` is a rule about what a CLICK does: opening a
+          // row closes the one the reader last opened. It is not a licence to
+          // close a row the HOST named through `initialExpandedOptions`. That
+          // is an address — a statement about what the page is FOR, made before
+          // the reader did anything — and this scan is a convenience layered on
+          // top of it. Keep the named rows; replace only what a click could.
+        : [...prev.filter((name) => initialExpandedOptions?.includes(name)), target]
+      );
+    }
+  };
+
   // With `autoFocusFirstRequired`, drop the user straight into the first field
   // they must fix. We reuse the engine's own ordering (`availableOptions`), the
   // very same `getOptionBucket` the status boxes use to decide "needs attention"
@@ -2784,7 +2826,12 @@ const FormEngineImpl = ({
   // field update or an in-place schema reload will NOT re-grab focus; only a
   // genuine remount (a fresh instance) auto-focuses again, which is the intended
   // on-mount behaviour.
-  const hasAutoFocusedRef = useRef(false);
+  //
+  // It waits only for the user's first move. A form opened from a button mounts while that button holds the
+  // focus, and the scan waits for it to be free - but the user does not wait: they open a row (which spends
+  // the scan, `toggleExpandedOption`) or come into the form from the keyboard (which runs it, below). Waiting
+  // past that, the scan ran the first time the focus rested on nothing, which is the Done that closes the
+  // user's row, and opened the next row that needed an answer by itself in the middle of their work.
   useEffect(() => {
     // Two decisions, one scan. Both open the row that needs attention;
     // `autoFocusFirstRequired` additionally promises the caret lands in it, and
@@ -2822,41 +2869,11 @@ const FormEngineImpl = ({
       return;
     }
 
-    const target = getFirstAttentionOptionName(orderedNames, (fieldName) => {
-      const schema = options[fieldName];
-      if (!schema) {
-        return undefined;
-      }
-      return {
-        focusable:
-          !readOnly &&
-          !schema.disabled &&
-          !(schema as { readonly?: boolean }).readonly &&
-          !dependencyLockedNames.includes(fieldName),
-        // Single source of truth: the same bucket the read-first status boxes
-        // show, so a filled-but-invalid required row is a target too.
-        needsAttention: getOptionBucket(fieldName) === 'attention',
-      };
-    });
-
     // Mark done even when nothing needs attention, so later value edits or an
     // in-place schema reload never re-scan or re-focus. Only a remount arms it
     // again.
     hasAutoFocusedRef.current = true;
-
-    if (target) {
-      setExpandedOptions((prev) =>
-        prev.includes(target) ? prev
-        : expandMode === 'multi' ? [...prev, target]
-          // `expandMode: 'single'` is a rule about what a CLICK does: opening a
-          // row closes the one the reader last opened. It is not a licence to
-          // close a row the HOST named through `initialExpandedOptions`. That
-          // is an address — a statement about what the page is FOR, made before
-          // the reader did anything — and this scan is a convenience layered on
-          // top of it. Keep the named rows; replace only what a click could.
-        : [...prev.filter((name) => initialExpandedOptions?.includes(name)), target]
-      );
-    }
+    openFirstAttentionRow(firstAttentionRow());
   }, [
     autoFocusFirstRequired,
     expandFirstRequired,
@@ -2869,6 +2886,54 @@ const FormEngineImpl = ({
     expandMode,
     initialExpandedOptions,
   ]);
+
+  /* The two first moves a user makes in a form opened from a button, while the scan above waits for the
+     focus to be free:
+     - pointing into the form (a click on a row, a field, the toolbar) is choosing where to work, and spends
+       the scan, as opening a row does (`toggleExpandedOption`);
+     - coming into it from the keyboard (Tab from the button) chooses nothing, and runs the scan now: the user
+       is put in the first row that needs an answer, once. Coming straight into a control they can type in
+       (a field already open, the search box) is theirs, and spends the scan without moving them.
+     Only while the scan still waits; it never runs twice. */
+  const keyboardEntry = useRef<(event: FocusEvent) => void>();
+  keyboardEntry.current = (event: FocusEvent) => {
+    if (hasAutoFocusedRef.current || !options || !Object.keys(availableOptions).length) {
+      return;
+    }
+    const from = event.relatedTarget as Node | null;
+    if (from && compactWrapNode?.contains(from)) {
+      return;
+    }
+    hasAutoFocusedRef.current = true;
+    const entered = event.target as HTMLElement;
+    if (isTypingControl(entered)) {
+      return;
+    }
+    const target = firstAttentionRow();
+    if (!target) {
+      return;
+    }
+    // A row takes the caret only from nothing - never from an element the reader is on (see CompactRow) - so
+    // the element the Tab landed on lets it go: the scan is what the reader came in for.
+    entered.blur();
+    openFirstAttentionRow(target);
+  };
+  useEffect(() => {
+    if (!autoFocusFirstRequired || !compact || !compactWrapNode) {
+      return undefined;
+    }
+    const onPointerDown = () => {
+      hasAutoFocusedRef.current = true;
+    };
+    const onFocusIn = (event: FocusEvent) => keyboardEntry.current?.(event);
+    // capture: the pointer is the user's choice before anything in the form answers it
+    compactWrapNode.addEventListener('pointerdown', onPointerDown, true);
+    compactWrapNode.addEventListener('focusin', onFocusIn);
+    return () => {
+      compactWrapNode.removeEventListener('pointerdown', onPointerDown, true);
+      compactWrapNode.removeEventListener('focusin', onFocusIn);
+    };
+  }, [autoFocusFirstRequired, compact, compactWrapNode]);
 
   // Read-first completion summary (how many shown options have a value set),
   // surfaced as a progress meter at the top of the compact form.

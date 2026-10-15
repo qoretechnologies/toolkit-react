@@ -19,6 +19,10 @@
 const TEXT_ENTRY_SELECTOR =
   'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), [contenteditable="true"]';
 
+/** Whether `element` is a control the reader types into: the focus there is theirs, not to be moved. */
+export const isTypingControl = (element: Element | null | undefined): boolean =>
+  !!element?.matches?.(TEXT_ENTRY_SELECTOR);
+
 /**
  * Everything else a row can offer. `[tabindex]` is what carries reqore's own
  * controls: a checkbox is an icon element made focusable, not an `<input>`.
