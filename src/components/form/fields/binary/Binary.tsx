@@ -33,11 +33,15 @@ export const ReqraftBinaryFormField = memo(
     // The parent's echo of an emit still in flight is not a change: copying it
     // over the local value lost what was typed since. See `EmittedValues`.
     const emitted = useEmittedValues<string | undefined>();
+    /* What the parent holds, as the field shows it: no value is the empty text. Compared with `undefined`,
+       the empty text of a field opened without a value was a change, and the field reported '' 100 ms
+       after it opened - the form counted itself edited, and an unset field got '' (qorus#646). */
+    const held = value ?? '';
 
     /* What is typed and not yet reported: the pause below dies with the field, and Done closes the field
        inside it. See `usePendingEdit`. */
     const pending = usePendingEdit<string>((next) => {
-      if (next !== emitted.settled(value)) {
+      if (next !== emitted.settled(held)) {
         emitted.record(next);
         onChange?.(next);
       }
@@ -57,7 +61,7 @@ export const ReqraftBinaryFormField = memo(
     useDebounce(
       () => {
         pending.release();
-        if (localValue !== emitted.settled(value)) {
+        if (localValue !== emitted.settled(held)) {
           emitted.record(localValue);
           onChange?.(localValue);
         }
