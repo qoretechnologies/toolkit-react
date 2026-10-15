@@ -35,7 +35,13 @@ export const Default: Story = {
   args: {
     'aria-label': 'MarkdownEditor',
   },
+  // A desktop: the preview is drawn beside the editor only above reqore's tablet width (1200px), and the
+  // story run's default viewport is 1200px wide. Reqore answers media queries in a story run since 0.78.
+  globals: { viewport: { value: 'desktop1440' } },
   parameters: {
+    viewport: {
+      options: { desktop1440: { name: 'Desktop', styles: { width: '1440px', height: '900px' } } },
+    },
     docs: {
       description: {
         story:

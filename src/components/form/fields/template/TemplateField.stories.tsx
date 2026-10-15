@@ -955,6 +955,10 @@ const longExampleTemplates = {
 };
 
 export const LongExampleValueTruncatedWithModal: StoryObj<typeof meta> = {
+  /* A field in a narrow column, as a form's field is: the picker is as wide as the field (since reqore 0.78 it
+     follows the field's width as it is laid out), and the preview is cut at that width. Across a whole
+     desktop page the field is wider than the preview itself, and nothing has to be cut. */
+  decorators: [(Story) => <div style={{ width: 480 }}>{Story()}</div>],
   args: {
     component: LongStringField,
     value: 'Some string',

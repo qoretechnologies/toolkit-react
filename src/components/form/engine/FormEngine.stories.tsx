@@ -7495,9 +7495,11 @@ export const CompactAutoFocusNonFocusableFirstField: Story = {
       },
       { timeout: 10000 }
     );
-    // On the control itself, which is not a text box: that is the whole case.
+    // On the control itself, which is not a text box: that is the whole case. Since reqore 0.78 the switch
+    // is a native checkbox input.
     const active = document.activeElement as HTMLElement;
-    expect(['INPUT', 'TEXTAREA']).not.toContain(active.tagName);
+    expect(active.tagName).not.toBe('TEXTAREA');
+    expect((active as HTMLInputElement).type).toBe('checkbox');
     // It did not settle for the focusable text field further down instead.
     expect(document.querySelector('[data-field="name"]')?.contains(active)).toBe(false);
   },
@@ -7505,7 +7507,7 @@ export const CompactAutoFocusNonFocusableFirstField: Story = {
 
 // The first question most forms ask is "which kind?", and a pick-one is a set
 // of buttons: with ≤ 3 candidates the engine renders reqore checkboxes, which
-// are focusable icons rather than inputs. The engine opened this row and the
+// are native checkboxes (focusable icons before reqore 0.78), not text boxes. The engine opened this row and the
 // caret stayed on whatever opened the form.
 const CompactPickOneFirstSchema: Record<string, TCompactField> = {
   kind: {
@@ -7562,8 +7564,9 @@ export const CompactAutoFocusPickOneFirstQuestion: Story = {
     );
     const active = document.activeElement as HTMLElement;
     // The control the row actually offers: a choice, not a text box.
-    expect(['INPUT', 'TEXTAREA']).not.toContain(active.tagName);
-    expect(active.getAttribute('tabindex')).toBe('0');
+    // the first choice, a native checkbox since reqore 0.78
+    expect(active.tagName).not.toBe('TEXTAREA');
+    expect((active as HTMLInputElement).type).toBe('checkbox');
   },
 };
 

@@ -15,9 +15,29 @@
  * focusable element" would answer a text field with a button beside it.
  */
 
+/**
+ * Input types that take no typing. Since reqore 0.78 a checkbox, a switch and a radio are native inputs
+ * (they were focusable icons), and read as text entry they won over the text box beside them.
+ */
+const NOT_TYPED_INPUT_TYPES = [
+  'hidden',
+  'checkbox',
+  'radio',
+  'button',
+  'submit',
+  'reset',
+  'image',
+  'file',
+  'range',
+  'color',
+];
+
 /** Controls the reader types into. */
-const TEXT_ENTRY_SELECTOR =
-  'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), [contenteditable="true"]';
+const TEXT_ENTRY_SELECTOR = [
+  `input${NOT_TYPED_INPUT_TYPES.map((type) => `:not([type="${type}"])`).join('')}:not([disabled])`,
+  'textarea:not([disabled])',
+  '[contenteditable="true"]',
+].join(', ');
 
 /** Whether `element` is a control the reader types into: the focus there is theirs, not to be moved. */
 export const isTypingControl = (element: Element | null | undefined): boolean =>
@@ -28,7 +48,7 @@ export const isTypingControl = (element: Element | null | undefined): boolean =>
  * controls: a checkbox is an icon element made focusable, not an `<input>`.
  */
 const OTHER_CONTROL_SELECTOR =
-  'button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  'input:not([type="hidden"]):not([disabled]), button:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * Subtrees inside the row's value cell that are NOT this field's editor: a

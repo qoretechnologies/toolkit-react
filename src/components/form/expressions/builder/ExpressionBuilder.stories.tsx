@@ -955,9 +955,18 @@ export const AddValueSlot: Story = {
     await waitFor(() => expect(count('.expression-arg')).toBe(4), { timeout: 10000 });
     const operands = document.querySelectorAll('.expression-arg');
     const added = operands[operands.length - 1];
-    await waitFor(() => expect(added.contains(document.activeElement)).toBe(true), {
-      timeout: 10000,
-    });
+    /* The new operand takes the focus. Its first control is its template picker, a list that opens on focus,
+       and since reqore 0.78 one focused as it mounts opens at once: the caret is then in that list's search,
+       which is drawn outside the operand (a popover). */
+    await waitFor(
+      () => {
+        const active = document.activeElement as HTMLElement | null;
+        expect(
+          !!active && (added.contains(active) || !!active.closest('.reqore-popover-content'))
+        ).toBe(true);
+      },
+      { timeout: 10000 }
+    );
     // Still after the last operand.
     expect(addSlot()!.nextElementSibling).toBeNull();
     expect(context.args.onChange).toHaveBeenLastCalledWith(
