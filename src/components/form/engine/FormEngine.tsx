@@ -736,6 +736,73 @@ const comparableField = (field: unknown): unknown => {
 const sameField = (a: unknown, b: unknown): boolean =>
   isEqual(comparableField(a), comparableField(b));
 
+/** What a field says beside its value: its type, whether the value is an expression, its operator. */
+const FIELD_ATTRIBUTES = ['type', 'is_expression', 'op'] as const;
+
+/** A field written as `{ type, value }`, not a bare value. */
+const isTypedField = (field: unknown): field is IQorusFormField =>
+  field !== null &&
+  typeof field === 'object' &&
+  !Array.isArray(field) &&
+  typeof (field as IQorusFormField).type === 'string';
+
+/**
+ * The form's copy of a field, with what the host changed beside its value since `base`: its type, whether it is
+ * an expression, its operator. `own` itself where the host changed none of them.
+ *
+ * A report of the form's is recognised by its values, and a field's value is merged by its value (see
+ * `reportedValues`, `mergeOwnEdits`), so a change the host made to a field's type alone said nothing: the form
+ * kept its own type. The Qorus IDE makes an added field's whole number true or false, holding the same field
+ * `pos`; the form kept the `int` and drew `pos` as text on the Value tab, where a true or false field shows it on
+ * its Expression tab (qorus#646). An attribute the host writes as it always has is not a change, so a host that
+ * stores a field under its own type does not change the form's.
+ */
+const withHostsAttributes = (own: unknown, host: unknown, base: unknown): unknown => {
+  if (!isTypedField(own) || !isTypedField(host)) {
+    return own;
+  }
+  let taken: Record<string, unknown> | undefined;
+  FIELD_ATTRIBUTES.forEach((attribute) => {
+    const hosts = host[attribute];
+    const before = isTypedField(base) ? base[attribute] : undefined;
+    if (isEqual(hosts, before) || isEqual(own[attribute], hosts)) {
+      return;
+    }
+    taken = taken ?? { ...own };
+    if (hosts === undefined) {
+      delete taken[attribute];
+    } else {
+      taken[attribute] = hosts;
+    }
+  });
+  return taken ?? own;
+};
+
+/**
+ * The form's copy with what the host changed beside each field's value since `base` taken (see
+ * `withHostsAttributes`). Returns `ours` itself when there is nothing the form's copy does not have already.
+ */
+export const takeHostsAttributes = (
+  theirs: TQorusForm | TQorusFlatForm | undefined,
+  ours: TQorusForm | TQorusFlatForm | undefined,
+  base: TQorusForm | TQorusFlatForm | undefined
+): TQorusForm | TQorusFlatForm | undefined => {
+  let typed: Record<string, unknown> | undefined;
+  forEach((theirs as Record<string, unknown>) || {}, (host, name) => {
+    const own = (ours as Record<string, unknown> | undefined)?.[name];
+    const taken = withHostsAttributes(
+      own,
+      host,
+      (base as Record<string, unknown> | undefined)?.[name]
+    );
+    if (taken !== own) {
+      typed = typed ?? { ...(ours || {}) };
+      typed[name] = taken;
+    }
+  });
+  return (typed as TQorusForm | undefined) ?? ours;
+};
+
 /**
  * The host's change, with the form's own edits kept: a three-way merge of `theirs` (the `value` the host
  * hands down now) and `ours` (the form's copy) against `base` (the `value` the form last saw).
@@ -765,7 +832,8 @@ export const mergeOwnEdits = (
     if (own === undefined) {
       delete merged[name];
     } else {
-      merged[name] = own;
+      // the form's value, with what the host changed beside it (its type, say)
+      merged[name] = withHostsAttributes(own, host, before);
     }
   });
   return (merged as TQorusForm | undefined) ?? theirs;
@@ -2017,8 +2085,11 @@ const FormEngineImpl = ({
         // the parent has to learn what the rebuild added
         mirroredValue.current = undefined;
       }
+      /* What the host changed beside a field's value is taken (its type, say): the report is recognised by its
+         values (see `takeHostsAttributes`). */
+      const base = seenValue.current;
       setLocalValue((current) => {
-        const rebuilt = rebuild(current.fields);
+        const rebuilt = rebuild(takeHostsAttributes(value, current.fields, base) as TQorusForm);
         return isEqual(rebuilt, current.fields) ? current : { fields: rebuilt, meta: current.meta };
       });
       return;
