@@ -35,6 +35,16 @@ const StyledOperandFieldRow = styled(ReqoreControlGroup)`
     min-width: 0;
     max-width: 100%;
   }
+
+  /* The operand's own value, written as text, gives way too, below the width of what it holds. Its box is
+     held at least that wide (TemplateField's minWidth 'fit-content'), and a reference chip's label takes the
+     font of the text it sits in (qorus#646), so a long one is wider than a narrow condition's column: the
+     value pushed its own ⋮ out of the row. Here it is cut at the row's edge instead; a chip's name is still
+     on its hover. Only the operand's own field: a field nested in another (an untyped value's) keeps its
+     width. !important: the box carries that minimum as an inline style. */
+  & > .reqore-control-group > .reqore-panel {
+    min-width: 0 !important;
+  }
 `;
 
 export interface IExpressionBuilderArgumentWrapperProps {
