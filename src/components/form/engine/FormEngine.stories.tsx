@@ -9818,6 +9818,9 @@ export const PickingARichTextChoiceShowsItsName: Story = {
 
 export const ARichTextChoiceRetypedReturnsToItsChip: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `RichTextChoiceIsShownByName`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -9870,6 +9873,9 @@ export const ARichTextChoiceRetypedReturnsToItsChip: Story = {
 
 export const ClickingARichTextChoiceEditsItsValue: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by the compact rich-text rows.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

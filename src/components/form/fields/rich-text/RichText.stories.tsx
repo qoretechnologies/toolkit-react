@@ -82,6 +82,9 @@ export const WithChoiceValueAsDocument: Story = {
     value: [{ type: 'paragraph', children: [{ text: 'C07ERBFS0P6' }] }] as never,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithChoiceValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -101,6 +104,9 @@ export const WithChoiceValueAsDocument: Story = {
 export const RetypingTheChoiceReturnsItsChip: Story = {
   args: WithChoiceValue.args,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithChoiceValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -150,6 +156,9 @@ export const RetypingTheChoiceReturnsItsChip: Story = {
 export const ClickOpensTheChoiceChip: Story = {
   args: WithChoiceValue.args,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by a plain editor holding text.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -184,6 +193,9 @@ export const BackspaceOpensTheChoiceChip: Story = {
     choiceChip: { click: 'cursor' },
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by a plain editor holding text.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
