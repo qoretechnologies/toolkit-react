@@ -1310,6 +1310,12 @@ export const AddValueSlotReadOnly: Story = {
   },
 };
 
+/** The reference chips in the operands' fields drawn narrower than what they hold - their icon or × cut off. */
+const operandChipsCut = () =>
+  [...document.querySelectorAll<HTMLElement>('.expression-arg .reqore-tag')]
+    .filter((chip) => chip.scrollWidth > chip.clientWidth + 1)
+    .map((chip) => chip.textContent?.trim());
+
 /** A template operand moved past a literal: each field shows the operand now in its slot. */
 export const ReorderKeepsTemplateOperand: Story = {
   args: {
@@ -1329,13 +1335,15 @@ export const ReorderKeepsTemplateOperand: Story = {
     docs: {
       description: {
         story:
-          'Renders a "concat" (default surfaces: grip and ⋮ menu) whose first operand is the template reference "$local:some-richtext" and whose second is the literal "plain". "Move to end" on the template operand swaps them — the literal now sits first and the reference second, each in its own field, and nothing shows the reference twice.',
+          'Renders a "concat" (default surfaces: grip and ⋮ menu) whose first operand is the template reference "$local:some-richtext" and whose second is the literal "plain". "Move to end" on the template operand swaps them — the literal now sits first and the reference second, each in its own field, and nothing shows the reference twice. The reference\'s chip is whole in its field in either slot: in a row with room, a field is as wide as what it holds.',
       },
     },
   },
   play: async (context) => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     await waitForOrder(['$local:some-richtext', 'plain']);
+    // the reference's chip is whole: its field is not held at 150px when what it holds is wider
+    await waitFor(() => expect(operandChipsCut()).toEqual([]), { timeout: 10000 });
 
     await openMoveMenu(0);
     await waitForText('Move to end');
@@ -1344,6 +1352,7 @@ export const ReorderKeepsTemplateOperand: Story = {
     // Without remounting the slots, slot 0 would keep its template state and
     // still show the reference while the literal showed nowhere.
     await waitForOrder(['plain', '$local:some-richtext']);
+    await waitFor(() => expect(operandChipsCut()).toEqual([]), { timeout: 10000 });
     expect(context.args.onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         value: expect.objectContaining({
