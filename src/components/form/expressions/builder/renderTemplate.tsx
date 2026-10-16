@@ -2,7 +2,7 @@
 // `callBackendBasic('render-expression')` over the Creator WebSocket; here the
 // same server rendering arrives over the LSP (`dpql/renderExpression`, via
 // `useRenderExpression`) and is shown through `ExpressionRendering`, the one
-// read-only rendering every expression surface shares — monospace, coloured by
+// read-only rendering every expression surface shares — monospace, colored by
 // the language server, template references as chips.
 // The component name/shape is kept identical so `index.tsx`'s usage is
 // unchanged.

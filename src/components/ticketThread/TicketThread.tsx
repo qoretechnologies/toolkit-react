@@ -14,6 +14,13 @@ import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { rgba } from 'polished';
 import { ComponentProps, useEffect, useMemo, useRef, useState } from 'react';
+import { useReadableOpacity } from '../../hooks/useReadableOpacity';
+import {
+  getReadableFaded,
+  getReadableShade,
+  getThemeSurfaces,
+  READABLE_ICON,
+} from '../../helpers/readableColors';
 import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
 import { formatBytes, isImage } from '../../helpers/common';
@@ -35,7 +42,7 @@ import {
  * Rendered as a comment feed: an avatar beside a bordered, accent-tinted card per
  * message, each hugging its own side. Built on Reqore's `ReqoreBubble` (which
  * supplies the avatar, the bold author label, the alignment and the tint), so the
- * accent follows whatever the host app themes `custom1` to rather than a colour
+ * accent follows whatever the host app themes `custom1` to rather than a color
  * baked in here. Interface references render via the shared
  * `InterfaceReferenceTags`; the status/priority/category vocabularies live in
  * `../supportTicket/meta`.
@@ -115,7 +122,7 @@ const AUTHOR_META: Record<TTicketMessageAuthor, IAuthorMeta> = {
 };
 
 // Both sides share one accent: the side, the avatar and the author label already
-// carry who is speaking, which frees colour to mean "internal note" and nothing
+// carry who is speaking, which frees color to mean "internal note" and nothing
 // else. `custom1` is a theme slot, so each host app supplies its own hue.
 const ACCENT: ComponentProps<typeof ReqoreBubble>['customTheme'] = { main: 'custom1' };
 
@@ -257,9 +264,9 @@ const ConversationSkeleton = () => (
 // Debosses the empty state: washes the icon + title back with opacity (kept
 // theme-agnostic) and adds a faint light edge below, so "No messages yet" reads
 // as pressed into the surface rather than announced.
-const StyledEmpty = styled.div`
+const StyledEmpty = styled.div<{ $iconOpacity: number; $titleOpacity: number }>`
   /*
-   * Centre the placeholder in the space it's given rather than letting it sit at the
+   * Center the placeholder in the space it's given rather than letting it sit at the
    * top. Like the thread, this fills its scroll parent (min-height: 100%, which needs a
    * definite height to resolve — the drawer body provides one; where a consumer doesn't,
    * it collapses to auto and the state keeps its natural top-aligned flow).
@@ -271,7 +278,7 @@ const StyledEmpty = styled.div`
   justify-content: center;
 
   .reqore-icon {
-    opacity: 0.28;
+    opacity: ${({ $iconOpacity }) => $iconOpacity};
   }
   h1,
   h2,
@@ -279,20 +286,20 @@ const StyledEmpty = styled.div`
   h4,
   h5,
   h6 {
-    opacity: 0.4;
+    opacity: ${({ $titleOpacity }) => $titleOpacity};
     text-shadow: 0 1px 0 rgba(255, 255, 255, 0.07);
   }
 `;
 
 // System messages read as a centered muted note between cards; the nested rule
 // flattens react-markdown's own <p> margins so it sits on one line.
-const StyledSystemRow = styled.div`
+const StyledSystemRow = styled.div<{ $opacity: number }>`
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   font-size: 11px;
-  opacity: 0.55;
+  opacity: ${({ $opacity }) => $opacity};
   text-align: center;
   p {
     margin: 0;
@@ -308,7 +315,7 @@ interface IStyledMarkdownProps {
 
 // The message body, washed a step below the bright author name in the card's
 // header so the two read as different things; in-body **bold** lifts back toward
-// full strength as emphasis. Every colour derives from the active Reqore theme
+// full strength as emphasis. Every color derives from the active Reqore theme
 // rather than a hardcoded hex, so the thread reads correctly on any host app.
 const StyledMarkdown = styled.div<IStyledMarkdownProps>`
   color: ${({ $color }) => $color};
@@ -367,10 +374,18 @@ const StyledMarkdown = styled.div<IStyledMarkdownProps>`
 const MessageBody = ({ children }: { children: string }) => {
   const theme = useReqoreTheme();
   const readable = getReadableColor(theme);
-  const link = theme.intents?.info ?? readable;
+  /* the links in the info intent and the text a shade softer, each as far as it still reads on the theme's
+     surfaces (qorus#646: the info blue was 3.5:1 on a bubble) */
+  const { link, text } = useMemo(() => {
+    const surfaces = getThemeSurfaces(theme);
+    return {
+      link: getReadableShade(theme.intents?.info ?? readable, surfaces),
+      text: getReadableFaded(readable, surfaces, 0.72),
+    };
+  }, [theme, readable]);
   return (
     <StyledMarkdown
-      $color={rgba(readable, 0.72)}
+      $color={text}
       $emphasis={rgba(readable, 0.95)}
       $code={rgba(readable, 0.1)}
       $link={link}
@@ -574,6 +589,12 @@ export const TicketThread = ({
   // end rather than scrollIntoView on a sentinel — scrollIntoView also drags any outer scroll
   // container around and stops one bottom-padding short of the real end.
   const threadRef = useRef<HTMLDivElement>(null);
+  /* The empty state's deboss (its icon and title washed back), the system notes and the message count: as
+     faint as they still read - 3:1 the icon, 4.5:1 the text (qorus#646). */
+  const emptyIconOpacity = useReadableOpacity(0.28, READABLE_ICON);
+  const emptyTitleOpacity = useReadableOpacity(0.4);
+  const systemNoteOpacity = useReadableOpacity(0.55);
+  const countOpacity = useReadableOpacity(0.5);
   useEffect(() => {
     // Find the thread's OWN scroll container — the nearest ancestor that actually scrolls
     // (overflow-y auto/scroll), not merely the first one that currently overflows. A short
@@ -635,7 +656,7 @@ export const TicketThread = ({
 
   if (!messages.length) {
     return (
-      <StyledEmpty>
+      <StyledEmpty $iconOpacity={emptyIconOpacity} $titleOpacity={emptyTitleOpacity}>
         <ReqoreEmptyState icon='Chat3Line' title='No messages yet' flat transparent />
       </StyledEmpty>
     );
@@ -646,6 +667,7 @@ export const TicketThread = ({
       {segments.map((segment, index) =>
         segment.kind === 'system' ? (
           <StyledSystemRow
+            $opacity={systemNoteOpacity}
             key={segment.message.message_id}
             id={ticketMessageDomId(segment.message.message_id)}
           >
@@ -668,7 +690,7 @@ export const TicketThread = ({
                 timestamp={message.created ? <ReqoreTimeAgo time={message.created} /> : undefined}
                 // Own messages read as info-blue, the other party's as the purple
                 // accent — so the two sides of the conversation are told apart by
-                // colour as well as by side, and "which of these did I write?" is
+                // color as well as by side, and "which of these did I write?" is
                 // answerable at a glance. Deliberately keyed off `viewerRole`, so it
                 // stays correct on the staff surface too (staff replies are the blue
                 // ones there). Internal notes keep their warning intent and are not
@@ -711,7 +733,7 @@ export const TicketThread = ({
           </ReqoreBubbleGroup>
         )
       )}
-      <ReqoreP size='tiny' effect={{ opacity: 0.5, textAlign: 'center' }}>
+      <ReqoreP size='tiny' effect={{ opacity: countOpacity, textAlign: 'center' }}>
         {messages.length} message{messages.length === 1 ? '' : 's'}
       </ReqoreP>
     </StyledThread>

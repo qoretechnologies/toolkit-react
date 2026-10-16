@@ -8,7 +8,25 @@ export type {
   IUseLspAutocompleteOptions,
   IUseLspAutocompleteResult,
 } from './useLspAutocomplete';
-export { useLspAutocomplete } from './useLspAutocomplete';
+export {
+  groupCompletionItems,
+  toDropdownItems,
+  useCompletionKeys,
+  useLspAutocomplete,
+} from './useLspAutocomplete';
+// the one look and the two lists a field offers what can be written in (qorus#646)
+export { CompletionList, CompletionMenu } from './CompletionMenu';
+export type { ICompletionListProps, ICompletionMenuProps } from './CompletionMenu';
+export {
+  COMPLETION_ITEM_STYLE,
+  COMPLETION_LIST_THEME,
+  FIELD_KIND,
+  kindBadge,
+  styleTemplateItems,
+  TEMPLATE_KIND,
+  templateKind,
+} from './completionStyle';
+export { templateChipInserter, templateCompletionItems } from './templateCompletions';
 export type {
   IUseLspSessionOptions,
   IUseLspSessionResult,

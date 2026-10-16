@@ -11,8 +11,15 @@ import { sleep } from '../../../../../__tests__/utils';
 import { StoryMeta } from '../../../../types';
 import { templateChipLabel } from '../../../../helpers/templateText';
 import { mockExpressions } from '../mockExpressions';
-import { IExpression } from '../types';
+import { IExpression, IExpressionSchema } from '../types';
 import { ExpressionBuilder } from './index';
+import { withCoarsePointer } from '../../../../stories/coarsePointer';
+import { _testsWithViewport } from '../../../../stories/Tests/utils';
+import { PHONE_VIEWPORT } from '../../../../stories/tracking';
+import {
+  IStringifiedObjectWatch,
+  watchForStringifiedObjects,
+} from '../../../../stories/stringifiedObjects';
 
 // --- inlined test helpers (equivalents of the IDE `../Tests/utils`) ---------
 
@@ -144,7 +151,7 @@ export const AdditionPickedFresh: Story = {
     docs: {
       description: {
         story:
-          'Renders an empty ExpressionBuilder and picks "Addition" from the operation picker — the card shows one empty Value operand and the "Add value" slot, with no crash and no error boundary.',
+          'Renders an empty ExpressionBuilder and picks "Addition" from the operation picker — the card shows one empty Value operand and the "Add value" slot, with no crash and no error boundary. The operand says its position, "Enter the 1st "Value"", as the operands that join it will.',
       },
     },
   },
@@ -156,6 +163,8 @@ export const AdditionPickedFresh: Story = {
     expect(addSlot()).not.toBeNull();
     expect(document.querySelector('.reqore-error-boundary')).toBeNull();
     await waitForText('Value');
+    // a lone operand of a call that can take more says its position (David, qorus#646)
+    await waitFor(() => expect(document.body.textContent).toContain('Enter the 1st "Value"'), { timeout: 10000 });
     expect(context.args.onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         value: expect.objectContaining({ exp: '+', args: [{ type: undefined }] }),
@@ -172,12 +181,18 @@ export const DefaultBoolean: Story = {
     docs: {
       description: {
         story:
-          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation.',
+          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation. It says what it gives and what its place takes, the types named inside the sentence as the server names them (their sentence forms): "This expression gives nothing, but this field takes true or false."',
       },
     },
   },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    // the types inside the sentence by their sentence forms, not their labels ("True or false")
+    await waitFor(() =>
+      expect(document.body.textContent).toContain(
+        'This expression gives nothing, but this field takes true or false. Choose an expression that gives true or false'
+      )
+    );
   },
 };
 
@@ -200,12 +215,19 @@ export const WithSimpleValue: Story = {
     docs: {
       description: {
         story:
-          'Renders the ExpressionBuilder holding a single "contains" expression with three arguments — the card shows the operation and each operand slot.',
+          'Renders the ExpressionBuilder holding a single "contains" expression with three arguments — the card shows the operation and each operand slot. Each text value is 150px wide, the one holding a template as well as the one holding text: in a row with room, a text field is no narrower than that.',
       },
     },
   },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
+    await waitFor(() =>
+      expect(
+        [...document.querySelectorAll<HTMLElement>('.expression-arg [data-slate-editor]')].map((editor) =>
+          Math.round((editor.closest('.reqore-panel') as HTMLElement).getBoundingClientRect().width)
+        )
+      ).toEqual([150, 150])
+    );
   },
 };
 
@@ -912,7 +934,7 @@ export const AddValueSlot: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with the dashed "Add value" slot after the third operand — the only add control, no header icon. Clicking it appends a fourth, empty operand that takes focus, the slot moves after it, and onChange reports four args.',
+          'Renders the "concat" expression with the dashed "Add value" slot after the third operand — the only add control, no header icon. Clicking it appends a fourth, empty operand that takes focus, the slot moves after it, and onChange reports four args. The new operand\'s template list stays closed until its picker is clicked, and then it opens.',
       },
     },
   },
@@ -931,11 +953,13 @@ export const AddValueSlot: Story = {
     await fireEvent.click(slot);
 
     await waitFor(() => expect(count('.expression-arg')).toBe(4), { timeout: 10000 });
-    const operands = document.querySelectorAll('.expression-arg');
+    const operands = document.querySelectorAll<HTMLElement>('.expression-arg');
     const added = operands[operands.length - 1];
-    await waitFor(() => expect(added.contains(document.activeElement)).toBe(true), {
-      timeout: 10000,
-    });
+    /* The new operand takes the focus itself. It has no type yet, so nothing to type into: its first control
+       is its template picker, a list that opens when it is focused, and adding a value is not asking for that
+       list. It stays closed until the picker is used. */
+    await waitFor(() => expect(document.activeElement).toBe(added), { timeout: 10000 });
+    expect(document.querySelector('.reqore-popover-content')).toBeNull();
     // Still after the last operand.
     expect(addSlot()!.nextElementSibling).toBeNull();
     expect(context.args.onChange).toHaveBeenLastCalledWith(
@@ -950,6 +974,13 @@ export const AddValueSlot: Story = {
     );
     const reported = (context.args.onChange as ReturnType<typeof fn>).mock.lastCall?.[0];
     expect(reported.value.args).toHaveLength(4);
+    expect(document.querySelector('.reqore-popover-content')).toBeNull();
+
+    // The list opens when it is asked for.
+    await userEvent.click(added.querySelector<HTMLElement>('.template-selector')!);
+    await waitFor(() => expect(document.querySelector('.reqore-popover-content')).toBeTruthy(), {
+      timeout: 10000,
+    });
   },
 };
 
@@ -1020,7 +1051,7 @@ export const AddValueSlotOnPhone: Story = {
     docs: {
       description: {
         story:
-          'Renders the phone presentation of the "concat" expression — the operands stack into a column and the "Add value" slot becomes a full-width row under them, with the plus and label centred.',
+          'Renders the phone presentation of the "concat" expression — the operands stack into a column and the "Add value" slot becomes a full-width row under them, with the plus and label centered.',
       },
     },
   },
@@ -1420,7 +1451,7 @@ export const ReorderOnPhone: Story = {
 
 // --- Wrap / unwrap family ---------------------------------------------------
 // Ported from the IDE `ExpressionCanBeWrapped` / `ExpressionCanBeUnwrapped`.
-// Adaptations: (1) the offline `Convert to Boolean` (base op) and `Join List
+// Adaptations: (1) the offline `Convert to true or false` (base op) and `Join List
 // Elements` (wrap target) fixture entries stand in for the live catalogue.
 // (2) The IDE starts from an empty `Default` and *selects* the base op fresh;
 // here a valued `convert-to-boolean` is *seeded* so the story stays focused
@@ -1429,7 +1460,7 @@ export const ReorderOnPhone: Story = {
 // modal collapsing the card panel — fixed in `SelectFormField`; fresh
 // selection is covered by `WithArgWithAllowedValues` above.)
 
-/** A seeded `Convert to Boolean` whose operand carries a template value. */
+/** A seeded `Convert to true or false` whose operand carries a template value. */
 const seededConvert: IExpression = {
   is_expression: true,
   value: {
@@ -1448,7 +1479,7 @@ export const ExpressionCanBeWrapped: Story = {
     docs: {
       description: {
         story:
-          'Renders a seeded "Convert to Boolean" expression, hovers the card and picks "Join List Elements" from the Wrap picker — the outer op mounts and the original expression becomes its first operand.',
+          'Renders a seeded "Convert to true or false" expression, hovers the card and picks "Join List Elements" from the Wrap picker — the outer op mounts and the original expression becomes its first operand.',
       },
     },
   },
@@ -1476,7 +1507,7 @@ export const ExpressionCanBeUnwrapped: Story = {
     docs: {
       description: {
         story:
-          'Renders the wrapped expression from ExpressionCanBeWrapped, then hovers and unwraps the outer op — the inner "Convert to Boolean" survives and the outer wrapper is removed.',
+          'Renders the wrapped expression from ExpressionCanBeWrapped, then hovers and unwraps the outer op — the inner "Convert to true or false" survives and the outer wrapper is removed.',
       },
     },
   },
@@ -1491,6 +1522,124 @@ export const ExpressionCanBeUnwrapped: Story = {
     await clickSelector('.expression-unwrap');
 
     await waitFor(() => expect(expressionCount(args.canvasElement)).toBe(1), { timeout: 10000 });
+  },
+};
+
+// --- A rich-text operand of a nested `in(...)` ---------------------------------
+
+/**
+ * `in`, as the server serves it (qorus Classes/QorusExpressions.qc QO_IN, as the IDE's Expression Builder
+ * fixture holds it). Only this story's catalogue has it: added to the shared one, it would change the
+ * count every operation picker shows.
+ */
+const inListExpression: IExpressionSchema = {
+  name: 'in',
+  display_name: 'In List',
+  short_desc: 'Returns True if the first argument is found in the second argument',
+  desc: 'Returns `True` if the first argument is found in the second argument; the optional third argument provides the location of the value to compare if list elements are complex objects themselves',
+  symbol: 'in',
+  render_template: '$arg[0] in $arg[1]${arg[2] ? [loc $arg[2]]:}',
+  type: 1,
+  subtype: 1,
+  return_type: 'bool',
+  ui_return_type: 'bool',
+  varargs: false,
+  groups: ['Comparison'],
+  args: [
+    { name: 'auto', display_name: 'Value', ui_type: 'any', required: true, label_after: 'in' },
+    {
+      name: 'softlist<auto>',
+      display_name: 'List of Values',
+      ui_type: 'list',
+      required: true,
+      label_after: 'and',
+    },
+    { name: 'string', display_name: 'Value Location', ui_type: 'richtext', required: false },
+  ],
+} as IExpressionSchema;
+
+const IN_LIST_EXPRESSIONS = [...mockExpressions, inListExpression];
+
+/** Rich text holding one template, as the builder stores it: a document, not text. */
+const richTextHoldingATemplate = [
+  {
+    type: 'paragraph',
+    children: [
+      {
+        type: 'tag',
+        label: 'Richtext Template',
+        value: '$local:some-richtext',
+        children: [{ text: '' }],
+      },
+    ],
+  },
+];
+
+/** `true && (true in <rich text>)`: an `in(...)` nested in another expression, its list rich text. */
+const nestedInListHoldingRichText: IExpression = {
+  is_expression: true,
+  value: {
+    exp: '&&',
+    args: [
+      {
+        is_expression: true,
+        value: {
+          exp: 'in',
+          args: [
+            { type: 'bool', value: true, is_expression: false },
+            { type: 'richtext', value: richTextHoldingATemplate },
+          ],
+        },
+      },
+    ],
+  },
+};
+
+let stringifiedObjects: IStringifiedObjectWatch | undefined;
+
+export const NestedInListWithARichTextOperand: Story = {
+  args: {
+    returnType: 'bool',
+    expressions: IN_LIST_EXPRESSIONS,
+    value: nestedInListHoldingRichText,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders `true in <rich text>` nested in a Logical And, the rich text holding a template. Its list operand is drawn as rich text, the template a chip in it, from its first render: a field was drawn as untyped until it had mounted, and for that first render its text editor was handed the rich text - a document - as text, so it read `[object Object]` (the Qorus IDE's Expression Builder stories).",
+      },
+    },
+  },
+  // watched from before it renders: the wrong text was there only until the field's next render
+  beforeEach: () => {
+    stringifiedObjects = watchForStringifiedObjects();
+    return () => {
+      stringifiedObjects?.stop();
+      stringifiedObjects = undefined;
+    };
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.queryAllByText('In List')[0]).toBeTruthy(), {
+      timeout: 10000,
+    });
+    // the list operand holds the template as a chip in rich text
+    const listOperand = await waitFor(
+      () => {
+        const operand = Array.from(canvasElement.querySelectorAll('.expression-arg')).find((arg) =>
+          arg.textContent?.includes('List of Values')
+        );
+        expect(operand).toBeTruthy();
+        expect(within(operand as HTMLElement).queryAllByText('Richtext Template')[0]).toBeTruthy();
+        return operand as HTMLElement;
+      },
+      { timeout: 10000 }
+    );
+
+    await expect(listOperand.textContent).not.toContain('[object Object]');
+    // and never showed anything else, from the first render on
+    await expect(stringifiedObjects?.hits).toEqual([]);
   },
 };
 
@@ -1544,7 +1693,7 @@ const SeededMismatchBase: Story = {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
     // The modal mounts with its title and per-argument transform copy.
     await waitForText('Confirm type selection for mismatched arguments');
-    await waitForText(/will be transformed|deselect the arguments/i);
+    await waitForText(/Qorus converts them when it runs|deselect the arguments/i);
   },
 };
 
@@ -1681,3 +1830,126 @@ export const DiscardAllIncompatibleFunctionArgs: Story = {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
   },
 };
+
+/* A condition (qorus#646): the server reads one as true unless its value is zero or empty. What it gives
+   is said under it as every condition editor says it: nothing for true or false, a warning for a number
+   or a list, an error for text, a date or a time. */
+
+/** What is said of the condition, if anything. */
+const conditionVerdict = () => document.querySelector('.expression-condition-verdict');
+
+export const ConditionThatGivesANumber: Story = {
+  args: {
+    returnType: 'bool',
+    condition: true,
+    value: {
+      value: { exp: '+', args: [{ type: 'int', value: '$local:id' }, { type: 'int', value: 20 }] },
+      is_expression: true,
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a condition (a true-or-false place, such as a Qog if state\'s) that adds two numbers. It is accepted, as Qorus reads the condition as true unless it is 0, and a warning under it says so and how to make that explicit: compare it, for example @count > 0.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(
+      () =>
+        expect(conditionVerdict()?.textContent).toContain(
+          'The condition evaluates to a whole number; Qorus treats it as true unless it is 0. To make that explicit, compare it, for example @count > 0.'
+        ),
+      { timeout: 10000 }
+    );
+    await expect(document.body.textContent).not.toContain('but this field takes');
+  },
+};
+
+export const ConditionThatGivesText: Story = {
+  args: {
+    returnType: 'bool',
+    condition: true,
+    value: {
+      value: {
+        exp: 'concat',
+        args: [
+          { type: 'string', value: 'first' },
+          { type: 'string', value: 'second' },
+        ],
+      },
+      is_expression: true,
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a condition that joins two pieces of text. Text is not true or false, so the condition is refused, and the error under it says what it evaluates to and to compare the value instead, for example @status == "open".',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(
+      () =>
+        expect(conditionVerdict()?.textContent).toContain(
+          'but it must evaluate to true or false. Compare the value instead, for example @status == "open".'
+        ),
+      { timeout: 10000 }
+    );
+  },
+};
+
+export const BoolValueThatGivesANumber: Story = {
+  args: {
+    returnType: 'bool',
+    value: {
+      value: { exp: '+', args: [{ type: 'int', value: '$local:id' }, { type: 'int', value: 20 }] },
+      is_expression: true,
+    },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a value of type bool that is not a condition (an option that holds true or false) adding two numbers. The Qorus server checks a bool value as a bool, and a number does not fit it: it is refused with what it returns and what is expected, and nothing is said of it as a condition.',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(
+      () => expect(document.body.textContent).toContain('but this field takes'),
+      { timeout: 10000 }
+    );
+    await expect(conditionVerdict()).toBeNull();
+  },
+};
+
+export const ConditionThatGivesANumberOnAPhone: Story = {
+  ...ConditionThatGivesANumber,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The condition that adds two numbers, on a phone (390 px, touch): the warning under it wraps inside the expression.',
+      },
+    },
+  },
+  play: async (context) => {
+    await ConditionThatGivesANumber.play!(context);
+    await _testsWithViewport(PHONE_VIEWPORT.width, PHONE_VIEWPORT.height, async (narrowed) => {
+      if (narrowed) {
+        await waitFor(() => {
+          const expression = document.querySelector('.expression')!.getBoundingClientRect();
+          expect(conditionVerdict()!.getBoundingClientRect().right).toBeLessThanOrEqual(
+            expression.right + 0.5
+          );
+        });
+      }
+    });
+  },
+};
+

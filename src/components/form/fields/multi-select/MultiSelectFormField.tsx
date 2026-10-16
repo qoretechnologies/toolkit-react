@@ -2,6 +2,7 @@ import { ReqoreMultiSelect } from '@qoretechnologies/reqore';
 import { TReqoreMultiSelectItem } from '@qoretechnologies/reqore/dist/components/MultiSelect';
 import { IQorusAllowedValue } from '@qoretechnologies/ts-toolkit';
 import { memo, useMemo } from 'react';
+import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import {
   getSelectItemShortDescription,
   getSelectItemUnavailability,
@@ -31,6 +32,8 @@ export interface IMultiSelectFormFieldProps {
  */
 export const MultiSelectFormField = memo(
   ({ value = [], items, onChange, disabled, size, canCreateItems }: IMultiSelectFormFieldProps) => {
+    // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+    const unavailableOpacity = useReadableOpacity(0.55);
     const selectedValues = useMemo<string[]>(
       () => (value as unknown[]).map(String),
       [JSON.stringify(value)]
@@ -84,7 +87,7 @@ export const MultiSelectFormField = memo(
             tooltip: unavailable ? unavailable.content : undefined,
             icon: unavailable ? ('LockLine' as const) : undefined,
             className: unavailable ? UNAVAILABLE_ITEM_CLASS : undefined,
-            effect: unavailable ? { opacity: 0.55 } : undefined,
+            effect: unavailable ? { opacity: unavailableOpacity } : undefined,
             readOnly: !!unavailable,
             wrap: true,
             /* IDE parity: when `*` is selected, every other item is disabled.

@@ -80,6 +80,11 @@ export const ImageLightbox = ({
   const [zoom, setZoom] = useState<boolean>(false);
   // inline rename state: editing toggles the input row; draftName is the working value
   const [editing, setEditing] = useState<boolean>(false);
+  /* Whether the input's blur closes it without committing: Escape cancels. Enter and Escape let go of the focus
+     while the input is still on the page, and the blur closes it - taken off the page with the focus, it lost
+     the focus in the middle of React's work, and its blur committed then: Enter committed twice, and Escape
+     committed what was typed (qorus#646). */
+  const cancelRename = useRef(false);
   const [draftName, setDraftName] = useState<string>('');
   // url per attachment: undefined = not fetched, null = fetch failed, string = ready
   const [urls, setUrls] = useState<Record<string, string | null>>({});
@@ -204,14 +209,22 @@ export const ImageLightbox = ({
             onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
               setDraftName(event.target.value)
             }
-            onBlur={commitRename}
-            onKeyDown={(event: React.KeyboardEvent) => {
-              if (event.key === 'Enter') {
-                commitRename();
-              } else if (event.key === 'Escape') {
-                // cancel the edit only — don't let the modal's own Esc-to-close see it
-                event.stopPropagation();
+            onBlur={() => {
+              if (cancelRename.current) {
+                cancelRename.current = false;
                 setEditing(false);
+                return;
+              }
+              commitRename();
+            }}
+            onKeyDown={(event: React.KeyboardEvent) => {
+              if (event.key === 'Enter' || event.key === 'Escape') {
+                // Escape cancels the edit only — don't let the modal's own Esc-to-close see it
+                if (event.key === 'Escape') {
+                  event.stopPropagation();
+                }
+                cancelRename.current = event.key === 'Escape';
+                (event.target as HTMLElement).blur();
               }
             }}
             size='small'

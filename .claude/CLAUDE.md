@@ -127,7 +127,7 @@ Shared form field components built on ReQore, exported from `src/components/form
 | Component     | Field Type                        |
 |---------------|-----------------------------------|
 | `Boolean`     | Toggle/checkbox                   |
-| `Color`       | Color picker (`react-color`)      |
+| `Color`       | Colour picker (`@uiw/react-color-saturation`, `-hue`, `-alpha`) with a preview, validated hex/RGB/opacity inputs, help and swatches |
 | `Cron`        | Cron expression editor            |
 | `File`        | File upload (`react-dropzone`)    |
 | `LongString`  | Multi-line text                   |
@@ -196,6 +196,14 @@ yarn build:test         # Type-check without emit
 - Wrap unit tests with `ReqraftProvider` (or at minimum `QueryClientProvider`)
 - Use `mock-socket` for WebSocket testing
 - Run: `yarn test` (unit) · `yarn test:stories [file-substring]` (stories) · `yarn precheck` (lint + unit + `build:test:prod`)
+- **The type catalogue comes from the server.** A data type's names (its display name, a label, and its
+  sentence form, its name inside a sentence), descriptions and conversions (`types_accepted`, `exact_match`) are
+  the Qorus server's (`QorusDataTypeCatalogue::Info`, served at `/system/qorus-type-info`): `defaultQorusTypes`
+  (`src/helpers/qorusTypeCatalogue.ts`) is reqraft's copy until the server's list arrives, and the condition and
+  type messages are worded with it. `__tests__/qorusTypeCatalogue.test.ts` compares it, field for field, with
+  `__tests__/fixtures/qorusTypeInfo.json`, a recorded answer of the server. When the server's catalogue changes,
+  record its answer again and fix the copy until the test passes:
+  `qrest -j system/qorus-type-info | yarn -s record:type-info`
 
 ### Storybook Stories & visual testing
 
@@ -222,6 +230,25 @@ yarn build:test         # Type-check without emit
   - CI reaches the live hq instance with a valid token, so a story that leaks a real
     request can pass in CI and hang locally. When a story passes in CI but times out on
     your machine, look for an unmocked request before anything else.
+  - The guard (`src/stories/realNetworkGuard.ts`) covers what an element loads as well:
+    an `<img>`, `<source>` or `srcset`, a frame, a script, a stylesheet, a medium. Anything
+    else loaded from another origin, such as a CSS `url()` or a font, is caught from the
+    browser's resource timing. A story image is a local asset or a `data:` URI, never a
+    server's URL. The template fixtures keep the URL the server gives an app's logo
+    (`<instance>/api/public/apps/<app>/logo`) and swap in a local copy
+    (`__fixtures__/templateFixtures.ts`, `src/stories/Data/qorusAppLogo.svg`), so import
+    the fixtures from there, not from the JSON.
+- **Touch stories carry `tags: ['touch']`.** A story whose play calls `withTouchScreen`
+  (`src/stories/touchScreen.ts`), directly or through a helper such as
+  `playTapIsDrawnOnAPhone`, is tagged `touch`. `yarn test:stories` runs those stories in their
+  own Vitest project (`storybook-touch`), whose browser context is a phone from the start
+  (Playwright's `isMobile` and `hasTouch`, 390×844), and before the others; an untagged one fails
+  with the reason. Never turn Chromium's touch emulation on or off over the DevTools protocol:
+  turning it off leaves the page with the machine's hover and pointer, not the mouse Playwright
+  launched it with, and a Linux CI runner has none, so every later story in the page finds
+  `(hover: none)` (it never shows on a Mac, which always reports a mouse).
+  `.storybook/vitest.setup.ts` checks every story's browser is its project's:
+  `(hover: hover) and (pointer: fine)`, or on the phone `(hover: none) and (pointer: coarse)`.
 - **Visual regression via Qlip** (not Chromatic): the story run captures snapshots through the `qlip` Vitest plugin. Upload is gated on `QLIP_UPLOAD_TOKEN` (`vitest.config.ts`), so **local runs capture but never upload** — PNGs land in `qlip/screenshots/<ts>/stories/auto/<StoryId>.png` (gitignored); read the PNG to verify a visual change. CI (`.github/workflows/tests.yml`) sets the token and uploads a build for dashboard review. The full visual-change flow + the `qlip` MCP review skill live in the imported `stacks/frontend/FRONTEND.md`.
 
 ## Code Patterns & Conventions

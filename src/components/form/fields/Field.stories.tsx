@@ -1,7 +1,10 @@
 import { StoryObj } from '@storybook/react-vite';
-import { expect, fn, within } from 'storybook/test';
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 
+import { withCoarsePointer } from '../../../stories/coarsePointer';
+import { withTouchScreen } from '../../../stories/touchScreen';
+import { PHONE_VIEWPORT } from '../../../stories/tracking';
 import { StoryMeta } from '../../../types';
 import { FormField } from './Field';
 
@@ -139,5 +142,99 @@ export const MultiSelect: Story = {
     // The two selected values render as chips (by their display_name).
     await expect(await canvas.findByText('Red')).toBeInTheDocument();
     await expect(canvas.getByText('Blue')).toBeInTheDocument();
+  },
+};
+
+/** Choices the server describes in markdown, as a mode's allowed values are. */
+const DESCRIBED_CHOICES = [
+  {
+    value: { type: 'string', value: 'chat' },
+    display_name: 'Chat',
+    short_desc: 'Each `POST /conversations` starts a **new** thread.',
+  },
+  { value: { type: 'string', value: 'completion' }, display_name: 'Completion', short_desc: 'One answer per request.' },
+];
+
+const describedChoiceArgs = {
+  type: 'string',
+  display_name: 'Mode',
+  allowed_values: DESCRIBED_CHOICES,
+  value: 'chat',
+} as never;
+
+const choiceBox = (canvasElement: HTMLElement, label: string) =>
+  Array.from(canvasElement.querySelectorAll<HTMLElement>('.reqore-checkbox')).find((box) =>
+    box.textContent?.includes(label)
+  )!;
+
+/** The description cards open on the page. */
+const openCards = () => Array.from(document.querySelectorAll<HTMLElement>('.reqore-popover-content'));
+
+export const ChoicesDescribedOnHover: Story = {
+  args: describedChoiceArgs,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a field whose two choices (Chat, Completion) the server describes. With a mouse there is no ⓘ: hovering Completion shows its description in a card.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await waitFor(() => expect(choiceBox(canvasElement, 'Completion')).toBeTruthy());
+    await expect(canvasElement.querySelector('.reqraft-description-info')).toBeNull();
+    await userEvent.hover(choiceBox(canvasElement, 'Completion'));
+    await waitFor(() =>
+      expect(openCards().some((card) => card.textContent?.includes('One answer per request.'))).toBe(true)
+    );
+  },
+};
+
+export const ChoicesDescribedOnATouchScreen: Story = {
+  tags: ['touch'],
+  args: describedChoiceArgs,
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          "Renders the same field on a phone (390 px, touch). Each choice has a finger-sized ⓘ beside it. A tap on Completion only chooses it, and no card opens. A tap on Chat's ⓘ opens Chat's description, which stays on the screen.",
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    await withTouchScreen(async (touch) => {
+      const info = await waitFor(() => {
+        const buttons = Array.from(
+          canvasElement.querySelectorAll<HTMLElement>('.reqraft-description-info')
+        );
+        expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+          'About Chat',
+          'About Completion',
+        ]);
+        return buttons;
+      });
+      for (const button of info) {
+        expect(button.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+      }
+      // the box: chosen, and nothing else
+      await touch.tap(choiceBox(canvasElement, 'Completion'));
+      await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('completion'));
+      await expect(openCards()).toHaveLength(0);
+      // the ⓘ: the description
+      await touch.tap(info[0]);
+      const card = await waitFor(() => {
+        const shown = openCards().find((each) => each.textContent?.includes('starts a new thread'));
+        expect(shown).toBeTruthy();
+        return shown!;
+      });
+      await expect(card.textContent).not.toMatch(/[`*]/);
+      if (touch.narrowed) {
+        const box = card.getBoundingClientRect();
+        await expect(box.left).toBeGreaterThanOrEqual(0);
+        await expect(box.right).toBeLessThanOrEqual(window.innerWidth);
+      }
+    });
   },
 };

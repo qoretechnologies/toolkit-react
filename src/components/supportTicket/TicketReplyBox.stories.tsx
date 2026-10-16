@@ -227,7 +227,7 @@ export const AllReferenceTypes: Story = {
   },
 };
 
-// Stand-in app logos (a coloured rounded square + initial) as data-URIs, so the
+// Stand-in app logos (a colored rounded square + initial) as data-URIs, so the
 // story needs no network. Real logos come from the app catalogue (`app.logo`).
 const appLogo = (hex: string, letter: string) =>
   `data:image/svg+xml,${encodeURIComponent(

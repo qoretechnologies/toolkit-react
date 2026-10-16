@@ -56,7 +56,7 @@ export const PANEL_LEFT_CSS = `calc(${LABEL_COL} + ${COMPACT_ROW_PAD_X + COMPACT
 // gives its sticky header) with a translucent theme tint + a moderate blur, the
 // way the IDE's DashboardModule overrides its own header. `translateZ(0)`
 // promotes the header to its own GPU layer, which stops the backdrop-filter
-// repaint flicker on scroll. `$headerBg` is a pre-mixed translucent colour so
+// repaint flicker on scroll. `$headerBg` is a pre-mixed translucent color so
 // content blurs softly through.
 export const StyledCompactPanel = styled(ReqorePanel)<{
   $headerBg: string;
@@ -154,7 +154,7 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   }
 
   /* Group framing. The HORIZONTAL rule is a real element in the header
-     (StyledGroupHeaderLine) so it sits on the name's row, centred, and stretches
+     (StyledGroupHeaderLine) so it sits on the name's row, centered, and stretches
      from the name out to the status chip pinned at the far end — which needs the
      title's left group to fill the header width. The VERTICAL group spine is
      drawn by StyledGroupBody (so it shares the required-group rail's coordinate
@@ -170,7 +170,7 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   }
 
   /* An injected option action declared \`show: 'hover'\` — the shape ReqorePanel
-     honours on the classic path — is revealed only while its row or card is
+     honors on the classic path — is revealed only while its row or card is
      hovered or holds focus. The compact slots render plain buttons, so the gate
      has to be CSS here. Kept focus-visible too, so the action stays reachable by
      keyboard. Opacity rather than display keeps the slot's width stable, so rows
@@ -218,7 +218,7 @@ export const StyledGroupHeaderLine = styled.span<{ $color: string }>`
 
 // A status box (Needs attention / Set / Optional). Matches the "Focus" prototype:
 // a barely-there accent border + a ~5%-opacity tint, NOT the loud intent border a
-// stock ReqorePanel draws. `$accent` is the box's theme colour (warning/success/
+// stock ReqorePanel draws. `$accent` is the box's theme color (warning/success/
 // muted).
 export const StyledStatusBox = styled(ReqorePanel)<{
   $accent: string;
@@ -229,7 +229,7 @@ export const StyledStatusBox = styled(ReqorePanel)<{
   &&& {
     border: 1px solid ${({ $accent }) => `${$accent}33`};
     /* $bg lets the muted "Optional" box opt into a darker, recessed surface
-       instead of the faint accent tint the coloured boxes use. */
+       instead of the faint accent tint the colored boxes use. */
     background: ${({ $accent, $bg }) => $bg || `${$accent}1f`};
     border-radius: 10px;
   }
@@ -271,7 +271,7 @@ export const StyledRequiredClusterBox = styled.div<{ $border: string; $tint: str
   padding: 2px 6px 6px;
   margin: 4px 0;
   /* The members render directly here (not via the gapped group body), so give
-     them the same modest gap the rest of the rows have. Pin the divider-centring
+     them the same modest gap the rest of the rows have. Pin the divider-centering
      var to that gap (it doesn't widen in narrow like the group body's does). */
   display: flex;
   flex-flow: column;
@@ -417,9 +417,9 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
   align-items: baseline;
   column-gap: 10px;
   row-gap: 2px;
-  /* The muted/translucent colour applies to the VALUE TEXT only — not the whole
+  /* The muted/translucent color applies to the VALUE TEXT only — not the whole
      cell — so the message panels and the structured preview below render at full
-     opacity instead of inheriting the dimmed value colour. */
+     opacity instead of inheriting the dimmed value color. */
   .options-readfirst-valuetext {
     min-width: 0;
     max-width: 100%;
@@ -439,6 +439,15 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     font-style: italic;
     font-size: 12px;
     line-height: 1.3;
+  }
+  /* The reason that follows the value shares its line and wraps within its own box. As a flex item
+     sized to its text it could only share the line whole: a reason longer than the room beside the
+     value went to the line below as a block, and an empty value's dash was left alone on its line,
+     the reason under it like the text of a list item under its bullet (qorus#646). It goes below
+     only when the value leaves it less than 16em. */
+  .options-readfirst-valuetext + .options-readfirst-reason {
+    flex: 1 1 16em;
+    min-width: 0;
   }
   /* Schema message panels: full width of the value column, on their own line
      directly beneath the value. */
@@ -478,7 +487,7 @@ export const StyledRowActions = styled.div`
   gap: 6px;
 `;
 
-// A single status mark pinned at the row's trailing edge: one dot, colour =
+// A single status mark pinned at the row's trailing edge: one dot, color =
 // severity (danger/warning/success). This is the "Focus" read-first signal that
 // replaces the recessed value surface's intent stripe — attention dots carry a
 // faint ring, a plain "set" dot does not. `unset` rows render no dot.
@@ -545,16 +554,6 @@ export const StyledCodePreview = styled.pre<{ $bg: string; $border: string; $fg:
   max-width: 100%;
 `;
 
-// A small inline colour swatch shown before an rgbcolor value's hex string.
-export const StyledColorSwatch = styled.span<{ $color: string; $border: string }>`
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  flex: 0 0 auto;
-  background: ${({ $color }) => $color};
-  border: 1px solid ${({ $border }) => $border};
-`;
-
 export const StyledGroupBody = styled.div<{
   $divider: string;
   $hover: string;
@@ -562,15 +561,15 @@ export const StyledGroupBody = styled.div<{
   $success: string;
   $rowBg: string;
   $lineColor: string;
-  /** Edge colour for the "N more fields" row. Its own value because the row
+  /** Edge color for the "N more fields" row. Its own value because the row
       HAS to be seen — the divider tint that separates two fields is ~8% of the
-      text colour, which disappears entirely as a 1px dashed border. */
+      text color, which disappears entirely as a 1px dashed border. */
   $moreBorder: string;
 }>`
   display: flex;
   flex-flow: column;
   position: relative;
-  /* Exposed as a var so the inter-field divider can centre itself in the gap
+  /* Exposed as a var so the inter-field divider can center itself in the gap
      (the gap differs wide vs narrow). */
   --readfirst-row-gap: 4px;
   gap: var(--readfirst-row-gap);
@@ -596,7 +595,7 @@ export const StyledGroupBody = styled.div<{
        minimum lets it shrink and the value cell's ellipsis take over instead. */
     grid-template-columns: ${LABEL_COL} minmax(0, 1fr) auto;
     /* CENTRE the cells vertically: on the common single-line read row the label,
-       value and status dot all sit on one centred line. Tall rows (a shown
+       value and status dot all sit on one centered line. Tall rows (a shown
        description, message panels or a hash preview) opt back into top-alignment
        (.readfirst-row-info-open / .readfirst-row-tall below) so the label + dot
        stay on the value's FIRST line instead of floating to the middle. */
@@ -621,7 +620,7 @@ export const StyledGroupBody = styled.div<{
        the full box edge-to-edge. */
     left: ${COMPACT_ROW_PAD_X}px;
     right: ${COMPACT_ROW_PAD_X}px;
-    /* Centred in the inter-field gap (which differs wide vs narrow) so the space
+    /* Centered in the inter-field gap (which differs wide vs narrow) so the space
        above and below each line is equal. */
     bottom: calc(var(--readfirst-row-gap, 4px) / -2);
     height: 1px;
@@ -717,9 +716,9 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row-editing {
     cursor: default;
     /* Top-anchor the cells: with multi-line editors (e.g. allowed-values =
-       input + picker), per-cell centring gives every control a different
+       input + picker), per-cell centering gives every control a different
        anchor. Instead everything aligns to the FIRST editor line — label and
-       the ✓/↺ cluster get small offsets to sit optically centred on it. */
+       the ✓/↺ cluster get small offsets to sit optically centered on it. */
     align-items: start;
     background: ${({ $hover }) => $hover};
     /* No top padding (the per-cell nudges below anchor the editor to the first
@@ -731,10 +730,10 @@ export const StyledGroupBody = styled.div<{
        read as one control cluster, not two separated groups. */
     column-gap: 6px;
   }
-  /* Centre each cell's content on the row's ~38px first-line band. The label
+  /* Center each cell's content on the row's ~38px first-line band. The label
      text (+10) and the ✓/↺ cluster (+3) were already nudged, but the editor
      cell was not — so a single-line input sat ~3px above the buttons. A 32px
-     control needs +3 to centre in 38px, so the editor gets the same offset and
+     control needs +3 to center in 38px, so the editor gets the same offset and
      lines up with the buttons. (A multi-line editor's first line lands on the
      band too; its extra rows grow downward.) */
   .readfirst-row-editing > div:nth-child(1) {
@@ -797,8 +796,8 @@ export const StyledGroupBody = styled.div<{
   /* Read (non-editing) rows: float the trailing actions (status dot + the
      hover-revealed delete/revert) out of the grid flow so a delete button can't
      inflate the first row and push the value down. They're pinned to a band the
-     height of the LABEL line and vertically centred in it — so the dot always
-     sits at the same place (centred on the field name), never the bare corner. */
+     height of the LABEL line and vertically centered in it — so the dot always
+     sits at the same place (centered on the field name), never the bare corner. */
   &.readfirst-narrow .readfirst-row:not(.readfirst-row-editing) > :nth-child(3) {
     position: absolute;
     top: 2px;
@@ -836,7 +835,7 @@ export const StyledGroupBody = styled.div<{
   /* (The required-group connection rail was removed — the "One of the below is
      required" box now carries the grouping.) */
 
-  /* Tall rows top-anchor (overriding the row's centred default) so the label and
+  /* Tall rows top-anchor (overriding the row's centered default) so the label and
      dot stay on the value's FIRST line rather than floating to the vertical
      middle: .readfirst-row-info-open = a shown short_desc grows the LABEL;
      .readfirst-row-tall = message panels / a hash preview grow the VALUE cell. */

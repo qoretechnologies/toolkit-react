@@ -21,6 +21,10 @@ import {
   SelectFieldCollection,
   UNAVAILABLE_ITEM_CLASS,
 } from './SelectCollection';
+import { useUnavailableLabelOpacity } from './unavailableRow';
+
+/** The color the anchored list of choices is drawn in. */
+export const ANCHORED_LIST_MAIN = '#010811';
 
 export type ISelectFormFieldItem = ISelectFieldCollectionItem;
 
@@ -100,6 +104,8 @@ export const SelectFormField = memo(
     size: componentSize,
     ...rest
   }: ISelectFormFieldProps) => {
+    // the name of an item that cannot be picked is dimmed, as far as it still reads (qorus#646)
+    const unavailableOpacity = useUnavailableLabelOpacity();
     const [items, setItems] = useState<ISelectFormFieldItem[]>(fixItems(rawItems));
     const [collectionOpen, setCollectionOpen] = useState(false);
     // Reqore owns the anchored list's open state; this mirrors it so the
@@ -179,16 +185,21 @@ export const SelectFormField = memo(
           selected: isEqual(item.value, value),
           intent: item.intent,
           className: unavailable ? UNAVAILABLE_ITEM_CLASS : undefined,
-          /* Dimmed through reqore's own effect, and never through `disabled`:
-             that applies `DisabledElement` (`pointer-events: none`), which
-             takes the tooltip with it — the only place the whole reason fits.
+          /* Its name dimmed through reqore's own `labelEffect`, and never
+             through `disabled`: that applies `DisabledElement` (`pointer-events:
+             none`), which takes the tooltip with it — the only place the whole
+             reason fits. Only the name: the reason under it has to read, and a
+             row with an `effect` is filled by reqore (`getUnavailableLabelOpacity`).
              The row is made inert by having no handler, as in the collection. */
-          effect: unavailable ? { opacity: 0.55 } : undefined,
+          labelEffect:
+            unavailable ?
+              { opacity: unavailableOpacity(item.intent, ANCHORED_LIST_MAIN) }
+            : undefined,
           style: unavailable ? { cursor: 'not-allowed' } : undefined,
           onClick: unavailable ? undefined : () => handleSelectClick(item),
         };
       });
-    }, [JSON.stringify(filteredItems), value]) as IReqoreDropdownItem[];
+    }, [JSON.stringify(filteredItems), value, unavailableOpacity]) as IReqoreDropdownItem[];
 
     const getItemShortDescription = useCallback(
       (itemName: unknown, defaultDesc = '') => {
@@ -354,13 +365,13 @@ export const SelectFormField = memo(
             tooltip: unavailable ? unavailable.content : undefined,
             icon: unavailable ? ('LockLine' as const) : undefined,
             className: unavailable ? UNAVAILABLE_ITEM_CLASS : undefined,
-            effect: unavailable ? { opacity: 0.55 } : undefined,
+            labelEffect: unavailable ? { opacity: unavailableOpacity(item.intent) } : undefined,
             readOnly: !!unavailable,
             intent: item.intent,
             wrap: true,
           };
         }),
-      [filteredItems, getItemDescription]
+      [filteredItems, getItemDescription, unavailableOpacity]
     );
 
     const handleCreatableChange = useCallback(
@@ -521,7 +532,9 @@ export const SelectFormField = memo(
                   tooltip={unavailable ? unavailable.content : undefined}
                   icon={unavailable ? 'LockLine' : undefined}
                   className={unavailable ? UNAVAILABLE_ITEM_CLASS : undefined}
-                  effect={unavailable ? { opacity: 0.55 } : undefined}
+                  labelEffect={
+                    unavailable ? { opacity: unavailableOpacity(item.intent) } : undefined
+                  }
                   readOnly={!!unavailable}
                   intent={item.intent}
                   onClick={unavailable ? undefined : () => handleSelectClick(item)}
@@ -585,7 +598,7 @@ export const SelectFormField = memo(
             isDefaultOpen={rowAsksForTheChoices}
             items={reqoreItems}
             listCustomTheme={{
-              main: '#010811',
+              main: ANCHORED_LIST_MAIN,
             }}
             filterable
             fluid={fluid}

@@ -21,7 +21,7 @@ export interface IMarkdownDocProps {
   /**
    * When `true`, render `content` as Markdown. When `false`, render it
    * verbatim in a wrapping `<pre>` (the LSP `plaintext` kind) — still
-   * inside the styled container so it shares the font / colour / wrap.
+   * inside the styled container so it shares the font / color / wrap.
    */
   markdown: boolean;
   /** Max width of the doc body (px). Default 360. */
@@ -43,7 +43,7 @@ const StyledMarkdown = styled.div<IStyledMarkdownProps>`
   overflow: auto;
   font-size: 12px;
   line-height: 1.5;
-  /* Text colour is derived from the active Reqore theme (readable on
+  /* Text color is derived from the active Reqore theme (readable on
      whatever surface the host app uses) — not a hardcoded hex. */
   color: ${({ $textColor }) => $textColor};
   word-break: break-word;
@@ -119,7 +119,7 @@ const StyledMarkdown = styled.div<IStyledMarkdownProps>`
 
   a {
     /* Links use the theme's info intent (falls back to the readable
-       text colour if the theme doesn't define one). */
+       text color if the theme doesn't define one). */
     color: ${({ $linkColor }) => $linkColor};
     text-decoration: none;
   }

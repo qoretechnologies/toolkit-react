@@ -4,7 +4,13 @@
 
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { describeTemplateReference, templateTooltip } from '../../helpers/templates';
+import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/descriptionTooltip';
+import {
+  describeTemplateReference,
+  getTemplateTagStyle,
+  templateTooltip,
+  TTemplateMeta,
+} from '../../helpers/templates';
 import { ISlateElement } from '../smartEditor/types';
 import { IDpqlFieldMeta } from './useDpqlSession';
 
@@ -48,13 +54,11 @@ export const getTemplatePrefixColor = (value: string): string => {
 
 export interface IDpqlTagRendererOptions {
   /**
-   * Color template (`$…`) tags with the `info` intent instead of the per-prefix
-   * palette. For read-only render surfaces (the Explain panel) that mirror
-   * qorus-ide, where template tags are uniformly `info`. The server's
-   * `renderExpression` carries no built-in / event-trigger metadata (verified
-   * against the live LSP), so `info` is the whole scheme here — there's nothing
-   * to promote to qorus purple / success. The editable editor omits this and
-   * keeps the per-prefix palette for telling prefixes apart at a glance.
+   * Draw a template (`$…`) chip as every other template chip is drawn - in a value's text, a template field, a
+   * read row (`getTemplateTagStyle`): `info`, or the catalogue entry's built-in (`custom1`) or event-trigger
+   * (`success`) intent. The default (qorus#646, David's review: a template picked on a value's Value tab was blue
+   * there and gray on its Expression tab). `false` keeps the per-prefix palette (`TEMPLATE_COLORS`), which drew a
+   * prefix it did not list (`$record:`) gray.
    */
   templateTagsUseIntent?: boolean;
   /**
@@ -64,6 +68,11 @@ export interface IDpqlTagRendererOptions {
    * that is not found keeps its path.
    */
   templates?: IReqoreFormTemplates;
+  /**
+   * How the editor shows a description's card (`useDescriptionTooltips`): a field's and a template's
+   * description is markdown, drawn as the template list draws it, and opened by a tap on a touch screen.
+   */
+  descriptions?: IDescriptionTooltipOptions;
 }
 
 /**
@@ -82,10 +91,13 @@ export function makeDpqlTagRenderer(
     if (tagValue.startsWith('@')) {
       const fieldName = tagValue.slice(1);
       const meta = fieldMeta[fieldName];
+      // the field's name and type head the card, and its description is drawn under them
       const tooltip = meta
-        ? `${meta.display_name || fieldName}${
-            meta.type?.name ? ` (${meta.type.name})` : ''
-          }${meta.short_desc ? `\n${meta.short_desc}` : ''}`
+        ? descriptionTooltip(
+            meta.short_desc,
+            options.descriptions ?? {},
+            `${meta.display_name || fieldName}${meta.type?.name ? ` (${meta.type.name})` : ''}`
+          )
         : undefined;
 
       return {
@@ -101,11 +113,14 @@ export function makeDpqlTagRenderer(
       return {
         icon: 'ExchangeDollarLine',
         ...(named?.item ?
-          { label: named.label, tooltip: templateTooltip(options.templates, tagValue) }
+          {
+            label: named.label,
+            tooltip: templateTooltip(options.templates, tagValue, options.descriptions ?? {}),
+          }
         : {}),
-        ...(options.templateTagsUseIntent
-          ? { intent: 'info' as const }
-          : { color: getTemplatePrefixColor(tagValue) as `#${string}` }),
+        ...(options.templateTagsUseIntent === false ?
+          { color: getTemplatePrefixColor(tagValue) as `#${string}` }
+        : getTemplateTagStyle(named?.item?.metadata as TTemplateMeta | undefined)),
       };
     }
 

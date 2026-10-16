@@ -881,7 +881,7 @@ export const LiveDpqlEditorWithAlertPayload: Story = {
 
 /**
  * Demonstrates LSP-driven syntax highlighting (design doc §7) across a
- * representative DPQL expression touching every coloured token type:
+ * representative DPQL expression touching every colored token type:
  * field references, templates, operators, string / number / boolean /
  * null literals, regex, range, keywords, parens.
  *
@@ -901,7 +901,7 @@ export const WithSemanticTokens: Story = {
     docs: {
       description: {
         story:
-          'Every coloured DPQL token category. Variables (`@status`, ' +
+          'Every colored DPQL token category. Variables (`@status`, ' +
           '`@age`, …) in red, operators (`==`, `&&`, `=~`, `between`) ' +
           'in cyan, strings in green, numbers in orange, keywords ' +
           '(`in`, `between`, `and`, `not`, `true`) in purple, regex ' +
@@ -910,16 +910,16 @@ export const WithSemanticTokens: Story = {
     },
   },
   // CI guard for the semantic-token pipeline (server tokens → decode →
-  // decorate → coloured leaf). Assert the editor rendered spans carrying
-  // the palette colours: keyword purple (#c678dd → rgb(198,120,221)) and
+  // decorate → colored leaf). Assert the editor rendered spans carrying
+  // the palette colors: keyword purple (#c678dd → rgb(198,120,221)) and
   // string green (#98c379 → rgb(152,195,121)). If the decoration breaks,
-  // the tokens render uncoloured and these are absent.
+  // the tokens render uncolored and these are absent.
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
-    // Poll until the semantic-token pipeline has coloured the leaves
+    // Poll until the semantic-token pipeline has colored the leaves
     // (server tokens → decode → decorate). Before the round-trip lands
-    // the spans are uncoloured and these assertions fail.
+    // the spans are uncolored and these assertions fail.
     await waitFor(
       () => {
         const colors = Array.from(editable.querySelectorAll('span'))
@@ -1080,6 +1080,81 @@ export const CanTypeText: Story = {
 
     await expect(args.onChange).toHaveBeenCalled();
   },
+};
+
+/**
+ * A reference that is the whole expression: the chip starts AND ends the line.
+ * A click (or tap) at the end of the line puts the caret at the line's last
+ * caret position, and what is typed there is written after the reference
+ * (qorus#646, "can't type" in the Text view). Slate requires a text node on
+ * each side of a chip; when the loaded document had none, the last caret
+ * position was inside the chip, where Slate drops every keystroke, so the
+ * editor looked focused and ignored typing.
+ */
+const typeAtTheEndOfTheLine =
+  (reference: string, tap: 'mouse' | 'touch'): Story['play'] =>
+  async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    const line = await waitFor(() => {
+      const paragraph = editable.querySelector<HTMLElement>('.reqore-tag')?.closest('p');
+      if (!paragraph) throw new Error('the reference is not drawn as a chip yet');
+      return paragraph;
+    });
+    // where the browser puts the caret for a click past the line's end: its
+    // last caret position, the last text the line holds
+    const caretSpots = line.querySelectorAll('[data-slate-string], [data-slate-zero-width]');
+    const last = caretSpots[caretSpots.length - 1] as HTMLElement;
+    if (tap === 'touch') {
+      await userEvent.pointer([{ keys: '[TouchA]', target: last }]);
+    } else {
+      await userEvent.click(last);
+    }
+    editable.focus();
+    const spot = document.createTreeWalker(last, NodeFilter.SHOW_TEXT).nextNode() as Text;
+    window.getSelection()?.collapse(spot, spot.length);
+    await userEvent.keyboard(' + 1');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(`${reference} + 1`));
+    await expect(editable.textContent?.replace(/\uFEFF/g, '')).toContain(' + 1');
+  };
+
+export const TypesAfterAReferenceThatIsTheWholeLine: Story = {
+  args: { value: '@pos', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The expression is one reference. A click at the end of the line puts the caret after the chip, and " + 1" typed there is written after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('@pos', 'mouse'),
+};
+
+export const TypesAfterAReferenceThatIsTheWholeLineOnTouch: Story = {
+  args: { value: '@pos', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same on a touch screen: a tap at the end of the line puts the caret after the only chip, and what is typed there is written after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('@pos', 'touch'),
+};
+
+export const TypesAfterAServerDrawnReference: Story = {
+  args: { value: '$record:{pos}', useServerParse: true, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The server draws the chips (`useServerParse`) and sends a line that is one reference. A click at the end of the line and typing writes after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('$record:{pos}', 'mouse'),
 };
 
 /**

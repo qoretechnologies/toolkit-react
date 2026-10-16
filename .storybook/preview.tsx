@@ -7,6 +7,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { initializeReqraft } from '../src';
 import { startDpqlMockLsp } from '../src/components/form/expressions/dpqlMockLsp';
+import { _resetExpressionTypeTransportForTests } from '../src/components/form/expressions/useExpressionType';
 import { _resetRenderExpressionTransportForTests } from '../src/components/form/expressions/useRenderExpression';
 import { GLOBAL_STORY_MOCK_DATA, STORY_QORUS_INSTANCE } from '../src/stories/storyNetwork';
 import { fetchConfig } from '../src/utils/fetch';
@@ -56,6 +57,8 @@ export const parameters = {
 // a `live` story reaches the real server instead.
 export const beforeEach = ({ parameters }: { parameters?: { live?: boolean } }) => {
   _resetRenderExpressionTransportForTests();
+  // the expression type client too, and the types it cached: a story's server says what its expressions give
+  _resetExpressionTypeTransportForTests();
   _resetSharedLspConnectionsForTests();
   return parameters?.live ? undefined : startDpqlMockLsp();
 };

@@ -52,8 +52,11 @@ export const Default: Story = {
   },
   async play({ canvasElement, args }) {
     const canvas = within(canvasElement);
+    // a native radio since reqore 0.78, under the control a user clicks
     const java = canvas.getByLabelText('Java');
-    await userEvent.click(java);
+    await userEvent.click(
+      (java.closest('.reqore-checkbox') as HTMLElement | null) ?? java.parentElement!
+    );
     await expect(args.onChange).toHaveBeenLastCalledWith('Java');
   },
 };

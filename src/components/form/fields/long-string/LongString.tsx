@@ -8,6 +8,7 @@ import {
   isSingleLineStringType,
 } from '../../../../helpers/singleLineString';
 import { useEmittedValues } from '../emittedValues';
+import { usePendingEdit } from '../pendingEdit';
 
 export interface ILongStringFormFieldProps extends Omit<IReqoreTextareaProps, 'onChange'> {
   value?: string;
@@ -54,11 +55,21 @@ export const LongStringFormField = ({
     [onChange, emitted]
   );
 
+  /* What is typed and not yet reported: the pause below dies with the field, and Done closes the field
+     inside it. See `usePendingEdit`. */
+  const pending = usePendingEdit<string>((next) => {
+    if (next !== lastEmittedRef.current) {
+      emit(next);
+    }
+  });
+
   useEffect(() => {
     const incoming = value ?? '';
     if (emitted.isEcho(incoming)) {
       return;
     }
+    // the parent has a value of its own: what was typed before it is no edit to send any more
+    pending.release();
     if (incoming !== localValue) {
       setLocalValue(incoming);
     }
@@ -68,6 +79,7 @@ export const LongStringFormField = ({
 
   useDebounce(
     () => {
+      pending.release();
       if (localValue !== lastEmittedRef.current) {
         emit(localValue);
       }
@@ -84,9 +96,11 @@ export const LongStringFormField = ({
       // Flatten here rather than only blocking the Enter key: a line break also
       // arrives by paste, by drag-and-drop, from autofill and from an IME, and
       // a keydown guard catches none of those.
-      setLocalValue(singleLine && hasLineBreak(raw) ? flattenToSingleLine(raw) : raw);
+      const next = singleLine && hasLineBreak(raw) ? flattenToSingleLine(raw) : raw;
+      setLocalValue(next);
+      pending.hold(next);
     },
-    [singleLine]
+    [singleLine, pending]
   );
 
   // Stop Enter before it inserts anything, so the caret does not jump to a
@@ -107,9 +121,10 @@ export const LongStringFormField = ({
     setLocalValue('');
     // Reported at once, and recorded like any emit, so the debounce does not
     // report it a second time and its echo is not mistaken for a change.
+    pending.release();
     emit('');
     onClearClick?.();
-  }, [emit, onClearClick]);
+  }, [emit, onClearClick, pending]);
 
   return (
     <ReqoreTextarea

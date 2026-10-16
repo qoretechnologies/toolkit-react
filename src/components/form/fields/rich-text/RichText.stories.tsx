@@ -2,6 +2,15 @@ import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, within } from 'storybook/test';
 import { useState } from 'react';
 
+import {
+  MARKDOWN_TEMPLATE_VALUE,
+  MARKDOWN_TEMPLATES,
+  playHoverIsDrawn,
+  playTapIsDrawnOnAPhone,
+  withHostMarkdown,
+} from '../../../../stories/templateHover';
+import { withCoarsePointer } from '../../../../stories/coarsePointer';
+import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { StoryMeta } from '../../../../types';
 import { RichTextFormField } from './RichText';
 
@@ -80,4 +89,39 @@ export const WithSlateValue: Story = {
     await expect(canvas.getByRole('textbox')).toBeInTheDocument();
     await expect(canvas.getByText('Rich text with Slate format')).toBeInTheDocument();
   },
+};
+
+export const TemplateHoverDrawsTheDescription: Story = {
+  args: {
+    value: `Dear ${MARKDOWN_TEMPLATE_VALUE}, your order has shipped.`,
+    valueFormat: 'text',
+    templates: MARKDOWN_TEMPLATES,
+  },
+  decorators: [withHostMarkdown],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a text field holding a template ("Dear Customer name, your order has shipped."), in a host that draws markdown. Hovered, the chip\'s card shows the description drawn as the template list draws it: "customer’s" in bold and customer.name as code, with no asterisks or backticks, on one line on a wide screen (the card is as wide as what it says, up to 560px).',
+      },
+    },
+  },
+  play: playHoverIsDrawn,
+};
+
+export const TemplateTappedOnAPhone: Story = {
+  tags: ['touch'],
+  args: TemplateHoverDrawsTheDescription.args,
+  // the pointer is a finger where the touches are dispatched too (Storybook's own UI), as on a phone
+  decorators: [withCoarsePointer, withHostMarkdown],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders the same text field on a phone (390 px, touch). Tapped by a finger, the chip\'s card opens with the description drawn (bold and code, no markdown marks) and stays inside the screen.',
+      },
+    },
+  },
+  play: playTapIsDrawnOnAPhone,
 };

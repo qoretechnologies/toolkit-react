@@ -102,12 +102,16 @@ describe('an argument holding the DPQL null literal', () => {
     expect(document.body.textContent).not.toContain('Something went wrong');
   });
 
-  it('still offers the template selector for a genuinely empty argument', async () => {
+  it('still offers the templates for a genuinely empty argument, in a field written as text', async () => {
     // The rule itself must survive: an argument with NO value, `any`-typed,
-    // with templates on offer, is what the selector is for.
+    // with templates on offer, offers them - since qorus#646 in the text field
+    // the argument is written in (a template chosen into it is a chip, with text
+    // around it), not in a pick-only selector.
     renderBuilder([{}], () => undefined);
     await settled();
 
-    expect(document.body.textContent).toContain('Select Template');
+    const editor = document.querySelector('[data-slate-editor]');
+    expect(editor).not.toBeNull();
+    expect(editor?.getAttribute('aria-label')).toContain('Select Template');
   });
 });

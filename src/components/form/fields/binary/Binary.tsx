@@ -3,6 +3,7 @@ import { IReqoreTextareaProps } from '@qoretechnologies/reqore/dist/components/T
 import { ChangeEvent, memo, useCallback, useEffect, useState } from 'react';
 import { useDebounce } from 'react-use';
 import { useEmittedValues } from '../emittedValues';
+import { usePendingEdit } from '../pendingEdit';
 import { IFileFormFieldValue, ReqraftFileFormField } from '../file/File';
 
 export interface IReqraftBinaryFormFieldProps extends Omit<IReqoreTextareaProps, 'onChange' | 'value'> {
@@ -32,11 +33,26 @@ export const ReqraftBinaryFormField = memo(
     // The parent's echo of an emit still in flight is not a change: copying it
     // over the local value lost what was typed since. See `EmittedValues`.
     const emitted = useEmittedValues<string | undefined>();
+    /* What the parent holds, as the field shows it: no value is the empty text. Compared with `undefined`,
+       the empty text of a field opened without a value was a change, and the field reported '' 100 ms
+       after it opened - the form counted itself edited, and an unset field got '' (qorus#646). */
+    const held = value ?? '';
+
+    /* What is typed and not yet reported: the pause below dies with the field, and Done closes the field
+       inside it. See `usePendingEdit`. */
+    const pending = usePendingEdit<string>((next) => {
+      if (next !== emitted.settled(held)) {
+        emitted.record(next);
+        onChange?.(next);
+      }
+    });
 
     useEffect(() => {
       if (emitted.isEcho(value)) {
         return;
       }
+      // the parent has a value of its own: what was typed before it is no edit to send any more
+      pending.release();
       if (value !== localValue) {
         setLocalValue(value ?? '');
       }
@@ -44,7 +60,8 @@ export const ReqraftBinaryFormField = memo(
 
     useDebounce(
       () => {
-        if (localValue !== value) {
+        pending.release();
+        if (localValue !== emitted.settled(held)) {
           emitted.record(localValue);
           onChange?.(localValue);
         }
@@ -53,18 +70,24 @@ export const ReqraftBinaryFormField = memo(
       [localValue, onChange]
     );
 
-    const handleChange = useCallback((event: ChangeEvent<HTMLTextAreaElement>): void => {
-      setLocalValue(event.target.value);
-    }, []);
+    const handleChange = useCallback(
+      (event: ChangeEvent<HTMLTextAreaElement>): void => {
+        setLocalValue(event.target.value);
+        pending.hold(event.target.value);
+      },
+      [pending]
+    );
 
     const handleFileChange = useCallback(
       (file?: IFileFormFieldValue) => {
         const base64 = stripDataUrlPrefix(file?.content ?? '');
         setLocalValue(base64);
+        // reported at once, so nothing waits
+        pending.release();
         emitted.record(base64);
         onChange?.(base64);
       },
-      [onChange]
+      [onChange, pending]
     );
 
     return (
@@ -76,6 +99,7 @@ export const ReqraftBinaryFormField = memo(
           onChange={handleChange}
           onClearClick={() => {
             setLocalValue('');
+            pending.release();
             emitted.record('');
             onChange?.('');
           }}

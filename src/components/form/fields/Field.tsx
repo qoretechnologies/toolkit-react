@@ -9,7 +9,10 @@ import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { IQorusAllowedValue, IQorusFormFieldSchemaBase, IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { isEqual, size } from 'lodash';
 import { useId } from 'react';
+import { useReadableOpacity } from '../../../hooks/useReadableOpacity';
 import { typedToYaml } from '../../../helpers/common';
+import { useDescriptionTooltips } from '../../../helpers/descriptionTooltip';
+import { besideItsInfo, describedControl } from '../../Description/describedControl';
 import { useArgSchema } from '../../../hooks/useArgSchema';
 import { TFormFieldType, TFormFieldValueType } from '../../../types/Form';
 import BooleanFormField from './boolean/Boolean';
@@ -151,8 +154,12 @@ export const FormField = <T extends TFormFieldType>({
   options, // eslint-disable-line @typescript-eslint/no-unused-vars
   ...rest
 }: IFormFieldProps<T>) => {
+  // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+  const unavailableOpacity = useReadableOpacity(0.55);
   const id = useId();
   const { schema: finalArgSchema, loading: argSchemaLoading } = useArgSchema(arg_schema);
+  // a choice's description card: drawn as markdown, opened by a tap on touch (`descriptionTooltip`)
+  const descriptions = useDescriptionTooltips();
 
   const handleChange = (value: TFormFieldValueType<T>, event?: unknown) => {
     onChange(value, event);
@@ -246,12 +253,13 @@ export const FormField = <T extends TFormFieldType>({
       case 'rgbcolor':
         return (
           <ColorFormField
-            {...rest}
             {...(fieldProps as IFormFieldProps<'rgbcolor'>['fieldProps'])}
             value={value as IColorFormFieldProps['value']}
             onChange={(color) => {
               handleChange(color as TFormFieldValueType<T>);
             }}
+            disabled={(rest as { disabled?: boolean }).disabled}
+            readOnly={readonly}
           />
         );
 
@@ -428,12 +436,14 @@ export const FormField = <T extends TFormFieldType>({
                 {element_allowed_values.map((item, index) => {
                   const itemValue = item.value?.value;
                   const checked = serverValue.some((v) => isEqual(v, itemValue));
-                  return (
+                  const label = item.display_name ?? String(itemValue);
+                  // with a mouse, the hover; on a touch screen, an ⓘ beside the box, whose tap only ticks it
+                  const described = describedControl(item.short_desc || item.desc, descriptions, label);
+                  return besideItsInfo(
                     <ReqoreCheckbox
                       margin='right'
-                      key={index}
-                      label={item.display_name ?? String(itemValue)}
-                      tooltip={item.short_desc || item.desc}
+                      label={label}
+                      tooltip={described.tooltip}
                       checked={checked}
                       intent={checked ? 'info' : undefined}
                       onClick={() => {
@@ -443,7 +453,9 @@ export const FormField = <T extends TFormFieldType>({
                           : [...serverValue, itemValue];
                         handleChange(formatToServer(next) as TFormFieldValueType<T>);
                       }}
-                    />
+                    />,
+                    described.info,
+                    index
                   );
                 })}
               </ReqoreControlGroup>
@@ -663,12 +675,14 @@ export const FormField = <T extends TFormFieldType>({
             const checked = isEqual(value, itemValue);
             const mapped = mapAllowedValue(item, index);
             const unavailable = getSelectItemUnavailability(mapped);
-            return (
+            const label = item.display_name ?? JSON.stringify(itemValue);
+            // with a mouse, the hover; on a touch screen, an ⓘ beside the box, whose tap only ticks it
+            const described = describedControl(getSelectItemShortDescription(mapped), descriptions, label);
+            return besideItsInfo(
               <ReqoreCheckbox
                 margin='right'
-                key={index}
-                label={item.display_name ?? JSON.stringify(itemValue)}
-                tooltip={getSelectItemShortDescription(mapped)}
+                label={label}
+                tooltip={described.tooltip}
                 /* The reason is IN the row, not only on its hover: a checkbox
                    has no body to bury it in, and a hover is the one affordance
                    a touch screen and a keyboard never reach. */
@@ -686,7 +700,7 @@ export const FormField = <T extends TFormFieldType>({
                    never appeared at all. And the NAME is the right thing to
                    dim: `description` carries the reason, and a reason has to
                    stay readable. Same rule the collection rows follow. */
-                labelEffect={unavailable ? { opacity: 0.55 } : undefined}
+                labelEffect={unavailable ? { opacity: unavailableOpacity } : undefined}
                 /* `cursor: not-allowed` from reqore's own `ReadOnlyElement`
                    rather than a hand-rolled inline style. It leaves the
                    pointer events intact, which is what the tooltip is read
@@ -701,7 +715,9 @@ export const FormField = <T extends TFormFieldType>({
                     () => handleChange((checked ? undefined : itemValue) as TFormFieldValueType<T>)
                   )
                 }
-              />
+              />,
+              described.info,
+              index
             );
           })}
         </ReqoreControlGroup>

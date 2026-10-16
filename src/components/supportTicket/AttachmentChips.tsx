@@ -1,5 +1,5 @@
 import { ReqoreControlGroup, ReqoreInput, ReqoreTag } from '@qoretechnologies/reqore';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ImageLightbox } from '../imageLightbox';
 
 /*
@@ -30,6 +30,11 @@ export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttach
   // the file index currently being renamed inline, plus its working name.
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [draftName, setDraftName] = useState<string>('');
+  /* Whether the input's blur closes it without committing: Escape cancels. Enter and Escape let go of the focus
+     while the input is still on the page, and the blur closes it - taken off the page with the focus, it lost
+     the focus in the middle of React's work, and its blur committed then: Enter committed twice, and Escape
+     committed what was typed (qorus#646). */
+  const cancelRename = useRef(false);
 
   useEffect(() => {
     const urls = files.map((file) =>
@@ -76,12 +81,18 @@ export const AttachmentChips = ({ files, onRemove, onRename, disabled }: IAttach
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                   setDraftName(event.target.value)
                 }
-                onBlur={commitRename}
-                onKeyDown={(event: React.KeyboardEvent) => {
-                  if (event.key === 'Enter') {
-                    commitRename();
-                  } else if (event.key === 'Escape') {
+                onBlur={() => {
+                  if (cancelRename.current) {
+                    cancelRename.current = false;
                     setEditingIndex(null);
+                    return;
+                  }
+                  commitRename();
+                }}
+                onKeyDown={(event: React.KeyboardEvent) => {
+                  if (event.key === 'Enter' || event.key === 'Escape') {
+                    cancelRename.current = event.key === 'Escape';
+                    (event.target as HTMLElement).blur();
                   }
                 }}
                 size='small'
