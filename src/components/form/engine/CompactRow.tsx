@@ -1223,7 +1223,11 @@ export const CompactRow = memo(
 
     // Info tiers: Tier 1 (danger/warning + dependency hints) must be visible
     // without interaction; Tier 2 (info/success, default notes) sits behind ⓘ.
-    const infoActive = !hidden;
+    /* A field not set yet keeps quiet in the Optional box, but not once it is opened: its editor is where
+       its messages are read, and one saying why the field cannot be used is the answer to opening it. Such
+       a row used to show them only when its editor reported '' on opening, which put the field in the form
+       (qorus#646: the Qorus IDE's "Wait (ms)", disabled while "Until Step" is set). */
+    const infoActive = !hidden || isExpanded;
     /* `content` is said as it is: reqraft's own sentences quote values (`"__other__"`) that markdown would
        take for marks. Markdown a server wrote is made prose where it comes in (qorus#646). */
     type TInfoMsg = { intent?: string; title?: string; content: string };
