@@ -9815,3 +9815,100 @@ export const PickingARichTextChoiceShowsItsName: Story = {
     await expectChannelChip(canvasElement);
   },
 };
+
+export const ARichTextChoiceRetypedReturnsToItsChip: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose rich-text Channel option shows its stored choice as the chip "general". A click opens the chip into C07ERBFS0P6 as text; Backspace makes the form emit C07ERBFS0P and a typed 6 makes it emit C07ERBFS0P6 again, each as a document and still shown as text while the author types; Tab out of the editor draws the chip "general" again and emits nothing further, since that document already stands for the choice.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['channel'],
+    value: { channel: { type: 'richtext', value: 'C07ERBFS0P6' } },
+    options: RICH_TEXT_CHOICE_OPTIONS,
+  },
+  play: async ({ args, canvasElement }) => {
+    await expectChannelChip(canvasElement);
+    const row = canvasElement.querySelector('[data-field="channel"]') as HTMLElement;
+    const editor = row.querySelector('[contenteditable="true"]') as HTMLElement;
+
+    await userEvent.click(within(row).getByText('general'));
+    await waitFor(() => {
+      expect(editor.querySelector('.reqore-tag')).toBeNull();
+      expect(editor.contains(document.activeElement)).toBe(true);
+    });
+
+    const channelValue = (text: string) =>
+      expect.objectContaining({
+        channel: expect.objectContaining({ value: [{ type: 'paragraph', children: [{ text }] }] }),
+      });
+
+    // One key at a time, each emitted before the next: typed within the
+    // field's debounce, the two would settle as the value the field started
+    // with, and nothing would be emitted at all.
+    await userEvent.keyboard('{Backspace}');
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('test', channelValue('C07ERBFS0P'), undefined)
+    );
+    await userEvent.keyboard('6');
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('test', channelValue('C07ERBFS0P6'), undefined)
+    );
+    await expect(editor.querySelector('.reqore-tag')).toBeNull();
+
+    await userEvent.tab();
+    await expectChannelChip(canvasElement);
+    // Leaving the row changed nothing: the chip stands for what was emitted.
+    await expect(args.onChange).toHaveBeenLastCalledWith('test', channelValue('C07ERBFS0P6'), undefined);
+  },
+};
+
+export const ClickingARichTextChoiceEditsItsValue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose rich-text Channel option shows its stored choice as the chip "general". A click on the chip opens it into its value as editable text: the row shows C07ERBFS0P6 and no chip, with the cursor at the end, so Backspace and a typed 7 make it C07ERBFS0P7 — the value the form then emits for the option.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['channel'],
+    value: { channel: { type: 'richtext', value: 'C07ERBFS0P6' } },
+    options: RICH_TEXT_CHOICE_OPTIONS,
+  },
+  play: async ({ args, canvasElement }) => {
+    await expectChannelChip(canvasElement);
+    const row = canvasElement.querySelector('[data-field="channel"]') as HTMLElement;
+    const editor = row.querySelector('[contenteditable="true"]') as HTMLElement;
+
+    // The chip's label: a tag binds its click to its content, not its frame.
+    await userEvent.click(within(row).getByText('general'));
+    await waitFor(() => {
+      expect(editor.querySelector('.reqore-tag')).toBeNull();
+      expect(editor.textContent).toBe('C07ERBFS0P6');
+      expect(editor.contains(document.activeElement)).toBe(true);
+    });
+
+    await userEvent.keyboard('{Backspace}7');
+    await waitFor(() => expect(editor.textContent).toBe('C07ERBFS0P7'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        'test',
+        expect.objectContaining({
+          channel: expect.objectContaining({
+            value: [{ type: 'paragraph', children: [{ text: 'C07ERBFS0P7' }] }],
+          }),
+        }),
+        undefined
+      )
+    );
+  },
+};
