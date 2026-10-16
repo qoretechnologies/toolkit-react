@@ -5,12 +5,26 @@ import {
 } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
+import { IQorusAllowedValue } from '@qoretechnologies/ts-toolkit';
 import { isEqual } from 'lodash';
-import { KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FocusEvent, KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
+import { Path } from 'slate';
+import { ReactEditor } from 'slate-react';
 import { useEmittedValues } from '../emittedValues';
 import { usePendingEdit } from '../pendingEdit';
 import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import {
+  choiceChipAtCursor,
+  choiceForValue,
+  choiceToNodes,
+  choiceValue,
+  choiceValueOfNodes,
+  DEFAULT_CHOICE_CHIP_BEHAVIOR,
+  IChoiceChipBehavior,
+  pathOfNode,
+  unwrapChoiceChip,
+} from '../../../../helpers/choiceChip';
 import { flattenToSingleLine, hasLineBreak } from '../../../../helpers/singleLineString';
 import {
   templateChipLabel,
@@ -71,6 +85,25 @@ export interface IRichTextFormFieldProps extends Omit<
   valueFormat?: 'richtext' | 'text';
   /** With `valueFormat: 'text'`: the value holds one line, so Enter adds none. */
   singleLine?: boolean;
+  /**
+   * The choices the field offers, when it offers any. A value that IS one of
+   * them — the whole string, as picked from the field's suggestions, or a
+   * document of nothing but that string, as an edit of it stores — is drawn as
+   * one chip named from the choice (`general` rather than `C07ERBFS0P6`), and
+   * is still emitted as that value: the chip's own value is the choice's, and a
+   * document that is nothing but the chip reads back as it. A field spreads
+   * its schema here, so this is the schema's own key.
+   */
+  allowed_values?: IQorusAllowedValue[];
+  /**
+   * What a choice chip does when the author acts on it — Backspace right after
+   * it, a click on it. By default each opens the chip into its value as plain
+   * text, the cursor at the end, so one letter of what was chosen can be
+   * changed; see `IChoiceChipBehavior` for the alternatives. Text that is again
+   * exactly one of the choices becomes its chip when the author leaves the
+   * field — not while typing, where a choice can be the start of a longer value.
+   */
+  choiceChip?: IChoiceChipBehavior;
   /**
    * With `valueFormat: 'text'`: the token grammar the value's references are
    * WRITTEN in, when the host speaks one of its own.
@@ -146,11 +179,17 @@ export const RichTextFormField = memo(({
   valueFormat = 'richtext',
   singleLine,
   templateToken,
+  allowed_values,
+  choiceChip,
   ...rest
 }: IRichTextFormFieldProps) => {
   const isText = valueFormat === 'text';
   /** What chips are named from: the whole catalogue, not only what is offered (see the prop). */
   const naming = namingTemplates ?? templates;
+  /* The Slate editor behind Reqore's: the two choice-chip actions below rewrite the document in place,
+     which the editor's props cannot, and the completion list reads and edits the text through it. */
+  const editorRef = useRef<TReqoreRichTextEditorRef>(null);
+  const chipBehavior = { ...DEFAULT_CHOICE_CHIP_BEHAVIOR, ...choiceChip };
   /* The document a rich-text value stands for. Rich text the server holds is its string type, so a value
      arrives as a string as often as a document - a saved `$local:name`, or text - and a string handed to
      the editor as its document was drawn as raw text, each reference spelled out rather than its chip. It
@@ -164,9 +203,31 @@ export const RichTextFormField = memo(({
    *  copy of it may leave out. */
   const sameDocument = (a: unknown, b: unknown) =>
     isEqual(a, b) || JSON.stringify(a) === JSON.stringify(b);
-  const [localValue, setLocalValue] = useState<any>(() =>
-    isText ? templateTextToNodes(String(value ?? ''), naming, templateToken) : documentOf(value)
-  );
+  /* The document the editor shows for a value: a choice by its chip, a text
+     with its references as chips (a string held in rich text read the same way,
+     see `documentOf`), a document as it is. */
+  const toLocal = (next: unknown): any => {
+    if (isText) {
+      const text = String(next ?? '');
+      const choice = choiceForValue(text, allowed_values);
+      return choice ? choiceToNodes(choice) : templateTextToNodes(text, naming, templateToken);
+    }
+    const choice = choiceForValue(next, allowed_values);
+    return choice ? choiceToNodes(choice) : documentOf(next);
+  };
+  const [localValue, setLocalValue] = useState<any>(() => toLocal(value));
+  /* What a value stands for: the choice's value when the value is that choice
+     by any spelling — the plain string, the chip, a document of just the text —
+     else the value itself. Values are compared by this, so opening a chip, or
+     typing its id back, is not a change to the value. */
+  const standsFor = (next: unknown): unknown => {
+    const chip = choiceValueOfNodes(next);
+    if (chip !== undefined) {
+      return chip;
+    }
+    const choice = choiceForValue(next, allowed_values);
+    return choice ? choiceValue(choice) : next;
+  };
   /* In text mode, the string the editor's document stands for. The value that
      comes back from the parent is usually that same string, and rebuilding the
      document from it would hand the editor a new tree on every keystroke —
@@ -199,15 +260,36 @@ export const RichTextFormField = memo(({
       const text = String(value ?? '');
       if (text !== lastTextRef.current) {
         lastTextRef.current = text;
-        setLocalValue(templateTextToNodes(text, naming, templateToken));
+        setLocalValue(toLocal(text));
       }
       return;
     }
-    const held = documentOf(value);
-    if (JSON.stringify(held) !== JSON.stringify(localValue)) {
-      setLocalValue(held);
+    // Compared as what each stands for: a lone choice chip IS the value it draws, and the document a string
+    // held stands for is that string - so the value coming back is not a change to either.
+    if (!isEqual(standsFor(value), standsFor(localValue)) && !sameDocument(documentOf(value), localValue)) {
+      setLocalValue(toLocal(value));
     }
   }, [JSON.stringify(value)]);
+
+  /* The choices usually arrive after the value — they are fetched — so a
+     value already shown as text becomes its chip once they do. Only while the
+     editor still shows the stored value as it is: an edit in progress is
+     never redrawn from under the author. */
+  const choiceKey = JSON.stringify(
+    allowed_values?.map((choice) => [choice.value, choice.display_name]) ?? null
+  );
+  useEffect(() => {
+    if (!allowed_values?.length) {
+      return;
+    }
+    const shown = isText ? templateNodesToText(localValue) : (choiceValueOfNodes(localValue) ?? localValue);
+    const stored = isText ? String(value ?? '') : value;
+    // as it is: the same value, or the document a string held in rich text stands for (`documentOf`)
+    const showsStored = isEqual(shown, stored) || (!isText && sameDocument(localValue, documentOf(stored)));
+    if (showsStored && choiceForValue(stored, allowed_values)) {
+      setLocalValue(toLocal(stored));
+    }
+  }, [choiceKey]);
 
   /* A reference in a string is drawn as a chip only once something can name it: the field's own grammar
      (`templateToken`), or — for a reference neither grammar matches, a DPQL `@create` say — the catalogue
@@ -215,16 +297,29 @@ export const RichTextFormField = memo(({
      rebuilds the document only when the stored string changes. So a preset reference the catalogue had not
      yet named stayed raw text until the author re-picked it (qorus#646). Re-chip the string in hand when
      what recognises its references changes — text mode only, and only when a chip is actually gained or
-     lost, so a document being edited is left exactly as it is while nothing new is recognised. */
+     lost, so a document being edited is left exactly as it is while nothing new is recognised. A choice
+     chip is the choices' to draw (see above), so a document that is one is left alone. */
   useEffect(() => {
     if (!isText) {
       return;
     }
     const rebuilt = templateTextToNodes(lastTextRef.current, naming, templateToken);
     setLocalValue((current: any) =>
-      chipValuesOf(current) === chipValuesOf(rebuilt) ? current : rebuilt
+      choiceValueOfNodes(current) !== undefined || chipValuesOf(current) === chipValuesOf(rebuilt) ?
+        current
+      : rebuilt
     );
   }, [JSON.stringify(naming), String(templateToken)]);
+
+  /** What the host will hold once the emits in flight come back: what an edit is a change from. */
+  const settled = () => emitted.settled(isText ? String(value ?? '') : value);
+  /** A rich-text document as it is sent: one that is nothing but a choice chip, as the choice's value. */
+  const emittedFormOf = (document: unknown): TEdit => (choiceValueOfNodes(document) ?? document) as TEdit;
+  /** Whether a rich-text document is what the host will hold already: the same choice, or the document the
+   *  string it holds stands for. */
+  const isUnchanged = (document: unknown) =>
+    isEqual(standsFor(emittedFormOf(document)), standsFor(settled())) ||
+    sameDocument(document, documentOf(settled()));
 
   useDebounce(
     () => {
@@ -236,10 +331,12 @@ export const RichTextFormField = memo(({
         }
         return;
       }
-      // the document a string held stands for is that string, not an edit of it
-      if (!sameDocument(localValue, documentOf(emitted.settled(value)))) {
-        emitted.record(localValue);
-        onChange?.(localValue);
+      // A document that is nothing but one choice chip is sent as the choice's value — what was stored and
+      // what the server resolves — and the document a string held stands for is that string, not an edit of it.
+      if (!isUnchanged(localValue)) {
+        const next = emittedFormOf(localValue);
+        emitted.record(next);
+        onChange?.(next);
       }
     },
     100,
@@ -250,9 +347,6 @@ export const RichTextFormField = memo(({
     // closure from a ref, so the fresh `onChange` is used either way.
     [localValue]
   );
-
-  /** What the host will hold once the emits in flight come back: what an edit is a change from. */
-  const settled = () => emitted.settled(isText ? String(value ?? '') : value);
 
   /** The text as an edit to send, or nothing where it is what the host will hold. */
   const changedFrom = (text: string) => (text === settled() ? undefined : { edit: text });
@@ -265,7 +359,7 @@ export const RichTextFormField = memo(({
       if (singleLine && hasLineBreak(text)) {
         lastTextRef.current = flattenToSingleLine(text);
         setPending(changedFrom(lastTextRef.current));
-        setLocalValue(templateTextToNodes(lastTextRef.current, naming, templateToken));
+        setLocalValue(toLocal(lastTextRef.current));
         return;
       }
       lastTextRef.current = text;
@@ -284,7 +378,7 @@ export const RichTextFormField = memo(({
       setLocalValue(undefined);
       return;
     }
-    setPending(sameDocument(val, documentOf(settled())) ? undefined : { edit: val });
+    setPending(isUnchanged(val) ? undefined : { edit: emittedFormOf(val) });
     setLocalValue(val);
   };
 
@@ -294,12 +388,64 @@ export const RichTextFormField = memo(({
 
   const descriptionByValue = useMemo(() => getChipTooltipDescriptions(naming), [JSON.stringify(naming)]);
 
+  /* Opens a choice chip into its value as text and puts the cursor there.
+     A click on the chip — a non-editable node — need not have given the
+     editor focus, so focus is asked of Slate, which places the DOM caret where
+     the selection is and focuses after; but only once the text the chip became
+     is rendered (the effect below), since Slate resolves the caret through the
+     rendered DOM. Asked any earlier it lost: a DOM `focus()` before the
+     transform let the browser put the caret at the editor's start and the
+     `selectionchange` it raised beat the render, so the next key typed landed
+     there; asked on the next frame, the frame came before React's commit
+     often enough. An editor that already has focus (Backspace came from it)
+     is returned at once, and its own render puts the caret where the
+     selection is. */
+  const focusOnceRendered = useRef(false);
+  const openChoiceChip = useCallback((path: Path | undefined): void => {
+    const editor = editorRef.current;
+
+    if (editor && path && unwrapChoiceChip(editor, path)) {
+      focusOnceRendered.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+
+    if (!focusOnceRendered.current || !editor) {
+      return;
+    }
+    focusOnceRendered.current = false;
+
+    try {
+      ReactEditor.toDOMNode(editor, editor);
+      ReactEditor.focus(editor);
+    } catch {
+      // Not mounted in a document — nothing to focus.
+    }
+  }, [localValue]);
+
   const handleGetTagProps = useCallback(
     (tag: any): IReqoreTagProps => {
       const tagValue = tag.value?.toString();
 
       if (!tagValue) {
         return {};
+      }
+
+      /* One of the field's own choices, drawn by the name it was picked by;
+         what it stands for on hover. */
+      if (tag.metadata?.allowedValue) {
+        return {
+          icon: 'ListCheck',
+          label: tag.label ?? tagValue,
+          tooltip: tag.metadata?.description,
+          /* The editor hands the document's own node here, so the chip is
+             found by identity; a chip already gone is a click on nothing. */
+          ...(chipBehavior.click === 'unwrap' ?
+            { onClick: () => openChoiceChip(editorRef.current ? pathOfNode(editorRef.current, tag) : undefined) }
+          : {}),
+        };
       }
 
       /* A reference in a string is drawn exactly as the collapsed row draws the
@@ -347,7 +493,23 @@ export const RichTextFormField = memo(({
 
       return {};
     },
-    [descriptionByValue, descriptions, isText, naming]
+    [descriptionByValue, descriptions, isText, naming, chipBehavior.click, openChoiceChip]
+  );
+
+  /* Leaving the field: text that is exactly one of the choices becomes its
+     chip again, as the picker would have drawn it. Only here, never while
+     typing — a choice can be the start of a longer value, and a chip drawn
+     under the cursor would swallow it. */
+  const handleBlur = useCallback(
+    (event: FocusEvent<HTMLTextAreaElement>): void => {
+      const shown = isText ? lastTextRef.current : localValue;
+
+      if (choiceForValue(shown, allowed_values)) {
+        setLocalValue(toLocal(shown));
+      }
+      (rest as { onBlur?: (event: FocusEvent<HTMLTextAreaElement>) => void }).onBlur?.(event);
+    },
+    [isText, localValue, choiceKey, (rest as { onBlur?: unknown }).onBlur]
   );
 
   const handleKeyDown = useCallback(
@@ -355,9 +517,26 @@ export const RichTextFormField = memo(({
       if (isText && singleLine && event.key === 'Enter') {
         event.preventDefault();
       }
+      /* Backspace right after a choice chip opens it rather than deleting it,
+         when so configured. Stopped here, at keydown, so the browser raises no
+         `beforeinput` for the editor to delete the chip by. */
+      if (event.key === 'Backspace' && chipBehavior.backspace === 'unwrap' && editorRef.current) {
+        const path = choiceChipAtCursor(editorRef.current);
+
+        if (path) {
+          event.preventDefault();
+          openChoiceChip(path);
+        }
+      }
       (rest as { onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void }).onKeyDown?.(event);
     },
-    [isText, singleLine, (rest as { onKeyDown?: unknown }).onKeyDown]
+    [
+      isText,
+      singleLine,
+      chipBehavior.backspace,
+      openChoiceChip,
+      (rest as { onKeyDown?: unknown }).onKeyDown,
+    ]
   );
 
   // Read-only: ReqoreRichTextEditor makes the Slate surface non-editable (and
@@ -376,7 +555,6 @@ export const RichTextFormField = memo(({
      after a `$`, in the completion list typing opens everywhere (`CompletionMenu`), as an expression's Text
      view does. */
   const tags = useTemplateTags(templates, allowTemplates);
-  const editorRef = useRef<TReqoreRichTextEditorRef>(null);
   const completionMenuId = useMemo(() => `completion-menu-text-${++textCompletionMenuCounter}`, []);
   const templateItems = useMemo(
     () => (allowTemplates ? templateCompletionItems(templates) : []),
@@ -435,6 +613,7 @@ export const RichTextFormField = memo(({
       panelProps={{ fluid: true, style: { minWidth: '150px', ...rest.panelProps?.style } }}
       readOnly={readOnly}
       onKeyDown={handleKeyDown}
+      onBlur={handleBlur}
       /* A form field carries no document toolbar. Styling was already off, so
          the bar held only undo and redo — drawn by Reqore as a panel as wide as
          the tag list, which under a field reads as an empty 600px menu with two
