@@ -650,38 +650,40 @@ const normalizeEmptyFieldValues = (fields: TQorusForm | TQorusFlatForm | undefin
   );
 
 /**
- * The value as a host can hand it back: without the fields that hold nothing. A host that stores only the
- * fields holding a value (the Qorus IDE's editors) hands a form's report back without its empty fields, and
- * a report is recognised by its values, not by which empty fields came with it. Compared field for field
- * (`normalizeEmptyFieldValues`), the report never came back as itself: the form took it for the host's own
- * change and went back to it, losing what had been typed since, and the two chased each other's reports on
- * every echo (qorus#646).
+ * The value as a host can hand it back: each field as its value, and the fields that hold nothing left out.
+ *
+ * A report of the form's is recognised by what it says, not by how the host writes it back. A host that
+ * stores only the fields holding a value (the Qorus IDE's editors) hands a report back without its empty
+ * fields; one that stores a field under its own type (the IDE stores what an `int` field reported as a
+ * `string`) hands it back with that type. Compared field for field, type and all, the report never came
+ * back as itself:
+ * - the form took it for the host's own change and went back to it, losing what had been typed since, and
+ *   the two chased each other's reports on every echo;
+ * - an edit back to a value reported before (A, then B, then A again), made as the echo of B arrived, was
+ *   held back as made before the host's change, and the field went back to B (qorus#646: a template
+ *   field's text, deleted back to its reference, kept the text in the IDE).
  *
  * For recognising a value only. Whether a rebuild adds anything is still read with the empty fields in
  * (`isMirrorOfValue`): a new schema's empty required field is a row the form has to add.
  */
-const withoutEmptyFields = (fields: TQorusForm | TQorusFlatForm | undefined): TQorusForm =>
+const reportedValues = (fields: TQorusForm | TQorusFlatForm | undefined): Record<string, unknown> =>
   reduce(
-    (fields as TQorusForm) || {},
+    (fields as Record<string, unknown>) || {},
     (acc, field, name) => {
-      const fieldValue = (field as IQorusFormField)?.value;
-      if (!(
-        field &&
-        typeof field === 'object' &&
-        (fieldValue === '' || fieldValue === undefined)
-      )) {
-        acc[name] = field as IQorusFormField;
+      const fieldValue = comparableField(field);
+      if (fieldValue !== undefined) {
+        acc[name] = fieldValue;
       }
       return acc;
     },
-    {} as TQorusForm
+    {} as Record<string, unknown>
   );
 
 /** The same value, as a report coming back from a host is recognised. */
 const sameReportedValue = (
   a: TQorusForm | TQorusFlatForm | undefined,
   b: TQorusForm | TQorusFlatForm | undefined
-): boolean => isEqual(withoutEmptyFields(a), withoutEmptyFields(b));
+): boolean => isEqual(reportedValues(a), reportedValues(b));
 
 /**
  * Does this rebuild say anything the parent does not already hold?
