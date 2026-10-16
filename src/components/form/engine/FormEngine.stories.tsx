@@ -9723,3 +9723,198 @@ const stickyBoxesStory = (layout: 'own' | 'host' | 'padded-host'): Story => ({
 export const BoxHeaderSlidesUnderToolbarOwnScroll: Story = stickyBoxesStory('own');
 export const BoxHeaderSlidesUnderToolbarHostScroll: Story = stickyBoxesStory('host');
 export const BoxHeaderSlidesUnderToolbarPaddedHost: Story = stickyBoxesStory('padded-host');
+
+/**
+ * A rich-text option's choices are picked from "Saved & Suggested Values",
+ * and picking one writes the choice's value: an author who chose the Slack
+ * channel "general" read `C07ERBFS0P6` in the editor. The value is what the
+ * server resolves, so it stays the value; the editor draws it by the name it
+ * was picked by. These two stories are the guard: one opens on the stored
+ * value, one performs the pick.
+ */
+const RICH_TEXT_CHOICE_OPTIONS = {
+  channel: {
+    type: 'richtext',
+    ui_type: 'richtext',
+    display_name: 'Channel',
+    short_desc: 'The channel to send the message to',
+    required: true,
+    allowed_values_creatable: true,
+    allowed_values: [
+      {
+        display_name: 'general',
+        short_desc: 'Company-wide announcements',
+        value: { type: 'richtext', value: 'C07ERBFS0P6' },
+      },
+      {
+        display_name: 'random',
+        short_desc: 'Anything goes',
+        value: { type: 'richtext', value: 'C07RANDOM01' },
+      },
+    ],
+  },
+} as never;
+
+const expectChannelChip = async (canvasElement: HTMLElement) => {
+  await waitFor(
+    () => {
+      const row = canvasElement.querySelector('[data-field="channel"]') as HTMLElement | null;
+      expect(row).toBeTruthy();
+      expect(row?.querySelector('.reqore-tag')?.textContent).toContain('general');
+      expect(row?.textContent).not.toContain('C07ERBFS0P6');
+    },
+    { timeout: 10000 }
+  );
+};
+
+export const RichTextChoiceIsShownByName: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose rich-text Channel option holds the stored id of one of its choices, C07ERBFS0P6 — the editor shows one chip reading "general", and the id is not shown anywhere on the row.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['channel'],
+    value: { channel: { type: 'richtext', value: 'C07ERBFS0P6' } },
+    options: RICH_TEXT_CHOICE_OPTIONS,
+  },
+  play: async ({ canvasElement }) => {
+    await expectChannelChip(canvasElement);
+  },
+};
+
+export const PickingARichTextChoiceShowsItsName: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with an empty rich-text Channel option. When "general" is picked from Saved & Suggested Values, the editor shows a chip reading "general" rather than the channel id it stores.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['channel'],
+    value: {},
+    options: RICH_TEXT_CHOICE_OPTIONS,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsClickText('Saved & Suggested Values');
+    await waitFor(
+      () => expect(within(document.body).getByText('general')).toBeInTheDocument(),
+      { timeout: 10000 }
+    );
+    await fireEvent.click(within(document.body).getByText('general'));
+
+    await expectChannelChip(canvasElement);
+  },
+};
+
+export const ARichTextChoiceRetypedReturnsToItsChip: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `RichTextChoiceIsShownByName`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose rich-text Channel option shows its stored choice as the chip "general". A click opens the chip into C07ERBFS0P6 as text; Backspace makes the form emit C07ERBFS0P and a typed 6 makes it emit C07ERBFS0P6 again, each as a document and still shown as text while the author types; Tab out of the editor draws the chip "general" again and emits nothing further, since that document already stands for the choice.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['channel'],
+    value: { channel: { type: 'richtext', value: 'C07ERBFS0P6' } },
+    options: RICH_TEXT_CHOICE_OPTIONS,
+  },
+  play: async ({ args, canvasElement }) => {
+    await expectChannelChip(canvasElement);
+    const row = canvasElement.querySelector('[data-field="channel"]') as HTMLElement;
+    const editor = row.querySelector('[contenteditable="true"]') as HTMLElement;
+
+    await userEvent.click(within(row).getByText('general'));
+    await waitFor(() => {
+      expect(editor.querySelector('.reqore-tag')).toBeNull();
+      expect(editor.contains(document.activeElement)).toBe(true);
+    });
+
+    const channelValue = (text: string) =>
+      expect.objectContaining({
+        channel: expect.objectContaining({ value: [{ type: 'paragraph', children: [{ text }] }] }),
+      });
+
+    // One key at a time, each emitted before the next: typed within the
+    // field's debounce, the two would settle as the value the field started
+    // with, and nothing would be emitted at all.
+    await userEvent.keyboard('{Backspace}');
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('test', channelValue('C07ERBFS0P'), undefined)
+    );
+    await userEvent.keyboard('6');
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('test', channelValue('C07ERBFS0P6'), undefined)
+    );
+    await expect(editor.querySelector('.reqore-tag')).toBeNull();
+
+    await userEvent.tab();
+    await expectChannelChip(canvasElement);
+    // Leaving the row changed nothing: the chip stands for what was emitted.
+    await expect(args.onChange).toHaveBeenLastCalledWith('test', channelValue('C07ERBFS0P6'), undefined);
+  },
+};
+
+export const ClickingARichTextChoiceEditsItsValue: Story = {
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by the compact rich-text rows.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose rich-text Channel option shows its stored choice as the chip "general". A click on the chip opens it into its value as editable text: the row shows C07ERBFS0P6 and no chip, with the cursor at the end, so Backspace and a typed 7 make it C07ERBFS0P7 — the value the form then emits for the option.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['channel'],
+    value: { channel: { type: 'richtext', value: 'C07ERBFS0P6' } },
+    options: RICH_TEXT_CHOICE_OPTIONS,
+  },
+  play: async ({ args, canvasElement }) => {
+    await expectChannelChip(canvasElement);
+    const row = canvasElement.querySelector('[data-field="channel"]') as HTMLElement;
+    const editor = row.querySelector('[contenteditable="true"]') as HTMLElement;
+
+    // The chip's label: a tag binds its click to its content, not its frame.
+    await userEvent.click(within(row).getByText('general'));
+    await waitFor(() => {
+      expect(editor.querySelector('.reqore-tag')).toBeNull();
+      expect(editor.textContent).toBe('C07ERBFS0P6');
+      expect(editor.contains(document.activeElement)).toBe(true);
+    });
+
+    await userEvent.keyboard('{Backspace}7');
+    await waitFor(() => expect(editor.textContent).toBe('C07ERBFS0P7'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        'test',
+        expect.objectContaining({
+          channel: expect.objectContaining({
+            value: [{ type: 'paragraph', children: [{ text: 'C07ERBFS0P7' }] }],
+          }),
+        }),
+        undefined
+      )
+    );
+  },
+};

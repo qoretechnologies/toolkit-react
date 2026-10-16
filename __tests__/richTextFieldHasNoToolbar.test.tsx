@@ -11,12 +11,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const editor = vi.hoisted(() => ({ props: undefined as Record<string, any> | undefined }));
 
-vi.mock('@qoretechnologies/reqore/dist/components/RichTextEditor', () => ({
-  ReqoreRichTextEditor: (props: Record<string, any>) => {
-    editor.props = props;
-    return null;
-  },
-}));
+// Forwards a ref as the real editor does; the field hands it one.
+vi.mock('@qoretechnologies/reqore/dist/components/RichTextEditor', async () => {
+  const { forwardRef } = await import('react');
+  return {
+    ReqoreRichTextEditor: forwardRef((props: Record<string, any>) => {
+      editor.props = props;
+      return null;
+    }),
+  };
+});
 
 import {
   IRichTextFormFieldProps,
