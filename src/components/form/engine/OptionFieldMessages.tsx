@@ -373,7 +373,12 @@ export const getOptionFieldMessages = ({
      user's language, showed it beside the field's generic one, two messages for one problem (qorus#646).
      Required groups and dependencies still say what they say. */
   const hostReason = (optionSchema as { invalid_reason?: string } | undefined)?.invalid_reason;
-  const hasValue = option.value || option.value === false || option.value === 0 || option.value === null;
+  /* An empty list is not a value: the form counts it as not set (an optional one is not saved, a required one
+     needs attention), so a required one is said to be required. Counted as a value, being truthy, it was
+     validated as one and passed, and nothing said why its row needed attention (qorus#646). */
+  const hasValue =
+    (option.value || option.value === false || option.value === 0 || option.value === null) &&
+    !(isArray(option.value) && option.value.length === 0);
 
   if (hostReason) {
     result.push({ label: hostReason, intent: 'danger' });
