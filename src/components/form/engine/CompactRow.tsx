@@ -562,7 +562,7 @@ export const CompactRow = memo(
         !(field as { is_expression?: boolean }).is_expression &&
         (isValueTemplate(field.value) || !!findTemplate(ownTemplates ?? {}, field.value))
       ) {
-        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} size='small' />;
+        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} />;
       }
 
       // A LIST whose elements are rich-text envelopes is a list of strings, so it

@@ -111,6 +111,18 @@ export const getChipTooltipDescriptions = (
   return out;
 };
 
+/* The chip references a document holds, in order, as one comparable string. Two documents that stand for
+   the same text but chip different references differ here; two that chip the same references do not — so a
+   re-parse that recognises nothing new is not taken for a change (which would move the cursor). */
+const chipValuesOf = (nodes?: ReadonlyArray<{ children?: ReadonlyArray<Record<string, any>> }>): string =>
+  JSON.stringify(
+    (nodes ?? []).flatMap((paragraph) =>
+      (paragraph?.children ?? [])
+        .filter((node) => node?.type === 'tag')
+        .map((node) => String(node?.value ?? ''))
+    )
+  );
+
 export const RichTextFormField = memo(({
   value,
   onChange,
@@ -151,6 +163,23 @@ export const RichTextFormField = memo(({
       setLocalValue(value);
     }
   }, [JSON.stringify(value)]);
+
+  /* A reference in a string is drawn as a chip only once something can name it: the field's own grammar
+     (`templateToken`), or — for a reference neither grammar matches, a DPQL `@create` say — the catalogue
+     that NAMES it. Both can arrive AFTER the first render: the catalogue is fetched, and the effect above
+     rebuilds the document only when the stored string changes. So a preset reference the catalogue had not
+     yet named stayed raw text until the author re-picked it (qorus#646). Re-chip the string in hand when
+     what recognises its references changes — text mode only, and only when a chip is actually gained or
+     lost, so a document being edited is left exactly as it is while nothing new is recognised. */
+  useEffect(() => {
+    if (!isText) {
+      return;
+    }
+    const rebuilt = templateTextToNodes(lastTextRef.current, templates, templateToken);
+    setLocalValue((current: any) =>
+      chipValuesOf(current) === chipValuesOf(rebuilt) ? current : rebuilt
+    );
+  }, [JSON.stringify(templates), String(templateToken)]);
 
   useDebounce(
     () => {
@@ -224,6 +253,10 @@ export const RichTextFormField = memo(({
           leftIconProps: { image: metadata?.image },
           label: templateChipLabel(templates, tagValue),
           tooltip: templateTooltip(templates, tagValue),
+          // The same chip the read summary (`TemplateText`) and the read-only tag draw: a `tiny` box whose
+          // label takes the font of the text it sits in, so a reference is the same size in every view.
+          size: 'tiny',
+          style: { fontSize: 'inherit' },
           ...getTemplateTagStyle(metadata),
         };
       }
@@ -263,6 +296,9 @@ export const RichTextFormField = memo(({
                 }
               : descriptionByValue[tagValue]
             : undefined,
+          // The same chip the read summary and the read-only tag draw — see the `isText` branch above.
+          size: 'tiny',
+          style: { fontSize: 'inherit' },
           ...getTemplateTagStyle(tag.metadata),
         };
       }

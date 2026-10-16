@@ -1595,7 +1595,7 @@ const TemplateFieldImpl = memo(
         // here; reqraft upgrades the read-only template to a proper picker chip —
         // the $-dollar icon + resolved display name + app image, coloured by the
         // IDE's intent scheme. Shared with the compact read-first row.
-        return <ReadOnlyTemplateTag value={templateValue} templates={templates} size={rest.size} />;
+        return <ReadOnlyTemplateTag value={templateValue} templates={templates} />;
       }
 
       return (

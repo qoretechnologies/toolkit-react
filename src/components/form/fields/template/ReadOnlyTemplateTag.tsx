@@ -1,6 +1,5 @@
 import { ReqoreTag, ReqoreTagGroup } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { memo } from 'react';
 import {
   getTemplateTagStyle,
@@ -14,7 +13,6 @@ export interface IReadOnlyTemplateTagProps {
   value: string;
   /** Template catalogue, for resolving the display name + image + metadata. */
   templates?: IReqoreFormTemplates;
-  size?: TSizes;
 }
 
 /**
@@ -27,16 +25,19 @@ export interface IReadOnlyTemplateTagProps {
  * it's shown non-editably.
  */
 export const ReadOnlyTemplateTag = memo(
-  ({ value, templates, size }: IReadOnlyTemplateTagProps) => {
+  ({ value, templates }: IReadOnlyTemplateTagProps) => {
     const { label, item } = describeTemplateReference(templates, value);
     const metadata = item?.metadata as TTemplateMeta | undefined;
     return (
-      <ReqoreTagGroup size={size}>
+      // The same chip the read summary (`TemplateText`) and the expression editor draw: a `tiny` box whose
+      // label takes the font of the text it sits in, so a reference is the same size in every view.
+      <ReqoreTagGroup size='tiny'>
         <ReqoreTag
           icon='ExchangeDollarLine'
           leftIconProps={{ image: metadata?.image }}
           label={label}
           tooltip={templateTooltip(templates, value)}
+          style={{ fontSize: 'inherit' }}
           {...getTemplateTagStyle(metadata)}
         />
       </ReqoreTagGroup>
