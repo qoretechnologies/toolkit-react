@@ -146,6 +146,27 @@ describe('what the host changed beside a value, as the form takes it in', () => 
     ).toEqual({ value: { type: 'int', value: POS } });
   });
 
+  it('takes anything else the host changed beside the value, as it would a type', () => {
+    expect(
+      takeHostsAttributes(
+        { value: { type: 'int', value: POS, kind: 'computed' } } as never,
+        ours as never,
+        { value: { type: 'int', value: POS, kind: 'constant' } } as never
+      )
+    ).toEqual({ ...ours, value: { type: 'int', value: POS, kind: 'computed' } });
+  });
+
+  it('keeps what only the form says beside a value, where the host never wrote it', () => {
+    const own = { value: { type: 'int', value: POS, note: 'the form' } };
+    expect(
+      takeHostsAttributes(
+        { value: { type: 'int', value: POS } } as never,
+        own as never,
+        { value: { type: 'int', value: POS } } as never
+      )
+    ).toBe(own);
+  });
+
   it('leaves a bare value as it is', () => {
     const flat = { value: 5 };
     expect(takeHostsAttributes({ value: 6 } as never, flat as never, { value: 5 } as never)).toBe(

@@ -736,9 +736,6 @@ const comparableField = (field: unknown): unknown => {
 const sameField = (a: unknown, b: unknown): boolean =>
   isEqual(comparableField(a), comparableField(b));
 
-/** What a field says beside its value: its type, whether the value is an expression, its operator. */
-const FIELD_ATTRIBUTES = ['type', 'is_expression', 'op'] as const;
-
 /** A field written as `{ type, value }`, not a bare value. */
 const isTypedField = (field: unknown): field is IQorusFormField =>
   field !== null &&
@@ -747,32 +744,38 @@ const isTypedField = (field: unknown): field is IQorusFormField =>
   typeof (field as IQorusFormField).type === 'string';
 
 /**
- * The form's copy of a field, with what the host changed beside its value since `base`: its type, whether it is
- * an expression, its operator. `own` itself where the host changed none of them.
+ * The form's copy of a field, with everything the host changed beside its value since `base`: its type, whether
+ * it is an expression, its operator, or anything else it says. `own` itself where the host changed nothing.
  *
  * A report of the form's is recognised by its values, and a field's value is merged by its value (see
  * `reportedValues`, `mergeOwnEdits`), so a change the host made to a field's type alone said nothing: the form
  * kept its own type. The Qorus IDE makes an added field's whole number true or false, holding the same field
  * `pos`; the form kept the `int` and drew `pos` as text on the Value tab, where a true or false field shows it on
- * its Expression tab (qorus#646). An attribute the host writes as it always has is not a change, so a host that
- * stores a field under its own type does not change the form's.
+ * its Expression tab (qorus#646).
+ *
+ * Every key but `value` is compared, not a list of the ones known today: whatever a host writes into a field
+ * beside its value, a change of it is the host's. A key the host writes as it always has is not a change, so a
+ * host that stores a field under its own type does not change the form's (that is why the value alone is what
+ * recognises a report).
  */
 const withHostsAttributes = (own: unknown, host: unknown, base: unknown): unknown => {
   if (!isTypedField(own) || !isTypedField(host)) {
     return own;
   }
+  const hostField = host as unknown as Record<string, unknown>;
+  const baseField = isTypedField(base) ? (base as unknown as Record<string, unknown>) : {};
+  const ownField = own as unknown as Record<string, unknown>;
   let taken: Record<string, unknown> | undefined;
-  FIELD_ATTRIBUTES.forEach((attribute) => {
-    const hosts = host[attribute];
-    const before = isTypedField(base) ? base[attribute] : undefined;
-    if (isEqual(hosts, before) || isEqual(own[attribute], hosts)) {
+  new Set([...Object.keys(hostField), ...Object.keys(baseField)]).forEach((key) => {
+    const hosts = hostField[key];
+    if (key === 'value' || isEqual(hosts, baseField[key]) || isEqual(ownField[key], hosts)) {
       return;
     }
-    taken = taken ?? { ...own };
+    taken = taken ?? { ...ownField };
     if (hosts === undefined) {
-      delete taken[attribute];
+      delete taken[key];
     } else {
-      taken[attribute] = hosts;
+      taken[key] = hosts;
     }
   });
   return taken ?? own;
