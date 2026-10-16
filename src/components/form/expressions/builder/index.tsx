@@ -729,19 +729,11 @@ export const Expression = ({
       return;
     }
 
-    // A typed operand mounts a text field; an untyped one opens on its
-    // template picker, whose trigger is the field's first button that is not
-    // one of the operand's own controls (grip, position, ⋮, remove).
-    const field =
-      added.querySelector<HTMLElement>('textarea, input') ??
-      Array.from(added.querySelectorAll<HTMLElement>('button')).find(
-        (button) =>
-          !button.closest(
-            '.expression-arg-drag-handle, .expression-arg-position, .template-more, .expression-remove-arg'
-          )
-      );
-
-    field?.focus();
+    /* A typed operand mounts a text field, and the caret goes there. An untyped one has nothing to type into:
+       its first control is its template picker, a list that opens when it is focused, and since reqore 0.78
+       one focused as it mounts opens at once. Adding a value is not asking for that list (David, qorus#646),
+       so the operand itself takes the focus, and its picker opens when the user goes to it. */
+    (added.querySelector<HTMLElement>('textarea, input') ?? added).focus();
   }, [argCount]);
 
   const canAddArg = !!selectedExpression?.varargs && !readOnly;

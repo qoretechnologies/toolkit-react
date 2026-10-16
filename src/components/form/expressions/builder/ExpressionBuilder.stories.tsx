@@ -934,7 +934,7 @@ export const AddValueSlot: Story = {
     docs: {
       description: {
         story:
-          'Renders the "concat" expression with the dashed "Add value" slot after the third operand — the only add control, no header icon. Clicking it appends a fourth, empty operand that takes focus, the slot moves after it, and onChange reports four args.',
+          'Renders the "concat" expression with the dashed "Add value" slot after the third operand — the only add control, no header icon. Clicking it appends a fourth, empty operand that takes focus, the slot moves after it, and onChange reports four args. The new operand\'s template list stays closed until its picker is clicked, and then it opens.',
       },
     },
   },
@@ -953,20 +953,13 @@ export const AddValueSlot: Story = {
     await fireEvent.click(slot);
 
     await waitFor(() => expect(count('.expression-arg')).toBe(4), { timeout: 10000 });
-    const operands = document.querySelectorAll('.expression-arg');
+    const operands = document.querySelectorAll<HTMLElement>('.expression-arg');
     const added = operands[operands.length - 1];
-    /* The new operand takes the focus. Its first control is its template picker, a list that opens on focus,
-       and since reqore 0.78 one focused as it mounts opens at once: the caret is then in that list's search,
-       which is drawn outside the operand (a popover). */
-    await waitFor(
-      () => {
-        const active = document.activeElement as HTMLElement | null;
-        expect(
-          !!active && (added.contains(active) || !!active.closest('.reqore-popover-content'))
-        ).toBe(true);
-      },
-      { timeout: 10000 }
-    );
+    /* The new operand takes the focus itself. It has no type yet, so nothing to type into: its first control
+       is its template picker, a list that opens when it is focused, and adding a value is not asking for that
+       list. It stays closed until the picker is used. */
+    await waitFor(() => expect(document.activeElement).toBe(added), { timeout: 10000 });
+    expect(document.querySelector('.reqore-popover-content')).toBeNull();
     // Still after the last operand.
     expect(addSlot()!.nextElementSibling).toBeNull();
     expect(context.args.onChange).toHaveBeenLastCalledWith(
@@ -981,6 +974,13 @@ export const AddValueSlot: Story = {
     );
     const reported = (context.args.onChange as ReturnType<typeof fn>).mock.lastCall?.[0];
     expect(reported.value.args).toHaveLength(4);
+    expect(document.querySelector('.reqore-popover-content')).toBeNull();
+
+    // The list opens when it is asked for.
+    await userEvent.click(added.querySelector<HTMLElement>('.template-selector')!);
+    await waitFor(() => expect(document.querySelector('.reqore-popover-content')).toBeTruthy(), {
+      timeout: 10000,
+    });
   },
 };
 
