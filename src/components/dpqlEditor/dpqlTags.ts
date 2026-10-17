@@ -13,6 +13,7 @@ import {
   TTemplateMeta,
 } from '../../helpers/templates';
 import { ISlateElement } from '../smartEditor/types';
+import { dpqlFieldName } from './dpqlHelpers';
 import { IDpqlFieldMeta } from './useDpqlSession';
 
 /** Color scheme for tag rendering, keyed by template prefix. */
@@ -89,8 +90,9 @@ export function makeDpqlTagRenderer(
     const tagValue = tag.value?.toString();
     if (!tagValue) return {};
 
-    if (tagValue.startsWith('@')) {
-      const fieldName = tagValue.slice(1);
+    // a field, `@name` or quoted `@"order-id"`: drawn with its name, and described by the record's field of it
+    const fieldName = dpqlFieldName(tagValue);
+    if (fieldName !== undefined) {
       const meta = fieldMeta[fieldName];
       // the field's name and type head the card, and its description is drawn under them
       const tooltip = meta

@@ -470,6 +470,69 @@ export const WithMixedContent: Story = {
   },
 };
 
+/** The labels of the chips the editor draws, in order. */
+const chipLabels = (editable: HTMLElement) =>
+  [...editable.querySelectorAll('.reqore-tag')].map((chip) =>
+    (chip.textContent ?? '').replace(/\uFEFF/g, '').trim()
+  );
+
+/**
+ * The fields the server writes quoted (qorus#646): `dpql/serialize` writes a record field whose name DPQL does
+ * not read bare as `@"…"` - a path with `[*]` or an index, a dashed key - which is how `$record:{create.items[*].id}`
+ * comes back after a tab switch. Each is its chip, as `@name` is, labeled with the name it stands for; a template
+ * with an escaped brace is one chip; and a field in a string is the string.
+ */
+export const WithQuotedFieldReferences: Story = {
+  args: {
+    value: '@"create.items[*].id" == $record:{create.a\\{b\\}} && @"create.order-id" != "@name"',
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with the quoted fields the server writes for record fields that are not bare names, @"create.items[*].id" and @"create.order-id", a $record template whose value holds escaped braces, and the string "@name". Each field and the template is one chip, labeled with the name it stands for; the string stays text; the text is written back as it was.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await waitFor(() =>
+      expect(chipLabels(editable)).toEqual([
+        'create.items[*].id',
+        'record: create.a\\{b\\}',
+        'create.order-id',
+      ])
+    );
+    await expect(editable.textContent?.replace(/\uFEFF/g, '')).toContain('!= "@name"');
+    // drawn, not rewritten
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
+
+export const QuotedFieldTypedOutIsAChip: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the empty DpqlEditor and types @"create.order-id" == 1 without picking from the list. When the space after the closing quote is typed, the quoted field is drawn as its chip, labeled create.order-id, and the rest is typed after it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await userEvent.click(editable);
+    await userEvent.type(editable, '@"create.order-id" == 1');
+
+    await waitFor(() => expect(chipLabels(editable)).toEqual(['create.order-id']));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('@"create.order-id" == 1'));
+    await expect(editable.textContent?.replace(/\uFEFF/g, '')).toMatch(/create\.order-id\s*== 1$/);
+  },
+};
+
 /**
  * Exercises the `useServerParse` opt-in (design doc §6). The editor
  * calls `dpql/toRichtext` on the LSP and uses the server's structured

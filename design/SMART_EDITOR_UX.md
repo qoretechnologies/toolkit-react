@@ -178,9 +178,14 @@ it).
 ### 6. `dpql/toRichtext` opt-in for accurate plain-text → Slate parsing
 
 **Problem.** Our `plainTextToSlate` in `dpqlEditor/dpqlHelpers.ts` is a
-client-side regex. It handles `$prefix:value` and `@field` but misses
-nested expressions, function calls with templates inside, and quoted
-edge cases. The server's `dpql/toRichtext` does this correctly.
+client-side reader. It finds the references the server's DPQL tokenizer
+reads, as it reads them (qorus#646): `$prefix:value`, `$prefix:{value}`
+(ending where the tokenizer's does: a backslash escapes the next character,
+braces nest, a string inside is read whole), `@field` and the quoted
+`@"field"` the server writes for a name DPQL does not read bare (its chip
+labeled with the name, unescaped). A field inside a string literal is
+text; a template in one is still drawn as its chip. It does not parse the
+expression around them. The server's `dpql/toRichtext` does that.
 
 **Fix.** Add an opt-in `useServerParse?: boolean` prop on
 `DpqlEditor`. When true:
