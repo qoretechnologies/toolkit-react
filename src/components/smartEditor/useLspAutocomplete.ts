@@ -24,7 +24,7 @@ const COMPLETION_KIND_LABELS: Record<number, string> = {
   15: 'Snippets',
 };
 
-const COMPLETION_KIND_CHIPS: Record<number, string> = {
+export const COMPLETION_KIND_CHIPS: Record<number, string> = {
   1: 'Text',
   2: 'Method',
   3: 'Function',
@@ -123,7 +123,134 @@ export interface IUseLspAutocompleteResult {
   // fresh mount so its internal `showing` state stays in sync with ours.
   popoverKey: number;
   position: { top: number; left: number };
+  /**
+   * The row whose documentation is shown under it in the list (its `value`), or null. A row's documentation
+   * is otherwise a hover, which a keyboard and a finger cannot reach: its ⓘ, or Ctrl+Space on the row the
+   * keyboard is on, shows it.
+   */
+  docsFor: string | null;
+  /** Show the documentation of the row with `value`, or put it away when it is shown; the keyboard's row when
+   *  no value is given. */
+  toggleDocs: (value?: string) => void;
 }
+
+/**
+ * The list's rows in groups: as ranked when the server ranked them (`sortText`), otherwise by kind - Field,
+ * Variable, Function... - when there is more than one.
+ */
+export const groupCompletionItems = (items: ICompletionDropdownItem[]): ICompletionGroup[] => {
+  if (items.length === 0) return [];
+
+  // When the server populates `sortText` it has already ranked items;
+  // use the flat list directly rather than re-ordering across kinds.
+  // Qonsole takes this path; DPQL has no sortText and falls through.
+  const hasSortText = items.some((i) => i.raw.sortText);
+  if (hasSortText) {
+    return [{ label: '', items: items }];
+  }
+
+  const groupMap = new Map<string, ICompletionDropdownItem[]>();
+  for (const item of items) {
+    const kind = item.metadata?.kind;
+    const groupLabel = (kind && COMPLETION_KIND_LABELS[kind]) || 'Other';
+    if (!groupMap.has(groupLabel)) {
+      groupMap.set(groupLabel, []);
+    }
+    groupMap.get(groupLabel)!.push(item);
+  }
+  if (groupMap.size <= 1) {
+    return [{ label: '', items: items }];
+  }
+  return Array.from(groupMap.entries()).map(([label, groupItems]) => ({
+    label,
+    items: groupItems,
+  }));
+};
+
+/** Completion items as the list's rows. */
+export const toDropdownItems = (lspItems: ILspCompletionItem[]): ICompletionDropdownItem[] =>
+  lspItems.map((item) => {
+    const insertText = item.insertText || item.label;
+    return {
+      label: item.label,
+      value: insertText,
+      icon: mapCompletionKindToIcon(item.kind),
+      description: item.detail,
+      documentation: item.documentation,
+      kindLabel:
+        item.kind !== undefined
+          ? COMPLETION_KIND_CHIPS[item.kind]
+          : undefined,
+      warning: item.warning,
+      raw: item,
+      metadata: {
+        insertTextFormat: item.insertTextFormat,
+        retrigger: insertText.endsWith(':'),
+        kind: item.kind,
+      },
+    };
+  });
+
+/**
+ * The list's keys, the same wherever it is open, and as the browse list's (`TemplateBrowser`): ArrowDown and
+ * ArrowUp move through it, Enter takes the row the keyboard is on, Escape puts it away, Tab leaves it as it
+ * leaves any control. Heard before anything else on the page while the list is
+ * open - the focus stays where it is (an editor, a picker's button), the list never takes it.
+ */
+export const useCompletionKeys = ({
+  isOpen,
+  count,
+  setFocusedIndex,
+  onAccept,
+  onClose,
+  onOtherKey,
+}: {
+  isOpen: boolean;
+  count: number;
+  setFocusedIndex: (update: (index: number) => number) => void;
+  onAccept: () => void;
+  onClose: () => void;
+  /** Any other key, for the list to take (true) or leave to the page. */
+  onOtherKey?: (event: KeyboardEvent) => boolean;
+}) => {
+  const handlers = useRef({ onAccept, onClose, onOtherKey });
+  handlers.current = { onAccept, onClose, onOtherKey };
+  useEffect(() => {
+    if (!isOpen || count === 0) return undefined;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const take = () => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+      switch (e.key) {
+        case 'ArrowDown':
+          take();
+          setFocusedIndex((prev) => Math.min(prev + 1, count - 1));
+          break;
+        case 'ArrowUp':
+          take();
+          setFocusedIndex((prev) => Math.max(prev - 1, 0));
+          break;
+        case 'Enter':
+          take();
+          handlers.current.onAccept();
+          break;
+        case 'Tab':
+          // leaves the list, as it leaves the browse list: the focus moves on, nothing is chosen
+          handlers.current.onClose();
+          break;
+        case 'Escape':
+          take();
+          handlers.current.onClose();
+          break;
+        default:
+          if (handlers.current.onOtherKey?.(e)) take();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, count, setFocusedIndex]);
+};
 
 export function useLspAutocomplete(
   opts: IUseLspAutocompleteOptions
@@ -165,6 +292,15 @@ export function useLspAutocomplete(
   const [isReplaceMode, setIsReplaceMode] = useState(false);
   // See `popoverKey` in the result interface — forces a popover re-mount.
   const [popoverKey, setPopoverKey] = useState(0);
+  const [docsFor, setDocsFor] = useState<string | null>(null);
+  /* Which request is the one the list is waiting for. A newer request, or the list put away (`close`),
+     makes an answer still on its way stale, and a stale answer is dropped: it used to open the list after
+     the author had dismissed it - typed, pressed Escape before the list came, and the list came anyway,
+     under the next tap, which then took one of its rows (qorus#646). */
+  const requestGenerationRef = useRef(0);
+  /* A request typing has asked for and the list has not shown yet: the debounce running, or the server's
+     answer on its way. An Escape then puts it away too, as it puts away an open list. */
+  const pendingRequestRef = useRef(false);
 
   useEffect(() => {
     focusedIndexRef.current = focusedIndex;
@@ -200,34 +336,7 @@ export function useLspAutocomplete(
     }
   }, [filteredItems.length, focusedIndex]);
 
-  const groups = useMemo((): ICompletionGroup[] => {
-    if (filteredItems.length === 0) return [];
-
-    // When the server populates `sortText` it has already ranked items;
-    // use the flat list directly rather than re-ordering across kinds.
-    // Qonsole takes this path; DPQL has no sortText and falls through.
-    const hasSortText = filteredItems.some((i) => i.raw.sortText);
-    if (hasSortText) {
-      return [{ label: '', items: filteredItems }];
-    }
-
-    const groupMap = new Map<string, ICompletionDropdownItem[]>();
-    for (const item of filteredItems) {
-      const kind = item.metadata?.kind;
-      const groupLabel = (kind && COMPLETION_KIND_LABELS[kind]) || 'Other';
-      if (!groupMap.has(groupLabel)) {
-        groupMap.set(groupLabel, []);
-      }
-      groupMap.get(groupLabel)!.push(item);
-    }
-    if (groupMap.size <= 1) {
-      return [{ label: '', items: filteredItems }];
-    }
-    return Array.from(groupMap.entries()).map(([label, groupItems]) => ({
-      label,
-      items: groupItems,
-    }));
-  }, [filteredItems]);
+  const groups = useMemo(() => groupCompletionItems(filteredItems), [filteredItems]);
 
   // Fires the LSP request and commits results into state. Separate from
   // the debounced wrapper so imperative callers (`openAtChip`) can bypass
@@ -244,6 +353,10 @@ export function useLspAutocomplete(
       // in no-suggestion spots (inside a string, a dead-end identifier).
       const { eager = true } = opts;
       if (!isReady) return;
+      const generation = ++requestGenerationRef.current;
+      pendingRequestRef.current = true;
+      // whether this answer is still the one the list is waiting for
+      const current = () => generation === requestGenerationRef.current;
       // Re-measure the caret now that the debounce expired and Slate has
       // committed the char to the DOM. The earlier measure in
       // `onSlateChangeImpl` can fire before the DOM commit, where
@@ -275,6 +388,7 @@ export function useLspAutocomplete(
       }
       try {
         const lspItems = await getCompletions(plainText, offset);
+        if (!current()) return;
         if (lspItems.length === 0) {
           setItems([]);
           // Replace mode keeps the popover open to show "No alternatives".
@@ -291,48 +405,40 @@ export function useLspAutocomplete(
             )
           : lspItems;
 
-        const mapped: ICompletionDropdownItem[] = sortedLspItems.map((item) => {
-          const insertText = item.insertText || item.label;
-          return {
-            label: item.label,
-            value: insertText,
-            icon: mapCompletionKindToIcon(item.kind),
-            description: item.detail,
-            documentation: item.documentation,
-            kindLabel:
-              item.kind !== undefined
-                ? COMPLETION_KIND_CHIPS[item.kind]
-                : undefined,
-            warning: item.warning,
-            raw: item,
-            metadata: {
-              insertTextFormat: item.insertTextFormat,
-              retrigger: insertText.endsWith(':'),
-              kind: item.kind,
-            },
-          };
-        });
+        const mapped = toDropdownItems(sortedLspItems);
         setItems(mapped);
         setFocusedIndex(0);
         setIsOpen(true);
       } catch {
+        if (!current()) return;
         setItems([]);
         setIsOpen(false);
       } finally {
-        if (fetchingTimerRef.current !== null) {
-          clearTimeout(fetchingTimerRef.current);
-          fetchingTimerRef.current = null;
+        // a stale answer leaves the state to the request that replaced it, or to `close`
+        if (current()) {
+          pendingRequestRef.current = false;
+          if (fetchingTimerRef.current !== null) {
+            clearTimeout(fetchingTimerRef.current);
+            fetchingTimerRef.current = null;
+          }
+          setIsFetching(false);
         }
-        setIsFetching(false);
       }
     },
     [getCompletions, isReady]
   );
 
-  const requestCompletions = useMemo(
-    () => debounce(performCompletionRequest, DEBOUNCE_MS),
-    [performCompletionRequest]
-  );
+  const requestCompletions = useMemo(() => {
+    const debounced = debounce(performCompletionRequest, DEBOUNCE_MS);
+    // asked for: pending from now, not only once the debounce runs out
+    const request = ((...args: Parameters<typeof performCompletionRequest>) => {
+      pendingRequestRef.current = true;
+      return debounced(...args);
+    }) as typeof debounced;
+    request.cancel = debounced.cancel;
+    request.flush = debounced.flush;
+    return request;
+  }, [performCompletionRequest]);
 
   useEffect(() => {
     return () => {
@@ -341,6 +447,7 @@ export function useLspAutocomplete(
   }, [requestCompletions]);
 
   const close = useCallback(() => {
+    setDocsFor(null);
     setIsOpen(false);
     setItems([]);
     setFocusedIndex(0);
@@ -354,7 +461,31 @@ export function useLspAutocomplete(
     replacingChipPathRef.current = null;
     pendingChipRequestRef.current = null;
     requestCompletions.cancel();
+    // an answer still on its way is for a list that has been put away
+    requestGenerationRef.current++;
+    pendingRequestRef.current = false;
   }, [requestCompletions]);
+
+  /* Escape in the editor before the list has come puts the request away, as Escape puts a list with rows
+     away (`useCompletionKeys`, which hears it then). Not taken from the page: with no list shown, an Escape
+     may mean something else there too. */
+  const showsRows = isOpen && filteredItems.length > 0;
+  useEffect(() => {
+    if (showsRows) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !pendingRequestRef.current) return;
+      const editor = editorRef.current;
+      try {
+        if (!editor || !ReactEditor.toDOMNode(editor, editor).contains(event.target as Node)) return;
+      } catch {
+        // the editor is not drawn: nothing of it is in the page to have had the key
+        return;
+      }
+      close();
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [showsRows, close]);
 
   const positionTrigger = useCallback(
     (editor: BaseEditor & ReactEditor & HistoryEditor) => {
@@ -437,64 +568,50 @@ export function useLspAutocomplete(
     [close, inserter, converter]
   );
 
-  useEffect(() => {
-    // Keyboard nav operates on the filtered list, not the raw items.
-    if (!isOpen || filteredItems.length === 0) return undefined;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          e.stopPropagation();
-          setFocusedIndex((prev) => Math.min(prev + 1, filteredItems.length - 1));
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          e.stopPropagation();
-          setFocusedIndex((prev) => Math.max(prev - 1, 0));
-          break;
-        case 'Enter':
-        case 'Tab': {
-          e.preventDefault();
-          e.stopPropagation();
-          const item = filteredItems[focusedIndexRef.current];
-          if (item && editorRef.current) {
-            selectItem(item);
-          }
-          break;
-        }
-        case 'Escape':
-          e.preventDefault();
-          e.stopPropagation();
-          close();
-          break;
-        default: {
-          // `commitCharacters`: typing a commit char accepts the item and
-          // inserts the char (VS Code semantics).
-          if (e.key.length !== 1) break;
-          const focusedItem = filteredItems[focusedIndexRef.current];
-          const commits = focusedItem?.raw.commitCharacters;
-          if (!commits || !commits.includes(e.key)) break;
-          const editor = editorRef.current;
-          if (!editor) break;
-          e.preventDefault();
-          e.stopPropagation();
-          // Don't double-insert when the server's edit already ends with
-          // the committed char (e.g. `--limit=` for an `=`-committed flag).
-          const inserted =
-            focusedItem.raw.textEdit?.newText ??
-            focusedItem.raw.insertText ??
-            focusedItem.raw.label;
-          selectItem(focusedItem);
-          if (!inserted.endsWith(e.key)) {
-            Transforms.insertText(editor, e.key);
-          }
-          break;
-        }
+  const toggleDocs = useCallback(
+    (value?: string) => {
+      const target = value ?? filteredItems[focusedIndexRef.current]?.value ?? null;
+      setDocsFor((shown) => (shown === target ? null : target));
+    },
+    [filteredItems]
+  );
+  const toggleDocsRef = useRef(toggleDocs);
+  toggleDocsRef.current = toggleDocs;
+
+  useCompletionKeys({
+    isOpen: isOpen && filteredItems.length > 0,
+    count: filteredItems.length,
+    setFocusedIndex,
+    onAccept: () => {
+      const item = filteredItems[focusedIndexRef.current];
+      if (item && editorRef.current) selectItem(item);
+    },
+    onClose: close,
+    onOtherKey: (e) => {
+      // Ctrl+Space: the documentation of the row the keyboard is on, shown under it or put away (VS Code's key)
+      if (e.key === ' ' && e.ctrlKey && !e.metaKey && !e.altKey) {
+        toggleDocsRef.current();
+        return true;
       }
-    };
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, filteredItems, close, selectItem]);
+      // `commitCharacters`: typing a commit char accepts the item and
+      // inserts the char (VS Code semantics).
+      if (e.key.length !== 1) return false;
+      const focusedItem = filteredItems[focusedIndexRef.current];
+      const commits = focusedItem?.raw.commitCharacters;
+      if (!commits || !commits.includes(e.key)) return false;
+      const editor = editorRef.current;
+      if (!editor) return false;
+      // Don't double-insert when the server's edit already ends with
+      // the committed char (e.g. `--limit=` for an `=`-committed flag).
+      const inserted =
+        focusedItem.raw.textEdit?.newText ?? focusedItem.raw.insertText ?? focusedItem.raw.label;
+      selectItem(focusedItem);
+      if (!inserted.endsWith(e.key)) {
+        Transforms.insertText(editor, e.key);
+      }
+      return true;
+    },
+  });
 
   /**
    * Opens, narrows or closes the completions for what the editor holds at its caret, after a content
@@ -754,5 +871,7 @@ export function useLspAutocomplete(
     handleExternalClose,
     popoverKey,
     position,
+    docsFor,
+    toggleDocs,
   };
 }

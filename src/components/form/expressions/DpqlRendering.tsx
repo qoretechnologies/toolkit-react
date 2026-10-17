@@ -4,7 +4,7 @@
 // ONE rendering for every read-only place an expression appears — the Explain
 // panel, the Text view's Preview, the conversion a type-fit message suggests,
 // a collapsed expression row — so they read the same everywhere: monospace,
-// coloured by the language server's semantic tokens (the canonical tokenizer,
+// colored by the language server's semantic tokens (the canonical tokenizer,
 // see `useLspSemanticTokens`), template references as chips. Before, the same
 // expression could be highlighted in one place, plain proportional text in the
 // next and a bare `<code>` in a third, depending only on which component
@@ -27,7 +27,7 @@ export interface IDpqlRenderingProps {
   'data-testid'?: string;
 }
 
-/** Shows `text` as DPQL: monospace, server-coloured, references as chips. */
+/** Shows `text` as DPQL: monospace, server-colored, references as chips. */
 export const DpqlRendering = ({ text, templates, 'data-testid': testId }: IDpqlRenderingProps) => (
   <div className='dpql-rendering' data-testid={testId} style={{ width: '100%', minWidth: 0 }}>
     <DpqlEditor
@@ -40,7 +40,7 @@ export const DpqlRendering = ({ text, templates, 'data-testid': testId }: IDpqlR
       enableHover={false}
       templateTagsUseIntent
       templates={templates}
-      // The text is already known; only its colours wait for the server, so
+      // The text is already known; only its colors wait for the server, so
       // nothing is hidden behind "Connecting to language server…".
       loadingIndicator={null}
     />

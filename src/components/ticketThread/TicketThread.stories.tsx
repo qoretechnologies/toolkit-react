@@ -330,7 +330,7 @@ export const Loading: Story = {
     docs: {
       description: {
         story:
-          "The FIRST load — loading with nothing to show yet — renders a conversation-shaped skeleton: aria-busy, labelled 'Loading conversation', carrying no message content, rather than a spinner. `messages` is empty deliberately; that is what makes this a first load rather than a refetch (see RefetchKeepsTheConversation).",
+          "The FIRST load — loading with nothing to show yet — renders a conversation-shaped skeleton: aria-busy, labeled 'Loading conversation', carrying no message content, rather than a spinner. `messages` is empty deliberately; that is what makes this a first load rather than a refetch (see RefetchKeepsTheConversation).",
       },
     },
   },
@@ -550,7 +550,7 @@ export const SystemEvents: Story = {
     docs: {
       description: {
         story:
-          'Renders the full range of system messages — opened, assigned, priority, status, reopened, resolved — each as a centred muted line rather than a card.',
+          'Renders the full range of system messages — opened, assigned, priority, status, reopened, resolved — each as a centered muted line rather than a card.',
       },
     },
   },

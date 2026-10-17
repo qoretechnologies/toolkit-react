@@ -470,6 +470,69 @@ export const WithMixedContent: Story = {
   },
 };
 
+/** The labels of the chips the editor draws, in order. */
+const chipLabels = (editable: HTMLElement) =>
+  [...editable.querySelectorAll('.reqore-tag')].map((chip) =>
+    (chip.textContent ?? '').replace(/\uFEFF/g, '').trim()
+  );
+
+/**
+ * The fields the server writes quoted (qorus#646): `dpql/serialize` writes a record field whose name DPQL does
+ * not read bare as `@"…"` - a path with `[*]` or an index, a dashed key - which is how `$record:{create.items[*].id}`
+ * comes back after a tab switch. Each is its chip, as `@name` is, labeled with the name it stands for; a template
+ * with an escaped brace is one chip; and a field in a string is the string.
+ */
+export const WithQuotedFieldReferences: Story = {
+  args: {
+    value: '@"create.items[*].id" == $record:{create.a\\{b\\}} && @"create.order-id" != "@name"',
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with the quoted fields the server writes for record fields that are not bare names, @"create.items[*].id" and @"create.order-id", a $record template whose value holds escaped braces, and the string "@name". Each field and the template is one chip, labeled with the name it stands for; the string stays text; the text is written back as it was.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await waitFor(() =>
+      expect(chipLabels(editable)).toEqual([
+        'create.items[*].id',
+        'record: create.a\\{b\\}',
+        'create.order-id',
+      ])
+    );
+    await expect(editable.textContent?.replace(/\uFEFF/g, '')).toContain('!= "@name"');
+    // drawn, not rewritten
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
+
+export const QuotedFieldTypedOutIsAChip: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the empty DpqlEditor and types @"create.order-id" == 1 without picking from the list. When the space after the closing quote is typed, the quoted field is drawn as its chip, labeled create.order-id, and the rest is typed after it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await userEvent.click(editable);
+    await userEvent.type(editable, '@"create.order-id" == 1');
+
+    await waitFor(() => expect(chipLabels(editable)).toEqual(['create.order-id']));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('@"create.order-id" == 1'));
+    await expect(editable.textContent?.replace(/\uFEFF/g, '')).toMatch(/create\.order-id\s*== 1$/);
+  },
+};
+
 /**
  * Exercises the `useServerParse` opt-in (design doc §6). The editor
  * calls `dpql/toRichtext` on the LSP and uses the server's structured
@@ -881,7 +944,7 @@ export const LiveDpqlEditorWithAlertPayload: Story = {
 
 /**
  * Demonstrates LSP-driven syntax highlighting (design doc §7) across a
- * representative DPQL expression touching every coloured token type:
+ * representative DPQL expression touching every colored token type:
  * field references, templates, operators, string / number / boolean /
  * null literals, regex, range, keywords, parens.
  *
@@ -901,7 +964,7 @@ export const WithSemanticTokens: Story = {
     docs: {
       description: {
         story:
-          'Every coloured DPQL token category. Variables (`@status`, ' +
+          'Every colored DPQL token category. Variables (`@status`, ' +
           '`@age`, …) in red, operators (`==`, `&&`, `=~`, `between`) ' +
           'in cyan, strings in green, numbers in orange, keywords ' +
           '(`in`, `between`, `and`, `not`, `true`) in purple, regex ' +
@@ -910,16 +973,16 @@ export const WithSemanticTokens: Story = {
     },
   },
   // CI guard for the semantic-token pipeline (server tokens → decode →
-  // decorate → coloured leaf). Assert the editor rendered spans carrying
-  // the palette colours: keyword purple (#c678dd → rgb(198,120,221)) and
+  // decorate → colored leaf). Assert the editor rendered spans carrying
+  // the palette colors: keyword purple (#c678dd → rgb(198,120,221)) and
   // string green (#98c379 → rgb(152,195,121)). If the decoration breaks,
-  // the tokens render uncoloured and these are absent.
+  // the tokens render uncolored and these are absent.
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
-    // Poll until the semantic-token pipeline has coloured the leaves
+    // Poll until the semantic-token pipeline has colored the leaves
     // (server tokens → decode → decorate). Before the round-trip lands
-    // the spans are uncoloured and these assertions fail.
+    // the spans are uncolored and these assertions fail.
     await waitFor(
       () => {
         const colors = Array.from(editable.querySelectorAll('span'))
@@ -1080,6 +1143,81 @@ export const CanTypeText: Story = {
 
     await expect(args.onChange).toHaveBeenCalled();
   },
+};
+
+/**
+ * A reference that is the whole expression: the chip starts AND ends the line.
+ * A click (or tap) at the end of the line puts the caret at the line's last
+ * caret position, and what is typed there is written after the reference
+ * (qorus#646, "can't type" in the Text view). Slate requires a text node on
+ * each side of a chip; when the loaded document had none, the last caret
+ * position was inside the chip, where Slate drops every keystroke, so the
+ * editor looked focused and ignored typing.
+ */
+const typeAtTheEndOfTheLine =
+  (reference: string, tap: 'mouse' | 'touch'): Story['play'] =>
+  async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const editable = canvas.getByRole('textbox');
+    const line = await waitFor(() => {
+      const paragraph = editable.querySelector<HTMLElement>('.reqore-tag')?.closest('p');
+      if (!paragraph) throw new Error('the reference is not drawn as a chip yet');
+      return paragraph;
+    });
+    // where the browser puts the caret for a click past the line's end: its
+    // last caret position, the last text the line holds
+    const caretSpots = line.querySelectorAll('[data-slate-string], [data-slate-zero-width]');
+    const last = caretSpots[caretSpots.length - 1] as HTMLElement;
+    if (tap === 'touch') {
+      await userEvent.pointer([{ keys: '[TouchA]', target: last }]);
+    } else {
+      await userEvent.click(last);
+    }
+    editable.focus();
+    const spot = document.createTreeWalker(last, NodeFilter.SHOW_TEXT).nextNode() as Text;
+    window.getSelection()?.collapse(spot, spot.length);
+    await userEvent.keyboard(' + 1');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(`${reference} + 1`));
+    await expect(editable.textContent?.replace(/\uFEFF/g, '')).toContain(' + 1');
+  };
+
+export const TypesAfterAReferenceThatIsTheWholeLine: Story = {
+  args: { value: '@pos', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The expression is one reference. A click at the end of the line puts the caret after the chip, and " + 1" typed there is written after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('@pos', 'mouse'),
+};
+
+export const TypesAfterAReferenceThatIsTheWholeLineOnTouch: Story = {
+  args: { value: '@pos', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same on a touch screen: a tap at the end of the line puts the caret after the only chip, and what is typed there is written after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('@pos', 'touch'),
+};
+
+export const TypesAfterAServerDrawnReference: Story = {
+  args: { value: '$record:{pos}', useServerParse: true, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The server draws the chips (`useServerParse`) and sends a line that is one reference. A click at the end of the line and typing writes after the reference.',
+      },
+    },
+  },
+  play: typeAtTheEndOfTheLine('$record:{pos}', 'mouse'),
 };
 
 /**

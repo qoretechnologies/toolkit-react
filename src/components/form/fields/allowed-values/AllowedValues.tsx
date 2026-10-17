@@ -13,6 +13,9 @@ import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/But
 import { IQorusAllowedValue, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size as count, isEqual } from 'lodash';
 import { memo, useMemo } from 'react';
+import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
+import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { besideItsInfo, describedControl } from '../../../Description/describedControl';
 import {
   getSelectItemShortDescription,
   getSelectItemUnavailability,
@@ -97,6 +100,10 @@ export const FieldAllowedValuesCheckGroup = memo(
      */
     label?: string;
   }) => {
+    // an item that cannot be picked is dimmed, as far as its name still reads (qorus#646)
+    const unavailableOpacity = useReadableOpacity(0.55);
+    // a choice's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
+    const descriptions = useDescriptionTooltips();
     return (
       <ReqoreControlGroup vertical size={rest.size || 'small'} gapSize='tiny'>
         <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
@@ -104,15 +111,17 @@ export const FieldAllowedValuesCheckGroup = memo(
           : multiSelect ? 'Select one or more:'
           : 'Select one:'}
         </ReqoreSpan>
-        {items?.map((item) => {
+        {items?.map((item, index) => {
           const unavailable = getSelectItemUnavailability(item);
+          const choiceName = item.display_name || JSON.stringify(item.value);
+          // with a mouse, the hover; on a touch screen, an ⓘ beside the box, whose tap only ticks it
+          const described = describedControl(getSelectItemShortDescription(item), descriptions, choiceName);
 
-          return (
+          return besideItsInfo(
             <ReqoreCheckbox
               margin='right'
-              key={item.value?.toString()}
-              label={item.display_name || JSON.stringify(item.value)}
-              tooltip={getSelectItemShortDescription(item)}
+              label={choiceName}
+              tooltip={described.tooltip}
               /* The reason is IN the row: a checkbox has no body to put it in,
                  and a hover is the one affordance a touch screen and a keyboard
                  never reach. */
@@ -123,7 +132,7 @@ export const FieldAllowedValuesCheckGroup = memo(
                  this asked for never appeared. The NAME is also the right
                  thing to dim — `description` above carries the reason, and a
                  reason has to stay readable. */
-              labelEffect={unavailable ? { opacity: 0.55 } : undefined}
+              labelEffect={unavailable ? { opacity: unavailableOpacity } : undefined}
               uncheckedIcon={unavailable ? 'LockLine' : undefined}
               /* The FIELD's `disabled` still goes through reqore — a field nobody
                  may edit has no explanation to protect. A refused VALUE never
@@ -166,7 +175,11 @@ export const FieldAllowedValuesCheckGroup = memo(
                   }
                 )
               }
-            />
+            />,
+            described.info,
+            /* The value, as JSON: `toString()` gave a choice not resolved yet no key, and every object
+               value the same "[object Object]". Its position stands in for a choice that has none. */
+            JSON.stringify(item.value) ?? `#${index}`
           );
         })}
       </ReqoreControlGroup>

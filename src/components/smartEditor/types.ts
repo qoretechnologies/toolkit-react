@@ -1,6 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // Type definitions for the generic SmartEditor primitive.
 
+import { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { BaseEditor } from 'slate';
 import { HistoryEditor } from 'slate-history';
@@ -48,6 +50,13 @@ export interface ISlateConverter {
     anchorPath: number[],
     anchorOffset: number
   ) => number;
+  /**
+   * Whether `char`, typed right after a reference, ends it: it cannot go on to make the reference longer (a
+   * space or an operator, not a `.` before a sub-field). A reference typed out in full is drawn as its chip once
+   * such a character follows it, as one picked from the completion list is. Without it, a typed reference is
+   * drawn as its chip only once the editor is left.
+   */
+  endsReference?: (char: string) => boolean;
 }
 
 /**
@@ -153,6 +162,13 @@ export interface ISmartEditorProps {
    */
   height?: string;
 
+  /**
+   * The size the text is drawn at, as a field of that size draws it - and the chips in it with it. A host
+   * drawing the same value as another field (an expression's Value and Expression tabs) gives both one size,
+   * so a reference is the same chip in either (qorus#646). The editor's own when not given.
+   */
+  size?: TSizes;
+
   /** Read-only mode. */
   readOnly?: boolean;
 
@@ -162,12 +178,17 @@ export interface ISmartEditorProps {
    * for read-only display surfaces showing text that is not expected to
    * be valid in the session's language — e.g. the expression "Explain"
    * panel, which renders the server's human-readable rendering through
-   * the editor for chips + token colours but is not parseable DPQL.
+   * the editor for chips + token colors but is not parseable DPQL.
    */
   showDiagnostics?: boolean;
 
   /** Called when the editor loses focus. */
   onBlur?: () => void;
+  /**
+   * What the editor lists when it is clicked, tapped or tabbed into, and inserts as chips - the field's
+   * templates (see `useTemplateTags`). The language server's completion stays as it is, opened by typing.
+   */
+  tags?: IReqoreRichTextEditorProps['tags'];
 
   /**
    * Custom loading indicator rendered as an overlay on top of the
@@ -186,6 +207,12 @@ export interface ISmartEditorProps {
    * distracting.
    */
   enableHover?: boolean;
+
+  /**
+   * How long the mouse rests before its hover is asked for, in ms. Default 300: a mouse passing over the
+   * text asks nothing. Only a mouse (or a pen held above the screen) hovers; a finger has "Details".
+   */
+  hoverDelayMs?: number;
 
   /**
    * Generic "this editor is busy" flag — when `true`, the loading

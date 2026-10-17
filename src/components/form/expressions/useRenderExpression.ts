@@ -20,6 +20,7 @@ import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'react';
 import { ReqraftLspClient } from '../../../utils/lspClient';
 import { IExpressionValue } from './types';
+import { expressionWithOperands, isExpressionComplete } from './expressionOperands';
 
 /* The synchronous summary a collapsed row prints — see `readFirst.ts`. It is
    not a stand-in for this rendering and is never shown in its place. */
@@ -137,7 +138,14 @@ export const useRenderExpression = (): IUseRenderExpressionResult => {
           pendingRef.current = null;
           if (!job) return;
           lastRunRef.current = Date.now();
-          const outcome = job.value?.exp ? await renderViaServer(job.value) : null;
+          /* Only what can be rendered is asked for, with its operands read as what they
+             hold (expressionOperands) - as the Text view's serialize is. An expression
+             with a part not filled in yet (an operation not chosen, a value not given)
+             has no rendering; sent as it was, the stories' stand-in server threw on it
+             and the real one writes its operands as hashes. */
+          const outcome = isExpressionComplete(job.value)
+            ? await renderViaServer(expressionWithOperands(job.value))
+            : null;
           job.resolvers.forEach((r) => r(outcome));
         };
 

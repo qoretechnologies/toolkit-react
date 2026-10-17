@@ -17,9 +17,12 @@ import {
 import {
   IDpqlMockNode,
   mockParseDpql,
+  mockExpressionTypeDpql,
   mockRenderDpql,
   mockSerializeDpql,
   mockTokenizeDpql,
+  mockPublishedDiagnostics,
+  TDpqlMockFields,
 } from './dpqlMockLanguage';
 
 /**
@@ -36,6 +39,8 @@ import {
 export interface IDpqlMockParseCall {
   text: string;
   target?: string;
+  /** the request asked how the text reads as a condition (`condition: true`) */
+  condition?: boolean;
   analysed: boolean;
 }
 export const dpqlMockParseCalls: IDpqlMockParseCall[] = [];
@@ -53,6 +58,32 @@ const DPQL_MOCK_FIELD_ITEMS = [
   { label: '@name', insertText: '@name', kind: 5, detail: 'string' },
   { label: '@status', insertText: '@status', kind: 5, detail: 'string' },
 ];
+
+/** The fields each document is bound to, by its URI. */
+const dpqlMockDocumentFields = new Map<string, TDpqlMockFields>();
+
+/**
+ * A document's text as plain DPQL: the editor sends text, or rich text whose chips are references
+ * (`{type: 'tag', value}`), which the server reads as the references they are.
+ */
+const plainText = (text: unknown): string => {
+  if (typeof text === 'string') return text;
+  const blocks = (text as { value?: unknown[] } | undefined)?.value ?? [];
+  const leaf = (node: unknown): string => {
+    const n = node as { text?: string; type?: string; value?: unknown; children?: unknown[] };
+    if (typeof n?.text === 'string') return n.text;
+    if (n?.type === 'tag' && typeof n.value === 'string') return n.value;
+    return (n?.children ?? []).map(leaf).join('');
+  };
+  return blocks.map(leaf).join('\n');
+};
+
+/** Publish what the server finds in a document's text, as it does after every open and change. */
+const publishDiagnostics = (server: IMockLspServer, uri: string, text: string) =>
+  server.notify('textDocument/publishDiagnostics', {
+    uri,
+    diagnostics: mockPublishedDiagnostics(text, dpqlMockDocumentFields.get(uri)),
+  });
 
 const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
   /* Position-aware, as the real server is: `$` opens the template
@@ -79,13 +110,49 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
     data: mockTokenizeDpql(server.textOf(msg.params?.textDocument?.uri)),
   }),
 
-  'dpql/setContext': () => ({ fields: {} }),
+  // the fields a document is bound to, kept as the server keeps them: they type its `@field` operands
+  'dpql/setContext': (msg) => {
+    if (msg.params?.fields) {
+      dpqlMockDocumentFields.set(String(msg.params.uri), msg.params.fields as TDpqlMockFields);
+    }
+    return { fields: {} };
+  },
+
+  // the server publishes what it finds in a document's text on every open and change
+  'textDocument/didOpen': (msg, server) => {
+    const doc = (msg.params?.textDocument ?? {}) as {
+      uri?: string;
+      text?: unknown;
+      metadata?: { fields?: TDpqlMockFields };
+    };
+    const fields = (doc.metadata ?? (msg.params?.metadata as { fields?: TDpqlMockFields }))
+      ?.fields;
+    if (fields) dpqlMockDocumentFields.set(String(doc.uri), fields);
+    publishDiagnostics(server, String(doc.uri), plainText(doc.text ?? ''));
+  },
+
+  'textDocument/didChange': (msg, server) => {
+    const uri = String(msg.params?.textDocument?.uri);
+    const changes = (msg.params?.contentChanges ?? []) as { text?: unknown }[];
+    publishDiagnostics(server, uri, plainText(changes[changes.length - 1]?.text ?? ''));
+  },
 
   'dpql/parse': (msg) => {
     const text = String(msg.params?.text ?? '');
     const target = msg.params?.target_type as string | undefined;
-    dpqlMockParseCalls.push({ text: text.trim(), target, analysed: !!target });
-    return mockParseDpql(text, target);
+    const condition = msg.params?.condition === true;
+    dpqlMockParseCalls.push({
+      text: text.trim(),
+      target,
+      ...(condition ? { condition } : {}),
+      analysed: !!target || condition,
+    });
+    return mockParseDpql(
+      text,
+      target,
+      condition,
+      dpqlMockDocumentFields.get(String(msg.params?.uri))
+    );
   },
 
   'dpql/serialize': (msg) => mockSerializeDpql(msg.params?.expression as IDpqlMockNode),
@@ -93,6 +160,8 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
   'dpql/validate': () => ({ diagnostics: [] }),
 
   'dpql/renderExpression': (msg) => mockRenderDpql(msg.params?.expression as IDpqlMockNode),
+
+  'dpql/expressionType': (msg) => mockExpressionTypeDpql(msg.params?.expression as IDpqlMockNode),
 };
 
 export interface IStartDpqlMockLspOptions {
@@ -107,6 +176,7 @@ export const startDpqlMockLspServer = (
   options: IStartDpqlMockLspOptions = {}
 ): { lsp: IMockLspServer; stop: () => void } => {
   dpqlMockParseCalls.length = 0;
+  dpqlMockDocumentFields.clear();
   const lsp = createMockLspServer(MOCK_LSP_URL, {
     capabilities: {
       ...DEFAULT_LSP_CAPABILITIES,

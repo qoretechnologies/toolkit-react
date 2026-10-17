@@ -1,6 +1,6 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, screen, waitFor } from '@testing-library/react';
-import { forwardRef, useImperativeHandle, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 /**
@@ -13,7 +13,11 @@ import { describe, expect, it, vi } from 'vitest';
  * the clear having silently failed.
  */
 vi.mock('../src/components/dpqlEditor', () => ({
-  DpqlEditor: forwardRef<any, any>(({ value, onChange }, ref) => {
+  DpqlEditor: forwardRef<any, any>(({ value, onChange, onReady }, ref) => {
+    // a session that is up: the field reads and writes its text through it from the start
+    useEffect(() => {
+      onReady?.();
+    }, []);
     useImperativeHandle(ref, () => ({ serialize: async () => '1 + 2' }), []);
     return (
       <textarea

@@ -1,8 +1,7 @@
-import { isValidSixCharHex } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { IQorusFormSchema, TQorusForm, TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import { isValidCron } from 'cron-validator';
 import jsyaml from 'js-yaml';
-import { isBoolean, isNull, isString, isUndefined, memoize, omit } from 'lodash';
+import { isBoolean, isNull, isString, isUndefined, memoize, omit, upperFirst } from 'lodash';
 import every from 'lodash/every';
 import isArray from 'lodash/isArray';
 import isDate from 'lodash/isDate';
@@ -10,13 +9,15 @@ import isNaN from 'lodash/isNaN';
 import isNumber from 'lodash/isNumber';
 import isObject from 'lodash/isPlainObject';
 import size from 'lodash/size';
+import { defaultQorusTypes, qorusTypeSentenceForm } from './qorusTypeCatalogue';
 import uniqWith from 'lodash/uniqWith';
 import { fixOperatorValue, getAddress, getProtocol, splitByteSize } from './common';
 import { isOptionInterfaceUiType } from './optionUiTypes';
 import { getListElementValue, getOptionsFromRequiredGroups } from './options';
 import { IProviderType, TVariableActionValue, maybeBuildOptionProvider } from './providerValue';
-import { getTemplateKey, getTemplateValue, isValueTemplate } from './templates';
+import { getTemplateKey, getTemplateValue, isValueTemplate, textAroundATemplate } from './templates';
 import { getUnlistedChoiceReason } from './allowedValues';
+import { storedColorProblem } from '../components/colorValue/colorValue';
 
 /** The five cron fields, in order, as a schedule hash may name them. */
 const CRON_FIELDS: [string, string][] = [
@@ -236,12 +237,85 @@ const isRichTextWithoutValue = (value: any): boolean => {
   );
 };
 
+/**
+ * A value that sets nothing: none, `null`, empty text or an empty list.
+ *
+ * The one rule for "is this field set" - the form's read-first status reads it (an empty list files the field
+ * under Optional, not Set), and so does validation. The two used to disagree on an empty list: the status said an
+ * optional Authors field holding `[]` was not set, while validation checked it as a value and found it wanting
+ * ("At least one value is required"), so the form was invalid with nothing on screen saying why.
+ */
+export const isOptionValueEmpty = (value: unknown): boolean =>
+  value === undefined ||
+  value === null ||
+  value === '' ||
+  (Array.isArray(value) && value.length === 0);
+
 const isValueDefined = (type: string, value: any): boolean => {
   if (type === 'richtext') {
     return !isRichTextWithoutValue(value);
   }
 
-  return value !== undefined && value !== '';
+  return !isOptionValueEmpty(value);
+};
+
+/**
+ * A type named inside a sentence: its sentence form in the server's type catalogue ("a whole number"), as reqraft
+ * keeps it - the form's own words, said before and without any server (qorus#646).
+ */
+const typeInSentence = (type: string): string | undefined =>
+  qorusTypeSentenceForm(defaultQorusTypes, type);
+
+/** What is said of a value that is not of its field's type, the type named where there is one (qorus#646). */
+const valueMustBe = (type: string): string => {
+  const named = typeInSentence(type);
+  return named ? `Value must be ${named}` : "Value must be of this field's type";
+};
+
+/** The types a value is written as text in, where text around a template makes it text and not one of them. */
+const NOT_TEXT_WITH_A_TEMPLATE = new Set([
+  'int',
+  'integer',
+  'softint',
+  'number',
+  'float',
+  'softfloat',
+  'softnumber',
+  'bool',
+  'boolean',
+  'softbool',
+  'date',
+  'softdate',
+]);
+
+/**
+ * What is said of a value of a type that is not text, written with text around a template: what makes it
+ * text, and what to do about it (qlip build 20261008-083118: "How does the user fix this? Why has this
+ * happened?"). `undefined` where the type is text, or the value is not text around a template.
+ */
+const textAroundATemplateReason = (type: string, value: unknown): string | undefined => {
+  const notA = NOT_TEXT_WITH_A_TEMPLATE.has(type)
+    ? (typeInSentence(type) ?? "of this field's type")
+    : undefined;
+  const around = notA ? textAroundATemplate(value) : undefined;
+  if (!around) {
+    return undefined;
+  }
+  if (around.templates > 1) {
+    return around.text.length
+      ? `Text and more than one template make this text, not ${notA}. Keep one template alone.`
+      : `Templates side by side make this text, not ${notA}. Keep one of them alone.`;
+  }
+  return `"${around.text.join(' … ')}" makes this text, not ${notA}. Delete it to keep the template alone.`;
+};
+
+/** 1st, 2nd, 3rd, 4th, … 11th, 12th, 13th, … 21st: a position as it is written. */
+const ordinal = (n: number): string => {
+  const tens = n % 100;
+  if (tens >= 11 && tens <= 13) {
+    return `${n}th`;
+  }
+  return `${n}${({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'}`;
 };
 
 export const _validateField = (
@@ -271,6 +345,14 @@ export const _validateField = (
   const pos: number = type.indexOf('<');
   if (pos > 0) {
     type = type.slice(0, pos);
+  }
+  /* A value whose type is not text, written with text around a template, is not of that type: a whole
+     number written as "$record:{pos} Stk." passed as a template - anything starting with `$` and holding
+     a `:` did - and the form could be saved with a value its type cannot hold (qorus#646). A template
+     alone, a literal and an expression are judged as before. */
+  const textAroundReason = textAroundATemplateReason(type, value);
+  if (textAroundReason) {
+    return invalidResult(textAroundReason);
   }
   // Check if the value is a template string
   if (isValueTemplate(value)) {
@@ -354,7 +436,7 @@ export const _validateField = (
         value === true ||
           value === false ||
           (value === undefined && field?.has_to_have_value === false),
-        'Value must be a True or False value'
+        valueMustBe('bool')
       );
     case 'connection': {
       if (!value) {
@@ -644,18 +726,18 @@ export const _validateField = (
     }
     case 'number': {
       if (!isNumericValue(value)) {
-        return invalidResult('Value must be a number');
+        return invalidResult(valueMustBe('number'));
       }
       return checkNumericBounds(value, field);
     }
     case 'int':
       if (!(!Number.isNaN(value) && getTypeFromValue(value) === 'int')) {
-        return invalidResult('Value must be an integer');
+        return invalidResult(valueMustBe('int'));
       }
       return checkNumericBounds(value, field);
     case 'float':
       if (!isNumericValue(value)) {
-        return invalidResult('Value must be a float');
+        return invalidResult(valueMustBe('float'));
       }
       return checkNumericBounds(value, field);
     case 'select-array':
@@ -716,19 +798,16 @@ export const _validateField = (
       }
 
       if (!parsedValue || !isObject(parsedValue)) {
-        return invalidResult('Hash value must be an object');
+        return invalidResult(valueMustBe('hash'));
       }
 
       return validResult();
     }
     case 'rgbcolor': {
-      return resultFromBoolean(
-        isValidSixCharHex(value?.hex) ||
-          ((value?.r || value?.r === 0) &&
-            (value?.g || value?.g === 0) &&
-            (value?.b || value?.b === 0)),
-        'RGB color is invalid'
-      );
+      // the hash { r, g, b, a? } (qorus#646, David): a hex code, bare or as { hex }, is shown but not stored
+      const problem = storedColorProblem(value);
+
+      return problem ? invalidResult(problem) : validResult();
     }
     case 'list':
     case 'free-list': {
@@ -1577,11 +1656,11 @@ export const _validateField = (
       // the field's own "show invalid only" filter listed a different set of
       // rows on a fast machine than on a slow one.
       if (!castedValue) {
-        return invalidResult('Expression value is empty');
+        return invalidResult('Fill in this expression.');
       }
 
       if (!castedValue.value?.exp) {
-        return invalidResult('Expression operation is required');
+        return invalidResult('Choose what this expression does.');
       }
 
       // Everything past this point needs the expression's definition, which
@@ -1598,7 +1677,7 @@ export const _validateField = (
       );
 
       if (!expressionDefinition) {
-        return invalidResult(`Expression definition ${String(castedValue.value?.exp)} not found`);
+        return invalidResult(`Qorus has no operation ${String(castedValue.value?.exp)}.`);
       }
 
       // If the expression has no required args, we can consider it valid
@@ -1617,6 +1696,14 @@ export const _validateField = (
       // Now we need to validate each argument, either as a normal value or as a sub-expression
       const args = castedValue.value?.args ?? [];
 
+      // each operand's name, as the editor shows it
+      const argLabels: string[] = args.map((_arg: unknown, index: number) => {
+        const definition = expressionDefinition.varargs
+          ? expressionDefinition.args[0]
+          : expressionDefinition.args[index];
+        return definition?.display_name ?? definition?.name ?? `argument ${index + 1}`;
+      });
+
       for (let index = 0; index < args.length; index++) {
         const argValue: any = args[index];
         const argDefinition = expressionDefinition.varargs
@@ -1627,8 +1714,16 @@ export const _validateField = (
            `display_name` is what a catalogue MAY carry; the served one carries
            `name`, so every message about an argument read "argument 1
            ("undefined") is invalid" and named a field that does not exist. */
-        const argLabel =
-          argDefinition?.display_name ?? argDefinition?.name ?? `argument ${index + 1}`;
+        const argLabel = argLabels[index];
+        /* Which operand, where its name alone does not say: every operand of a call taking any number of
+           them is "Value" (qlip build 20261008-083118: "which "value" is the message mentioning"). Said by
+           its position too, as the editor shows them, left to right - and so is a lone operand of a call that
+           can take more (David, qorus#646), as the operands that join it will be. */
+        const operand =
+          expressionDefinition.varargs ||
+          argLabels.some((label, other) => other !== index && label === argLabel)
+            ? `the ${ordinal(index + 1)} "${argLabel}"`
+            : undefined;
 
         /* An explicit null is a VALUE, and DPQL says so: `null` is a literal
            that parses, serializes and round-trips like any other.
@@ -1659,10 +1754,8 @@ export const _validateField = (
           });
 
           if (!result.isValid) {
-            return withContext(
-              result,
-              `Sub-expression for argument ${index + 1} ("${argLabel}") is invalid`
-            );
+            // said by the operand's name, as the editor shows it - not by its position in the call
+            return withContext(result, `The expression in ${operand ?? `"${argLabel}"`} has an error`);
           }
 
           continue;
@@ -1686,10 +1779,12 @@ export const _validateField = (
         });
 
         if (!result.isValid) {
-          return withContext(
-            result,
-            `Value for argument ${index + 1} ("${argLabel}") is invalid`
-          );
+          // an operand not filled in yet says what to do; one that is wrong says which and why (David's
+          // review of qorus#646: "Value for argument 1 ("Value") is invalid: Missing value" while building)
+          if (argValue?.value === undefined || argValue?.value === null || argValue?.value === '') {
+            return invalidResult(operand ? `Enter ${operand}` : `Enter a value for "${argLabel}"`);
+          }
+          return withContext(result, operand ? `${upperFirst(operand)} is invalid` : `"${argLabel}" is invalid`);
         }
       }
 

@@ -1,6 +1,7 @@
 import { modalStore } from '@qoretechnologies/reqore';
 import { TReqoreTooltipProp } from '@qoretechnologies/reqore/dist/types/global';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import {
   TReqoreDropdownItem,
   TReqoreDropdownItems,
@@ -8,6 +9,7 @@ import {
 import { cloneDeep, size } from 'lodash';
 import { createElement } from 'react';
 import { ReqraftTemplateExampleValueModal } from '../components/form/fields/template/ExampleValueModal';
+import { descriptionTooltip, IDescriptionTooltipOptions } from './descriptionTooltip';
 import { areQorusTypesCompatible } from './expressions';
 
 /**
@@ -45,6 +47,17 @@ const byLabel = (a: { label?: unknown }, b: { label?: unknown }): number =>
  */
 
 export type TTemplateMeta = { image?: string; builtIn?: boolean; isEventTrigger?: boolean };
+
+/**
+ * A reference chip as every view draws it - the read summary (`TemplateText`), the read-only chip, the rich
+ * text editor and the expression editor: a `tiny` box whose label takes the font of the text it sits in, so a
+ * reference is the same size wherever it is shown, at whatever size its text is (qorus#646). One object for all
+ * of them: written out in each, the views drifted apart, and a chip jumped as a value moved between them.
+ */
+export const REFERENCE_CHIP_PROPS: Pick<IReqoreTagProps, 'size' | 'effect'> = Object.freeze({
+  size: 'tiny',
+  effect: Object.freeze({ textSize: 'inherit' }),
+});
 
 export const getTemplateTagStyle = (
   meta?: TTemplateMeta
@@ -93,6 +106,41 @@ const COMPLETE_TEMPLATE_TOKEN = new RegExp(`^${TEMPLATE_TOKEN_SOURCE}$`);
  *  `'$foo: hello'` passes the loose check but not this one. */
 export const isCompleteTemplateToken = (value?: unknown): value is string =>
   typeof value === 'string' && COMPLETE_TEMPLATE_TOKEN.test(value);
+
+const TEMPLATE_TOKEN_ANYWHERE = new RegExp(TEMPLATE_TOKEN_SOURCE);
+
+/**
+ * Text with a template in it that is not the template alone: `$record:{pos} Stk.`, `SUP-$record:{pos}`,
+ * two templates side by side. In text it is text; a whole number, a number, a yes/no or a date cannot
+ * hold it (qorus#646).
+ */
+export const hasTextAroundATemplate = (value?: unknown): value is string =>
+  typeof value === 'string' && TEMPLATE_TOKEN_ANYWHERE.test(value) && !isCompleteTemplateToken(value);
+
+/** The text around the templates in a value that is not one template alone, and how many templates it holds. */
+export interface ITextAroundATemplate {
+  /** The pieces of text before, between and after the templates, trimmed; empty pieces left out. */
+  text: string[];
+  templates: number;
+}
+
+/**
+ * What makes a value text rather than one template alone: `$record:{pos} Stk.` holds the text "Stk." and
+ * one template; `$record:{a}$record:{b}` no text and two. `undefined` where the value is not text with a
+ * template in it, or is one template alone (see {@link hasTextAroundATemplate}).
+ */
+export const textAroundATemplate = (value?: unknown): ITextAroundATemplate | undefined => {
+  if (!hasTextAroundATemplate(value)) {
+    return undefined;
+  }
+  const tokens = new RegExp(TEMPLATE_TOKEN_SOURCE, 'g');
+  const templates = value.match(tokens)?.length ?? 0;
+  const text = value
+    .split(tokens)
+    .map((piece) => piece.trim())
+    .filter((piece) => piece !== '');
+  return { text, templates };
+};
 
 /** A complete token carrying at least one BRACED context segment —
  *  `$data:{W2n….filename}`, `$qore-expr:{1 + 2}`. These are machine-written
@@ -335,19 +383,24 @@ export const describeTemplateReference = (
  * the field's own help, which teaches the grammar with a worked example, and
  * the picker, for the walks no list can hold.
  *
+ * The description is drawn by the host's markdown renderer, as the template
+ * list draws the same string, and opens on a tap where there is no hover
+ * (`descriptionTooltip`, with the surface's `useDescriptionTooltips`): a hover
+ * that printed it raw showed the reader the `**` and backticks the list beside
+ * it does not, and a finger could not open it at all.
+ *
  * Falls back to the resolved label (itself the stripped path when the catalogue
  * explains nothing), because a surface with no catalogue must still say what
  * the value is rather than nothing at all.
  */
 export const templateTooltip = (
   templates: IReqoreFormTemplates | undefined,
-  value: string
+  value: string,
+  descriptions: IDescriptionTooltipOptions
 ): TReqoreTooltipProp => {
   const { label, item } = describeTemplateReference(templates, value);
   const description = (item as { description?: unknown } | undefined)?.description;
-  return typeof description === 'string' && description.trim() ?
-      { title: label, content: description, maxWidth: '360px' }
-    : label || value;
+  return descriptionTooltip(description, descriptions, label || value) ?? value;
 };
 
 // Ported verbatim from qorus-ide `helpers/functions.tsx` (FIELD_STACK_REPORT

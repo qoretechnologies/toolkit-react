@@ -101,7 +101,7 @@ export interface IComposerProps {
   /** Default send button: minimal (subtle, Qonsole-style). Default `true`. */
   sendMinimal?: boolean;
   /** Default send button accent (Reqore `customTheme`). Default `{ main: 'custom1' }`
-   *  — the Qorus accent, which each app's theme colours (gray in a bare reqore theme). */
+   *  — the Qorus accent, which each app's theme colors (gray in a bare reqore theme). */
   sendCustomTheme?: TCustomTheme;
   /** Multiple send actions → a split send button. The first is the primary. */
   sendActions?: IComposerSendAction[];
@@ -152,7 +152,7 @@ export interface IComposerProps {
 // The Qonsole input chrome, lifted verbatim from qorus-ide's StyledInputWrapper.
 // The border is 1px *transparent* — it only reserves the border-box so the
 // `effect` gradient can paint the edge (that's how the Qonsole bar's accent glow
-// is drawn — a gradient border, not a border-color). All colour comes from
+// is drawn — a gradient border, not a border-color). All color comes from
 // `effect` (+ the ambient theme), so the bar takes on whatever accent the app /
 // story supplies.
 const StyledComposer = styled(StyledEffect)<{ $minimal?: boolean }>`
@@ -309,7 +309,7 @@ export const Composer = forwardRef<IComposerHandle, IComposerProps>(function Com
   // Every send action inherits the composer's send style (the Qonsole look by
   // default) so a split-send stays visually of a piece with the single button —
   // unless the action picks its own. The accent is only defaulted when the action
-  // hasn't chosen an `intent`, since in Reqore an intent owns the colour and would
+  // hasn't chosen an `intent`, since in Reqore an intent owns the color and would
   // otherwise fight the `customTheme`.
   const withSendStyle = (action: IComposerSendAction): IComposerSendAction => ({
     minimal: sendMinimal,

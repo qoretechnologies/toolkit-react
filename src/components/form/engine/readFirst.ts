@@ -1,9 +1,13 @@
+import { markdownToProse } from '../../../helpers/markdownText';
 import {
   IQorusFormField,
   IQorusFormSchema,
   TQorusFormFieldSchema,
   TQorusType,
 } from '@qoretechnologies/ts-toolkit';
+import { isValueTemplate } from '../../../helpers/templates';
+import { describeColorValue } from '../../colorValue/colorValue';
+import { DEFAULT_COLOR_VALUE_LABELS } from '../../colorValue/labels';
 import { isRendererOnlyUiType } from './rendererTypes';
 import { isEmptyUiEnvelope, isUiEncodedValue } from './_structuredData/structuredData';
 import { renderExpressionToText } from '../expressions/renderExpressionToText';
@@ -12,6 +16,7 @@ import yaml from 'js-yaml';
 import { formatTimeoutValue, richtextToString } from '../../../helpers/common';
 import { firstDeclaredType } from '../../../helpers/optionUiTypes';
 import { findAllowedValueOption } from '../../../helpers/allowedValues';
+import { isOptionValueEmpty } from '../../../helpers/validations';
 
 /** "N noun" with naive pluralisation ("1 item", "2 items"). */
 const pluralize = (count: number, noun: string): string =>
@@ -165,12 +170,36 @@ const parseSerialized = (value: string, type?: string): unknown => {
  * stored value into a short summary and resolve its group. Unit-testable.
  */
 
-/** A value is "empty" (nothing set) when it is nullish, an empty string, or an empty array. */
-export const isOptionValueEmpty = (value: unknown): boolean =>
-  value === undefined ||
-  value === null ||
-  value === '' ||
-  (Array.isArray(value) && value.length === 0);
+/** A value is "empty" (nothing set) when it is nullish, an empty string, or an empty array: one rule, which
+ *  validation reads too (`helpers/validations.ts`). */
+export { isOptionValueEmpty };
+
+/**
+ * Why a form cannot be saved, in words a person can act on: the first field that blocks it, by the name the form
+ * shows it under, what is wrong with it, and how many more there are. `undefined` when nothing blocks it.
+ *
+ * Shown beside a Save that refuses, as text: a disabled button fires no hover, so a reason carried only in its
+ * tooltip reached nobody - and a phone has no hover at all.
+ */
+export const describeBlockedSave = (
+  invalidFields: ReadonlyArray<{
+    fieldName: string;
+    validation: { reason?: string; reasons?: string[] };
+  }>,
+  schema?: Record<string, { display_name?: string } | undefined>
+): string | undefined => {
+  const [first] = invalidFields;
+  if (!first) {
+    return undefined;
+  }
+  const name = schema?.[first.fieldName]?.display_name || first.fieldName;
+  const why = first.validation.reason || first.validation.reasons?.[0];
+  const more = invalidFields.length - 1;
+  return (
+    `Before saving, fix ${name}${why ? `: ${why}` : ''}` +
+    (more ? ` (and ${more} more field${more === 1 ? '' : 's'})` : '')
+  );
+};
 
 /**
  * A schema-declared hash whose every entry is a materialised-but-unset field.
@@ -326,78 +355,9 @@ export const getAllowedValueIcon = (
   return (match.icon as string) || undefined;
 };
 
-/** Clamp an RGB channel to a 0–255 integer. */
-const clampChannel = (n: number): number => Math.max(0, Math.min(255, Math.round(n)));
-const toHexPart = (n: number): string => clampChannel(n).toString(16).padStart(2, '0');
-
-/** The shape the rgbcolor field stores (react-color's RGBA result). */
-type TColorValue = { r?: number; g?: number; b?: number; a?: number; hex?: string };
-
-/** Normalised colour parts parsed from any shape the rgbcolor field can store. */
-interface IParsedColor {
-  hex?: string;
-  r?: number;
-  g?: number;
-  b?: number;
-  a: number;
-}
-
-/** Whether parsed colour parts carry usable RGB channels. */
-const hasRgb = (c: IParsedColor): c is IParsedColor & { r: number; g: number; b: number } =>
-  c.r !== undefined && c.g !== undefined && c.b !== undefined;
-
-/** Parse an `rgbcolor` into normalised parts: accepts `{ r, g, b, a }` (may
- * carry `hex`), `{ hex }`, or a raw hex string; undefined when unrecognisable. */
-const parseColor = (value: unknown): IParsedColor | undefined => {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed.startsWith('#') ? { hex: trimmed, a: 1 } : undefined;
-  }
-  if (value && typeof value === 'object') {
-    const c = value as TColorValue;
-    const a = typeof c.a === 'number' ? c.a : 1;
-    const hex = typeof c.hex === 'string' && c.hex.trim() ? c.hex.trim() : undefined;
-    if (typeof c.r === 'number' && typeof c.g === 'number' && typeof c.b === 'number') {
-      return { r: c.r, g: c.g, b: c.b, a, hex };
-    }
-    if (hex) {
-      return { hex, a };
-    }
-  }
-  return undefined;
-};
-
-/** Uppercase hex (`#0000FF`), or `rgba(…)` when non-opaque; undefined when
- * unrecognisable (the caller falls back to the generic marker). */
-export const formatColorValue = (value: unknown): string | undefined => {
-  const c = parseColor(value);
-  if (!c) {
-    return undefined;
-  }
-  // Prefer rgba(…) for non-opaque colours; the hex shortcut would drop alpha.
-  if (c.a < 1 && hasRgb(c)) {
-    const alpha = Math.round(c.a * 100) / 100;
-    return `rgba(${clampChannel(c.r)}, ${clampChannel(c.g)}, ${clampChannel(c.b)}, ${alpha})`;
-  }
-  if (c.hex) {
-    return c.hex.toUpperCase();
-  }
-  return hasRgb(c) ?
-      `#${toHexPart(c.r)}${toHexPart(c.g)}${toHexPart(c.b)}`.toUpperCase()
-    : undefined;
-};
-
-/** CSS colour for the swatch preview (keeps alpha); undefined when
- * unrecognisable. */
-export const colorToCss = (value: unknown): string | undefined => {
-  const c = parseColor(value);
-  if (!c) {
-    return undefined;
-  }
-  return hasRgb(c) ?
-      `rgba(${clampChannel(c.r)}, ${clampChannel(c.g)}, ${clampChannel(c.b)}, ${c.a})`
-    : c.hex;
-};
+// A color is read by the one reader every read-only view of a color uses (ReqraftColorValue's), so a
+// row's summary and the swatch it draws agree; re-exported for the readers that import it from here.
+export { colorToCss, formatColorValue } from '../../colorValue/colorValue';
 
 /** Filename for a `file` value: accepts `{ name, content, size }`, the
  * build-tab `{ name: { value } }` shape, or a raw path; undefined when no
@@ -466,7 +426,7 @@ export const formatBytes = (bytes: number): string => {
 
 /**
  * Short read-first summary of a value; '' when unset (the caller renders the
- * placeholder). Bools → Yes/No, allowed_values → display label, colour →
+ * placeholder). Bools → Yes/No, allowed_values → display label, color →
  * hex/rgba, file → filename, richtext → plain text, timeout → scaled duration
  * ("45 seconds"), list → joined names, hash → "N fields" (generic "Set"
  * fallback).
@@ -513,6 +473,31 @@ const capSummary = (text: string): string => {
   return `${body.trimEnd()}…`;
 };
 
+
+
+/**
+ * Markdown without its fenced code blocks. A fence opens on a line of its own (up to three spaces in) and closes
+ * on the next such line, or runs to the end when nothing closes it, as markdown reads it. Three backticks inside
+ * a line open no block: they are a code span, and what it holds is summarised as written (qorus#646) - taking
+ * every ``` to ``` out dropped the span's text.
+ */
+const withoutFencedBlocks = (value: string): string => {
+  const kept: string[] = [];
+  let fenced = false;
+  for (const line of value.replace(/\r\n?/g, '\n').split('\n')) {
+    if (/^\s{0,3}```/.test(line)) {
+      fenced = !fenced;
+      // the block parts what was before it from what comes after
+      kept.push('');
+      continue;
+    }
+    if (!fenced) {
+      kept.push(line);
+    }
+  }
+  return kept.join('\n');
+};
+
 /**
  * Summarise a markdown value as the prose it renders to.
  *
@@ -531,40 +516,14 @@ const capSummary = (text: string): string => {
  * `retrycountmax`: emphasis delimiters have to hug the text they wrap, and an
  * underscore must not be intraword, or an option key loses its underscores.
  */
-export const summariseMarkdown = (value: unknown): string => {
-  if (typeof value !== 'string') {
-    return '';
-  }
-
-  const prose = value
+export const summariseMarkdown = (value: unknown): string =>
+  typeof value === 'string' ?
     // a fenced block is never the summary of the thing it sits in
-    .replace(/```[\s\S]*?```/g, ' ')
-    // images before links — an image's `!` prefix would otherwise survive
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    // autolinks: <https://example.com> → https://example.com
-    .replace(/<((?:https?|mailto):[^>\s]+)>/g, '$1')
-    // leading block markers: heading hashes, blockquote carets, list bullets
-    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/gm, '')
-    // setext underlines and thematic breaks carry no prose
-    .replace(/^\s{0,3}(?:={2,}|-{2,}|\*{3,}|_{3,})\s*$/gm, '')
-    // Emphasis / strong / strikethrough markers around their own text. The
-    // delimiters must hug the text they wrap, as CommonMark requires, and
-    // underscores additionally must not be intraword.
-    .replace(/(\*\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
-    .replace(/(?<![A-Za-z0-9])(___)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
-    .replace(/(\*\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
-    .replace(/(?<![A-Za-z0-9])(__)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
-    .replace(/(\*)(?=\S)([\s\S]+?)(?<=\S)\1/g, '$2')
-    .replace(/(?<![A-Za-z0-9])(_)(?=\S)([\s\S]+?)(?<=\S)\1(?![A-Za-z0-9])/g, '$2')
-    .replace(/~~(?=\S)([\s\S]+?)(?<=\S)~~/g, '$1')
-    // inline code spans
-    .replace(/`+([^`]+)`+/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
+    capSummary(markdownToProse(withoutFencedBlocks(value)))
+  : '';
 
-  return capSummary(prose);
-};
+/** The prose a description's markdown renders to, on one line (`helpers/markdownText`). */
+export { markdownToProse };
 
 /**
  * The expression AST a field holds, whichever shape it arrived in.
@@ -621,6 +580,12 @@ export const formatOptionValue = (
     return renderExpressionToText(expressionAst) || 'Expression';
   }
 
+  /* A template is the field it names, whatever the field's type, so it is summarised before any type
+     summarises a value of its own: a color or a file called it "Set", a yes/no "Yes" (qorus#646). */
+  if (typeof value === 'string' && isValueTemplate(value)) {
+    return value;
+  }
+
   // schema-definition is stored as a hash envelope; summarise it as the schema
   // name + table count rather than a meaningless top-level key count.
   if ((schema as { ui_type?: string } | undefined)?.ui_type === 'schema-definition') {
@@ -635,13 +600,14 @@ export const formatOptionValue = (
     // there is no prose behind it — and CompactRow reads `formatted === ''` as
     // "no value" and renders a faint em-dash. A field holding a whole code
     // block would show as empty. `'Set'` is this file's established answer for
-    // "there is a value here that does not reduce to a line" (colours, files,
+    // "there is a value here that does not reduce to a line" (colors, files,
     // richtext all use it), and the block itself still renders in the inset.
     return summariseMarkdown(value) || 'Set';
   }
 
   const type = getValueType(option, schema);
 
+  // a template has been summarised as itself, above: only a value that is true or false reads Yes or No
   if (type === 'bool' || type === 'boolean') {
     return value ? 'Yes' : 'No';
   }
@@ -651,8 +617,14 @@ export const formatOptionValue = (
     return allowedLabel;
   }
 
+  // a color as it is written; a value that is not one says what it is, as the row's swatch does
   if (type === 'rgbcolor') {
-    return formatColorValue(value) ?? 'Set';
+    const color = describeColorValue(value);
+    return (
+      color.kind === 'color' ? color.text
+      : color.kind === 'invalid' ? DEFAULT_COLOR_VALUE_LABELS.invalid(color.shown)
+      : DEFAULT_COLOR_VALUE_LABELS.empty
+    );
   }
 
   // Raw milliseconds read poorly at a glance — scale to the largest exact

@@ -1,7 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// Hover-tooltip support for SmartEditor. Listens for `mousemove` on
-// the editor's contenteditable element, debounces to 300ms idle, then
-// asks the LSP for hover info at that mouse position. The consumer
+// Hover-tooltip support for SmartEditor. Listens for a hovering pointer
+// (`isHoveringPointer`: a mouse, not a finger) moving over the editor's
+// contenteditable element, debounces to 300ms idle, then asks the LSP for
+// hover info at that position. The consumer
 // gets back `{ hoverContent, hoverPosition }` and renders a popover.
 //
 // Position mapping: mouse coords → DOM caret range
@@ -14,6 +15,7 @@ import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import { BaseEditor, Point } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
+import { isHoveringPointer } from '../../helpers/hoveringPointer';
 import { ILspMarkupContent } from '../../utils/lspClient.types';
 import { offsetToLspPosition } from './helpers';
 import { ISlateConverter, ISlateElement } from './types';
@@ -74,10 +76,16 @@ function mousePositionToSlatePoint(
 }
 
 export interface IUseLspHoverOptions {
-  /** Default `true`. Set to `false` to disable the mousemove listener. */
+  /** Default `true`. Set to `false` to disable the hovering pointer's listener. */
   enabled?: boolean;
   /** Debounce window before issuing the LSP request. Default 300ms. */
   debounceMs?: number;
+}
+
+/** Where a hover is anchored on the screen, in viewport coordinates. */
+export interface ILspHoverAnchor {
+  left: number;
+  top: number;
 }
 
 export interface IUseLspHoverResult {
@@ -85,15 +93,31 @@ export interface IUseLspHoverResult {
   hoverContent: ILspMarkupContent | null;
   /** Viewport-coordinate position to anchor the popover. */
   hoverPosition: { left: number; top: number } | null;
-  /** Imperatively dismiss the current hover popover. */
-  clearHover: () => void;
+  /**
+   * Which hover is shown: a new number each time one is, so a popover can be keyed by it and dismiss it
+   * alone (see `clearHover`). `0` before the first.
+   */
+  hoverId: number;
+  /**
+   * Dismiss the hover shown. Given the `hoverId` of the hover being dismissed, only that one: a popover
+   * closing as the next hover replaces it - it unmounts, and says it closed - dismissed that next hover
+   * too, so the mouse resting on the next word, or "Details" pressed while a hover was up, showed nothing.
+   */
+  clearHover: (hoverId?: number) => void;
+  /**
+   * Show what the server says of the word at the caret: the hover where there is no pointer to hover with (a
+   * finger's "Details", see `SmartEditor`). Anchored at `at` when given (the Details button, so the hover does
+   * not cover the text), else at the caret. Resolves to the `hoverId` of the hover shown; nothing when the caret
+   * is nowhere or the server says nothing of it.
+   */
+  showAtCaret: (at?: ILspHoverAnchor) => Promise<number | undefined>;
 }
 
 /**
- * Hover-tooltip state for the SmartEditor. Attaches a `mousemove`
- * listener to the editor's contenteditable element via the supplied
- * editor ref and resolves LSP hover content under the cursor when the
- * mouse goes idle for `debounceMs`.
+ * Hover-tooltip state for the SmartEditor. Attaches a `pointermove`
+ * listener for a hovering pointer to the editor's contenteditable element
+ * via the supplied editor ref and resolves LSP hover content under the
+ * cursor when the mouse goes idle for `debounceMs`.
  */
 export function useLspHover(
   session: IUseLspSessionResult,
@@ -118,14 +142,32 @@ export function useLspHover(
   // server replied).
   const requestIdRef = useRef(0);
 
-  const clearHover = useCallback(() => {
+  const [hoverId, setHoverId] = useState(0);
+  // the hover shown now, read by `clearHover` when it is called from a popover that may be an older one's
+  const hoverIdRef = useRef(0);
+
+  const clearHover = useCallback((ofHover?: number) => {
+    if (ofHover !== undefined && ofHover !== hoverIdRef.current) {
+      return;
+    }
     setHoverContent(null);
     setHoverPosition(null);
   }, []);
 
+  /** Shows `content` at `position` as a hover of its own. */
+  const showHover = useCallback(
+    (content: ILspMarkupContent, position: { left: number; top: number }) => {
+      hoverIdRef.current += 1;
+      setHoverId(hoverIdRef.current);
+      setHoverContent(content);
+      setHoverPosition(position);
+    },
+    []
+  );
+
   // Debounced fetch. Re-created in the effect below whenever any of
   // its inputs change. Started as a no-op so the ref is always a
-  // function — avoids null-checks in the mousemove listener. The dep
+  // function — avoids null-checks in the pointermove listener. The dep
   // array lists the stable primitives inside `session`, not the object
   // itself — `useLspSession` rebuilds its return object every render,
   // which would cancel and recreate this debounce on every parent
@@ -169,12 +211,11 @@ export function useLspHover(
           clearHover();
           return;
         }
-        setHoverContent(content);
         // Anchor the popover at the mouse cursor. The design doc calls
         // for "token center" — that requires building a Range over the
         // word boundaries and reading its rect. Defer to a follow-up
         // refinement; mouse-coord positioning already feels natural.
-        setHoverPosition({ left: clientX, top: clientY });
+        showHover(content, { left: clientX, top: clientY });
       } catch {
         clearHover();
       }
@@ -189,6 +230,7 @@ export function useLspHover(
     enabled,
     debounceMs,
     clearHover,
+    showHover,
   ]);
 
   useEffect(() => {
@@ -203,28 +245,94 @@ export function useLspHover(
     }
     if (!dom) return undefined;
 
-    const onMove = (e: MouseEvent) => {
+    /* A pointer event, not a mouse event: the mouse events a browser emulates after a tap say nothing of the
+       finger they came from, and opened the hover where a tap had put the caret, on a touch screen whose way
+       to the hover is "Details" (see `isHoveringPointer`). A finger's pointer events start nothing here. */
+    const onMove = (e: PointerEvent) => {
+      if (!isHoveringPointer(e)) {
+        return;
+      }
       // Cancel any pending hover the moment the mouse moves — the
       // previous coords are stale. The debounced trailing call only
       // fires after `debounceMs` of true idle.
       fetchHover.current.cancel();
       fetchHover.current(e.clientX, e.clientY);
     };
-    const onLeave = () => {
+    // the mouse leaving takes its hover with it; a finger lifted leaves a hover "Details" showed
+    const onLeave = (e: PointerEvent) => {
+      if (!isHoveringPointer(e)) {
+        return;
+      }
       fetchHover.current.cancel();
       clearHover();
     };
 
-    dom.addEventListener('mousemove', onMove);
-    dom.addEventListener('mouseleave', onLeave);
+    dom.addEventListener('pointermove', onMove);
+    dom.addEventListener('pointerleave', onLeave);
     return () => {
-      dom?.removeEventListener('mousemove', onMove);
-      dom?.removeEventListener('mouseleave', onLeave);
+      dom?.removeEventListener('pointermove', onMove);
+      dom?.removeEventListener('pointerleave', onLeave);
       fetchHover.current.cancel();
     };
     // Re-attach on enabled / session.isReady changes; the editor itself
     // is stable across renders so it's not a dep here.
   }, [enabled, session.isReady, clearHover, editorRef]);
 
-  return { hoverContent, hoverPosition, clearHover };
+  const showAtCaret = useCallback(
+    async (at?: ILspHoverAnchor) => {
+      const editor = editorRef.current;
+      const client = session.client;
+      if (
+        !enabled ||
+        !editor ||
+        !client ||
+        !session.isReady ||
+        !session.isContextReady ||
+        !editor.selection
+      ) {
+        return undefined;
+      }
+      const point = editor.selection.focus;
+      const nodes = editor.children as ISlateElement[];
+      const { line, character } = slatePointToLspPosition(
+        { path: point.path as number[], offset: point.offset },
+        nodes,
+        converter
+      );
+      let anchor: { left: number; top: number };
+      try {
+        const rect = ReactEditor.toDOMRange(editor, editor.selection).getBoundingClientRect();
+        anchor = at ?? { left: rect.left, top: rect.top };
+      } catch {
+        return undefined;
+      }
+      fetchHover.current.cancel();
+      const reqId = ++requestIdRef.current;
+      try {
+        const content = await client.getHover(line, character);
+        if (reqId !== requestIdRef.current) return undefined; // stale
+        if (!content) {
+          clearHover();
+          return undefined;
+        }
+        showHover(content, anchor);
+        return hoverIdRef.current;
+      } catch {
+        clearHover();
+        return undefined;
+      }
+    },
+    [
+      enabled,
+      editorRef,
+      session.client,
+      session.isReady,
+      session.isContextReady,
+      converter,
+      clearHover,
+      showHover,
+    ]
+  );
+
+  return { hoverContent, hoverPosition, hoverId, clearHover, showAtCaret };
 }

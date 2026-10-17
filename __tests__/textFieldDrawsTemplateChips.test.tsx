@@ -8,8 +8,8 @@ import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/* Which editor drew the field LAST: before its mount effect settles the type,
-   the field's first render is still untyped, so both may be called once. */
+/* Which editor drew the field LAST. (A field is drawn as its declared type from its first render -
+   see autoFieldDrawnAsDeclared - so the last editor is also the only one.) */
 const editors = vi.hoisted(() => ({
   chips: undefined as any,
   textarea: undefined as any,

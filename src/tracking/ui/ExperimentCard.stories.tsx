@@ -50,6 +50,37 @@ const buttonWith = (root: Element, text: string) =>
   Array.from(root.querySelectorAll('button')).find((b) => b.textContent?.trim() === text);
 const row = (canvasElement: HTMLElement, key: string) =>
   canvasElement.querySelector(`[data-version="${key}"]`) as HTMLElement;
+/** The row of the version named `name`. */
+const rowNamed = (canvasElement: HTMLElement, name: string) =>
+  rowsOf(canvasElement).find((r) => within(r).queryByText(name)) as HTMLElement;
+/**
+ * A version's actions: on the card's width (under reqore's 480px for a row) Show analytics, Accept and
+ * Remove are one "Actions" menu at the end of the row's first line. Opens it, reads its items, closes it.
+ */
+const actionsOf = async (versionRow: HTMLElement) => {
+  const menuButton = versionRow.querySelector<HTMLElement>('.reqore-row-actions-menu-button');
+  await expect(menuButton).toBeTruthy();
+  await expect(menuButton!.getAttribute('aria-label')).toBe('Actions');
+  await fireEvent.click(menuButton!);
+  const items = await waitFor(() => {
+    const found = Array.from(
+      versionRow.ownerDocument.querySelectorAll<HTMLElement>(
+        '.reqore-popover-content [role="menuitem"]'
+      )
+    );
+    expect(found.length).toBeGreaterThan(0);
+    return found;
+  });
+  const read = items.map((item) => ({
+    text: item.textContent?.trim() ?? '',
+    disabled: item.getAttribute('aria-disabled') === 'true' || item.hasAttribute('disabled'),
+    item,
+  }));
+  return {
+    items: read,
+    close: () => fireEvent.keyDown(versionRow.ownerDocument.body, { key: 'Escape' }),
+  };
+};
 
 // ── draft ──────────────────────────────────────────────────────────────────────
 
@@ -62,15 +93,22 @@ const draft: Story = {
     await expect(c.getByText(/Not started yet/)).toBeInTheDocument();
     await expect(rowsOf(canvasElement)).toHaveLength(2);
     await expect(c.getAllByText('Not started: no visitors yet')).toHaveLength(2);
-    // Remove is a bin icon at the far end of the row, labelled for assistive tech.
-    await expect(c.getByLabelText('Remove version Short copy')).toBeInTheDocument();
+    // The row's actions are one menu: Show analytics, Accept (not before the test starts) and Remove.
+    const actions = await actionsOf(rowNamed(canvasElement, 'Short copy'));
+    await expect(actions.items.map((a) => a.text)).toEqual([
+      'Show analytics',
+      'Accept',
+      expect.stringContaining('Remove version'),
+    ]);
+    await expect(actions.items[1].disabled).toBe(true);
+    await actions.close();
     await expect(buttonWith(canvasElement, 'Remove')).toBeFalsy();
     await expect(buttonWith(canvasElement, 'Start test')).toBeTruthy();
     await expect(buttonWith(canvasElement, 'Pause')).toBeFalsy();
   },
 };
 const DRAFT_TEXT =
-  'Renders the card of a draft test with two versions: the "Draft" tag, the "not started" verdict, both rows without numbers, each with "Show analytics", Accept and a bin icon (Remove) at the far end, and Start test as the only solid button.';
+  'Renders the card of a draft test with two versions: the "Draft" tag, the "not started" verdict, both rows without numbers, each with its actions (Show analytics, Accept, Remove) in one Actions menu at the end of its first line, and Start test as the only solid button.';
 export const Draft = variant(draft, DRAFT_TEXT, 'Dark');
 export const DraftLight = variant(draft, DRAFT_TEXT, 'Light');
 export const DraftPhone = variant(draft, DRAFT_TEXT, 'Phone');
@@ -88,14 +126,17 @@ const runningTwo: Story = {
     await expect(within(row(canvasElement, 'b')).getByText('Winner')).toBeInTheDocument();
     await expect(within(row(canvasElement, 'a')).getByText('Original')).toBeInTheDocument();
     await expect(row(canvasElement, 'b').dataset.highlight).toBe('winner');
-    await expect(c.getAllByText('Show analytics')).toHaveLength(2);
+    for (const versionRow of rowsOf(canvasElement)) {
+      const actions = await actionsOf(versionRow);
+      await expect(actions.items[0].text).toBe('Show analytics');
+      await actions.close();
+    }
     await expect(c.queryByText('Shown')).toBeNull();
-    // The shown version is marked by its colour and for assistive tech.
+    // The shown version is marked by its color and for assistive tech.
     await expect(row(canvasElement, 'a').getAttribute('aria-current')).toBe('true');
     await expect(
       c.getByText(/1,228 visitors · 11.3% “Started a sign-up” · 91% chance to beat the original/)
     ).toBeInTheDocument();
-    await expect(c.getByLabelText('Show analytics for Short copy')).toBeInTheDocument();
     // The whole row of the other version shows it, by click and by keyboard.
     const rowB = row(canvasElement, 'b').querySelector('[role="button"]') as HTMLElement;
     await fireEvent.click(rowB);
@@ -111,7 +152,7 @@ const runningTwo: Story = {
   },
 };
 const RUNNING_TWO_TEXT =
-  'Renders a running test with two versions, best first: "Short copy", the likely winner, tagged "Winner" and lit by a green glow and wash, above the "Original". Tags are soft pills. Each row shows visitors, conversion, chance to beat and a bar, "Show analytics", Accept and a bin icon; the shown version is the blue row. Clicking the other row (or Enter on it) shows it; ✕ closes the card.';
+  'Renders a running test with two versions, best first: "Short copy", the likely winner, tagged "Winner" and lit by a green glow and wash, above the "Original". Tags are soft pills. Each row shows visitors, conversion, chance to beat and a bar, and its actions (Show analytics, Accept, Remove) in one Actions menu; the shown version is the blue row. Clicking the other row (or Enter on it) shows it; ✕ closes the card.';
 export const RunningTwoVersions = variant(runningTwo, RUNNING_TWO_TEXT, 'Dark');
 export const RunningTwoVersionsLight = variant(runningTwo, RUNNING_TWO_TEXT, 'Light');
 export const RunningTwoVersionsPhone = variant(runningTwo, RUNNING_TWO_TEXT, 'Phone');
@@ -171,18 +212,21 @@ const concluded: Story = {
     await expect(await c.findByText('Ended')).toBeInTheDocument();
     await expect(order(canvasElement)[0]).toBe('b');
     await expect(within(row(canvasElement, 'b')).getByText('Winner')).toBeInTheDocument();
-    // Each version keeps its analytics link after the test ended.
-    await expect(c.getByLabelText('Show analytics for Short copy')).toBeInTheDocument();
-    await expect(c.getByLabelText('Show analytics for Current button')).toBeInTheDocument();
     await expect(buttonWith(canvasElement, 'Start test')).toBeFalsy();
     await expect(buttonWith(canvasElement, 'Stop')).toBeFalsy();
-    Array.from(canvasElement.querySelectorAll('button'))
-      .filter((b) => b.textContent?.includes('Accept'))
-      .forEach((b) => expect(b).toBeDisabled());
+    // Each version keeps its analytics link after the test ended; Accept and Remove are disabled.
+    for (const versionRow of rowsOf(canvasElement)) {
+      const actions = await actionsOf(versionRow);
+      await expect(actions.items[0]).toMatchObject({ text: 'Show analytics', disabled: false });
+      for (const action of actions.items.slice(1)) {
+        await expect(action.disabled).toBe(true);
+      }
+      await actions.close();
+    }
   },
 };
 const CONCLUDED_TEXT =
-  'Renders an ended test whose winner (Short copy) is live: the "Ended" tag, the final verdict, the winner first with a "Winner" tag, the winner\'s glow and the blue shown colour, "Show analytics" on every version, and no lifecycle buttons; Accept and Remove are disabled.';
+  'Renders an ended test whose winner (Short copy) is live: the "Ended" tag, the final verdict, the winner first with a "Winner" tag, the winner\'s glow and the blue shown color, Show analytics in every version\'s Actions menu, and no lifecycle buttons; Accept and Remove are disabled there.';
 export const Concluded = variant(concluded, CONCLUDED_TEXT, 'Dark');
 export const ConcludedLight = variant(concluded, CONCLUDED_TEXT, 'Light');
 export const ConcludedPhone = variant(concluded, CONCLUDED_TEXT, 'Phone');
@@ -224,7 +268,9 @@ const notSetUp: Story = {
         b.textContent?.includes('Accept')
       )
     ).toBe(false);
-    await expect(c.queryByLabelText(/Show analytics/)).toBeNull();
+    // no actions at all, so no actions menu either
+    await expect(canvasElement.querySelector('.reqore-row-actions-menu-button')).toBeNull();
+    await expect(c.queryByText(/Show analytics/)).toBeNull();
     await expect(buttonWith(canvasElement, 'Open in admin portal')).toBeFalsy();
   },
 };
@@ -259,7 +305,9 @@ const removeConfirm: Story = {
   args: { test: RUNNING_FIVE },
   play: async ({ canvasElement, args }) => {
     await card(canvasElement).findByText('Pricing page headline');
-    await fireEvent.click(card(canvasElement).getByLabelText('Remove version Customer quote'));
+    const actions = await actionsOf(rowNamed(canvasElement, 'Customer quote'));
+    const remove = actions.items.find((a) => a.text.startsWith('Remove version'));
+    await fireEvent.click(remove!.item);
     const body = within(canvasElement.ownerDocument.body);
     await expect(
       await body.findByText('Remove “Customer quote” from the test?')
@@ -270,7 +318,7 @@ const removeConfirm: Story = {
   },
 };
 const REMOVE_TEXT =
-  'Renders a running five-version test after the bin icon was clicked on "Customer quote": the confirm step asks first and says the numbers restart; nothing is removed until it is confirmed.';
+  'Renders a running five-version test after Remove was chosen in the Actions menu of "Customer quote": the confirm step asks first and says the numbers restart; nothing is removed until it is confirmed.';
 export const RemoveConfirmStep = variant(removeConfirm, REMOVE_TEXT, 'Dark');
 export const RemoveConfirmStepLight = variant(removeConfirm, REMOVE_TEXT, 'Light');
 export const RemoveConfirmStepPhone = variant(removeConfirm, REMOVE_TEXT, 'Phone');
