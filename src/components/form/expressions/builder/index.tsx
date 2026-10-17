@@ -1140,6 +1140,8 @@ export const Expression = ({
             <TemplateField
               component={auto}
               componentOverrides={componentOverrides}
+              // an operand's text is as wide as what it holds, and gives way to its row
+              textWidth='content'
               // SEAM (reqraft): an operand that becomes an expression mounts
               // its own builder through this TemplateField — hand the host's
               // actions on, or nesting silently drops them (the group
@@ -1265,6 +1267,7 @@ export const Expression = ({
                       minimal
                       component={auto}
                       componentOverrides={componentOverrides}
+                      textWidth='content'
                       // SEAM (reqraft): same as the first operand above.
                       extraActions={extraActions}
                       level={level + 1}

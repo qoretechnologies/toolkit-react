@@ -35,29 +35,6 @@ const StyledOperandFieldRow = styled(ReqoreControlGroup)`
     min-width: 0;
     max-width: 100%;
   }
-
-  /* The operand's own value, written as text: as wide as what it holds, and narrower than that only where
-     its row has less room. TemplateField draws it 150px wide and never narrower than what it holds
-     (minWidth 'fit-content'), and a min-width beats a max-width: a reference chip's label takes the font of
-     the text it sits in (qorus#646), so a long one is wider than a narrow condition's column, and the value
-     pushed its own ⋮ out of the row. So the box takes its width from what it holds, with no minimum, and
-     the row shrinks it; the 150px is the editor's own minimum, and where the row is narrower the box cuts
-     the editor at its edge (a chip's name is still on its hover) while its clear button stays in view.
-     Only the operand's own field: a field nested in another (an untyped value's) keeps its sizing.
-     !important: the box carries its width and minimum as inline styles. */
-  & > .reqore-control-group > .reqore-panel {
-    width: auto !important;
-    min-width: 0 !important;
-  }
-
-  &
-    > .reqore-control-group
-    > .reqore-panel
-    > .reqore-panel-content
-    > .reqore-control-wrapper
-    > .reqore-textarea {
-    min-width: 150px;
-  }
 `;
 
 export interface IExpressionBuilderArgumentWrapperProps {
