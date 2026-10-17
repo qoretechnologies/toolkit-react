@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { ReqoreFonts } from '@qoretechnologies/reqore';
 import { IReqoreCustomTheme } from '@qoretechnologies/reqore/dist/constants/theme';
 import { TReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import type React from 'react';
@@ -16,8 +17,8 @@ import { COMPLETION_KIND_CHIPS } from './useLspAutocomplete';
 /** The lists' own color. */
 export const COMPLETION_LIST_THEME: IReqoreCustomTheme = { main: '#1e0d29' };
 
-/** A row's text: monospace, as what it writes. Module-scoped, so a memoized row keeps its reference. */
-export const COMPLETION_ITEM_STYLE: React.CSSProperties = { fontFamily: 'monospace' };
+/** A row's text: reqore's mono stack, as what it writes. Module-scoped, so a memoized row keeps its reference. */
+export const COMPLETION_ITEM_STYLE: React.CSSProperties = { fontFamily: ReqoreFonts.mono };
 
 /** The LSP completion kinds a template is drawn as: a record's field, and any other template. */
 export const FIELD_KIND = 5;

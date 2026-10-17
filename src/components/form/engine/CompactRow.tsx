@@ -38,6 +38,7 @@ import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
 import { revealRow } from './revealRow';
 import {
+  MONO_FONT_STACK,
   StyledActionSlot,
   StyledCardHeading,
   StyledCardLabel,
@@ -1491,7 +1492,7 @@ export const CompactRow = memo(
               className='options-readfirst-label-code-size'
               size='tiny'
               effect={{ opacity: rowInks.noteOpacity, textAlign: 'left' }}
-              style={{ fontFamily: 'monospace' }}
+              style={{ fontFamily: MONO_FONT_STACK }}
             >
               {`${formatCodeChars(chars)} ${formatCodeLines(lines)}`}
             </ReqoreP>
@@ -2356,7 +2357,7 @@ export const CompactRow = memo(
               className='options-readfirst-label-lines'
               size='tiny'
               effect={{ opacity: rowInks.noteOpacity, textAlign: 'left' }}
-              style={{ fontFamily: 'monospace' }}
+              style={{ fontFamily: MONO_FONT_STACK }}
             >
               {lineCountNote}
             </ReqoreP>

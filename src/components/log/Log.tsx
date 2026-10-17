@@ -1,6 +1,7 @@
 import {
   ReqoreButton,
   ReqoreControlGroup,
+  ReqoreFonts,
   ReqoreInput,
   ReqoreParagraph,
 } from '@qoretechnologies/reqore';
@@ -210,7 +211,7 @@ export const ReqraftLog = ({
     >
       <ReqoreControlGroup vertical fluid size={size}>
         {count(filteredMessages) === 0 ?
-          <ReqoreParagraph size={size} style={{ fontFamily: 'monospace' }}>
+          <ReqoreParagraph size={size} style={{ fontFamily: ReqoreFonts.mono }}>
             No messages
           </ReqoreParagraph>
         : null}
@@ -220,7 +221,7 @@ export const ReqraftLog = ({
               {showTimestamps && (
                 <ReqoreParagraph
                   size={size}
-                  style={{ fontFamily: 'monospace', flexShrink: 0 }}
+                  style={{ fontFamily: ReqoreFonts.mono, flexShrink: 0 }}
                   effect={{ opacity: timestampOpacity }}
                 >
                   {timestamp}
@@ -230,7 +231,7 @@ export const ReqraftLog = ({
                 size={size}
                 key={index}
                 onClick={onMessageClick ? () => handleMessageClick(message) : undefined}
-                style={{ fontFamily: 'monospace' }}
+                style={{ fontFamily: ReqoreFonts.mono }}
                 className='reqraft-log-message'
                 {...paragraphProps}
               >

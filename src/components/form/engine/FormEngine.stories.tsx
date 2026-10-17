@@ -1,5 +1,6 @@
 import {
   ReqoreButton,
+  ReqoreFonts,
   ReqoreInput,
   ReqoreP,
   ReqoreTag,
@@ -868,7 +869,10 @@ const CodeEditorStandin = ({
   size?: TSizes;
 }) => (
   <div data-testid='code-editor-mock'>
-    <div data-testid='code-editor-language' style={{ fontFamily: 'monospace', marginBottom: 4 }}>
+    <div
+      data-testid='code-editor-language'
+      style={{ fontFamily: ReqoreFonts.mono, marginBottom: 4 }}
+    >
       syntax: {String(language ?? 'plain')}
     </div>
     <ReqoreInput
@@ -11138,6 +11142,56 @@ export const UnparsedExpressionKeptAcrossTabs: Story = {
     await chooseTab(optionRow('quantity'), 'expression');
     await waitFor(() => expect(expressionTextOf('quantity')).toBe('12 +'));
     expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 });
+  },
+};
+
+/** A font stack as a browser writes it back, to compare: no quotes, no spaces. */
+const fontStack = (family: string) => family.replace(/["'\s]/g, '');
+
+export const ExpressionTabTextInTheMonoStackAtTheFieldsSize: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the form and opens Quantity (12) on the Value tab, then on the Expression tab. The expression is written in reqore's mono stack (ui-monospace, SFMono-Regular, …), not the browser's default fixed-width font, and at the size and line height the Value tab's text is written in: nothing in the editor is drawn larger (qorus#646, David: \"202\" was larger on the Expression tab).",
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async () => {
+    const row = await editOption('quantity');
+    const valueText = await waitFor(() => {
+      const el = row.querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
+      expect(el, 'the Value tab text').toBeTruthy();
+      return el as HTMLElement;
+    });
+    const { fontSize, lineHeight } = getComputedStyle(valueText);
+    const valueFrameHeight = Math.round(
+      (valueText.closest('.reqore-panel') as HTMLElement).getBoundingClientRect().height
+    );
+
+    await chooseTab(row, 'expression');
+    await waitFor(() => expect(expressionTextOf('quantity')).toBe('12'));
+    const editor = optionRow('quantity').querySelector<HTMLElement>(
+      '.expression-field [data-slate-editor]'
+    ) as HTMLElement;
+    const drawn = getComputedStyle(editor);
+
+    expect(fontStack(drawn.fontFamily)).toBe(fontStack(ReqoreFonts.mono));
+    expect({ fontSize: drawn.fontSize, lineHeight: drawn.lineHeight }).toEqual({
+      fontSize,
+      lineHeight,
+    });
+    // its frame as tall as the Value tab's, for the one line both hold
+    const frameHeight = (el: HTMLElement) =>
+      Math.round((el.closest('.reqore-panel') as HTMLElement).getBoundingClientRect().height);
+    expect(frameHeight(editor)).toBe(valueFrameHeight);
+    // and nothing the editor holds or is framed by is written larger than its text
+    const panel = editor.closest<HTMLElement>('.reqore-panel') as HTMLElement;
+    const larger = [panel, ...panel.querySelectorAll<HTMLElement>('*')]
+      .filter((el) => parseFloat(getComputedStyle(el).fontSize) > parseFloat(fontSize))
+      .map((el) => `${el.className || el.tagName}: ${getComputedStyle(el).fontSize}`);
+    expect(larger).toEqual([]);
   },
 };
 

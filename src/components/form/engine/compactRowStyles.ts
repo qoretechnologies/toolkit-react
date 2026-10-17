@@ -1,4 +1,4 @@
-import { ReqoreP, ReqorePanel } from '@qoretechnologies/reqore';
+import { ReqoreFonts, ReqoreP, ReqorePanel } from '@qoretechnologies/reqore';
 import { GAP_FROM_SIZE, TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import styled, { css } from 'styled-components';
 
@@ -522,17 +522,12 @@ export const StyledRowInset = styled.div`
 `;
 
 /**
- * The stack literal text renders in: source, ids, tokens, data strings.
- *
- * Defined HERE rather than taken from reqore's `ReqoreFonts.mono`, which is the
- * same stack. Reqore is a peer dependency at `>=0.71.16` and that export arrived
- * later, so reading it would crash every consumer inside the declared range —
- * the whole form preview lost over a font choice. One local constant costs
- * nothing and keeps the code preview and the schema view's data values
- * identical, which is the only reason to share it in the first place.
+ * The stack literal text renders in: source, ids, tokens, data strings - reqore's own (`ReqoreFonts.mono`), as
+ * the expression editor's, so the code preview, the schema view's data values and the editor's text are one face.
+ * It has been in reqore since 0.72.7, below the peer range (`>=0.74.0`). Never the bare generic `monospace`:
+ * that is the browser's default fixed-width font (Courier in Chrome on macOS), larger than the text beside it.
  */
-export const MONO_FONT_STACK =
-  "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace";
+export const MONO_FONT_STACK = ReqoreFonts.mono;
 
 // A collapsed code-block preview shown under the value summary for a
 // `code-editor` field.  Multi-line, monospace, subtle background — matches

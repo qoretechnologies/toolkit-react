@@ -4,6 +4,7 @@ import {
   ReqoreButton,
   ReqoreControlGroup,
   ReqoreEmptyState,
+  ReqoreFonts,
   ReqoreIcon,
   ReqoreP,
   ReqoreSkeleton,
@@ -344,7 +345,7 @@ const StyledMarkdown = styled.div<IStyledMarkdownProps>`
     margin: 2px 0;
   }
   code {
-    font-family: monospace;
+    font-family: ${ReqoreFonts.mono};
     background: ${({ $code }) => $code};
     padding: 1px 5px;
     border-radius: 4px;

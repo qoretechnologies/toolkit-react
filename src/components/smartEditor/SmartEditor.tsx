@@ -4,12 +4,14 @@ import {
   ReqoreButton,
   ReqoreCallout,
   ReqoreControlGroup,
+  ReqoreFonts,
   ReqoreMessage,
   ReqorePanel,
   ReqoreSpinner,
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { ReqorePopover } from '@qoretechnologies/reqore/dist/components/Popover';
+import { CONTROL_TEXT_FROM_SIZE } from '@qoretechnologies/reqore/dist/constants/sizes';
 import {
   ReqoreRichTextEditor,
   TReqoreRichTextEditorRef,
@@ -199,7 +201,7 @@ const SignatureHelpPill = memo(({ signature, position }: ISignatureHelpPillProps
       <ReqoreCallout
         size='small'
         paddingSize='tiny'
-        style={{ fontFamily: 'monospace' }}
+        style={{ fontFamily: ReqoreFonts.mono }}
         label={label}
       />
 
@@ -634,8 +636,13 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                   // clickable and the diagnostics panel hugs the input
                   // instead of sitting below a tall reserved box.
                   minHeight: height ?? '2.4em',
-                  fontFamily: 'monospace',
-                  fontSize: '13px',
+                  /* reqore's mono stack, as every other code-like text: the bare generic keyword is the browser's
+                     default fixed-width font (Courier in Chrome on macOS), larger than the field's own face */
+                  fontFamily: ReqoreFonts.mono,
+                  /* the size the text is written in (the text area's, for this size), so the frame and its `em`
+                     floor are the text's: a fixed 13px was larger than a small field's text, and the panel's own
+                     size larger again, which made the frame taller than the field's other tabs */
+                  fontSize: CONTROL_TEXT_FROM_SIZE[size ?? 'normal'],
                 },
               }}
             />

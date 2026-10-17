@@ -10,7 +10,7 @@
 // One component, three call sites — keeps the doc styling consistent and
 // in one place.
 
-import { useReqoreTheme } from '@qoretechnologies/reqore';
+import { ReqoreFonts, useReqoreTheme } from '@qoretechnologies/reqore';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
@@ -86,7 +86,7 @@ const StyledMarkdown = styled.div<IStyledMarkdownProps>`
 
   /* Inline code → subtle chip. */
   code {
-    font-family: monospace;
+    font-family: ${ReqoreFonts.mono};
     font-size: 11px;
     background: rgba(255, 255, 255, 0.08);
     padding: 1px 4px;
@@ -159,7 +159,7 @@ const StyledMarkdown = styled.div<IStyledMarkdownProps>`
 const StyledPlaintext = styled.pre`
   margin: 0;
   white-space: pre-wrap;
-  font-family: monospace;
+  font-family: ${ReqoreFonts.mono};
 `;
 
 export const MarkdownDoc = ({
