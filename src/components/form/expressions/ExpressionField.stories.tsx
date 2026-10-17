@@ -102,7 +102,7 @@ export const Default: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField holding a "$local:name == John" expression, opened in its Visual view — the Visual builder shows the Logical Equals operator with its two operands and the Text/Visual mode toggle.',
+          'Renders ExpressionField holding a "$local:name == John" expression, opened in its Visual view — the Visual builder shows the Logical Equals operator with its two operands and the Text/Visual mode toggle, as wide as its two buttons.',
       },
     },
   },
@@ -115,6 +115,41 @@ export const Default: Story = {
       timeout: 6000,
     });
     await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
+    // the toggle is as wide as what its two buttons say, not across the field
+    const field = canvasElement.querySelector('.expression-field') as HTMLElement;
+    const toggle = canvasElement.querySelector('.expression-mode-toggle') as HTMLElement;
+    await expect(toggle.getBoundingClientRect().width).toBeLessThan(
+      field.getBoundingClientRect().width / 2
+    );
+  },
+};
+
+/** The toggle's words are the host's: a host that translates its screens gives them (`modeLabels`). */
+export const ModeToggleInTheHostsWords: Story = {
+  args: {
+    value: SAMPLE,
+    defaultMode: 'visual',
+    modeLabels: { text: 'Texte', visual: 'Visuel' },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField opened in its Visual view, with its Text / Visual toggle in the words a host gave it (`modeLabels`): "Texte" and "Visuel".',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const toggle = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>('.expression-mode-toggle');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await expect(
+      Array.from(toggle.querySelectorAll('.reqore-button')).map((button) =>
+        button.textContent?.trim()
+      )
+    ).toEqual(['Texte', 'Visuel']);
   },
 };
 

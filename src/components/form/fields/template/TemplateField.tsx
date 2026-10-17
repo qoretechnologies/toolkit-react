@@ -49,7 +49,11 @@ import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 import { ExpressionBuilder, IExpressionBuilderProps } from '../../expressions/builder';
 // Direct import — the cycle (TemplateField → ExpressionField → builder →
 // TemplateField) is render-time only, safe like the other Field cycles.
-import { ExpressionField, TExpressionMode } from '../../expressions/ExpressionField';
+import {
+  ExpressionField,
+  IExpressionModeLabels,
+  TExpressionMode,
+} from '../../expressions/ExpressionField';
 import { IExpression, TExpressionReorder } from '../../expressions/types';
 import { useExpressions } from '../../expressions/useExpressions';
 import { AutoFormField as Auto, IQorusType as IQorusFormType } from '../auto/AutoFormField';
@@ -212,6 +216,8 @@ export interface ITemplateFieldProps extends Partial<
   templateBadge?: TTemplateBadge;
   /** The words of the value tabs, for a host that translates them; English where not given. */
   valueTabsLabels?: Partial<IValueTabsLabels>;
+  /** The words of an expression's own Text / Visual toggle (no value tabs), for a host that translates them. */
+  expressionModeLabels?: Partial<IExpressionModeLabels>;
   /**
    * SEAM (reqraft): host-injected per-card actions for the expression editor
    * this field renders in expression mode (the IDE's AI-assist button).
@@ -661,6 +667,7 @@ const TemplateFieldImpl = memo(
     allowTextExpressions,
     valueTabs,
     valueTabsLabels,
+    expressionModeLabels,
     savedValues,
     templateBadge,
     extraActions,
@@ -2255,6 +2262,7 @@ const TemplateFieldImpl = memo(
                 condition={isConditionOption(rest)}
                 extraActions={extraActions}
                 size={rest.size}
+                modeLabels={expressionModeLabels}
                 /* An expression opens on its Text view, the first of Text · Visual, as the value's tabs open on
                    Expression before Visual (qorus#646, David); without a language server it falls back to
                    Visual by itself. It opened on Visual, on an empty "Select operation", unless the
