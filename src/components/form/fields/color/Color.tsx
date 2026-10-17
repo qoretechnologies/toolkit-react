@@ -423,10 +423,11 @@ const StyledAreaThumb = styled.div<{ $size: number }>`
 const StyledInputsBlock = styled.div`
   display: flex;
   flex-flow: column;
+`;
 
-  .reqore-message {
-    margin-top: 6px;
-  }
+/** Where a value's problem is said, under the inputs: set apart from them only while it says something. */
+const StyledProblem = styled.div<{ $shown: boolean }>`
+  margin-top: ${({ $shown }) => ($shown ? 6 : 0)}px;
 `;
 
 const StyledInputs = styled.div`
@@ -900,13 +901,18 @@ export const ColorFormField = ({
           {!disableAlpha && inputFor('a', words.opacity, 1, coarse ? 64 : 56)}
         </StyledInputs>
         {/* always there, so what appears in it is read out */}
-        <div id={`${id}-problem`} aria-live='polite' className='reqraft-color-field-problem'>
+        <StyledProblem
+          id={`${id}-problem`}
+          aria-live='polite'
+          className='reqraft-color-field-problem'
+          $shown={!!problem}
+        >
           {problem && (
             <ReqoreMessage intent='danger' size='small' opaque={false}>
               {renderMarkdown({ value: problem.message, compact: true })}
             </ReqoreMessage>
           )}
-        </div>
+        </StyledProblem>
       </StyledInputsBlock>
       <div>
         <ReqoreButton
