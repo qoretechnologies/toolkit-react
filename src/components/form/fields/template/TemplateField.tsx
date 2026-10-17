@@ -28,7 +28,7 @@ import {
   IReqoreTextareaProps,
 } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IQorusFormFieldSchemaBase, TQorusType } from '@qoretechnologies/ts-toolkit';
-import { size } from 'lodash';
+import { isEqual, size } from 'lodash';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
@@ -311,6 +311,11 @@ export interface IValueTabsLabels {
   undo: string;
   /** The undo's tooltip; `text` is what was typed. */
   undoTooltip: (text: string) => string;
+  /**
+   * Said on the Value tab while the Expression tab holds text that does not parse: the field keeps the value
+   * shown here, and the text waits there with its error (qorus#646).
+   */
+  expressionDraftNotUsed?: string;
 }
 
 /** The keyboard a whole number or a number is typed on, on the Value tab. */
@@ -344,6 +349,8 @@ export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = {
     `${from.charAt(0).toUpperCase()}${from.slice(1)} is converted to ${to} when the value is used; a value that does not convert fails`,
   undo: 'Undo',
   undoTooltip: (text) => `Keep "${text}" as a value instead`,
+  expressionDraftNotUsed:
+    'The Expression tab holds text that does not parse, so the field keeps this value until it does.',
 };
 
 /** A value the host keeps for reuse (qorus#646): saved from one field, offered in every field of its type. */
@@ -864,6 +871,21 @@ const TemplateFieldImpl = memo(
     const [expressionSeed, setExpressionSeed] = useState<string | null>(
       opensInExpressionText ? expressionTextOfValue(value) : null
     );
+    /* What the author wrote on the Expression tab that the field does not hold (it did not parse), and the value
+       it was written over. The tab's editor goes when the tab is left; the next visit shows the text as it was
+       written while the field still holds that value, not the value written out (qorus#646). */
+    const expressionDraft = useRef<{ text: string; over: unknown } | null>(null);
+    const valueRef = useRef(value);
+    valueRef.current = value;
+    const handleExpressionDraft = useCallback((text: string | undefined) => {
+      expressionDraft.current = text === undefined ? null : { text, over: valueRef.current };
+    }, []);
+    /** The draft the Expression tab's editor is given back on this visit; null when there is none. */
+    const [expressionDraftText, setExpressionDraftText] = useState<string | null>(null);
+    /** Whether the Expression tab was left with a draft (see the Value tab's note); read with the value it holds. */
+    const [leftWithDraft, setLeftWithDraft] = useState(false);
+    const hasExpressionDraft =
+      leftWithDraft && !!expressionDraft.current && isEqual(expressionDraft.current.over, value);
 
     const [isTemplateState, setIsTemplate] = useState<boolean>(
       tabsKind ?
@@ -1256,6 +1278,8 @@ const TemplateFieldImpl = memo(
         /* What was just typed on the Expression tab is read before the tab goes, and is the expression the
            field now holds; it was lost with the editor when the tab was left before it was read (qorus#646). */
         const flushed = tab === 'expression' ? await expressionFlush.current?.() : undefined;
+        // left with text that did not parse: the Value tab says the field keeps its value
+        setLeftWithDraft(tab === 'expression' && !flushed && !!expressionDraft.current);
         const envelope =
           flushed ?? (valueIsExpression ? { is_expression: true, value } : undefined);
         if (next === 'value' || next === 'template') {
@@ -1278,6 +1302,11 @@ const TemplateFieldImpl = memo(
              a seed left from an earlier visit was shown in its place - the value as it was opened, not the
              expression written since - and leaving the tab saved it (qorus#646). */
           setExpressionSeed(!flushed && !valueIsExpression ? expressionTextOfValue(value) : null);
+          // the text written there that did not parse, while the field still holds what it was written over
+          const draft = expressionDraft.current;
+          const keepsDraft = !flushed && !!draft && isEqual(draft.over, value);
+          if (!keepsDraft) expressionDraft.current = null;
+          setExpressionDraftText(keepsDraft ? draft.text : null);
           setInternalIsFunction(true);
         }
         setTab(next);
@@ -2158,6 +2187,8 @@ const TemplateFieldImpl = memo(
                   : undefined,
               }}
               initialText={expressionSeed ?? undefined}
+              draftText={expressionDraftText ?? undefined}
+              onDraftChange={handleExpressionDraft}
               heldAsValue={!isEmptyValue && value !== null && typeof value !== 'object'}
               componentOverrides={componentOverrides}
               localTemplates={templates}
@@ -2242,6 +2273,18 @@ const TemplateFieldImpl = memo(
             </ReqoreControlGroup>
             {renderControls()}
           </ReqoreControlGroup>
+          {/* the author's expression is not lost and not used: said where the value it did not replace is shown */}
+          {tab === 'value' && hasExpressionDraft ?
+            <ReqoreMessage
+              size='small'
+              flat
+              opaque={false}
+              intent='warning'
+              className='value-tab-expression-draft'
+            >
+              {words.expressionDraftNotUsed}
+            </ReqoreMessage>
+          : null}
           {tab === 'value' ?
             valueBody()
           : tab === 'template' ?

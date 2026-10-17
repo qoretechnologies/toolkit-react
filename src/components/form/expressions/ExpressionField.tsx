@@ -123,6 +123,19 @@ export interface IExpressionFieldProps {
    */
   initialText?: string;
   /**
+   * What the author wrote in the Text view on an earlier visit that does not parse, given back by a host that
+   * unmounts the field between visits (its tabs): shown as it was written and read again, its error with it,
+   * not the value written out. See `onDraftChange`.
+   */
+  draftText?: string;
+  /**
+   * The text written in the Text view that the value does not hold yet - typed and not read, or read and not
+   * parsed - each time it changes; undefined once it parses or is cleared. For a host that unmounts the field
+   * between visits to keep it, and give it back as `draftText` while the value is still the one it was written
+   * over (qorus#646: "@create + 1", which did not parse, became the field's 201 when the author came back).
+   */
+  onDraftChange?: (text: string | undefined) => void;
+  /**
    * The field holds a plain value the text stands for - a template or a literal written in the Text view
    * (stored as itself, not as an expression). The expression is then gone from `value` but the field is not
    * cleared, so the text being written stays.
@@ -292,6 +305,8 @@ export const ExpressionField = memo(
     recordType,
     defaultMode = 'text',
     initialText,
+    draftText,
+    onDraftChange,
     heldAsValue,
     requestedMode,
     hideModeToggle,
@@ -325,7 +340,18 @@ export const ExpressionField = memo(
 
     // Text mode state. `text` is the DPQL string the editor shows; the AST
     // (`value`) stays the source of truth, kept in sync via parse-on-edit.
-    const [text, setText] = useState(initialText ?? '');
+    const [text, setText] = useState(draftText ?? initialText ?? '');
+    /* What the author wrote in the Text view that the value does not hold (see `onDraftChange`): it is this
+       field's text until it parses or is cleared, so a later visit to the Text view shows it, not the value
+       written out. */
+    const draftRef = useRef<string | undefined>(draftText);
+    const onDraftChangeRef = useRef(onDraftChange);
+    onDraftChangeRef.current = onDraftChange;
+    const setDraft = useCallback((next: string | undefined) => {
+      if (draftRef.current === next) return;
+      draftRef.current = next;
+      onDraftChangeRef.current?.(next);
+    }, []);
     /** The text the editor was given, for its echo of that text to be told from typing. */
     const textRef = useRef(text);
     textRef.current = text;
@@ -607,6 +633,15 @@ export const ExpressionField = memo(
        Text view (its tabs) and the session coming up all read through here. */
     const flushPendingParse = useCallback(async (): Promise<IExpression | undefined> => {
       if (pendingParse.current === null) return undefined;
+      /* An emptied text is no value, as an emptied Value tab is: the field holds nothing. It stayed what it
+         was, and came back on the next visit (qorus#646: the text's × left the 201). */
+      if (!pendingParse.current.trim()) {
+        if (parseTimer.current) clearTimeout(parseTimer.current);
+        pendingParse.current = null;
+        setDraft(undefined);
+        if (ast || heldAsValue) onChange({ is_expression: true } as IExpression, true);
+        return undefined;
+      }
       if (!(await whenSessionReady())) return undefined;
       const pending = pendingParse.current;
       const parse = dpqlRef.current?.parse;
@@ -615,12 +650,27 @@ export const ExpressionField = memo(
       pendingParse.current = null;
       const result = await parse(pending, targetType, parseOptions);
       readTypeCheck(result);
+      // not parsed: the value keeps what it held, and the text stays the author's (see `onDraftChange`)
       if (!result?.success || !result.expression) return undefined;
+      setDraft(undefined);
       setAstText(pending);
       // `dpql/parse` returns the field-ready `{ is_expression, value }`.
       onChange(result.expression as IExpression);
       return result.expression as IExpression;
-    }, [onChange, targetType, parseOptions, readTypeCheck, whenSessionReady]);
+    }, [
+      onChange,
+      targetType,
+      parseOptions,
+      readTypeCheck,
+      whenSessionReady,
+      setDraft,
+      ast,
+      heldAsValue,
+    ]);
+
+    // the latest reader, for the seeding below, which is not run again for a new one
+    const flushLatest = useRef(flushPendingParse);
+    flushLatest.current = flushPendingParse;
 
     // Text mode: parse the DPQL into the AST, debounced, once the session can read it.
     const handleDpqlChange = useCallback(
@@ -631,11 +681,13 @@ export const ExpressionField = memo(
         if (next === textRef.current) return;
         userTypedRef.current = true;
         setText(next);
+        // the value does not hold it until it parses
+        setDraft(next);
         if (parseTimer.current) clearTimeout(parseTimer.current);
         pendingParse.current = next;
         parseTimer.current = setTimeout(() => void flushPendingParse(), PARSE_DEBOUNCE_MS);
       },
-      [flushPendingParse]
+      [flushPendingParse, setDraft]
     );
 
     /** Whether this visit to Text mode has already put the AST in the editor. The host's own text for the
@@ -672,6 +724,15 @@ export const ExpressionField = memo(
         return undefined;
       }
       if (seededRef.current || userTypedRef.current) return undefined;
+      /* What was written and does not parse is this visit's text, read again so its error is said again: not the
+         value written out over it. */
+      if (draftRef.current !== undefined) {
+        seededRef.current = true;
+        setText(draftRef.current);
+        pendingParse.current = draftRef.current;
+        void flushLatest.current();
+        return undefined;
+      }
       if (!ast?.exp) return undefined;
       /* Only what DPQL can write is serialized. An operand whose operation is not
          chosen yet, or that is not filled in, has no text; handed to serialize as

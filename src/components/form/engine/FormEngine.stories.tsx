@@ -11086,6 +11086,99 @@ export const ExpressionTypedOnValueAfterTheExpressionTabShowsWhatWasTyped: Story
   },
 };
 
+/** The Expression tab's text, without the marks a chip leaves in it. */
+const expressionTextOf = (field: string) =>
+  optionRow(field)
+    .querySelector('.expression-field [data-slate-editor]')
+    ?.textContent?.replace(/\uFEFF/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+export const UnparsedExpressionKeptAcrossTabs: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form, opens Quantity (12) on the Expression tab and writes "12 +", which does not parse. The field keeps 12: the Value tab shows it, and says the Expression tab holds text that does not parse. When the Expression tab is opened again, directly or after the Visual tab, the text is "12 +" as written, not the 12 the field holds (qorus#646).',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('quantity');
+    await chooseTab(row, 'expression');
+    await waitFor(() => expect(expressionTextOf('quantity')).toBe('12'));
+    const editor = optionRow('quantity').querySelector<HTMLElement>(
+      '.expression-field [data-slate-editor]'
+    ) as HTMLElement;
+    await userEvent.click(editor);
+    // a click past the text puts the caret at its end
+    await userEvent.keyboard(' +');
+    await waitFor(() => expect(expressionTextOf('quantity')).toBe('12 +'));
+
+    // the text does not parse: the field still holds 12
+    await chooseTab(optionRow('quantity'), 'value');
+    expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 });
+    await waitFor(() =>
+      expect(
+        optionRow('quantity').querySelector('.value-tab-text [data-slate-editor]')?.textContent
+      ).toContain('12')
+    );
+    // and says why it is still 12
+    expect(
+      optionRow('quantity').querySelector('.value-tab-expression-draft')?.textContent
+    ).toContain('does not parse');
+
+    // the Expression tab gives back what was written there
+    await chooseTab(optionRow('quantity'), 'expression');
+    await waitFor(() => expect(expressionTextOf('quantity')).toBe('12 +'));
+
+    // and so does a round through the Visual tab
+    await chooseTab(optionRow('quantity'), 'visual');
+    await chooseTab(optionRow('quantity'), 'expression');
+    await waitFor(() => expect(expressionTextOf('quantity')).toBe('12 +'));
+    expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 });
+  },
+};
+
+export const ExpressionClearedEmptiesTheValue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form and opens Quantity (12) on the Expression tab, then clears the text with its ×. Quantity holds nothing, as clearing it on the Value tab leaves it: the Value tab is empty, and so is the Expression tab when it is opened again (qorus#646).',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('quantity');
+    await chooseTab(row, 'expression');
+    await waitFor(() => expect(expressionTextOf('quantity')).toBe('12'));
+    const clear = await waitFor(() => {
+      const el = optionRow('quantity').querySelector<HTMLElement>(
+        '.expression-field .reqore-clear-input-button'
+      );
+      expect(el, "the text's clear button").toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(clear);
+
+    await waitFor(() => expect(heldOption(canvasElement, 'quantity')?.value).toBeUndefined());
+    await chooseTab(optionRow('quantity'), 'value');
+    await waitFor(() =>
+      expect(
+        optionRow('quantity')
+          .querySelector('.value-tab-text [data-slate-editor]')
+          ?.textContent?.replace(/\uFEFF/g, '')
+          .trim()
+      ).toBe('')
+    );
+    await chooseTab(optionRow('quantity'), 'expression');
+    await waitFor(() => expect(expressionTextOf('quantity')).toBe(''));
+  },
+};
+
 export const ExpressionWrittenOnExpressionShowsWhenTheTabIsBack: Story = {
   parameters: {
     docs: {
