@@ -33,7 +33,8 @@ import { defaultSlateConverter, expandSnippet, lspPositionToOffset } from './hel
 import { TEMPLATE_BROWSE_LIST_PROPS } from '../form/fields/rich-text/useTemplateTags';
 import { CompletionMenu } from './CompletionMenu';
 import { MarkdownDoc } from './MarkdownDoc';
-import { ISlateElement, ISmartEditorProps, TCompletionInserter } from './types';
+import { ISlateElement, ISmartEditorProps, TCompletionInserter, TSlateNode } from './types';
+import { IRechippedParagraph, rechipTypedReferences } from './typedReferences';
 import { ICompletionDropdownItem, useLspAutocomplete } from './useLspAutocomplete';
 import { severityToIntent, useLspDiagnosticDecorations } from './useLspDiagnosticDecorations';
 import { useLspHover } from './useLspHover';
@@ -428,6 +429,38 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       [customRenderLeaf, theme]
     );
 
+    /* A reference typed out in full is drawn as its chip, as one picked from the completion list is: the
+       paragraph is redrawn from its text, which the converter reads it in (`rechipTypedReferences`). The text is
+       the same, so nothing is reported for it. */
+    const drawTypedReferences = (editor: Editor, index: number, rechipped: IRechippedParagraph) => {
+      Editor.withoutNormalizing(editor, () => {
+        const paragraph = editor.children[index] as unknown as ISlateElement;
+        for (let child = paragraph.children.length - 1; child >= 0; child -= 1) {
+          Transforms.removeNodes(editor, { at: [index, child] });
+        }
+        Transforms.insertNodes(editor, rechipped.children as TSlateNode[] as never[], {
+          at: [index, 0],
+        });
+      });
+      if (rechipped.caret) {
+        Transforms.select(editor, rechipped.caret);
+      }
+    };
+
+    // the editor has been left: every reference typed in it is drawn as its chip
+    const handleBlur = useCallback(() => {
+      const editor = editorRef.current as unknown as Editor | null;
+      if (editor && !readOnly) {
+        (editor.children as unknown as ISlateElement[]).forEach((paragraph, index) => {
+          const rechipped = rechipTypedReferences(converter, paragraph, index);
+          if (rechipped) {
+            drawTypedReferences(editor, index, rechipped);
+          }
+        });
+      }
+      onBlur?.();
+    }, [converter, readOnly, onBlur]);
+
     const handleSlateChange = useCallback(
       (newNodes: ISlateElement[]) => {
         const plainText = converter.fromSlateNodes(newNodes);
@@ -449,6 +482,25 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           // parameter never advances.
           onChange(plainText);
           session.didChange(plainText);
+
+          // a reference typed out in full, and left by the character just typed, is drawn as its chip
+          const editor = editorRef.current as unknown as Editor | null;
+          const at = editor?.selection;
+          if (editor && at && Range.isCollapsed(at) && !readOnly && converter.endsReference) {
+            const [index, child] = at.anchor.path;
+            const paragraph = newNodes[index];
+            const rechipped =
+              paragraph &&
+              rechipTypedReferences(
+                converter,
+                paragraph,
+                index,
+                converter.selectionToOffset([paragraph], [0, child], at.anchor.offset)
+              );
+            if (rechipped) {
+              drawTypedReferences(editor, index, rechipped);
+            }
+          }
         }
 
         if (editorRef.current && !readOnly) {
@@ -546,7 +598,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             getTagProps={tagRenderer as any}
             onTagClick={stableOnTagClick}
             size={size}
-            onBlur={onBlur}
+            onBlur={handleBlur}
             // the field's templates, browsed when the text is clicked, tapped or tabbed into: the browse list,
             // drawn as the completion list is
             tags={tags}

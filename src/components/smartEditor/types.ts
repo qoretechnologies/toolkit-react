@@ -50,6 +50,13 @@ export interface ISlateConverter {
     anchorPath: number[],
     anchorOffset: number
   ) => number;
+  /**
+   * Whether `char`, typed right after a reference, ends it: it cannot go on to make the reference longer (a
+   * space or an operator, not a `.` before a sub-field). A reference typed out in full is drawn as its chip once
+   * such a character follows it, as one picked from the completion list is. Without it, a typed reference is
+   * drawn as its chip only once the editor is left.
+   */
+  endsReference?: (char: string) => boolean;
 }
 
 /**

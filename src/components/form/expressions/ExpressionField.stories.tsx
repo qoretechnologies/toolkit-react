@@ -894,6 +894,42 @@ export const TextMode: Story = {
   },
 };
 
+export const TextModeReferenceTypedOutIsAChip: Story = {
+  args: {
+    value: { is_expression: true, value: { args: [] } },
+    defaultMode: 'text',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text (DPQL) mode and types "@status + 2" without picking from the list. When the space after it is typed, @status is drawn as its chip, as one picked from the list is; the rest is typed after it.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editable = (await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[contenteditable="true"]');
+        if (!el) throw new Error('editor not ready');
+        return el as HTMLElement;
+      },
+      { timeout: 6000 }
+    )) as HTMLElement;
+
+    await userEvent.click(editable);
+    await userEvent.type(editable, '@status + 2');
+
+    await waitFor(() => {
+      const chips = [...editable.querySelectorAll('.reqore-tag')].map((chip) => chip.textContent);
+      expect(chips).toEqual([expect.stringContaining('status')]);
+    });
+    // what was typed after it is in the text, in the order it was typed
+    expect(editable.textContent?.replace(/\uFEFF/g, '')).toMatch(/status\s*\+ 2$/);
+    await waitForLspIdle(canvasElement);
+  },
+};
+
 /** A comparison built in the Visual view and left unfinished, seen in the Text view. */
 export const TextModeOfAnUnfinishedExpression: Story = {
   args: {
