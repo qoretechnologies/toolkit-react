@@ -13,6 +13,7 @@ import {
   ReqoreVerticalSpacer,
 } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { memo, MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef, IDpqlParseResult, useDpqlSession } from '../../dpqlEditor';
 import { TemplateBrowser } from '../fields/template/TemplateBrowser';
@@ -859,6 +860,8 @@ export const ExpressionField = memo(
                 // the field's own templates name the chips as its catalogue names them
                 templates={localTemplates}
                 readOnly={readOnly}
+                // the field's size, as its Value tab draws the same value: a reference is the same chip in both
+                size={size as TSizes | undefined}
                 // no floor of its own: one line as tall as the text it shows, growing with its lines - a
                 // 48px floor left an empty strip under the text, which the picker beside it could not match
                 onUnavailable={handleTextUnavailable}
@@ -872,9 +875,8 @@ export const ExpressionField = memo(
                   icon='MoneyDollarCircleLine'
                   aria-label='Insert a template'
                   tooltip='Insert a template'
-                  // the size of the text it inserts into - the DPQL editor is drawn at the normal size in
-                  // any form - so the two are as tall as each other
-                  size='normal'
+                  // the size of the text it inserts into, so the two are as tall as each other
+                  size={(size as TSizes | undefined) ?? 'normal'}
                   fixed
                   templates={localTemplates}
                   focusFilter

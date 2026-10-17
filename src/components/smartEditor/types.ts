@@ -2,6 +2,7 @@
 // Type definitions for the generic SmartEditor primitive.
 
 import { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { BaseEditor } from 'slate';
 import { HistoryEditor } from 'slate-history';
@@ -153,6 +154,13 @@ export interface ISmartEditorProps {
    * Omit for a single-line field that grows as you type.
    */
   height?: string;
+
+  /**
+   * The size the text is drawn at, as a field of that size draws it - and the chips in it with it. A host
+   * drawing the same value as another field (an expression's Value and Expression tabs) gives both one size,
+   * so a reference is the same chip in either (qorus#646). The editor's own when not given.
+   */
+  size?: TSizes;
 
   /** Read-only mode. */
   readOnly?: boolean;

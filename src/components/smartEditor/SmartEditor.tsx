@@ -229,6 +229,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       completionInserter = defaultCompletionInserter,
       topActions,
       height,
+      size,
       readOnly = false,
       showDiagnostics = true,
       onBlur,
@@ -544,6 +545,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             decorate={composedDecorate}
             getTagProps={tagRenderer as any}
             onTagClick={stableOnTagClick}
+            size={size}
             onBlur={onBlur}
             // the field's templates, browsed when the text is clicked, tapped or tabbed into: the browse list,
             // drawn as the completion list is

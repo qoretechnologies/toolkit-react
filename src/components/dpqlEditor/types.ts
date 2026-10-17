@@ -3,6 +3,7 @@
 // (`ISlateElement`, `ISlateText`, `TSlateNode`) live in the smartEditor
 // primitive's `types.ts` — re-export them here for backward compat.
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 
 export type {
   ISlateElement,
@@ -108,6 +109,12 @@ export interface IDpqlEditorProps {
    * fields); pass e.g. `'200px'` for a taller multi-line code editor.
    */
   height?: string;
+  /**
+   * The size the text is drawn at, as a field of that size draws it - and the chips in it with it. A host
+   * drawing the same value as another field (an expression's Value and Expression tabs) gives both one size,
+   * so a reference is the same chip in either (qorus#646). The editor's own when not given.
+   */
+  size?: TSizes;
   /** Read-only mode. */
   readOnly?: boolean;
   /**
