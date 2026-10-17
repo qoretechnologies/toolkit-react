@@ -24,6 +24,7 @@ import React, {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from 'react';
 import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
@@ -214,6 +215,14 @@ SignatureHelpPill.displayName = 'SignatureHelpPill';
 /** Distinguishes the completion lists of the editors on a page, for each editor's `aria-controls`. */
 let completionMenuCounter = 0;
 
+/* The text's box in its row: it takes the row, and gives it up to the Details button beside it on a touch
+   screen. */
+const EDITOR_BOX_STYLE: React.CSSProperties = {
+  position: 'relative',
+  flex: '1 1 auto',
+  minWidth: 0,
+};
+
 export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProps>(
   (
     {
@@ -290,6 +299,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       enableHover &&
       session.isReady &&
       !!(session.client?.capabilities as { hoverProvider?: unknown } | null | undefined)?.hoverProvider;
+    /* The hover Details showed, drawn as a card under the button rather than over the text (`showAtCaret`). */
+    const [detailsHoverId, setDetailsHoverId] = useState<number>();
+    const detailsShown = detailsHoverId !== undefined && hover.hoverId === detailsHoverId;
 
     /* What the editor has reported and the host has not handed back yet. A host can hand an emit back
        after the next key is already in the editor - one that debounces, or a render that lands between
@@ -534,124 +546,127 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     return (
       <ReqoreControlGroup vertical fluid>
         {topActions}
-        <div style={{ position: 'relative' }}>
-          <ReqoreRichTextEditor
-            ref={editorRef}
-            value={slateValue as any}
-            onChange={handleSlateChange as any}
-            readOnly={readOnly}
-            customRenderLeaf={renderLeafWithMarks}
-            decorate={composedDecorate}
-            getTagProps={tagRenderer as any}
-            onTagClick={stableOnTagClick}
-            onBlur={onBlur}
-            // the field's templates, browsed when the text is clicked, tapped or tabbed into: the browse list,
-            // drawn as the completion list is
-            tags={tags}
-            tagsListProps={{ useTargetWidth: true, ...TEMPLATE_BROWSE_LIST_PROPS }}
-            // what is typed is completed in the list at the caret: a screen reader is told it completes, and where
-            aria-autocomplete='list'
-            aria-expanded={autocomplete.isOpen}
-            aria-controls={completionMenuId}
-            panelProps={{
-              fluid: true,
-              flat: true,
-              style: {
-                // Auto-grow: the editor sizes to its content and grows
-                // as lines are added. `height` is an optional *minimum*
-                // floor (e.g. a multi-line code editor); when omitted,
-                // a single comfortable line so the empty field stays
-                // clickable and the diagnostics panel hugs the input
-                // instead of sitting below a tall reserved box.
-                minHeight: height ?? '2.4em',
-                fontFamily: 'monospace',
-                fontSize: '13px',
-              },
-            }}
-          />
-          {showLoadingOverlay && (
-            <div
-              // Absolutely-positioned, centred panel covering the
-              // editor body. `backdrop-filter: blur` matches the
-              // 20px backdrop blur Reqore uses for drawers — keeps
-              // the editor content faintly readable underneath while
-              // signalling "this surface is paused". Pointer events
-              // pass through; the LSP-dependent paths short-circuit
-              // on `!isReady` / `!isContextReady` anyway.
-              style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'rgba(10, 10, 10, 0.35)',
-                backdropFilter: 'blur(4px)',
-                WebkitBackdropFilter: 'blur(4px)',
-                borderRadius: 4,
-                pointerEvents: 'none',
-                zIndex: 2,
+        {/* The text and, on a touch screen, its Details button beside it, in one row: under the text the button
+            was far from it, and what it showed was drawn over the text (Foxhoundn, qlip #361). Always the row,
+            so the text is not remounted when the button appears. */}
+        <ReqoreControlGroup fluid verticalAlign='flex-start' className='smart-editor-row'>
+          <div style={EDITOR_BOX_STYLE}>
+            <ReqoreRichTextEditor
+              ref={editorRef}
+              value={slateValue as any}
+              onChange={handleSlateChange as any}
+              readOnly={readOnly}
+              customRenderLeaf={renderLeafWithMarks}
+              decorate={composedDecorate}
+              getTagProps={tagRenderer as any}
+              onTagClick={stableOnTagClick}
+              onBlur={onBlur}
+              // the field's templates, browsed when the text is clicked, tapped or tabbed into: the browse list,
+              // drawn as the completion list is
+              tags={tags}
+              tagsListProps={{ useTargetWidth: true, ...TEMPLATE_BROWSE_LIST_PROPS }}
+              // what is typed is completed in the list at the caret: a screen reader is told it completes, and where
+              aria-autocomplete='list'
+              aria-expanded={autocomplete.isOpen}
+              aria-controls={completionMenuId}
+              panelProps={{
+                fluid: true,
+                flat: true,
+                style: {
+                  // Auto-grow: the editor sizes to its content and grows
+                  // as lines are added. `height` is an optional *minimum*
+                  // floor (e.g. a multi-line code editor); when omitted,
+                  // a single comfortable line so the empty field stays
+                  // clickable and the diagnostics panel hugs the input
+                  // instead of sitting below a tall reserved box.
+                  minHeight: height ?? '2.4em',
+                  fontFamily: 'monospace',
+                  fontSize: '13px',
+                },
               }}
-            >
-              {overlayContent}
-            </div>
-          )}
-          <CompletionMenu
-            autocomplete={autocomplete}
-            id={completionMenuId}
-            onSelect={handleCompletionSelect}
-            pendingLabel={
-              !session.isReady ? 'Connecting to language server…'
-              : !session.isContextReady ? 'Loading schema…'
-              : undefined
-            }
-          />
-          {hover.hoverContent && hover.hoverPosition && (
-            // Non-interactive (`pointerEvents: none`) so typing/clicking
-            // doesn't dismiss it via a focus trap.
-            <ReqorePopover
-              // one popover per hover: the next one is a popover of its own, wherever it is
-              key={`hover-${hover.hoverId}`}
-              component='span'
-              wrapperStyle={{
-                position: 'fixed',
-                top: hover.hoverPosition.top,
-                left: hover.hoverPosition.left,
-                width: '1px',
-                height: '1px',
-                pointerEvents: 'none',
-              }}
-              content={
-                <div style={{ padding: 4 }}>
-                  <MarkdownDoc
-                    content={hover.hoverContent.value}
-                    markdown={hover.hoverContent.kind === 'markdown'}
-                  />
-                </div>
+            />
+            {showLoadingOverlay && (
+              <div
+                // Absolutely-positioned, centred panel covering the
+                // editor body. `backdrop-filter: blur` matches the
+                // 20px backdrop blur Reqore uses for drawers — keeps
+                // the editor content faintly readable underneath while
+                // signalling "this surface is paused". Pointer events
+                // pass through; the LSP-dependent paths short-circuit
+                // on `!isReady` / `!isContextReady` anyway.
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'rgba(10, 10, 10, 0.35)',
+                  backdropFilter: 'blur(4px)',
+                  WebkitBackdropFilter: 'blur(4px)',
+                  borderRadius: 4,
+                  pointerEvents: 'none',
+                  zIndex: 2,
+                }}
+              >
+                {overlayContent}
+              </div>
+            )}
+            <CompletionMenu
+              autocomplete={autocomplete}
+              id={completionMenuId}
+              onSelect={handleCompletionSelect}
+              pendingLabel={
+                !session.isReady ? 'Connecting to language server…'
+                : !session.isContextReady ? 'Loading schema…'
+                : undefined
               }
-              openOnMount
-              noArrow
-              placement='top'
-              handler='hover'
-              closeOnOutsideClick
-              minWidth='220px'
-              flat
-              transparent
-              backgroundBlur={20}
-              onToggleChange={(open: boolean) => {
-                // this hover only: a popover replaced by the next hover says it closed as it goes
-                if (!open) hover.clearHover(shownHoverId);
-              }}
             />
-          )}
-          {signatureHelp.signature && signatureHelp.position && (
-            <SignatureHelpPill
-              signature={signatureHelp.signature}
-              position={signatureHelp.position}
-            />
-          )}
-        </div>
-        {showDetailsButton && (
-          <ReqoreControlGroup fluid horizontalAlign='flex-end'>
+            {hover.hoverContent && hover.hoverPosition && (
+              // Non-interactive (`pointerEvents: none`) so typing/clicking
+              // doesn't dismiss it via a focus trap.
+              <ReqorePopover
+                // one popover per hover: the next one is a popover of its own, wherever it is
+                key={`hover-${hover.hoverId}`}
+                component='span'
+                wrapperStyle={{
+                  position: 'fixed',
+                  top: hover.hoverPosition.top,
+                  left: hover.hoverPosition.left,
+                  width: '1px',
+                  height: '1px',
+                  pointerEvents: 'none',
+                }}
+                content={
+                  <div style={{ padding: 4 }}>
+                    <MarkdownDoc
+                      content={hover.hoverContent.value}
+                      markdown={hover.hoverContent.kind === 'markdown'}
+                    />
+                  </div>
+                }
+                openOnMount
+                noArrow
+                /* A mouse's hover floats over the word it is of, as glass. What Details shows is a card of its
+                   own, under the button and beside the text, on a surface it reads on. */
+                placement={detailsShown ? 'bottom-end' : 'top'}
+                handler='hover'
+                closeOnOutsideClick
+                minWidth='220px'
+                {...(detailsShown ? {} : { flat: true, transparent: true, backgroundBlur: 20 })}
+                onToggleChange={(open: boolean) => {
+                  // this hover only: a popover replaced by the next hover says it closed as it goes
+                  if (!open) hover.clearHover(shownHoverId);
+                }}
+              />
+            )}
+            {signatureHelp.signature && signatureHelp.position && (
+              <SignatureHelpPill
+                signature={signatureHelp.signature}
+                position={signatureHelp.position}
+              />
+            )}
+          </div>
+          {showDetailsButton && (
             <ReqoreButton
               className='smart-editor-details'
               icon='InformationLine'
@@ -659,17 +674,18 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               flat
               minimal
               aria-label='Show what the word at the cursor is'
-              style={{ minHeight: 44 }}
               // the press keeps the focus, and the caret the details are of, in the text
               onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
-              onClick={() => {
-                void hover.showAtCaret();
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                // anchored under the button's right edge: the card opens beside the text, not over it
+                const { right, bottom } = event.currentTarget.getBoundingClientRect();
+                void hover.showAtCaret({ left: right, top: bottom }).then(setDetailsHoverId);
               }}
             >
               Details
             </ReqoreButton>
-          </ReqoreControlGroup>
-        )}
+          )}
+        </ReqoreControlGroup>
         {showDiagnostics && session.diagnostics.length > 0 && (
           // One ReqoreMessage per diagnostic, severity → intent. Same
           // `session.diagnostics` source as the inline underline above.

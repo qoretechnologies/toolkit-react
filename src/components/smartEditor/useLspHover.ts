@@ -82,6 +82,12 @@ export interface IUseLspHoverOptions {
   debounceMs?: number;
 }
 
+/** Where a hover is anchored on the screen, in viewport coordinates. */
+export interface ILspHoverAnchor {
+  left: number;
+  top: number;
+}
+
 export interface IUseLspHoverResult {
   /** Markup content returned by the LSP, or `null` when no hover info. */
   hoverContent: ILspMarkupContent | null;
@@ -99,11 +105,12 @@ export interface IUseLspHoverResult {
    */
   clearHover: (hoverId?: number) => void;
   /**
-   * Show what the server says of the word at the caret, anchored at the caret: the hover where there is no
-   * pointer to hover with (a finger's "Details", see `SmartEditor`). Nothing when the caret is nowhere or the
-   * server says nothing of it.
+   * Show what the server says of the word at the caret: the hover where there is no pointer to hover with (a
+   * finger's "Details", see `SmartEditor`). Anchored at `at` when given (the Details button, so the hover does
+   * not cover the text), else at the caret. Resolves to the `hoverId` of the hover shown; nothing when the caret
+   * is nowhere or the server says nothing of it.
    */
-  showAtCaret: () => Promise<void>;
+  showAtCaret: (at?: ILspHoverAnchor) => Promise<number | undefined>;
 }
 
 /**
@@ -271,40 +278,61 @@ export function useLspHover(
     // is stable across renders so it's not a dep here.
   }, [enabled, session.isReady, clearHover, editorRef]);
 
-  const showAtCaret = useCallback(async () => {
-    const editor = editorRef.current;
-    const client = session.client;
-    if (!enabled || !editor || !client || !session.isReady || !session.isContextReady || !editor.selection) {
-      return;
-    }
-    const point = editor.selection.focus;
-    const nodes = editor.children as ISlateElement[];
-    const { line, character } = slatePointToLspPosition(
-      { path: point.path as number[], offset: point.offset },
-      nodes,
-      converter
-    );
-    let anchor: { left: number; top: number };
-    try {
-      const rect = ReactEditor.toDOMRange(editor, editor.selection).getBoundingClientRect();
-      anchor = { left: rect.left, top: rect.top };
-    } catch {
-      return;
-    }
-    fetchHover.current.cancel();
-    const reqId = ++requestIdRef.current;
-    try {
-      const content = await client.getHover(line, character);
-      if (reqId !== requestIdRef.current) return; // stale
-      if (!content) {
-        clearHover();
-        return;
+  const showAtCaret = useCallback(
+    async (at?: ILspHoverAnchor) => {
+      const editor = editorRef.current;
+      const client = session.client;
+      if (
+        !enabled ||
+        !editor ||
+        !client ||
+        !session.isReady ||
+        !session.isContextReady ||
+        !editor.selection
+      ) {
+        return undefined;
       }
-      showHover(content, anchor);
-    } catch {
-      clearHover();
-    }
-  }, [enabled, editorRef, session.client, session.isReady, session.isContextReady, converter, clearHover, showHover]);
+      const point = editor.selection.focus;
+      const nodes = editor.children as ISlateElement[];
+      const { line, character } = slatePointToLspPosition(
+        { path: point.path as number[], offset: point.offset },
+        nodes,
+        converter
+      );
+      let anchor: { left: number; top: number };
+      try {
+        const rect = ReactEditor.toDOMRange(editor, editor.selection).getBoundingClientRect();
+        anchor = at ?? { left: rect.left, top: rect.top };
+      } catch {
+        return undefined;
+      }
+      fetchHover.current.cancel();
+      const reqId = ++requestIdRef.current;
+      try {
+        const content = await client.getHover(line, character);
+        if (reqId !== requestIdRef.current) return undefined; // stale
+        if (!content) {
+          clearHover();
+          return undefined;
+        }
+        showHover(content, anchor);
+        return hoverIdRef.current;
+      } catch {
+        clearHover();
+        return undefined;
+      }
+    },
+    [
+      enabled,
+      editorRef,
+      session.client,
+      session.isReady,
+      session.isContextReady,
+      converter,
+      clearHover,
+      showHover,
+    ]
+  );
 
   return { hoverContent, hoverPosition, hoverId, clearHover, showAtCaret };
 }

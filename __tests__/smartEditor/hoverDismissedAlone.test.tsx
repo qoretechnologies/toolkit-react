@@ -99,6 +99,34 @@ describe('a hover dismissed with no hover named', () => {
   });
 });
 
+describe('a hover asked for by Details', () => {
+  it('is anchored where it is asked to be, not at the caret, and says which hover it is', async () => {
+    const { result } = hookOnACaret();
+    answer = FOR_EACH;
+    let shown: number | undefined;
+    // under the Details button: the card opens beside the text, not over it
+    await act(async () => {
+      shown = await result.current.showAtCaret({ left: 300, top: 60 });
+    });
+
+    expect(result.current.hoverPosition).toEqual({ left: 300, top: 60 });
+    expect(result.current.hoverContent).toEqual(FOR_EACH);
+    expect(shown).toBe(result.current.hoverId);
+  });
+
+  it('says it showed nothing where the server says nothing', async () => {
+    const { result } = hookOnACaret();
+    answer = null;
+    let shown: number | undefined = -1;
+    await act(async () => {
+      shown = await result.current.showAtCaret({ left: 300, top: 60 });
+    });
+
+    expect(shown).toBeUndefined();
+    expect(result.current.hoverContent).toBeNull();
+  });
+});
+
 describe('the caret on a word the server says nothing of', () => {
   it('shows no hover', async () => {
     const { result } = hookOnACaret();

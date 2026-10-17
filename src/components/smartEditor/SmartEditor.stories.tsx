@@ -810,7 +810,7 @@ export const HoverDetailsOnATouchScreen: Story = {
     docs: {
       description: {
         story:
-          'Renders the SmartEditor on a phone (390 px, touch), taps it to put the caret in it and types "forEach". The tap opens no hover - a finger cannot hover, and the mouse events a browser emulates after a tap are not one, where they opened the hover the server gives anywhere beside the Details button. A tap on Details shows what the server says of the word at the caret ("forEach: invoke a callback for each element."), on the screen.',
+          'Renders the SmartEditor on a phone (390 px, touch) with its Details button beside the text, taps the text to put the caret in it and types "forEach". The tap opens no hover - a finger cannot hover. A tap on Details shows what the server says of the word at the caret ("forEach: invoke a callback for each element.") in a card under the button, clear of the text.',
       },
     },
   },
@@ -853,7 +853,10 @@ export const HoverDetailsOnATouchScreen: Story = {
           },
           { timeout: 10000 }
         );
-        await expect(details.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+        // beside the text, in its row: not under it, far from what it explains
+        const text = editable.getBoundingClientRect();
+        await expect(details.getBoundingClientRect().left).toBeGreaterThanOrEqual(text.right - 1);
+        await expect(details.getBoundingClientRect().top).toBeLessThan(text.bottom);
         // the tap and the typing asked for no hover, and none was shown
         await expect(hoversAsked()).toHaveLength(0);
         await expect(hovers.shown).toEqual([]);
@@ -871,6 +874,14 @@ export const HoverDetailsOnATouchScreen: Story = {
           { timeout: 10000 }
         );
         await expect(shown.querySelector('strong')).toHaveTextContent('forEach');
+        // a card of its own, clear of the text it explains
+        const card = shown.getBoundingClientRect();
+        const covers =
+          card.left < text.right &&
+          card.right > text.left &&
+          card.top < text.bottom &&
+          card.bottom > text.top;
+        await expect(covers).toBe(false);
         // asked for once, by Details, and shown once
         await expect(hoversAsked()).toHaveLength(1);
         await expect(hovers.shown).toHaveLength(1);
