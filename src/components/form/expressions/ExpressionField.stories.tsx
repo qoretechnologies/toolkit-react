@@ -102,7 +102,7 @@ export const Default: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField holding a "$local:name == John" expression, opened in its Visual view — the Visual builder shows the Logical Equals operator with its two operands and the Text/Visual mode toggle.',
+          'Renders ExpressionField holding a "$local:name == John" expression, opened in its Visual view — the Visual builder shows the Logical Equals operator with its two operands and the Text/Visual mode toggle, as wide as its two buttons.',
       },
     },
   },
@@ -115,6 +115,41 @@ export const Default: Story = {
       timeout: 6000,
     });
     await expect(await canvas.findByText('Logical Equals')).toBeInTheDocument();
+    // the toggle is as wide as what its two buttons say, not across the field
+    const field = canvasElement.querySelector('.expression-field') as HTMLElement;
+    const toggle = canvasElement.querySelector('.expression-mode-toggle') as HTMLElement;
+    await expect(toggle.getBoundingClientRect().width).toBeLessThan(
+      field.getBoundingClientRect().width / 2
+    );
+  },
+};
+
+/** The toggle's words are the host's: a host that translates its screens gives them (`modeLabels`). */
+export const ModeToggleInTheHostsWords: Story = {
+  args: {
+    value: SAMPLE,
+    defaultMode: 'visual',
+    modeLabels: { text: 'Texte', visual: 'Visuel' },
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField opened in its Visual view, with its Text / Visual toggle in the words a host gave it (`modeLabels`): "Texte" and "Visuel".',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const toggle = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>('.expression-mode-toggle');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await expect(
+      Array.from(toggle.querySelectorAll('.reqore-button')).map((button) =>
+        button.textContent?.trim()
+      )
+    ).toEqual(['Texte', 'Visuel']);
   },
 };
 
@@ -855,6 +890,42 @@ export const TextMode: Story = {
       () => expect(canvas.getByTestId('expression-preview').textContent).toContain('name'),
       { timeout: 6000 }
     );
+    await waitForLspIdle(canvasElement);
+  },
+};
+
+export const TextModeReferenceTypedOutIsAChip: Story = {
+  args: {
+    value: { is_expression: true, value: { args: [] } },
+    defaultMode: 'text',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text (DPQL) mode and types "@status + 2" without picking from the list. When the space after it is typed, @status is drawn as its chip, as one picked from the list is; the rest is typed after it.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editable = (await waitFor(
+      () => {
+        const el = canvasElement.querySelector('[contenteditable="true"]');
+        if (!el) throw new Error('editor not ready');
+        return el as HTMLElement;
+      },
+      { timeout: 6000 }
+    )) as HTMLElement;
+
+    await userEvent.click(editable);
+    await userEvent.type(editable, '@status + 2');
+
+    await waitFor(() => {
+      const chips = [...editable.querySelectorAll('.reqore-tag')].map((chip) => chip.textContent);
+      expect(chips).toEqual([expect.stringContaining('status')]);
+    });
+    // what was typed after it is in the text, in the order it was typed
+    expect(editable.textContent?.replace(/\uFEFF/g, '')).toMatch(/status\s*\+ 2$/);
     await waitForLspIdle(canvasElement);
   },
 };

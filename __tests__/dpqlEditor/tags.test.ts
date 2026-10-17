@@ -8,6 +8,7 @@
 // back to the `$data:{dc_ai_reply.choices[0].message.content}` path.
 import { describe, expect, it } from 'vitest';
 import { makeDpqlTagRenderer } from '../../src/components/dpqlEditor/dpqlTags';
+import { REFERENCE_CHIP_PROPS } from '../../src/helpers/templates';
 import type { ISlateElement } from '../../src/components/smartEditor/types';
 
 const TEMPLATES = {
@@ -59,6 +60,7 @@ describe('makeDpqlTagRenderer template references', () => {
       tag('$data:{dc_ai_reply.choices[0].message.content}')
     );
 
-    expect(props).toEqual({ icon: 'ExchangeDollarLine', intent: 'info' });
+    // the reference chip every view draws, and nothing that names it
+    expect(props).toEqual({ ...REFERENCE_CHIP_PROPS, icon: 'ExchangeDollarLine', intent: 'info' });
   });
 });

@@ -34,6 +34,7 @@ import {
 import {
   describeTemplateReference,
   getTemplateTagStyle,
+  REFERENCE_CHIP_PROPS,
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
@@ -158,6 +159,18 @@ export const getChipTooltipDescriptions = (
   return out;
 };
 
+/* The chip references a document holds, in order, as one comparable string. Two documents that stand for
+   the same text but chip different references differ here; two that chip the same references do not — so a
+   re-parse that recognises nothing new is not taken for a change (which would move the cursor). */
+const chipValuesOf = (nodes?: ReadonlyArray<{ children?: ReadonlyArray<Record<string, any>> }>): string =>
+  JSON.stringify(
+    (nodes ?? []).flatMap((paragraph) =>
+      (paragraph?.children ?? [])
+        .filter((node) => node?.type === 'tag')
+        .map((node) => String(node?.value ?? ''))
+    )
+  );
+
 export const RichTextFormField = memo(({
   value,
   onChange,
@@ -174,6 +187,8 @@ export const RichTextFormField = memo(({
   const isText = valueFormat === 'text';
   /** What chips are named from: the whole catalogue, not only what is offered (see the prop). */
   const naming = namingTemplates ?? templates;
+  // the catalogue, as what follows it is keyed on: written out once a render - it is the whole catalogue
+  const namingKey = JSON.stringify(naming);
   /* The Slate editor behind Reqore's: the two choice-chip actions below rewrite the document in place,
      which the editor's props cannot, and the completion list reads and edits the text through it. */
   const editorRef = useRef<TReqoreRichTextEditorRef>(null);
@@ -279,6 +294,26 @@ export const RichTextFormField = memo(({
     }
   }, [choiceKey]);
 
+  /* A reference in a string is drawn as a chip only once something can name it: the field's own grammar
+     (`templateToken`), or — for a reference neither grammar matches, a DPQL `@create` say — the catalogue
+     that NAMES it. Both can arrive AFTER the first render: the catalogue is fetched, and the effect above
+     rebuilds the document only when the stored string changes. So a preset reference the catalogue had not
+     yet named stayed raw text until the author re-picked it (qorus#646). Re-chip the string in hand when
+     what recognises its references changes — text mode only, and only when a chip is actually gained or
+     lost, so a document being edited is left exactly as it is while nothing new is recognised. A choice
+     chip is the choices' to draw (see above), so a document that is one is left alone. */
+  useEffect(() => {
+    if (!isText) {
+      return;
+    }
+    const rebuilt = templateTextToNodes(lastTextRef.current, naming, templateToken);
+    setLocalValue((current: any) =>
+      choiceValueOfNodes(current) !== undefined || chipValuesOf(current) === chipValuesOf(rebuilt) ?
+        current
+      : rebuilt
+    );
+  }, [namingKey, String(templateToken)]);
+
   /** What the host will hold once the emits in flight come back: what an edit is a change from. */
   const settled = () => emitted.settled(isText ? String(value ?? '') : value);
   /** A rich-text document as it is sent: one that is nothing but a choice chip, as the choice's value. */
@@ -354,7 +389,7 @@ export const RichTextFormField = memo(({
   // string, and opens on a tap where there is no hover.
   const descriptions = useDescriptionTooltips();
 
-  const descriptionByValue = useMemo(() => getChipTooltipDescriptions(naming), [JSON.stringify(naming)]);
+  const descriptionByValue = useMemo(() => getChipTooltipDescriptions(naming), [namingKey]);
 
   /* Opens a choice chip into its value as text and puts the cursor there.
      A click on the chip — a non-editable node — need not have given the
@@ -428,6 +463,8 @@ export const RichTextFormField = memo(({
           leftIconProps: { image: metadata?.image },
           label: templateChipLabel(naming, tagValue),
           tooltip: templateTooltip(naming, tagValue, descriptions),
+          // The same chip the read summary (`TemplateText`) and the read-only tag draw.
+          ...REFERENCE_CHIP_PROPS,
           ...getTemplateTagStyle(metadata),
         };
       }
@@ -448,6 +485,8 @@ export const RichTextFormField = memo(({
           /* Drawn, as the picker row draws the same string (`descriptionTooltip`):
              left raw, it printed the punctuation the row does not. */
           tooltip: descriptionTooltip(descriptionByValue[tagValue], descriptions),
+          // The same chip the read summary and the read-only tag draw.
+          ...REFERENCE_CHIP_PROPS,
           ...getTemplateTagStyle(tag.metadata),
         };
       }
@@ -571,7 +610,7 @@ export const RichTextFormField = memo(({
       aria-autocomplete='list'
       aria-expanded={autocomplete.isOpen}
       aria-controls={completionMenuId}
-      panelProps={{ fluid: true, style: { minWidth: '150px', ...rest.panelProps?.style } }}
+      panelProps={{ fluid: true, ...rest.panelProps, style: { minWidth: '150px', ...rest.panelProps?.style } }}
       readOnly={readOnly}
       onKeyDown={handleKeyDown}
       onBlur={handleBlur}

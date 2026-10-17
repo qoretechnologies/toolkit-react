@@ -13,6 +13,7 @@ import {
   ReqoreVerticalSpacer,
 } from '@qoretechnologies/reqore';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { memo, MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef, IDpqlParseResult, useDpqlSession } from '../../dpqlEditor';
 import { TemplateBrowser } from '../fields/template/TemplateBrowser';
@@ -47,6 +48,27 @@ const PARSE_DEBOUNCE_MS = 300;
  * has stopped moving rather than twitching on the way there.
  */
 const PREVIEW_DEBOUNCE_MS = 400;
+
+/**
+ * A control in the field's column at its own width: the column stretches what it holds across it. The Text /
+ * Visual toggle is as wide as what the two say, not across the form: a control is its own width on any screen
+ * wider than a phone's (qorus#646, David's width rule), so it is not fluid either.
+ */
+const OWN_WIDTH_STYLE: React.CSSProperties = { alignSelf: 'flex-start' };
+
+/** The words of the field's Text / Visual toggle, for a host that translates them. */
+export interface IExpressionModeLabels {
+  text: string;
+  visual: string;
+  /** The Text button's hover when there is no language server to write the expression with. */
+  textUnavailable: string;
+}
+
+export const DEFAULT_EXPRESSION_MODE_LABELS: IExpressionModeLabels = {
+  text: 'Text',
+  visual: 'Visual',
+  textUnavailable: 'The expression language server is not available',
+};
 
 export interface IExpressionFieldProps {
   /** The expression value: `{ is_expression:true, value:{ exp, args } }`. */
@@ -113,6 +135,8 @@ export interface IExpressionFieldProps {
   requestedMode?: TExpressionMode;
   /** The host draws the views as tabs of its own: the field's Visual / Text toggle is not drawn. */
   hideModeToggle?: boolean;
+  /** The words of the Text / Visual toggle, for a host that translates them; English where not given. */
+  modeLabels?: Partial<IExpressionModeLabels>;
   /** No language server: the Text view cannot work, and the field shows the Visual view instead. */
   onTextUnavailable?: () => void;
   /**
@@ -271,6 +295,7 @@ export const ExpressionField = memo(
     heldAsValue,
     requestedMode,
     hideModeToggle,
+    modeLabels,
     onTextUnavailable,
     onModeChange,
     flushRef,
@@ -285,6 +310,10 @@ export const ExpressionField = memo(
     const { renderRich } = useRenderExpression();
 
     const [mode, setMode] = useState<TExpressionMode>(defaultMode);
+    const modeWords = useMemo(
+      () => ({ ...DEFAULT_EXPRESSION_MODE_LABELS, ...modeLabels }),
+      [modeLabels]
+    );
     const onModeChangeRef = useRef(onModeChange);
     onModeChangeRef.current = onModeChange;
     useEffect(() => {
@@ -776,7 +805,12 @@ export const ExpressionField = memo(
         data-preview={mode === 'text' ? previewState : undefined}
       >
         {hideModeToggle ? null : (
-          <ReqoreControlGroup gapSize='small' fluid>
+          <ReqoreControlGroup
+            gapSize='small'
+            fluid={false}
+            className='expression-mode-toggle'
+            style={OWN_WIDTH_STYLE}
+          >
             {/* Text first, and the view an expression opens in: as the value's tabs read (Value · Expression ·
                 Visual), the written form before the built one (qorus#646, David) */}
             <ReqoreButton
@@ -784,12 +818,10 @@ export const ExpressionField = memo(
               active={mode === 'text'}
               onClick={enterTextMode}
               disabled={readOnly || textUnavailable}
-              tooltip={
-                textUnavailable ? 'The expression language server is not available' : undefined
-              }
+              tooltip={textUnavailable ? modeWords.textUnavailable : undefined}
               size={size as any}
             >
-              Text
+              {modeWords.text}
             </ReqoreButton>
             <ReqoreButton
               icon='NodeTree'
@@ -798,7 +830,7 @@ export const ExpressionField = memo(
               disabled={readOnly}
               size={size as any}
             >
-              Visual
+              {modeWords.visual}
             </ReqoreButton>
           </ReqoreControlGroup>
         )}
@@ -828,6 +860,8 @@ export const ExpressionField = memo(
                 // the field's own templates name the chips as its catalogue names them
                 templates={localTemplates}
                 readOnly={readOnly}
+                // the field's size, as its Value tab draws the same value: a reference is the same chip in both
+                size={size as TSizes | undefined}
                 // no floor of its own: one line as tall as the text it shows, growing with its lines - a
                 // 48px floor left an empty strip under the text, which the picker beside it could not match
                 onUnavailable={handleTextUnavailable}
@@ -841,9 +875,8 @@ export const ExpressionField = memo(
                   icon='MoneyDollarCircleLine'
                   aria-label='Insert a template'
                   tooltip='Insert a template'
-                  // the size of the text it inserts into - the DPQL editor is drawn at the normal size in
-                  // any form - so the two are as tall as each other
-                  size='normal'
+                  // the size of the text it inserts into, so the two are as tall as each other
+                  size={(size as TSizes | undefined) ?? 'normal'}
                   fixed
                   templates={localTemplates}
                   focusFilter

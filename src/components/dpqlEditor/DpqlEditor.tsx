@@ -42,6 +42,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       options,
       actionCode,
       height,
+      size,
       readOnly = false,
       showDiagnostics = true,
       enableHover = true,
@@ -210,6 +211,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         converter={converter}
         completionInserter={dpqlCompletionInserter}
         height={height}
+        size={size}
         readOnly={readOnly}
         showDiagnostics={showDiagnostics}
         enableHover={enableHover}

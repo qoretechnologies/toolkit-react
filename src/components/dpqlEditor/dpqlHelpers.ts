@@ -237,11 +237,20 @@ export function getTagLabel(value: string): string {
   return value;
 }
 
+/**
+ * Whether a character ends the DPQL reference it follows: anything that cannot go on to make a field name or a
+ * template path longer - not a letter, a mark, a digit or `_`, nor a `.` (a sub-field) or a `:` / `{` (a
+ * template's path).
+ */
+export const endsDpqlReference = (char: string): boolean =>
+  !!char && !/^[\p{L}\p{M}\p{N}_.:{]$/u.test(char);
+
 /** DPQL converter — handed to `SmartEditor` via the `converter` prop. */
 export const dpqlSlateConverter: ISlateConverter = {
   toSlateNodes: plainTextToSlate,
   fromSlateNodes: slateToPlainText,
   selectionToOffset: slateSelectionToOffset,
+  endsReference: endsDpqlReference,
 };
 
 /**

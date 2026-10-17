@@ -49,7 +49,11 @@ import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 import { ExpressionBuilder, IExpressionBuilderProps } from '../../expressions/builder';
 // Direct import — the cycle (TemplateField → ExpressionField → builder →
 // TemplateField) is render-time only, safe like the other Field cycles.
-import { ExpressionField, TExpressionMode } from '../../expressions/ExpressionField';
+import {
+  ExpressionField,
+  IExpressionModeLabels,
+  TExpressionMode,
+} from '../../expressions/ExpressionField';
 import { IExpression, TExpressionReorder } from '../../expressions/types';
 import { useExpressions } from '../../expressions/useExpressions';
 import { AutoFormField as Auto, IQorusType as IQorusFormType } from '../auto/AutoFormField';
@@ -212,6 +216,19 @@ export interface ITemplateFieldProps extends Partial<
   templateBadge?: TTemplateBadge;
   /** The words of the value tabs, for a host that translates them; English where not given. */
   valueTabsLabels?: Partial<IValueTabsLabels>;
+  /** The words of an expression's own Text / Visual toggle (no value tabs), for a host that translates them. */
+  expressionModeLabels?: Partial<IExpressionModeLabels>;
+  /**
+   * How wide the value is when it is written as text:
+   * - `field` (the default): 150px, as a free text field is, wider for what it holds, and narrower only
+   *   where its row has less room;
+   * - `content`: as wide as what it holds, from 150px, and narrower than that only where its row has less
+   *   room, where the editor is cut at the field's edge (a chip's name is still on its hover). An
+   *   expression's operand is drawn so: a reference chip takes the font of the text it sits in, so a long
+   *   one is wider than a narrow condition's column, and a field never narrower than what it holds pushed
+   *   its own ⋮ out of the row (qorus#646).
+   */
+  textWidth?: 'field' | 'content';
   /**
    * SEAM (reqraft): host-injected per-card actions for the expression editor
    * this field renders in expression mode (the IDE's AI-assist button).
@@ -230,6 +247,16 @@ export interface ITemplateFieldProps extends Partial<
   [key: string]: any;
   default_value?: unknown;
 }
+
+/** The box a value written as text is drawn in, by `textWidth` (see it). */
+const FIELD_WIDTH_BOX: React.CSSProperties = {
+  width: '150px',
+  maxWidth: '100%',
+  minWidth: 'fit-content',
+};
+const CONTENT_WIDTH_BOX: React.CSSProperties = { width: 'auto', maxWidth: '100%', minWidth: 0 };
+/** The editor in a `content` box: never narrower than a free text field. */
+const CONTENT_WIDTH_EDITOR: React.CSSProperties = { minWidth: '150px' };
 
 export const ComponentMap = {
   string: LongStringField,
@@ -661,6 +688,8 @@ const TemplateFieldImpl = memo(
     allowTextExpressions,
     valueTabs,
     valueTabsLabels,
+    expressionModeLabels,
+    textWidth = 'field',
     savedValues,
     templateBadge,
     extraActions,
@@ -2255,6 +2284,7 @@ const TemplateFieldImpl = memo(
                 condition={isConditionOption(rest)}
                 extraActions={extraActions}
                 size={rest.size}
+                modeLabels={expressionModeLabels}
                 /* An expression opens on its Text view, the first of Text · Visual, as the value's tabs open on
                    Expression before Visual (qorus#646, David); without a language server it falls back to
                    Visual by itself. It opened on Visual, on an empty "Select operation", unless the
@@ -2321,7 +2351,7 @@ const TemplateFieldImpl = memo(
         // here; reqraft upgrades the read-only template to a proper picker chip —
         // the $-dollar icon + resolved display name + app image, colored by the
         // IDE's intent scheme. Shared with the compact read-first row.
-        return <ReadOnlyTemplateTag value={templateValue} templates={templates} size={rest.size} />;
+        return <ReadOnlyTemplateTag value={templateValue} templates={templates} />;
       }
 
       return (
@@ -2407,17 +2437,17 @@ const TemplateFieldImpl = memo(
                width, pushing the ⋮ past an operand's row in a narrow column. */
             fixed={false}
             fluid
-            /* 150px wide, as a free text field is, wider for what it holds, and narrower only where its
-               row has less room - an operand in a narrow column - as a number's input is: a fixed
-               150px minimum held it at full width there. */
+            /* As wide as `textWidth` says. A field: 150px, as a free text field is, wider for what it
+               holds, and narrower only where its row has less room, as a number's input is (a fixed 150px
+               minimum held it at full width in a narrow column). Its content: the box takes its width from
+               what it holds, with no minimum, and the editor in it keeps 150px. */
             panelProps={{
               ...(rest as { panelProps?: object }).panelProps,
               style: {
                 ...(rest as { panelProps?: { style?: object } }).panelProps?.style,
-                width: '150px',
-                maxWidth: '100%',
-                minWidth: 'fit-content',
+                ...(textWidth === 'content' ? CONTENT_WIDTH_BOX : FIELD_WIDTH_BOX),
               },
+              ...(textWidth === 'content' ? { contentStyle: CONTENT_WIDTH_EDITOR } : {}),
             }}
             aria-label={fieldAriaLabel}
           />

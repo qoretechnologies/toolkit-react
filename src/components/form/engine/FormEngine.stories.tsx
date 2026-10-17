@@ -10442,12 +10442,13 @@ const TEMPLATE_OR_EXPRESSION_VALUE = {
 };
 
 /** The form, and what each option holds - its value, and whether it is an expression. */
-const TemplateOrExpressionForm = () => {
+const TemplateOrExpressionForm = ({ size }: { size?: TSizes } = {}) => {
   const [value, setValue] = useState<any>(TEMPLATE_OR_EXPRESSION_VALUE);
   return (
     <>
       <FormEngine
         compact
+        size={size}
         name='templateOrExpression'
         stringTemplates={ROW_FIELDS as any}
         options={TEMPLATE_OR_EXPRESSION_OPTIONS}
@@ -10869,6 +10870,54 @@ export const SavedTemplateOnAYesNoOpensOnExpression: Story = {
     await waitFor(() =>
       expect(optionRow('flag_template').querySelector('.value-tab-cannot-show')?.textContent).toContain('Expression tab')
     );
+  },
+};
+
+/** How a reference's chip is drawn in an editor: its label's font, the text's around it, and its height. */
+const chipLook = (editor: HTMLElement) => {
+  const chip = editor.querySelector<HTMLElement>('.reqore-tag') as HTMLElement;
+  expect(chip, 'a chip in the editor').toBeTruthy();
+  return {
+    label: getComputedStyle(chip.querySelector('.reqore-tag-content') as HTMLElement).fontSize,
+    text: getComputedStyle(chip.parentElement as HTMLElement).fontSize,
+    height: chip.getBoundingClientRect().height,
+  };
+};
+
+export const ReferenceIsTheSameChipOnValueAndExpression: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a small form and opens Note, text holding "SUP-" and the field pos, on Value and then on Expression. When either tab shows it, the field is the same chip: its label the size of the text around it, and as tall in both.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm size='small' />,
+  play: async () => {
+    const row = await editOption('note');
+    const onValue = chipLook(
+      await waitFor(() => {
+        const el = row.querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
+        expect(el?.querySelector('.reqore-tag')).toBeTruthy();
+        return el as HTMLElement;
+      })
+    );
+    await chooseTab(row, 'expression');
+    const onExpression = chipLook(
+      await waitFor(() => {
+        const el = optionRow('note').querySelector<HTMLElement>(
+          '.expression-field [data-slate-editor]'
+        );
+        expect(el?.querySelector('.reqore-tag')).toBeTruthy();
+        return el as HTMLElement;
+      })
+    );
+
+    expect(onValue.label).toBe(onValue.text);
+    expect(onExpression.label).toBe(onExpression.text);
+    expect(onExpression.label).toBe(onValue.label);
+    expect(Math.abs(onExpression.height - onValue.height)).toBeLessThanOrEqual(1);
   },
 };
 

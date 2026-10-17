@@ -399,7 +399,7 @@ export const CompactRow = memo(
         !isExpression &&
         (isValueTemplate(field.value) || !!findTemplate(ownTemplates ?? {}, field.value))
       ) {
-        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} size='small' />;
+        return <ReadOnlyTemplateTag value={field.value} templates={ownTemplates} />;
       }
 
       // An expression reads as DPQL wherever it is shown without being edited:
