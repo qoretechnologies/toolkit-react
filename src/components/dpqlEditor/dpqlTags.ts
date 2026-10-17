@@ -8,6 +8,7 @@ import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/de
 import {
   describeTemplateReference,
   getTemplateTagStyle,
+  REFERENCE_CHIP_PROPS,
   templateTooltip,
   TTemplateMeta,
 } from '../../helpers/templates';
@@ -101,6 +102,8 @@ export function makeDpqlTagRenderer(
         : undefined;
 
       return {
+        // the same chip every view draws a reference as: the size of the text it sits in
+        ...REFERENCE_CHIP_PROPS,
         icon: 'Database2Line',
         color: FIELD_REF_COLOR.fg as `#${string}`,
         tooltip,
@@ -111,6 +114,7 @@ export function makeDpqlTagRenderer(
     if (tagValue.startsWith('$')) {
       const named = options.templates && describeTemplateReference(options.templates, tagValue);
       return {
+        ...REFERENCE_CHIP_PROPS,
         icon: 'ExchangeDollarLine',
         ...(named?.item ?
           {

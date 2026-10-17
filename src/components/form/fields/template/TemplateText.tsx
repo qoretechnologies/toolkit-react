@@ -6,6 +6,7 @@ import { IRichtextSegment } from '../../../../helpers/common';
 import {
   findTemplate,
   getTemplateTagStyle,
+  REFERENCE_CHIP_PROPS,
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
@@ -83,13 +84,12 @@ const TemplateTextBody = ({ segments, templates, full, className }: ITemplateTex
           <ReqoreTag
             key={`tag-${index}`}
             className='reqraft-template-chip'
-            size='tiny'
             // The chip's label has to be the same size as the prose it is embedded
             // in. The wrapper centres boxes, so two different text sizes centred
             // against each other cannot share a baseline and the chips visibly
             // float above the words. Inheriting makes centring align the baselines
             // too, at whatever font size the consuming app uses.
-            style={{ fontSize: 'inherit' }}
+            {...REFERENCE_CHIP_PROPS}
             icon='ExchangeDollarLine'
             label={segment.text || segment.value}
             // The same card the chosen-template chip shows: what the value IS, not

@@ -34,6 +34,7 @@ import {
 import {
   describeTemplateReference,
   getTemplateTagStyle,
+  REFERENCE_CHIP_PROPS,
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
@@ -186,6 +187,8 @@ export const RichTextFormField = memo(({
   const isText = valueFormat === 'text';
   /** What chips are named from: the whole catalogue, not only what is offered (see the prop). */
   const naming = namingTemplates ?? templates;
+  // the catalogue, as what follows it is keyed on: written out once a render - it is the whole catalogue
+  const namingKey = JSON.stringify(naming);
   /* The Slate editor behind Reqore's: the two choice-chip actions below rewrite the document in place,
      which the editor's props cannot, and the completion list reads and edits the text through it. */
   const editorRef = useRef<TReqoreRichTextEditorRef>(null);
@@ -309,7 +312,7 @@ export const RichTextFormField = memo(({
         current
       : rebuilt
     );
-  }, [JSON.stringify(naming), String(templateToken)]);
+  }, [namingKey, String(templateToken)]);
 
   /** What the host will hold once the emits in flight come back: what an edit is a change from. */
   const settled = () => emitted.settled(isText ? String(value ?? '') : value);
@@ -386,7 +389,7 @@ export const RichTextFormField = memo(({
   // string, and opens on a tap where there is no hover.
   const descriptions = useDescriptionTooltips();
 
-  const descriptionByValue = useMemo(() => getChipTooltipDescriptions(naming), [JSON.stringify(naming)]);
+  const descriptionByValue = useMemo(() => getChipTooltipDescriptions(naming), [namingKey]);
 
   /* Opens a choice chip into its value as text and puts the cursor there.
      A click on the chip — a non-editable node — need not have given the
@@ -460,10 +463,8 @@ export const RichTextFormField = memo(({
           leftIconProps: { image: metadata?.image },
           label: templateChipLabel(naming, tagValue),
           tooltip: templateTooltip(naming, tagValue, descriptions),
-          // The same chip the read summary (`TemplateText`) and the read-only tag draw: a `tiny` box whose
-          // label takes the font of the text it sits in, so a reference is the same size in every view.
-          size: 'tiny',
-          style: { fontSize: 'inherit' },
+          // The same chip the read summary (`TemplateText`) and the read-only tag draw.
+          ...REFERENCE_CHIP_PROPS,
           ...getTemplateTagStyle(metadata),
         };
       }
@@ -484,9 +485,8 @@ export const RichTextFormField = memo(({
           /* Drawn, as the picker row draws the same string (`descriptionTooltip`):
              left raw, it printed the punctuation the row does not. */
           tooltip: descriptionTooltip(descriptionByValue[tagValue], descriptions),
-          // The same chip the read summary and the read-only tag draw — see the `isText` branch above.
-          size: 'tiny',
-          style: { fontSize: 'inherit' },
+          // The same chip the read summary and the read-only tag draw.
+          ...REFERENCE_CHIP_PROPS,
           ...getTemplateTagStyle(tag.metadata),
         };
       }

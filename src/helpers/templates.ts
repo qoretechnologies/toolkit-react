@@ -1,6 +1,7 @@
 import { modalStore } from '@qoretechnologies/reqore';
 import { TReqoreTooltipProp } from '@qoretechnologies/reqore/dist/types/global';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import {
   TReqoreDropdownItem,
   TReqoreDropdownItems,
@@ -46,6 +47,17 @@ const byLabel = (a: { label?: unknown }, b: { label?: unknown }): number =>
  */
 
 export type TTemplateMeta = { image?: string; builtIn?: boolean; isEventTrigger?: boolean };
+
+/**
+ * A reference chip as every view draws it - the read summary (`TemplateText`), the read-only chip, the rich
+ * text editor and the expression editor: a `tiny` box whose label takes the font of the text it sits in, so a
+ * reference is the same size wherever it is shown, at whatever size its text is (qorus#646). One object for all
+ * of them: written out in each, the views drifted apart, and a chip jumped as a value moved between them.
+ */
+export const REFERENCE_CHIP_PROPS: Pick<IReqoreTagProps, 'size' | 'effect'> = Object.freeze({
+  size: 'tiny',
+  effect: Object.freeze({ textSize: 'inherit' }),
+});
 
 export const getTemplateTagStyle = (
   meta?: TTemplateMeta

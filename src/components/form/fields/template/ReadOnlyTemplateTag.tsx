@@ -4,6 +4,7 @@ import { memo } from 'react';
 import {
   getTemplateTagStyle,
   describeTemplateReference,
+  REFERENCE_CHIP_PROPS,
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
@@ -41,7 +42,7 @@ export const ReadOnlyTemplateTag = memo(
           leftIconProps={{ image: metadata?.image }}
           label={label}
           tooltip={templateTooltip(templates, value, descriptions)}
-          style={{ fontSize: 'inherit' }}
+          {...REFERENCE_CHIP_PROPS}
           {...getTemplateTagStyle(metadata)}
         />
       </ReqoreTagGroup>
