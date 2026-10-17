@@ -1311,12 +1311,15 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * group. Disabled, readonly, read-only-form, and dependency-locked fields are
    * skipped. In compact (read-first) mode the target row is expanded through
    * the engine's own `expandedOptions` state, so its editor gains focus with no
-   * DOM scraping or synthetic clicks. Strictly one-shot: it fires the first
-   * time the form has focusable content (so an async-loaded schema is covered)
-   * and then never again — a later value edit, server-driven field update, or
-   * in-place schema reload will not re-focus; only a remount re-arms it. It also
-   * never steals focus from a control the user has already moved into. No-op in
-   * classic (non-compact) mode. Default: off.
+   * DOM scraping or synthetic clicks. It opens one row, for the life of the
+   * instance: the first field that needs an answer when that field first
+   * appears in the form - with the schema, or in a piece of it that arrives
+   * later - until it has opened one or the user has made their first move
+   * (opened or closed a row, pointed into the form, come into it from the
+   * keyboard). A field already in the form that comes to need an answer (a
+   * value edited, a server-driven update) does not re-open or re-focus; only a
+   * remount re-arms it. It also never steals focus from a control the user has
+   * already moved into. No-op in classic (non-compact) mode. Default: off.
    */
   autoFocusFirstRequired?: boolean;
 
@@ -1335,9 +1338,10 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * Opening a row takes nothing from the user, so this half needs no guard. Use
    * it where the mount is already the answer to a deliberate action; use
    * `autoFocusFirstRequired` where the form is the destination and the caret
-   * should land in it. Setting both keeps the focusing behaviour. Same one-shot
-   * contract: it fires on the first render with focusable content and then never
-   * again for the life of the instance. No-op in classic mode. Default: off.
+   * should land in it. Setting both keeps the focusing behaviour. Same contract:
+   * one row, for the life of the instance, the first field that needs an answer
+   * when it first appears, until it has opened one or the user has made their
+   * first move. No-op in classic mode. Default: off.
    */
   expandFirstRequired?: boolean;
 
@@ -2954,8 +2958,12 @@ const FormEngineImpl = ({
     setShowHelpForOption(optionName);
   }, []);
 
-  /** Whether the first-required scan below has run, or is spent (see it). Only a remount arms it again. */
+  /** Whether the first-required scan below has opened its row, or is spent by the user's first move (see it). Only a
+   *  remount arms it again. */
   const hasAutoFocusedRef = useRef(false);
+  /** The fields the first-required scan has looked at: it opens a field that needs an answer when the field first
+   *  appears in the form, not when one already there comes to need one. */
+  const scannedFieldsRef = useRef<Set<string>>(new Set());
 
   const toggleExpandedOption = useCallback(
     (optionName: string) => {
@@ -3004,9 +3012,10 @@ const FormEngineImpl = ({
   }, [initialExpandedOptions, compact, availableOptions]);
 
   // --- First-attention-field autofocus (opt-in) -----------------------------
-  /** The first row that needs an answer and can take one, if any: what the first-required scan opens. */
-  const firstAttentionRow = (): string | undefined =>
-    getFirstAttentionOptionName(Object.keys(availableOptions), (fieldName) => {
+  /** The first row (of `names`, in order: every row by default) that needs an answer and can take one, if any: what
+   *  the first-required scan opens. */
+  const firstAttentionRow = (names: string[] = Object.keys(availableOptions)): string | undefined =>
+    getFirstAttentionOptionName(names, (fieldName) => {
       const schema = options?.[fieldName];
       if (!schema) {
         return undefined;
@@ -3048,12 +3057,11 @@ const FormEngineImpl = ({
   // `expandedOptions` — the row's editor-focus effect does the rest. No DOM
   // scraping, no synthetic clicks, no polling.
   //
-  // Strictly one-shot: it fires the first time the form has focusable content
-  // (so an async-loaded schema is still covered — the empty first pass doesn't
-  // count), then never again for the life of this instance. A server-driven
-  // field update or an in-place schema reload will NOT re-grab focus; only a
-  // genuine remount (a fresh instance) auto-focuses again, which is the intended
-  // on-mount behaviour.
+  // It opens one row for the life of this instance, keyed on a field's arrival: the first field that needs an
+  // answer when it first appears in the form. A schema that arrives after the mount, or in pieces, is covered: the
+  // fields of a later piece are looked at when they arrive, as long as the scan has opened nothing yet. A field
+  // already in the form that comes to need an answer (a value edited, a server-driven update) is not a reason to
+  // open it, nor to re-grab focus; only a genuine remount (a fresh instance) arms the scan again.
   //
   // It waits only for the user's first move. A form opened from a button mounts while that button holds the
   // focus, and the scan waits for it to be free - but the user does not wait: they open a row (which spends
@@ -3068,7 +3076,8 @@ const FormEngineImpl = ({
     // CompactRow's tap-to-edit rule, and it declines just as firmly to take one
     // that is already somewhere outside the row.
     const wantsFocus = !!autoFocusFirstRequired;
-    if ((!wantsFocus && !expandFirstRequired) || !compact || !options) {
+    // the schema the form holds is the one in force: not one a skeleton stands for, nor one the host has replaced
+    if ((!wantsFocus && !expandFirstRequired) || !compact || !options || !schemaInForce) {
       return;
     }
     if (hasAutoFocusedRef.current) {
@@ -3076,7 +3085,17 @@ const FormEngineImpl = ({
     }
 
     const orderedNames = Object.keys(availableOptions);
-    if (!orderedNames.length) {
+    // the fields that have appeared since the scan last looked: only they can be what it opens
+    const arrived = orderedNames.filter((name) => !scannedFieldsRef.current.has(name));
+    if (!arrived.length) {
+      return;
+    }
+    /* Read on the form the schema makes: a required field the schema brings is added to the form's value by the
+       sync-down, an effect, so the render after the schema arrives. Read before that, the form had no row for it:
+       the scan found nothing to open and was spent, and the field's row stayed closed (qorus#646: the Qorus IDE's
+       pipeline processor, whose required field mappings arrive with its schema). */
+    const formTheSchemaMakes = fixOptions(fixedValue, options, undefined, isRendererOnly);
+    if (Object.keys(formTheSchemaMakes || {}).some((name) => !(name in fixedValue))) {
       return;
     }
 
@@ -3097,17 +3116,23 @@ const FormEngineImpl = ({
       return;
     }
 
-    // Mark done even when nothing needs attention, so later value edits or an
-    // in-place schema reload never re-scan or re-focus. Only a remount arms it
-    // again.
+    // Looked at: a field here now is not looked at again, whatever it comes to hold.
+    orderedNames.forEach((name) => scannedFieldsRef.current.add(name));
+    const target = firstAttentionRow(arrived);
+    if (!target) {
+      // nothing that arrived needs an answer: the scan waits for the fields still to come
+      return;
+    }
     hasAutoFocusedRef.current = true;
-    openFirstAttentionRow(firstAttentionRow());
+    openFirstAttentionRow(target);
   }, [
     autoFocusFirstRequired,
     expandFirstRequired,
     compact,
     options,
+    schemaInForce,
     availableOptions,
+    isRendererOnly,
     readOnly,
     dependencyLockedNames,
     getOptionBucket,

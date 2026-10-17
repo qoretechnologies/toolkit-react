@@ -31,6 +31,7 @@ import { mockPopulatedDefinition } from '../fields/schema-definition/mockDefinit
 import { ITemplateFieldSavedValue } from '../fields/template/TemplateField';
 import { defaultMarkdownRenderer } from '../fields/markdown/MarkdownView';
 import {
+  fixOptions,
   FormEngine,
   IFormEngineGroup,
   IFormEngineProps,
@@ -7630,6 +7631,82 @@ export const CompactAutoFocusLateMountingEditor: Story = {
       },
       { timeout: 10000 }
     );
+  },
+};
+
+// A required field that arrives with the schema, the Qorus IDE's pipeline processor: the processor is chosen, and
+// the schema that arrives after the form mounts makes its field mappings required. The host waits behind the
+// skeleton and hands the value through `fixOptions`, as the IDE's read-first options form does.
+const ArrivingProcessorSchema: IOptionsSchema = {
+  processor: {
+    type: 'string',
+    display_name: 'Processor Class',
+    required: true,
+    allowed_values: [
+      { name: 'ProcessorTypeTest', value: 'ProcessorTypeTest' },
+      { name: 'qogcompatibilitytest', value: 'qogcompatibilitytest' },
+    ],
+    sort: 1,
+  },
+  mappings: {
+    type: 'list',
+    ui_type: 'list',
+    display_name: 'Field Mappings',
+    required: true,
+    depends_on: ['processor'],
+    sort: 2,
+  },
+} as unknown as IOptionsSchema;
+
+const ArrivingProcessorValue = {
+  processor: { type: 'string', value: 'qogcompatibilitytest' },
+} as unknown as IOptions;
+
+/** One object for "no schema yet", as a host keeps it. */
+const NoSchemaYet: IOptionsSchema = {};
+
+/** A host whose schema arrives after the form mounts: on the render after the first, as an answer would. */
+const SchemaArrivesAfterMount = (args: IFormEngineProps) => {
+  const [schema, setSchema] = useState<IOptionsSchema | undefined>();
+  useEffect(() => {
+    setSchema(ArrivingProcessorSchema);
+  }, []);
+  const value = useMemo(() => fixOptions(ArrivingProcessorValue, schema) as IOptions, [schema]);
+
+  return <FormEngine {...args} skeleton={!schema} value={value} options={schema ?? NoSchemaYet} />;
+};
+
+export const CompactRequiredFieldArrivesWithItsSchema: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form whose schema arrives after it mounts and brings a required field, Field Mappings, that the value does not hold yet. When the schema arrives, the Field Mappings row opens by itself, and the Processor Class row, already set, stays closed.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    autoFocusFirstRequired: true,
+    expandFirstRequired: true,
+  },
+  render: (args) => <SchemaArrivesAfterMount {...(args as IFormEngineProps)} />,
+  play: async () => {
+    await waitFor(() => expect(document.querySelector('[data-field="mappings"]')).toBeTruthy(), {
+      timeout: 10000,
+    });
+    // an open row is drawn as its edit card, a closed one as its read row
+    await waitFor(
+      () =>
+        expect(
+          document.querySelector('[data-field="mappings"]')!.className.includes('readfirst-row')
+        ).toBe(false),
+      { timeout: 10000 }
+    );
+    expect(
+      document.querySelector('[data-field="processor"]')!.className.includes('readfirst-row')
+    ).toBe(true);
   },
 };
 
