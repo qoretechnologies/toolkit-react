@@ -235,6 +235,68 @@ export const BackspaceOpensTheChoiceChip: Story = {
   },
 };
 
+/** A catalog that names a reference no grammar reads: `@create` is a reference only because it names it. */
+const ARRIVING_CATALOG = { items: [{ label: 'Created order', value: '@create' }] } as never;
+const NO_CATALOG_YET = { items: [] } as never;
+
+export const ChipDrawnWhenItsCatalogArrives: Story = {
+  args: {
+    valueFormat: 'text',
+    allowTemplates: true,
+    value: '@create + 1',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the RichText field holding "@create + 1" before its template catalog has arrived, so @create is text. When the catalog arrives (it names @create "Created order"), @create is drawn as the "Created order" chip, the text unchanged.',
+      },
+    },
+  },
+  render(args) {
+    const [value, setValue] = useState(args.value);
+    // the catalog is fetched: it arrives after the field's first render
+    const [templates, setTemplates] = useState(NO_CATALOG_YET);
+    return (
+      <>
+        <RichTextFormField
+          {...args}
+          templates={templates}
+          value={value}
+          onChange={(next) => {
+            args.onChange?.(next);
+            setValue(next);
+          }}
+        />
+        <button
+          type='button'
+          className='catalog-arrives'
+          onClick={() => setTemplates(ARRIVING_CATALOG)}
+        >
+          Catalog arrives
+        </button>
+      </>
+    );
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    const editor = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
+      expect(el?.textContent).toContain('@create');
+      return el as HTMLElement;
+    });
+    // no catalog yet: nothing names @create
+    expect(editor.querySelector('.reqore-tag')).toBeNull();
+
+    await userEvent.click(canvas.getByText('Catalog arrives'));
+
+    await waitFor(() =>
+      expect(editor.querySelector('.reqore-tag')?.textContent).toContain('Created order')
+    );
+    expect(editor.textContent).toContain('+ 1');
+  },
+};
+
 export const Empty: Story = {
   parameters: {
     docs: {
