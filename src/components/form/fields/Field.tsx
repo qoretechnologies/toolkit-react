@@ -4,6 +4,7 @@ import {
   ReqoreControlGroup,
   ReqoreSpan,
 } from '@qoretechnologies/reqore';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { IQorusAllowedValue, IQorusFormFieldSchemaBase, IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
@@ -160,6 +161,10 @@ export const FormField = <T extends TFormFieldType>({
   const { schema: finalArgSchema, loading: argSchemaLoading } = useArgSchema(arg_schema);
   // a choice's description card: drawn as markdown, opened by a tap on touch (`descriptionTooltip`)
   const descriptions = useDescriptionTooltips();
+  /* The size of a field's few choices, each a checkbox with its ⓘ beside it on a touch screen: `tiny` for a mouse,
+     and at least Reqore's `small` for a finger, which `tiny` is too small to hit (BRAND_DESIGN §5). The ⓘ takes the
+     group's size, so a choice and its ⓘ are always one size. */
+  const choiceSize: TSizes = descriptions.tapToOpen ? 'small' : 'tiny';
 
   const handleChange = (value: TFormFieldValueType<T>, event?: unknown) => {
     onChange(value, event);
@@ -432,7 +437,7 @@ export const FormField = <T extends TFormFieldType>({
 
           if (element_allowed_values.length <= 3) {
             return (
-              <ReqoreControlGroup vertical size='tiny'>
+              <ReqoreControlGroup vertical size={choiceSize}>
                 {element_allowed_values.map((item, index) => {
                   const itemValue = item.value?.value;
                   const checked = serverValue.some((v) => isEqual(v, itemValue));
@@ -664,7 +669,7 @@ export const FormField = <T extends TFormFieldType>({
     // Non-creatable ≤3: checkboxes that track the current value
     if (allowed_values.length <= 3) {
       return (
-        <ReqoreControlGroup vertical size='tiny'>
+        <ReqoreControlGroup vertical size={choiceSize}>
           <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
             {/* Headed by the field's own name; "Select one:" only when it has
                 none. Same rule as FieldAllowedValuesCheckGroup. */}

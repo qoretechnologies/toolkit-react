@@ -1,3 +1,4 @@
+import { SIZE_TO_PX } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
@@ -305,7 +306,7 @@ export const SectionsDescribedOnATouchScreen: Story = {
     docs: {
       description: {
         story:
-          "Renders the populated SchemaDefinition editor on a phone (390 px, touch), with the customers table open. A tap on its Primary Key tab only switches to it, and no card opens. The section's finger-sized ⓘ opens what Primary Key is for (\"Table primary key\"), which stays on the screen.",
+          "Renders the populated SchemaDefinition editor on a phone (390 px, touch), with the customers table open. A tap on its Primary Key tab only switches to it, and no card opens. The section's ⓘ, a size a finger can hit, opens what Primary Key is for (\"Table primary key\"), which stays on the screen.",
       },
     },
   },
@@ -331,7 +332,8 @@ export const SectionsDescribedOnATouchScreen: Story = {
       });
       // the tab: switched, and nothing else
       await expect(document.querySelector('.reqore-popover-content')).toBeNull();
-      await expect(info.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+      // a finger can hit it: no smaller than Reqore's small control
+      await expect(info.getBoundingClientRect().height).toBeGreaterThanOrEqual(SIZE_TO_PX.small);
       await touch.tap(info);
       const card = await waitFor(() => {
         const shown = Array.from(document.querySelectorAll<HTMLElement>('.reqore-popover-content')).find(

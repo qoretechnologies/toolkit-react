@@ -1,3 +1,4 @@
+import { SIZE_TO_PX } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
@@ -199,7 +200,7 @@ export const ChoicesDescribedOnATouchScreen: Story = {
     docs: {
       description: {
         story:
-          "Renders the same field on a phone (390 px, touch). Each choice has a finger-sized ⓘ beside it. A tap on Completion only chooses it, and no card opens. A tap on Chat's ⓘ opens Chat's description, which stays on the screen.",
+          "Renders the same field on a phone (390 px, touch). Each choice has an ⓘ beside it, as big as the choice: Reqore's small control, which a finger can hit. A tap on Completion only chooses it, and no card opens. A tap on Chat's ⓘ opens Chat's description, which stays on the screen.",
       },
     },
   },
@@ -215,8 +216,15 @@ export const ChoicesDescribedOnATouchScreen: Story = {
         ]);
         return buttons;
       });
-      for (const button of info) {
-        expect(button.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+      // each ⓘ is as big as the choice it is beside, and a finger can hit both: no smaller than Reqore's small
+      for (const [button, choice] of [
+        [info[0], 'Chat'],
+        [info[1], 'Completion'],
+      ] as const) {
+        const height = button.getBoundingClientRect().height;
+        expect(height).toBeGreaterThanOrEqual(SIZE_TO_PX.small);
+        const choiceHeight = choiceBox(canvasElement, choice).getBoundingClientRect().height;
+        expect(Math.abs(height - choiceHeight)).toBeLessThanOrEqual(1);
       }
       // the box: chosen, and nothing else
       await touch.tap(choiceBox(canvasElement, 'Completion'));

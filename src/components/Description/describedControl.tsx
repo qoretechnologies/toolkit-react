@@ -1,6 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 import { ReqoreButton, ReqoreControlGroup } from '@qoretechnologies/reqore';
 import { IReqorePanelAction } from '@qoretechnologies/reqore/dist/components/Panel';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { TReqoreTooltipProp } from '@qoretechnologies/reqore/dist/types/global';
 import { cloneElement, Key, memo, ReactElement } from 'react';
 import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/descriptionTooltip';
@@ -14,19 +15,23 @@ export interface IDescriptionInfoButtonProps {
   /** What it describes: the card's title and the button's accessible name. */
   name: string;
   descriptions: IDescriptionTooltipOptions;
+  /** The size of the group it is in, which a control group hands its children: the control beside it has it too. */
+  size?: TSizes;
 }
 
 /**
  * A finger's way to a control's description: a small ⓘ beside the control that opens its card on a tap. A tap on
  * the control itself does what the control does, and only that.
+ *
+ * It is the size of the control it sits beside: no size of its own, so it takes the group's, as the control does.
+ * A fixed big one (48px) beside a small checkbox read as the main thing in the row (Foxhoundn, qlip #361).
  */
 export const DescriptionInfoButton = memo(
-  ({ description, name, descriptions }: IDescriptionInfoButtonProps) => (
+  ({ description, name, descriptions, size }: IDescriptionInfoButtonProps) => (
     <ReqoreButton
       className='reqraft-description-info'
       icon='InformationLine'
-      // a finger's size: Reqore's big control is 48px
-      size='big'
+      size={size}
       minimal
       flat
       fixed
@@ -70,7 +75,6 @@ export const describedControl = (
     infoAction: {
       className: 'reqraft-description-info',
       icon: 'InformationLine',
-      size: 'big',
       minimal: true,
       flat: true,
       'aria-label': describedControlInfoLabel(name),
