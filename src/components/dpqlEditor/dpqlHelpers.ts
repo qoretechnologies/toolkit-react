@@ -20,6 +20,29 @@ const NAME_PART = '[\\p{L}\\p{M}\\p{N}_]';
 const FIELD_NAME = `${NAME_START}${NAME_PART}*`;
 /** A bare field, `@name.sub`, read where it starts. */
 const BARE_FIELD = new RegExp(`@${FIELD_NAME}(?:\\.${FIELD_NAME})*`, 'uy');
+/**
+ * One accessor after a field, read where it starts: `.name`, `[n]`, `[*]`, `{*}` or `{"key"}`. A field with
+ * accessors is one reference, as the server writes one back (`@create.items[*].id`, `@items[0]{"id"}`): the chip
+ * was `create.items` and the accessors plain text after it (David, qorus#646). A slice or an expression in
+ * brackets is not one of them, and ends the chip.
+ */
+const ACCESSOR = new RegExp(
+  `\\.${FIELD_NAME}|\\[(?:-?\\d+|\\*)\\]|\\{\\*\\}|\\{"(?:\\\\.|[^"\\\\])*"\\}|\\{'(?:\\\\.|[^'\\\\])*'\\}`,
+  'uy'
+);
+
+/** Where the accessors after a field that ends at `from` end. */
+const endOfAccessors = (line: string, from: number): number => {
+  let end = from;
+  for (;;) {
+    ACCESSOR.lastIndex = end;
+    if (!ACCESSOR.test(line)) {
+      return end;
+    }
+    end = ACCESSOR.lastIndex;
+  }
+};
+
 /** What a template starts with, `$prefix:`, read where it starts. */
 const TEMPLATE_HEAD = /\$\w+:/y;
 // A template's value without braces is word characters and dots, not quotes, parens, etc. A dot that starts a
@@ -123,6 +146,7 @@ const readField = (line: string, at: number): { end: number; tag: ISlateElement 
   if (end < 0) {
     return undefined;
   }
+  end = endOfAccessors(line, end);
   const value = line.slice(at, end);
   return { end, tag: createTagElement(value, getTagLabel(value)) };
 };
@@ -373,8 +397,12 @@ const unescapeDpqlString = (content: string): string => {
  * `order-id`, unescaped as the server reads it - or undefined when `value` is not a field reference.
  */
 export const dpqlFieldName = (value: string): string | undefined => {
-  if (value.startsWith('@"') && value.length > 2 && value.endsWith('"')) {
-    return unescapeDpqlString(value.slice(2, -1));
+  if (value.startsWith('@"')) {
+    // the quoted name, unescaped, and the accessors after it as they are written
+    const close = endOfQuoted(value, 2, '"');
+    if (close > 0) {
+      return unescapeDpqlString(value.slice(2, close - 1)) + value.slice(close);
+    }
   }
   return value.startsWith('@') ? value.slice(1) : undefined;
 };
@@ -404,11 +432,11 @@ export function getTagLabel(value: string): string {
 
 /**
  * Whether a character ends the DPQL reference it follows: anything that cannot go on to make a field name or a
- * template path longer - not a letter, a mark, a digit or `_`, nor a `.` (a sub-field) or a `:` / `{` (a
- * template's path).
+ * template path longer - not a letter, a mark, a digit or `_`, nor a `.` (a sub-field), a `[` or a `{` (an accessor:
+ * `[*]`, `[0]`, `{*}`, `{"key"}`) or a `:` (a template's path).
  */
 export const endsDpqlReference = (char: string): boolean =>
-  !!char && !/^[\p{L}\p{M}\p{N}_.:{]$/u.test(char);
+  !!char && !/^[\p{L}\p{M}\p{N}_.:{[]$/u.test(char);
 
 /** DPQL converter — handed to `SmartEditor` via the `converter` prop. */
 export const dpqlSlateConverter: ISlateConverter = {

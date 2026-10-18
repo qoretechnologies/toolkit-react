@@ -183,7 +183,10 @@ reads, as it reads them (qorus#646): `$prefix:value`, `$prefix:{value}`
 (ending where the tokenizer's does: a backslash escapes the next character,
 braces nest, a string inside is read whole), `@field` and the quoted
 `@"field"` the server writes for a name DPQL does not read bare (its chip
-labeled with the name, unescaped). A field inside a string literal is
+labeled with the name, unescaped). A field's chip takes the accessors after
+it, as the server writes a reference with a selector back: `.name`, `[n]`,
+`[*]`, `{*}` and `{"key"}` (`@create.items[*].id` is one chip,
+`create.items[*].id`, written back exactly). A field inside a string literal is
 text; a template in one is still drawn as its chip. It does not parse the
 expression around them. The server's `dpql/toRichtext` does that.
 

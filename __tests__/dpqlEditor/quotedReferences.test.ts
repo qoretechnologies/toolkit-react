@@ -71,7 +71,8 @@ describe('a quoted field is drawn as its chip', () => {
 
   test('as an argument, and with an accessor after it', () => {
     expect(drawn('length(@"create.items")')).toBe('length([create.items])');
-    expect(drawn('@"create.items"[0]')).toBe('[create.items][0]');
+    // the accessor is part of it (accessorChains.test.ts)
+    expect(drawn('@"create.items"[0]')).toBe('[create.items[0]]');
   });
 
   test('an escaped quote does not end it', () => {

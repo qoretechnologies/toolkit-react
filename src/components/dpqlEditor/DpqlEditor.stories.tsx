@@ -534,6 +534,56 @@ export const QuotedFieldTypedOutIsAChip: Story = {
 };
 
 /**
+ * A field with accessors (David, qorus#646): the server writes a reference with a selector back as
+ * `@create.items[*].id`, and a field after an index as `[0]{"id"}`. Each is one chip, labeled with the whole
+ * path, and written back as it was.
+ */
+export const WithAccessorChains: Story = {
+  args: {
+    value: 'size(@create.items[*].id) > size(@prices{*}) && @items[0]{"id"} != ""',
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with fields that carry accessors, as the server writes them: @create.items[*].id, @prices{*} and @items[0]{"id"}. Each is one chip labeled with its whole path - create.items[*].id, prices{*}, items[0]{"id"} - not a chip for the field and plain text for the accessors; the text is written back as it was.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await waitFor(() =>
+      expect(chipLabels(editable)).toEqual(['create.items[*].id', 'prices{*}', 'items[0]{"id"}'])
+    );
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
+
+export const AccessorChainTypedOutIsAChip: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the empty DpqlEditor and types @orders[*].id == 1 without picking from the list. When the space after it is typed, the field and its accessors are drawn as one chip, orders[*].id, and the rest is typed after it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await userEvent.click(editable);
+    // `[` starts a key descriptor for userEvent; `[[` types one
+    await userEvent.type(editable, '@orders[[*].id == 1');
+
+    await waitFor(() => expect(chipLabels(editable)).toEqual(['orders[*].id']));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('@orders[*].id == 1'));
+  },
+};
+
+/**
  * Exercises the `useServerParse` opt-in (design doc §6). The editor
  * calls `dpql/toRichtext` on the LSP and uses the server's structured
  * response as the Slate document. While the request is in flight, the
