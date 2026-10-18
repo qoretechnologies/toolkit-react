@@ -89,18 +89,34 @@ export const expressionTextOfValue = (value: unknown): string => {
   return `concat(${parts.map((part) => (isCompleteTemplateToken(part) ? part : JSON.stringify(part))).join(', ')})`;
 };
 
+/** The template a node is when it is one of `operations` with one template as its one argument: the
+ *  argument as a string, as a value (`{value: "$record:{pos}"}`) or as the parser gives it (`{value: {raw}}`). */
+const templateOperandOf = (node: unknown, operations: string[]): string | undefined => {
+  const { exp, args } = (node ?? {}) as { exp?: unknown; args?: unknown[] };
+  if (typeof exp !== 'string' || !operations.includes(exp) || args?.length !== 1) return undefined;
+  const arg = args[0] as { value?: { raw?: unknown } | string } | string | undefined;
+  const raw =
+    typeof arg === 'string' ? arg
+    : typeof arg?.value === 'string' ? arg.value
+    : arg?.value?.raw;
+  return typeof raw === 'string' && isCompleteTemplateToken(raw) ? raw : undefined;
+};
+
 /**
  * A lone template written in the expression editor's Text view, as the server parses it: the `template`
  * operation with the reference as its one argument. It is stored as the bare template, which every consumer
  * evaluates; the expression form of it is not one the server reads back as the template's value.
  */
-export const loneTemplateOf = (expression: unknown): string | undefined => {
-  const node = (expression as { value?: { exp?: string; args?: unknown[] } } | undefined)?.value;
-  if (node?.exp !== 'template' || node.args?.length !== 1) return undefined;
-  const arg = node.args[0] as { value?: { raw?: unknown } | string } | undefined;
-  const raw = typeof arg?.value === 'string' ? arg.value : arg?.value?.raw;
-  return typeof raw === 'string' && isCompleteTemplateToken(raw) ? raw : undefined;
-};
+export const loneTemplateOf = (expression: unknown): string | undefined =>
+  templateOperandOf((expression as { value?: unknown } | undefined)?.value, ['template']);
+
+/**
+ * The template an expression is when it is nothing but that template: `value($record:{pos})` or
+ * `template($record:{pos})`, as a host may hold a reference to a field (the Qorus IDE reads a test's reference
+ * back as `value(...)`, qorus#646). The Value tab shows it as that template. Undefined for any other expression.
+ */
+export const templateOfExpression = (expression: unknown): string | undefined =>
+  templateOperandOf(expression, ['value', 'template']);
 
 /**
  * A lone value written in the expression editor's Text view (`12`, `true`, `"open"`), as the server parses

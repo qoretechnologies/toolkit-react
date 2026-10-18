@@ -11495,6 +11495,144 @@ export const RevertingARemovedExpressionPutsItBack: Story = {
   },
 };
 
+/** Options each holding a field of the row as an expression that is that one field: value(...) and template(...). */
+const REFERENCE_OPTIONS = {
+  by_value: {
+    type: 'string',
+    display_name: 'By value',
+    supports_templates: true,
+    supports_expressions: true,
+    expressions: mockExpressions,
+  },
+  by_template: {
+    type: 'int',
+    display_name: 'By template',
+    supports_templates: true,
+    supports_expressions: true,
+    expressions: mockExpressions,
+  },
+} as unknown as IQorusFormSchema;
+
+const REFERENCE_VALUE = {
+  by_value: {
+    type: 'string',
+    is_expression: true,
+    value: { exp: 'value', args: [{ type: 'string', value: '$record:{bezeichnung}' }] },
+  },
+  by_template: {
+    type: 'int',
+    is_expression: true,
+    value: { exp: 'template', args: [{ type: 'int', value: '$record:{pos}' }] },
+  },
+};
+
+/** The form holding the two references, and what it holds. */
+const ReferenceForm = () => {
+  const [value, setValue] = useState<any>(REFERENCE_VALUE);
+  return (
+    <>
+      <FormEngine
+        compact
+        name='reference'
+        stringTemplates={ROW_FIELDS as any}
+        options={REFERENCE_OPTIONS}
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+      />
+      <code className='form-held' data-held={JSON.stringify(value)} style={{ display: 'none' }} />
+    </>
+  );
+};
+
+/** The chips the Value tab's text holds. */
+const valueTabChips = (field: string) =>
+  [...(optionRow(field)?.querySelectorAll<HTMLElement>('.value-tab-text .reqore-tag') ?? [])].map(
+    (chip) => chip.textContent?.trim()
+  );
+
+export const ValueTabDrawsAReferencedFieldAsItsChip: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a form whose options each hold a field of the row as an expression that is that one field - value($record:{bezeichnung}) and template($record:{pos}), as a host may hold a reference. Each opens on Expression; on Value it is that field\'s chip, not "can\'t be shown as a value" (qorus#646). Looking at it keeps value(...) as it is; template(...) is stored as the bare template once the Expression tab is left, as the Expression tab stores a lone template.',
+      },
+    },
+  },
+  render: () => <ReferenceForm />,
+  play: async ({ canvasElement }) => {
+    for (const [field, name, held] of [
+      ['by_value', 'bezeichnung', REFERENCE_VALUE.by_value],
+      ['by_template', 'pos', { type: 'int', value: '$record:{pos}' }],
+    ] as const) {
+      const row = await editOption(field);
+      await waitFor(() => expect(optionActiveTab(row)).toBe('expression'));
+      await chooseTab(row, 'value');
+      await waitFor(() => expect(valueTabChips(field)).toEqual([expect.stringContaining(name)]));
+      expect(optionRow(field).querySelector('.value-tab-cannot-show')).toBeNull();
+      // and back on Expression it is the same field
+      await chooseTab(optionRow(field), 'expression');
+      await chooseTab(optionRow(field), 'value');
+      await waitFor(() => expect(valueTabChips(field)).toEqual([expect.stringContaining(name)]));
+      expect(heldOption(canvasElement, field)).toEqual(held);
+      await userEvent.click(
+        optionRow(field).querySelector('.options-readfirst-done') as HTMLElement
+      );
+    }
+  },
+};
+
+export const ValueTabPickReplacesAReferencedField: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form holding value($record:{bezeichnung}), opens it on Value, empties the text with its × and picks pos from the fields the text offers: it holds the field pos, a value written on the Value tab, and its chip says pos. A field picked into the text goes where the caret is, as into any text.',
+      },
+    },
+  },
+  render: () => <ReferenceForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('by_value');
+    await chooseTab(row, 'value');
+    await waitFor(() =>
+      expect(valueTabChips('by_value')).toEqual([expect.stringContaining('bezeichnung')])
+    );
+    await userEvent.click(
+      await waitFor(() => {
+        const el = optionRow('by_value').querySelector<HTMLElement>(
+          '.value-tabs-field .reqore-clear-input-button'
+        );
+        expect(el, "the text's clear button").toBeTruthy();
+        return el as HTMLElement;
+      })
+    );
+    await waitFor(() => expect(heldOption(canvasElement, 'by_value')?.value).toBeUndefined());
+    await userEvent.click(
+      optionRow('by_value').querySelector<HTMLElement>(
+        '.value-tab-text [data-slate-editor], [data-slate-editor].value-tab-text'
+      ) as HTMLElement
+    );
+    const field = await waitFor(() => {
+      const el = [
+        ...document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item'),
+      ].find((item) => item.textContent?.startsWith('pos'));
+      expect(el, 'the fields on offer').toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(field);
+    await waitFor(() =>
+      expect(heldOption(canvasElement, 'by_value')).toEqual({
+        type: 'string',
+        value: '$record:{pos}',
+      })
+    );
+    await waitFor(() =>
+      expect(valueTabChips('by_value')).toEqual([expect.stringContaining('pos')])
+    );
+  },
+};
+
 /** A host's summary for an editor that reports a status: field mappings, set but incomplete, or not set. */
 const MappingStatusSummary = ({ value }: { value: unknown }) => {
   const set = Array.isArray(value) && value.length > 0;

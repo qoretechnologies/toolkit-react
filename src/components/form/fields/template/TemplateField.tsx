@@ -79,6 +79,7 @@ import {
   sameValueType,
   valueTextOf,
   TValueTab,
+  templateOfExpression,
   templateTextValue,
   untypedTextOf,
 } from './writtenAsText';
@@ -854,6 +855,9 @@ const TemplateFieldImpl = memo(
     /** The value is an expression (its AST), as the host says. */
     const valueIsExpression =
       !!(isFunction || isDefaultFunction) && value !== null && typeof value === 'object';
+    /** An expression that is nothing but one template (`value($record:{pos})`, as a host may hold a reference to
+     *  a field): the Value tab shows it as that template, where it can show no other expression (qorus#646). */
+    const expressionTemplate = valueIsExpression ? templateOfExpression(value) : undefined;
     /** Where a saved value opens: an expression on Expression; a template on Value where it is written as
      *  text, else on Expression (or Template, for a template-only field); anything else on Value. */
     const [tab, setTab] = useState<TValueTab>(() => {
@@ -2065,7 +2069,7 @@ const TemplateFieldImpl = memo(
       /* A lone template of another type than the field's is converted when the value is used: said as a
          warning, not a block - whether it converts depends on the data (qorus#646, David). */
       const loneTemplate =
-        typeof value === 'string' && isCompleteTemplateToken(value) ? value : undefined;
+        typeof value === 'string' && isCompleteTemplateToken(value) ? value : expressionTemplate;
       const loneTemplateType =
         loneTemplate && !typeIsAnyLike ?
           findTemplate(templates ?? {}, loneTemplate)?.badge
@@ -2099,7 +2103,7 @@ const TemplateFieldImpl = memo(
         </ReqoreMessage>
       );
       const valueBody = () => {
-        if (valueIsExpression) {
+        if (valueIsExpression && expressionTemplate === undefined) {
           return cannotShow(conditionField ? words.cannotShowCondition : words.cannotShowExpression);
         }
         if (valueTabIsText) {
@@ -2115,7 +2119,7 @@ const TemplateFieldImpl = memo(
                 singleLine={isSingleLineStringType('string')}
                 value={
                   typeof templateValue === 'string' ? templateValue : (
-                    valueTextOf(value, type as string)
+                    (expressionTemplate ?? valueTextOf(value, type as string))
                   )
                 }
                 templates={filteredTemplates}
