@@ -46,7 +46,7 @@ import {
   TQorusFormOperatorValue,
   TQorusType,
 } from '@qoretechnologies/ts-toolkit';
-import { shouldMarkAsExpression } from '../expressions/argumentPresence';
+import { restoredFieldChange, shouldMarkAsExpression } from '../expressions/argumentPresence';
 import { offersTypeChoices } from './typeChoices';
 import { optionRowActions, resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
@@ -4969,8 +4969,7 @@ const FormEngineImpl = ({
                       onClick: () => {
                         handleValueChange(
                           optionName,
-                          originalValue.current?.[optionName]?.value,
-                          originalValue.current?.[optionName]?.type
+                          ...restoredFieldChange(originalValue.current?.[optionName])
                         );
                       },
                     },

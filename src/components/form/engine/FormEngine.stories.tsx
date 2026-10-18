@@ -11263,6 +11263,238 @@ export const ExpressionWrittenOnExpressionShowsWhenTheTabIsBack: Story = {
   },
 };
 
+/** Computed as the form was given it: the expression pos + 1. */
+const COMPUTED_EXPRESSION = TEMPLATE_OR_EXPRESSION_VALUE.computed;
+
+/** Opens Computed (the expression pos + 1) on its Expression tab and clears it with the text's ×: it holds nothing. */
+const clearComputed = async (canvasElement: HTMLElement) => {
+  const row = await editOption('computed');
+  await waitFor(() => expect(optionActiveTab(row)).toBe('expression'));
+  const clear = await waitFor(() => {
+    const el = optionRow('computed').querySelector<HTMLElement>(
+      '.expression-field .reqore-clear-input-button'
+    );
+    expect(el, "the text's clear button").toBeTruthy();
+    return el as HTMLElement;
+  });
+  await userEvent.click(clear);
+  await waitFor(() => expect(heldOption(canvasElement, 'computed')?.value).toBeUndefined());
+};
+
+/** Opens Computed (the expression pos + 1) on Value, replaces it with a value and writes 5 there: it holds 5. */
+const replaceComputedWithFive = async (canvasElement: HTMLElement) => {
+  const row = await editOption('computed');
+  await chooseTab(row, 'value');
+  await userEvent.click(
+    await waitFor(() => {
+      const el = optionRow('computed').querySelector<HTMLElement>('.value-tab-replace');
+      expect(el, 'Replace it with a value').toBeTruthy();
+      return el as HTMLElement;
+    })
+  );
+  await waitFor(() => expect(heldOption(canvasElement, 'computed')?.value).toBeUndefined());
+  await userEvent.click(
+    await waitFor(() => {
+      const el = optionRow('computed').querySelector<HTMLElement>(
+        '[data-slate-editor].value-tab-text, .value-tab-text [data-slate-editor]'
+      );
+      expect(el, 'the Value tab is written in').toBeTruthy();
+      return el as HTMLElement;
+    })
+  );
+  await userEvent.keyboard('5');
+  await waitFor(
+    () => expect(heldOption(canvasElement, 'computed')).toEqual({ type: 'int', value: 5 }),
+    {
+      timeout: 10000,
+    }
+  );
+};
+
+/** Computed holds its expression again, marked as one, and its read row says it - not a hash of exp and args. */
+const expectComputedIsItsExpression = async (canvasElement: HTMLElement) => {
+  await waitFor(() => expect(heldOption(canvasElement, 'computed')).toEqual(COMPUTED_EXPRESSION));
+  await waitFor(() => {
+    const read = optionRow('computed');
+    expect(read.classList.contains('readfirst-row-editing')).toBe(false);
+    expect(read.textContent).toContain('pos');
+    expect(read.textContent).not.toMatch(/\bargs\b|\bexp\b|2 fields/);
+  });
+};
+
+export const CancelingAClearedExpressionPutsItBack: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form, opens Computed (the expression pos + 1), clears it on the Expression tab and cancels the edit: Computed holds pos + 1 again, as an expression, and its row says it. Before, the expression came back without what marks it as one: the row said "2 fields", exp and args, and it was stored as that hash (qorus#646).',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    await clearComputed(canvasElement);
+    await userEvent.click(
+      await waitFor(() => {
+        const el = optionRow('computed').querySelector<HTMLElement>('.options-readfirst-cancel');
+        expect(el, 'Cancel edit, once the field changed').toBeTruthy();
+        return el as HTMLElement;
+      })
+    );
+    await expectComputedIsItsExpression(canvasElement);
+  },
+};
+
+export const EscapeOnAClearedExpressionPutsItBack: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form, opens Computed (the expression pos + 1), clears it on the Expression tab and presses Escape: as Cancel edit, Computed holds pos + 1 again, as an expression.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    await clearComputed(canvasElement);
+    // from the tab the field is open on: a key pressed in the text is the text's first (its list closes on it)
+    (optionRow('computed').querySelector('.value-tab[aria-pressed="true"]') as HTMLElement).focus();
+    await userEvent.keyboard('{Escape}');
+    await expectComputedIsItsExpression(canvasElement);
+  },
+};
+
+export const RevertingAClearedExpressionPutsItBack: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form, opens Computed (the expression pos + 1), replaces it on Value with 5 and closes it with Done, then reverts it from its row: Computed holds pos + 1 again, as an expression, and its row says it. Before, it came back as a hash of exp and args.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    await replaceComputedWithFive(canvasElement);
+    await userEvent.click(
+      optionRow('computed').querySelector('.options-readfirst-done') as HTMLElement
+    );
+    await userEvent.click(
+      await waitFor(() => {
+        const el = optionRow('computed').querySelector<HTMLElement>('.options-readfirst-revert');
+        expect(el, "the read row's revert").toBeTruthy();
+        return el as HTMLElement;
+      })
+    );
+    await expectComputedIsItsExpression(canvasElement);
+  },
+};
+
+export const RevertInTheEditorPutsBackTheExpression: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form, replaces Computed (the expression pos + 1) on Value with 5 and closes it with Done, then opens it again and reverts it there: the revert of an open field takes it back to the expression the form was given, marked as one.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    await replaceComputedWithFive(canvasElement);
+    await userEvent.click(
+      optionRow('computed').querySelector('.options-readfirst-done') as HTMLElement
+    );
+    await waitFor(() =>
+      expect(optionRow('computed').classList.contains('readfirst-row-editing')).toBe(false)
+    );
+    const row = await editOption('computed');
+    await userEvent.click(
+      await waitFor(() => {
+        const el = row.querySelector<HTMLElement>('.options-readfirst-revert');
+        expect(el, "the open field's revert").toBeTruthy();
+        return el as HTMLElement;
+      })
+    );
+    await waitFor(() => expect(heldOption(canvasElement, 'computed')).toEqual(COMPUTED_EXPRESSION));
+  },
+};
+
+export const CancelingAnEditThatMadeAnExpressionPutsBackTheValue: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form, opens Quantity (12) on Value and writes " + 2", which makes it an expression, then cancels the edit: Quantity holds 12 again, a value, not marked as an expression.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('quantity');
+    await userEvent.click(
+      await waitFor(() => {
+        const el = row.querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      })
+    );
+    await userEvent.keyboard(' + 2');
+    await waitFor(() => expect(heldOption(canvasElement, 'quantity')?.is_expression).toBe(true), {
+      timeout: 10000,
+    });
+    await userEvent.click(
+      await waitFor(() => {
+        const el = optionRow('quantity').querySelector<HTMLElement>('.options-readfirst-cancel');
+        expect(el, 'Cancel edit').toBeTruthy();
+        return el as HTMLElement;
+      })
+    );
+    await waitFor(() =>
+      expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 })
+    );
+  },
+};
+
+/** Computed (the expression pos + 1) alone, in the form that is not compact, and what the form holds for it. */
+const ClassicExpressionForm = () => {
+  const [value, setValue] = useState<any>({ computed: COMPUTED_EXPRESSION });
+  return (
+    <>
+      <FormEngine
+        name='classicExpression'
+        stringTemplates={ROW_FIELDS as any}
+        options={
+          { computed: TEMPLATE_OR_EXPRESSION_OPTIONS.computed } as unknown as IQorusFormSchema
+        }
+        value={value}
+        onChange={(_n, v) => setValue(v)}
+      />
+      <code className='form-held' data-held={JSON.stringify(value)} style={{ display: 'none' }} />
+    </>
+  );
+};
+
+export const RevertingARemovedExpressionPutsItBack: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders Computed (the expression pos + 1) in the form that is not compact, removes its value and reverts it from its row's ⋯ menu: Computed holds pos + 1 again, as an expression.",
+      },
+    },
+  },
+  render: () => <ClassicExpressionForm />,
+  play: async ({ canvasElement }) => {
+    await openOptionRowMenu(0);
+    await _testsClickButton({ selector: '.options-item-remove', nth: 0 });
+    await waitFor(() => expect(heldOption(canvasElement, 'computed')?.value).toBeUndefined());
+    await openOptionRowMenu(0);
+    await _testsClickButton({ selector: '.options-item-revert', nth: 0 });
+    await waitFor(() => expect(heldOption(canvasElement, 'computed')).toEqual(COMPUTED_EXPRESSION));
+  },
+};
+
 /** A host's summary for an editor that reports a status: field mappings, set but incomplete, or not set. */
 const MappingStatusSummary = ({ value }: { value: unknown }) => {
   const set = Array.isArray(value) && value.length > 0;

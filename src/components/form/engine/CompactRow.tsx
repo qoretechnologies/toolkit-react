@@ -78,6 +78,7 @@ import {
 } from './readFirst';
 import { StructuredDataView } from './_structuredData/StructuredDataView';
 import { DpqlRendering } from '../expressions/DpqlRendering';
+import { restoredFieldChange } from '../expressions/argumentPresence';
 import { ReqraftColorValue } from '../../colorValue';
 import { TFieldWithOwnTemplates } from './rendererTypes';
 import { isHoveringPointer } from '../../../helpers/hoveringPointer';
@@ -984,10 +985,16 @@ export const CompactRow = memo(
     //
     // The dependency list is `isExpanded` alone on purpose: adding the value
     // would re-take the snapshot on every keystroke, leaving nothing to cancel.
-    const editEntryValue = React.useRef<{ value: any; type?: string } | undefined>(undefined);
+    const editEntryValue = React.useRef<
+      { value: any; type?: string; is_expression?: boolean } | undefined
+    >(undefined);
     React.useEffect(() => {
       if (isExpanded) {
-        editEntryValue.current = { value: optionField?.value, type: optionField?.type };
+        editEntryValue.current = {
+          value: optionField?.value,
+          type: optionField?.type,
+          is_expression: !!(optionField as { is_expression?: boolean } | undefined)?.is_expression,
+        };
       } else {
         editEntryValue.current = undefined;
       }
@@ -1010,8 +1017,14 @@ export const CompactRow = memo(
       // an edit still waiting for its pause is part of what is discarded
       pendingEdits.discard();
       const snapshot = editEntryValue.current;
-      if (snapshot && !isEqual(snapshot.value, optionField?.value)) {
-        handleValueChange(optionName, snapshot.value, snapshot.type);
+      // the field as it was opened: an expression is put back as one, a value as a value
+      if (
+        snapshot &&
+        (!isEqual(snapshot.value, optionField?.value) ||
+          snapshot.is_expression !==
+            !!(optionField as { is_expression?: boolean } | undefined)?.is_expression)
+      ) {
+        handleValueChange(optionName, ...restoredFieldChange(snapshot));
       }
       toggleExpandedOption(optionName);
     }, [handleValueChange, optionField?.value, optionName, toggleExpandedOption, pendingEdits]);
@@ -1098,8 +1111,7 @@ export const CompactRow = memo(
             e.stopPropagation();
             handleValueChange(
               optionName,
-              originalValue.current?.[optionName]?.value,
-              originalValue.current?.[optionName]?.type
+              ...restoredFieldChange(originalValue.current?.[optionName])
             );
           }}
         />
@@ -2687,8 +2699,7 @@ export const CompactRow = memo(
                   e.stopPropagation();
                   handleValueChange(
                     optionName,
-                    originalValue.current?.[optionName]?.value,
-                    originalValue.current?.[optionName]?.type
+                    ...restoredFieldChange(originalValue.current?.[optionName])
                   );
                 }}
               />
