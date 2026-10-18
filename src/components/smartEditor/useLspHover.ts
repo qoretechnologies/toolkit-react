@@ -12,7 +12,7 @@
 
 import { debounce } from 'lodash';
 import { RefObject, useCallback, useEffect, useRef, useState } from 'react';
-import { BaseEditor, Point } from 'slate';
+import { BaseEditor, Node, Path, Point } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
 import { isHoveringPointer } from '../../helpers/hoveringPointer';
@@ -64,10 +64,36 @@ function mousePositionToSlatePoint(
   }
   if (!domRange) return null;
 
+  /* The caret position nearest the point is the boundary between two characters: past the middle of a character
+     it is after it. A hover is of the character under the pointer, so where the point is on the character before
+     the caret, that is the one: resting on the right half of a `+` asked the server about the space after it, and
+     showed nothing (qorus#646). */
+  let offset = domRange.startOffset;
+  const container = domRange.startContainer;
+  if (container.nodeType === 3 && offset > 0) {
+    try {
+      const before = document.createRange();
+      before.setStart(container, offset - 1);
+      before.setEnd(container, offset);
+      const box = before.getBoundingClientRect();
+      if (
+        box.width > 0 &&
+        clientX >= box.left &&
+        clientX < box.right &&
+        clientY >= box.top &&
+        clientY <= box.bottom
+      ) {
+        offset -= 1;
+      }
+    } catch {
+      // no layout to measure: the caret position stands
+    }
+  }
+
   try {
     return ReactEditor.toSlatePoint(
       editor,
-      [domRange.startContainer, domRange.startOffset],
+      [container, offset],
       { exactMatch: false, suppressThrow: true } as any
     );
   } catch {
@@ -75,11 +101,104 @@ function mousePositionToSlatePoint(
   }
 }
 
+/** The chip (a tag element) under `clientX`, `clientY` in the editor, with its path, or null. */
+function chipAtPoint(
+  editor: BaseEditor & ReactEditor & HistoryEditor,
+  clientX: number,
+  clientY: number
+): { path: Path; tag: ISlateElement } | null {
+  try {
+    // not every document can say what is at a point (jsdom)
+    const element =
+      typeof document.elementFromPoint === 'function' ?
+        document.elementFromPoint(clientX, clientY)?.closest('[data-slate-void="true"]')
+      : null;
+    if (!element) return null;
+    const node = ReactEditor.toSlateNode(editor, element) as ISlateElement;
+    if (node.type !== 'tag') return null;
+    return { path: ReactEditor.findPath(editor, node as any), tag: node };
+  } catch {
+    // not this editor's, or no longer in it
+    return null;
+  }
+}
+
+/**
+ * The chip the caret is on, with its path, or null: a chip selected, or the chip the caret touches - right after
+ * it, where a tap on a chip puts the caret, or right before it. A chip has no caret position inside it.
+ */
+function chipAtCaret(
+  editor: BaseEditor & ReactEditor & HistoryEditor
+): { path: Path; tag: ISlateElement } | null {
+  const selection = editor.selection;
+  const focus = selection?.focus;
+  if (!focus || focus.path.length < 2) return null;
+  try {
+    const [line, child] = focus.path;
+    const paragraph = Node.get(editor, [line]) as ISlateElement;
+    const at = (index: number) => {
+      const node = paragraph.children?.[index] as ISlateElement | undefined;
+      return node?.type === 'tag' ? { path: [line, index], tag: node } : null;
+    };
+    const own = at(child);
+    if (own) return own;
+    if (selection && !Point.equals(selection.anchor, selection.focus)) return null;
+    const text = paragraph.children?.[child] as { text?: string } | undefined;
+    if (focus.offset === 0 && child > 0 && at(child - 1)) return at(child - 1);
+    if (focus.offset === (text?.text ?? '').length && at(child + 1)) return at(child + 1);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The hover of a chip: what the server says at each part of the text it replaces (`converter.hoverOffsetsOf`), in
+ * one hover - each said once, in order, a rule between them. A chip has no caret position of its own, so a mouse
+ * resting on it was mapped to none and showed nothing (qorus#646, David: "there are no mouseover / hovers ... on the
+ * chips").
+ */
+async function chipHover(
+  client: { getHover(line: number, character: number): Promise<ILspMarkupContent | null> },
+  nodes: ISlateElement[],
+  path: Path,
+  tag: ISlateElement,
+  converter: ISlateConverter
+): Promise<ILspMarkupContent | null> {
+  const plainText = converter.fromSlateNodes(nodes);
+  // where the chip's text starts: at the chip, before any quotes the converter writes around it
+  const start = converter.selectionToOffset(nodes, [path[0], path[1]], 0);
+  const offsets = converter.hoverOffsetsOf?.(String(tag.value ?? '')) ?? [0];
+  const answers = await Promise.all(
+    offsets.map((offset) => {
+      const { line, character } = offsetToLspPosition(plainText, start + offset);
+      return client.getHover(line, character);
+    })
+  );
+  const parts: ILspMarkupContent[] = [];
+  answers.forEach((answer) => {
+    if (answer && !parts.some((part) => part.value === answer.value)) {
+      parts.push(answer);
+    }
+  });
+  if (!parts.length) return null;
+  const kind = parts.every((part) => part.kind === 'markdown') ? 'markdown' : 'plaintext';
+  return {
+    kind,
+    value: parts.map((part) => part.value).join(kind === 'markdown' ? '\n\n---\n\n' : '\n\n'),
+  };
+}
+
 export interface IUseLspHoverOptions {
   /** Default `true`. Set to `false` to disable the hovering pointer's listener. */
   enabled?: boolean;
   /** Debounce window before issuing the LSP request. Default 300ms. */
   debounceMs?: number;
+  /**
+   * Whether a chip draws a hover of its own (its tag props carry a tooltip: a field the record describes). A mouse
+   * resting on one is shown that, and not the server's as well; "Details" still shows the server's.
+   */
+  chipHasOwnHover?: (tag: ISlateElement) => boolean;
 }
 
 /** Where a hover is anchored on the screen, in viewport coordinates. */
@@ -127,7 +246,10 @@ export function useLspHover(
   converter: ISlateConverter,
   options: IUseLspHoverOptions = {}
 ): IUseLspHoverResult {
-  const { enabled = true, debounceMs = 300 } = options;
+  const { enabled = true, debounceMs = 300, chipHasOwnHover } = options;
+  // read when the mouse rests, so a new function from the host each render does not re-create the listener
+  const chipHasOwnHoverRef = useRef(chipHasOwnHover);
+  chipHasOwnHoverRef.current = chipHasOwnHover;
 
   const [hoverContent, setHoverContent] = useState<ILspMarkupContent | null>(
     null
@@ -190,13 +312,37 @@ export function useLspHover(
       )
         return;
 
+      const nodes = editor.children as ISlateElement[];
+      // a chip replaces its text: it is hovered as that text is (`chipHover`)
+      const chip = chipAtPoint(editor, clientX, clientY);
+      if (chip && chipHasOwnHoverRef.current?.(chip.tag)) {
+        // the chip's own hover is shown: one hover over a chip, not two
+        ++requestIdRef.current;
+        clearHover();
+        return;
+      }
+      if (chip) {
+        const reqId = ++requestIdRef.current;
+        try {
+          const content = await chipHover(client, nodes, chip.path, chip.tag, converter);
+          if (reqId !== requestIdRef.current) return; // stale
+          if (content) {
+            showHover(content, { left: clientX, top: clientY });
+          } else {
+            clearHover();
+          }
+        } catch {
+          clearHover();
+        }
+        return;
+      }
+
       const point = mousePositionToSlatePoint(editor, clientX, clientY);
       if (!point) {
         clearHover();
         return;
       }
 
-      const nodes = editor.children as ISlateElement[];
       const { line, character } = slatePointToLspPosition(
         { path: point.path as number[], offset: point.offset },
         nodes,
@@ -299,6 +445,8 @@ export function useLspHover(
         nodes,
         converter
       );
+      // the caret on a chip: its hover is the chip's, as a mouse resting on it would show (`chipHover`)
+      const chip = chipAtCaret(editor);
       let anchor: { left: number; top: number };
       try {
         const rect = ReactEditor.toDOMRange(editor, editor.selection).getBoundingClientRect();
@@ -309,7 +457,10 @@ export function useLspHover(
       fetchHover.current.cancel();
       const reqId = ++requestIdRef.current;
       try {
-        const content = await client.getHover(line, character);
+        const content =
+          chip ?
+            await chipHover(client, nodes, chip.path, chip.tag, converter)
+          : await client.getHover(line, character);
         if (reqId !== requestIdRef.current) return undefined; // stale
         if (!content) {
           clearHover();

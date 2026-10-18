@@ -442,12 +442,48 @@ export function getTagLabel(value: string): string {
 export const endsDpqlReference = (char: string): boolean =>
   !!char && !/^[\p{L}\p{M}\p{N}_.:{[]$/u.test(char);
 
+/**
+ * Where the server says something of a part of a reference's chip (its text, as written): the field at its start,
+ * and after it the `*` of each wildcard, each name after a dot and each key in braces - not an index, which the
+ * server calls a number. A template is one part.
+ */
+export const dpqlHoverOffsets = (value: string): number[] => {
+  if (!value.startsWith('@')) {
+    return [0];
+  }
+  let fieldEnd: number;
+  if (value[1] === '"') {
+    fieldEnd = endOfQuoted(value, 2, '"');
+  } else {
+    BARE_FIELD.lastIndex = 0;
+    fieldEnd = BARE_FIELD.test(value) ? BARE_FIELD.lastIndex : -1;
+  }
+  const offsets = [0];
+  for (let at = fieldEnd; at > 0 && at < value.length;) {
+    ACCESSOR.lastIndex = at;
+    if (!ACCESSOR.test(value)) {
+      break;
+    }
+    const accessor = value.slice(at, ACCESSOR.lastIndex);
+    if (accessor === '[*]' || accessor === '{*}') {
+      offsets.push(at + 1);
+    } else if (accessor.startsWith('.')) {
+      offsets.push(at + 1);
+    } else if (accessor.startsWith('{')) {
+      offsets.push(at + accessor.search(/[^{\s]/));
+    }
+    at = ACCESSOR.lastIndex;
+  }
+  return offsets;
+};
+
 /** DPQL converter — handed to `SmartEditor` via the `converter` prop. */
 export const dpqlSlateConverter: ISlateConverter = {
   toSlateNodes: plainTextToSlate,
   fromSlateNodes: slateToPlainText,
   selectionToOffset: slateSelectionToOffset,
   endsReference: endsDpqlReference,
+  hoverOffsetsOf: dpqlHoverOffsets,
 };
 
 /**

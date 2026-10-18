@@ -292,6 +292,10 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const hover = useLspHover(session, editorRef as React.RefObject<any>, converter, {
       enabled: enableHover,
       debounceMs: hoverDelayMs,
+      // a chip whose props carry a tooltip (a field the record describes) shows that, not the server's hover too
+      chipHasOwnHover: (tag) =>
+        !!(tagRenderer as ((tag: ISlateElement) => { tooltip?: unknown }) | undefined)?.(tag)
+          ?.tooltip,
     });
     /* The hover the popover drawn in this render is of: what it dismisses when it closes, and nothing newer. */
     const shownHoverId = hover.hoverId;

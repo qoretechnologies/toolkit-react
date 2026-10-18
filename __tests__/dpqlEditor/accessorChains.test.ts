@@ -3,6 +3,7 @@
 // `@create.items[*].id`, and the editor drew the chip `create.items` followed by the plain text `[*].id`.
 import {
   dpqlFieldName,
+  dpqlHoverOffsets,
   endsDpqlReference,
   getTagLabel,
   plainTextToSlate,
@@ -67,6 +68,20 @@ describe('a field with accessors is one chip', () => {
     expect(dpqlFieldName('@create.items[*].id')).toBe('create.items[*].id');
     expect(dpqlFieldName('@"order-lines"[*].id')).toBe('order-lines[*].id');
     expect(getTagLabel('@"a\\"b"{*}')).toBe('a"b{*}');
+  });
+
+  test("names where the server says something of each part of its chip, for the chip's hover", () => {
+    // the field, the * of the wildcard, the name after it
+    expect(dpqlHoverOffsets('@create.items[*].id')).toEqual([0, 14, 17]);
+    // an index is a number to the server: not a part of its own
+    expect(dpqlHoverOffsets('@items[0].id')).toEqual([0, 10]);
+    expect(dpqlHoverOffsets('@prices{*}')).toEqual([0, 8]);
+    expect(dpqlHoverOffsets('@h{"a b"}')).toEqual([0, 3]);
+    expect(dpqlHoverOffsets('@h{ a, "b c"}')).toEqual([0, 4]);
+    expect(dpqlHoverOffsets('@"a b"[*]')).toEqual([0, 7]);
+    // a field alone, and a template, are one part
+    expect(dpqlHoverOffsets('@name')).toEqual([0]);
+    expect(dpqlHoverOffsets('$record:{orders[*].id}')).toEqual([0]);
   });
 
   test('typed, an opening bracket does not end the field: an accessor may follow', () => {

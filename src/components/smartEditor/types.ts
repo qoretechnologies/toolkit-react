@@ -57,6 +57,13 @@ export interface ISlateConverter {
    * drawn as its chip only once the editor is left.
    */
   endsReference?: (char: string) => boolean;
+  /**
+   * Where in a chip's text (its tag `value`, as written) the server says something of a part of it: the field of
+   * `@create.items[*].id`, the `*` of its wildcard, the `id` after it. A chip replaces its text, so the hover a
+   * mouse resting on it - or "Details" with it selected - shows is what the server says at each of these, in one
+   * card. Without it, the chip's hover is what the server says at its start.
+   */
+  hoverOffsetsOf?: (tagValue: string) => number[];
 }
 
 /**
