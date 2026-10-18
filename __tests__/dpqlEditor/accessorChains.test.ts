@@ -25,8 +25,16 @@ describe('a field with accessors is one chip', () => {
     ['@prices{*}.amount', 'prices{*}.amount'],
     ['@items[0].id', 'items[0].id'],
     ['@items[-1]', 'items[-1]'],
-    ['@create.items[0]{"id"}', 'create.items[0]{"id"}'],
+    // a key that is a name after an accessor, as the server writes it now (Qore f341ddfc0)
+    ['@create.items[0].id', 'create.items[0].id'],
+    ['@items[0].order-id', 'items[0].order-id'],
+    // a key that needs quoting keeps its braces, and so does a key directly after a field
+    ['@create.items[0]{"a b"}', 'create.items[0]{"a b"}'],
     ['@headers{"content-type"}', 'headers{"content-type"}'],
+    ['@a{b}', 'a{b}'],
+    ['@h{a, "b c"}', 'h{a, "b c"}'],
+    // as the server wrote a key after an index before
+    ['@create.items[0]{"id"}', 'create.items[0]{"id"}'],
     ['@orders[*].lines[*].sku', 'orders[*].lines[*].sku'],
     ['@"order-lines"[*].id', 'order-lines[*].id'],
   ];

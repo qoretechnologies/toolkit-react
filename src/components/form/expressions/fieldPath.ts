@@ -16,8 +16,11 @@ export const FIELD_PATH_OPERATIONS = {
   key: 'key',
 } as const;
 
-/** A key that reads as a field name after a dot; any other is written `{"key"}`. */
-const BARE_KEY = /^[\p{L}_][\p{L}\p{M}\p{N}_]*$/u;
+/**
+ * A key a path writes after a dot. The path is a test path - what `$record:{…}` holds - where a dot, a bracket, a
+ * brace or a backslash in a key would read as part of the path; a key holding one is not written as a path here.
+ */
+const PATH_KEY = /^[^.[\]{}\\]+$/;
 
 /** The operation an operand is, when it is one: its `{ exp, args }`. */
 const operationOf = (arg?: IExpression): IExpressionValue | undefined =>
@@ -99,7 +102,7 @@ const pathOfOperation = (operation: IExpressionValue, relative: boolean): string
       if (count !== 2 || from === undefined || typeof key !== 'string') {
         return undefined;
       }
-      return BARE_KEY.test(key) ? `${from}.${key}` : `${from}{${JSON.stringify(key)}}`;
+      return PATH_KEY.test(key) ? `${from}.${key}` : undefined;
     }
     default:
       return undefined;

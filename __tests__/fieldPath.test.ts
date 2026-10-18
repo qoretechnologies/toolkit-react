@@ -67,10 +67,19 @@ describe('fieldPathOf', () => {
     ).toBe('prices{*}.tiers[*].amount');
   });
 
-  it('writes a key that is not a name as the server does, in braces', () => {
+  it('writes a key as a test path does, after a dot, and is no path for a key a test path would misread', () => {
+    // the path is what `$record:{…}` holds: a test path
     expect(
       fieldPathOf(op('key', field('headers'), { type: 'string', value: 'content-type' }))
-    ).toBe('headers{"content-type"}');
+    ).toBe('headers.content-type');
+    expect(fieldPathOf(op('key', field('headers'), { type: 'string', value: 'a b' }))).toBe(
+      'headers.a b'
+    );
+    for (const key of ['a.b', 'a[0]', 'a{b}', 'a\\b', '']) {
+      expect(
+        fieldPathOf(op('key', field('headers'), { type: 'string', value: key }))
+      ).toBeUndefined();
+    }
   });
 
   it('takes the operation itself, or the operand that holds it', () => {

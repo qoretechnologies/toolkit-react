@@ -535,19 +535,20 @@ export const QuotedFieldTypedOutIsAChip: Story = {
 
 /**
  * A field with accessors (David, qorus#646): the server writes a reference with a selector back as
- * `@create.items[*].id`, and a field after an index as `[0]{"id"}`. Each is one chip, labeled with the whole
- * path, and written back as it was.
+ * `@create.items[*].id`, a key after an index as `.id`, and a key that needs quoting in braces. Each is one chip,
+ * labeled with the whole path, and written back as it was.
  */
 export const WithAccessorChains: Story = {
   args: {
-    value: 'size(@create.items[*].id) > size(@prices{*}) && @items[0]{"id"} != ""',
+    value:
+      'size(@create.items[*].id) > size(@prices{*}) && @items[0].id != @headers{"content-type"}',
     onChange: fn(),
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the DpqlEditor with fields that carry accessors, as the server writes them: @create.items[*].id, @prices{*} and @items[0]{"id"}. Each is one chip labeled with its whole path - create.items[*].id, prices{*}, items[0]{"id"} - not a chip for the field and plain text for the accessors; the text is written back as it was.',
+          'Renders the DpqlEditor with fields that carry accessors, as the server writes them: @create.items[*].id, @prices{*}, @items[0].id and @headers{"content-type"}. Each is one chip labeled with its whole path - create.items[*].id, prices{*}, items[0].id, headers{"content-type"} - not a chip for the field and plain text for the accessors; the text is written back as it was.',
       },
     },
   },
@@ -555,7 +556,12 @@ export const WithAccessorChains: Story = {
     const editable = within(canvasElement).getByRole('textbox');
 
     await waitFor(() =>
-      expect(chipLabels(editable)).toEqual(['create.items[*].id', 'prices{*}', 'items[0]{"id"}'])
+      expect(chipLabels(editable)).toEqual([
+        'create.items[*].id',
+        'prices{*}',
+        'items[0].id',
+        'headers{"content-type"}',
+      ])
     );
     await expect(args.onChange).not.toHaveBeenCalled();
   },

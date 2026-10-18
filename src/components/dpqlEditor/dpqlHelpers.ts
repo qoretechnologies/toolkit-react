@@ -21,13 +21,17 @@ const FIELD_NAME = `${NAME_START}${NAME_PART}*`;
 /** A bare field, `@name.sub`, read where it starts. */
 const BARE_FIELD = new RegExp(`@${FIELD_NAME}(?:\\.${FIELD_NAME})*`, 'uy');
 /**
- * One accessor after a field, read where it starts: `.name`, `[n]`, `[*]`, `{*}` or `{"key"}`. A field with
- * accessors is one reference, as the server writes one back (`@create.items[*].id`, `@items[0]{"id"}`): the chip
- * was `create.items` and the accessors plain text after it (David, qorus#646). A slice or an expression in
- * brackets is not one of them, and ends the chip.
+ * One accessor after a field, read where it starts, as the server writes it back (Qore DpqlSerializer): `.name`,
+ * `[n]`, `[*]`, `{*}`, or keys in braces - `{"id"}`, `{b}` (a key after a field: `@a.b` is the field `a.b`),
+ * `{a, "b c"}`. A field with accessors is one reference (`@create.items[*].id`, `@create.items[0].id`): the chip was
+ * `create.items` and the accessors plain text after it (David, qorus#646). A name after a dot may hold a dash before
+ * a letter (`.order-id`), as the tokenizer reads one. A slice or an expression in brackets is not one of them, and
+ * ends the chip.
  */
+const MEMBER_NAME = `${NAME_START}(?:${NAME_PART}|-[a-zA-Z])*`;
+const KEY = `(?:[A-Za-z_]\\w*|"(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*')`;
 const ACCESSOR = new RegExp(
-  `\\.${FIELD_NAME}|\\[(?:-?\\d+|\\*)\\]|\\{\\*\\}|\\{"(?:\\\\.|[^"\\\\])*"\\}|\\{'(?:\\\\.|[^'\\\\])*'\\}`,
+  `\\.${MEMBER_NAME}|\\[(?:-?\\d+|\\*)\\]|\\{\\*\\}|\\{\\s*${KEY}(?:\\s*,\\s*${KEY})*\\s*\\}`,
   'uy'
 );
 
