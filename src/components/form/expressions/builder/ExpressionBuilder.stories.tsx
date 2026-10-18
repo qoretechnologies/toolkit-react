@@ -11,6 +11,7 @@ import { sleep } from '../../../../../__tests__/utils';
 import { StoryMeta } from '../../../../types';
 import { templateChipLabel } from '../../../../helpers/templateText';
 import { mockExpressions } from '../mockExpressions';
+import { COUNTED_WILDCARDS, PRICES, WILDCARD_EXPRESSIONS } from '../wildcardExpressions';
 import { IExpression, IExpressionSchema } from '../types';
 import { ExpressionBuilder } from './index';
 import { withCoarsePointer } from '../../../../stories/coarsePointer';
@@ -1962,3 +1963,110 @@ export const ConditionThatGivesANumberOnAPhone: Story = {
   },
 };
 
+
+// --- field paths written with accessors (qorus#646) ---------------------------------------------------------
+
+const WILDCARD_CATALOG = [...mockExpressions, ...WILDCARD_EXPRESSIONS] as IExpressionSchema[];
+
+/** The field paths the builder draws, each as its chip's label. */
+const drawnFieldPaths = (scope: ParentNode) =>
+  Array.from(scope.querySelectorAll<HTMLElement>('.expression-field-path')).map((path) =>
+    (path.textContent ?? '').trim()
+  );
+
+export const WildcardPathsAreDrawnAsPaths: Story = {
+  args: {
+    expressions: WILDCARD_CATALOG,
+    value: COUNTED_WILDCARDS as IExpression,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders size(@orders[*].id) + size(@prices{*}) as the server parses it: each wildcard is an accessor operation over record fields. Each is drawn as the path it is - the chip "record: orders[*].id", the chip "record: prices{*}" - as a record field operand is, not as a "list wildcard" or "hash wildcard" operation whose operands read "record: id" and "record: value" (David, qorus#646).',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() =>
+      expect(drawnFieldPaths(canvasElement)).toEqual(['record: orders[*].id', 'record: prices{*}'])
+    );
+    // the two `size` operations and the sum are drawn as operations, the paths in them are not
+    expect(expressionCount(canvasElement)).toBe(3);
+    expect(canvasElement.textContent).not.toMatch(/list wildcard|hash wildcard|record: value/);
+    // each is an operand as any is: its menu replaces it, or removes it
+    for (const path of Array.from(canvasElement.querySelectorAll('.expression-field-path'))) {
+      expect(path.closest('.reqore-control-group')?.querySelector('.template-more')).toBeTruthy();
+    }
+  },
+};
+
+export const WildcardPathAloneIsItsPath: Story = {
+  args: {
+    expressions: WILDCARD_CATALOG,
+    value: PRICES as IExpression,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders @prices{*} - the values of a hash - as the whole value: it is drawn as the path, the chip "record: prices{*}", with no operation to choose. It is edited on the Expression tab.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(drawnFieldPaths(canvasElement)).toEqual(['record: prices{*}']));
+    expect(expressionCount(canvasElement)).toBe(0);
+    expect(canvasElement.querySelector('#expression-builder-select-function')).toBeNull();
+  },
+};
+
+/** The entries the open operation list offers, by name. */
+const offeredOperations = async (trigger: string) => {
+  const body = within(document.body);
+  await fireEvent.click(await body.findByText(trigger, undefined, { timeout: 10000 }));
+  return waitFor(
+    () => {
+      const offered = body.queryAllByText('list wildcard ([*])');
+      if (!offered.length) throw new Error('the operation list is not open');
+      return document.body.textContent ?? '';
+    },
+    { timeout: 10000 }
+  );
+};
+
+export const WildcardItemIsNeverOffered: Story = {
+  args: {
+    expressions: WILDCARD_CATALOG,
+    value: {
+      is_expression: true,
+      value: { exp: 'size', args: [{ type: 'auto', value: '$record:{orders}' }] },
+    } as IExpression,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders size(@orders) with a catalogue in which "wildcard item" - the item of a [*] wildcard, which DPQL does not write - carries the server\'s flag for an operation never offered for picking. Neither the operation list nor the Wrap list offers it; "list wildcard ([*])" and "hash wildcard ({*})" are offered (qorus#646).',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(expressionCount(canvasElement)).toBe(1), { timeout: 10000 });
+
+    // the operation list
+    const operations = await offeredOperations('Size');
+    expect(operations).toContain('hash wildcard ({*})');
+    expect(operations).not.toContain('wildcard item');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(within(document.body).queryAllByText('list wildcard ([*])')).toHaveLength(0)
+    );
+
+    // the Wrap list: the same entries
+    await userEvent.hover(canvasElement.querySelectorAll('.expression')[0]);
+    const wraps = await offeredOperations('Wrap');
+    expect(wraps).toContain('hash wildcard ({*})');
+    expect(wraps).not.toContain('wildcard item');
+  },
+};

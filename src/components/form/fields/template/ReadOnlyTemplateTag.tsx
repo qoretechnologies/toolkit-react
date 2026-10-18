@@ -15,6 +15,12 @@ export interface IReadOnlyTemplateTagProps {
   value: string;
   /** Template catalogue, for resolving the display name + image + metadata. */
   templates?: IReqoreFormTemplates;
+  /**
+   * What the chip says, where the surface names a reference its own way: in the Visual tab an operand's chip
+   * says `record: orders` (`templateChipLabel`), and a field path drawn among them says it the same way. By
+   * default, the name the catalogue gives the reference, else its path.
+   */
+  label?: string;
 }
 
 /**
@@ -29,8 +35,9 @@ export interface IReadOnlyTemplateTagProps {
  * it's shown non-editably.
  */
 export const ReadOnlyTemplateTag = memo(
-  ({ value, templates }: IReadOnlyTemplateTagProps) => {
-    const { label, item } = describeTemplateReference(templates, value);
+  ({ value, templates, label: givenLabel }: IReadOnlyTemplateTagProps) => {
+    const { label: described, item } = describeTemplateReference(templates, value);
+    const label = givenLabel ?? described;
     const metadata = item?.metadata as TTemplateMeta | undefined;
     const descriptions = useDescriptionTooltips();
     return (

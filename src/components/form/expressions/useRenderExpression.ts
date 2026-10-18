@@ -21,6 +21,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { ReqraftLspClient } from '../../../utils/lspClient';
 import { IExpressionValue } from './types';
 import { expressionWithOperands, isExpressionComplete } from './expressionOperands';
+import { fieldPathOf, fieldPathTemplate, withFieldPathsAsReferences } from './fieldPath';
 
 /* The synchronous summary a collapsed row prints — see `readFirst.ts`. It is
    not a stand-in for this rendering and is never shown in its place. */
@@ -57,6 +58,11 @@ export interface IRenderedExpression {
 }
 
 const renderViaServer = async (value: IExpressionValue): Promise<IRenderedExpression | null> => {
+  /* A field path (`orders[*].id`) reads as the path, as the Visual tab draws it, not as the accessor operations
+     it is made of (qorus#646): one that is the whole expression is its reference, and one in it is rendered as
+     the reference it reads as. */
+  const path = fieldPathOf(value);
+  if (path !== undefined) return { text: fieldPathTemplate(path), richtext: null };
   if (methodUnsupported) return null;
   const client = getRenderClient();
   try {
@@ -67,7 +73,7 @@ const renderViaServer = async (value: IExpressionValue): Promise<IRenderedExpres
       'dpql/renderExpression',
       // The server accepts both the bare `{exp, args}` AST and the
       // `{is_expression, value}` wrapper; consumers pass the bare AST.
-      { expression: value }
+      { expression: withFieldPathsAsReferences(value) }
     );
     return typeof result?.rendered === 'string'
       ? { text: result.rendered, richtext: result.richtext ?? null }

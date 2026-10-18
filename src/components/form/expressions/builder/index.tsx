@@ -40,8 +40,10 @@ import {
   isTextOrDateType,
 } from '../../../../helpers/expressions';
 import { addMissingExpressionArgs } from '../argumentPresence';
+import { fieldPathOf, fieldPathTemplate } from '../fieldPath';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
 import { findTemplate } from '../../../../helpers/templates';
+import { templateChipLabel } from '../../../../helpers/templateText';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
 import { IQorusTypeObject, useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useReqraftStorage } from '../../../../hooks/useStorage/useStorage';
@@ -50,6 +52,7 @@ import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { useTemplates } from '../../../../hooks/useTemplates';
 import { AutoFormField as auto } from '../../fields/auto/AutoFormField';
 import { SelectFormField as Select } from '../../fields/select/Select';
+import { ReadOnlyTemplateTag } from '../../fields/template/ReadOnlyTemplateTag';
 import {
   ITemplateMenuActions,
   TCustomTemplateItems,
@@ -60,6 +63,7 @@ import {
   IExpression,
   IExpressionSchema,
   IExpressionSchemaArg,
+  isOfferedForPicking,
   TExpressionReorder,
   TExpressionReorderSurface,
 } from '../types';
@@ -658,6 +662,8 @@ export const Expression = ({
   const defaultItems = useMemo(
     () =>
       expressions.value
+        // an operation drawn only inside the construct that makes it is never offered (`internal`)
+        .filter(isOfferedForPicking)
         // a condition (a field or an operand that must be true or false) offers the operations whose
         // result decides it - any but text, a date or a time, which are compared explicitly; a group's members
         // are its own business, and the operation already chosen
@@ -1647,6 +1653,24 @@ export const ExpressionBuilder = ({
           </ReqoreControlGroup>
         </ExpressionItem>
       </ReqoreErrorBoundary>
+    );
+  }
+
+  /* A field path written with accessors - `orders[*].id`, `prices{*}` - is drawn as the path, the chip a record
+     field is, not as the accessor operations it is made of: their operands misread (the `@value` of a hash
+     wildcard is the item's value, not a record field), and an operation with a source and a body is not what
+     was written (David, qorus#646). It is edited on the Expression tab; here it can be removed, as any operand
+     can, with its field's controls. */
+  const fieldPath = fieldPathOf(value);
+  if (fieldPath !== undefined) {
+    return (
+      <span className='expression-field-path' data-path={fieldPath}>
+        <ReadOnlyTemplateTag
+          value={fieldPathTemplate(fieldPath)}
+          templates={resolvedTemplates}
+          label={templateChipLabel(resolvedTemplates, fieldPathTemplate(fieldPath))}
+        />
+      </span>
     );
   }
 

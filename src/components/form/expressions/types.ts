@@ -97,7 +97,16 @@ export interface IExpressionSchema {
   from_both?: boolean;
   return_type_first_arg?: boolean;
   return_type_arg_priority?: string[];
+  /**
+   * Never offered for picking: the operation is drawn only inside the construct that makes it - `wildcard_item`,
+   * the item of a `[*]` wildcard, which DPQL does not write (qorus#646). The operation pickers leave it out.
+   */
+  internal?: boolean;
 }
+
+/** Whether a catalogue entry is offered in the operation pickers: any not flagged `internal`. */
+export const isOfferedForPicking = (schema: Pick<IExpressionSchema, 'internal'>): boolean =>
+  schema.internal !== true;
 
 /** Where a varargs expression offers operand reordering. */
 export type TExpressionReorderSurface = 'overflowMenu' | 'dragHandle' | 'positionPicker';

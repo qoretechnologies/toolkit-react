@@ -94,6 +94,10 @@ New subsystem `src/components/form/expressions/`:
 
 Touched: `TemplateField.tsx` (Use-Expression toggle + render `ExpressionField` when `is_expression`), `FormField`/`FormEngine` value plumbing for `is_expression`, the form barrel (exports).
 
+**Field paths (qorus#646).** The server reads a field path written with accessors (`@orders[*].id`, `@prices{*}`, `@items[0].id`, or the same inside `$record:{…}`) into accessor operations: `list_wildcard`, `hash_wildcard`, `wildcard_item`, `index` and `key` over record fields. An expression made only of those is read as the path it is (`fieldPath.ts`). The Visual tab draws it as one display-only chip, the chip a record-field operand has (`record: orders[*].id`), not as an operation with a source and a body. It is edited on the Expression tab, and the operand's menu replaces or removes it. The row summary, the Text view's text of an unfinished expression, and the server's rendering (Explain, the Preview, the read view) read it the same way: the server is asked to render the path as the reference it reads as. What is stored is not changed.
+
+**Never offered for picking.** A catalogue entry flagged `internal` (`wildcard_item`, which DPQL does not write: it is drawn only inside the wildcard that makes it) is left out of the operation list and the Wrap list (`isOfferedForPicking`). The flag is the server's, with no rule by name in reqraft.
+
 **Flow:**
 ```
 FormEngine option { supports_expressions:true }

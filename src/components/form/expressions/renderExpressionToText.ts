@@ -5,6 +5,7 @@
 // `dpql/renderExpression` (see `useRenderExpression`). Pure: no
 // transport/socket import, so it stays out of the LSP/nanoid dependency graph.
 import { expressionOperand } from './expressionOperands';
+import { fieldPathOf, fieldPathTemplate } from './fieldPath';
 import { IExpression, IExpressionSchema, IExpressionValue } from './types';
 
 /** How a part not filled in yet is written: an operation not chosen, a value not given. */
@@ -96,6 +97,9 @@ const renderInContext = (
   contextPrec: number
 ): string => {
   if (!value?.exp) return '';
+  // a field path reads as the path, the reference a record field operand is (fieldPath, qorus#646)
+  const path = fieldPathOf(value);
+  if (path !== undefined) return renderLiteral(fieldPathTemplate(path));
   /* A `value` expression IS its literal.
   
      It is the wrapper the parser puts around a bare literal — typing `null`,

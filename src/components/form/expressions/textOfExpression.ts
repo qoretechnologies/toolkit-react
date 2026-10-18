@@ -6,6 +6,7 @@
 // `{args=(null)} > {type=int}`, a stand-in `undefined([object Object]) > [object Object]`.
 // The Text view serializes only an expression that is filled in, with its operands
 // read as what they hold, and shows one that is not with a hole for each missing part.
+import { recordFieldOfTemplate, templateTokenSpans } from '../../../helpers/templates';
 import { expressionOperand, expressionWithOperands, isExpressionComplete } from './expressionOperands';
 import { EXPRESSION_HOLE, renderExpressionToText } from './renderExpressionToText';
 import { IExpressionSchema, IExpressionValue } from './types';
@@ -30,10 +31,21 @@ export const incompleteExpressionText = (
   value: IExpressionValue | undefined,
   expressions: IExpressionSchema[] = []
 ): string =>
-  value?.exp
-    ? renderExpressionToText(value, expressions)
-        // a field of the record, as DPQL names it
-        .replace(/"\$record:\{([^}]+)\}"/g, '@$1')
-    : EXPRESSION_HOLE;
+  value?.exp ? recordFieldsAsDpql(renderExpressionToText(value, expressions)) : EXPRESSION_HOLE;
+
+/** Each quoted record field in `text` as DPQL names it: `"$record:{orders[*].id}"` is `@orders[*].id`. Read as
+ *  templates are, so a path with braces in it (`prices{*}`) is one field, not cut at its first `}`. */
+const recordFieldsAsDpql = (text: string): string => {
+  let out = '';
+  let last = 0;
+  templateTokenSpans(text).forEach(([start, end]) => {
+    const field = recordFieldOfTemplate(text.slice(start, end));
+    if (field && text[start - 1] === '"' && text[end] === '"') {
+      out += `${text.slice(last, start - 1)}@${field}`;
+      last = end + 1;
+    }
+  });
+  return out + text.slice(last);
+};
 
 export { expressionOperand };
