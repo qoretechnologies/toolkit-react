@@ -1,5 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 import { StoryObj } from '@storybook/react-vite';
+import { expect } from 'storybook/test';
 
 import { templateTextSegments } from '../../../../helpers/templateText';
 import {
@@ -70,4 +71,30 @@ export const WithoutAHostRenderer: Story = {
     },
   },
   play: playHoverIsPlainWithoutAHost,
+};
+
+/** The chips a read text draws, each as its words. */
+const chipsIn = (scope: ParentNode) =>
+  Array.from(scope.querySelectorAll<HTMLElement>('.reqraft-template-chip')).map((chip) =>
+    (chip.textContent ?? '').trim()
+  );
+
+export const BracedTemplatesAreWhole: Story = {
+  args: {
+    segments: templateTextSegments('Prices: $record:{prices{*}}, keys: $record:{h.\\\\{*}} kg'),
+    templates: undefined,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders text with two templates whose braced values hold braces: $record:{prices{*}} - the values of a hash, {*} written unescaped - and $record:{h.\\\\{*}}, a key named {*}. Each is one chip, "record: prices{*}" and "record: h.\\\\{*}", and the text after them stays text; the value ended at its first } before, a chip "record: prices{*" and a stray "}" (qorus#646).',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await expect(chipsIn(canvasElement)).toEqual(['record: prices{*}', 'record: h.\\\\{*}']);
+    await expect(canvasElement.textContent).toContain('kg');
+    await expect(canvasElement.textContent).not.toMatch(/\{\*\s*\}\s*\}/);
+  },
 };
