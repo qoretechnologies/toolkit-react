@@ -95,19 +95,107 @@ export const getTemplateValue = (value: string): string => {
  * LOOSER (starts with `$`, has `:`): it answers "does the user mean a
  * template here" while typing; use the strict check below when a decision
  * must not misfire on user-typed dollar-strings.
+ *
+ * A braced segment ends where Qorus ends it (UserApi `_priv_get_template_bracket_arg`, qorus#646): braces nest,
+ * and `\{`, `\}` and `\\` are a brace or a backslash of the value, not one that opens or closes it. So
+ * `$record:{prices{*}}` - a wildcard written as a template - is one token; a pattern ending the value at its first
+ * `}` drew the chip "record: prices{*" and a stray "}". No pattern can count braces, so the grammar is read one
+ * character at a time (`templateTokenSpans`).
  */
-export const TEMPLATE_TOKEN_SOURCE =
-  '\\$[A-Za-z_][\\w-]*(?::(?:\\{[^}]*\\}|[A-Za-z_][\\w-]*))+';
+const TEMPLATE_KEY = /[A-Za-z_][\w-]*/y;
+const TEMPLATE_WORD_SEGMENT = /[A-Za-z_][\w-]*/y;
 
-const COMPLETE_TEMPLATE_TOKEN = new RegExp(`^${TEMPLATE_TOKEN_SOURCE}$`);
+/** Where a braced segment that opens at `from` (its `{`) ends: the index after the `}` that closes it, or -1. */
+const endOfBracedSegment = (text: string, from: number): number => {
+  let depth = 0;
+  for (let i = from; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === '\\' && ['{', '}', '\\'].includes(text[i + 1])) {
+      i += 1;
+    } else if (char === '{') {
+      depth += 1;
+    } else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return i + 1;
+      }
+    }
+  }
+  return -1;
+};
+
+/** Where the template token that starts at `at` (its `$`) ends, or -1 when none starts there. */
+const endOfTemplateToken = (text: string, at: number): number => {
+  if (text[at] !== '$') {
+    return -1;
+  }
+  TEMPLATE_KEY.lastIndex = at + 1;
+  if (!TEMPLATE_KEY.test(text)) {
+    return -1;
+  }
+  let end = TEMPLATE_KEY.lastIndex;
+  let segments = 0;
+  // `:<segment>` once or more; a `:` with no segment after it is not part of the token
+  while (text[end] === ':') {
+    let segmentEnd: number;
+    if (text[end + 1] === '{') {
+      segmentEnd = endOfBracedSegment(text, end + 1);
+    } else {
+      TEMPLATE_WORD_SEGMENT.lastIndex = end + 1;
+      segmentEnd = TEMPLATE_WORD_SEGMENT.test(text) ? TEMPLATE_WORD_SEGMENT.lastIndex : -1;
+    }
+    if (segmentEnd < 0) {
+      break;
+    }
+    end = segmentEnd;
+    segments += 1;
+  }
+  return segments ? end : -1;
+};
+
+/** Every template token in `text`, in order and apart: each `[start, end)`. */
+export const templateTokenSpans = (text: string): Array<[number, number]> => {
+  const spans: Array<[number, number]> = [];
+  for (let at = text.indexOf('$'); at !== -1; at = text.indexOf('$', at)) {
+    const end = endOfTemplateToken(text, at);
+    if (end > 0) {
+      spans.push([at, end]);
+      at = end;
+    } else {
+      at += 1;
+    }
+  }
+  return spans;
+};
+
+/** The record field a template names - `$record:{orders[*].id}` is `orders[*].id` - when it is that template alone
+ *  (one braced segment, nothing after it); otherwise undefined. */
+export const recordFieldOfTemplate = (token: string): string | undefined => {
+  const prefix = '$record:';
+  return (
+      token.startsWith(`${prefix}{`) && endOfBracedSegment(token, prefix.length) === token.length
+    ) ?
+      token.slice(prefix.length + 1, -1)
+    : undefined;
+};
+
+/** `text` cut at its template tokens: the pieces of text and the tokens, in order, none of them empty. */
+export const splitAtTemplateTokens = (text: string): string[] => {
+  const parts: string[] = [];
+  let last = 0;
+  templateTokenSpans(text).forEach(([start, end]) => {
+    parts.push(text.slice(last, start), text.slice(start, end));
+    last = end;
+  });
+  parts.push(text.slice(last));
+  return parts.filter((part) => part !== '');
+};
 
 /** STRICT whole-value check: the entire string is one well-formed template
  *  token (`:{id.path}`, `:item`, …) — nothing before or after.
  *  `'$foo: hello'` passes the loose check but not this one. */
 export const isCompleteTemplateToken = (value?: unknown): value is string =>
-  typeof value === 'string' && COMPLETE_TEMPLATE_TOKEN.test(value);
-
-const TEMPLATE_TOKEN_ANYWHERE = new RegExp(TEMPLATE_TOKEN_SOURCE);
+  typeof value === 'string' && endOfTemplateToken(value, 0) === value.length;
 
 /**
  * Text with a template in it that is not the template alone: `$record:{pos} Stk.`, `SUP-$record:{pos}`,
@@ -115,7 +203,9 @@ const TEMPLATE_TOKEN_ANYWHERE = new RegExp(TEMPLATE_TOKEN_SOURCE);
  * hold it (qorus#646).
  */
 export const hasTextAroundATemplate = (value?: unknown): value is string =>
-  typeof value === 'string' && TEMPLATE_TOKEN_ANYWHERE.test(value) && !isCompleteTemplateToken(value);
+  typeof value === 'string' &&
+  templateTokenSpans(value).length > 0 &&
+  !isCompleteTemplateToken(value);
 
 /** The text around the templates in a value that is not one template alone, and how many templates it holds. */
 export interface ITextAroundATemplate {
@@ -133,13 +223,17 @@ export const textAroundATemplate = (value?: unknown): ITextAroundATemplate | und
   if (!hasTextAroundATemplate(value)) {
     return undefined;
   }
-  const tokens = new RegExp(TEMPLATE_TOKEN_SOURCE, 'g');
-  const templates = value.match(tokens)?.length ?? 0;
-  const text = value
-    .split(tokens)
-    .map((piece) => piece.trim())
-    .filter((piece) => piece !== '');
-  return { text, templates };
+  const spans = templateTokenSpans(value);
+  const text: string[] = [];
+  let last = 0;
+  [...spans, [value.length, value.length] as [number, number]].forEach(([start, end]) => {
+    const piece = value.slice(last, start).trim();
+    if (piece !== '') {
+      text.push(piece);
+    }
+    last = end;
+  });
+  return { text, templates: spans.length };
 };
 
 /** A complete token carrying at least one BRACED context segment —

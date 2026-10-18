@@ -23,7 +23,7 @@ import {
   findTemplate,
   isCompleteTemplateToken,
   isValueTemplate,
-  TEMPLATE_TOKEN_SOURCE,
+  splitAtTemplateTokens,
 } from '../../../../helpers/templates';
 
 /** Scalar types whose value can be written as text: whole numbers, numbers, yes/no. Not a date, which has
@@ -84,7 +84,7 @@ export const expressionTextOfValue = (value: unknown): string => {
   if (text === '') return '';
   if (isCompleteTemplateToken(text)) return String(text);
   const plain: string = text;
-  const parts = plain.split(new RegExp(`(${TEMPLATE_TOKEN_SOURCE})`)).filter((part) => part !== '');
+  const parts = splitAtTemplateTokens(plain);
   if (parts.length === 1) return JSON.stringify(plain);
   return `concat(${parts.map((part) => (isCompleteTemplateToken(part) ? part : JSON.stringify(part))).join(', ')})`;
 };
