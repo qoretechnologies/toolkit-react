@@ -12,6 +12,7 @@ import { dpqlMockParseCalls } from './dpqlMockLsp';
 import { withCoarsePointer } from '../../../stories/coarsePointer';
 import { _testsWithViewport } from '../../../stories/Tests/utils';
 import { PHONE_VIEWPORT } from '../../../stories/tracking';
+import { middleOf, mouseOffThePage, restMouseOn } from '../../../stories/mouse';
 import { ExpressionField } from './ExpressionField';
 import { mockExpressions } from './mockExpressions';
 import { IExpression } from './types';
@@ -891,6 +892,49 @@ export const TextMode: Story = {
       { timeout: 6000 }
     );
     await waitForLspIdle(canvasElement);
+  },
+};
+
+export const TextModeHoverSaysWhatAnOperatorIs: Story = {
+  args: {
+    value: {
+      is_expression: true,
+      value: {
+        exp: '+',
+        args: [
+          { type: 'int', value: 1 },
+          { type: 'int', value: 2 },
+        ],
+      },
+    },
+    defaultMode: 'text',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders ExpressionField in Text (DPQL) mode with 1 + 2, over the stories\' stand-in server, and rests the mouse on +: the hover says what the server says of it - "addition (+)", what it does - as the live Qorus /lsp answers. Every story that draws the DPQL editor over the shared stand-in gets the server\'s hovers (qorus#646).',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await waitForLspIdle(canvasElement);
+    const editable = canvasElement.querySelector<HTMLElement>('[contenteditable="true"]')!;
+    await waitFor(() => expect(editable.textContent).toContain('1 + 2'));
+    try {
+      await restMouseOn(editable, middleOf(editable, '+'));
+      await waitFor(
+        () =>
+          expect(
+            Array.from(document.querySelectorAll('.reqore-popover-content')).map((popover) =>
+              (popover.textContent ?? '').replace(/\s+/g, ' ')
+            )
+          ).toEqual([expect.stringContaining('addition (+)')]),
+        { timeout: 10000 }
+      );
+    } finally {
+      await mouseOffThePage();
+    }
   },
 };
 

@@ -7,6 +7,7 @@
 // components make on their own. A story that needs different handlers starts
 // its own server on the URL and replaces this one (see `createMockLspServer`).
 // The answers come from `dpqlMockLanguage`, which follows the real server.
+import { mockHoverDpql } from '../../dpqlEditor/__fixtures__/dpqlMockHover';
 import {
   createMockLspServer,
   DEFAULT_LSP_CAPABILITIES,
@@ -159,6 +160,16 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
 
   'dpql/validate': () => ({ diagnostics: [] }),
 
+  // as the live `/lsp` answers it (dpqlMockHover): a field the record declares has its type
+  'textDocument/hover': (msg, server) => {
+    const uri = String(msg.params?.textDocument?.uri);
+    return mockHoverDpql(
+      server.textOf(uri),
+      (msg.params?.position as { line: number; character: number }) ?? { line: 0, character: 0 },
+      dpqlMockDocumentFields.get(uri)
+    );
+  },
+
   'dpql/renderExpression': (msg) => mockRenderDpql(msg.params?.expression as IDpqlMockNode),
 
   'dpql/expressionType': (msg) => mockExpressionTypeDpql(msg.params?.expression as IDpqlMockNode),
@@ -182,6 +193,8 @@ export const startDpqlMockLspServer = (
       ...DEFAULT_LSP_CAPABILITIES,
       textDocumentSync: { openClose: true, change: 2 },
       completionProvider: { triggerCharacters: ['@', '$', '.', ':'] },
+      // the real server answers hovers: functions, operators, fields, accessors, templates (qorus#646)
+      hoverProvider: true,
     },
     // Unknown requests get an empty success so nothing hangs.
     defaultResult: {},

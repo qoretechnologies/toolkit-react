@@ -10,10 +10,26 @@ import {
   MOCK_LSP_URL,
 } from '../smartEditor/__fixtures__/mockLspServer';
 import { mockTokenizeDpql } from '../form/expressions/dpqlMockLanguage';
+import { mockHoverDpql } from './__fixtures__/dpqlMockHover';
 import { DpqlEditor } from './DpqlEditor';
 import { TDpqlFsmContext } from './types';
+import { withCoarsePointer } from '../../stories/coarsePointer';
+import { middleOf, middleOfElement, mouseOffThePage, restMouseOn } from '../../stories/mouse';
+import { withTouchScreen } from '../../stories/touchScreen';
+import { PHONE_VIEWPORT } from '../../stories/tracking';
 
 let lsp: IMockLspServer;
+
+/** The record the stories' server describes (`dpql/setContext`): what a field's hover says of it. */
+const STORY_RECORD_FIELDS = {
+  name: {
+    display_name: 'Name',
+    short_desc: "The customer's full name, as they gave it",
+    type: { name: 'string' },
+  },
+  status: { display_name: 'Status', type: { name: 'string' } },
+  age: { display_name: 'Age', type: { name: 'int' } },
+};
 
 interface IDpqlEditorStoryArgs {
   value?: string;
@@ -66,8 +82,16 @@ const meta = {
         signatureHelpProvider: {
           triggerCharacters: ['(', ',', ' ', '-', '='],
         },
+        // the real server answers hovers: functions, operators, fields, accessors, templates (qorus#646)
+        hoverProvider: true,
       },
       handlers: {
+        'textDocument/hover': (msg, server) =>
+          mockHoverDpql(
+            server.textOf(msg.params?.textDocument?.uri),
+            msg.params?.position ?? { line: 0, character: 0 },
+            STORY_RECORD_FIELDS
+          ),
         'textDocument/semanticTokens/full': (msg, server) => ({
           data: mockTokenizeDpql(server.textOf(msg.params?.textDocument?.uri)),
         }),
@@ -231,11 +255,7 @@ const meta = {
         'dpql/setContext': (msg) => ({
           provider: msg.params?.provider ?? null,
           recordType: msg.params?.recordType ?? 'record',
-          fields: {
-            name: { display_name: 'Name', type: { name: 'string' } },
-            status: { display_name: 'Status', type: { name: 'string' } },
-            age: { display_name: 'Age', type: { name: 'int' } },
-          },
+          fields: STORY_RECORD_FIELDS,
         }),
 
         'dpql/validate': () => ({ diagnostics: [] }),
@@ -564,6 +584,146 @@ export const WithAccessorChains: Story = {
       ])
     );
     await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
+
+/** The hovers the editor shows, as their text. */
+const shownHovers = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('.reqore-popover-content'))
+    .map((popover) => (popover.textContent ?? '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+/** The editor, once its server is connected and the record described: a hover asked for from now on is answered. */
+const readyEditor = async (canvasElement: HTMLElement) => {
+  await waitFor(
+    () =>
+      expect(canvasElement.textContent).not.toMatch(/Connecting to language server|Loading schema/),
+    { timeout: 10000 }
+  );
+  return within(canvasElement).getByRole('textbox');
+};
+
+/** The chip the editor draws for `label`. */
+const chipFor = (editable: HTMLElement, label: string) =>
+  waitFor(() => {
+    const chip = Array.from(editable.querySelectorAll<HTMLElement>('.reqore-tag')).find(
+      (each) => (each.textContent ?? '').replace(/\uFEFF/g, '').trim() === label
+    );
+    expect(chip, `the chip ${label}`).toBeTruthy();
+    return chip!;
+  });
+
+export const HoverSaysWhatAFunctionIs: Story = {
+  args: { ...WithAccessorChains.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with size(@create.items[*].id) > size(@prices{*}) && … and rests the mouse on size: the hover says what the server says of it - "function size", "Get Size", what it returns and its argument - as the live Qorus /lsp answers (qorus#646, David: "there are no mouseover / hovers on the functions").',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    try {
+      await restMouseOn(editable, middleOf(editable, 'size'));
+      await waitFor(() => expect(shownHovers()).toEqual([expect.stringContaining('Get Size')]), {
+        timeout: 10000,
+      });
+      await expect(shownHovers()[0]).toContain('Returns the size of the operand');
+    } finally {
+      await mouseOffThePage();
+    }
+  },
+};
+
+export const HoverOverAChipSaysWhatItsPathIs: Story = {
+  args: { ...WithAccessorChains.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with the field path @create.items[*].id drawn as one chip, and rests the mouse on the chip: the hover says what the server says of each part of it - the field @create.items, the list wildcard [*], and the field id after it - as its text would, in one card (qorus#646, David: "there are no mouseover / hovers on the chips").',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    const chip = await chipFor(editable, 'create.items[*].id');
+    try {
+      await restMouseOn(chip, middleOfElement(chip));
+      await waitFor(
+        () => expect(shownHovers()).toEqual([expect.stringContaining('list wildcard ([*])')]),
+        { timeout: 10000 }
+      );
+      const [hover] = shownHovers();
+      await expect(hover).toContain('@create.items');
+      await expect(hover).toMatch(/field\s*id/);
+    } finally {
+      await mouseOffThePage();
+    }
+  },
+};
+
+export const DetailsOnAChipOnATouchScreen: Story = {
+  tags: ['touch'],
+  args: { ...WithAccessorChains.args, onChange: fn() },
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders the same text on a phone (390 px, touch) and taps the chip create.items[*].id, then Details: a finger cannot hover, and Details shows what the server says of the chip - the field @create.items, the list wildcard [*] and the field id - in a card under the button.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await withTouchScreen(async (touch) => {
+      const editable = await readyEditor(canvasElement);
+      const chip = await chipFor(editable, 'create.items[*].id');
+      await touch.tap(chip);
+      const details = await waitFor(
+        () => {
+          const button = canvasElement.querySelector<HTMLElement>('.smart-editor-details');
+          expect(button, 'the Details button').toBeTruthy();
+          return button!;
+        },
+        { timeout: 10000 }
+      );
+      await touch.tap(details);
+      await waitFor(
+        () => expect(shownHovers()).toEqual([expect.stringContaining('list wildcard ([*])')]),
+        { timeout: 10000 }
+      );
+      await expect(shownHovers()[0]).toContain('@create.items');
+    });
+  },
+};
+
+export const AChipWithItsOwnDescriptionShowsOneHover: Story = {
+  args: { value: '@name == "Alice"', provider: 'orders-db', recordType: 'record', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders @name == "Alice" with the record described, and rests the mouse on the chip Name: the chip shows its own description - "The customer\'s full name, as they gave it" - and the server\'s hover is not drawn over it as well. One hover over a chip, not two.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    const chip = await chipFor(editable, 'Name');
+    try {
+      await restMouseOn(chip, middleOfElement(chip));
+      await waitFor(
+        () => expect(shownHovers()).toEqual([expect.stringContaining("The customer's full name")]),
+        { timeout: 10000 }
+      );
+      await expect(shownHovers().join(' ')).not.toContain('Type: string');
+    } finally {
+      await mouseOffThePage();
+    }
   },
 };
 
