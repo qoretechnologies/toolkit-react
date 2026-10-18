@@ -2047,7 +2047,7 @@ export const WildcardItemIsNeverOffered: Story = {
     docs: {
       description: {
         story:
-          'Renders size(@orders) with a catalogue in which "wildcard item" - the item of a [*] wildcard, which DPQL does not write - carries the server\'s flag for an operation never offered for picking. Neither the operation list nor the Wrap list offers it; "list wildcard ([*])" and "hash wildcard ({*})" are offered (qorus#646).',
+          'Renders size(@orders) with a catalog in which "wildcard item" - the item of a [*] wildcard, which DPQL does not write - carries the server\'s flag for an operation never offered for picking. Neither the operation list nor the Wrap list offers it; "list wildcard ([*])" and "hash wildcard ({*})" are offered (qorus#646).',
       },
     },
   },
