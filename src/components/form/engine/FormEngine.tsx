@@ -1251,6 +1251,17 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   readSummaries?: Record<string, TReadSummary>;
   /**
+   * The `ui_type`s of the host's own editors (`componentOverrides`) that are too tall or nested to edit in a row:
+   * a row of one of them opens its editor in the card below it, as a hash or a schema does, not in the row's value
+   * column (which is about 240px). The form's own complex types (`hash`, `list`, `schema-definition`,
+   * `processor-mappings`, ...) open in the card whatever this says.
+   *
+   * In a read-only form, a row of one of them, and a row the host summarizes (`readSummaries`), opens its card with
+   * the editor read-only, and its fullscreen view: its summary is one line, and the form draws no preview of its
+   * own under it, so this is where what it holds is read.
+   */
+  cardEditorTypes?: string[];
+  /**
    * Draws every markdown description this form shows -- the inline row
    * description, the focused-editing header, and the field help dialog.
    *
@@ -1456,6 +1467,7 @@ const FormEngineImpl = ({
   componentOverrides,
   codePreviewRenderer,
   readSummaries,
+  cardEditorTypes,
   // consumed by the wrapper below, which publishes it to every description this
   // form draws; destructured here only so it cannot reach `rest` and be spread
   // onto a DOM node
@@ -3768,6 +3780,7 @@ const FormEngineImpl = ({
       showFieldTypes,
       codePreviewRenderer,
       readSummaries,
+      cardEditorTypes,
       showAllDescriptions,
       expandedOptions,
       highlightedOptions,
@@ -3819,6 +3832,7 @@ const FormEngineImpl = ({
       showFieldTypes,
       codePreviewRenderer,
       readSummaries,
+      cardEditorTypes,
       showAllDescriptions,
       expandedOptions,
       highlightedOptions,

@@ -148,6 +148,8 @@ export interface ICompactRowContext {
   codePreviewRenderer?: TCodePreviewRenderer;
   /** A collapsed row's summary drawn by the host, by `ui_type` (see `TReadSummary`). */
   readSummaries?: Record<string, TReadSummary>;
+  /** The host's editors that open in the card below their row (see FormEngine's `cardEditorTypes`). */
+  cardEditorTypes?: string[];
 
   // Theme + theme-derived colors
   theme: IReqoreTheme;

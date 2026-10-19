@@ -211,6 +211,7 @@ export const CompactRow = memo(
       absorbedName;
     const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
     const readSummaries = useContextSelector(CompactRowContext, (v) => v.readSummaries);
+    const cardEditorTypes = useContextSelector(CompactRowContext, (v) => v.cardEditorTypes);
     const markdownRenderer = useMarkdownRenderer();
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
     const focusedEditing = useContextSelector(CompactRowContext, (v) => v.focusedEditing);
@@ -805,6 +806,20 @@ export const CompactRow = memo(
       (fixedAllowedValueOption ?
         (schema?.type as string) || (schema?.ui_type as string)
       : (schema?.ui_type as string) || (schema?.type as string)) ?? '';
+    /* A complex field (a tall or nested editor) opens in the card below the row: reqraft's own complex types, and
+       the host's editors it names (`cardEditorTypes`): a host editor of its own, such as a sheet contract, opened
+       in the row's value column, about 240px wide (qorus#646). */
+    const isHostCardEditor = !!cardEditorTypes?.includes(editType);
+    const opensInCard = COMPACT_COMPLEX_TYPES.has(editType) || isHostCardEditor;
+    /* What the host draws for the row when it is closed (`readSummaries`): a summary of its own, under which the
+       row draws no preview of the value (see `hostSummarizes`). */
+    const readSummaryUiType = (schema as { ui_type?: string } | undefined)?.ui_type;
+    const ReadSummary = readSummaryUiType ? readSummaries?.[readSummaryUiType] : undefined;
+    /* In a read-only form, a row whose content its line does not show - a host editor that opens in the card, or a
+       row the host summarizes - opens its card with the editor read-only, and its fullscreen view: the summary is
+       one line ("4 columns · 1 rule"), and with no preview under it, the card is where what it holds is read
+       (qorus#646). Any other read-only row shows all it holds and opens nothing. */
+    const readOnlyOpens = !!readOnly && !hidden && (isHostCardEditor || !!ReadSummary);
     // Scalars edit in place inside the row; complex fields (tall or nested
     // editors) still open the expanded card below.
     const inlineEditableNow =
@@ -815,7 +830,7 @@ export const CompactRow = memo(
       !(optionField as { is_expression?: boolean }).is_expression &&
       // A choice with per-option logos (e.g. language) reads better collapsed.
       !optionHasImages(schema) &&
-      !COMPACT_COMPLEX_TYPES.has(editType);
+      !opensInCard;
 
     /* Which of the two editors a row gets is settled when the row OPENS.
      *
@@ -1177,7 +1192,8 @@ export const CompactRow = memo(
           effect={{ uppercase: true, spaced: 1 }}
         />
       : null;
-    const isPassiveCloseAction = fixedAllowedValueOption;
+    // nothing can have been typed where the value is a fixed choice, or the form is read-only (a card opened to read)
+    const isPassiveCloseAction = fixedAllowedValueOption || !!readOnly;
     // Cancel — the counterpart to Done, and the answer to "how do I get out of
     // here without keeping this". Done was the only way to leave an open field,
     // so every way out committed: the check, clicking away, and Escape (which
@@ -1418,8 +1434,10 @@ export const CompactRow = memo(
         tooltip='More actions'
         items={[
           {
-            label: 'Edit fullscreen',
+            // a card opened to read is viewed in full, not edited
+            label: readOnly ? 'View fullscreen' : 'Edit fullscreen',
             icon: 'FullscreenLine',
+            className: 'options-readfirst-fullscreen',
             onClick: () => setFocusedEditing(optionName),
           } as IReqoreDropdownItem,
           ...(removable && !hidden ?
@@ -1512,7 +1530,7 @@ export const CompactRow = memo(
         })()
       : null;
 
-    if (isExpanded && !readOnly) {
+    if (isExpanded && (!readOnly || readOnlyOpens)) {
       if (inlineEditable) {
         // closing the row by its label keeps what was typed, as Done does
         const collapse = () => {
@@ -1882,6 +1900,8 @@ export const CompactRow = memo(
               isFullscreen={focusedEditing === optionName}
               onClose={() => setFocusedEditing(undefined)}
               description={(schema?.display_name as string) || optionName}
+              // a card opened to read is viewed in full, not edited
+              {...(readOnly ? { label: 'Focused View' } : {})}
             >
               {focusedEditing === optionName ?
                 <Description
@@ -1903,8 +1923,6 @@ export const CompactRow = memo(
 
     const formatted = formatOptionValue(optionField, schema);
     const empty = formatted === '';
-    const readSummaryUiType = (schema as { ui_type?: string } | undefined)?.ui_type;
-    const ReadSummary = readSummaryUiType ? readSummaries?.[readSummaryUiType] : undefined;
     // A field with no value of its own but a declared default is not simply
     // unanswered: the default is what the server will use, and an em-dash says
     // the opposite. Render the default in its place, through the same formatter
@@ -1962,14 +1980,22 @@ export const CompactRow = memo(
       typeof optionField.value === 'object' &&
       !Array.isArray(optionField.value) &&
       !isExpression;
+    /* Where the host draws the row's summary (`readSummaries`), the row draws no preview of its own under it: the
+       host's summary says what the value is ("4 columns · 1 rule"), and a structured preview of the same value
+       under it ("columns · List · 4 items") said it again, in reqraft's words (qorus#646). The card, which a
+       read-only form opens for such a row too (`readOnlyOpens`), is where the value is read in full. */
+    const hostSummarizes = !!ReadSummary;
     const hashEntries =
-      !hidden && (isPlainHashType || isObjectValuedType) ? getHashEntries(optionField, schema) : [];
+      !hidden && !hostSummarizes && (isPlainHashType || isObjectValuedType) ?
+        getHashEntries(optionField, schema)
+      : [];
     // A LIST OF HASHES/objects gets the same expandable structured preview a hash
     // does — the flat "N items" summary can't convey object contents (and must
     // never print "[object Object]"). StructuredDataView unwraps each item's
     // {type,value} envelope. Plain scalar lists keep just their joined summary.
     const isHashList =
       !hidden &&
+      !hostSummarizes &&
       (valueType === 'list' || valueType === 'free-list' || valueType === 'array') &&
       Array.isArray(optionField?.value) &&
       optionField.value.length > 0 &&
@@ -1991,6 +2017,7 @@ export const CompactRow = memo(
     // preview uses — mutually exclusive with `showStructuredPreview`.
     const showCodePreview =
       !hidden &&
+      !hostSummarizes &&
       valueType === 'code-editor' &&
       typeof optionField?.value === 'string' &&
       optionField.value.length > 0;
@@ -2048,6 +2075,7 @@ export const CompactRow = memo(
     // every description row tall for nothing.
     const showMarkdownPreview =
       !hidden &&
+      !hostSummarizes &&
       !showCodePreview &&
       !!markdownRenderer &&
       // keyed on the schema's ui_type, not on getValueType(): a markdown value
@@ -2070,6 +2098,7 @@ export const CompactRow = memo(
     const showLongTextInset =
       readOnly &&
       !hidden &&
+      !hostSummarizes &&
       !showCodePreview &&
       !showMarkdownPreview &&
       !showStructuredPreview &&
@@ -2220,7 +2249,10 @@ export const CompactRow = memo(
       // change has said exactly what they want, and answering with silence
       // teaches them the surface is broken.
       if (fieldDisabled || readOnly) {
-        if (readOnly && !fieldDisabled) {
+        // ...except a row whose line cannot show what it holds: it opens its card to be read (`readOnlyOpens`)
+        if (readOnlyOpens && !fieldDisabled) {
+          toggleExpandedOption(optionName);
+        } else if (readOnly && !fieldDisabled) {
           onReadOnlyActivate?.(optionName);
         }
         return;
@@ -2293,8 +2325,8 @@ export const CompactRow = memo(
        go. Then it takes a button's role, focus and keyboard handling, because
        a thing that acts on a click has to be reachable without a mouse and has
        to announce what it does — and "Edit X", not "X", is what it does. */
-    const readOnlyIsAWayIn = !!readOnly && !fieldDisabled && !!onReadOnlyActivate;
-    const actsOnClick = !readOnly || readOnlyIsAWayIn;
+    const readOnlyIsAWayIn = !!readOnly && !fieldDisabled && !readOnlyOpens && !!onReadOnlyActivate;
+    const actsOnClick = !readOnly || readOnlyIsAWayIn || readOnlyOpens;
 
     const row = (
       <div
@@ -2304,13 +2336,17 @@ export const CompactRow = memo(
         tabIndex={actsOnClick ? 0 : undefined}
         aria-label={
           readOnlyIsAWayIn ? `Edit ${label}`
+          : readOnlyOpens ?
+            `View ${label}`
           : readOnly ?
             undefined
           : label
         }
-        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${readOnlyIsAWayIn ? ' readfirst-row-way-in' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
+        className={`readfirst-row options-readfirst-value${readOnly ? ' readfirst-row-read' : ''}${readOnlyIsAWayIn || readOnlyOpens ? ' readfirst-row-way-in' : ''}${readOnlyOpens ? ' readfirst-row-opens' : ''}${hidden ? ' readfirst-row-hidden' : ''}${fieldDisabled ? ' readfirst-row-disabled' : ''}${isHighlighted ? ' readfirst-row-group-highlight' : ''}${isFlashed ? ' readfirst-row-flash' : ''}${showLabelDesc ? ' readfirst-row-info-open' : ''}${panelMessages.length || showStructuredPreview || showCodePreview || showMarkdownPreview || showLongTextInset ? ' readfirst-row-tall' : ''}${clusterBlockClass ? ' ' + clusterBlockClass : ''}`}
         aria-disabled={fieldDisabled || undefined}
-        style={readOnlyIsAWayIn ? { ...stripeStyle, cursor: 'pointer' } : stripeStyle}
+        style={
+          readOnlyIsAWayIn || readOnlyOpens ? { ...stripeStyle, cursor: 'pointer' } : stripeStyle
+        }
         onClick={actsOnClick ? activate : undefined}
         onKeyDown={
           !actsOnClick ? undefined : (

@@ -46,6 +46,7 @@ import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOpti
 import { storyApiUrl } from '../../../stories/storyNetwork';
 import { withCoarsePointer } from '../../../stories/coarsePointer';
 import { PHONE_VIEWPORT } from '../../../stories/tracking';
+import { withTouchScreen } from '../../../stories/touchScreen';
 
 // schema data
 
@@ -11726,6 +11727,250 @@ export const ReadSummaryFromItsHost: Story = {
     expect(canvasElement.querySelector('.readfirst-row[data-field="mappings"]')?.textContent).not.toContain(
       '2 items'
     );
+  },
+};
+
+/** A sheet contract as a host's editor holds it: the columns it names, and its rules. */
+interface ISheetContract {
+  columns?: string[];
+  rules?: string[];
+}
+
+/** A host's editor for a sheet contract, as the Qorus IDE has one: a name to edit for each column. */
+const SheetContractEditor = ({
+  value,
+  onChange,
+  readOnly,
+  disabled,
+}: {
+  value?: ISheetContract;
+  onChange?: (value: ISheetContract) => void;
+  readOnly?: boolean;
+  disabled?: boolean;
+}) => {
+  const columns = value?.columns ?? [];
+  return (
+    <div
+      className='sheet-contract-editor'
+      style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+    >
+      {columns.map((column, index) => (
+        <ReqoreInput
+          key={index}
+          fluid
+          className='sheet-contract-column'
+          aria-label={`Column ${index + 1}`}
+          value={column}
+          readOnly={readOnly}
+          disabled={disabled || readOnly}
+          onChange={(event: ChangeEvent<HTMLInputElement>) =>
+            onChange?.({
+              ...value,
+              columns: columns.map((each, at) => (at === index ? event.target.value : each)),
+            })
+          }
+        />
+      ))}
+    </div>
+  );
+};
+
+/** What the host says of a sheet contract on its closed row. */
+const SheetContractSummary = ({ value }: { value: unknown }) => {
+  const contract = (value ?? {}) as ISheetContract;
+  const rules = contract.rules?.length ?? 0;
+  return (
+    <ReqoreTag
+      className='sheet-contract-summary'
+      size='small'
+      minimal
+      icon='Table2'
+      label={`${contract.columns?.length ?? 0} columns · ${rules} rule${rules === 1 ? '' : 's'}`}
+    />
+  );
+};
+
+const SHEET_CONTRACT_OPTIONS = {
+  contract: { type: 'hash', ui_type: 'sheet-contract', display_name: 'Sheet Contract' },
+  name: { type: 'string', display_name: 'Name' },
+} as unknown as IQorusFormSchema;
+
+const SHEET_CONTRACT_VALUE = {
+  contract: {
+    type: 'hash',
+    value: { columns: ['Order ID', 'Unit.Price', 'Quantity', 'Customer'], rules: ['Quantity > 0'] },
+  },
+  name: { type: 'string', value: 'Orders import' },
+};
+
+/** A form with a sheet contract the host edits and summarizes, and names as an editor that opens in the card. */
+const SheetContractForm = ({ readOnly }: { readOnly?: boolean }) => {
+  const [value, setValue] = useState<any>(SHEET_CONTRACT_VALUE);
+  return (
+    <FormEngine
+      compact
+      name='sheetContract'
+      readOnly={readOnly}
+      options={SHEET_CONTRACT_OPTIONS}
+      value={value}
+      onChange={(_n, v) => setValue(v)}
+      componentOverrides={{ 'sheet-contract': SheetContractEditor }}
+      readSummaries={{ 'sheet-contract': SheetContractSummary }}
+      cardEditorTypes={['sheet-contract']}
+    />
+  );
+};
+
+/** The sheet contract's row, read or open. */
+const contractRow = () =>
+  [...document.querySelectorAll<HTMLElement>('[data-field="contract"]')].pop() as HTMLElement;
+
+/** The sheet contract's open card, once it has opened. */
+const contractCard = () =>
+  waitFor(() => {
+    const card = document.querySelector<HTMLElement>(
+      '.options-readfirst-card[data-field="contract"]'
+    );
+    expect(card, 'the card under the row').toBeTruthy();
+    expect(card!.querySelector('.sheet-contract-editor'), 'the host editor in it').toBeTruthy();
+    return card!;
+  });
+
+export const AHostEditorOpensAsTheCard: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a form whose host edits a sheet contract with an editor of its own and names it among the editors that open in the card (`cardEditorTypes`). Clicked, the row opens its editor in the card below it, the full width of the form, not in the row's value column (qorus#646: the Qorus IDE's sheet contract opened in the row, about 240px wide).",
+      },
+    },
+  },
+  render: () => <SheetContractForm />,
+  play: async () => {
+    await userEvent.click(await waitFor(() => contractRow()));
+    const card = await contractCard();
+    await expect(
+      document.querySelector('.options-readfirst-inline[data-field="contract"]')
+    ).toBeNull();
+    // the four columns, each its own input, in a card as wide as the form
+    await expect(card.querySelectorAll('.sheet-contract-editor input')).toHaveLength(4);
+  },
+};
+
+export const NoPreviewUnderAHostSummary: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a form whose host draws the closed summary of a sheet contract, "4 columns · 1 rule". The row draws no preview of its own under it - before, it added "columns · List · 4 items" and a Show more, the same value again in other words (qorus#646). The card is where the contract is read in full.',
+      },
+    },
+  },
+  render: () => <SheetContractForm />,
+  play: async () => {
+    const row = await waitFor(() => {
+      const el = contractRow();
+      expect(el?.querySelector('.sheet-contract-summary')?.textContent).toContain(
+        '4 columns · 1 rule'
+      );
+      return el;
+    });
+    await expect(row.querySelector('.options-readfirst-inset')).toBeNull();
+    await expect(row.textContent).not.toContain('Show more');
+  },
+};
+
+/** The read-only sheet contract opened to be read: its card, its editor with every control disabled. */
+const expectContractOpenToRead = async () => {
+  const card = await contractCard();
+  const inputs = Array.from(
+    card.querySelectorAll<HTMLInputElement>('.sheet-contract-editor input')
+  );
+  await expect(inputs).toHaveLength(4);
+  for (const input of inputs) {
+    await expect(input.disabled || input.readOnly).toBe(true);
+  }
+  // nothing to save or discard: closed, not done
+  await expect(card.querySelector('.options-readfirst-done')?.getAttribute('aria-label')).toBe(
+    'Close field'
+  );
+  await expect(card.querySelector('.options-readfirst-clear')).toBeNull();
+  return card;
+};
+
+/** The fullscreen view the card's ⋯ menu offers in a read-only form: "View fullscreen", not "Edit fullscreen". */
+const viewFullscreen = async (press: (element: HTMLElement) => Promise<void>) => {
+  const card = await contractCard();
+  await press(card.querySelector<HTMLElement>('.options-readfirst-more')!);
+  const item = await waitFor(() => {
+    const items = Array.from(
+      document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')
+    );
+    expect(items.map((each) => each.textContent?.trim())).not.toContain('Edit fullscreen');
+    const found = items.find((each) => each.textContent?.trim() === 'View fullscreen');
+    expect(found, 'View fullscreen').toBeTruthy();
+    return found!;
+  });
+  await press(item);
+  const modal = await waitFor(() => {
+    const el = Array.from(document.querySelectorAll<HTMLElement>('.reqore-modal')).find((each) =>
+      each.textContent?.includes('Focused View')
+    );
+    expect(el, 'the fullscreen view').toBeTruthy();
+    return el!;
+  });
+  const inputs = Array.from(
+    modal.querySelectorAll<HTMLInputElement>('.sheet-contract-editor input')
+  );
+  await expect(inputs).toHaveLength(4);
+  for (const input of inputs) {
+    await expect(input.disabled || input.readOnly).toBe(true);
+  }
+};
+
+export const AReadOnlyFormOpensAHostEditorToRead: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the sheet contract in a read-only form. Its row says "4 columns · 1 rule" and draws no preview, so it opens to be read: clicked, it opens its card with the host editor read-only (every column disabled, Close instead of Done), and the card\'s ⋯ menu offers View fullscreen, which shows the editor full size, read-only too. Before, a read-only row opened nothing, and the contract could not be read at all once the preview went (qorus#646).',
+      },
+    },
+  },
+  render: () => <SheetContractForm readOnly />,
+  play: async () => {
+    const row = await waitFor(() => contractRow());
+    await expect(row.getAttribute('aria-label')).toBe('View Sheet Contract');
+    await userEvent.click(row);
+    await expectContractOpenToRead();
+    await viewFullscreen((element) => userEvent.click(element));
+  },
+};
+
+export const AReadOnlyFormOpensAHostEditorToReadOnAPhone: Story = {
+  tags: ['touch'],
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The read-only sheet contract on a phone (390px, touch): a tap on its row opens the card with the editor read-only, inside the screen, and a tap on View fullscreen in its ⋯ menu shows it full size, read-only.',
+      },
+    },
+  },
+  render: () => <SheetContractForm readOnly />,
+  play: async () => {
+    await withTouchScreen(async (touch) => {
+      await touch.tap(await waitFor(() => contractRow()));
+      const card = await expectContractOpenToRead();
+      if (touch.narrowed) {
+        const box = card.getBoundingClientRect();
+        await expect(box.left).toBeGreaterThanOrEqual(-0.5);
+        await expect(box.right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+      }
+      await viewFullscreen((element) => touch.tap(element));
+    });
   },
 };
 
