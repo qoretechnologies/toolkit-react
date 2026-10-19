@@ -504,14 +504,14 @@ const chipLabels = (editable: HTMLElement) =>
  */
 export const WithQuotedFieldReferences: Story = {
   args: {
-    value: '@"create.items[*].id" == $record:{create.a\\{b\\}} && @"create.order-id" != "@name"',
+    value: '@"create.Unit\\.Price" == $record:{create.a\\{b\\}} && @"create.order-id" != "@name"',
     onChange: fn(),
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the DpqlEditor with the quoted fields the server writes for record fields that are not bare names, @"create.items[*].id" and @"create.order-id", a $record template whose value holds escaped braces, and the string "@name". Each field and the template is one chip, labeled with the name it stands for; the string stays text; the text is written back as it was.',
+          'Renders the DpqlEditor with the quoted fields the server writes for record fields that are not bare names - @"create.Unit\\.Price", where the key Unit.Price holds a dot (qore#5480), and @"create.order-id" - a $record template whose value holds escaped braces, and the string "@name". Each field and the template is one chip, labeled as the record template it is (record: create.order-id); the string stays text; the text is written back as it was.',
       },
     },
   },
@@ -520,9 +520,9 @@ export const WithQuotedFieldReferences: Story = {
 
     await waitFor(() =>
       expect(chipLabels(editable)).toEqual([
-        'create.items[*].id',
+        'record: create.Unit\\\\.Price',
         'record: create.a\\{b\\}',
-        'create.order-id',
+        'record: create.order-id',
       ])
     );
     await expect(editable.textContent?.replace(/\uFEFF/g, '')).toContain('!= "@name"');
@@ -537,7 +537,7 @@ export const QuotedFieldTypedOutIsAChip: Story = {
     docs: {
       description: {
         story:
-          'Renders the empty DpqlEditor and types @"create.order-id" == 1 without picking from the list. When the space after the closing quote is typed, the quoted field is drawn as its chip, labeled create.order-id, and the rest is typed after it.',
+          'Renders the empty DpqlEditor and types @"create.order-id" == 1 without picking from the list. When the space after the closing quote is typed, the quoted field is drawn as its chip, labeled record: create.order-id, and the rest is typed after it.',
       },
     },
   },
@@ -547,7 +547,7 @@ export const QuotedFieldTypedOutIsAChip: Story = {
     await userEvent.click(editable);
     await userEvent.type(editable, '@"create.order-id" == 1');
 
-    await waitFor(() => expect(chipLabels(editable)).toEqual(['create.order-id']));
+    await waitFor(() => expect(chipLabels(editable)).toEqual(['record: create.order-id']));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('@"create.order-id" == 1'));
     await expect(editable.textContent?.replace(/\uFEFF/g, '')).toMatch(/create\.order-id\s*== 1$/);
   },
@@ -568,7 +568,7 @@ export const WithAccessorChains: Story = {
     docs: {
       description: {
         story:
-          'Renders the DpqlEditor with fields that carry accessors, as the server writes them: @create.items[*].id, @prices{*}, @items[0].id and @headers{"content-type"}. Each is one chip labeled with its whole path - create.items[*].id, prices{*}, items[0].id, headers{"content-type"} - not a chip for the field and plain text for the accessors; the text is written back as it was.',
+          'Renders the DpqlEditor with fields that carry accessors, as the server writes them: @create.items[*].id, @prices{*}, @items[0].id and @headers{"content-type"}. Each is one chip labeled with its whole path as the record template it is - record: create.items[*].id, record: prices{*}, record: items[0].id, record: headers.content-type - not a chip for the field and plain text for the accessors; the text is written back as it was.',
       },
     },
   },
@@ -577,12 +577,47 @@ export const WithAccessorChains: Story = {
 
     await waitFor(() =>
       expect(chipLabels(editable)).toEqual([
-        'create.items[*].id',
-        'prices{*}',
-        'items[0].id',
-        'headers{"content-type"}',
+        'record: create.items[*].id',
+        'record: prices{*}',
+        'record: items[0].id',
+        'record: headers.content-type',
       ])
     );
+    await expect(args.onChange).not.toHaveBeenCalled();
+  },
+};
+
+/** A chip's look: its colors and its icon. */
+const chipLook = (chip: HTMLElement) => {
+  const style = getComputedStyle(chip);
+  return {
+    background: style.backgroundColor,
+    color: getComputedStyle(chip.querySelector('.reqore-tag-content') ?? chip).color,
+    icon:
+      chip.querySelector('.reqore-icon')?.getAttribute('data-icon') ??
+      chip.querySelector('svg')?.innerHTML,
+  };
+};
+
+export const ARecordFieldIsOneChip: Story = {
+  args: { value: '@orders[*].id == $record:{orders[*].id}', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the DpqlEditor with one record field written both ways - @orders[*].id, as the server writes DPQL, and $record:{orders[*].id}, as a value holds it. They are the same field and the same chip: both labeled record: orders[*].id, in the color and with the icon of every template chip (qorus#646, David: one chip for one record field). Before, the field was a light blue chip with black text, labeled orders[*].id.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+
+    await waitFor(() =>
+      expect(chipLabels(editable)).toEqual(['record: orders[*].id', 'record: orders[*].id'])
+    );
+    const [field, template] = Array.from(editable.querySelectorAll<HTMLElement>('.reqore-tag'));
+    await expect(chipLook(field)).toEqual(chipLook(template));
+    // drawn, not rewritten
     await expect(args.onChange).not.toHaveBeenCalled();
   },
 };
@@ -649,7 +684,7 @@ export const HoverOverAChipSaysWhatItsPathIs: Story = {
   },
   play: async ({ canvasElement }) => {
     const editable = await readyEditor(canvasElement);
-    const chip = await chipFor(editable, 'create.items[*].id');
+    const chip = await chipFor(editable, 'record: create.items[*].id');
     try {
       await restMouseOn(chip, middleOfElement(chip));
       await waitFor(
@@ -681,7 +716,7 @@ export const DetailsOnAChipOnATouchScreen: Story = {
   play: async ({ canvasElement }) => {
     await withTouchScreen(async (touch) => {
       const editable = await readyEditor(canvasElement);
-      const chip = await chipFor(editable, 'create.items[*].id');
+      const chip = await chipFor(editable, 'record: create.items[*].id');
       await touch.tap(chip);
       const details = await waitFor(
         () => {
@@ -707,13 +742,13 @@ export const AChipWithItsOwnDescriptionShowsOneHover: Story = {
     docs: {
       description: {
         story:
-          'Renders @name == "Alice" with the record described, and rests the mouse on the chip Name: the chip shows its own description - "The customer\'s full name, as they gave it" - and the server\'s hover is not drawn over it as well. One hover over a chip, not two.',
+          'Renders @name == "Alice" with the record described, and rests the mouse on the chip record: name: the chip shows its own description - "The customer\'s full name, as they gave it" - and the server\'s hover is not drawn over it as well. One hover over a chip, not two.',
       },
     },
   },
   play: async ({ canvasElement }) => {
     const editable = await readyEditor(canvasElement);
-    const chip = await chipFor(editable, 'Name');
+    const chip = await chipFor(editable, 'record: name');
     try {
       await restMouseOn(chip, middleOfElement(chip));
       await waitFor(
@@ -733,7 +768,7 @@ export const AccessorChainTypedOutIsAChip: Story = {
     docs: {
       description: {
         story:
-          'Renders the empty DpqlEditor and types @orders[*].id == 1 without picking from the list. When the space after it is typed, the field and its accessors are drawn as one chip, orders[*].id, and the rest is typed after it.',
+          'Renders the empty DpqlEditor and types @orders[*].id == 1 without picking from the list. When the space after it is typed, the field and its accessors are drawn as one chip, record: orders[*].id, and the rest is typed after it.',
       },
     },
   },
@@ -744,7 +779,7 @@ export const AccessorChainTypedOutIsAChip: Story = {
     // `[` starts a key descriptor for userEvent; `[[` types one
     await userEvent.type(editable, '@orders[[*].id == 1');
 
-    await waitFor(() => expect(chipLabels(editable)).toEqual(['orders[*].id']));
+    await waitFor(() => expect(chipLabels(editable)).toEqual(['record: orders[*].id']));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('@orders[*].id == 1'));
   },
 };

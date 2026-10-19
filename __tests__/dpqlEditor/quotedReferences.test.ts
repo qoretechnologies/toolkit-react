@@ -95,7 +95,7 @@ describe('a quoted field is drawn as its chip', () => {
     expect(getTagLabel('@name')).toBe('name');
   });
 
-  test('the chip says the name, and the field it names describes it', () => {
+  test('the chip is the record template it names, and the field it names describes it', () => {
     const renderTag = makeDpqlTagRenderer({
       'create.order-id': { display_name: 'Order ID', type: { name: 'string' } },
     });
@@ -105,15 +105,17 @@ describe('a quoted field is drawn as its chip', () => {
       children: [{ text: '' }],
     });
 
+    // one chip for one record field (qorus#646): the template chip, `record: <path>`, with the record's description
     expect(renderTag(tag('@"create.order-id"'))).toMatchObject({
-      label: 'Order ID',
-      icon: 'Database2Line',
+      label: 'record: create.order-id',
+      icon: 'ExchangeDollarLine',
+      intent: 'info',
     });
     expect(renderTag(tag('@"create.order-id"')).tooltip).toBeTruthy();
-    // a field the record does not describe is drawn with its name, unescaped, not its quoted text
-    expect(renderTag(tag('@"create.items[*].id"')).label).toBe('create.items[*].id');
-    expect(renderTag(tag('@"say \\"hi\\""')).label).toBe('say "hi"');
-    expect(renderTag(tag('@name')).label).toBe('name');
+    // its name unescaped into the path, not its quoted text; a dot of a key stays a dot of a key (qore#5480)
+    expect(renderTag(tag('@"say \\"hi\\""')).label).toBe('record: say "hi"');
+    expect(renderTag(tag('@"create.Unit\\.Price"')).label).toBe('record: create.Unit\\\\.Price');
+    expect(renderTag(tag('@name')).label).toBe('record: name');
   });
 
   test('typed out, it is drawn as its chip once the character after it ends it', () => {

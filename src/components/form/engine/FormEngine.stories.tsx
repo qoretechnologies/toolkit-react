@@ -11263,6 +11263,53 @@ export const ExpressionWrittenOnExpressionShowsWhenTheTabIsBack: Story = {
   },
 };
 
+/** A reference chip's look: its label, colors and icon. */
+const referenceChipLook = (chip: HTMLElement) => ({
+  label: (chip.textContent ?? '').replace(/\uFEFF/g, '').trim(),
+  background: getComputedStyle(chip).backgroundColor,
+  color: getComputedStyle(chip.querySelector('.reqore-tag-content') ?? chip).color,
+  icon: chip.querySelector('svg')?.innerHTML,
+});
+
+/** The reference chips in `root` that say `label`. */
+const chipsSaying = (root: Element, label: string) =>
+  Array.from(root.querySelectorAll<HTMLElement>('.reqore-tag')).filter(
+    (chip) => (chip.textContent ?? '').replace(/\uFEFF/g, '').trim() === label
+  );
+
+export const ARecordFieldIsTheSameChipOnEveryTab: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form and opens Computed (the expression pos + 1) on its Expression tab, where the server writes the field as @pos, then on its Visual tab, where it is the operand $record:{pos}. The field pos is the same chip on both: the same label, color and icon (qorus#646, David: one chip for one record field). Before, the Expression tab drew it light blue with black text.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async () => {
+    const row = await editOption('computed');
+    await waitFor(() => expect(optionActiveTab(row)).toBe('expression'));
+    // on the Expression tab, the field of `@pos + 1`
+    const onExpression = await waitFor(() => {
+      const chip = optionRow('computed').querySelector<HTMLElement>(
+        '.expression-field [data-slate-editor] .reqore-tag'
+      );
+      expect(chip, 'the field on the Expression tab').toBeTruthy();
+      return referenceChipLook(chip!);
+    });
+    await expect(onExpression.label).toBe('pos');
+    // on the Visual tab, the operand $record:{pos}: the same chip
+    await chooseTab(optionRow('computed'), 'visual');
+    const onVisual = await waitFor(() => {
+      const [chip] = chipsSaying(optionRow('computed'), onExpression.label);
+      expect(chip, 'the operand on the Visual tab').toBeTruthy();
+      return referenceChipLook(chip);
+    });
+    await expect(onExpression).toEqual(onVisual);
+  },
+};
+
 /** Computed as the form was given it: the expression pos + 1. */
 const COMPUTED_EXPRESSION = TEMPLATE_OR_EXPRESSION_VALUE.computed;
 

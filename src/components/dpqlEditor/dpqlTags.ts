@@ -12,6 +12,8 @@ import {
   templateTooltip,
   TTemplateMeta,
 } from '../../helpers/templates';
+import { recordTemplateOfReference } from '../../helpers/recordFieldReference';
+import { templateChipLabel } from '../../helpers/templateText';
 import { ISlateElement } from '../smartEditor/types';
 import { dpqlFieldName } from './dpqlHelpers';
 import { IDpqlFieldMeta } from './useDpqlSession';
@@ -86,48 +88,67 @@ export function makeDpqlTagRenderer(
   fieldMeta: Record<string, IDpqlFieldMeta>,
   options: IDpqlTagRendererOptions = {}
 ) {
+  /**
+   * A template's chip, as every view draws it: its catalogue name and description, else `<key>: <path>`. A field
+   * gives its own hover (`field`): the record's description of it, or none, so that the server's hover is the one
+   * shown and the chip's text is not repeated as its tooltip.
+   */
+  const templateChip = (
+    template: string,
+    field?: { tooltip: IReqoreTagProps['tooltip'] }
+  ): IReqoreTagProps => {
+    const named = options.templates && describeTemplateReference(options.templates, template);
+    return {
+      ...REFERENCE_CHIP_PROPS,
+      icon: 'ExchangeDollarLine',
+      /* the catalogue's name for it; else a template keeps the label its element was given (`<key>: <path>`), and a
+         field, whose element is labeled with its name, says the template's */
+      ...(named?.item ? { label: named.label }
+      : field ? { label: templateChipLabel(options.templates, template) }
+      : {}),
+      ...(named?.item ? { tooltip: templateTooltip(options.templates, template, options.descriptions ?? {}) }
+      : field ? { tooltip: field.tooltip }
+      : {}),
+      ...(options.templateTagsUseIntent === false ?
+        { color: getTemplatePrefixColor(template) as `#${string}` }
+      : getTemplateTagStyle(named?.item?.metadata as TTemplateMeta | undefined)),
+    };
+  };
+
   return (tag: ISlateElement): IReqoreTagProps => {
     const tagValue = tag.value?.toString();
     if (!tagValue) return {};
 
-    // a field, `@name` or quoted `@"order-id"`: drawn with its name, and described by the record's field of it
+    /* A field, `@name`, quoted `@"order-id"` or with its accessors `@orders[*].id`, is a field of the record: the
+       same record field a value holds as `$record:{orders[*].id}`, and drawn as that chip - its color, its icon
+       and its label, `record: orders[*].id` (qorus#646, David: one chip for one record field). The record's own
+       description of the field is its hover where the catalogue does not describe it. */
     const fieldName = dpqlFieldName(tagValue);
     if (fieldName !== undefined) {
       const meta = fieldMeta[fieldName];
       // the field's name and type head the card, and its description is drawn under them
-      const tooltip = meta
-        ? descriptionTooltip(
+      const tooltip =
+        meta ?
+          descriptionTooltip(
             meta.short_desc,
             options.descriptions ?? {},
             `${meta.display_name || fieldName}${meta.type?.name ? ` (${meta.type.name})` : ''}`
           )
         : undefined;
-
-      return {
-        // the same chip every view draws a reference as: the size of the text it sits in
-        ...REFERENCE_CHIP_PROPS,
-        icon: 'Database2Line',
-        color: FIELD_REF_COLOR.fg as `#${string}`,
-        tooltip,
-        label: meta?.display_name || fieldName,
-      };
+      const template = recordTemplateOfReference(tagValue);
+      return template ?
+          templateChip(template, { tooltip })
+        : {
+            ...REFERENCE_CHIP_PROPS,
+            icon: 'ExchangeDollarLine',
+            label: fieldName,
+            tooltip,
+            ...getTemplateTagStyle(undefined),
+          };
     }
 
     if (tagValue.startsWith('$')) {
-      const named = options.templates && describeTemplateReference(options.templates, tagValue);
-      return {
-        ...REFERENCE_CHIP_PROPS,
-        icon: 'ExchangeDollarLine',
-        ...(named?.item ?
-          {
-            label: named.label,
-            tooltip: templateTooltip(options.templates, tagValue, options.descriptions ?? {}),
-          }
-        : {}),
-        ...(options.templateTagsUseIntent === false ?
-          { color: getTemplatePrefixColor(tagValue) as `#${string}` }
-        : getTemplateTagStyle(named?.item?.metadata as TTemplateMeta | undefined)),
-      };
+      return templateChip(tagValue);
     }
 
     return {};
