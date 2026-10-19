@@ -18,6 +18,22 @@ export const COMPACT_ROW_GAP = 14; // grid column gap
 export const COMPACT_VALUE_LEFT = COMPACT_ROW_PAD_X + COMPACT_LABEL_COL + COMPACT_ROW_GAP;
 // The surface starts a touch left of the value text, for inner left padding.
 export const COMPACT_PANEL_LEFT = COMPACT_VALUE_LEFT - 10;
+/**
+ * The least room a row's value has beside its label (qorus#646, David: "on a narrow screen... put the wide output
+ * on a line below the header, slightly indented"). A form where the value column would be narrower stacks its rows:
+ * the label and the row's actions on the first line, the value under them, indented by
+ * `COMPACT_STACKED_VALUE_INDENT`.
+ */
+export const COMPACT_MIN_VALUE_WIDTH = 320;
+/** How far a stacked row's value is indented under its label. */
+export const COMPACT_STACKED_VALUE_INDENT = 12;
+/**
+ * Whether a form `width` wide stacks its rows: beside a label column `labelColumn` wide (the measured one,
+ * `LABEL_COL_VAR`), the row's gap and its padding, its value column would be under `COMPACT_MIN_VALUE_WIDTH`. With
+ * the widest labels (220px and their affordances) that is a form under about 600px; with the narrowest, about 500px.
+ */
+export const isCompactNarrow = (width: number, labelColumn: number): boolean =>
+  width - (labelColumn + COMPACT_ROW_GAP + 2 * COMPACT_ROW_PAD_X) < COMPACT_MIN_VALUE_WIDTH;
 // Left offset for the group sub-labels / cluster header, kept equal to the row's
 // own horizontal padding so the labels line up flush with the field labels below
 // them (no extra gutter — the spine/rail that used a fluid indent are gone).
@@ -761,9 +777,11 @@ export const StyledGroupBody = styled.div<{
   }
 
   /* Narrow FORMS (phone / slim drawer): stack each row — label + actions share
-     the first line, the value cell (or the inline editor) takes the full width
-     beneath. The class is set from a measured wrap width (react-use useMeasure)
-     rather than a viewport media query, so a slim desktop drawer stacks too.
+     the first line, the value cell (or the inline editor) takes the width
+     beneath. The class is set where the value column would be narrower than
+     COMPACT_MIN_VALUE_WIDTH beside the measured label column (isCompactNarrow),
+     from the measured wrap width (react-use useMeasure) rather than a viewport
+     media query, so a slim desktop drawer stacks too.
      The 3 row children are placed explicitly:
      label (1,1) · actions (1,2) · value (2, span both). */
   /* Generous breathing room BETWEEN fields when stacked — far easier to scan and
@@ -838,10 +856,10 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row-tall {
     align-items: start;
   }
-  /* Narrow stacks label-over-value: the value aligns flush UNDER the label (no
-     indent), like the Focus prototype. */
+  /* Narrow stacks label-over-value: the value sits on the line below the label,
+     slightly indented under it (David, qorus#646), so it reads as the label's. */
   &.readfirst-narrow .readfirst-row > :nth-child(2) {
-    padding-left: 0;
+    padding-left: ${COMPACT_STACKED_VALUE_INDENT}px;
   }
   &.readfirst-narrow > *:not(.options-readfirst-card)::before {
     left: 0;

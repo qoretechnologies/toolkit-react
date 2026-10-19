@@ -12421,3 +12421,142 @@ export const ClickingARichTextChoiceEditsItsValue: Story = {
     );
   },
 };
+
+/* The narrow-row rule (qorus#646, David: "on a narrow screen... put the wide output on a line below the header,
+   slightly indented... this applies to other stories as well"). A row stacks where its value would have under 320px
+   beside the label column, which is measured from the form's labels: long labels stack a form under about 600px,
+   short ones under about 500px. Stacked, the value is indented 12px under its label. It was one cut for every form,
+   480px, whatever its labels: a form of long labels 500-600px wide squeezed its values into 200-300px. */
+const narrowRuleSchema = (labels: 'long' | 'short'): Record<string, TCompactField> => ({
+  url: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: labels === 'long' ? 'Address of the remote service' : 'URL',
+    preselected: true,
+  },
+  timeout: {
+    type: 'number',
+    ui_type: 'number',
+    display_name: labels === 'long' ? 'Seconds to wait for its reply' : 'Timeout',
+    preselected: true,
+  },
+});
+
+const narrowRuleValue: IOptions = {
+  url: { type: 'string', value: 'https://orders.example.com/api/v2/fulfilment/batches' },
+  timeout: { type: 'number', value: 30 },
+};
+
+/** A compact form `width` wide, named `name`, over the long- or short-labelled schema. */
+const NarrowRuleForm = ({
+  name,
+  width,
+  labels,
+}: {
+  name: string;
+  width: number;
+  labels: 'long' | 'short';
+}) => (
+  <div
+    className={`story-narrow-rule-${name}`}
+    style={{ width, maxWidth: '100%', boxSizing: 'border-box', border: '1px dashed #ffffff22' }}
+  >
+    <FormEngine
+      name={`narrow-rule-${name}`}
+      compact
+      options={narrowRuleSchema(labels)}
+      value={narrowRuleValue}
+      onChange={() => undefined}
+    />
+  </div>
+);
+
+const narrowRuleRow = (name: string, field: string) =>
+  document.querySelector<HTMLElement>(
+    `.story-narrow-rule-${name} .readfirst-row[data-field="${field}"]`
+  );
+
+/**
+ * Whether the form `name` stacks its rows, and, when it does, its value under its label, 12px in; when it does not,
+ * the value beside its label, in a column at least 320px wide.
+ */
+const expectNarrowRule = async (name: string, stacked: boolean) => {
+  await waitFor(() => expect(narrowRuleRow(name, 'url')).toBeTruthy());
+  const form = document.querySelector<HTMLElement>(`.story-narrow-rule-${name}`)!;
+  await waitFor(() => expect(!!form.querySelector('.readfirst-narrow')).toBe(stacked));
+  const row = narrowRuleRow(name, 'url')!;
+  const [label, value] = [row.children[0], row.children[1]].map((cell) =>
+    cell.getBoundingClientRect()
+  );
+  const valueContent = row.children[1].firstElementChild!.getBoundingClientRect();
+
+  if (stacked) {
+    await expect(value.top).toBeGreaterThanOrEqual(label.bottom - 1);
+    await expect(Math.round(valueContent.left - label.left)).toBe(12);
+  } else {
+    await expect(value.left).toBeGreaterThanOrEqual(label.right);
+    await expect(value.width).toBeGreaterThanOrEqual(320);
+  }
+};
+
+export const ARowStacksWhereItsValueWouldBeNarrow: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the same two fields in compact forms of three widths and two kinds of label. A form whose value column would be under 320px beside its labels stacks its rows, each value on the line below its label, 12px in: long labels at 560px. A form with room enough keeps the value beside its label: short labels at 560px, long labels at 700px. Before, every form stacked under 480px and no other, so long labels at 560px squeezed the value into about 270px, and a stacked value was flush under its label (qorus#646).',
+      },
+    },
+  },
+  render: () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <NarrowRuleForm name='long-560' width={560} labels='long' />
+      <NarrowRuleForm name='short-560' width={560} labels='short' />
+      <NarrowRuleForm name='long-700' width={700} labels='long' />
+    </div>
+  ),
+  play: async () => {
+    await expectNarrowRule('long-560', true);
+    await expectNarrowRule('short-560', false);
+    await expectNarrowRule('long-700', false);
+  },
+};
+
+export const ARowStacksOnANarrowFormEvenWithShortLabels: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the short-labelled form at 440px, where even beside its narrowest label column the value would have under 320px: it stacks, each value 12px in under its label (qorus#646).',
+      },
+    },
+  },
+  render: () => <NarrowRuleForm name='short-440' width={440} labels='short' />,
+  play: async () => {
+    await expectNarrowRule('short-440', true);
+  },
+};
+
+export const ARowStacksOnAPhone: Story = {
+  tags: ['touch'],
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The long-labelled form on a phone (390px, touch): each value is on the line below its label, 12px in, inside the screen (qorus#646).',
+      },
+    },
+  },
+  render: () => <NarrowRuleForm name='phone' width={390} labels='long' />,
+  play: async () => {
+    await withTouchScreen(async (touch) => {
+      await expectNarrowRule('phone', true);
+      if (touch.narrowed) {
+        const value = narrowRuleRow('phone', 'url')!.children[1].getBoundingClientRect();
+        await expect(value.right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+      }
+    });
+  },
+};

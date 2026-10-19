@@ -92,7 +92,9 @@ import { CompactRow } from './CompactRow';
 import { FormFieldsSkeleton } from './FormFieldsSkeleton';
 import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer, TReadSummary } from './compactRowContext';
 import {
+  COMPACT_LABEL_COL,
   GROUP_INDENT,
+  isCompactNarrow,
   LABEL_AFFORDANCE_WIDTH,
   LABEL_COL_MAX,
   LABEL_COL_MIN,
@@ -1629,7 +1631,11 @@ const FormEngineImpl = ({
      measurement below takes it as a dependency, and a dependency array is
      evaluated during render — a `const` declared further down would still be
      in its temporal dead zone. */
-  const compactNarrow = !!compactWrapWidth && compactWrapWidth < 480;
+  /* The label column the rows are laid out with: measured from the labels (see below), the
+     default until it is. A form stacks its rows where its value column would be too narrow
+     beside it (`isCompactNarrow`), not at one form width whatever its labels are. */
+  const [compactLabelColumn, setCompactLabelColumn] = useState<number>(COMPACT_LABEL_COL);
+  const compactNarrow = !!compactWrapWidth && isCompactNarrow(compactWrapWidth, compactLabelColumn);
 
   /* How much pinned chrome sits above a status-box header.
   
@@ -1723,7 +1729,9 @@ const FormEngineImpl = ({
     // take, which is what it is for; the asterisk and the `?` are chrome that has
     // to fit beside it either way.
     const text = Math.max(LABEL_COL_MIN, Math.min(LABEL_COL_MAX, Math.round(widest)));
-    wrap.style.setProperty(LABEL_COL_VAR, `${text + LABEL_AFFORDANCE_WIDTH}px`);
+    const column = text + LABEL_AFFORDANCE_WIDTH;
+    wrap.style.setProperty(LABEL_COL_VAR, `${column}px`);
+    setCompactLabelColumn(column);
   }, [compact, options, theme, compactWrapNode]);
   // Editing rows pin min-height to the measured read row they replace, so the
   // toggle never shifts neighbours (height varies with chrome — measure it).
