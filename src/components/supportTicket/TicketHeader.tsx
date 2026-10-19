@@ -201,7 +201,8 @@ export const TicketHeader = ({
        and the strip would no longer line up with them. */
     rowPadding='tiny'
     labelWidth={LABEL_WIDTH}
-    uppercaseLabels
+    /* The labels' case is the theme's (`theme.uppercaseLabels`): an app that sets its
+       labels in sentence case gets "Opened by", not "OPENED BY". */
     flat
     transparent
     padded={false}
