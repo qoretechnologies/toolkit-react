@@ -6,6 +6,7 @@ import {
   ReqoreIcon,
   ReqoreMessage,
   ReqoreP,
+  ReqoreSpan,
   ReqoreTag,
   ReqoreTagGroup,
   ReqoreVerticalSpacer,
@@ -84,6 +85,7 @@ import { CompactRow } from './CompactRow';
 import { FormFieldsSkeleton } from './FormFieldsSkeleton';
 import { CompactRowContext, ICompactRowContext, TCodePreviewRenderer } from './compactRowContext';
 import {
+  CALM_SECTION_INSET,
   GROUP_INDENT,
   LABEL_AFFORDANCE_WIDTH,
   LABEL_COL_MAX,
@@ -96,6 +98,7 @@ import {
   StyledRequiredClusterHeader,
   StyledStatusBox,
   StyledStatusBoxGroupLabel,
+  StyledStatusDot,
 } from './compactRowStyles';
 import { CompactToolbar } from './CompactToolbar';
 import {
@@ -114,6 +117,14 @@ import {
   TMarkdownRenderer,
 } from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
+import {
+  FormAppearanceProvider,
+  getCalmPanelHairline,
+  getCalmPanelSurface,
+  TFormEngineAppearance,
+  useFormAppearance,
+  useIsCalmForm,
+} from './formAppearance';
 import { firstDeclaredType, isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
   TReadFirstStatus,
@@ -849,6 +860,21 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   compact?: boolean;
   /**
+   * How the form LOOKS — never what it does. `'default'` keeps the established
+   * look; `'calm'` draws the status boxes as plain panels on the theme's panel
+   * surface with label/value rows split by hairlines, grey labels, an amber
+   * "Required · add a value" in place of red asterisks and messages, quiet
+   * counts, no dot on a healthy row, Yes/No as words, and a readiness meter
+   * whose done part is grey. See {@link TFormEngineAppearance}.
+   *
+   * Opt-in, so a consumer that does not pass it is unchanged. Inherited: a
+   * nested (`arg_schema`) sub-form and every field editor the form mounts
+   * follow the form's appearance, and a form with no `appearance` of its own
+   * follows a `FormAppearanceProvider` above it. Applies to compact mode; the
+   * classic collection layout only passes it on to its field editors.
+   */
+  appearance?: TFormEngineAppearance;
+  /**
    * Compact mode only: drop the read-first wrap's horizontal gutter (the 12px
    * breathing room) so the form sits flush to its container's edges. For embeds
    * that own their own gutters — e.g. the SchemaDefinition tab body, where the
@@ -1235,6 +1261,9 @@ const FormEngineImpl = ({
   forceDropdown,
   showTypeToggle = true,
   compact,
+  // Read through the context `FormEngine` provides (resolved there against an
+  // inherited appearance); destructured only to keep it out of `rest`.
+  appearance: _appearance, // eslint-disable-line @typescript-eslint/no-unused-vars
   // Destructured only to keep it out of `rest` (and so off the DOM). The gutter
   // this prop documents was never implemented: it was passed to the wrap as
   // `$flush`, whose styled template had no interpolation slot, so it has always
@@ -1318,6 +1347,7 @@ const FormEngineImpl = ({
   const [loading, setLoading] = useState<boolean>(!!(url || customUrl || operatorsUrl));
   const confirmAction = useReqoreProperty('confirmAction');
   const theme = useReqoreTheme();
+  const calm = useIsCalmForm();
   const [focusedEditing, setFocusedEditing] = useState<string>();
   const [showFieldTypes, setShowFieldTypes] = useState<boolean>(false);
   // Global toggle (toolbar ⓘ): reveal the short-description info panel on every
@@ -3266,6 +3296,10 @@ const FormEngineImpl = ({
   // The "N more fields" row's dashed edge. Well above the divider tint: this
   // one is an affordance the reader has to notice, not a hairline between rows.
   const cMoreBorder = `${cText}4d`;
+  // Calm: the section surface and its hairline, from the theme's panel (the
+  // same surface and edge Reqore gives the section panels themselves).
+  const cPanel = getCalmPanelSurface(theme);
+  const cHairline = getCalmPanelHairline(theme);
 
   // The closure surface the extracted CompactRow reads through context. Refs and
   // setters are stable; the state/memo/handler fields change identity as they do
@@ -3791,9 +3825,14 @@ const FormEngineImpl = ({
             className='options-readfirst-required-cluster'
             $border={`${cWarning}33`}
             $tint={`${cWarning}0d`}
+            $calm={calm}
           >
-            <StyledRequiredClusterHeader $color={cWarning}>
-              <ReqoreIcon icon='LinkM' size='11px' style={{ color: cWarning }} />
+            <StyledRequiredClusterHeader
+              className='options-readfirst-required-cluster-header'
+              $color={cWarning}
+              $calm={calm}
+            >
+              <ReqoreIcon icon='LinkM' size={calm ? '13px' : '11px'} style={{ color: cWarning }} />
               One of the below is required
             </StyledRequiredClusterHeader>
             {railed}
@@ -3821,20 +3860,31 @@ const FormEngineImpl = ({
       return (
         <React.Fragment key={groupName}>
           {showGroupSubLabel(groupName) ?
-            <StyledStatusBoxGroupLabel>
+            <StyledStatusBoxGroupLabel
+              className='options-readfirst-group-label'
+              $calm={calm}
+              $color={cKey}
+            >
               {getOptionGroupLabel(groupName, groups)}
             </StyledStatusBoxGroupLabel>
           : null}
           {showGroupSubLabel(groupName) && groupConfig?.subtitle ?
             <ReqoreP
+              className='options-readfirst-group-subtitle'
               size='small'
               effect={{ opacity: 0.6 }}
-              style={{
-                marginTop: 2,
-                marginBottom: 8,
-                marginLeft: GROUP_INDENT,
-                paddingRight: 10,
-              }}
+              style={
+                calm ?
+                  // Under the calm heading, at the rows' inset; the space below
+                  // it is the next row's own padding.
+                  { margin: 0, padding: `2px ${CALM_SECTION_INSET}px 4px` }
+                : {
+                    marginTop: 2,
+                    marginBottom: 8,
+                    marginLeft: GROUP_INDENT,
+                    paddingRight: 10,
+                  }
+              }
             >
               {groupConfig.subtitle}
             </ReqoreP>
@@ -3888,8 +3938,15 @@ const FormEngineImpl = ({
                     )
                   }
                   flat
-                  raised
+                  // Calm: no surface and no lift at all. A theme that gives
+                  // panels a surface of their own (Reqore's `theme.panel`) would
+                  // otherwise paint this wrapper as a card around the section
+                  // cards inside it. Transparent and un-raised, Reqore also drops
+                  // the wrapper's horizontal padding, so the readiness line, the
+                  // search and the sections share one left edge with the host.
+                  raised={!calm}
                   minimal
+                  transparent={calm || undefined}
                   // No panel background: the form sits transparently on whatever
                   // hosts it (page, drawer, or — for an arg_schema field — the
                   // parent's edit card) instead of stacking its own dark surface.
@@ -3967,8 +4024,13 @@ const FormEngineImpl = ({
                       the reader's record withheld, and a page scrolls. */}
                   {readOnly ?
                     bucketCount('set') ?
-                      <div className='options-readfirst-read' style={{ padding: '4px 4px 6px' }}>
+                      <div
+                        className='options-readfirst-read'
+                        style={{ padding: calm ? 0 : '4px 4px 6px' }}
+                      >
                         <StyledGroupBody
+                          $calm={calm}
+                          $hairline={cHairline}
                           $divider={cDivider}
                           $hover={cHover}
                           $focus={cWarning}
@@ -3976,7 +4038,7 @@ const FormEngineImpl = ({
                           $rowBg={cRowBg}
                           $lineColor={cGroupLine}
                           $moreBorder={cMoreBorder}
-                          className={compactNarrow ? 'readfirst-narrow' : undefined}
+                          className={`readfirst-read-list${compactNarrow ? ' readfirst-narrow' : ''}`}
                         >
                           {bucketGroups.set.map((groupName) => renderBoxGroup('set', groupName))}
                         </StyledGroupBody>
@@ -4042,18 +4104,26 @@ const FormEngineImpl = ({
                       // The muted "Optional" box reads as a quieter, recessed
                       // surface — a touch darker than the page rather than the
                       // faint grey tint the accent would give.
+                      // Calm: every box is the same panel — no recessed one.
                       const boxBg =
-                        box.key === 'optional' ?
+                        box.key === 'optional' && !calm ?
                           changeDarkness(getMainBackgroundColor(theme), 0.06)
                         : undefined;
                       return (
                         <StyledStatusBox
                           $accent={accent}
                           $bg={boxBg}
+                          $calm={calm}
                           // Only a box that PINS needs an opaque header (see
                           // StyledStatusBox); passing it unconditionally would
-                          // repaint every form's boxes for nothing.
-                          $surface={stickyBoxHeaders ? getMainBackgroundColor(theme) : undefined}
+                          // repaint every form's boxes for nothing. A calm box
+                          // pins on its own panel surface.
+                          $surface={
+                            stickyBoxHeaders ?
+                              calm ? cPanel
+                              : getMainBackgroundColor(theme)
+                            : undefined
+                          }
                           key={box.key}
                           ref={(node: HTMLDivElement | null) => {
                             statusBoxRefs.current[box.key] = node;
@@ -4063,7 +4133,11 @@ const FormEngineImpl = ({
                           onCollapseChange={(collapsed) =>
                             setOpenedStatusBox(collapsed ? undefined : box.key)
                           }
-                          flat
+                          // Calm: an ordinary panel — Reqore paints the theme's
+                          // panel surface and its hairline edge. The header stays
+                          // minimal (no surface or rule of its own); the first
+                          // row's hairline is the line under it.
+                          flat={!calm}
                           minimal
                           /* The header stays on screen while its own box is
                              being read — see `compactStickyBoxHeaders`. Sticky
@@ -4101,29 +4175,53 @@ const FormEngineImpl = ({
                           // author.
                           isCollapsed={wouldCollapse && !hasPreselectedRows}
                           label={
-                            <StyledGroupHeader>
-                              <ReqoreP effect={{ weight: 'bold' }} size='normal'>
-                                {box.label}
-                              </ReqoreP>
-                              <ReqoreTag
-                                size='small'
-                                minimal
-                                compact
-                                intent={box.intent}
-                                label={String(count)}
-                              />
-                            </StyledGroupHeader>
+                            calm ?
+                              // One status dot and a word — and only where a
+                              // person is needed. The count is a quiet number.
+                              <StyledGroupHeader $calm>
+                                {box.key === 'attention' ?
+                                  <StyledStatusDot
+                                    className='options-readfirst-group-dot'
+                                    $color={cWarning}
+                                    aria-hidden
+                                  />
+                                : null}
+                                <ReqoreP effect={{ weight: 'bold' }} size='normal'>
+                                  {box.label}
+                                </ReqoreP>
+                                <ReqoreSpan
+                                  className='options-readfirst-group-count'
+                                  size='small'
+                                  effect={{ opacity: 0.65 }}
+                                >
+                                  {count}
+                                </ReqoreSpan>
+                              </StyledGroupHeader>
+                            : <StyledGroupHeader>
+                                <ReqoreP effect={{ weight: 'bold' }} size='normal'>
+                                  {box.label}
+                                </ReqoreP>
+                                <ReqoreTag
+                                  size='small'
+                                  minimal
+                                  compact
+                                  intent={box.intent}
+                                  label={String(count)}
+                                />
+                              </StyledGroupHeader>
                           }
-                          icon={box.icon}
+                          icon={calm ? undefined : box.icon}
                           className='options-readfirst-group'
                           padded={false}
-                          contentStyle={{ padding: '4px 4px 6px' }}
+                          contentStyle={{ padding: calm ? 0 : '4px 4px 6px' }}
                         >
                           {/* ONE group body per box: every field block (and the
                             thin schema sub-labels) is a direct flex child, so the
                             inter-field gap is identical everywhere — including
                             across schema-group boundaries. */}
                           <StyledGroupBody
+                            $calm={calm}
+                            $hairline={cHairline}
                             $divider={cDivider}
                             $hover={cHover}
                             $focus={cWarning}
@@ -4560,10 +4658,20 @@ const FormEngineImpl = ({
  * a child of the row it belongs to. Threading a renderer to each of them by
  * hand is how one of them gets missed.
  */
-export const FormEngine = (props: IFormEngineProps) => (
-  <MarkdownRendererContext.Provider value={props.markdownRenderer}>
-    <FormEngineImpl {...props} />
-  </MarkdownRendererContext.Provider>
-);
+export const FormEngine = (props: IFormEngineProps) => {
+  // The form's own `appearance` wins; without one it follows the form (or the
+  // host's provider) it sits in, so a nested sub-form never changes look
+  // halfway down its parent.
+  const inherited = useFormAppearance();
+  const appearance = props.appearance ?? inherited;
+
+  return (
+    <MarkdownRendererContext.Provider value={props.markdownRenderer}>
+      <FormAppearanceProvider value={appearance}>
+        <FormEngineImpl {...props} />
+      </FormAppearanceProvider>
+    </MarkdownRendererContext.Provider>
+  );
+};
 
 export default FormEngine;
