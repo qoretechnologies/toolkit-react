@@ -132,6 +132,7 @@
   "resolutions": {
     "jackspeak": "2.1.1",
     "js-cookie": "^3.0.7",
-    "pre-push/cross-spawn": "^7.0.6"
+    "pre-push/cross-spawn": "^7.0.6",
+    "**/storybook/@vitest/mocker": "^4.1.12"
   }
 }
