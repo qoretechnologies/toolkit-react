@@ -1344,7 +1344,14 @@ export const CompactRow = memo(
         size='small'
         opaque={false}
         flat
-        intent={m.intent as never}
+        // Calm: a note that only informs takes no colour — blue is kept for "a
+        // filter is on", green for a healthy figure. A warning or a failure
+        // keeps its intent: those are what a person has to act on.
+        intent={
+          (calm && (!m.intent || m.intent === 'info' || m.intent === 'success') ?
+            undefined
+          : m.intent) as never
+        }
         title={m.title}
         style={{ marginBottom: 8 }}
       >

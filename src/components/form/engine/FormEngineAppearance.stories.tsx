@@ -67,6 +67,12 @@ const options: Record<string, TAppearanceField> = {
     display_name: 'Language',
     required: true,
     group: 'info',
+    messages: [
+      {
+        intent: 'info',
+        content: 'Changing the language later generates a new source skeleton.',
+      },
+    ],
     allowed_values: [
       { value: { type: 'string', value: 'qore' }, display_name: 'Qore' },
       { value: { type: 'string', value: 'python' }, display_name: 'Python' },
@@ -317,6 +323,12 @@ export const Calm: Story = {
     expectNoDot('display_name');
     expectNoDot('version');
     expect(row('display_name')!.querySelectorAll('svg').length).toBe(0);
+
+    // A note that only informs is not blue.
+    const note = row('lang')!.querySelector<HTMLElement>('.options-readfirst-info-panel .reqore-message')!;
+    expect(note).toBeTruthy();
+    expect(isGrey(getComputedStyle(note).backgroundColor)).toBe(true);
+    expect(isGrey(getComputedStyle(note).borderTopColor)).toBe(true);
 
     // Yes/No is a word, not a coloured chip.
     expect(row('remote')!.textContent).toContain('No');
