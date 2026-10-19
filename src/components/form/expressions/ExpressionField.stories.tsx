@@ -1950,7 +1950,7 @@ export const VisualOperandsThatCombine: Story = {
     // asked and answered: the server wrote the expression and read it back
     await waitFor(
       () =>
-        expect(dpqlMockParseCalls.some((call) => call.text === '$record:{quantity} + 1')).toBe(true),
+        expect(dpqlMockParseCalls.some((call) => call.text === '@quantity + 1')).toBe(true),
       { timeout: 10000 }
     );
     expect(canvasElement.querySelector('.expression-server-errors')).toBeNull();
@@ -2042,7 +2042,7 @@ export const VisualConditionSaysTheServersWords: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await readBuiltCondition('$record:{n} + 1');
+    await readBuiltCondition('@n + 1');
     await waitFor(() => expect(wholeConditionVerdict(canvasElement)).toHaveTextContent(SERVER_TRUTHINESS), {
       timeout: 10000,
     });
@@ -2067,7 +2067,7 @@ export const VisualTextConditionSaysTheServersWords: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await readBuiltCondition('$record:{name} + 1');
+    await readBuiltCondition('@name + 1');
     await waitFor(
       () => expect(wholeConditionVerdict(canvasElement)).toHaveTextContent(SERVER_NOT_A_CONDITION),
       { timeout: 10000 }
@@ -2118,7 +2118,7 @@ export const VisualConditionWithANumberPart: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await readBuiltCondition('$record:{n} + 1 && $record:{n} >= 1');
+    await readBuiltCondition('@n + 1 && @n >= 1');
     await waitFor(() => expect(partVerdicts(canvasElement)).toEqual(['warning']), {
       timeout: 10000,
     });
@@ -2149,7 +2149,7 @@ export const VisualConditionWithATextPart: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await readBuiltCondition('$record:{name} + 1 || $record:{n} >= 1');
+    await readBuiltCondition('@name + 1 || @n >= 1');
     await waitFor(() => expect(partVerdicts(canvasElement)).toEqual(['error']), { timeout: 10000 });
     expect(
       canvasElement.querySelector('.expression-condition-part-verdict')?.textContent
@@ -2177,7 +2177,7 @@ export const VisualConditionWithPartsThatAreTrueOrFalse: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await readBuiltCondition('$record:{n} >= 1 && $record:{n} < 10');
+    await readBuiltCondition('@n >= 1 && @n < 10');
     expect(partVerdicts(canvasElement)).toEqual([]);
     expect(errorsShown(canvasElement)).toEqual([]);
   },

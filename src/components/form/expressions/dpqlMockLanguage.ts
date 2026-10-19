@@ -15,6 +15,7 @@ import {
   conditionErrorText,
 } from '../../../helpers/expressions';
 import { getQorusTypes, qorusTypeSentenceForm } from '../../../hooks/useQorusTypes';
+import { readRecordReference, recordReferenceDpql } from './dpqlMockRecordPath';
 import { mockExpressions } from './mockExpressions';
 import { IExpressionSchema } from './types';
 
@@ -260,6 +261,14 @@ const tokenize = (text: string): TToken[] => {
   LEX_RE.lastIndex = 0;
   while (LEX_RE.lastIndex < text.length) {
     const start = LEX_RE.lastIndex;
+    // a record field reference, with its quotes and accessors: the template the server gives it
+    const at = start + (/^\s*/.exec(text.slice(start))?.[0].length ?? 0);
+    const reference = text[at] === '@' ? readRecordReference(text.slice(at)) : undefined;
+    if (reference) {
+      tokens.push({ kind: 'template', text: reference.template, start: at });
+      LEX_RE.lastIndex = at + reference.length;
+      continue;
+    }
     const m = LEX_RE.exec(text);
     if (!m) {
       if (text.slice(start).trim() === '') break;
@@ -733,9 +742,15 @@ const TEMPLATE_TOKEN = /^\$[A-Za-z_-][\w-]*:[\w.{}]+$/;
 const argumentValue = (arg: IDpqlMockNode | undefined): unknown =>
   arg && !arg.exp && !arg.is_expression ? arg.value : arg;
 
-const printLiteral = (value: unknown): string => {
+/** `readable`: a rendering, which keeps a reference as its template (a chip); else DPQL, as `dpql/serialize` writes it. */
+const printLiteral = (value: unknown, readable = true): string => {
   if (value && typeof value === 'object' && 'raw' in value) {
     return String((value as { raw?: string }).raw);
+  }
+  // a record field is the field reference the server reads it as: @pos, @"create.order-id", @orders[*].id
+  const reference = readable ? undefined : recordReferenceDpql(value);
+  if (reference !== undefined) {
+    return reference;
   }
   if (typeof value === 'string') {
     // A value that is one template is the template, as the UI form evaluates it and as the server serializes
@@ -759,7 +774,7 @@ const printArg = (arg: IDpqlMockNode, parentPrecedence: number, readable: boolea
     return precedence !== undefined && precedence < parentPrecedence ? `(${printed})` : printed;
   }
   if (arg.exp) return printNode(arg, readable);
-  return printLiteral(arg.value);
+  return printLiteral(arg.value, readable);
 };
 
 /** `render_template` substitution, in the server's order. */
