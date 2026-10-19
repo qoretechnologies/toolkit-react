@@ -23,8 +23,9 @@ const WRITTEN: Array<[string, string]> = [
   // a part that is not a name: the path is one quoted name, its dots still separating its parts
   ['$record:{create.order-id}', '@"create.order-id"'],
   ['$record:{a b}', '@"a b"'],
-  // a dot that is part of a key (qore#5480)
-  ['$record:{Unit\\.Price}', '@"Unit\\.Price"'],
+  // a dot that is part of a key (qore#5480), in a template as the Qorus IDE writes it: the path create.Unit\.Price
+  // with its backslash escaped for the template
+  ['$record:{create.Unit\\\\.Price}', '@"create.Unit\\.Price"'],
   // the accessors, as the serializer writes them
   ['$record:{orders[*].id}', '@orders[*].id'],
   ['$record:{create.items[*].id}', '@create.items[*].id'],
@@ -43,8 +44,10 @@ describe('a record field written by the stories’ server', () => {
     expect(recordReferenceDpql(template)).toBe(dpql);
   });
 
-  it('reads the template escapes of the braces first', () => {
+  it('reads the template escapes first', () => {
     expect(recordReferenceDpql('$record:{prices\\{*\\}.amount}')).toBe('@prices{*}.amount');
+    // a backslash that escapes nothing of the template's is the path's own, as Qorus reads it
+    expect(recordReferenceDpql('$record:{Unit\\.Price}')).toBe('@"Unit\\.Price"');
   });
 
   it('leaves what is not a record field, and a path the accessors cannot give', () => {
@@ -75,7 +78,7 @@ describe('a record field read by the stories’ server', () => {
     expect(readRecordReference('@headers{"content-type"}')?.template).toBe(
       '$record:{headers.content-type}'
     );
-    expect(readRecordReference('@headers{"a.b"}')?.template).toBe('$record:{headers.a\\.b}');
+    expect(readRecordReference('@headers{"a.b"}')?.template).toBe('$record:{headers.a\\\\.b}');
   });
 
   it('is nothing where the text does not start with a field', () => {

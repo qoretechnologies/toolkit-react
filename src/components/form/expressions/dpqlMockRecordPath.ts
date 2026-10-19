@@ -47,8 +47,13 @@ type TReference =
 /** The text in the braces of a template with the template's escapes (`\{`, `\}`, `\\`) decoded. */
 export const recordTemplatePath = (text: string): string => text.replace(/\\([{}\\])/g, '$1');
 
-/** The text in the braces of a template that decodes to `path`: a backslash before `{`, `}` or `\` is doubled. */
-const recordTemplateText = (path: string): string => path.replace(/\\(?=[{}\\])/g, '\\\\');
+/**
+ * The text in the braces of a template that decodes to `path`, as the Qorus IDE writes it (`recordTemplateOf`):
+ * every backslash and every brace is escaped, except the hash wildcard `{*}`. `Unit.Price` under `create` (the path
+ * `create.Unit\.Price`) is `$record:{create.Unit\\.Price}`.
+ */
+const recordTemplateText = (path: string): string =>
+  path.replace(/\{\*\}|[\\{}]/g, (found) => (found === '{*}' ? found : `\\${found}`));
 
 /** The parts of a record path as a test path reads it, or undefined where the accessors cannot give it. */
 const pathParts = (path: string): { parts: TPathPart[]; selector: boolean } | undefined => {
