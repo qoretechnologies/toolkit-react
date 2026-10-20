@@ -40,6 +40,7 @@ export { currentUserStore as ReqraftCurrentUserStore } from './stores/currentUse
 export type {
   ICurrentUser,
   ICurrentUserStore,
+  ICurrentUserSupportSession,
 } from './stores/currentUser/currentUser';
 export {
   fetchConfig,
