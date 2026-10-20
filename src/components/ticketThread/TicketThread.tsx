@@ -5,8 +5,8 @@ import {
   ReqoreControlGroup,
   ReqoreEmptyState,
   ReqoreIcon,
+  ReqoreNotification,
   ReqoreP,
-  ReqorePanel,
   ReqoreSkeleton,
   ReqoreTimeAgo,
   useReqoreTheme,
@@ -24,6 +24,7 @@ import {
   dedupeInterfaceReferences,
   IInterfaceReference,
   InterfaceReferenceTags,
+  TICKET_SYSTEM_EVENT_META,
   ticketSystemEventMeta,
   TResolveInterfaceIcon,
   TTicketMessageAuthor,
@@ -562,10 +563,27 @@ const AttachmentList = ({
   );
 };
 
+/** The anchor a "show in chat" scroll lands on; the notification itself takes no id. */
+const StyledSystemCard = styled.div`
+  width: 100%;
+`;
+
+/** A one-line access event sits centred in the thread, as the plain system lines do. */
+const StyledSystemPill = styled.div`
+  display: flex;
+  justify-content: center;
+  width: 100%;
+`;
+
 /**
  * A system message. The request for workspace access renders as a card — it asks the
  * reader something, and can carry the customer's answer — while every other event stays
  * the centred muted line, marked with its event's icon when the event is known.
+ *
+ * The card wears the notification look (Nick, 2026-10-20): the same frosted surface,
+ * icon tile and action row as a toast, because a thread message that asks the reader to
+ * act is a notification that happens to live in the thread. It never times out and
+ * cannot be dismissed; the answer is the one action on it.
  */
 const SystemMessage = ({
   message,
@@ -577,35 +595,52 @@ const SystemMessage = ({
   const meta = ticketSystemEventMeta(message.system_event);
   if (message.system_event === 'support_access.requested') {
     return (
-      <ReqorePanel
-        id={ticketMessageDomId(message.message_id)}
-        className='reqore-ticket-system-card'
-        size='small'
-        icon={meta.icon}
-        intent={meta.intent}
-        label={meta.label}
-        flat={false}
-        minimal
-        actions={
-          action
-            ? [
-                {
-                  label: action.label,
-                  icon: action.icon,
-                  intent: action.intent ?? 'success',
-                  className: 'reqore-ticket-system-card-action',
-                  // the answer keeps its label at every width: a phone is where the
-                  // customer is most likely to read the request, and where a tooltip
-                  // would never show the word behind an icon
-                  responsive: false,
-                  onClick: action.onClick,
-                },
-              ]
-            : undefined
-        }
-      >
-        <MessageBody>{message.body}</MessageBody>
-      </ReqorePanel>
+      <StyledSystemCard id={ticketMessageDomId(message.message_id)} className='reqore-ticket-system-card'>
+        <ReqoreNotification
+          fluid
+          // in the page, not over it: no drop shadow, no cast light (reqore 0.78.8)
+          lift={false}
+          icon={meta.icon}
+          intent={meta.intent}
+          title={meta.label}
+          content={<MessageBody>{message.body}</MessageBody>}
+          actions={
+            action
+              ? [
+                  {
+                    label: action.label,
+                    icon: action.icon,
+                    intent: action.intent ?? 'success',
+                    className: 'reqore-ticket-system-card-action',
+                    // a notification's actions are plain buttons that keep their label at
+                    // every width (a phone is where the customer reads this); only a panel
+                    // action folds to an icon, so nothing has to be asked for here
+                    // the card stays: the thread, not a click, decides when it goes
+                    closeOnClick: false,
+                    onClick: action.onClick,
+                  },
+                ]
+              : undefined
+          }
+        />
+      </StyledSystemCard>
+    );
+  }
+  // A delegated-access event the vocabulary knows is a compact pill in the same look as
+  // the request card, so the grant's story reads as one family: asked, granted, opened,
+  // extended, revoked, expired. Any other system line stays the plain centred line.
+  if (message.system_event && message.system_event in TICKET_SYSTEM_EVENT_META) {
+    return (
+      <StyledSystemPill id={ticketMessageDomId(message.message_id)} className='reqore-ticket-system-pill'>
+        <ReqoreNotification
+          compact
+          lift={false}
+          size='small'
+          icon={meta.icon}
+          intent={meta.intent}
+          content={<ReactMarkdown components={{ p: 'span' }}>{message.body}</ReactMarkdown>}
+        />
+      </StyledSystemPill>
     );
   }
   return (

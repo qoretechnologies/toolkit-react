@@ -860,7 +860,7 @@ export const SupportAccessRequestCard: Story = {
     docs: {
       description: {
         story:
-          'Renders the delegated-access events in a customer thread: the support request as a card carrying a Grant action supplied by the consumer, and the granted, opened, extended, revoked and expired events as marked lines (qorus#693).',
+          'Renders the delegated-access events in a customer thread in the notification look: the support request as a card (frosted surface, icon tile, the Grant action supplied by the consumer under the text), and the granted, opened, extended, revoked and expired events as compact pills centred in the thread (qorus#693).',
       },
     },
   },
