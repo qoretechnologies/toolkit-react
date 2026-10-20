@@ -143,7 +143,7 @@ export const ticketAuditActionMeta = (action: string): ITicketEnumMeta =>
 export const TICKET_SYSTEM_EVENT_META: Record<TTicketSystemEvent, ITicketEnumMeta> = {
   'support_access.requested': {
     label: 'Workspace access requested',
-    intent: 'pending',
+    intent: 'info',
     icon: 'ShieldUserLine',
   },
   'support_access.granted': { label: 'Workspace access granted', intent: 'success', icon: 'ShieldCheckLine' },
