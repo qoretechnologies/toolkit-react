@@ -11821,9 +11821,15 @@ const SheetContractForm = ({ readOnly }: { readOnly?: boolean }) => {
   );
 };
 
-/** The sheet contract's row, read or open. */
-const contractRow = () =>
-  [...document.querySelectorAll<HTMLElement>('[data-field="contract"]')].pop() as HTMLElement;
+/**
+ * The sheet contract's row, read or open. It fails while the row is not drawn yet, so `waitFor` waits for it: a
+ * play that ran before the form drew its rows clicked nothing (the stories failed in a served Storybook).
+ */
+const contractRow = () => {
+  const row = [...document.querySelectorAll<HTMLElement>('[data-field="contract"]')].pop();
+  expect(row, 'the sheet contract row').toBeTruthy();
+  return row!;
+};
 
 /** The sheet contract's open card, once it has opened. */
 const contractCard = () =>
