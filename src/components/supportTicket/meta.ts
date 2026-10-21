@@ -122,7 +122,7 @@ export const UNKNOWN_TICKET_AUDIT_ACTION_META: ITicketEnumMeta = {
 };
 
 /** A wire value humanised for reading: `attachment_downloaded` → "Attachment downloaded". */
-const humaniseWireValue = (value: string): string => {
+export const humaniseWireValue = (value: string): string => {
   const words = value.replace(/[._-]+/g, ' ').trim();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : value;
 };

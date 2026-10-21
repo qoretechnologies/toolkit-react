@@ -1,6 +1,6 @@
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
-import { ITicketEnumMeta } from './meta';
+import { ITicketEnumMeta, humaniseWireValue } from './meta';
 
 /*
  * The delegated-support-access vocabulary (qorus#692): how the account's access
@@ -55,10 +55,6 @@ export interface ISupportAccessMeta extends ITicketEnumMeta {
 }
 
 /** `idle_paused` → "Idle paused": a wire value as words. */
-export const humaniseAccessValue = (value: string): string => {
-  const words = value.replace(/[._-]+/g, ' ').trim();
-  return words ? words.charAt(0).toUpperCase() + words.slice(1) : value;
-};
 
 const UNKNOWN: ISupportAccessMeta = { label: 'Unknown', intent: 'muted', icon: 'QuestionLine' };
 
@@ -67,7 +63,7 @@ const lookup =
   (value: string | undefined): ISupportAccessMeta =>
     value === undefined
       ? UNKNOWN
-      : ((table as Record<string, ISupportAccessMeta>)[value] ?? { ...UNKNOWN, label: humaniseAccessValue(value) });
+      : ((table as Record<string, ISupportAccessMeta>)[value] ?? { ...UNKNOWN, label: humaniseWireValue(value) });
 
 export const SUPPORT_ACCESS_POLICY_META: Record<TSupportAccessPolicy, ISupportAccessMeta> = {
   auto: {
@@ -102,7 +98,7 @@ export const SUPPORT_ACCESS_POLICY_SOURCE_LABEL: Record<TSupportAccessPolicySour
 };
 export const supportAccessPolicySourceLabel = (source: string | undefined): string =>
   (source && (SUPPORT_ACCESS_POLICY_SOURCE_LABEL as Record<string, string>)[source]) ||
-  humaniseAccessValue(source ?? '');
+  humaniseWireValue(source ?? '');
 
 export const SUPPORT_GRANT_STATE_META: Record<TSupportGrantState, ISupportAccessMeta> = {
   active: { label: 'Active', intent: 'success', icon: 'ShieldCheckLine' },
@@ -123,7 +119,7 @@ export const SUPPORT_GRANT_END_CAUSE_LABEL: Record<TSupportGrantEndCause, string
   expired: 'expired',
 };
 export const supportGrantEndCauseLabel = (cause: string | undefined): string | undefined =>
-  cause ? ((SUPPORT_GRANT_END_CAUSE_LABEL as Record<string, string>)[cause] ?? humaniseAccessValue(cause)) : undefined;
+  cause ? ((SUPPORT_GRANT_END_CAUSE_LABEL as Record<string, string>)[cause] ?? humaniseWireValue(cause)) : undefined;
 
 export const SUPPORT_ACCESS_DURATION_LABEL: Record<TSupportAccessDuration, string> = {
   '24h': '24 hours',
@@ -133,7 +129,7 @@ export const SUPPORT_ACCESS_DURATION_LABEL: Record<TSupportAccessDuration, strin
 };
 export const supportAccessDurationLabel = (duration: string | undefined): string =>
   (duration && (SUPPORT_ACCESS_DURATION_LABEL as Record<string, string>)[duration]) ||
-  humaniseAccessValue(duration ?? '');
+  humaniseWireValue(duration ?? '');
 
 /** The grant's own trail, as a customer's access log or a staff access view lists it. */
 export const SUPPORT_ACCESS_AUDIT_ACTION_META: Record<TSupportAccessAuditAction, ISupportAccessMeta> = {
@@ -153,7 +149,7 @@ export const supportAccessAuditActionMeta = (action: string): ISupportAccessMeta
   (SUPPORT_ACCESS_AUDIT_ACTION_META as Record<string, ISupportAccessMeta>)[action] ?? {
     ...UNKNOWN,
     icon: 'HistoryLine' as IReqoreIconName,
-    label: humaniseAccessValue(action),
+    label: humaniseWireValue(action),
   };
 
 /* ── time, against a clock the caller owns ───────────────────────────────────── */
@@ -172,6 +168,10 @@ const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
  * "in 3 hours" / "2 days ago" against a clock the caller passes, so a story freezes it
  * and two surfaces reading the same grant agree. An unparsable instant is an empty
  * string, never "NaN years ago".
+ *
+ * Not `epoch-timeago` (what `ReqoreTimeAgo` and `TicketReferences` use): it speaks only
+ * of the past and reads the real clock, so it can neither say "in 3 hours" for a grant
+ * that is still running nor hold still in a story.
  */
 export const formatRelativeTime = (iso: string | undefined, now: number, locale = 'en'): string => {
   if (!iso) return '';
