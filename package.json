@@ -1,6 +1,6 @@
 {
   "name": "@qoretechnologies/reqraft",
-  "version": "0.10.63",
+  "version": "0.10.65",
   "description": "ReQraft is a collection of React components and hooks that are used across Qore Technologies' products made using the ReQore component library from Qore.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -88,7 +88,6 @@
     "eslint-plugin-storybook": "10.4.6",
     "jsdom": "^29.1.1",
     "mock-socket": "^9.3.1",
-    "npm-cli-login": "^0.1.1",
     "playwright": "^1.60.0",
     "pre-push": "^0.1.4",
     "react": "^18.3.1",
@@ -140,6 +139,10 @@
     "zustand": "^5.0.3"
   },
   "resolutions": {
-    "jackspeak": "2.1.1"
+    "jackspeak": "2.1.1",
+    "js-cookie": "^3.0.7",
+    "pre-push/cross-spawn": "^7.0.6",
+    "**/storybook/@vitest/mocker": "^4.1.12",
+    "vite/esbuild": "^0.28.1"
   }
 }
