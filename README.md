@@ -148,6 +148,38 @@ client.onNotification('qonsole/sessionStateChanged', (params) => { /* … */ });
 client.disconnect();
 ```
 
+### `ReqraftWebSocket`
+
+The WebSocket under `useReqraftWebSocket` and `ReqraftLspClient`: one socket per URL on the configured instance (unless `pooled: false`), with a heartbeat and reconnects. `useReqraftWebSocket` takes the same options.
+
+```ts
+import { ReqraftWebSocket } from '@qoretechnologies/reqraft';
+
+const socket = new ReqraftWebSocket({
+  url: 'log/main', // the path on the instance
+  onMessage: (event) => append(event.data),
+  onReconnectFailed: () => offerReload(),
+});
+
+socket.remove(); // let go of it; the last user of a shared socket closes it
+```
+
+| Option | Default | |
+|---|---|---|
+| `pooled` | `true` | Users of the same `url` share one socket; `false` gives this one its own |
+| `reconnect` | `true` | Replace a socket that closes, or whose handshake does not open in time |
+| `reconnectInterval` | `5000` | ms between attempts; the first attempt after a socket is lost is made at once |
+| `maxReconnectTries` | `10` | Attempts before `onReconnectFailed` |
+| `handshakeTimeout` | `15000` (`REQRAFT_WS_HANDSHAKE_TIMEOUT_MS`) | ms a handshake has to open; `0` sets no limit |
+| `probeTimeout` | `10000` (`REQRAFT_WS_PROBE_TIMEOUT_MS`) | ms an attempt waits for its server-status probe; `0` sets no limit |
+| `useHeartbeat` | `true` | Send `ping` every 3 s while open |
+| `tokenOverride` | | A token for this socket instead of the instance's |
+| `onOpen`, `onMessage`, `onClose`, `onError`, `onReconnecting`, `onReconnectFailed` | | Callbacks |
+
+- **A handshake that hangs** (the server takes the connection and never answers the upgrade) sends no event at all until the browser gives up, about four minutes later in Chromium, and Chromium holds back every other socket to the same host and port while it waits. At `handshakeTimeout` the socket is closed and replaced: its users get `onError` and then `onClose` with code 1006, as for a handshake that failed, and the replacement follows the same `reconnectInterval` and `maxReconnectTries` as after a close. An open socket has no deadline, and a connection never has more than one socket.
+- **Before each attempt** it asks the server `GET system/pid`, so that a session that has expired is sent to sign in (`fetchConfig.unauthorizedRedirect`). The answer never holds the attempt back: the request is aborted after `probeTimeout`, and the attempt is made either way.
+- **`remove()` and `close()`** close on purpose: the socket is not reconnected, also when it was still connecting (a browser reports that close as 1006), and a reconnect waiting to run, its probe and the handshake deadline are called off. `ReqraftWebSocketsManager.closeAll()` closes every socket the same way.
+
 ### `ReqraftColorValue`
 
 A stored color, read-only: a swatch painted the color, beside the color written out (`#6495ED`, or `rgba(255, 0, 0, 0.5)` when it is see-through), on a wash of the color. A compact form row draws its colors with it, so a page and a form show a color the same way.

@@ -82,7 +82,7 @@ Two classes work together:
 
 **Pooling:** By default (`pooled` not set to `false`), sockets with the same URL share one underlying `WebSocket`. Use `pooled: false` for dedicated connections. The pool key becomes `${url}::${nanoid()}` for non-pooled.
 
-**Reconnect:** Triggered on close (unless code `4999` = intentional). Immediate first try, then `reconnectInterval` (default 5s) up to `maxReconnectTries` (default 10).
+**Reconnect:** Triggered on close (unless code `4999` = intentional, or the caller closed it: a socket closed while still connecting reports 1006) and when a handshake has not opened after `handshakeTimeout` (default 15s, `REQRAFT_WS_HANDSHAKE_TIMEOUT_MS`): a hung handshake sends no event at all, and Chromium queues every other socket to the same host and port behind it, so the socket is closed, its users get error + close 1006, and it is replaced. Immediate first try, then `reconnectInterval` (default 5s) up to `maxReconnectTries` (default 10). Each try first probes `system/pid`, aborted after `probeTimeout` (default 10s); the probe never gates the try. `remove()`/`close()` call off a pending try and its probe.
 
 **Heartbeat:** Sends `"ping"` every 3s; ignores `"pong"` in message handlers.
 
