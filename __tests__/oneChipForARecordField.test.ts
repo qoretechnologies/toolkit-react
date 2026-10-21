@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getTagLabel } from '../src/components/dpqlEditor/dpqlHelpers';
+import { dpqlDisplayedText, getTagLabel } from '../src/components/dpqlEditor/dpqlHelpers';
 import { makeDpqlTagRenderer } from '../src/components/dpqlEditor/dpqlTags';
 import { recordTemplateOfReference } from '../src/helpers/recordFieldReference';
 
@@ -59,5 +59,27 @@ describe('a record field written in DPQL', () => {
 
     expect('tooltip' in field).toBe(true);
     expect(field.tooltip).toBeUndefined();
+  });
+});
+
+/**
+ * The Expression tab's Preview is drawn only when the server's rendering reads differently from the text, compared
+ * as the editor draws both (`dpqlDisplayedText`). The text says `@pos`, the rendering keeps `$record:{pos}`: one
+ * chip, drawn alike, so there is nothing to preview. Compared as written, they differed, and the Preview drew
+ * `record: pos` under the `pos` chip whenever the server's rendering came in after the text (FormEngine · Saved
+ * Expression Opens On Expression, one run in two).
+ */
+describe('a record field compared as it is drawn', () => {
+  it('reads as the template it stands for', () => {
+    expect(dpqlDisplayedText('@pos')).toBe(dpqlDisplayedText('$record:{pos}'));
+    expect(dpqlDisplayedText('@pos + 1')).toBe(dpqlDisplayedText('$record:{pos} + 1'));
+    expect(dpqlDisplayedText('@orders[*].id')).toBe(dpqlDisplayedText('$record:{orders[*].id}'));
+  });
+
+  it('still differs from another field, and leaves other references as they are', () => {
+    expect(dpqlDisplayedText('@pos')).not.toBe(dpqlDisplayedText('$record:{qty}'));
+    expect(dpqlDisplayedText('$local:name == "John"')).toBe(
+      dpqlDisplayedText('"$local:name" == "John"')
+    );
   });
 });

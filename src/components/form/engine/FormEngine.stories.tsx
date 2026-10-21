@@ -10958,7 +10958,7 @@ export const SavedExpressionOpensOnExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders the form and opens Computed, a whole number holding the expression pos + 1: it opens on Expression, as DPQL text. On Value it says it cannot show this expression as a value and offers to replace it - the expression is kept until it is replaced. Replaced, it is a value: the field pos chosen on the Value tab is that field, not an expression - kept when the Expression tab is opened straight after the pick, and shown there.',
+          'Renders the form and opens Computed, a whole number holding the expression pos + 1: it opens on Expression, as DPQL text. On Value it says it cannot show this expression as a value and offers to replace it - the expression is kept until it is replaced. Replaced, it is a value: the field pos chosen on the Value tab is that field, not an expression - kept when the Expression tab is opened straight after the pick, and shown there as its chip, with no Preview under it: the server’s rendering of it is the same chip.',
       },
     },
   },
@@ -10993,6 +10993,14 @@ export const SavedExpressionOpensOnExpression: Story = {
     await waitFor(() =>
       expect(optionRow('computed').querySelector('.expression-field [data-slate-editor]')?.textContent).toContain('pos')
     );
+    /* the server's rendering of it reads as the same chip, whether the text shown is the template or the server's
+       @pos: no Preview repeats it, whichever of the two arrives first */
+    await expect(
+      optionRow('computed').querySelector('.expression-field')?.getAttribute('data-preview')
+    ).not.toBe('shown');
+    await expect(
+      optionRow('computed').querySelector('[data-testid="expression-preview"]')
+    ).toBeNull();
   },
 };
 

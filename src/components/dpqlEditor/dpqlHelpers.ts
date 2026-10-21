@@ -5,6 +5,7 @@
 // SmartEditor primitive uses these via the `converter` prop on
 // `DpqlEditor`; the SmartEditor itself has no knowledge of DPQL syntax.
 
+import { recordTemplateOfReference } from '../../helpers/recordFieldReference';
 import { ISlateConverter, ISlateElement, ISlateText, TSlateNode } from '../smartEditor/types';
 
 // What the editor draws as a chip is what the server's DPQL tokenizer (Qore's DataProvider DpqlTokenizer) reads as
@@ -247,13 +248,19 @@ export function plainTextToSlate(text: string): ISlateElement[] {
 /**
  * `text` as a DPQL editor draws it: a reference is its chip, so the quotes a
  * chip is drawn over do not show. `"$local:name" == "John"` and
- * `$local:name == "John"` read the same.
+ * `$local:name == "John"` read the same. A record field is drawn as the chip of
+ * the template it stands for (`makeDpqlTagRenderer`), so it reads as that
+ * template: `@pos + 1` and `$record:{pos} + 1` read the same (qorus#646).
  */
 export function dpqlDisplayedText(text: string): string {
   return plainTextToSlate(text)
     .map((paragraph) =>
       paragraph.children
-        .map((node) => ('text' in node ? node.text : String((node as ISlateElement).value ?? '')))
+        .map((node) => {
+          if ('text' in node) return node.text;
+          const value = String((node as ISlateElement).value ?? '');
+          return recordTemplateOfReference(value) ?? value;
+        })
         .join('')
     )
     .join('\n');
