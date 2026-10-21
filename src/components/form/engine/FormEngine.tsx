@@ -2985,13 +2985,19 @@ const FormEngineImpl = ({
    *  appears in the form, not when one already there comes to need one. */
   const scannedFieldsRef = useRef<Set<string>>(new Set());
 
-  const toggleExpandedOption = useCallback(
+  /* A row is opened or closed by what the user did to the row as it was drawn, never by flipping whatever the
+     state is by the time React applies the update. A toggle read the direction from the latest state: the
+     first-required scan opens its row with an update of its own, and a click on that row, drawn closed, landed on
+     top of it and closed the row the user had just opened (qorus#646: the Qorus IDE's Schema "Draft Is Saved").
+     Each of these does nothing to a row already in its state.
+
+     A row the user opens or closes is where they have chosen to work: the first-required scan, if it is still
+     waiting for the focus to be free, does not run after either (qorus#646). */
+  const expandOption = useCallback(
     (optionName: string) => {
-      // A row the user opens or closes is where they have chosen to work: the first-required scan, if it is
-      // still waiting for the focus to be free, does not run after it (qorus#646).
       hasAutoFocusedRef.current = true;
       setExpandedOptions((prev) =>
-        prev.includes(optionName) ? prev.filter((name) => name !== optionName)
+        prev.includes(optionName) ? prev
           // single (default): opening a row collapses any other open one.
         : expandMode === 'single' ? [optionName]
         : [...prev, optionName]
@@ -2999,6 +3005,12 @@ const FormEngineImpl = ({
     },
     [expandMode]
   );
+  const collapseOption = useCallback((optionName: string) => {
+    hasAutoFocusedRef.current = true;
+    setExpandedOptions((prev) =>
+      prev.includes(optionName) ? prev.filter((name) => name !== optionName) : prev
+    );
+  }, []);
 
   // --- Caller-named starting rows (opt-in) ----------------------------------
   // `initialExpandedOptions` lets a consumer name the rows that must already
@@ -3085,7 +3097,7 @@ const FormEngineImpl = ({
   //
   // It waits only for the user's first move. A form opened from a button mounts while that button holds the
   // focus, and the scan waits for it to be free - but the user does not wait: they open a row (which spends
-  // the scan, `toggleExpandedOption`) or come into the form from the keyboard (which runs it, below). Waiting
+  // the scan, `expandOption`) or come into the form from the keyboard (which runs it, below). Waiting
   // past that, the scan ran the first time the focus rested on nothing, which is the Done that closes the
   // user's row, and opened the next row that needed an answer by itself in the middle of their work.
   useEffect(() => {
@@ -3163,7 +3175,7 @@ const FormEngineImpl = ({
   /* The two first moves a user makes in a form opened from a button, while the scan above waits for the
      focus to be free:
      - pointing into the form (a click on a row, a field, the toolbar) is choosing where to work, and spends
-       the scan, as opening a row does (`toggleExpandedOption`);
+       the scan, as opening a row does (`expandOption`);
      - coming into it from the keyboard (Tab from the button) chooses nothing, and runs the scan now: the user
        is put in the first row that needs an answer, once. Coming straight into a control they can type in
        (a field already open, the search box) is theirs, and spends the scan without moving them.
@@ -3803,7 +3815,8 @@ const FormEngineImpl = ({
       requiredGroupsInfo,
       handleValueChange,
       handleAddOptionalFieldChange,
-      toggleExpandedOption,
+      expandOption,
+      collapseOption,
       flashOption,
       hasOptionChanged,
       handleOptionLabelClick,
@@ -3855,7 +3868,8 @@ const FormEngineImpl = ({
       requiredGroupsInfo,
       handleValueChange,
       handleAddOptionalFieldChange,
-      toggleExpandedOption,
+      expandOption,
+      collapseOption,
       flashOption,
       hasOptionChanged,
       handleOptionLabelClick,

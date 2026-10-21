@@ -273,10 +273,8 @@ export const CompactRow = memo(
     const availableOptions = useContextSelector(CompactRowContext, (v) => v.availableOptions);
     const requiredGroupsInfo = useContextSelector(CompactRowContext, (v) => v.requiredGroupsInfo);
     const handleValueChange = useContextSelector(CompactRowContext, (v) => v.handleValueChange);
-    const toggleExpandedOption = useContextSelector(
-      CompactRowContext,
-      (v) => v.toggleExpandedOption
-    );
+    const expandOption = useContextSelector(CompactRowContext, (v) => v.expandOption);
+    const collapseOption = useContextSelector(CompactRowContext, (v) => v.collapseOption);
     const flashOption = useContextSelector(CompactRowContext, (v) => v.flashOption);
     const hasOptionChanged = useContextSelector(CompactRowContext, (v) => v.hasOptionChanged);
     const handleOptionLabelClick = useContextSelector(
@@ -1041,8 +1039,8 @@ export const CompactRow = memo(
       ) {
         handleValueChange(optionName, ...restoredFieldChange(snapshot));
       }
-      toggleExpandedOption(optionName);
-    }, [handleValueChange, optionField?.value, optionName, toggleExpandedOption, pendingEdits]);
+      collapseOption(optionName);
+    }, [handleValueChange, optionField?.value, optionName, collapseOption, pendingEdits]);
 
     // The sub-schema describing this field's value, when it has one. A value the
     // form knows the shape of is previewed THROUGH that shape (see
@@ -1245,7 +1243,7 @@ export const CompactRow = memo(
         onClick={() => {
           // what was typed inside the field's pause reaches the form before the row closes
           pendingEdits.flush();
-          toggleExpandedOption(optionName);
+          collapseOption(optionName);
         }}
       />
     );
@@ -1535,7 +1533,7 @@ export const CompactRow = memo(
         // closing the row by its label keeps what was typed, as Done does
         const collapse = () => {
           pendingEdits.flush();
-          toggleExpandedOption(optionName);
+          collapseOption(optionName);
         };
         const editingRow = (
           <div
@@ -2251,7 +2249,8 @@ export const CompactRow = memo(
       if (fieldDisabled || readOnly) {
         // ...except a row whose line cannot show what it holds: it opens its card to be read (`readOnlyOpens`)
         if (readOnlyOpens && !fieldDisabled) {
-          toggleExpandedOption(optionName);
+          // what the row was drawn as decides: open, it closes; closed, it opens (see expandOption)
+          (isExpanded ? collapseOption : expandOption)(optionName);
         } else if (readOnly && !fieldDisabled) {
           onReadOnlyActivate?.(optionName);
         }
@@ -2269,7 +2268,11 @@ export const CompactRow = memo(
       // not-yet-set field just expands its editor (with an empty value); it joins
       // the form's output the moment a value is set (and moves to Set / Needs
       // attention), and drops back to Optional when cleared. No explicit add step.
-      toggleExpandedOption(optionName);
+      //
+      // What the row was drawn as decides, not the state by the time the update lands: a click on a row drawn
+      // closed opens it, even if the first-required scan's update has opened it in the meantime (a toggle closed
+      // it again: qorus#646, the Qorus IDE's Schema "Draft Is Saved").
+      (isExpanded ? collapseOption : expandOption)(optionName);
     };
 
     // Row chrome: icon/image before the label; schema `intent` as the edge

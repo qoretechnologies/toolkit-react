@@ -12574,3 +12574,81 @@ export const ARowStacksOnAPhone: Story = {
     });
   },
 };
+
+/* A click on a row while the form is opening it (qorus#646: the Qorus IDE's Schema "Draft Is Saved"). A read-first
+   form with `autoFocusFirstRequired` opens its first row that needs an answer with an update of its own. A click on
+   that row, still drawn closed, landed on top of the update: a toggle read its direction from the latest state, and
+   closed the row the user had just opened. On a busy page (the IDE's suite, a slow machine) a user's click lands
+   just there, between the form's update and its next drawing. */
+
+const DRAWN_CLOSED_OPTIONS = {
+  display_name: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Display name',
+    required: true,
+    sort: 1,
+  },
+  description: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Description',
+    preselected: true,
+    sort: 2,
+  },
+} as never;
+
+const drawnClosedRow = (field: string) =>
+  document.querySelector<HTMLElement>(`.drawn-closed-form [data-field="${field}"]`);
+const drawnClosedEditor = () =>
+  document.querySelector<HTMLElement>(
+    '.drawn-closed-form .readfirst-row-editing[data-field="display_name"]'
+  );
+
+export const AClickOnARowAsTheFormOpensItKeepsItOpen: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a read-first form opened from a button, whose first row, Display name, needs an answer (`autoFocusFirstRequired`). Coming into the form from the keyboard opens that row, with an update of the form\'s own; in the same moment, before the form is drawn again, Display name - still drawn closed - is clicked, as a user on a busy page clicks it. The row opens, and stays open with the caret in it. Before, the click closed the row the form had just opened: a click was a toggle that read its direction from the latest state, not from the row it was made on (qorus#646, the Qorus IDE\'s Schema "Draft Is Saved").',
+      },
+    },
+  },
+  render: () => (
+    <div className='drawn-closed-form'>
+      <ReqoreButton id='drawn-closed-opener' autoFocus>
+        Add a field
+      </ReqoreButton>
+      <FormEngine
+        compact
+        autoFocusFirstRequired
+        name='drawn-closed'
+        options={DRAWN_CLOSED_OPTIONS}
+        value={{} as never}
+        onChange={fn()}
+      />
+    </div>
+  ),
+  play: async () => {
+    // the form is drawn, every row closed: it waits for the user's first move
+    await waitFor(() => expect(drawnClosedRow('display_name')).toBeTruthy());
+    await waitFor(() => expect(drawnClosedRow('description')).toBeTruthy());
+    await expect(drawnClosedEditor()).toBeNull();
+
+    // In one task: a Tab into the form opens Display name with the form's own update, and before that is drawn,
+    // Display name - still drawn closed - is clicked.
+    // (No await between the two: the form's update would be drawn in between.)
+    const displayName = drawnClosedRow('display_name')!;
+    drawnClosedRow('description')!.focus();
+    displayName.click();
+
+    // it is open, with the caret in it
+    await waitFor(() => expect(drawnClosedEditor()).toBeTruthy());
+    await waitFor(() => expect(drawnClosedEditor()?.contains(document.activeElement)).toBe(true));
+    // and it stays open once everything the click and the form set off has been drawn
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
+    await expect(drawnClosedEditor()).toBeTruthy();
+  },
+};

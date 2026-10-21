@@ -108,7 +108,10 @@ export interface ICompactRowContext {
   // Handlers (useCallback)
   handleValueChange: (optionName: string, val?: any, _type?: string, isFunction?: boolean) => void;
   handleAddOptionalFieldChange: (_name: string, optionName: unknown) => void;
-  toggleExpandedOption: (optionName: string) => void;
+  /** Opens a row; nothing when it is open. Spends the first-required scan, as any row the user opens does. */
+  expandOption: (optionName: string) => void;
+  /** Closes a row; nothing when it is closed. */
+  collapseOption: (optionName: string) => void;
   flashOption: (optionName: string) => void;
   hasOptionChanged: (optionValue: unknown, optionName: string) => boolean;
   handleOptionLabelClick: (optionName: string) => void;
