@@ -198,6 +198,12 @@ type Story = StoryObj<typeof meta>;
 const rgbOf = (color: string): number[] =>
   (color.match(/[\d.]+/g) || []).slice(0, 3).map((channel) => Number(channel));
 
+/** Amber: red well above blue (the warning colour), as opposed to a quiet grey. */
+const isAmber = (color: string): boolean => {
+  const [r, , b] = rgbOf(color);
+  return r - b > 60;
+};
+
 /** A grey: no channel more than a few steps from the others. */
 const isGrey = (color: string): boolean => {
   const [r, g, b] = rgbOf(color);
@@ -205,15 +211,12 @@ const isGrey = (color: string): boolean => {
 };
 
 const box = (key: 'attention' | 'set' | 'optional'): HTMLElement | undefined =>
-  [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')].find((element) =>
-    element
-      .querySelector('.reqore-panel-title')
-      ?.textContent?.startsWith(
-        key === 'attention' ? 'Needs attention'
-        : key === 'set' ? 'Set'
-        : 'Optional'
-      )
-  );
+  [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')].find((element) => {
+    const heading = element.querySelector('.reqore-panel-title')?.textContent ?? '';
+    // The first box is "To fill in" until something in it is a fault (a new form).
+    return key === 'attention' ? /^(Needs attention|To fill in)/.test(heading)
+      : heading.startsWith(key === 'set' ? 'Set' : 'Optional');
+  });
 
 const row = (field: string): HTMLElement | null =>
   document.querySelector<HTMLElement>(`.readfirst-row[data-field="${field}"]`);
@@ -349,12 +352,15 @@ export const CalmNeedsAttention: Story = {
   args: {
     appearance: 'calm',
     value: newFormValue,
+    // After a submit attempt: every empty required field is now a fault. A form nobody
+    // has been to yet reads "To fill in" instead (CalmNewForm).
+    revealRequired: true,
   },
   parameters: {
     docs: {
       description: {
         story:
-          'A new form in the calm look: the Needs attention section carries one amber dot and a word, each empty required field says **Required · add a value** in amber where its value would be (no red asterisk, no red message), and only the outstanding part of the meter is coloured. Opening a required field shows the same words under the editor as plain amber text.',
+          'A form after a submit attempt (`revealRequired`) in the calm look: the Needs attention section carries one amber dot and a word, each empty required field says **Required · add a value** in amber where its value would be (no red asterisk, no red message), and only the outstanding part of the meter is coloured. Opening a required field shows the same words under the editor as plain amber text.',
       },
     },
   },
@@ -441,6 +447,45 @@ export const CalmReadOnly: Story = {
     expect(document.querySelectorAll('.options-readfirst-status-dot').length).toBe(0);
     expect(row('version')!.textContent).toContain(CALM_REQUIRED_READ_LABEL);
     expect(row('remote')!.querySelector('.reqore-tag')).toBeNull();
+  },
+};
+
+export const CalmNewForm: Story = {
+  args: {
+    appearance: 'calm',
+    value: newFormValue,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A brand-new form in the calm look. A new form is not already wrong: its required fields are still to fill in, so the first section reads **To fill in** with no amber dot, each empty required field says **Required · add a value** in the quiet colour, and the readiness line says "3 to fill in". Opening a required field and leaving it empty makes it a fault: the section becomes **Needs attention**, with its amber dot, that field\'s words turn amber, and the readiness line says "1 need attention · 2 to fill in".',
+      },
+    },
+  },
+  play: async () => {
+    await waitFor(() => expect(box('attention')).toBeTruthy(), { timeout: 10000 });
+    const heading = () => box('attention')!.querySelector('.reqore-panel-title')!.textContent ?? '';
+    expect(heading()).toContain('To fill in');
+    expect(box('attention')!.querySelector('.options-readfirst-group-dot')).toBeNull();
+    const word = () =>
+      row('display_name')!.querySelector<HTMLElement>('.options-readfirst-valuetext')!;
+    await waitFor(() => expect(word().textContent).toBe(CALM_REQUIRED_LABEL));
+    expect(isAmber(getComputedStyle(word()).color)).toBe(false);
+    const link = document.querySelector<HTMLElement>('.options-readfirst-attention-link')!;
+    expect(link.textContent).toContain('to fill in');
+    expect(isAmber(getComputedStyle(link).color)).toBe(false);
+
+    // Open Name, then open another field: Name has been visited and left empty.
+    await _testsClickText('Name');
+    await _testsClickText('Version');
+    await waitFor(() => expect(heading()).toContain('Needs attention'));
+    // Only the visited field is a fault; the other two are still to fill in.
+    const line = document.querySelector<HTMLElement>('.options-readfirst-completion')!.textContent;
+    expect(line).toContain('1 need attention');
+    expect(line).toContain('2 to fill in');
+    expect(box('attention')!.querySelector('.options-readfirst-group-dot')).toBeTruthy();
+    await waitFor(() => expect(isAmber(getComputedStyle(word()).color)).toBe(true));
   },
 };
 

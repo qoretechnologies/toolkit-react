@@ -133,6 +133,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     readOnly,
     invalidCount,
     attentionCount,
+    attentionFaultCount,
     completion,
     onToggleInvalidOnly,
     hasMultipleOptions,
@@ -169,7 +170,9 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
   // set but flagged belongs to the amber run, and counting it twice pushed that
   // run off the end of the track.
   const setPct = completion.total ? (completion.done / completion.total) * 100 : 0;
-  const attentionPct = completion.total ? (attentionCount / completion.total) * 100 : 0;
+  // The amber run is what is WRONG. On a new form the required fields are only still
+  // to fill in, so the track shows them as not done yet, without amber.
+  const attentionPct = completion.total ? (attentionFaultCount / completion.total) * 100 : 0;
 
   return (
     <ReqoreControlGroup
@@ -195,8 +198,8 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
               // by the link beside it — only the outstanding part is coloured.
               $color={
                 calm ? cText
-                : invalidCount || attentionCount ?
-                  cWarning
+                : invalidCount || attentionFaultCount ? cWarning
+                : attentionCount ? cText
                 : cSuccess
               }
               style={{ fontWeight: 600 }}
@@ -216,14 +219,30 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
               · {completion.set}/{completion.total} set
               {attentionCount ? ' ·' : ''}
             </StyledSummary>
-            {attentionCount ?
+            {/* Amber only for what is a fault. A new form's required fields are still to
+                fill in, which is the next step, not a warning: they are counted apart,
+                in the quiet colour. */}
+            {attentionFaultCount ?
               <StyledAttentionLink
                 $color={cWarning}
                 className='options-readfirst-attention-link'
                 onClick={onToggleInvalidOnly}
               >
-                {attentionCount} need attention →
+                {attentionFaultCount} need attention →
               </StyledAttentionLink>
+            : null}
+            {attentionCount > attentionFaultCount ?
+              attentionFaultCount ?
+                <StyledSummary style={{ color: cQuiet }}>
+                  · {attentionCount - attentionFaultCount} to fill in
+                </StyledSummary>
+              : <StyledAttentionLink
+                  $color={cQuiet}
+                  className='options-readfirst-attention-link'
+                  onClick={onToggleInvalidOnly}
+                >
+                  {attentionCount} to fill in →
+                </StyledAttentionLink>
             : null}
             {/* Calm: the percentage is one more quiet figure on the line, not
                 a large bold number pinned to the far edge. */}

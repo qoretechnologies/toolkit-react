@@ -350,6 +350,13 @@ export interface IOptionFieldMessagesProps {
   calm?: boolean;
   /** Read-only: the reader cannot add a value, so the calm wording only states it. */
   readOnly?: boolean;
+  /**
+   * Nobody has been to this field yet. The requirement is still stated, but with no
+   * intent: a new form is not already wrong, and saying what is required is not saying
+   * something failed. It takes its colour once the person has opened the field and left
+   * it empty (`FormEngine`'s `visitedOptions` / `revealRequired`).
+   */
+  requirementPending?: boolean;
 }
 
 /**
@@ -366,6 +373,7 @@ export const getOptionFieldMessages = ({
   isRendererOnly,
   calm,
   readOnly,
+  requirementPending,
 }: IOptionFieldMessagesProps): IReqoreTagProps[] => {
   const optionSchema = schema[name];
   const result: IReqoreTagProps[] = [];
@@ -411,10 +419,12 @@ export const getOptionFieldMessages = ({
     // locked field is not asked for: the dependency message below says what
     // unlocks it, and until then there is nothing to fill in.
     if (optionSchema?.required && !locked) {
-      result.push(
+      const message =
         calm ?
           { label: readOnly ? CALM_REQUIRED_READ_LABEL : CALM_REQUIRED_LABEL, intent: 'warning' }
-        : { label: 'This field is required', intent: 'danger' }
+        : { label: 'This field is required', intent: 'danger' };
+      result.push(
+        requirementPending ? { label: message.label } : (message as IReqoreTagProps)
       );
     }
 

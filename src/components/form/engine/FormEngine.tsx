@@ -954,8 +954,19 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    * `Optional` names a category rather than the things in it, and
    * `Optional settings` is what the reader is looking at. Only the labels
    * change; bucketing, icons and intents are untouched.
+   *
+   * `pending` names the first box while nothing in it is a fault yet — a new form's
+   * empty required fields, which are still to fill in (default `To fill in`).
    */
-  compactBoxLabels?: Partial<Record<TFormEngineBoxKey, string>>;
+  compactBoxLabels?: Partial<Record<TFormEngineBoxKey | 'pending', string>>;
+  /**
+   * The host attempted a submit. Until then an empty required field the person has not
+   * been to yet is only "to fill in": a new form opens neutral rather than with every
+   * required field in amber, and a field turns amber once someone opens it and leaves
+   * it empty. Pass `true` after a failed submit to show every empty required field as
+   * needing attention. Invalid values are faults from the start either way.
+   */
+  revealRequired?: boolean;
   /**
    * Compact mode only: the three status-box headers stay pinned to the top of
    * whatever scrolls while their own box is in view. Default `true`.
@@ -1276,6 +1287,7 @@ const FormEngineImpl = ({
   compactPanelProps,
   compactCollapsedGroups: compactCollapsedGroupsProp,
   compactBoxLabels,
+  revealRequired = false,
   compactStickyBoxHeaders = true,
   compactStickyOffset = 0,
   compactToolbar = true,
@@ -1360,6 +1372,21 @@ const FormEngineImpl = ({
   const [showInvalidOptionsOnly, setShowInvalidOptionsOnly] = useState<boolean>(false);
   // Which options are expanded into their editor (several can be open at once).
   const [expandedOptions, setExpandedOptions] = useState<string[]>([]);
+  // The fields the person has opened and left. An empty required field becomes a
+  // fault only then (or after a submit attempt, `revealRequired`): a form nobody has
+  // touched is not already wrong.
+  const [visitedOptions, setVisitedOptions] = useState<string[]>([]);
+  const lastExpandedOptions = useRef<string[]>([]);
+  useEffect(() => {
+    const left = lastExpandedOptions.current.filter((name) => !expandedOptions.includes(name));
+    lastExpandedOptions.current = expandedOptions;
+    if (left.length) {
+      setVisitedOptions((prev) => {
+        const added = left.filter((name) => !prev.includes(name));
+        return added.length ? [...prev, ...added] : prev;
+      });
+    }
+  }, [expandedOptions]);
   /** Status boxes whose "N more fields" control the reader has opened. Keyed by
       box so opening Optional does not also unfold Set. */
   const [expandedMoreBoxes, setExpandedMoreBoxes] = useState<TFormEngineBoxKey[]>([]);
@@ -2578,9 +2605,12 @@ const FormEngineImpl = ({
         covered,
         invalid,
         warned: msgIntent === 'warning',
+        visited: revealRequired || visitedOptions.includes(name),
       });
     },
     [
+      revealRequired,
+      visitedOptions,
       isRendererOnly,
       JSON.stringify(options),
       JSON.stringify(availableOptions),
@@ -2612,6 +2642,15 @@ const FormEngineImpl = ({
       Object.keys(availableOptions || {}).filter((name) => getOptionBucket(name) === 'attention')
         .length,
     [JSON.stringify(availableOptions), getOptionBucket]
+  );
+  // How many of those are faults rather than only still to fill in (`pending`). Zero
+  // on a new form, so its first box reads "To fill in" without amber.
+  const readFirstAttentionFaultCount = useMemo(
+    () =>
+      Object.keys(availableOptions || {}).filter(
+        (name) => getOptionBucket(name) === 'attention' && getOptionStatus(name) !== 'pending'
+      ).length,
+    [JSON.stringify(availableOptions), getOptionBucket, getOptionStatus]
   );
 
   const getIntent = useCallback(
@@ -3318,6 +3357,8 @@ const FormEngineImpl = ({
       codePreviewRenderer,
       showAllDescriptions,
       expandedOptions,
+      visitedOptions,
+      revealRequired,
       highlightedOptions,
       flashedOptions,
       infoPanelOverrides,
@@ -3366,6 +3407,8 @@ const FormEngineImpl = ({
       codePreviewRenderer,
       showAllDescriptions,
       expandedOptions,
+      visitedOptions,
+      revealRequired,
       highlightedOptions,
       flashedOptions,
       infoPanelOverrides,
@@ -3417,6 +3460,7 @@ const FormEngineImpl = ({
       readOnly,
       invalidCount: size(validityData.invalidFields),
       attentionCount: readFirstAttentionCount,
+      attentionFaultCount: readFirstAttentionFaultCount,
       completion: readFirstCompletion,
       showInvalidOnly: showInvalidOptionsOnly,
       onToggleInvalidOnly: handleToggleInvalidOnly,
@@ -3464,6 +3508,7 @@ const FormEngineImpl = ({
       onReadOnlyActivate,
       validityData,
       readFirstAttentionCount,
+      readFirstAttentionFaultCount,
       readFirstCompletion,
       showInvalidOptionsOnly,
       handleToggleInvalidOnly,
@@ -3745,12 +3790,20 @@ const FormEngineImpl = ({
       intent?: 'warning' | 'success';
       icon: IReqoreIconName;
     }> = [
-      {
-        key: 'attention',
-        label: compactBoxLabels?.attention ?? 'Needs attention',
-        intent: 'warning',
-        icon: 'ErrorWarningLine',
-      },
+      // The first box is amber only once something in it is a fault. On a new form it
+      // holds the required fields still to fill in, which is not yet anything wrong.
+      readFirstAttentionFaultCount ?
+        {
+          key: 'attention',
+          label: compactBoxLabels?.attention ?? 'Needs attention',
+          intent: 'warning',
+          icon: 'ErrorWarningLine',
+        }
+      : {
+          key: 'attention',
+          label: compactBoxLabels?.pending ?? 'To fill in',
+          icon: 'CheckboxBlankCircleLine',
+        },
       { key: 'set', label: compactBoxLabels?.set ?? 'Set', intent: 'success', icon: 'CheckLine' },
       {
         key: 'optional',
@@ -3819,20 +3872,28 @@ const FormEngineImpl = ({
         // box (the Focus cluster). A met group needs no banner — the rail + the
         // "Covers"/"Covered by" chips already say which member satisfies it.
         if (requiredGroupsInfo.satisfiedBy[grp]) return railed;
+        // Amber once someone has been to the group (or a submit was attempted); until
+        // then it is still to fill in, in the quiet colour, like its members.
+        const clusterColor =
+          memberEntries.some((e) => getOptionStatus(e.name) !== 'pending') ? cWarning : cMuted;
         return (
           <StyledRequiredClusterBox
             key={grp}
             className='options-readfirst-required-cluster'
-            $border={`${cWarning}33`}
-            $tint={`${cWarning}0d`}
+            $border={`${clusterColor}33`}
+            $tint={`${clusterColor}0d`}
             $calm={calm}
           >
             <StyledRequiredClusterHeader
               className='options-readfirst-required-cluster-header'
-              $color={cWarning}
+              $color={clusterColor}
               $calm={calm}
             >
-              <ReqoreIcon icon='LinkM' size={calm ? '13px' : '11px'} style={{ color: cWarning }} />
+              <ReqoreIcon
+                icon='LinkM'
+                size={calm ? '13px' : '11px'}
+                style={{ color: clusterColor }}
+              />
               One of the below is required
             </StyledRequiredClusterHeader>
             {railed}
@@ -4098,7 +4159,7 @@ const FormEngineImpl = ({
                       );
                       const moreOpen = Boolean(query) || expandedMoreBoxes.includes(box.key);
                       const accent =
-                        box.key === 'attention' ? cWarning
+                        box.key === 'attention' && readFirstAttentionFaultCount ? cWarning
                         : box.key === 'set' ? cSuccess
                         : cMuted;
                       // The muted "Optional" box reads as a quieter, recessed
@@ -4179,7 +4240,7 @@ const FormEngineImpl = ({
                               // One status dot and a word — and only where a
                               // person is needed. The count is a quiet number.
                               <StyledGroupHeader $calm>
-                                {box.key === 'attention' ?
+                                {box.key === 'attention' && readFirstAttentionFaultCount ?
                                   <StyledStatusDot
                                     className='options-readfirst-group-dot'
                                     $color={cWarning}

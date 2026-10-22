@@ -197,6 +197,13 @@ export const CompactRow = memo(
     const calm = useIsCalmForm();
     const commitMode = useContextSelector(CompactRowContext, (v) => v.commitMode);
     const options = useContextSelector(CompactRowContext, (v) => v.options);
+    // Whether this field's emptiness is a fault yet: the person has opened it and left,
+    // or the host reported a submit attempt. Before that a required field is only to
+    // fill in, and says so in the quiet colour.
+    const visited = useContextSelector(
+      CompactRowContext,
+      (v) => v.revealRequired || !!v.visitedOptions?.includes(optionName)
+    );
 
     // An absorbed field keeps its own name — it is a different field, not a
     // property of its host — so the label comes from its schema exactly as it
@@ -1263,6 +1270,8 @@ export const CompactRow = memo(
           isRendererOnly,
           calm,
           readOnly,
+          // Until the person has been to the field, its requirement is stated plainly.
+          requirementPending: !visited,
         }).map((m) => ({ intent: m.intent as string, content: String(m.label) }))
       : [];
     // TWO display channels, matching the Focus prototype:
@@ -2242,6 +2251,7 @@ export const CompactRow = memo(
       covered: !!coveredByLabel || groupResolved,
       invalid: worstIntent === 'danger',
       warned: worstIntent === 'warning',
+      visited,
     });
     // No dot at all in a read-only form: the dot reports progress on the
     // form, and a read view has no progress to report.
@@ -2375,7 +2385,10 @@ export const CompactRow = memo(
           // mobile, where a dim value blends into the prose. The bold name still
           // outranks it; the empty dash stays faint.
           $color={
-            calmRequiredWord ? cWarning
+            calmRequiredWord ?
+              rowStatus === 'pending' ?
+                `${cMuted}a6`
+              : cWarning
             : empty || hidden ? `${cMuted}66`
             : cKey
           }
