@@ -44,6 +44,7 @@ import { offersTypeChoices } from './typeChoices';
 import { optionRowActions, resolveOptionActions, TOptionActions } from './optionActions';
 import { createRendererOnlyUiTypeCheck, isRendererOnlyUiType } from './rendererTypes';
 import { revealRow } from './revealRow';
+import { findRowFocusTarget } from './rowFocus';
 import { useEmittedValues } from '../fields/emittedValues';
 import { cloneDeep, findKey, flatten, forEach, isEqual, isPlainObject, last, uniq } from 'lodash';
 import map from 'lodash/map';
@@ -206,6 +207,14 @@ export interface IFormValidityData {
   isValid: boolean;
   fields: IFormFieldValidityData[];
   invalidFields: IFormFieldValidityData[];
+}
+
+/** The two numbers the readiness line shows ("2 need attention · 1 to fill in"). */
+export interface IFormAttention {
+  /** Fields in the first box: still to fill in, and faults. */
+  count: number;
+  /** How many of those are faults (amber) rather than only still to fill in. */
+  faults: number;
 }
 
 /**
@@ -968,6 +977,19 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   revealRequired?: boolean;
   /**
+   * Bump it to move the caret to the first field that needs attention: the answer to a
+   * submit that could not go is where to type. Each new value opens that field and puts
+   * the caret in it once, even though the host's submit button holds the caret (an open
+   * row otherwise never takes a caret held outside it). Pair it with `revealRequired`.
+   */
+  focusAttentionRequest?: number;
+  /**
+   * The readiness line's two numbers, reported whenever they change. A host that draws
+   * its own submit control draws it from these, so the control and the form can never
+   * disagree about what is left. `{ count: 0, faults: 0 }` is a form with nothing left.
+   */
+  onAttentionChange?: (attention: IFormAttention) => void;
+  /**
    * Compact mode only: the three status-box headers stay pinned to the top of
    * whatever scrolls while their own box is in view. Default `true`.
    *
@@ -1288,6 +1310,8 @@ const FormEngineImpl = ({
   compactCollapsedGroups: compactCollapsedGroupsProp,
   compactBoxLabels,
   revealRequired = false,
+  focusAttentionRequest,
+  onAttentionChange,
   compactStickyBoxHeaders = true,
   compactStickyOffset = 0,
   compactToolbar = true,
@@ -2652,6 +2676,15 @@ const FormEngineImpl = ({
       ).length,
     [JSON.stringify(availableOptions), getOptionBucket, getOptionStatus]
   );
+  // The same two numbers, to a host that draws its own submit control from them.
+  const onAttentionChangeRef = useRef(onAttentionChange);
+  onAttentionChangeRef.current = onAttentionChange;
+  useEffect(() => {
+    onAttentionChangeRef.current?.({
+      count: readFirstAttentionCount,
+      faults: readFirstAttentionFaultCount,
+    });
+  }, [readFirstAttentionCount, readFirstAttentionFaultCount]);
 
   const getIntent = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -2777,6 +2810,39 @@ const FormEngineImpl = ({
   // field update or an in-place schema reload will NOT re-grab focus; only a
   // genuine remount (a fresh instance) auto-focuses again, which is the intended
   // on-mount behaviour.
+  // What the "first field to fix" scans read: the opener on arrival below and the
+  // caret move on a submit attempt (`focusAttentionRequest`) pick the same field.
+  const getAttentionFieldMeta = useCallback(
+    (fieldName: string) => {
+      const schema = options?.[fieldName];
+      if (!schema) {
+        return undefined;
+      }
+      return {
+        focusable:
+          !readOnly &&
+          !schema.disabled &&
+          !(schema as { readonly?: boolean }).readonly &&
+          !dependencyLockedNames.includes(fieldName),
+        // Single source of truth: the same bucket the read-first status boxes
+        // show, so a filled-but-invalid required row is a target too.
+        needsAttention: getOptionBucket(fieldName) === 'attention',
+      };
+    },
+    [options, readOnly, dependencyLockedNames, getOptionBucket]
+  );
+  // Opening a row by name: `expandMode: 'single'` replaces only what a click could
+  // (see the note in the opener below), never a row the host named.
+  const openOption = useCallback(
+    (target: string) =>
+      setExpandedOptions((prev) =>
+        prev.includes(target) ? prev
+        : expandMode === 'multi' ? [...prev, target]
+        : [...prev.filter((name) => initialExpandedOptions?.includes(name)), target]
+      ),
+    [expandMode, initialExpandedOptions]
+  );
+
   const hasAutoFocusedRef = useRef(false);
   useEffect(() => {
     // Two decisions, one scan. Both open the row that needs attention;
@@ -2815,22 +2881,7 @@ const FormEngineImpl = ({
       return;
     }
 
-    const target = getFirstAttentionOptionName(orderedNames, (fieldName) => {
-      const schema = options[fieldName];
-      if (!schema) {
-        return undefined;
-      }
-      return {
-        focusable:
-          !readOnly &&
-          !schema.disabled &&
-          !(schema as { readonly?: boolean }).readonly &&
-          !dependencyLockedNames.includes(fieldName),
-        // Single source of truth: the same bucket the read-first status boxes
-        // show, so a filled-but-invalid required row is a target too.
-        needsAttention: getOptionBucket(fieldName) === 'attention',
-      };
-    });
+    const target = getFirstAttentionOptionName(orderedNames, getAttentionFieldMeta);
 
     // Mark done even when nothing needs attention, so later value edits or an
     // in-place schema reload never re-scan or re-focus. Only a remount arms it
@@ -2838,17 +2889,13 @@ const FormEngineImpl = ({
     hasAutoFocusedRef.current = true;
 
     if (target) {
-      setExpandedOptions((prev) =>
-        prev.includes(target) ? prev
-        : expandMode === 'multi' ? [...prev, target]
-          // `expandMode: 'single'` is a rule about what a CLICK does: opening a
-          // row closes the one the reader last opened. It is not a licence to
-          // close a row the HOST named through `initialExpandedOptions`. That
-          // is an address — a statement about what the page is FOR, made before
-          // the reader did anything — and this scan is a convenience layered on
-          // top of it. Keep the named rows; replace only what a click could.
-        : [...prev.filter((name) => initialExpandedOptions?.includes(name)), target]
-      );
+      // `expandMode: 'single'` is a rule about what a CLICK does: opening a row
+      // closes the one the reader last opened. It is not a licence to close a row
+      // the HOST named through `initialExpandedOptions`. That is an address — a
+      // statement about what the page is FOR, made before the reader did anything
+      // — and this scan is a convenience layered on top of it. `openOption` keeps
+      // the named rows and replaces only what a click could.
+      openOption(target);
     }
   }, [
     autoFocusFirstRequired,
@@ -2856,12 +2903,51 @@ const FormEngineImpl = ({
     compact,
     options,
     availableOptions,
-    readOnly,
-    dependencyLockedNames,
-    getOptionBucket,
-    expandMode,
-    initialExpandedOptions,
+    getAttentionFieldMeta,
+    openOption,
   ]);
+
+  // A submit that could not go is answered with where to type: each new
+  // `focusAttentionRequest` opens the first field that needs attention and puts the
+  // caret in it. The host's submit button holds the caret at that moment, and an open
+  // row never takes a caret held outside it (CompactRow), so the button lets go of it
+  // here first; the person asked to submit, and this is the answer to that.
+  const lastFocusRequest = useRef(focusAttentionRequest);
+  useEffect(() => {
+    if (focusAttentionRequest === lastFocusRequest.current) {
+      return;
+    }
+    lastFocusRequest.current = focusAttentionRequest;
+    if (!focusAttentionRequest || !compact || !options) {
+      return;
+    }
+    const target = getFirstAttentionOptionName(
+      Object.keys(availableOptions),
+      getAttentionFieldMeta
+    );
+    if (!target) {
+      return;
+    }
+    const wrap = compactWrapNodeRef.current;
+    const active = document.activeElement as HTMLElement | null;
+    if (active && active !== document.body && !wrap?.contains(active)) {
+      active.blur();
+    }
+    if (!expandedOptions.includes(target)) {
+      // The row's own open effect reveals it and takes the caret.
+      openOption(target);
+      return;
+    }
+    // Already open (the field the form opened on arrival): its open effect has run,
+    // so the caret goes to its control here.
+    const row = wrap?.querySelector<HTMLElement>(`[data-field="${target}"]`);
+    if (row) {
+      revealRow(row, 'auto');
+      findRowFocusTarget(row.querySelector<HTMLElement>('.options-readfirst-row-editor'))?.focus({
+        preventScroll: true,
+      });
+    }
+  }, [focusAttentionRequest]);
 
   // Read-first completion summary (how many shown options have a value set),
   // surfaced as a progress meter at the top of the compact form.

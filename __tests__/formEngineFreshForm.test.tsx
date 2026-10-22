@@ -60,6 +60,74 @@ describe('a new form', () => {
     expect(document.body.textContent).not.toContain('To fill in');
   });
 
+  it('tells the host the same two numbers its readiness line shows', async () => {
+    const onAttentionChange = vi.fn();
+    const { rerender } = renderForm({ onAttentionChange });
+    await header();
+    await waitFor(() => expect(onAttentionChange).toHaveBeenLastCalledWith({ count: 2, faults: 0 }));
+
+    rerender(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='iface'
+            value={{} as never}
+            options={SCHEMA}
+            expandFirstRequired={false}
+            onChange={vi.fn()}
+            onAttentionChange={onAttentionChange}
+            revealRequired
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    await waitFor(() => expect(onAttentionChange).toHaveBeenLastCalledWith({ count: 2, faults: 2 }));
+  });
+
+  /* The answer to a submit that could not go is where to type. The submit button
+     holds the caret when it is pressed; each request moves it to the first field that
+     needs attention, and a second press moves it again. */
+  it('moves the caret from the submit button to the first field to fill in, on every request', async () => {
+    const formWith = (focusAttentionRequest?: number) => (
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <button type='button'>Submit</button>
+          <FormEngine
+            compact
+            name='iface'
+            value={{} as never}
+            options={SCHEMA}
+            expandFirstRequired={false}
+            onChange={vi.fn()}
+            revealRequired={!!focusAttentionRequest}
+            focusAttentionRequest={focusAttentionRequest}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    const { rerender } = render(formWith(undefined));
+    await header();
+    const submit = screen.getByRole('button', { name: 'Submit' });
+    submit.focus();
+
+    rerender(formWith(1));
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-field="title"]')?.contains(document.activeElement)
+      ).toBe(true)
+    );
+
+    // Pressed again with the field still open: the caret goes back to it.
+    submit.focus();
+    rerender(formWith(2));
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-field="title"]')?.contains(document.activeElement)
+      ).toBe(true)
+    );
+  });
+
   it('turns a field into a fault once someone has been to it and left it empty', async () => {
     const user = userEvent.setup();
     // The reader has the Title row open; opening Owner closes it (one row at a time),

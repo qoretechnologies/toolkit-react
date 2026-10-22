@@ -1569,6 +1569,7 @@ export const CompactRow = memo(
             </StyledLabelBlock>
             <div
               ref={editorRef}
+              className='options-readfirst-row-editor'
               style={{ minWidth: 0 }}
               onKeyDown={(event) => {
                 if (event.key === 'Escape') {
