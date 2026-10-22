@@ -338,6 +338,23 @@ enter a value (qorus#646, David: "what is "Condition"? Is it meant to be an expr
 classic field's More menu still offers "Write a condition", a verb that says what the item does. Stories:
 `ConditionOptionTabsSayExpression` (+ `OnAPhone`).
 
+## A field that takes templates and no expression
+
+A field that takes templates but not expressions (`supports_templates` without `supports_expressions`, which
+servers turn on by default, so mostly code and contract editors) has no Expression or Visual tab. Where its
+value is written as text (text, a whole number, a number, an untyped value), the text takes templates as
+chips from the lists it opens, so it has no tabs at all: a Template tab beside it was a second way to do the
+one thing (qorus#646, David's decision). What it holds is read from the text, as on any Value tab: a lone
+template in an untyped field takes the template's type. A field whose value has its own control (a yes/no, a
+date, fixed choices) keeps Value · Template, since the Template tab is the only place it takes one.
+
+Where a template comes from, as the host says (`templateBadge`, e.g. the IDE's "the app action that captures
+it"), is shown in every list a template is picked from: first in the row's detail in the list a `$` opens
+(`templateCompletionItems`), and leading the row's description in the list a click opens (`useTemplateTags`);
+`withTemplateSources` marks the catalogue. It was shown only beside the template held on the Template tab.
+Stories: `TemplateOnlyOptionIsItsValue` (+ `OnAPhone`), `OptionWithAnyType`, `TemplateBadgeFromTheHost`;
+tests: `__tests__/templateSources.test.tsx`.
+
 ## Out of scope
 
 - `server_expression_handling` server-function-vs-qorus-function

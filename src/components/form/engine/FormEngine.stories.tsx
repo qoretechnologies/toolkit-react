@@ -688,7 +688,7 @@ export const OptionWithAnyType: Story = {
     docs: {
       description: {
         story:
-          'Renders four options typed as any that take templates and no expressions: each is entered on Value · Template. On Value, an untyped value is written as text (the number 1234 as typed); on Template, the template picker - a rich-text template picked there makes the value rich text, in its own editor. The operator can set a value of a type from the field menu - True or false gives the yes / no control.',
+          "Renders four options typed as any that take templates and no expressions. An untyped value is written as text, which takes templates as chips, so none has tabs: no Template tab beside the Value it would repeat (David's decision). The number 1234 is written as typed; a click in an empty one lists the templates, and a rich-text template picked from the list makes the value rich text, in its own editor. The operator can set a value of a type from the field menu - True or false gives the yes / no control.",
       },
     },
   },
@@ -736,14 +736,11 @@ export const OptionWithAnyType: Story = {
   },
   play: async ({ canvasElement }) => {
     const fields = () => [...canvasElement.querySelectorAll<HTMLElement>('.value-tabs-field')];
-    // each option is entered on Value · Template, and opens on Value
+    // each option is its value, written as text: the text takes the templates, so there is no tab to choose
     await waitFor(() => expect(fields()).toHaveLength(4), { timeout: 10000 });
     for (const field of fields()) {
-      expect([...field.querySelectorAll('.value-tab')].map((t) => t.getAttribute('data-tab'))).toEqual([
-        'value',
-        'template',
-      ]);
-      expect(field.querySelector('.value-tab[aria-pressed="true"]')?.getAttribute('data-tab')).toBe('value');
+      expect(field.querySelectorAll('.value-tab')).toHaveLength(0);
+      expect(field.querySelector('.value-tab-text [data-slate-editor]')).toBeTruthy();
     }
 
     // The value a type was set for (number 1234) is written as text, as typed - and keeps its type.
@@ -752,17 +749,31 @@ export const OptionWithAnyType: Story = {
     await waitFor(() => expect(fields().filter((field) => textOf(field).includes('1234'))).toHaveLength(1));
     const empty = () => fields().filter((field) => !textOf(field).includes('1234'));
 
-    // An empty option's Template tab is the template picker: a template picked there is the value.
+    // A click in an empty option's text lists the templates: a template picked there is the value.
     const [, picking, last] = empty();
-    await userEvent.click(picking.querySelector('.value-tab[data-tab="template"]') as HTMLElement);
-    const picker = await waitFor(() => {
-      const el = picking.querySelector<HTMLElement>('button.template-selector');
-      expect(el, 'the template picker').toBeTruthy();
-      return el as HTMLElement;
-    });
-    await userEvent.click(picker);
-    await _testsClickButton({ label: 'Testing Richtext' });
-    await _testsClickButton({ label: 'Richtext Template' });
+    await userEvent.click(
+      picking.querySelector('.value-tab-text [data-slate-editor]') as HTMLElement
+    );
+    const listed = (label: string) =>
+      waitFor(() => {
+        const row = browseRows().find((item) => item.textContent?.startsWith(label));
+        expect(
+          row,
+          `${label} listed (${browseRows().map((item) => item.textContent)})`
+        ).toBeTruthy();
+        return row as HTMLElement;
+      });
+    await userEvent.click(await listed('Testing Richtext'));
+    await userEvent.click(
+      await waitFor(() => {
+        const row = browseRows().find((item) => item.textContent?.startsWith('Richtext Template'));
+        expect(
+          row,
+          `Richtext Template listed (${browseRows().map((item) => item.textContent)})`
+        ).toBeTruthy();
+        return row as HTMLElement;
+      })
+    );
     await waitFor(() => expect(canvasElement.textContent).toContain('Richtext Template'));
     // a rich-text template makes the value rich text: its own editor, which takes templates itself, holds
     // the template as a chip - no tabs
@@ -11164,6 +11175,18 @@ const chipPaint = (root: Element | null | undefined) => {
 };
 
 /** The rows of the one completion list open at an editor's caret. */
+/** The rows of the list a value's text opens on a click: its templates, browsed. */
+const browseRows = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')
+  ).filter((item) => !item.closest('.completion-menu'));
+
+/** What the pointer is on: a chip's name, where a click lands (a click's target is the innermost element). */
+const nameOf = (chip: HTMLElement) =>
+  (Array.from(chip.querySelectorAll<HTMLElement>('*')).find(
+    (part) => part.children.length === 0 && !!part.textContent?.trim()
+  ) ?? chip) as HTMLElement;
+
 const completionRows = () =>
   Array.from(
     document.querySelectorAll<HTMLElement>(
@@ -11261,11 +11284,6 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
           '.expression-field [data-slate-editor] .reqore-tag'
         )
       );
-    // what the pointer is on: the chip's name, where a click lands (a click's target is the innermost element)
-    const nameOf = (chip: HTMLElement) =>
-      (Array.from(chip.querySelectorAll<HTMLElement>('*')).find(
-        (part) => part.children.length === 0 && !!part.textContent?.trim()
-      ) ?? chip) as HTMLElement;
     await userEvent.click(
       nameOf(chips().find((chip) => chip.textContent?.includes('pos')) as HTMLElement)
     );
@@ -11480,23 +11498,32 @@ export const SavedExpressionOpensOnExpression: Story = {
   },
 };
 
-export const TemplateOnlyOptionHasValueAndTemplate: Story = {
+export const TemplateOnlyOptionIsItsValue: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the form and opens "Template only", a whole number that takes templates and no expressions, holding pos: its tabs are Value · Template - no Visual - and its Template tab is the template picker, the bare template its value.',
+          'Renders the form and opens "Template only", a whole number that takes templates and no expressions, holding pos. Its value is written as text, which takes templates as chips, so it has no tabs: no Template tab beside the Value it would repeat (David\'s decision), and no Expression or Visual. The text shows pos as its chip, and a click in it lists the row\'s fields, pos and bezeichnung, to pick from.',
       },
     },
   },
   render: () => <TemplateOrExpressionForm />,
   play: async ({ canvasElement }) => {
     const row = await editOption('template_only');
-    await waitFor(() => expect(optionTabs(row)).toEqual(['value', 'template']));
-    await chooseTab(row, 'template');
-    await waitFor(() => expect(optionRow('template_only').textContent).toContain('pos'));
-    expect(optionRow('template_only').querySelector('.expression-field')).toBeNull();
+    const editor = await waitFor(() => {
+      const el = row.querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
+      expect(el?.querySelector('.reqore-tag')?.textContent).toContain('pos');
+      return el as HTMLElement;
+    });
+    expect(optionTabs(row)).toEqual([]);
+    expect(row.querySelector('.expression-field')).toBeNull();
     expect(heldOption(canvasElement, 'template_only')).toEqual({ type: 'int', value: '$record:{pos}' });
+    // its templates are picked in the text: a click in it lists the row's fields
+    await userEvent.click(editor);
+    // the fields of its type: pos, a whole number
+    await waitFor(() =>
+      expect(browseRows().some((item) => item.textContent?.startsWith('pos'))).toBe(true)
+    );
   },
 };
 
@@ -12737,7 +12764,14 @@ export const TemplateOfAnotherTypeWarns: Story = {
 
 const SAVED_VALUES_OPTIONS = {
   quantity: { type: 'int', display_name: 'Quantity', supports_templates: true, supports_expressions: true, expressions: mockExpressions },
-  source: { type: 'string', display_name: 'Source', supports_templates: true },
+  // as a server sends a text option: it takes templates and expressions (`supports_expressions` is on by default)
+  source: {
+    type: 'string',
+    display_name: 'Source',
+    supports_templates: true,
+    supports_expressions: true,
+    expressions: mockExpressions,
+  },
 } as unknown as IQorusFormSchema;
 
 /** The form with values the host keeps for reuse: "Save this value" adds one, named as the host names it. */
@@ -12825,15 +12859,27 @@ export const TemplateBadgeFromTheHost: Story = {
     docs: {
       description: {
         story:
-          'Renders the same form and opens Source, a text option that takes templates only, on its Template tab: the template picker shows the field pos with the badge its host gives a field of the row - "Row field".',
+          'Renders the same form and opens Source, a text option holding the field pos, which takes templates and expressions (Value · Expression · Visual), as a server\'s text option does. A click in its text lists the row\'s fields, and each says where it comes from as its host names it - "Row field" (it was said only on a Template tab such an option does not have); the capture leaves the list open.',
       },
     },
   },
   render: () => <SavedValuesForm />,
   play: async () => {
     const row = await editOption('source');
-    await chooseTab(row, 'template');
-    await waitFor(() => expect(optionRow('source').querySelector('.template-selector')?.textContent).toContain('Row field'));
+    // what a server's text option takes (David: "why the lack of expression support?")
+    await waitFor(() => expect(optionTabs(row)).toEqual(['value', 'expression', 'visual']));
+    const editor = await waitFor(() => {
+      const el = row.querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
+      expect(el?.querySelector('.reqore-tag')).toBeTruthy();
+      return el as HTMLElement;
+    });
+    // a click in the text lists the row's fields, each saying where it comes from
+    await userEvent.click(editor);
+    await waitFor(() => {
+      const rows = browseRows().filter((item) => /^(pos|bezeichnung)/.test(item.textContent ?? ''));
+      expect(rows, `listed: ${browseRows().map((item) => item.textContent)}`).toHaveLength(2);
+      for (const row of rows) expect(row.textContent).toContain('Row field');
+    });
   },
 };
 
@@ -12852,9 +12898,12 @@ export const SavedExpressionOpensOnExpressionOnAPhone: Story = {
   parameters: { ...SavedExpressionOpensOnExpression.parameters, qlip: { viewport: { width: 390, height: 844 } } },
 };
 
-export const TemplateOnlyOptionHasValueAndTemplateOnAPhone: Story = {
-  ...TemplateOnlyOptionHasValueAndTemplate,
-  parameters: { ...TemplateOnlyOptionHasValueAndTemplate.parameters, qlip: { viewport: { width: 390, height: 844 } } },
+export const TemplateOnlyOptionIsItsValueOnAPhone: Story = {
+  ...TemplateOnlyOptionIsItsValue,
+  parameters: {
+    ...TemplateOnlyOptionIsItsValue.parameters,
+    qlip: { viewport: { width: 390, height: 844 } },
+  },
 };
 
 // A value picked from a set row's allowed values is a value, not an expression.

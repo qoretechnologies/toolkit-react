@@ -14,7 +14,31 @@ type TTemplateItem = {
   value?: unknown;
   badge?: unknown;
   description?: unknown;
+  /** Where it comes from, as the host says (`withTemplateSources`): the first thing its row's detail says. */
+  source?: unknown;
   items?: TTemplateItem[];
+};
+
+/**
+ * The catalogue with each template marked with where it comes from, as the host says (the IDE: the app action
+ * that captures it): the template picker showed it beside the template held, and every list of templates shows it
+ * in the template's row (qorus#646). `sourceOf` answers for a template, not a group; nothing is changed where it
+ * says nothing.
+ */
+export const withTemplateSources = <T extends { items?: unknown[] } | undefined>(
+  templates: T,
+  sourceOf?: (template: TTemplateItem) => string | undefined
+): T => {
+  if (!templates || !sourceOf) return templates;
+  const mark = (list: TTemplateItem[] | undefined): TTemplateItem[] | undefined =>
+    list?.map((item) => {
+      const items = Array.isArray(item.items) ? mark(item.items) : item.items;
+      const source = typeof item.value === 'string' && item.value ? sourceOf(item) : undefined;
+      return source || items !== item.items ?
+          { ...item, items, ...(source ? { source } : {}) }
+        : item;
+    });
+  return { ...templates, items: mark(templates.items as TTemplateItem[] | undefined) };
 };
 
 /**
@@ -22,7 +46,8 @@ type TTemplateItem = {
  * be written, wherever it sits in the catalogue - found by what is typed after the `$`, in the one completion
  * list typing opens (`CompletionMenu`). Browsing the catalogue as a tree is the browse list's
  * (`TemplateBrowser`). A record's field (`$record:{name}`) is a Field, anything else a Variable; the groups it
- * is in and its type are its detail, its description its documentation.
+ * is in and its type are its detail (after where it comes from, when the host says), its description its
+ * documentation.
  */
 export const templateCompletionItems = (templates?: IReqoreFormTemplates): ILspCompletionItem[] => {
   const items: ILspCompletionItem[] = [];
@@ -34,10 +59,11 @@ export const templateCompletionItems = (templates?: IReqoreFormTemplates): ILspC
         seen.add(item.value);
         const where = trail.join(' › ');
         const type = typeof item.badge === 'string' ? item.badge : undefined;
+        const source = typeof item.source === 'string' ? item.source : undefined;
         items.push({
           label: label ?? item.value,
           kind: item.value.startsWith('$record:') ? FIELD_KIND : TEMPLATE_KIND,
-          detail: [where, type].filter(Boolean).join(' · ') || undefined,
+          detail: [source, where, type].filter(Boolean).join(' · ') || undefined,
           documentation:
             typeof item.description === 'string' && item.description.trim() ?
               { kind: 'markdown', value: item.description }

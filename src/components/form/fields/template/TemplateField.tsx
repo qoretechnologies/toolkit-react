@@ -69,6 +69,7 @@ import { richtextToString } from '../../../../helpers/common';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
 import { isConditionOption } from '../../../../helpers/expressions';
+import { withTemplateSources } from '../../../smartEditor/templateCompletions';
 import {
   expressionSeedOf,
   isWrittenAsText,
@@ -389,6 +390,15 @@ const DEFAULT_SAVED_VALUES_LABELS = {
 export type TTemplateBadge = (
   template: TReqoreDropdownItem
 ) => IReqoreButtonProps['badge'] | undefined;
+
+/** A badge's words: its label, or the badge itself when it is a string or a number. */
+const badgeText = (badge: unknown): string | undefined => {
+  const label =
+    badge !== null && typeof badge === 'object' && 'label' in badge ?
+      (badge as { label?: unknown }).label
+    : badge;
+  return typeof label === 'string' || typeof label === 'number' ? String(label) : undefined;
+};
 
 export interface ITemplateDropdownSelectorProps extends IReqoreDropdownProps {
   onRemoveClick?: IReqoreButtonProps['onClick'];
@@ -780,6 +790,24 @@ const TemplateFieldImpl = memo(
       JSON.stringify(rest.arg_schema),
       filterTemplatesFunc,
     ]);
+    /* Where each template comes from, as the host says (`templateBadge`): the template picker showed it beside
+       the template held, and the lists of templates the value's text and an expression's text open show it in
+       the template's row - a text field's templates are picked there, not on a tab of their own (qorus#646). */
+    const sourceOfTemplate = useMemo(
+      () =>
+        templateBadge ?
+          (template: unknown) => badgeText(templateBadge(template as TReqoreDropdownItem))
+        : undefined,
+      [templateBadge]
+    );
+    const listedTemplates = useMemo(
+      () => withTemplateSources(filteredTemplates, sourceOfTemplate),
+      [filteredTemplates, sourceOfTemplate]
+    );
+    const listedCatalogue = useMemo(
+      () => withTemplateSources(templates, sourceOfTemplate),
+      [templates, sourceOfTemplate]
+    );
 
     // An `any`-typed field has no editor of its own until a concrete type is
     // chosen, so it opened on the TYPE PICKER: before an author could say what
@@ -1068,8 +1096,10 @@ const TemplateFieldImpl = memo(
            switched straight after it) arrives on the next tab (qorus#646). */
         const asExpression = tabsKindRef.current ? false : effectiveIsFunction;
         /* Read from the text where the field is written as text: a lone template takes its own
-           type in an untyped field, a scalar's literal is that literal, other text is text. */
-        if (templateSupportsCustomValues) {
+           type in an untyped field, a scalar's literal is that literal, other text is text. The Value
+           tab's text is the value written as text too, even where the field takes no value of the
+           author's own (an untyped field's templates are picked there: qorus#646). */
+        if (templateSupportsCustomValues || (tabsKindRef.current && valueTabIsText)) {
           const read = templateTextValue(templateValue, type as string, filteredTemplates);
           onChange?.(name, read.value, read.type as TQorusType, asExpression);
           return;
@@ -2171,7 +2201,7 @@ const TemplateFieldImpl = memo(
                     (expressionTemplate ?? valueTextOf(value, type as string))
                   )
                 }
-                templates={filteredTemplates}
+                templates={listedTemplates}
                 // a chip of a field not of this type is named as the catalogue names it
                 namingTemplates={templates}
                 allowTemplates
@@ -2252,7 +2282,7 @@ const TemplateFieldImpl = memo(
               onDraftChange={handleExpressionDraft}
               heldAsValue={!isEmptyValue && value !== null && typeof value !== 'object'}
               componentOverrides={componentOverrides}
-              localTemplates={templates}
+              localTemplates={listedCatalogue}
               type={type as string}
               returnType={(returnType || expressionDataType) as any}
               onChange={handleExpressionChange}
@@ -2309,6 +2339,27 @@ const TemplateFieldImpl = memo(
           hasOnlyAllowedValues={hasOnlyAllowedValues}
         />
       );
+      /* A field that takes templates and no expression, whose value is written as text: the text takes its
+         templates as chips, from the list it opens, so a Template tab beside it would be a second way to do the
+         one thing (qorus#646, David). It is the value alone, with the field's menu beside it. */
+      if (tabsKind === 'template' && valueTabIsText) {
+        const controls = renderControls();
+        return (
+          <ReqoreControlGroup
+            vertical
+            fluid
+            gapSize='small'
+            className='value-tabs-field value-only'
+          >
+            {controls ?
+              <ReqoreControlGroup fluid size={rest.size} verticalAlign='flex-start'>
+                {valueBody()}
+                {controls}
+              </ReqoreControlGroup>
+            : valueBody()}
+          </ReqoreControlGroup>
+        );
+      }
       return (
         <ReqoreControlGroup vertical fluid gapSize='small' className='value-tabs-field'>
           <ReqoreControlGroup fluid size={rest.size} verticalAlign='center'>
@@ -2379,7 +2430,7 @@ const TemplateFieldImpl = memo(
                 // builder's operands render "Unknown type!" for any consumer
                 // ui_type (an assertion's `test-reference` Value, for one).
                 componentOverrides={componentOverrides}
-                localTemplates={templates}
+                localTemplates={listedCatalogue}
                 type={type as string}
                 returnType={(returnType || expressionDataType) as any}
                 onChange={handleExpressionChange}
@@ -2437,7 +2488,7 @@ const TemplateFieldImpl = memo(
                 value,
               }}
               componentOverrides={componentOverrides}
-              localTemplates={templates}
+              localTemplates={listedCatalogue}
               level={level}
               type={type as string}
               returnType={(returnType || expressionDataType) as any}
@@ -2538,7 +2589,7 @@ const TemplateFieldImpl = memo(
                 (untypedTextOf(value, type as string) ?? '')
               )
             }
-            templates={filteredTemplates}
+            templates={listedTemplates}
             // a chip of a field not of this type (text around it, say) is named as the catalogue names it
             namingTemplates={templates}
             allowTemplates

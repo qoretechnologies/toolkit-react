@@ -21,6 +21,28 @@ export const TEMPLATE_BROWSE_LIST_PROPS = {
 };
 
 /**
+ * Each template's description led by where it comes from, when its host says (`withTemplateSources`): the list
+ * draws a row's description under its name (qorus#646).
+ */
+const withSourceDescribed = <T>(items: T[] | undefined): T[] | undefined =>
+  items?.map((item) => {
+    const entry = item as { source?: unknown; description?: unknown; items?: T[] };
+    const members = Array.isArray(entry.items) ? withSourceDescribed(entry.items) : entry.items;
+    if (typeof entry.source !== 'string' || !entry.source) {
+      return members === entry.items ? item : ({ ...entry, items: members } as T);
+    }
+    const description =
+      typeof entry.description === 'string' && entry.description.trim() ?
+        `${entry.source} - ${entry.description}`
+      : entry.source;
+    return {
+      ...entry,
+      description,
+      ...(Array.isArray(entry.items) ? { items: members } : {}),
+    } as T;
+  });
+
+/**
  * The templates a rich-text editor lists when it is clicked, tapped or tabbed into, and inserts as chips:
  * the field's own, under "Templates". One list for every text a value is written in - a rich-text field and
  * an expression's Text view alike (qorus#646: the Text view listed nothing until "@" or "$" was typed).
@@ -48,7 +70,10 @@ export const useTemplateTags = (
            doing that. Never made further up: the list is a `JSON.stringify`
            memo key in `TemplateField`. */
         items: styleTemplateItems(
-          renderTemplateItemDescriptions(templateItemsToShow(templates?.items), renderMarkdown)
+          renderTemplateItemDescriptions(
+            withSourceDescribed(templateItemsToShow(templates?.items)),
+            renderMarkdown
+          )
         ),
       };
     }
