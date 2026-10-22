@@ -216,19 +216,25 @@ export const WithSimpleValue: Story = {
     docs: {
       description: {
         story:
-          'Renders the ExpressionBuilder holding a single "contains" expression with three arguments — the card shows the operation and each operand slot. Each text value is 150px wide, the one holding a template as well as the one holding text: in a row with room, a text field is no narrower than that.',
+          'Renders the ExpressionBuilder holding a single "contains" expression with three arguments — the card shows the operation and each operand slot. In a row with room, a text value is no narrower than 150px: the one holding text, "es", is 150px, and the one holding a template is at least that, as wide as its chip needs to be drawn whole.',
       },
     },
   },
   play: async () => {
     await waitFor(() => expect(expressionCount()).toBe(1), { timeout: 10000 });
-    await waitFor(() =>
-      expect(
-        [...document.querySelectorAll<HTMLElement>('.expression-arg [data-slate-editor]')].map((editor) =>
-          Math.round((editor.closest('.reqore-panel') as HTMLElement).getBoundingClientRect().width)
-        )
-      ).toEqual([150, 150])
-    );
+    await waitFor(() => {
+      const fields = [
+        ...document.querySelectorAll<HTMLElement>('.expression-arg [data-slate-editor]'),
+      ].map((editor) => editor.closest('.reqore-panel') as HTMLElement);
+      expect(fields).toHaveLength(2);
+      const [template, text] = fields.map((field) => field.getBoundingClientRect());
+      // the text field: no narrower than 150px, and its two letters need no more
+      expect(Math.round(text.width)).toBe(150);
+      // the template's field: no narrower either, and its chip whole inside it
+      expect(Math.round(template.width)).toBeGreaterThanOrEqual(150);
+      const chip = fields[0].querySelector('.reqore-tag')!.getBoundingClientRect();
+      expect(chip.right).toBeLessThanOrEqual(template.right);
+    });
   },
 };
 
