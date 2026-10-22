@@ -14,6 +14,11 @@ import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from 'storybook/test';
 import { validateField } from '../../../helpers/validations';
 import { storedColorProblem } from '../../colorValue/colorValue';
+import { CodeEditorStandin, CodeEditorStandinNoSyntax } from '../../../stories/CodeEditorStandin';
+// a language's logo, as the Qorus IDE gives each language choice (`withAllowedValueImages`)
+import javaLogo from '../fields/radio-group/images/java-96x128.png';
+import pythonLogo from '../fields/radio-group/images/python-129x128.png';
+import qoreLogo from '../fields/radio-group/images/qore-106x128.png';
 import {
   _testsChangeRichText,
   _testsChangeStringField,
@@ -889,35 +894,6 @@ export const OptionsWithOnChangeTriggerEvents: Story = {
 // renders a textarea AND a visible "syntax: <language>" tag so the
 // `inherit_props` story (below) can prove the inherited `language` prop
 // flows through to the renderer at render time.
-const CodeEditorStandin = ({
-  value,
-  onChange,
-  language,
-  size,
-}: {
-  value?: unknown;
-  onChange?: (value: string) => void;
-  language?: unknown;
-  size?: TSizes;
-}) => (
-  <div data-testid='code-editor-mock'>
-    <div
-      data-testid='code-editor-language'
-      style={{ fontFamily: ReqoreFonts.mono, marginBottom: 4 }}
-    >
-      syntax: {String(language ?? 'plain')}
-    </div>
-    <ReqoreInput
-      fluid
-      size={size}
-      icon='CodeLine'
-      placeholder='Source code (stand-in code-editor)'
-      value={typeof value === 'string' ? value : ''}
-      onChange={(event: ChangeEvent<HTMLInputElement>) => onChange?.(event.target.value)}
-    />
-  </div>
-);
-
 // qorus#347-followup: an option can declare `inherit_props` — a JSON map of
 // `<prop-name-on-renderer>` → `<sibling-field-name>` — and FormEngine
 // resolves each entry at render time, forwarding the sibling's current
@@ -938,19 +914,6 @@ const CodeEditorStandin = ({
  * control directly above the editor, it is the same fact stated twice — which is
  * what the review flagged on `CompactRowAbsorbsLanguage`.
  */
-const CodeEditorStandinNoSyntax = (props: Parameters<typeof CodeEditorStandin>[0]) => (
-  <div data-testid='code-editor-mock'>
-    <ReqoreInput
-      fluid
-      size={props.size}
-      icon='CodeLine'
-      placeholder='Source code (stand-in code-editor)'
-      value={typeof props.value === 'string' ? props.value : ''}
-      onChange={(event: ChangeEvent<HTMLInputElement>) => props.onChange?.(event.target.value)}
-    />
-  </div>
-);
-
 export const OptionInheritsRenderPropFromSibling: Story = {
   parameters: {
     docs: {
@@ -972,9 +935,9 @@ export const OptionInheritsRenderPropFromSibling: Story = {
         ui_type: 'string',
         display_name: 'Language',
         allowed_values: [
-          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
-          { display_name: 'Python', value: { type: 'string', value: 'python' } },
-          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' }, image: qoreLogo },
+          { display_name: 'Python', value: { type: 'string', value: 'python' }, image: pythonLogo },
+          { display_name: 'Java', value: { type: 'string', value: 'java' }, image: javaLogo },
         ],
       },
       source: {
@@ -1045,9 +1008,9 @@ export const OptionInheritsRenderPropFromSiblingCompact: Story = {
         ui_type: 'string',
         display_name: 'Language',
         allowed_values: [
-          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
-          { display_name: 'Python', value: { type: 'string', value: 'python' } },
-          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' }, image: qoreLogo },
+          { display_name: 'Python', value: { type: 'string', value: 'python' }, image: pythonLogo },
+          { display_name: 'Java', value: { type: 'string', value: 'java' }, image: javaLogo },
         ],
       },
       source: {
@@ -1431,7 +1394,7 @@ export const CompactRowAbsorbsLanguage: Story = {
     docs: {
       description: {
         story:
-          'Renders a code-editor row that absorbs its Language sibling — the language control sits inside the Source Code container above the editor instead of on a row of its own, and the collapsed row summarizes it as a chip beside the code size.',
+          'Renders a code-editor row that absorbs its Language sibling — the language control sits inside the Source Code container above the editor instead of on a row of its own, and the collapsed row summarizes it as a chip beside the code size: "Qore" with its logo, as the control draws it. Opened, the language is one of two radios, each drawn by its logo, and the Qore source is in the host\'s editor (here a stand-in), a line per line.',
       },
     },
   },
@@ -1441,7 +1404,18 @@ export const CompactRowAbsorbsLanguage: Story = {
     componentOverrides: { 'code-editor': CodeEditorStandinNoSyntax },
     value: {
       language: { type: 'string', value: 'qore' },
-      source: { type: 'string', value: '%new-style\nclass Example {\n}\n' },
+      // real Qore, as the IDE holds it
+      source: {
+        type: 'string',
+        value:
+          '%new-style\n%require-types\n%strict-args\n%enable-all-warnings\n\n' +
+          'class Example {\n' +
+          '    # says hello to the name given\n' +
+          '    string hello(string name) {\n' +
+          '        return sprintf("Hello, %s!", name);\n' +
+          '    }\n' +
+          '}\n',
+      },
     },
     options: {
       language: {
@@ -1449,8 +1423,8 @@ export const CompactRowAbsorbsLanguage: Story = {
         ui_type: 'string',
         display_name: 'Language',
         allowed_values: [
-          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
-          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' }, image: qoreLogo },
+          { display_name: 'Python', value: { type: 'string', value: 'python' }, image: pythonLogo },
         ],
       },
       source: {
@@ -1468,9 +1442,13 @@ export const CompactRowAbsorbsLanguage: Story = {
     expect(canvasElement.querySelector('[data-field="language"]')).toBeNull();
 
     // Collapsed, the host still reports the absorbed value — otherwise the
-    // language would vanish from the form whenever the editor is closed.
+    // language would vanish from the form whenever the editor is closed. By its
+    // name and its logo, as its own control draws it (David: "the languages are
+    // missing the language icons").
     const sourceRow = canvasElement.querySelector('[data-field="source"]');
-    expect(sourceRow?.textContent ?? '').toContain('qore');
+    const absorbedTag = sourceRow?.querySelector('.options-readfirst-absorbed-tag');
+    expect(absorbedTag?.textContent).toBe('Qore');
+    expect(absorbedTag?.querySelector('img')?.getAttribute('src')).toBeTruthy();
 
     // Opening the host renders the language control inside its container.
     fireEvent.click(sourceRow as HTMLElement);
@@ -1482,6 +1460,20 @@ export const CompactRowAbsorbsLanguage: Story = {
     expect(canvasElement.querySelector('.options-readfirst-absorbed')?.textContent ?? '').toContain(
       'Language'
     );
+    // One language of two: radios, each drawn by its logo, Qore the one chosen
+    const choices = Array.from(
+      canvasElement.querySelectorAll<HTMLElement>('.options-readfirst-absorbed .reqore-checkbox')
+    );
+    expect(choices.map((choice) => choice.textContent?.trim())).toEqual(['Qore', 'Python']);
+    for (const choice of choices) {
+      expect(choice.querySelector('input')?.getAttribute('type')).toBe('radio');
+      expect(choice.querySelector('img')?.getAttribute('src')).toBeTruthy();
+    }
+    expect(choices[0].querySelector('input')?.checked).toBe(true);
+    // and the code is a line per line, in the host's editor
+    expect(
+      canvasElement.querySelectorAll('[data-field="source"] .code-editor-standin-code').length
+    ).toBeGreaterThan(0);
   },
 };
 
@@ -1548,9 +1540,9 @@ export const CompactRowCodeEditorPreview: Story = {
         ui_type: 'string',
         display_name: 'Language',
         allowed_values: [
-          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
-          { display_name: 'Python', value: { type: 'string', value: 'python' } },
-          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' }, image: qoreLogo },
+          { display_name: 'Python', value: { type: 'string', value: 'python' }, image: pythonLogo },
+          { display_name: 'Java', value: { type: 'string', value: 'java' }, image: javaLogo },
         ],
       },
       source: {
@@ -1605,13 +1597,29 @@ export const CompactRowCodeEditorMessage: Story = {
         // Qorus groups its fields (INFO / SCALING), so the row renders inside a
         // group rather than in a flat list.
         group: 'info',
+        // what Qore says of this source (`qore --diag-format=json`): line 8 has no `;`, so line 9's `}` is
+        // unexpected
         messages: [
           {
             intent: 'danger',
-            title: 'Line 4',
+            title: 'Line 9',
             content: "syntax error, unexpected '}'",
           },
         ],
+      },
+    },
+    value: {
+      ...(CompactRowCodeEditorPreview.args as any).value,
+      source: {
+        type: 'string',
+        value:
+          '%new-style\n%require-types\n%strict-args\n' +
+          '%enable-all-warnings\n\n' +
+          'class ExampleJob inherits QorusJob {\n' +
+          '    run() {\n' +
+          '        logInfo("running")\n' +
+          '    }\n' +
+          '}\n',
       },
     },
   },
@@ -1621,7 +1629,7 @@ export const CompactRowCodeEditorMessage: Story = {
     await waitFor(
       () => {
         const row = canvasElement.querySelector('[data-field="source"]');
-        expect(row?.textContent ?? '').toContain('Line 4');
+        expect(row?.textContent ?? '').toContain('Line 9');
         expect(row?.textContent ?? '').toContain("syntax error, unexpected '}'");
       },
       { timeout: 5000 }
@@ -1648,7 +1656,7 @@ const LateMessageHarness = (args: any) => {
           source: {
             ...current.source,
             messages: [
-              { intent: 'danger', title: 'Line 4', content: "syntax error, unexpected '}'" },
+              { intent: 'danger', title: 'Line 9', content: "syntax error, unexpected '}'" },
             ],
           },
         })),
@@ -1669,13 +1677,17 @@ export const CompactRowCodeEditorLateMessage: Story = {
       },
     },
   },
-  args: { ...CompactRowCodeEditorPreview.args },
+  // the source the message is about: line 8 has no `;`
+  args: {
+    ...CompactRowCodeEditorPreview.args,
+    value: (CompactRowCodeEditorMessage.args as any).value,
+  },
   render: (args) => <LateMessageHarness {...args} />,
   play: async ({ canvasElement }) => {
     await waitFor(
       () => {
         const row = canvasElement.querySelector('[data-field="source"]');
-        expect(row?.textContent ?? '').toContain('Line 4');
+        expect(row?.textContent ?? '').toContain('Line 9');
       },
       { timeout: 10000 }
     );
@@ -1704,7 +1716,7 @@ export const CompactRowMessageWhileEditing: Story = {
     });
 
     const editingRow = canvasElement.querySelector('.readfirst-row-editing') as HTMLElement;
-    expect(editingRow?.textContent ?? '').toContain('Line 4');
+    expect(editingRow?.textContent ?? '').toContain('Line 9');
     expect(editingRow?.textContent ?? '').toContain("syntax error, unexpected '}'");
   },
 };
@@ -1827,9 +1839,9 @@ export const NestedOptionInheritsRenderPropFromAncestor: Story = {
         ui_type: 'string',
         display_name: 'Language',
         allowed_values: [
-          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
-          { display_name: 'Python', value: { type: 'string', value: 'python' } },
-          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' }, image: qoreLogo },
+          { display_name: 'Python', value: { type: 'string', value: 'python' }, image: pythonLogo },
+          { display_name: 'Java', value: { type: 'string', value: 'java' }, image: javaLogo },
         ],
       },
       methods: {
@@ -1917,9 +1929,9 @@ export const NestedOptionInheritsRenderPropFromAncestorCompact: Story = {
         ui_type: 'string',
         display_name: 'Language',
         allowed_values: [
-          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
-          { display_name: 'Python', value: { type: 'string', value: 'python' } },
-          { display_name: 'Java', value: { type: 'string', value: 'java' } },
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' }, image: qoreLogo },
+          { display_name: 'Python', value: { type: 'string', value: 'python' }, image: pythonLogo },
+          { display_name: 'Java', value: { type: 'string', value: 'java' }, image: javaLogo },
         ],
       },
       methods: {
@@ -3670,7 +3682,19 @@ const ReadModeValue: IOptions = {
   handler: {
     type: 'string',
     value:
-      '# Reject calls without a tenant header before they reach the service.\nif (!ctx.headers["x-tenant"]) {\n  return { status: 400, body: { error: "tenant required" } };\n}\n\nconst customer = await store.get(ctx.params.id);\nif (!customer) {\n  return { status: 404 };\n}\n\nreturn { status: 200, body: customer };',
+      // Qore, the language the handler is written in (it was JavaScript)
+      '%new-style\n' +
+      '# rejects a call without a tenant header before it reaches the service\n' +
+      'hash<auto> sub handler(hash<auto> ctx, hash<string, hash<auto>> customers) {\n' +
+      '    if (!ctx.headers."x-tenant") {\n' +
+      '        return {"status": 400, "body": {"error": "tenant required"}};\n' +
+      '    }\n' +
+      '    *hash<auto> customer = customers{ctx.params.id};\n' +
+      '    if (!customer) {\n' +
+      '        return {"status": 404};\n' +
+      '    }\n' +
+      '    return {"status": 200, "body": customer};\n' +
+      '}\n',
   },
   retry: { type: 'hash', value: { attempts: 3, backoff: 'exponential' } },
   tags: { type: 'list', value: ['customers', 'public'] },
@@ -3697,6 +3721,8 @@ export const CompactReadOnlyValues: Story = {
       behaviour: { icon: 'FlashlightLine', sort: 1 },
     },
     readOnly: true,
+    // the host's code editor, as the IDE gives Monaco: it draws code read-only too
+    componentOverrides: { 'code-editor': CodeEditorStandinNoSyntax },
   },
   play: async () => {
     await _testsWaitForText('api-schema-7f3c');
@@ -3735,8 +3761,13 @@ export const CompactReadOnlyValues: Story = {
     );
     // Code is the whole block.
     expect(row('handler').querySelector('.options-readfirst-code')?.textContent).toContain(
-      'return { status: 200, body: customer };'
+      'return {"status": 200, "body": customer};'
     );
+    // drawn by the host's code editor, read-only: highlighted, a line per line (David's decision)
+    expect(
+      row('handler').querySelector('.options-readfirst-code-editor .code-editor-standin')
+    ).toBeTruthy();
+    expect(row('handler').querySelector('.options-readfirst-code-editor textarea')).toBeNull();
     // A hash is every field, by name.
     expect(row('retry').textContent).toMatch(/Attempts/);
     expect(row('retry').textContent).toMatch(/Exponential|exponential/);
@@ -5715,8 +5746,8 @@ export const CompactFieldTypes: Story = {
         display_name: 'Select (allowed_values)',
         group: 'choice',
         allowed_values: [
-          { display_name: 'Qore', value: { type: 'string', value: 'qore' } },
-          { display_name: 'Python', value: { type: 'string', value: 'python' } },
+          { display_name: 'Qore', value: { type: 'string', value: 'qore' }, image: qoreLogo },
+          { display_name: 'Python', value: { type: 'string', value: 'python' }, image: pythonLogo },
         ],
       },
       severity: {

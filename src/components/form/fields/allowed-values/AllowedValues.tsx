@@ -17,7 +17,7 @@ import { ReqoreCheckbox, ReqoreControlGroup, ReqoreSpan } from '@qoretechnologie
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IQorusAllowedValue, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size as count, isEqual } from 'lodash';
-import { memo, useMemo } from 'react';
+import { memo, useId, useMemo } from 'react';
 import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { besideItsInfo, describedControl } from '../../../Description/describedControl';
@@ -109,6 +109,8 @@ export const FieldAllowedValuesCheckGroup = memo(
     const unavailableOpacity = useReadableOpacity(0.55);
     // a choice's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
     const descriptions = useDescriptionTooltips();
+    // one choice of several is a radio, in a group of its own (qorus#646)
+    const choiceGroup = useId();
     return (
       <ReqoreControlGroup vertical size={rest.size || 'small'} gapSize='tiny'>
         <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
@@ -126,6 +128,12 @@ export const FieldAllowedValuesCheckGroup = memo(
             <ReqoreCheckbox
               margin='right'
               label={choiceName}
+              /* One choice is a radio, several are checkboxes; and a choice with a picture (a language's logo) is
+                 drawn by it, as its own control and the picker draw it - it was a bare box (qorus#646, David:
+                 "the languages are missing the language icons"). A refused one keeps its lock. */
+              type={multiSelect ? 'checkbox' : 'radio'}
+              name={multiSelect ? undefined : choiceGroup}
+              image={unavailable ? undefined : (item.image as string | undefined)}
               tooltip={described.tooltip}
               /* The reason is IN the row: a checkbox has no body to put it in,
                  and a hover is the one affordance a touch screen and a keyboard

@@ -194,6 +194,17 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   its name (`{name: 'x'}`), and its name from `display_name`, else `name`, else the value. A picker that read
   the envelope only drew a bare entry as an empty box no click could tick. Tests:
   `__tests__/allowedValueShapes.test.tsx`.
+- **Code is shown as the host shows code.** A `code-editor` value's read-first preview (and a read-only form's
+  code) is drawn by the host's `codePreviewRenderer` when it gives one, else by its own code editor
+  (`componentOverrides['code-editor']`) read-only, given what the field inherits (its language,
+  `resolveInheritProps`), so it is highlighted and has its language server; a plain `<pre>` only where the host
+  gives neither (David's decision, 2026-10-22). reqraft ships no code editor. The stories use
+  `src/stories/CodeEditorStandin.tsx`, a stand-in that draws code a line per line, numbered and coloured, and
+  real Qore samples. Tests: `__tests__/readOnlyCodeUsesTheHostEditor.test.tsx`.
+- **One choice of a few is a radio, drawn by its picture.** A short list of choices (three or fewer) is radios
+  for one value and checkboxes for several, and a choice with an `image` (a language's logo) is drawn by it; a
+  collapsed row that carries an absorbed choice names it and shows its picture ("Qore" with its logo, not
+  `qore`). Story: `CompactRowAbsorbsLanguage`.
 - **A reference nothing names says so.** A chip names its reference from the catalogue. One the catalogue does
   not list is drawn as a warning (`.reqraft-reference-unlisted`) with the host's hint on hover (FormEngine's
   `templateReferences.unlistedHint`; the IDE: "Not a value this case captures"; else "Not one of the values

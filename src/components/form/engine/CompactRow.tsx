@@ -39,6 +39,7 @@ import { CompactRowContext } from './compactRowContext';
 import { useCoarsePointer } from '../../../hooks/useCoarsePointer';
 import { optionTypeSentence, optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
 import { useTypeName, useTypeSentenceForm } from '../typeSentenceForm';
+import { resolveInheritProps } from './inheritProps';
 import { revealRow } from './revealRow';
 import {
   MONO_FONT_STACK,
@@ -219,6 +220,9 @@ WebLink.displayName = 'WebLink';
 /** The status boxes by name, as their headers say them. */
 const BOX_NAMES = { attention: 'Needs attention', set: 'Set', optional: 'Optional' } as const;
 
+/** A read-only editor's change: there is none to take. */
+const ignoreReadOnlyChange = () => undefined;
+
 export const CompactRow = memo(
   ({
     optionName,
@@ -255,6 +259,7 @@ export const CompactRow = memo(
       (options?.[absorbedName] as { display_name?: string } | undefined)?.display_name ||
       absorbedName;
     const codePreviewRenderer = useContextSelector(CompactRowContext, (v) => v.codePreviewRenderer);
+    const CodeEditor = useContextSelector(CompactRowContext, (v) => v.codeEditor);
     const readSummaries = useContextSelector(CompactRowContext, (v) => v.readSummaries);
     const cardEditorTypes = useContextSelector(CompactRowContext, (v) => v.cardEditorTypes);
     const markdownRenderer = useMarkdownRenderer();
@@ -562,19 +567,28 @@ export const CompactRow = memo(
         return (
           <ReqoreControlGroup gapSize='tiny' verticalAlign='center' wrap>
             {(absorbedFields ?? []).map((absorbedName) => {
-              const absorbedValue = (
-                availableOptions?.[absorbedName] as IQorusFormField | undefined
-              )?.value;
+              const absorbedField = availableOptions?.[absorbedName] as IQorusFormField | undefined;
+              const absorbedValue = absorbedField?.value;
               if (absorbedValue === undefined || absorbedValue === null || absorbedValue === '') {
                 return null;
               }
+              /* What the value is called and its picture, as its own control draws it: a language is "Qore" with
+                 its logo, not the value it is stored as, "qore" (qorus#646, David's review). */
+              const absorbedSchema = options?.[absorbedName];
+              const choice = findAllowedValueOption(absorbedValue, absorbedSchema) as
+                { image?: string } | undefined;
               return (
                 <ReqoreTag
                   key={absorbedName}
                   className='options-readfirst-absorbed-tag'
                   size='small'
                   minimal
-                  label={String(absorbedValue)}
+                  icon={choice?.image ? 'CheckboxBlankLine' : undefined}
+                  leftIconProps={choice?.image ? { image: choice.image } : undefined}
+                  label={
+                    formatOptionValue(absorbedField as IQorusFormField, absorbedSchema) ||
+                    String(absorbedValue)
+                  }
                   tooltip={getAbsorbedLabel(absorbedName)}
                 />
               );
@@ -2718,6 +2732,24 @@ export const CompactRow = memo(
                     options,
                     values: availableOptions,
                   })
+                : CodeEditor ?
+                  /* Code is shown as the host shows code: its own editor, read-only, given what it inherits (its
+                     language) - highlighted, with its language server - and as a plain block only where there is
+                     none (qorus#646, David's decision). */
+                  <div className='options-readfirst-code options-readfirst-code-editor'>
+                    <CodeEditor
+                      {...(schema as object)}
+                      {...resolveInheritProps(
+                        (schema as { inherit_props?: Record<string, string> } | undefined)
+                          ?.inherit_props,
+                        availableOptions
+                      )}
+                      name={optionName}
+                      value={optionField.value as string}
+                      readOnly
+                      onChange={ignoreReadOnlyChange}
+                    />
+                  </div>
                 : <StyledCodePreview
                     className='options-readfirst-code'
                     $bg={cHover}

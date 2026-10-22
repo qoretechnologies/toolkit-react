@@ -149,6 +149,13 @@ export interface ICompactRowContext {
    * sibling field rather than being told it twice.
    */
   codePreviewRenderer?: TCodePreviewRenderer;
+  /**
+   * The host's code editor (its `componentOverrides['code-editor']`), which draws the read-first preview of a
+   * `code-editor` value read-only where the host gives no `codePreviewRenderer`: code is shown as the host shows
+   * code - highlighted, with its language server - and as a plain block only where there is no editor (qorus#646,
+   * David's decision).
+   */
+  codeEditor?: React.ComponentType<any>;
   /** A collapsed row's summary drawn by the host, by `ui_type` (see `TReadSummary`). */
   readSummaries?: Record<string, TReadSummary>;
   /** The host's editors that open in the card below their row (see FormEngine's `cardEditorTypes`). */
