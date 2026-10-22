@@ -759,8 +759,15 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
               onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
                 // anchored under the button's right edge: the card opens beside the text, not over it
+                /* Under the row, not only under the button: an editor of more than one line is taller than
+                   the button, and the card drawn under the button covered the lines below the first
+                   (DpqlEditor · Details On A Chip On A Touch Screen, at 390px). */
                 const { right, bottom } = event.currentTarget.getBoundingClientRect();
-                void hover.showAtCaret({ left: right, top: bottom }).then(setDetailsHoverId);
+                const row = event.currentTarget.closest('.smart-editor-row');
+                const rowBottom = row?.getBoundingClientRect().bottom ?? bottom;
+                void hover
+                  .showAtCaret({ left: right, top: Math.max(bottom, rowBottom) })
+                  .then(setDetailsHoverId);
               }}
             >
               {detailsSaysItsWord ? 'Details' : undefined}

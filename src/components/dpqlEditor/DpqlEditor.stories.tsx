@@ -724,7 +724,7 @@ export const DetailsOnAChipOnATouchScreen: Story = {
     docs: {
       description: {
         story:
-          'Renders the same text on a phone (390 px, touch) and taps the chip create.items[*].id, then Details: a finger cannot hover, and Details shows what the server says of the chip - the field @create.items, the list wildcard [*] and the field id - in a card under the button.',
+          'Renders the same text on a phone (390 px, touch) and taps the chip create.items[*].id, which opens its list of what may replace it, then Details, its icon alone at this width: a finger cannot hover, and Details shows what the server says of the chip - the field @create.items, the list wildcard [*] and the field id - in a card under the text, all three lines of it. The tap on Details puts the list of the chip away, and the chips wrap inside the field.',
       },
     },
   },
@@ -757,6 +757,9 @@ export const DetailsOnAChipOnATouchScreen: Story = {
         { timeout: 10000 }
       );
       await expect(shownHovers()[0]).toContain('@create.items');
+      // under the text, all of it: the editor is three lines tall here, taller than the button
+      const card = document.querySelector('.reqore-popover-content')!.getBoundingClientRect();
+      await expect(card.top).toBeGreaterThanOrEqual(editable.getBoundingClientRect().bottom - 1);
     });
   },
 };
