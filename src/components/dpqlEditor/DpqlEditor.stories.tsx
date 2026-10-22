@@ -741,6 +741,53 @@ export const DetailsOnAChipOnATouchScreen: Story = {
   },
 };
 
+export const AChipLongerThanItsLineWrapsInsideIt: Story = {
+  args: { ...WithAccessorChains.args, onChange: fn() },
+  // an editor in a narrow card: narrower than its longest chips
+  decorators: [
+    (Story) => (
+      <div style={{ width: 240 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the accessor chains in an editor 240 px wide, narrower than the chips record: create.items[*].id and record: headers.content-type. Each wraps its label inside its line, with its icon and its remove button, rather than running past the line and losing both ends (Foxhoundn, qlip #383: "The template tag is overflowing, you need to wrap it"). A chip that fits stays on one line, the height it always had.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    const long = await chipFor(editable, 'record: create.items[*].id');
+    const short = await chipFor(editable, 'record: prices{*}');
+    const line = editable.getBoundingClientRect();
+    const chips = Array.from(editable.querySelectorAll<HTMLElement>('.reqore-tag'));
+    await expect(chips.length).toBe(4);
+    for (const chip of chips) {
+      const name = (chip.textContent ?? '').replace(/\uFEFF/g, '').trim();
+      const box = chip.getBoundingClientRect();
+      // inside its line
+      await expect(box.left, `${name} starts in the line`).toBeGreaterThanOrEqual(line.left);
+      await expect(box.right, `${name} ends in the line`).toBeLessThanOrEqual(line.right);
+      // and its label is all drawn: none of it runs past the chip, which would clip it
+      const label = chip.querySelector<HTMLElement>('.reqore-tag-content')!.getBoundingClientRect();
+      await expect(label.left, `${name}: its label starts in it`).toBeGreaterThanOrEqual(
+        box.left - 0.5
+      );
+      await expect(label.right, `${name}: its label ends in it`).toBeLessThanOrEqual(
+        box.right + 0.5
+      );
+    }
+    // the long chip wraps; the short one stays on one line
+    await expect(long.getBoundingClientRect().height).toBeGreaterThan(
+      short.getBoundingClientRect().height * 1.5
+    );
+  },
+};
+
 export const AChipWithItsOwnDescriptionShowsOneHover: Story = {
   args: { value: '@name == "Alice"', provider: 'orders-db', recordType: 'record', onChange: fn() },
   parameters: {

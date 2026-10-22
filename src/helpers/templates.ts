@@ -48,15 +48,24 @@ const byLabel = (a: { label?: unknown }, b: { label?: unknown }): number =>
 
 export type TTemplateMeta = { image?: string; builtIn?: boolean; isEventTrigger?: boolean };
 
+/** What every view's reference chip is drawn with (`REFERENCE_CHIP_PROPS`). */
+export type TReferenceChipProps = Pick<IReqoreTagProps, 'size' | 'effect' | 'wrap' | 'paddingSize'>;
+
 /**
  * A reference chip as every view draws it - the read summary (`TemplateText`), the read-only chip, the rich
  * text editor and the expression editor: a `tiny` box whose label takes the font of the text it sits in, so a
  * reference is the same size wherever it is shown, at whatever size its text is (qorus#646). One object for all
  * of them: written out in each, the views drifted apart, and a chip jumped as a value moved between them.
  */
-export const REFERENCE_CHIP_PROPS: Pick<IReqoreTagProps, 'size' | 'effect'> = Object.freeze({
+export const REFERENCE_CHIP_PROPS: TReferenceChipProps = Object.freeze({
   size: 'tiny',
   effect: Object.freeze({ textSize: 'inherit' }),
+  /* A chip longer than its line wraps its label inside the line. Not wrapped, it was capped at the line's width
+     with its label centred in it, and lost both ends - its icon, the start and the end of the path, and its
+     remove button (qorus#646, Foxhoundn on qlip #383: "The template tag is overflowing, you need to wrap it").
+     With no vertical padding, a chip that fits keeps the one line's height it had. */
+  wrap: true,
+  paddingSize: 'micro',
 });
 
 export const getTemplateTagStyle = (
