@@ -941,7 +941,9 @@ const renderNode = (args: IDpqlMockNode[], name: string): string | undefined => 
 const printNode = (node: IDpqlMockNode, readable: boolean): string => {
   const args = node.args ?? [];
   const name = node.exp ?? '';
-  if (name === 'value' && args.length === 1) return printArg(args[0], 0, readable);
+  // a lone value, or a lone template as the server parses one written alone: written as the value (`@pos`)
+  if ((name === 'value' || name === 'template') && args.length === 1)
+    return printArg(args[0], 0, readable);
   const rendered = readable ? renderNode(args, name) : undefined;
   if (rendered !== undefined) return rendered;
   const precedence = BINARY_PRECEDENCE[name];

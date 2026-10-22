@@ -19,6 +19,7 @@ import { DpqlEditor, IDpqlEditorRef, IDpqlParseResult, useDpqlSession } from '..
 import { TemplateBrowser } from '../fields/template/TemplateBrowser';
 import { dpqlDisplayedText, dpqlReferenceBeingWritten } from '../../dpqlEditor/dpqlHelpers';
 import { dpqlExpectsValue } from '../../dpqlEditor/dpqlCompletions';
+import { asLoneValue } from './loneValue';
 import { TDpqlFields } from '../../dpqlEditor/types';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
 import { DpqlRendering } from './DpqlRendering';
@@ -440,6 +441,11 @@ export const ExpressionField = memo(
     const pendingParse = useRef<string | null>(null);
 
     const ast = useMemo<IExpressionValue | undefined>(() => value?.value, [value]);
+    // a lone template, as the server parses one written alone, is the lone value it is (`asLoneValue`)
+    const builderValue = useMemo(
+      () => (value?.value ? { ...value, value: asLoneValue(value.value) } : value),
+      [value]
+    );
 
     /**
      * The type the expression's result has to satisfy, sent with every parse.
@@ -1051,7 +1057,7 @@ export const ExpressionField = memo(
               </ReqoreMessage>
             : null}
             <ExpressionBuilder
-              value={value}
+              value={builderValue}
               onChange={(v, remove) => onChange(v, remove)}
               expressions={expressions}
               // Default to `auto` when the field declares no return type, so a

@@ -6,6 +6,7 @@
 // transport/socket import, so it stays out of the LSP/nanoid dependency graph.
 import { expressionOperand } from './expressionOperands';
 import { fieldPathOf, fieldPathTemplate } from './fieldPath';
+import { isLoneValueOperation } from './loneValue';
 import { IExpression, IExpressionSchema, IExpressionValue } from './types';
 
 /** How a part not filled in yet is written: an operation not chosen, a value not given. */
@@ -108,7 +109,8 @@ const renderInContext = (
      value: `value(42)` with a catalogue that names it, `(42)` with one that
      supplies its empty symbol. The server renders the literal alone, and a
      summary that disagrees with the preview beside it is worse than either. */
-  if (value.exp === 'value' && (value.args ?? []).length === 1) {
+  // a lone template (`template(x)`, as the server parses one written alone) is the lone value it is too
+  if (isLoneValueOperation(value.exp) && (value.args ?? []).length === 1) {
     const only = (value.args ?? [])[0] as IExpression;
     if (!only?.is_expression) {
       return renderLiteral(readArgValue(only));

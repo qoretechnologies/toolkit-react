@@ -1034,6 +1034,38 @@ export const TextModeOfAnUnfinishedExpression: Story = {
   },
 };
 
+export const AnUnfinishedExpressionSaysTheSameInBothViews: Story = {
+  args: TextModeOfAnUnfinishedExpression.args,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The comparison left unfinished ("… > …"), opened on its Text view, then on Visual: the Visual view says of the part whose operation is not chosen what it lacks - "Choose what this part does." - as the Text view says "Fill in each …". It said "This expression gives nothing, which this field does not take", of a part that gives nothing yet (David\'s review: the views did not agree).',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    await waitFor(
+      () =>
+        expect(saidUnderTheText(canvasElement)).toEqual([
+          'Fill in each … (the parts not chosen yet).',
+        ]),
+      { timeout: 6000 }
+    );
+    await userEvent.click(
+      Array.from(canvasElement.querySelectorAll<HTMLElement>('button')).find(
+        (button) => button.textContent?.trim() === 'Visual'
+      ) as HTMLElement
+    );
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.expression-no-operation-yet')?.textContent).toContain(
+        'Choose what this part does.'
+      )
+    );
+    expect(canvasElement.textContent).not.toContain('gives nothing');
+  },
+};
+
 /** A condition field (its host marks it one) that takes expressions and holds nothing yet, in a FormEngine. */
 const ConditionToggleForm = () => {
   const [value, setValue] = useState<any>({});

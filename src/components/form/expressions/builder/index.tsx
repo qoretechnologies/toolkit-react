@@ -643,8 +643,13 @@ export const Expression = ({
   /* A condition the server says gives text, a date or a time is refused, whatever this place declares: a
      condition field need not declare `bool`, and a mismatch was then never drawn - the refusal was shown only
      because the type worked out here happened to be a number's (a warning, in the server's words). */
+  /* A part whose operation is not chosen yet gives nothing yet, and nothing is said of what it gives: it was told
+     "This expression gives nothing, which this field does not take" - a type it never claimed - beside the Text
+     view's "Fill in each …" (qorus#646, David's review). What it lacks is said instead (`noOperationYetText`). */
+  const noOperationYet = !value?.value?.exp;
   const isReturnTypeMatching =
-    condition !== 'error' &&
+    noOperationYet ||
+    (condition !== 'error' &&
     (typeNotKnownYet ||
       expressionReturnType === 'any' ||
       (isArray(returnType)
@@ -656,8 +661,8 @@ export const Expression = ({
           areQorusTypesCompatible(returnType, expressionReturnType) ||
           returnType === expressionReturnType ||
           !returnType) ||
-      // a condition is decided by any result but text, a date or a time
-      (takesCondition && !!expressionReturnType && !isTextOrDateType(expressionReturnType)));
+        // a condition is decided by any result but text, a date or a time
+        (takesCondition && !!expressionReturnType && !isTextOrDateType(expressionReturnType))));
 
   const defaultItems = useMemo(
     () =>
@@ -1433,9 +1438,41 @@ export const Expression = ({
           />
         </>
       ) : null}
+      {noOperationYet && !readOnly ?
+        <>
+          <ReqoreVerticalSpacer height={5} />
+          <ReqoreTag
+            minimal
+            className='expression-no-operation-yet'
+            icon='ErrorWarningLine'
+            intent='warning'
+            size='tiny'
+            wrap
+            label={noOperationYetText(
+              isChild || level > 0,
+              (
+                (isArray(returnType) ? returnType : [returnType]).some(
+                  (type) => !!type && !isUntypedOptionType(type) && String(type) !== 'auto'
+                )
+              ) ?
+                expectedReturnTypeText
+              : undefined
+            )}
+          />
+        </>
+      : null}
     </ExpressionItem>
   );
 };
+
+/**
+ * What an expression, or a part of one, whose operation is not chosen yet says: what it lacks, as the Text view's
+ * holes do, and what its place takes where that is a type (qorus#646). `takes` names the type inside the sentence.
+ */
+export const noOperationYetText = (part: boolean, takes: string | undefined): string =>
+  part ?
+    `Choose what this part does${takes ? `: it must give ${takes}` : ''}.`
+  : `Choose what this expression does${takes ? `: this field takes ${takes}` : ''}.`;
 
 export const ExpressionBuilder = ({
   localTemplates,

@@ -18,6 +18,7 @@ import { IProviderType, TVariableActionValue, maybeBuildOptionProvider } from '.
 import { getTemplateKey, getTemplateValue, isValueTemplate, textAroundATemplate } from './templates';
 import { getUnlistedChoiceReason } from './allowedValues';
 import { storedColorProblem } from '../components/colorValue/colorValue';
+import { asLoneValue } from '../components/form/expressions/loneValue';
 
 /** The five cron fields, in order, as a schedule hash may name them. */
 const CRON_FIELDS: [string, string][] = [
@@ -1671,9 +1672,9 @@ export const _validateField = (
         return validResult();
       }
 
-      // Get the expression definition from the catalogue
+      // Get the expression definition from the catalogue - a lone template's as the lone value it is (`asLoneValue`)
       const expressionDefinition = expressions.find(
-        (expr: any) => expr.name === castedValue.value?.exp
+        (expr: any) => expr.name === asLoneValue(castedValue.value)?.exp
       );
 
       if (!expressionDefinition) {

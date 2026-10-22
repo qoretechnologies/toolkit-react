@@ -12120,6 +12120,34 @@ const valueTabChips = (field: string) =>
     (chip) => chip.textContent?.trim()
   );
 
+export const ALoneFieldReadsAsTheFieldInEveryView: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form whose By template holds template($record:{pos}) - how the server parses a field written alone - and opens it: the read row says pos, the Text view pos, and the Visual view the value pos. Nowhere template(...), nor "Qorus has no operation template.": the server\'s wrapper of a lone reference is the lone value it is (David\'s review).',
+      },
+    },
+  },
+  render: () => <ReferenceForm />,
+  play: async () => {
+    const said = () => document.body.textContent ?? '';
+    // the read row
+    await waitFor(() => expect(optionRow('by_template')?.textContent).toContain('pos'));
+    expect(said()).not.toContain('template(');
+    expect(said()).not.toContain('has no operation');
+    // the Text view
+    const row = await editOption('by_template');
+    await waitFor(() => expect(optionActiveTab(row)).toBe('expression'));
+    await waitFor(() => expect(expressionTextOf('by_template')).toBe('pos'));
+    // the Visual view
+    await chooseTab(optionRow('by_template'), 'visual');
+    await waitFor(() => expect(optionRow('by_template').querySelector('.expression')).toBeTruthy());
+    expect(said()).not.toContain('has no operation');
+    expect(said()).not.toContain('template(');
+  },
+};
+
 export const ValueTabDrawsAReferencedFieldAsItsChip: Story = {
   parameters: {
     docs: {
