@@ -296,3 +296,10 @@ export const qorusTypeSentenceForm = (
   const entry = qorusTypeEntry(types, typeName);
   return entry?.sentence_form || `a value of type ${entry?.display_name ?? typeName}`;
 };
+
+/** What a type is called inside a sentence ("a whole number"), by a catalogue: `useQorusTypes().getTypeSentenceForm`. */
+export type TTypeSentenceForm = (typeName: string | undefined) => string | undefined;
+
+/** The built-in catalogue's sentence form of a type, for a surface no form has given the server's catalogue to. */
+export const builtInTypeSentenceForm: TTypeSentenceForm = (typeName) =>
+  qorusTypeSentenceForm(defaultQorusTypes, typeName);

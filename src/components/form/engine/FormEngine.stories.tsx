@@ -47,7 +47,13 @@ import { storyApiUrl } from '../../../stories/storyNetwork';
 import { withCoarsePointer } from '../../../stories/coarsePointer';
 import { PHONE_VIEWPORT } from '../../../stories/tracking';
 import { withTouchScreen } from '../../../stories/touchScreen';
-import { atTheCaptureSize, middleOf, mouseOffThePage, restMouseOn } from '../../../stories/mouse';
+import {
+  atTheCaptureSize,
+  middleOf,
+  middleOfElement,
+  mouseOffThePage,
+  restMouseOn,
+} from '../../../stories/mouse';
 
 // schema data
 
@@ -11848,12 +11854,13 @@ export const ValueTabPickReplacesAReferencedField: Story = {
     docs: {
       description: {
         story:
-          'Renders the form holding value($record:{bezeichnung}), opens it on Value, empties the text with its × and picks pos from the fields the text offers: it holds the field pos, a value written on the Value tab, and its chip says pos. A field picked into the text goes where the caret is, as into any text.',
+          "Renders the form holding value($record:{bezeichnung}), opens it on Value, empties the text with its × and picks pos from the fields the text offers: it holds the field pos, a value written on the Value tab, and its chip says pos. A field picked into the text goes where the caret is, as into any text. The mouse resting on the chip shows what the field is: pos, a whole number (David's review: the hover should say the field's type); the capture leaves it open.",
       },
     },
   },
   render: () => <ReferenceForm />,
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, parameters }) => {
+    await atTheCaptureSize(parameters);
     const row = await editOption('by_value');
     await chooseTab(row, 'value');
     await waitFor(() =>
@@ -11891,6 +11898,18 @@ export const ValueTabPickReplacesAReferencedField: Story = {
     await waitFor(() =>
       expect(valueTabChips('by_value')).toEqual([expect.stringContaining('pos')])
     );
+
+    // the field's hover says what kind of value it is
+    const chip = optionRow('by_value').querySelector<HTMLElement>(
+      '.value-tab-text .reqore-tag'
+    ) as HTMLElement;
+    await restMouseOn(chip, middleOfElement(chip));
+    await waitFor(() => {
+      const card = Array.from(document.querySelectorAll('.reqore-popover-content')).find(
+        (popover) => popover.textContent?.includes('pos')
+      );
+      expect(card?.textContent, "the field's hover").toContain('A whole number.');
+    });
   },
 };
 

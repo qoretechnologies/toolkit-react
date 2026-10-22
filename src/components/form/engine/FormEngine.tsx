@@ -126,6 +126,7 @@ import {
   TMarkdownRenderer,
 } from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
+import { TypeSentenceFormProvider } from '../typeSentenceForm';
 import { isTypingControl } from './rowFocus';
 import { firstDeclaredType, isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
@@ -5108,7 +5109,10 @@ const FormEngineImpl = ({
  */
 export const FormEngine = (props: IFormEngineProps) => (
   <MarkdownRendererContext.Provider value={props.markdownRenderer}>
-    <FormEngineImpl {...props} />
+    {/* and the server's words for each type, which a reference's hover says (qorus#646) */}
+    <TypeSentenceFormProvider>
+      <FormEngineImpl {...props} />
+    </TypeSentenceFormProvider>
   </MarkdownRendererContext.Provider>
 );
 

@@ -22,6 +22,7 @@ import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
 import { useTemplateTags } from '../form/fields/rich-text/useTemplateTags';
 import { useDescriptionTooltips } from '../../helpers/descriptionTooltip';
+import { useTypeSentenceForm } from '../form/typeSentenceForm';
 
 export type { IDpqlEditorProps, IDpqlEditorRef };
 
@@ -179,10 +180,17 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
     const templateTags = useTemplateTags(templates, !readOnly);
 
     const descriptions = useDescriptionTooltips();
+    // a chip's hover says its type in the server's words for it
+    const typeSentenceForm = useTypeSentenceForm();
     const tagRenderer = useMemo(
       () =>
-        makeDpqlTagRenderer(dpql.fieldMeta, { templateTagsUseIntent, templates, descriptions }),
-      [dpql.fieldMeta, templateTagsUseIntent, templates, descriptions]
+        makeDpqlTagRenderer(dpql.fieldMeta, {
+          templateTagsUseIntent,
+          templates,
+          descriptions,
+          typeSentenceForm,
+        }),
+      [dpql.fieldMeta, templateTagsUseIntent, templates, descriptions, typeSentenceForm]
     );
 
     useImperativeHandle(

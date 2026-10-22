@@ -11,6 +11,7 @@ import { createElement } from 'react';
 import { ReqraftTemplateExampleValueModal } from '../components/form/fields/template/ExampleValueModal';
 import { descriptionTooltip, IDescriptionTooltipOptions } from './descriptionTooltip';
 import { areQorusTypesCompatible } from './expressions';
+import { builtInTypeSentenceForm, TTypeSentenceForm } from './qorusTypeCatalogue';
 
 /**
  * The DOM ceiling for a serialized example value in a picker item — a
@@ -504,11 +505,34 @@ export const describeTemplateReference = (
 export const templateTooltip = (
   templates: IReqoreFormTemplates | undefined,
   value: string,
-  descriptions: IDescriptionTooltipOptions
+  descriptions: IDescriptionTooltipOptions,
+  typeSentenceForm: TTypeSentenceForm = builtInTypeSentenceForm
 ): TReqoreTooltipProp => {
   const { label, item } = describeTemplateReference(templates, value);
-  const description = (item as { description?: unknown } | undefined)?.description;
-  return descriptionTooltip(description, descriptions, label || value) ?? value;
+  const { description, badge } = (item ?? {}) as { description?: unknown; badge?: unknown };
+  // the catalogue gives a template's type as its badge (`buildTemplates`)
+  const type = typeof badge === 'string' && badge ? typeSentenceForm(badge) : undefined;
+  return (
+    descriptionTooltip(describedWithType(description, type), descriptions, label || value) ?? value
+  );
+};
+
+/**
+ * What a reference's hover says under its name: what kind of value it is, in words - "A whole number." from the
+ * type's sentence form - then its description (qorus#646, David: a field's hover should say the field's type).
+ * The type was in the catalogue (its badge) and in no hover; where a hover said it, it said it raw, `(int)`.
+ * Undefined when there is neither.
+ */
+export const describedWithType = (
+  description: unknown,
+  typeSentenceForm: string | undefined
+): string | undefined => {
+  const kind =
+    typeSentenceForm ?
+      `${typeSentenceForm.charAt(0).toLocaleUpperCase()}${typeSentenceForm.slice(1)}.`
+    : undefined;
+  const text = typeof description === 'string' && description.trim() ? description : undefined;
+  return [kind, text].filter(Boolean).join('\n\n') || undefined;
 };
 
 // Ported verbatim from qorus-ide `helpers/functions.tsx` (FIELD_STACK_REPORT

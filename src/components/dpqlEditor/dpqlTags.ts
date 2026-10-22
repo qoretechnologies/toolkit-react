@@ -5,7 +5,9 @@
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/descriptionTooltip';
+import { builtInTypeSentenceForm, TTypeSentenceForm } from '../../helpers/qorusTypeCatalogue';
 import {
+  describedWithType,
   describeTemplateReference,
   getTemplateTagStyle,
   REFERENCE_CHIP_PROPS,
@@ -77,6 +79,11 @@ export interface IDpqlTagRendererOptions {
    * description is markdown, drawn as the template list draws it, and opened by a tap on a touch screen.
    */
   descriptions?: IDescriptionTooltipOptions;
+  /**
+   * What a type is called inside a sentence (`useQorusTypes().getTypeSentenceForm`): a field's and a template's
+   * hover says its type in words with it. Without it, the built-in catalogue's words.
+   */
+  typeSentenceForm?: TTypeSentenceForm;
 }
 
 /**
@@ -106,7 +113,15 @@ export function makeDpqlTagRenderer(
       ...(named?.item ? { label: named.label }
       : field ? { label: templateChipLabel(options.templates, template) }
       : {}),
-      ...(named?.item ? { tooltip: templateTooltip(options.templates, template, options.descriptions ?? {}) }
+      ...(named?.item ?
+        {
+          tooltip: templateTooltip(
+            options.templates,
+            template,
+            options.descriptions ?? {},
+            options.typeSentenceForm
+          ),
+        }
       : field ? { tooltip: field.tooltip }
       : {}),
       ...(options.templateTagsUseIntent === false ?
@@ -126,13 +141,15 @@ export function makeDpqlTagRenderer(
     const fieldName = dpqlFieldName(tagValue);
     if (fieldName !== undefined) {
       const meta = fieldMeta[fieldName];
-      // the field's name and type head the card, and its description is drawn under them
+      /* the field's name heads the card, and under it what kind of value it is, in words, and its description:
+         its type was said raw, "Order ID (int)" (qorus#646) */
+      const typeSentenceForm = options.typeSentenceForm ?? builtInTypeSentenceForm;
       const tooltip =
         meta ?
           descriptionTooltip(
-            meta.short_desc,
+            describedWithType(meta.short_desc, typeSentenceForm(meta.type?.name)),
             options.descriptions ?? {},
-            `${meta.display_name || fieldName}${meta.type?.name ? ` (${meta.type.name})` : ''}`
+            meta.display_name || fieldName
           )
         : undefined;
       const template = recordTemplateOfReference(tagValue);

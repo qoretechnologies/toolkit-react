@@ -9,6 +9,7 @@ import {
   TTemplateMeta,
 } from '../../../../helpers/templates';
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { useTypeSentenceForm } from '../../typeSentenceForm';
 
 export interface IReadOnlyTemplateTagProps {
   /** The template reference value, e.g. `$local:test`. */
@@ -40,6 +41,7 @@ export const ReadOnlyTemplateTag = memo(
     const label = givenLabel ?? described;
     const metadata = item?.metadata as TTemplateMeta | undefined;
     const descriptions = useDescriptionTooltips();
+    const getTypeSentenceForm = useTypeSentenceForm();
     return (
       // The same chip the read summary (`TemplateText`) and the expression editor draw: a `tiny` box whose
       // label takes the font of the text it sits in, so a reference is the same size in every view.
@@ -48,7 +50,7 @@ export const ReadOnlyTemplateTag = memo(
           icon='ExchangeDollarLine'
           leftIconProps={{ image: metadata?.image }}
           label={label}
-          tooltip={templateTooltip(templates, value, descriptions)}
+          tooltip={templateTooltip(templates, value, descriptions, getTypeSentenceForm)}
           {...REFERENCE_CHIP_PROPS}
           {...getTemplateTagStyle(metadata)}
         />

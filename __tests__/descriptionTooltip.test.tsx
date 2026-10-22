@@ -129,16 +129,53 @@ describe('templateTooltip', () => {
   it('is the name alone for a template the catalogue does not describe', () => {
     expect(templateTooltip(TEMPLATES, '$local:order', { render: hostRender })).toBe('Order id');
   });
+
+  /* qorus#646, David on Form Engine · Value Tab Pick Replaces A Referenced Field: the hover of a field should say
+     the field's type. The catalogue gives it (the entry's badge) and no hover said it. */
+  it('says what kind of value a template is, in words, over its description', () => {
+    const typed = {
+      items: [
+        { label: 'pos', value: '$record:{pos}', badge: 'int' },
+        {
+          label: 'Customer name',
+          value: '$local:customer',
+          badge: 'string',
+          description: DESCRIPTION,
+        },
+      ],
+    } as IReqoreFormTemplates;
+    const pos = templateTooltip(typed, '$record:{pos}', { render: hostRender });
+    expect(pos).toMatchObject({ title: 'pos' });
+    expect(drawn(pos).dataset.drawn).toBe('A whole number.');
+    const customer = templateTooltip(typed, '$local:customer', { render: hostRender });
+    expect(customer).toMatchObject({ title: 'Customer name' });
+    expect(drawn(customer).dataset.drawn).toBe(`Text.\n\n${DESCRIPTION}`);
+    // in the words the server's catalogue gives the type in, where the surface has it
+    const said = templateTooltip(typed, '$record:{pos}', { render: hostRender }, (type) =>
+      type === 'int' ? 'eine ganze Zahl' : undefined
+    );
+    expect(drawn(said).dataset.drawn).toBe('Eine ganze Zahl.');
+  });
 });
 
 describe('makeDpqlTagRenderer', () => {
-  it("draws a field reference's description under its name and type", () => {
+  it("draws a field reference's type, in words, and its description under its name", () => {
     const props = makeDpqlTagRenderer(
       { name: { display_name: 'Name', type: { name: 'string' }, short_desc: DESCRIPTION } },
       { descriptions: { render: hostRender } }
     )({ type: 'tag', value: '@name', children: [{ text: '' }] } as never);
-    expect(props.tooltip).toMatchObject({ title: 'Name (string)' });
-    expect(drawn(props.tooltip).dataset.drawn).toBe(DESCRIPTION);
+    // its type was said raw, "Name (string)" (qorus#646)
+    expect(props.tooltip).toMatchObject({ title: 'Name' });
+    expect(drawn(props.tooltip).dataset.drawn).toBe(`Text.\n\n${DESCRIPTION}`);
+  });
+
+  it("says a field's type where the record does not describe it", () => {
+    const props = makeDpqlTagRenderer(
+      { total: { display_name: 'Total', type: { name: 'number' } } },
+      { descriptions: { render: hostRender } }
+    )({ type: 'tag', value: '@total', children: [{ text: '' }] } as never);
+    expect(props.tooltip).toMatchObject({ title: 'Total' });
+    expect(drawn(props.tooltip).dataset.drawn).toBe('An exact number.');
   });
 });
 

@@ -14,6 +14,7 @@ import { ReactEditor } from 'slate-react';
 import { useEmittedValues } from '../emittedValues';
 import { usePendingEdit } from '../pendingEdit';
 import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { useTypeSentenceForm } from '../../typeSentenceForm';
 import {
   choiceChipAtCursor,
   choiceForValue,
@@ -388,6 +389,8 @@ export const RichTextFormField = memo(({
   // A chip's hover draws its description as the picker rows draw the same
   // string, and opens on a tap where there is no hover.
   const descriptions = useDescriptionTooltips();
+  // a template's hover says its type, in words
+  const getTypeSentenceForm = useTypeSentenceForm();
 
   const descriptionByValue = useMemo(() => getChipTooltipDescriptions(naming), [namingKey]);
 
@@ -462,7 +465,7 @@ export const RichTextFormField = memo(({
           icon: 'ExchangeDollarLine',
           leftIconProps: { image: metadata?.image },
           label: templateChipLabel(naming, tagValue),
-          tooltip: templateTooltip(naming, tagValue, descriptions),
+          tooltip: templateTooltip(naming, tagValue, descriptions, getTypeSentenceForm),
           // The same chip the read summary (`TemplateText`) and the read-only tag draw.
           ...REFERENCE_CHIP_PROPS,
           ...getTemplateTagStyle(metadata),
@@ -493,7 +496,15 @@ export const RichTextFormField = memo(({
 
       return {};
     },
-    [descriptionByValue, descriptions, isText, naming, chipBehavior.click, openChoiceChip]
+    [
+      descriptionByValue,
+      descriptions,
+      getTypeSentenceForm,
+      isText,
+      naming,
+      chipBehavior.click,
+      openChoiceChip,
+    ]
   );
 
   /* Leaving the field: text that is exactly one of the choices becomes its

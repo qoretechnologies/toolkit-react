@@ -11,6 +11,7 @@ import {
   TTemplateMeta,
 } from '../../../../helpers/templates';
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { useTypeSentenceForm } from '../../typeSentenceForm';
 
 export interface ITemplateTextProps {
   /** Prose runs and reference chips, from `templateTextSegments` or
@@ -67,6 +68,7 @@ const collapseSummaryBreaks = (text: string): string => text.replace(/\s*\r?\n\s
  */
 const TemplateTextBody = ({ segments, templates, full, className }: ITemplateTextProps) => {
   const descriptions = useDescriptionTooltips();
+  const getTypeSentenceForm = useTypeSentenceForm();
   return (
     <span
       className={`reqraft-template-text${className ? ` ${className}` : ''}`}
@@ -95,7 +97,12 @@ const TemplateTextBody = ({ segments, templates, full, className }: ITemplateTex
             // The same card the chosen-template chip shows: what the value IS, not
             // the reference that names it, drawn by the host's markdown renderer and
             // opened by a tap on a touch screen.
-            tooltip={templateTooltip(templates, segment.value || '', descriptions)}
+            tooltip={templateTooltip(
+              templates,
+              segment.value || '',
+              descriptions,
+              getTypeSentenceForm
+            )}
             {...getTemplateTagStyle(
               (templates ? findTemplate(templates, segment.value || '') : undefined)?.metadata as
                 | TTemplateMeta
