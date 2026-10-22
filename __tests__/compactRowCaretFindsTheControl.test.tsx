@@ -145,6 +145,36 @@ describe('the caret an opened row takes', () => {
     );
   });
 
+  /* Monaco inserts its edit area before it can take focus, and focus() on it then does
+     nothing. The caret counts as handed over only once it has actually landed. */
+  it('keeps trying until the text box can actually take the caret', async () => {
+    let makeFocusable: () => void = () => undefined;
+    const SlowEditArea = () => {
+      const [focusable, setFocusable] = React.useState(false);
+      React.useEffect(() => {
+        makeFocusable = () => setFocusable(true);
+      }, []);
+      return (
+        <div>
+          <button type='button'>Fullscreen</button>
+          <div role='textbox' aria-label='Editor content' {...(focusable ? { tabIndex: 0 } : {})} />
+        </div>
+      );
+    };
+    renderForm(codeField, {}, { componentOverrides: { 'late-code': SlowEditArea } });
+
+    // The text box is there but cannot take focus yet: the row waits for it rather
+    // than settling on the toolbar beside it.
+    await waitFor(() => expect(document.querySelector('.readfirst-row-editing')).toBeTruthy());
+    expect(document.activeElement?.textContent).not.toBe('Fullscreen');
+
+    makeFocusable();
+
+    await waitFor(() =>
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Editor content')
+    );
+  });
+
   it('leaves the caret where the reader put it, even when the text box arrives later', async () => {
     let mount: () => void = () => undefined;
     const { container } = renderForm(codeField, {}, {

@@ -969,6 +969,10 @@ export const CompactRow = memo(
           const textEntry = findRowFocusTarget(editor, { textEntryOnly: true });
           if (!textEntry) return false;
           textEntry.focus({ preventScroll: true });
+          // An editor's text box can be in the DOM before it can take focus (Monaco's
+          // edit area, mid-layout), and `focus()` then does nothing. Only a caret
+          // that landed counts; otherwise try again on the editor's next change.
+          if (document.activeElement !== textEntry) return false;
           settled = true;
           return true;
         }
@@ -989,6 +993,9 @@ export const CompactRow = memo(
         // `preventScroll`, because the reveal above has already put the row
         // where it belongs; letting focus scroll as well moves it twice.
         control.focus({ preventScroll: true });
+        // A control that cannot take focus yet (still laying out) did not take
+        // the caret: try again on the editor's next change.
+        if (document.activeElement !== control) return false;
         /* …and if the control the row offers is a PICKER, open it.
          *
          * A closed picker prints the value it holds, which is exactly what the
@@ -1021,7 +1028,9 @@ export const CompactRow = memo(
       const observer = new MutationObserver(() => {
         if (takeCaret()) observer.disconnect();
       });
-      observer.observe(editor, { childList: true, subtree: true });
+      // Attributes too: an editor's text box can become focusable by an attribute or
+      // style change after it is inserted (see the `focus()` checks above).
+      observer.observe(editor, { childList: true, subtree: true, attributes: true });
       return () => observer.disconnect();
     }, [isExpanded, optionName, inlineEditable]);
 
