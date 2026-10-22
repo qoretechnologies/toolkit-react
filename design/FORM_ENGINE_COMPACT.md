@@ -121,8 +121,16 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   content 12px under the label (left rail) and use slightly taller inner padding. Edit cards keep
   their own surface.
 - **No horizontal overflow.** The row grid's value column is `minmax(0, 1fr)` and the value cell has
-  `min-width: 0`, so a long unbroken value (e.g. a URL) ellipsis-truncates (full value on hover via `title`)
-  instead of forcing a horizontal scrollbar.
+  `min-width: 0`, so a long value never forces a horizontal scrollbar.
+- **Long values wrap; addresses are links** (qorus#646, David 2026-10-22, from Foxhoundn's review of
+  qlip #383). An editable row's plain-text value wraps, breaking anywhere a long unbroken token needs it,
+  up to **three lines** (a line clamp; the full value is in the row's editor, and on hover via `title`).
+  A read-only row is the only rendering its value gets, so it wraps in full, a long text moving to the
+  inset under the row with "Show more". A value that is an `http:` or `https:` address (`webLinkOf`; no
+  other scheme) is drawn as a link in both: it opens in a new tab, a click or Enter on it follows it
+  without opening the row, it has its own accessible name ("… (opens in a new tab)") and a focus ring,
+  and its address is copied as any link's is. It was one line with an ellipsis, and an address lost its
+  end at every width. Stories: `ARowStacksOnAPhone`, `ARowStacksWhereItsValueWouldBeNarrow`.
 - **Field info: intent stripe + expandable panel** (the decided "stripe-expand" display,
   2026-06-11 — see `COMPACT_INFO_DISPLAY.md`). Rows carrying critical (Tier 1: danger/warning)
   messages get a 3px intent edge-stripe and their info panel **auto-opens** below the row —

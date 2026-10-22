@@ -82,6 +82,7 @@ import { restoredFieldChange } from '../expressions/argumentPresence';
 import { ReqraftColorValue } from '../../colorValue';
 import { TFieldWithOwnTemplates } from './rendererTypes';
 import { isHoveringPointer } from '../../../helpers/hoveringPointer';
+import { webLinkOf } from '../../../helpers/webLink';
 
 /**
  * Does this markdown value have more document in it than one row can show?
@@ -170,6 +171,46 @@ export const richtextItemText = (item: unknown): string | undefined =>
   item && typeof item === 'object' && (item as { type?: unknown }).type === 'richtext' ?
     richtextToString((item as { value?: Parameters<typeof richtextToString>[0] }).value)
   : undefined;
+
+/**
+ * An editable row's plain text: wrapped, up to three lines (see `renderReadFirstValue`). Its newlines fold into
+ * the line, as the one-line summary folded them.
+ */
+const SUMMARY_TEXT_STYLE: React.CSSProperties = Object.freeze({
+  display: '-webkit-box',
+  WebkitBoxOrient: 'vertical',
+  WebkitLineClamp: 3,
+  overflow: 'hidden',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+  minWidth: 0,
+});
+
+/**
+ * A value that is a web address, as a link to it: it opens in a new tab, and a click or Enter on it follows it
+ * without opening the row it is in. Reached with Tab, it says where it goes and that it opens a new tab, and
+ * shows its focus ring (`.options-readfirst-link`); its address is copied as a link's is.
+ */
+const WebLink = memo(({ address, color }: { address: string; color?: string }) => (
+  <a
+    className='options-readfirst-link'
+    href={address}
+    target='_blank'
+    rel='noopener noreferrer'
+    aria-label={`${address} (opens in a new tab)`}
+    style={color ? { color } : undefined}
+    // the link's, not the row's: the row opens on a click and on Enter or Space
+    onClick={(event) => event.stopPropagation()}
+    onKeyDown={(event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.stopPropagation();
+      }
+    }}
+  >
+    {address}
+  </a>
+));
+WebLink.displayName = 'WebLink';
 
 /** The status boxes by name, as their headers say them. */
 const BOX_NAMES = { attention: 'Needs attention', set: 'Set', optional: 'Optional' } as const;
@@ -313,9 +354,12 @@ export const CompactRow = memo(
       field: IQorusFormField,
       schema: TQorusFormFieldSchema | undefined,
       formatted: string,
-      // An editable row gets one line and an ellipsis — its value line is a
-      // summary you click to open. A read-only row is the only rendering the
-      // value gets, so it wraps.
+      /* An editable row's plain text wraps, up to three lines: its value line is a summary you click to open,
+         and the whole value is in the row's editor. It was one line with an ellipsis, and an address or a
+         sentence lost its end at every width (qorus#646, Foxhoundn on qlip #383: "wrap texts so users on both
+         phones and desktops can easily read and copy it"; David, 2026-10-22). A read-only row is the only
+         rendering the value gets, so it wraps in full (`full`), a long text moving to the inset under the row
+         with "Show more". */
       full = false
     ): React.ReactNode => {
       const valueType = getValueType(field, schema);
@@ -328,9 +372,7 @@ export const CompactRow = memo(
         ...(full ? { flexWrap: 'wrap' } : {}),
       };
       const textStyle: React.CSSProperties =
-        full ?
-          { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }
-        : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+        full ? { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' } : SUMMARY_TEXT_STYLE;
 
       // The expression the value holds, in either shape the editor stores it: the flag on the option, or
       // the envelope nested in its value as a reloaded draft has it.
@@ -628,7 +670,18 @@ export const CompactRow = memo(
         );
       }
 
-      return withExpressionMarker(full ? <span style={textStyle}>{formatted}</span> : formatted);
+      /* A value that is a web address is a link to it, in an editable row and a read-only one: it opens in a
+         new tab, and a click or a key on it follows it and does not open the row (Foxhoundn on qlip #383:
+         "Please render links as links"; David, 2026-10-22). Only the value as typed: a value drawn as a label
+         or masked is not its address. */
+      const link = formatted === field?.value ? webLinkOf(formatted) : undefined;
+      return withExpressionMarker(
+        <span style={textStyle}>
+          {link ?
+            <WebLink address={link} color={cInfo} />
+          : formatted}
+        </span>
+      );
     };
 
     const schema = options?.[optionName];

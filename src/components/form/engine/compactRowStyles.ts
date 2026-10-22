@@ -445,6 +445,18 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* A value that is a web address: a link, underlined, broken anywhere so a long one wraps inside the row, with a
+     focus ring of its own color when reached with the keyboard. */
+  .options-readfirst-link {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+    border-radius: 2px;
+  }
+  .options-readfirst-link:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
   /* The code size chip kept above an OPEN editor. The read row puts the same chip
      at the top of the value cell with a 2px row-gap under it; matching that here is
      what stops the editor moving as the field opens. */

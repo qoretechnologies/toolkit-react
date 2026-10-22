@@ -12458,11 +12458,27 @@ const narrowRuleSchema = (labels: 'long' | 'short'): Record<string, TCompactFiel
     display_name: labels === 'long' ? 'Seconds to wait for its reply' : 'Timeout',
     preselected: true,
   },
+  note: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: labels === 'long' ? 'What the service is for' : 'Note',
+    preselected: true,
+  },
 });
 
+/** A note longer than three lines of any of the forms' value columns. */
+const NARROW_RULE_NOTE =
+  "Batches the day's fulfilled orders and posts them to the warehouse at the end of each shift. A batch that " +
+  'fails is kept and sent again with the next one, so nothing is lost when the warehouse is down for ' +
+  'maintenance or its queue is full, and the night shift sees every order the day shift packed.';
+
 const narrowRuleValue: IOptions = {
-  url: { type: 'string', value: 'https://orders.example.com/api/v2/fulfilment/batches' },
+  url: {
+    type: 'string',
+    value: 'https://orders.example.com/api/v2/fulfilment/batches?region=eu-west&shift=night',
+  },
   timeout: { type: 'number', value: 30 },
+  note: { type: 'string', value: NARROW_RULE_NOTE },
 };
 
 /** A compact form `width` wide, named `name`, over the long- or short-labelled schema. */
@@ -12517,6 +12533,70 @@ const expectNarrowRule = async (name: string, stacked: boolean) => {
   }
 };
 
+/**
+ * The form `name`'s address is a link to it, whole, that opens a new tab, and a click on it or Enter on it follows
+ * it and leaves its row closed; its note wraps to three lines and stops there (qorus#646, Foxhoundn on qlip #383:
+ * "Please render links as links and wrap texts"). `press` is how the link is pressed: a mouse's click, or a
+ * finger's tap. The page is kept where it is: the click's own following of the link is cancelled here.
+ */
+const expectLinkAndWrappedText = async (
+  name: string,
+  press: (link: HTMLElement) => Promise<void>
+) => {
+  const row = narrowRuleRow(name, 'url')!;
+  const link = await waitFor(() => {
+    const anchor = row.querySelector<HTMLAnchorElement>('a.options-readfirst-link');
+    expect(anchor, 'the address is a link').toBeTruthy();
+    return anchor!;
+  });
+  const address = (narrowRuleValue.url as { value: string }).value;
+  await expect(link.getAttribute('href')).toBe(address);
+  await expect(link.getAttribute('target')).toBe('_blank');
+  await expect(link.getAttribute('rel')).toContain('noopener');
+  await expect(link).toHaveAccessibleName(`${address} (opens in a new tab)`);
+  // all of it drawn: on as many lines as it takes, none of it cut off
+  await expect(link.textContent).toBe(address);
+  const shown = link.parentElement!;
+  await expect(shown.scrollHeight).toBeLessThanOrEqual(shown.clientHeight + 1);
+  await expect(link.getBoundingClientRect().right).toBeLessThanOrEqual(
+    row.getBoundingClientRect().right + 0.5
+  );
+
+  const stayOnThePage = (event: Event) => {
+    if ((event.target as Element | null)?.closest?.('a.options-readfirst-link')) {
+      event.preventDefault();
+    }
+  };
+  window.addEventListener('click', stayOnThePage, true);
+  try {
+    await press(link);
+    // reached by the keyboard: its own ring shows where the focus is
+    link.focus();
+    if (link.matches(':focus-visible')) {
+      await expect(getComputedStyle(link).outlineStyle).toBe('solid');
+    }
+    fireEvent.keyDown(link, { key: 'Enter' });
+  } finally {
+    window.removeEventListener('click', stayOnThePage, true);
+    // the capture shows the row at rest
+    link.blur();
+  }
+  // the row was not opened by either: it is still its read row
+  await expect(narrowRuleRow(name, 'url')).toBeTruthy();
+
+  const note = narrowRuleRow(name, 'note')!.querySelector<HTMLElement>(
+    '.options-readfirst-valuetext span'
+  )!;
+  // a line is as tall as its first character's box
+  const first = document.createRange();
+  first.setStart(note.firstChild!, 0);
+  first.setEnd(note.firstChild!, 1);
+  const lineHeight = first.getBoundingClientRect().height;
+  await expect(Math.round(note.getBoundingClientRect().height / lineHeight)).toBe(3);
+  // and there is more of it than is shown
+  await expect(note.scrollHeight).toBeGreaterThan(note.clientHeight + 1);
+};
+
 export const ARowStacksWhereItsValueWouldBeNarrow: Story = {
   parameters: {
     docs: {
@@ -12537,6 +12617,7 @@ export const ARowStacksWhereItsValueWouldBeNarrow: Story = {
     await expectNarrowRule('long-560', true);
     await expectNarrowRule('short-560', false);
     await expectNarrowRule('long-700', false);
+    await expectLinkAndWrappedText('long-700', (link) => userEvent.click(link));
   },
 };
 
@@ -12563,7 +12644,7 @@ export const ARowStacksOnAPhone: Story = {
     docs: {
       description: {
         story:
-          'The long-labelled form on a phone (390px, touch): each value is on the line below its label, 12px in, inside the screen (qorus#646).',
+          'The long-labelled form on a phone (390px, touch): each value is on the line below its label, 12px in, inside the screen. The address is a link, drawn whole on two lines, that opens in a new tab; a tap on it follows it and does not open its row. The note wraps to three lines, and the rest is in its editor (qorus#646).',
       },
     },
   },
@@ -12575,6 +12656,7 @@ export const ARowStacksOnAPhone: Story = {
         const value = narrowRuleRow('phone', 'url')!.children[1].getBoundingClientRect();
         await expect(value.right).toBeLessThanOrEqual(window.innerWidth + 0.5);
       }
+      await expectLinkAndWrappedText('phone', (link) => touch.tap(link));
     });
   },
 };
