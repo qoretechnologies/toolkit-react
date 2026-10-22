@@ -11033,7 +11033,7 @@ export const ExpressionTypedOnValueSwitchesWithUndo: Story = {
     docs: {
       description: {
         story:
-          'Renders the form, opens Quantity on Value and writes 1 + 2: the Value tab never holds an expression, so it moves to Expression, with an Undo that puts the text back on Value.',
+          'Renders the form, opens Quantity, a whole number, on Value and writes 12 + 2: the Value tab never holds an expression, so it moves to Expression, with an Undo that puts the text back on Value. Put back, 12 + 2 is not a whole number: the field says so, and offers it again as an expression - "Use as expression", or the cross to keep it as text (qorus#646).',
       },
     },
   },
@@ -11051,6 +11051,76 @@ export const ExpressionTypedOnValueSwitchesWithUndo: Story = {
     await waitFor(() => expect(heldOption(canvasElement, 'quantity').is_expression).toBe(true));
     await userEvent.click(optionRow('quantity').querySelector('.dpql-detected-undo') as HTMLElement);
     await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('value'));
+    // the text put back is no whole number: it is offered again as an expression, beside the refusal
+    const offer = await waitFor(() => {
+      const button = optionRow('quantity').querySelector<HTMLElement>('.dpql-detected-offer');
+      expect(button, 'the offer of an expression').toBeTruthy();
+      return button!;
+    });
+    await expect(optionRow('quantity')).toHaveTextContent('Value must be a whole number');
+    await expect(offer).toHaveTextContent('Use as expression');
+  },
+};
+
+/** An untyped option (`any`): its Value tab takes any text, and an expression typed there is one. */
+const UntypedValueForm = () => {
+  const [value, setValue] = useState<IOptions>({
+    anything: { type: 'any', value: 12 },
+  } as IOptions);
+  return (
+    <div data-held={JSON.stringify(value)} className='untyped-value-form'>
+      <FormEngine
+        compact
+        name='untypedValue'
+        stringTemplates={ROW_FIELDS}
+        options={
+          {
+            anything: {
+              type: 'any',
+              display_name: 'Anything',
+              desc: 'A value of any type: text, a number, a yes or no, or an expression.',
+              supports_templates: true,
+              supports_expressions: true,
+              expressions: mockExpressions,
+            },
+          } as unknown as IQorusFormSchema
+        }
+        value={value}
+        onChange={(_name, next) => setValue(next as IOptions)}
+      />
+    </div>
+  );
+};
+
+export const ExpressionTypedOnAnUntypedValueSwitchesToo: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an untyped option (any) holding 12 and writes 12 + 2 on its Value tab: as on every option that takes an expression, it moves to Expression, with an Undo. It used to be kept as the text "12 + 2", and offered as nothing: detection did not run where an untyped option takes its value (qorus#646).',
+      },
+    },
+  },
+  render: () => <UntypedValueForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('anything');
+    const editor = await waitFor(() => {
+      const el = row.querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(editor);
+    await userEvent.keyboard(' + 2');
+    await waitFor(() => expect(optionActiveTab(optionRow('anything'))).toBe('expression'), {
+      timeout: 10000,
+    });
+    await waitFor(() =>
+      expect(
+        JSON.parse(canvasElement.querySelector('.untyped-value-form')!.getAttribute('data-held')!)
+          .anything.is_expression
+      ).toBe(true)
+    );
+    await expect(optionRow('anything').querySelector('.dpql-detected-undo')).toBeTruthy();
   },
 };
 

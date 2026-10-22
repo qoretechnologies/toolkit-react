@@ -922,6 +922,12 @@ const TemplateFieldImpl = memo(
     // undoing a switch) would re-detect the same text on the next render and
     // ask again forever.
     const declinedTexts = useRef<Set<string>>(new Set());
+    /* What detection found for each text: the server's expression, and whether the text could stay a value of
+       the field's type ('offer') or could not ('switch'). An undone switch is asked about again (see
+       `undoExpressionFromText`), so the expression it would become is kept here. */
+    const detectedTexts = useRef<Map<string, { expression: any; outcome: 'offer' | 'switch' }>>(
+      new Map()
+    );
     const detectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const probeDpql = useDpqlProbe();
 
@@ -1512,6 +1518,14 @@ const TemplateFieldImpl = memo(
       }
       setExpressionFromText(null);
       onChange?.(name, expressionFromText, type as TQorusType, false);
+      /* Text that cannot be a value of the field's type (`12 + 2` in a whole number) is not a value it can
+         keep: put back, it is a value the field refuses. It is offered again as an expression, beside that
+         refusal, so the way back is in sight; text that can be a value is kept as one, as the undo asked
+         (David on FormEngine · Expression Typed On Value Switches With Undo, qorus#646). */
+      const detected = detectedTexts.current.get(expressionFromText);
+      if (detected?.outcome === 'switch') {
+        setDpqlOffer({ text: expressionFromText, expression: detected.expression });
+      }
     }, [expressionFromText, name, onChange, type]);
 
     const declineDpqlOffer = useCallback(() => {
@@ -1527,6 +1541,32 @@ const TemplateFieldImpl = memo(
         enterExpressionFromText(dpqlOffer.text, dpqlOffer.expression);
       }
     }, [dpqlOffer, enterExpressionFromText]);
+
+    /* The offer of an expression detected in text the field keeps, beside the field, in every layout: on the
+       Value tab of a form's tabs too, where it is how an undone switch's text is made an expression again. */
+    const dpqlOfferPrompt =
+      dpqlOffer ?
+        <ReqoreControlGroup fixed stack size={rest.size}>
+          <ReqoreButton
+            compact
+            icon='Functions'
+            intent='info'
+            className='dpql-detected-offer'
+            tooltip={`"${dpqlOffer.text}" could be an expression. It is kept as text; use it as an expression instead?`}
+            onClick={acceptDpqlOffer}
+          >
+            Use as expression
+          </ReqoreButton>
+          <ReqoreButton
+            compact
+            icon='CloseLine'
+            intent='info'
+            className='dpql-detected-dismiss'
+            tooltip='Keep it as plain text'
+            onClick={declineDpqlOffer}
+          />
+        </ReqoreControlGroup>
+      : null;
 
     // Held in a ref so the debounce below does not depend on it. `onChange`
     // comes from the host form and can be a fresh function on any render;
@@ -1545,8 +1585,10 @@ const TemplateFieldImpl = memo(
       !!allowFunctions &&
       !!allowTextExpressions &&
       !effectiveIsFunction &&
-      // the template editor is text too: an expression written around a template is detected there
-      (!isTemplate || templateSupportsCustomValues) &&
+      /* the template editor is text too: an expression written around a template is detected there; and a
+         form's Value tab written as text takes any text, whatever the field says of custom values (an untyped
+         option's did, and an expression typed there was kept as text, offered as nothing: qorus#646) */
+      (!isTemplate || templateSupportsCustomValues || (tabsKind === 'full' && valueTabIsText)) &&
       !hasOnlyAllowedValues &&
       !rest.readonly &&
       !rest.readOnly &&
@@ -1575,12 +1617,12 @@ const TemplateFieldImpl = memo(
         : Array.isArray(value) ? richtextToString(value as never)
         : undefined;
 
-      if (
-        !canDetectDpql ||
-        !text ||
-        declinedTexts.current.has(text) ||
-        !mightBeDpqlExpression(text)
-      ) {
+      if (text && canDetectDpql && declinedTexts.current.has(text)) {
+        // asked about already: an offer made for this very text (an undone switch's) stands, any other goes
+        setDpqlOffer((offer) => (offer?.text === text ? offer : null));
+        return undefined;
+      }
+      if (!canDetectDpql || !text || !mightBeDpqlExpression(text)) {
         setDpqlOffer(null);
         return undefined;
       }
@@ -1597,6 +1639,9 @@ const TemplateFieldImpl = memo(
             }
 
             const outcome = classifyTypedText({ text, type, field: validationField, parsed });
+            if (outcome !== 'none') {
+              detectedTexts.current.set(text, { expression: parsed.expression, outcome });
+            }
 
             // on tabs, an expression detected switches (with an undo) rather than being offered
             if (outcome === 'switch' || (outcome === 'offer' && tabsKindRef.current === 'full')) {
@@ -2142,6 +2187,7 @@ const TemplateFieldImpl = memo(
                 }}
                 aria-label={fieldAriaLabel}
               />
+              {dpqlOfferPrompt}
               {conversionNote ?
                 <ReqoreMessage
                   size='small'
@@ -2161,7 +2207,7 @@ const TemplateFieldImpl = memo(
             words.templateShownOn(tabsKind === 'full' ? expressionTabLabel : words.template)
           );
         }
-        return (
+        const ownControl = (
           <Component
             value={value}
             allowTemplates={false}
@@ -2175,6 +2221,13 @@ const TemplateFieldImpl = memo(
             className={`${className} template-selector`}
           />
         );
+        // an expression detected in what the type's own control holds is offered under it, as on the text
+        return dpqlOfferPrompt ?
+            <ReqoreControlGroup vertical fluid gapSize='small'>
+              {ownControl}
+              {dpqlOfferPrompt}
+            </ReqoreControlGroup>
+          : ownControl;
       };
       const expressionBody = () => (
         <ReqoreControlGroup vertical fluid gapSize='small'>
@@ -2500,28 +2553,7 @@ const TemplateFieldImpl = memo(
           />
         : null}
 
-        {dpqlOffer ?
-          <ReqoreControlGroup fixed stack size={rest.size}>
-            <ReqoreButton
-              compact
-              icon='Functions'
-              intent='info'
-              className='dpql-detected-offer'
-              tooltip={`"${dpqlOffer.text}" could be an expression. It is kept as text; use it as an expression instead?`}
-              onClick={acceptDpqlOffer}
-            >
-              Use as expression
-            </ReqoreButton>
-            <ReqoreButton
-              compact
-              icon='CloseLine'
-              intent='info'
-              className='dpql-detected-dismiss'
-              tooltip='Keep it as plain text'
-              onClick={declineDpqlOffer}
-            />
-          </ReqoreControlGroup>
-        : null}
+        {dpqlOfferPrompt}
 
         {showTemplatesDropdown ?
           <TemplateDropdownSelector

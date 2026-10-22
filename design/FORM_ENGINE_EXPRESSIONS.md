@@ -156,7 +156,8 @@ Text that is not DPQL at all is safe on its own: `hello world`, `x@y.com`,
 
 1. `mightBeDpqlExpression` — a cheap lexical pass whose ONLY job is to keep
    a server round-trip off every keystroke. It decides nothing. `-` and `/`
-   require surrounding spaces so a date or a path never triggers a probe.
+   need a space on at least one side, so a date or a path never triggers a
+   probe.
 2. `dpql/parse` on the shared probe document (below), debounced 400 ms.
 3. `classifyTypedText` — `switch` when the text could not be a literal of
    the field's declared type (the form's own `validateField` answers that),
@@ -169,11 +170,28 @@ literal there was already an error the moment it was typed, so switching
 costs nothing and explains the error. Every switch carries an Undo that
 restores the exact text, and a declined text is never asked about again.
 
-**Reachability.** The auto-switch only applies where the editor accepts free
-text — a constrained `string` (identifier / `validation_regex`), `binary`,
-`hash`. `int` and `float` render `input[type=number]`, which drops `@`, `>`
-and spaces before any handler runs, so detection there is unreachable by
-design of the editor and the ⋮ menu remains the way in. Pinned by a test.
+**Where it runs.** Wherever a field takes free text and can hold an
+expression: a `string` (constrained or not), `binary`, `hash`, and the numbers,
+which are typed freely now (`int` and `float` no longer render
+`input[type=number]`; text that is not a number switches). On a form's Value ·
+Expression · Visual tabs it runs on the Value tab whenever that tab is written
+as text, the untyped `any` / `auto` options included: before 2026-10-22 an
+untyped option's Value tab was left out, because the form forbids it custom
+values, and an expression typed there was kept as text (story
+`ExpressionTypedOnAnUntypedValueSwitchesToo`). Expression-builder operands and
+list items do not detect: they are parts of an expression already.
+
+**On tabs, a detection switches.** The Value tab never holds an expression, so
+on a form's tabs an `offer` is taken as a `switch` too: the field moves to the
+Expression tab, with an Undo on that tab that puts the text back on Value.
+
+**An undone switch is asked about again when the text cannot stay.** Undo is
+the author keeping the text as a value. Text that can be a value of the field's
+type (`a + b` on a `string`) is then left alone, as any declined text is. Text
+that cannot (`12 + 2` on a whole number) is a value the field refuses: put back,
+it shows the refusal and the "Use as expression" offer beside it, in every
+layout (2026-10-22, David on `ExpressionTypedOnValueSwitchesWithUndo`: the user
+is to be prompted). The offer's cross keeps the text, and nothing asks again.
 
 **Template precedence.** `isValueTemplate` is deliberately loose (starts
 with `$`, contains `:`), so `$local:count + 1` was being swallowed into

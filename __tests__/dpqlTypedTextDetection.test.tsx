@@ -178,10 +178,12 @@ describe('DPQL typed into a plain field', () => {
     await userEvent.click(offer() as HTMLElement);
 
     // Only now is the expression stored, and with the expression flag set.
-    await waitFor(() => expect(storedExpression(onChange)).toEqual({
-      exp: '+',
-      args: [{ type: 'int', value: 5 }],
-    }));
+    await waitFor(() =>
+      expect(storedExpression(onChange)).toEqual({
+        exp: '+',
+        args: [{ type: 'int', value: 5 }],
+      })
+    );
   });
 
   it('keeps the literal when the offer is dismissed, and does not ask again', async () => {
@@ -245,6 +247,39 @@ describe('DPQL typed into a plain field', () => {
     });
   });
 
+  it('offers the undone text again as an expression where it cannot be a value of the field type', async () => {
+    // `@a > 5` is no legal identifier: put back by the undo, it is a value the field refuses, so the way back
+    // to the expression is offered beside it (David on FormEngine · Expression Typed On Value Switches With
+    // Undo, qorus#646). Accepted, it is the expression again.
+    probe.mockResolvedValue(expressionResult('>'));
+
+    const onChange = await renderTypedField('@a > 5', { has_to_be_valid_identifier: true });
+    await waitFor(() => expect(storedExpression(onChange)).toBeTruthy());
+
+    await userEvent.click(document.querySelector('.dpql-detected-undo') as HTMLElement);
+    await waitFor(() => expect(offer()).not.toBeNull());
+
+    onChange.mockClear();
+    await userEvent.click(offer() as HTMLElement);
+    await waitFor(() =>
+      expect(storedExpression(onChange)).toEqual({ exp: '>', args: [{ type: 'int', value: 5 }] })
+    );
+  });
+
+  it('does not offer the undone text again where it can be a value of the field type', async () => {
+    // a plain text field keeps `@a > 5` as the text it is: the undo said so, and it is not asked again
+    probe.mockResolvedValue(expressionResult('>'));
+
+    const onChange = await renderTypedField('@a > 5');
+    await waitFor(() => expect(offer()).not.toBeNull());
+    await userEvent.click(offer() as HTMLElement);
+    await waitFor(() => expect(storedExpression(onChange)).toBeTruthy());
+
+    await userEvent.click(document.querySelector('.dpql-detected-undo') as HTMLElement);
+    await waitFor(() => expect(onChange.mock.calls.slice(-1)[0][3]).toBe(false));
+    expect(offer()).toBeNull();
+  });
+
   it('takes expression text typed into a numeric field as an expression', async () => {
     // A numeric field is typed freely now (David's review of qorus#646): it used to render
     // `input[type=number]`, which dropped `@`, `>` and spaces, so detection never saw the text and only
@@ -280,10 +315,12 @@ describe('DPQL typed into a plain field', () => {
 
     await userEvent.click(offer() as HTMLElement);
 
-    await waitFor(() => expect(storedExpression(onChange)).toEqual({
-      exp: '+',
-      args: [{ type: 'int', value: 5 }],
-    }));
+    await waitFor(() =>
+      expect(storedExpression(onChange)).toEqual({
+        exp: '+',
+        args: [{ type: 'int', value: 5 }],
+      })
+    );
   });
 });
 
@@ -342,7 +379,10 @@ describe('a value that is a richtext document', () => {
             name='opt'
             aria-label='Option'
             value={[
-              { type: 'paragraph', children: [{ type: 'tag', value: '$.result', children: [{ text: '' }] }] },
+              {
+                type: 'paragraph',
+                children: [{ type: 'tag', value: '$.result', children: [{ text: '' }] }],
+              },
             ]}
             type='string'
             defaultType='string'
