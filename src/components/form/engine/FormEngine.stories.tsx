@@ -10700,7 +10700,7 @@ export const ValueToExpressionAndVisual: Story = {
     docs: {
       description: {
         story:
-          'Renders the form and opens Quantity (12) on the Expression tab: the value written as expression text (12), with the form\'s templates listed when the text is clicked into, offered beside it ($), and the server\'s $ completion; the form still holds 12. Visual shows the expression built from it - 12 its first operand.',
+          "Renders the form and opens Quantity (12) on the Expression tab: the value written as expression text (12), with the form's templates offered beside it ($); the form still holds 12. A click in the text lists what can be written at the caret, in the one completion list: after 12 only an operator can, so no template is listed, and the templates beside the text cannot be used, saying why. With ` + ` typed, a click lists the row's fields (David's decision: no `12 pos`). Visual shows the expression built from it - 12 its first operand.",
       },
     },
   },
@@ -10731,23 +10731,38 @@ export const ValueToExpressionAndVisual: Story = {
     };
     expect(centre(editor)).toBe(centre(picker as HTMLElement));
     expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 });
-    /* The text lists the row's fields when it is clicked into, as the Value tab's text does (David's review):
-       not only from the picker beside it. */
+    /* A click in the text lists what can be written at the caret (David's decision: one completion list, opened
+       by a click as by typing). After 12 a value cannot be written - `12 pos` is refused - so no template is
+       listed there, and the picker beside the text, which puts one at the end, says why it cannot be used. */
     const listed = () =>
-      Array.from(document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')).map(
-        (item) => item.textContent ?? ''
-      );
+      Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '.reqore-popover-content .completion-menu .reqore-menu-item'
+        )
+      ).map((item) => item.textContent ?? '');
+    await userEvent.click(text);
+    await completionSettled(text);
+    expect(listed()).toEqual([]);
+    expect(isDisabled(picker as HTMLElement), 'the templates beside the text, after 12').toBe(true);
+    // where a value can be written, a click lists the row's fields
+    await userEvent.keyboard(' + ');
     await userEvent.click(text);
     await waitFor(() => {
       expect(listed().some((item) => item.includes('pos'))).toBe(true);
       expect(listed().some((item) => item.includes('bezeichnung'))).toBe(true);
     });
+    await userEvent.keyboard('{Escape}');
     /* Listed on keyboard focus too, and put away by Escape alone, with reqore 0.78.5 (#708): checked where
        that reqore is used, in its own tests and the Qorus IDE's review stories. */
     await chooseTab(optionRow('quantity'), 'visual');
     await waitFor(() => expect(optionRow('quantity').querySelector('.expression')).toBeTruthy());
   },
 };
+
+/** Whether a control cannot be used: disabled itself, or a disabled button. */
+const isDisabled = (control: HTMLElement) =>
+  control.matches(':disabled, [aria-disabled="true"]') ||
+  !!control.querySelector('button:disabled, [aria-disabled="true"]');
 
 /** The background an element is seen on: its own, or the first one painted behind it. */
 const seenBackground = (el: HTMLElement | null | undefined) => {
@@ -10970,6 +10985,102 @@ const EmptyWholeNumberForm = () => {
 const chipPaint = (root: Element | null | undefined) => {
   const chip = root?.querySelector<HTMLElement>('.reqore-tag');
   return chip ? getComputedStyle(chip).backgroundColor : undefined;
+};
+
+/** The rows of the one completion list open at an editor's caret. */
+const completionRows = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>(
+      '.reqore-popover-content .completion-menu .reqore-menu-item'
+    )
+  );
+
+/** The completion row starting with `label`, waited for. */
+const completionRow = (label: string) =>
+  waitFor(() => {
+    const row = completionRows().find((item) => item.textContent?.startsWith(label));
+    expect(row, `${label} in the completion list`).toBeTruthy();
+    return row as HTMLElement;
+  });
+
+/** The editor's completion list has answered: open, or not opened because nothing can be written there. */
+const completionSettled = (editor: HTMLElement) =>
+  waitFor(() =>
+    expect(editor.closest('.smart-editor-row')?.getAttribute('data-completion')).not.toBe('asking')
+  );
+
+export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a whole number with nothing in it and opens its Expression tab. A click in the empty text lists the row's fields in the one completion list (David's decision: opened by a click, a tap or Tab as by typing), and so does Tab into it; pos picked from it is the text. A click after pos lists what the server says can follow a value, operators, and no template (`pos pos` is refused); the templates beside the text cannot be used there, saying why. With ` + ` typed, a click lists the fields again, and bezeichnung picked from them makes pos + bezeichnung; ` + ` again, and the list a click opens is left open.",
+      },
+    },
+  },
+  render: () => <EmptyWholeNumberForm />,
+  play: async ({ canvasElement, parameters }) => {
+    await atTheCaptureSize(parameters);
+    await chooseTab(await editOption('count'), 'expression');
+    const text = await waitFor(() => {
+      const el = optionRow('count').querySelector<HTMLElement>(
+        '.expression-field [data-slate-editor]'
+      );
+      expect(el, 'the Text view').toBeTruthy();
+      return el as HTMLElement;
+    });
+    const picker = () =>
+      optionRow('count').querySelector<HTMLElement>(
+        '.expression-text-template-picker'
+      ) as HTMLElement;
+
+    // a click in the empty text lists the fields
+    await userEvent.click(text);
+    await completionRow('bezeichnung');
+    expect(text.contains(document.activeElement), 'the focus stays in the text').toBe(true);
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(completionRows()).toEqual([]));
+
+    // and so does Tab into it
+    await userEvent.tab({ shift: true });
+    await waitFor(() => expect(text.contains(document.activeElement)).toBe(false));
+    await userEvent.tab();
+    await waitFor(() => expect(text.contains(document.activeElement)).toBe(true));
+    await userEvent.click(await completionRow('pos'));
+    await waitFor(() => expect(expressionTextOf('count')).toBe('pos'));
+    await waitFor(() => expect(timesHeld(canvasElement, 'count', '$record:{pos}')).toBe(1));
+
+    // after a value, what can follow one - no template - and the templates beside the text cannot be used
+    await userEvent.click(text);
+    await completionRow('==');
+    expect(
+      completionRows().filter((row) => /^(pos|bezeichnung)/.test(row.textContent ?? ''))
+    ).toEqual([]);
+    expect(isDisabled(picker()), 'the templates beside the text, after pos').toBe(true);
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(completionRows()).toEqual([]));
+
+    // where a value can be written, the fields again
+    await userEvent.keyboard(' + ');
+    await waitFor(() => expect(isDisabled(picker())).toBe(false));
+    await userEvent.click(text);
+    await userEvent.click(await completionRow('bezeichnung'));
+    await waitFor(() => expect(expressionTextOf('count')).toBe('pos + bezeichnung'));
+    expect(expressionErrorsOf('count')).toEqual([]);
+
+    // the list a click opens, left open for the capture
+    await userEvent.keyboard(' + ');
+    await userEvent.click(text);
+    await completionRow('pos');
+  },
+};
+
+export const TheTextListsWhatCanBeWrittenAtTheCaretOnAPhone: Story = {
+  ...TheTextListsWhatCanBeWrittenAtTheCaret,
+  parameters: {
+    ...TheTextListsWhatCanBeWrittenAtTheCaret.parameters,
+    qlip: { viewport: { width: 390, height: 844 } },
+  },
 };
 
 export const TemplatePickedAfterAnAtSign: Story = {

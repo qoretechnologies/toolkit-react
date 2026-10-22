@@ -449,6 +449,15 @@ export function getTagLabel(value: string): string {
 export const endsDpqlReference = (char: string): boolean =>
   !!char && !/^[\p{L}\p{M}\p{N}_.:{[]$/u.test(char);
 
+/** The quote of the string literal open at the end of `text`, which may have opened on a line before; or none. */
+export const stringOpenAt = (text: string): string | undefined => {
+  let quote: string | undefined;
+  for (const line of text.split('\n')) {
+    quote = readReferences(line, quote).quote;
+  }
+  return quote;
+};
+
 /** A `$` or `@` at the end of a line, and what a reference goes on with after it. */
 const REFERENCE_BEING_WRITTEN = /[@$][\p{L}\p{M}\p{N}_.:{}[\]*-]*$/u;
 
@@ -473,15 +482,9 @@ export const dpqlReferenceBeingWritten = (textBefore: string): number => {
   if (whole) {
     return 0;
   }
-  if (written[0] === '@') {
-    // the string literal open where it is written, which may have opened on a line before
-    let quote: string | undefined;
-    for (const before of lines) {
-      quote = readReferences(before, quote).quote;
-    }
-    if (readReferences(line.slice(0, match.index), quote).quote) {
-      return 0;
-    }
+  // an `@` in a string literal, which may have opened on a line before, is text
+  if (written[0] === '@' && stringOpenAt([...lines, line.slice(0, match.index)].join('\n'))) {
+    return 0;
   }
   return written.length;
 };

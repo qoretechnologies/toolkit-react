@@ -12,7 +12,7 @@ import { dpqlMockParseCalls } from './dpqlMockLsp';
 import { withCoarsePointer } from '../../../stories/coarsePointer';
 import { _testsWithViewport } from '../../../stories/Tests/utils';
 import { PHONE_VIEWPORT } from '../../../stories/tracking';
-import { middleOf, mouseOffThePage, restMouseOn } from '../../../stories/mouse';
+import { atTheCaptureSize, middleOf, mouseOffThePage, restMouseOn } from '../../../stories/mouse';
 import { ExpressionField } from './ExpressionField';
 import { mockExpressions } from './mockExpressions';
 import { IExpression } from './types';
@@ -91,6 +91,20 @@ const waitForLspIdle = (canvasElement: HTMLElement) =>
     },
     { timeout: 10000 }
   );
+
+/** What the Text view says under its text, each message as it reads. */
+const saidUnderTheText = (canvasElement: HTMLElement) =>
+  Array.from(canvasElement.querySelectorAll<HTMLElement>('.expression-field [data-severity]')).map(
+    (message) => message.textContent?.trim() ?? ''
+  );
+
+/** The rows of the completion list open at the editor's caret, or what it says in their place. */
+const completionListed = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>(
+      '.reqore-popover-content .completion-menu .reqore-menu-item'
+    )
+  ).map((row) => row.textContent?.trim() ?? '');
 
 /** The shell with a populated expression — the Visual/Text mode toggle. */
 export const Default: Story = {
@@ -997,7 +1011,7 @@ export const TextModeOfAnUnfinishedExpression: Story = {
     docs: {
       description: {
         story:
-          'Renders ExpressionField in Text mode over a comparison left unfinished in the Visual view: an operand switched to Use Expression with no operation chosen, and an empty one. The text shows a hole for each, "… > …", as the row summary does.',
+          'Renders ExpressionField in Text mode over a comparison left unfinished in the Visual view: an operand switched to Use Expression with no operation chosen, and an empty one. The text shows a hole for each, "… > …", as the row summary does, and under it what to do with them, once: "Fill in each … (the parts not chosen yet)." - not the server\'s "Unexpected character \'…\'" for each, of text the author did not write (David\'s decision).',
       },
     },
   },
@@ -1011,6 +1025,12 @@ export const TextModeOfAnUnfinishedExpression: Story = {
     );
     expect(canvasElement.textContent).not.toContain('[object Object]');
     await waitForLspIdle(canvasElement);
+    // what is said of the placeholders: what to do with them, once
+    await waitFor(() =>
+      expect(saidUnderTheText(canvasElement)).toEqual([
+        'Fill in each … (the parts not chosen yet).',
+      ])
+    );
   },
 };
 
@@ -1764,7 +1784,7 @@ export const TextModeOffersTemplateCompletions: Story = {
     docs: {
       description: {
         story:
-          'Types `$` into the shell\'s Text view — the DPQL editor asks the language server in position and the template namespaces ($data:, $config:, …) open in the completion dropdown.',
+          "Types `$` into the shell's Text view — the DPQL editor asks the language server in position and the template namespaces ($data:, $config:, …) open in the completion dropdown. While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
       },
     },
   },
@@ -1795,6 +1815,75 @@ export const TextModeOffersTemplateCompletions: Story = {
       },
       { timeout: 20000 }
     );
+    // nothing is said of the `$` while its list is open
+    expect(saidUnderTheText(canvasElement)).toEqual([]);
+    // the list put away, the server's words are said
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(saidUnderTheText(canvasElement)).toEqual([
+        "Incomplete template reference: expected context identifier after '$'",
+      ])
+    );
+    // and held again while a click after the `$` has the list open
+    await userEvent.click(editable);
+    await waitFor(() =>
+      expect(completionListed().some((row) => row.startsWith('$data:'))).toBe(true)
+    );
+    expect(saidUnderTheText(canvasElement)).toEqual([]);
+  },
+};
+
+export const AnAtWithNoRecordSaysThereIsNone: Story = {
+  args: {
+    value: { is_expression: true, value: { args: [] } },
+    defaultMode: 'text',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `1 + @` into the Text view of an expression that names no record and offers no templates: the completion list says "No record fields here" instead of opening empty or not at all (David\'s decision), and nothing is said of the `@` while it is open. Escape puts the list away, and the server\'s words for an `@` alone are said; a click after the `@` opens the list again, saying it again.',
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    const editable = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>('[contenteditable="true"]');
+        expect(el).toBeTruthy();
+        return el as HTMLElement;
+      },
+      { timeout: 10000 }
+    );
+    await waitForLspIdle(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.type(editable, '1 + @');
+    await waitFor(() => expect(completionListed()).toEqual(['No record fields here']));
+    const message = document.querySelector<HTMLElement>(
+      '.completion-menu .completion-empty-message'
+    );
+    expect(message, 'said, not a row to pick').toBeTruthy();
+    // read, not dimmed as a row that cannot be picked is
+    expect(getComputedStyle(message as HTMLElement).opacity).toBe('1');
+    expect(saidUnderTheText(canvasElement)).toEqual([]);
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(completionListed()).toEqual([]));
+    await waitFor(() =>
+      expect(saidUnderTheText(canvasElement)).toEqual(['Incomplete field reference'])
+    );
+    // a click after the `@` asks again, and the list says it again
+    await userEvent.click(editable);
+    await waitFor(() => expect(completionListed()).toEqual(['No record fields here']));
+    expect(saidUnderTheText(canvasElement)).toEqual([]);
+  },
+};
+
+export const AnAtWithNoRecordSaysThereIsNoneOnAPhone: Story = {
+  ...AnAtWithNoRecordSaysThereIsNone,
+  parameters: {
+    ...AnAtWithNoRecordSaysThereIsNone.parameters,
+    qlip: { viewport: { width: 390, height: 844 } },
   },
 };
 

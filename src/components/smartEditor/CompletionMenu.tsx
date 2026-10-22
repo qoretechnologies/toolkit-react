@@ -176,6 +176,8 @@ export interface ICompletionListProps {
   onSelect: (item: ICompletionDropdownItem) => void;
   /** Said in place of the rows while there are none: a loading or an empty list. */
   emptyLabel?: string;
+  /** The empty label is what the list says where nothing can be offered, not that it is waiting: an ⓘ, not a loader. */
+  emptyIsMessage?: boolean;
   /** The row whose documentation is shown under it (its `value`). */
   docsFor?: string | null;
   /** Show or put away a row's documentation (see `IUseLspAutocompleteResult.toggleDocs`). */
@@ -193,6 +195,7 @@ export const CompletionList = memo(
     focusedIndex,
     onSelect,
     emptyLabel,
+    emptyIsMessage,
     docsFor,
     onToggleDocs,
   }: ICompletionListProps) => {
@@ -220,7 +223,16 @@ export const CompletionList = memo(
         customTheme={COMPLETION_LIST_THEME}
       >
         {completionGroups.length === 0 && emptyLabel ?
-          <ReqoreMenuItem icon='LoaderLine' label={emptyLabel} disabled compact />
+          <ReqoreMenuItem
+            icon={emptyIsMessage ? 'InformationLine' : 'LoaderLine'}
+            label={emptyLabel}
+            className={emptyIsMessage ? 'completion-empty-message' : undefined}
+            disabled
+            compact
+            /* a message is read, not waited on: not dimmed as a row that cannot be picked is - dimmed, "No record
+               fields here" was hard to read on the list (qorus#646) */
+            style={emptyIsMessage ? { opacity: 1, cursor: 'default' } : undefined}
+          />
         : null}
         {completionGroups.map((group) => (
           <React.Fragment key={group.label || '_default'}>
@@ -283,7 +295,8 @@ export const CompletionMenu = memo(
       {autocomplete.isOpen &&
         (autocomplete.items.length > 0 ||
           autocomplete.isReplaceMode ||
-          autocomplete.isFetching) && (
+          autocomplete.isFetching ||
+          !!autocomplete.emptyMessage) && (
           <ReqorePopover
             key={autocomplete.popoverKey}
             component='span'
@@ -305,8 +318,11 @@ export const CompletionMenu = memo(
                 onSelect={onSelect}
                 docsFor={autocomplete.docsFor}
                 onToggleDocs={autocomplete.toggleDocs}
+                emptyIsMessage={!!autocomplete.emptyMessage && !autocomplete.isFetching}
                 emptyLabel={
-                  autocomplete.isReplaceMode || autocomplete.isFetching ?
+                  // what the list says where nothing can be offered: "No record fields here" (qorus#646)
+                  autocomplete.emptyMessage && !autocomplete.isFetching ? autocomplete.emptyMessage
+                  : autocomplete.isReplaceMode || autocomplete.isFetching ?
                     (pendingLabel ??
                     (autocomplete.isFetching ? 'Loading completions…' : (
                       'No alternatives available'

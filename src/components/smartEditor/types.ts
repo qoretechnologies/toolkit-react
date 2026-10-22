@@ -107,7 +107,7 @@ export type TCompletionInserter = (
   context: ICompletionInserterContext
 ) => void;
 
-import { ILspCompletionItem } from '../../utils/lspClient.types';
+import { ILspCompletionItem, ILspDiagnostic } from '../../utils/lspClient.types';
 
 export type { ILspCompletionItem };
 
@@ -248,4 +248,35 @@ export interface ISmartEditorProps {
    * don't support it.
    */
   enableSignatureHelp?: boolean;
+
+  /**
+   * A click, a tap or Tab into the text asks what can be written at the caret, and the completion list opens
+   * there if anything can - in place of a browse list (`tags`): one list for what can be written, opened by a
+   * click as by typing (qorus#646, David's decision).
+   */
+  completeOnClick?: boolean;
+
+  /**
+   * What the completion list offers at the caret, from what the server offered there: the host's own entries
+   * (a field's templates) merged in where they can be written. `serverItems` is undefined where no server can be
+   * asked: the list is the host's alone then.
+   */
+  completionsWith?: (context: ICompletionContext) => ILspCompletionItem[];
+
+  /** What the completion list says where it has nothing to offer at the caret, or undefined for no list there. */
+  emptyCompletionMessage?: (plainText: string, offset: number) => string | undefined;
+
+  /**
+   * The server's diagnostics as the editor says them, for the text they are of: a host's own words for what it
+   * wrote itself (an unfinished expression's placeholders), say.
+   */
+  presentDiagnostics?: (diagnostics: ILspDiagnostic[], plainText: string) => ILspDiagnostic[];
+}
+
+/** Where the completion list is asked for: the text, the caret's offset in it, and what the server offered. */
+export interface ICompletionContext {
+  plainText: string;
+  offset: number;
+  /** What the server offered at the caret; undefined where no server can be asked. */
+  serverItems?: ILspCompletionItem[];
 }

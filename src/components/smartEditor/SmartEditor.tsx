@@ -255,6 +255,10 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       hoverDelayMs,
       isLoading = false,
       enableSignatureHelp = true,
+      completeOnClick = false,
+      completionsWith,
+      emptyCompletionMessage,
+      presentDiagnostics,
     },
     ref
   ) => {
@@ -285,12 +289,27 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     // sessions set `isContextReady: true`, collapsing this to `isReady`.
     const lspReady = session.isReady && session.isContextReady;
 
+    /* What the list offers at the caret: the server's answer, with the host's own entries merged in where they
+       can be written (`completionsWith`). Where no server can be asked, the host's alone. */
+    const noServer = session.isUnavailable && !!completionsWith;
+    const { getCompletions: askServer } = session;
+    const getCompletions = useCallback(
+      async (plainText: string, offset: number) => {
+        const serverItems = noServer ? undefined : await askServer(plainText, offset);
+        return completionsWith ?
+            completionsWith({ plainText, offset, serverItems })
+          : (serverItems ?? []);
+      },
+      [noServer, askServer, completionsWith]
+    );
+
     const autocomplete = useLspAutocomplete({
-      getCompletions: session.getCompletions,
-      isReady: lspReady,
+      getCompletions,
+      isReady: lspReady || noServer,
       triggerCharacters,
       converter,
       inserter: completionInserter,
+      emptyMessage: emptyCompletionMessage,
     });
 
     const hover = useLspHover(session, editorRef as React.RefObject<any>, converter, {
@@ -366,11 +385,40 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       syncDocument(value);
     }, [syncDocument, value, emitted]);
 
-    const diagnosticDecorate = useLspDiagnosticDecorations(
-      session.diagnostics,
-      converter,
-      slateValue
-    );
+    /* The server's diagnostics as the editor says them: in the host's words for what it wrote itself
+       (`presentDiagnostics`), and without the error of a reference half-typed at the caret while its list is open
+       or on its way - a `$` typed to ask for a template is not a mistake yet (qorus#646, David's decision). It
+       is said once the list is put away. */
+    const listActive = autocomplete.isActive;
+    const shownDiagnostics = useMemo(() => {
+      const editor = editorRef.current as unknown as Editor | null;
+      const nodes = (editor?.children as unknown as ISlateElement[] | undefined) ?? slateValue;
+      const said =
+        presentDiagnostics ?
+          presentDiagnostics(session.diagnostics, converter.fromSlateNodes(nodes))
+        : session.diagnostics;
+      const at = editor?.selection;
+      if (!listActive || !converter.referenceBeingWritten || !at || !Range.isCollapsed(at)) {
+        return said;
+      }
+      const [index, child] = at.anchor.path;
+      const paragraph = nodes[index];
+      if (at.anchor.path.length !== 2 || !paragraph) {
+        return said;
+      }
+      const end = converter.selectionToOffset([paragraph], [0, child], at.anchor.offset);
+      const written = converter.referenceBeingWritten(
+        converter.fromSlateNodes([paragraph]).slice(0, end)
+      );
+      return written > 0 ?
+          said.filter(
+            ({ range: { start } }) =>
+              !(start.line === index && start.character >= end - written && start.character < end)
+          )
+        : said;
+    }, [session.diagnostics, presentDiagnostics, converter, slateValue, listActive]);
+
+    const diagnosticDecorate = useLspDiagnosticDecorations(shownDiagnostics, converter, slateValue);
 
     // Server-driven syntax highlighting (replaces the old client-side regex
     // highlighter — see design doc §7).
@@ -595,8 +643,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         /* An editor with a browse list (`tags`) answers a click on a chip with that list, as a click anywhere
            in its text, and as a value's text does: one list at a time. Opening the chip's replacements beside
            it put two lists over the text, and what was typed then reached neither (qorus#646, David: "you
-           can't type"). */
-        if (hasBrowseList) return;
+           can't type"). An editor that completes on a click lists what can be written at the caret, which a
+           click on a chip is not: the chip's own controls answer it. */
+        if (hasBrowseList || completeOnClick) return;
         try {
           const tagPath = ReactEditor.findPath(editor, tag as any);
           const domNode = ReactEditor.toDOMNode(editor, tag as any);
@@ -609,7 +658,38 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           // Tag may have been removed mid-render — ignore.
         }
       },
-      [readOnly, autocomplete, hasBrowseList]
+      [readOnly, autocomplete, hasBrowseList, completeOnClick]
+    );
+
+    /* A click, a tap or Tab into the text asks what can be written at the caret (`completeOnClick`): the caret the
+       page put there, which Slate's selection follows only later. Not a click on a chip, which is a control of
+       its own, nor anything outside the text: the list's rows are drawn elsewhere, and their clicks reach this
+       box through React. */
+    const { openAtCaret } = autocomplete;
+    const completeAtPageCaret = useCallback(
+      (target: EventTarget | null) => {
+        const editor = editorRef.current;
+        if (!completeOnClick || readOnly || !editor) return;
+        try {
+          const root = ReactEditor.toDOMNode(editor, editor);
+          if (!(target instanceof Node) || !root.contains(target)) return;
+          if (target instanceof Element && target.closest('[data-slate-void="true"]')) return;
+          const page = ReactEditor.getWindow(editor).getSelection();
+          if (!page || page.rangeCount === 0 || !page.isCollapsed) return;
+          const caret = ReactEditor.toSlateRange(editor, page, {
+            exactMatch: false,
+            suppressThrow: true,
+          });
+          if (!caret) return;
+          const box = page.getRangeAt(0).getBoundingClientRect();
+          // a caret in an empty line has no box of its own: the text's
+          const at = box.width || box.height ? box : root.getBoundingClientRect();
+          openAtCaret(editor, caret.anchor, { left: at.left, bottom: at.bottom });
+        } catch {
+          // the editor is not drawn, or the page's caret is not in it: nothing is asked
+        }
+      },
+      [completeOnClick, readOnly, openAtCaret]
     );
 
     const resolvedTagClick = onTagClick ?? handleTagClickDefault;
@@ -670,8 +750,23 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           fluid
           verticalAlign='flex-start'
           className='smart-editor-row'
+          // where its completion list is: open, asked for and on its way, or neither - for a host or a test to
+          // tell "nothing can be written here" from "not answered yet"
+          data-completion={
+            autocomplete.isOpen ? 'open'
+            : autocomplete.isActive ?
+              'asking'
+            : 'idle'
+          }
         >
-          <div style={EDITOR_BOX_STYLE}>
+          <div
+            style={EDITOR_BOX_STYLE}
+            onClick={(event) => completeAtPageCaret(event.target)}
+            // Tab's key comes up in the editor it moved the focus into
+            onKeyUp={(event) => {
+              if (event.key === 'Tab') completeAtPageCaret(event.target);
+            }}
+          >
             <ReqoreRichTextEditor
               ref={editorRef}
               value={slateValue as any}
@@ -821,11 +916,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             </ReqoreButton>
           )}
         </ReqoreControlGroup>
-        {showDiagnostics && session.diagnostics.length > 0 && (
-          // One ReqoreMessage per diagnostic, severity → intent. Same
-          // `session.diagnostics` source as the inline underline above.
+        {showDiagnostics && shownDiagnostics.length > 0 && (
+          // One ReqoreMessage per diagnostic, severity → intent. The same
+          // diagnostics as the inline underline above (`shownDiagnostics`).
           <ReqoreControlGroup vertical fluid size='small'>
-            {session.diagnostics.map((diag, i) => (
+            {shownDiagnostics.map((diag, i) => (
               <ReqoreMessage
                 key={`${diag.range.start.line}:${diag.range.start.character}:${i}`}
                 intent={severityToIntent(diag.severity)}

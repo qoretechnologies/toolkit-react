@@ -46,19 +46,25 @@ export interface IDpqlMockParseCall {
 }
 export const dpqlMockParseCalls: IDpqlMockParseCall[] = [];
 
-/** The template namespaces the server offers after a `$`. */
+/** The template namespaces the server offers after a `$`, and where a value can be written: Variables. */
 const DPQL_MOCK_TEMPLATE_ITEMS = [
-  { label: '$data:', insertText: '$data:', kind: 1, detail: 'template' },
-  { label: '$config:', insertText: '$config:', kind: 1, detail: 'template' },
-  { label: '$static:', insertText: '$static:', kind: 1, detail: 'template' },
-  { label: '$timestamp:', insertText: '$timestamp:', kind: 1, detail: 'template' },
+  { label: '$data:', insertText: '$data:', kind: 6, detail: 'requires argument' },
+  { label: '$config:', insertText: '$config:', kind: 6, detail: 'requires argument' },
+  { label: '$static:', insertText: '$static:', kind: 6, detail: 'requires argument' },
+  { label: '$timestamp:', insertText: '$timestamp:', kind: 6, detail: 'requires argument' },
 ];
 
-/** The record fields the server offers after an `@`. */
-const DPQL_MOCK_FIELD_ITEMS = [
-  { label: '@name', insertText: '@name', kind: 5, detail: 'string' },
-  { label: '@status', insertText: '@status', kind: 5, detail: 'string' },
-];
+/** What the server offers after a whole value: operators (Keywords), never a value. */
+const DPQL_MOCK_AFTER_A_VALUE = ['==', '!=', '<', '>', '&&', '||'].map((label) => ({
+  label,
+  kind: 14,
+}));
+
+/** What a value cannot follow, so one is written next: an operator, an opening bracket, a comma. */
+const MOCK_BEFORE_A_VALUE = /[-+*/%<>=!&|,([]$/;
+
+/** A template written out whole: `$record:{pos}`, not the `$` or `$rec` of one being written. */
+const MOCK_WHOLE_TEMPLATE = /^\$[A-Za-z_][\w-]*:(?:\{[^{}]*\}|[\w.])+$/;
 
 /** The fields each document is bound to, by its URI. */
 const dpqlMockDocumentFields = new Map<string, TDpqlMockFields>();
@@ -136,28 +142,39 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
     const position = msg.params?.position ?? { line: 0, character: 0 };
     const line = server.textOf(msg.params?.textDocument?.uri).split('\n')[position.line] ?? '';
     const head = line.slice(0, position.character);
-    const sigil = head.match(/[@$][\w:.{}]*$/)?.[0]?.[0] ?? '';
-    if (sigil === '$') {
+    const token = head.match(/[@$][\w:.{}]*$/)?.[0] ?? '';
+    /* a document bound to a record is offered its fields, as the server offers them: a provider's, or the
+       fields it was given; one bound to none is offered none (professor's `/lsp`: `@` with no record, 0 items) */
+    const uri = String(msg.params?.textDocument?.uri);
+    const provider = dpqlMockDocumentProviders.get(uri);
+    const fields =
+      (provider ? DPQL_MOCK_PROVIDERS[provider] : undefined) ??
+      dpqlMockDocumentFields.get(uri) ??
+      {};
+    const fieldItems = Object.entries(fields).map(([name, field]) => ({
+      label: `@${name}`,
+      insertText: `@${name}`,
+      kind: 5,
+      detail: [(field as { type?: string | string[] }).type ?? []].flat().join(' or ') || undefined,
+    }));
+    // a template being written: its contexts
+    if (token.startsWith('$') && !MOCK_WHOLE_TEMPLATE.test(token)) {
       return { isIncomplete: false, items: DPQL_MOCK_TEMPLATE_ITEMS };
     }
-    if (sigil === '@') {
-      // a document bound to a provider is offered its record's fields, as the server offers them
-      const provider = dpqlMockDocumentProviders.get(String(msg.params?.textDocument?.uri));
-      const record = provider ? DPQL_MOCK_PROVIDERS[provider] : undefined;
-      return {
-        isIncomplete: false,
-        items:
-          record ?
-            Object.entries(record).map(([name, field]) => ({
-              label: `@${name}`,
-              insertText: `@${name}`,
-              kind: 5,
-              detail: field.type,
-            }))
-          : DPQL_MOCK_FIELD_ITEMS,
-      };
+    if (token.startsWith('@')) {
+      return { isIncomplete: false, items: fieldItems };
     }
-    return { isIncomplete: false, items: [] };
+    /* Elsewhere as the server answers, by where the caret is (professor's `/lsp`): nothing in an empty document,
+       values where one can be written (the record's fields and the template contexts), operators after a whole
+       value - a reference (`$record:{pos}|`) or anything a space follows (`12 |`) - and nothing in a word or a
+       number being typed (`12|`; the server's functions are not the stand-in's). */
+    const written = head.trimEnd();
+    const items =
+      !written ? []
+      : MOCK_BEFORE_A_VALUE.test(written) ? [...fieldItems, ...DPQL_MOCK_TEMPLATE_ITEMS]
+      : MOCK_WHOLE_TEMPLATE.test(token) || written !== head ? DPQL_MOCK_AFTER_A_VALUE
+      : [];
+    return { isIncomplete: false, items };
   },
 
   'textDocument/semanticTokens/full': (msg, server) => ({

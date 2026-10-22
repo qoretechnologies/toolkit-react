@@ -157,6 +157,13 @@ export interface IDpqlEditorProps {
    */
   onReady?: () => void;
   /**
+   * A click, a tap or Tab into the text asks what can be written at the caret, and the one completion list
+   * opens there: the server's completion, with the field's templates where a value can be written (qorus#646,
+   * David's decision). On by default where the editor has templates; an expression's Text view turns it on
+   * always.
+   */
+  completeOnClick?: boolean;
+  /**
    * Opt-in to server-driven plain-text → Slate parsing via the LSP's
    * `dpql/toRichtext` custom method. When `true`, the editor calls
    * `dpql/toRichtext({ text: value })` on mount and on every external

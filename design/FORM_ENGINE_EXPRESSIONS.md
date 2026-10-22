@@ -216,33 +216,66 @@ whether it is the right type — a mismatch is something to show the author
 inside the editor, never a reason to refuse to open it. A probe never
 throws; an unreachable instance simply leaves the typed text alone.
 
-## A template picked in the Text view
+## What can be written at the caret: one completion list
 
-*Added 2026-10-22. As-built (qorus#646, David's review).*
+*Added 2026-10-22. As-built (qorus#646, David's decision on the Text view's
+two lists).*
 
-The Text view offers templates three ways: the list the field's templates
-are browsed in, opened by a click, tap or Tab into the text (reqore's
-`tags` list); the server's completion list, opened by typing `$` or `@`;
-and the templates offered beside the text (`.expression-text-template-picker`).
-A template picked from any of them takes the place of the reference being
-written where it goes: a `$` or `@` with no more than part of a name after
-it (`dpqlReferenceBeingWritten`; not an `@` in a string, which is text, nor
-a whole reference, which is a value already). The completion list's
-inserter does this itself; the browse list is reqore's, which puts a chip
-in at the caret as it is, so `SmartEditor` adds a Slate plugin to the
-editor's `insertNodes` (when its converter says what is being written, as
-the DPQL converter does) that takes the reference away in the same change.
-Before it, a `$` typed to ask for a template stayed in front of the one
-picked: `pos + 1 + $pos`. Beside the text, the pick goes at the end of the
-text, by the same rule.
+The Text view has one list for what can be written at the caret: the
+completion list (`CompletionMenu`). Typing opens it, as before, and so does
+a click, a tap or Tab into the text (`completeOnClick`: `SmartEditor` reads
+the caret the page put there and asks at it, `openAtCaret`). reqore's
+browse list (`tags`) is not used in a DPQL editor that completes on a click;
+a `DpqlEditor` with templates does by default, and the expression Text view
+always does.
+
+What the list offers is the server's answer at the caret with the field's
+templates merged in where a value can be written (`dpqlCompletionsWith`):
+where the server offers values (anything but keywords and operators), or,
+where it offers nothing or there is no server, where the text says a value
+can go (`dpqlExpectsValue`: an empty text, after an operator, a bracket or a
+comma, or a reference being written). The server answers nothing in an
+empty document, and operators after a value (`12 |`, `$record:{pos}|`), so a
+pick is always a value where one can stand: `12 pos` cannot be written. Rows
+are flat, the template's group and type on its detail line; after an `@`,
+only the templates that are the record's fields, and a field the server and
+the catalogue both offer is listed once. Where nothing is offered after an
+`@`, the list says "No record fields here" (`dpqlEmptyCompletionMessage`;
+not with no server, which might know a record).
+
+The templates beside the text (`.expression-text-template-picker`) stay, to
+browse a catalogue as it nests. Their pick goes at the end of the text, so
+they cannot be used where a value cannot be written there, and say why
+(`NO_VALUE_AT_THE_END`).
+
+A template picked takes the place of the reference being written where it
+goes: a `$` or `@` with no more than part of a name after it
+(`dpqlReferenceBeingWritten`; not an `@` in a string, which is text, nor a
+whole reference). The completion list's inserter does this; `SmartEditor`
+also has a Slate plugin on its editor's `insertNodes` that does it for any
+chip put in at the caret, in the same change.
 
 What does not parse is said in the server's words, under the text: the
 server publishes what `dpql-parse` says of a document on every open and
-change (`publishDiagnostics` in `QorusLspWebSocketHandler`), and the editor
-shows each error. The stories' stand-in server published nothing for text
-it could not read, so a story's editor said nothing of `pos + 1 + $pos`;
-it now publishes what the server does (DPQL-E030 and E031 for a `$` that
-starts no template, E001 for what follows a whole expression).
+change (`publishDiagnostics` in `QorusLspWebSocketHandler`). Two things are
+said otherwise:
+
+- A reference half-typed at the caret is not a mistake while its list is
+  open or on its way: its error (a `$` alone, an `@` alone) is held, and
+  said once the list is put away (`SmartEditor`, by its converter's
+  `referenceBeingWritten`).
+- An unfinished expression is written with a placeholder for each part not
+  chosen yet (`… > …`). The server refuses each ("Unexpected character
+  '…'"); the editor says once what to do instead: "Fill in each … (the
+  parts not chosen yet)." (`presentDpqlDiagnostics`).
+
+The stories' stand-in server answers as the server does, captured on
+professor: the diagnostics (DPQL-E030 and E031 for a `$`, E003 for an `@`,
+E001 for what follows a whole expression and each unexpected character),
+and completion by where the caret is (nothing in an empty document, the
+record's fields and the template contexts where a value can go, operators
+after a value, nothing in a word being typed, and no fields for a document
+with no record).
 
 ## Return-type checking
 

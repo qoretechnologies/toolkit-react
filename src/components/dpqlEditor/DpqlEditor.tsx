@@ -18,6 +18,11 @@ import { ISlateConverter, ISlateElement } from '../smartEditor/types';
 import { dpqlSlateConverter, richtextResponseToSlate } from './dpqlHelpers';
 import { dpqlCompletionInserter } from './dpqlInserter';
 import { makeDpqlTagRenderer } from './dpqlTags';
+import {
+  dpqlCompletionsWith,
+  dpqlEmptyCompletionMessage,
+  presentDpqlDiagnostics,
+} from './dpqlCompletions';
 import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
 import { useTemplateTags } from '../form/fields/rich-text/useTemplateTags';
@@ -57,6 +62,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       fsmContext,
       onUnavailable,
       onReady,
+      completeOnClick = !!templates,
     },
     ref
   ) => {
@@ -177,7 +183,10 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       if (ready) onReady?.();
     }, [ready]);
 
-    const templateTags = useTemplateTags(templates, !readOnly);
+    /* The field's templates: listed in the one completion list where a value can be written (`dpqlCompletionsWith`)
+       - or, where the editor does not complete on a click, in the list its text is browsed in (`tags`). */
+    const templateTags = useTemplateTags(templates, !readOnly && !completeOnClick);
+    const completionsWith = useMemo(() => dpqlCompletionsWith(templates), [templates]);
 
     const descriptions = useDescriptionTooltips();
     // a chip's hover says its type in the server's words for it
@@ -224,9 +233,13 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         showDiagnostics={showDiagnostics}
         enableHover={enableHover}
         onBlur={onBlur}
-        // the templates it labels chips with are the ones it lists when clicked or tabbed into, as a
-        // rich-text field lists them (qorus#646)
+        // the templates it labels chips with are the ones it lists when clicked or tabbed into (qorus#646)
         tags={templateTags}
+        completeOnClick={completeOnClick}
+        completionsWith={completionsWith}
+        // "No record fields here" is the server's to say: with none, there may be a record it would know
+        emptyCompletionMessage={dpql.session.isUnavailable ? undefined : dpqlEmptyCompletionMessage}
+        presentDiagnostics={presentDpqlDiagnostics}
         isLoading={isParsing}
         loadingIndicator={loadingIndicator}
       />

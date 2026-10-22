@@ -18,6 +18,7 @@ import { memo, MutableRefObject, useCallback, useEffect, useMemo, useRef, useSta
 import { DpqlEditor, IDpqlEditorRef, IDpqlParseResult, useDpqlSession } from '../../dpqlEditor';
 import { TemplateBrowser } from '../fields/template/TemplateBrowser';
 import { dpqlDisplayedText, dpqlReferenceBeingWritten } from '../../dpqlEditor/dpqlHelpers';
+import { dpqlExpectsValue } from '../../dpqlEditor/dpqlCompletions';
 import { TDpqlFields } from '../../dpqlEditor/types';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
 import { DpqlRendering } from './DpqlRendering';
@@ -173,6 +174,10 @@ export interface IExpressionFieldProps {
   /** Forwarded to the builder — operand reordering for varargs expressions. */
   reorder?: TExpressionReorder;
 }
+
+/** Why the templates beside the text cannot be used: a value at its end would follow another (qorus#646). */
+export const NO_VALUE_AT_THE_END =
+  'A template goes where a value can: after an operator, an opening bracket or a comma, or in an empty expression.';
 
 /** A diagnostic that is an error: the server marks one severity 1, or `error`. */
 const isErrorDiagnostic = (diagnostic: { severity?: number | string }): boolean =>
@@ -793,9 +798,11 @@ export const ExpressionField = memo(
        the editor keeps no caret the field can reach, so the end of the text is where it is put - in place of a
        reference being written there (a `$` typed to ask for one), as a template picked in the text goes
        (qorus#646, David's review: `pos + 1 + $pos`). */
+    // whether a value can be written at the end of the text, where the picker puts one
+    const valueCanEnd = dpqlExpectsValue(text);
     const insertTemplate = useCallback(
       (item: { value?: unknown }) => {
-        if (typeof item?.value !== 'string' || !item.value) return;
+        if (typeof item?.value !== 'string' || !item.value || !dpqlExpectsValue(text)) return;
         const current = text.trimEnd();
         const written = dpqlReferenceBeingWritten(current);
         const before = current.slice(0, current.length - written);
@@ -935,15 +942,19 @@ export const ExpressionField = memo(
                 // 48px floor left an empty strip under the text, which the picker beside it could not match
                 onUnavailable={handleTextUnavailable}
                 onReady={handleTextReady}
+                // a click, a tap or Tab lists what can be written at the caret, the field's templates with it
+                completeOnClick
               />
-              {/* The field's templates and fields, as its catalogue names them, inserted as chips - next to
-                  the server's `$` completion, which offers every context but not these names. */}
+              {/* The field's templates and fields, browsed as its catalogue nests them and put in at the end of
+                  the text - where a value can go there: after a value (`12`), one would be refused, and the
+                  picker says why it cannot be used (qorus#646, David's decision). */}
               {templateItems.length && !readOnly ?
                 <TemplateBrowser
                   className='expression-text-template-picker'
                   icon='MoneyDollarCircleLine'
                   aria-label='Insert a template'
-                  tooltip='Insert a template'
+                  disabled={!valueCanEnd}
+                  tooltip={valueCanEnd ? 'Insert a template' : NO_VALUE_AT_THE_END}
                   // the size of the text it inserts into, so the two are as tall as each other
                   size={(size as TSizes | undefined) ?? 'normal'}
                   fixed
