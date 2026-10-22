@@ -7,9 +7,10 @@ places, both from its schema:
 - **`short_desc`** shows under the option's name while the toolbar's ⓘ ("Show all field
   information", `.options-readfirst-descriptions`) is on, and is the name's hover otherwise.
 - **`desc`** is the `?` beside the name (`.options-readfirst-help`), which opens the help
-  dialog — on the read row and in the open editor. An option with no `desc` has no `?`: a story
-  whose options carry no description shows none (qorus#646, David on *A Value That Mentions A
-  Template Reads As One*, whose options now carry the descriptions the Qorus IDE gives them).
+  dialog — on the read row and in the open editor. Every option with a description (`desc` or
+  `short_desc`) or a type in words has the `?`, and its help says both, so a touch screen, which
+  has no hover, reaches what the option takes (David's decision, 2026-10-22). An option with
+  neither has no `?`: a `?` that opens an empty dialog is worse than none.
 - Messages still show without interaction: the intent stripe and the strips under the row.
 
 The `?` is a button (David's decision, 2026-10-22): in the tab order with a focus ring,

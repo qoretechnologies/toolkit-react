@@ -1399,9 +1399,10 @@ export const CompactRow = memo(
       [schema?.short_desc, typeSentence && `Takes ${typeSentence}.`].filter(Boolean).join('\n') ||
       undefined;
     const typeShown = !!showFieldTypes || showAllDescriptions === true;
-    // the help says what the option takes, and its description where it has one: every option with either has it
+    /* the help says what the option takes, and its description where it has one: every option with either has
+       it, a short description too, so a touch screen, which has no hover, reaches the type (qorus#646, David) */
     const helpIcon =
-      schema?.desc || typeSentence ?
+      schema?.desc || schema?.short_desc || typeSentence ?
         <ReqoreButton
           icon='QuestionLine'
           size={coarse ? 'small' : 'tiny'}

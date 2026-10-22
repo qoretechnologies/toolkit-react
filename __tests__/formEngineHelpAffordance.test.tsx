@@ -126,8 +126,8 @@ describe('an option keeps its help affordance when it is opened', () => {
     expect(helpIcons(container, 'plain').length).toBeGreaterThan(0);
   });
 
-  it('offers no ? when a field has nothing to say: no long description, and no type in words', async () => {
-    // The affordance has to mean something: a `?` that opens an empty dialog is worse than no `?`.
+  it('offers a ? for a short description alone, so a touch screen reaches what the option is', async () => {
+    // qorus#646, David: a (?) on every option with a type in words or a description
     const { container } = renderForm(
       {
         plain: {
@@ -136,6 +136,18 @@ describe('an option keeps its help affordance when it is opened', () => {
           short_desc: 'Has a short description only',
         },
       } as never,
+      { plain: { type: 'some-custom-type', value: 'set' } } as never,
+      ['plain']
+    );
+
+    await waitFor(() => expect(container.querySelector('[data-field="plain"]')).toBeTruthy());
+    expect(helpIcons(container, 'plain').length).toBeGreaterThan(0);
+  });
+
+  it('offers no ? when a field has nothing to say: no description, and no type in words', async () => {
+    // The affordance has to mean something: a `?` that opens an empty dialog is worse than no `?`.
+    const { container } = renderForm(
+      { plain: { type: 'some-custom-type', display_name: 'Plain' } } as never,
       { plain: { type: 'some-custom-type', value: 'set' } } as never,
       ['plain']
     );
