@@ -67,26 +67,71 @@ function mousePositionToSlatePoint(
   /* The caret position nearest the point is the boundary between two characters: past the middle of a character
      it is after it. A hover is of the character under the pointer, so where the point is on the character before
      the caret, that is the one: resting on the right half of a `+` asked the server about the space after it, and
-     showed nothing (qorus#646). */
+     showed nothing (qorus#646).
+
+     And only of a character under the pointer: the nearest caret position is found for a point anywhere, beside
+     the text or above it too, and a pointer that was on no character asked about the nearest one. A pointer event
+     at the page's corner - the one a scripted click sends - opened the hover of the first word, anchored in that
+     corner over the text being typed (qorus#646, Foxhoundn: "artifact text `field` and `@orders` on the top left
+     of the chip"). Where the layout cannot be measured (no boxes), the caret position stands. */
+  let container: globalThis.Node = domRange.startContainer;
   let offset = domRange.startOffset;
-  const container = domRange.startContainer;
-  if (container.nodeType === 3 && offset > 0) {
-    try {
-      const before = document.createRange();
-      before.setStart(container, offset - 1);
-      before.setEnd(container, offset);
-      const box = before.getBoundingClientRect();
-      if (
-        box.width > 0 &&
-        clientX >= box.left &&
-        clientX < box.right &&
-        clientY >= box.top &&
-        clientY <= box.bottom
-      ) {
-        offset -= 1;
+  if (container.nodeType === 3) {
+    const root = container.parentElement?.closest('[data-slate-editor="true"]') ?? null;
+    // a page that lays nothing out (jsdom) measures every box as empty: there, nothing can be judged
+    const laidOut = (container.parentElement?.getBoundingClientRect().width ?? 0) > 0;
+    /** The text node before or after `node` in the editor: the leaves of one line are text nodes of their own. */
+    const neighbour = (node: globalThis.Node, forward: boolean): Text | null => {
+      if (!root) {
+        return null;
       }
-    } catch {
-      // no layout to measure: the caret position stands
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      walker.currentNode = node;
+      const step = () => (forward ? walker.nextNode() : walker.previousNode());
+      let next = step();
+      while (next && !(next.textContent ?? '').length) {
+        next = step();
+      }
+      return next as Text | null;
+    };
+    /** Whether the point is on the character at `index` of `node`: true or false where it can be measured, else
+     *  null. A character with no width (the zero-width text beside a chip) is under no pointer. */
+    const onCharacter = (node: globalThis.Node | null, index: number): boolean | null => {
+      if (!node || index < 0 || index >= (node.textContent ?? '').length) {
+        return false;
+      }
+      if (!laidOut) {
+        return null;
+      }
+      try {
+        const character = document.createRange();
+        character.setStart(node, index);
+        character.setEnd(node, index + 1);
+        const box = character.getBoundingClientRect();
+        return (
+          box.width > 0 &&
+          clientX >= box.left &&
+          clientX < box.right &&
+          clientY >= box.top &&
+          clientY <= box.bottom
+        );
+      } catch {
+        return null;
+      }
+    };
+    const length = (container.textContent ?? '').length;
+    // the characters either side of the caret position, in the next or the previous leaf at a leaf's edge
+    const beforeNode = offset > 0 ? container : neighbour(container, false);
+    const beforeIndex = offset > 0 ? offset - 1 : (beforeNode?.textContent ?? '').length - 1;
+    const afterNode = offset < length ? container : neighbour(container, true);
+    const afterIndex = offset < length ? offset : 0;
+    const before = onCharacter(beforeNode, beforeIndex);
+    if (before) {
+      container = beforeNode!;
+      offset = beforeIndex;
+    } else if (before === false && onCharacter(afterNode, afterIndex) === false) {
+      // measured, and on neither character beside the caret: the pointer is on no character
+      return null;
     }
   }
 
