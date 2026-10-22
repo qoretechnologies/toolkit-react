@@ -1,6 +1,7 @@
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
@@ -126,6 +127,56 @@ describe('a new form', () => {
         document.querySelector('[data-field="title"]')?.contains(document.activeElement)
       ).toBe(true)
     );
+  });
+
+  /* "N need attention →" shows only the fields that need attention. The first character
+     typed into an empty required field makes it valid; the row being typed in must not
+     vanish then, or the rest of the word goes nowhere. */
+  it('keeps the field being typed in while the form shows only what needs attention', async () => {
+    const user = userEvent.setup();
+    // Controlled, as a host holds it: each keystroke comes back as the form's value.
+    const Controlled = () => {
+      const [value, setValue] = useState<Record<string, unknown>>({});
+      return (
+        <ReqoreUIProvider>
+          <FetchContext.Provider value={fetchContext}>
+            <FormEngine
+              compact
+              name='iface'
+              value={value as never}
+              options={SCHEMA}
+              expandFirstRequired={false}
+              initialExpandedOptions={['title']}
+              revealRequired
+              onChange={(_name, next) => setValue((next ?? {}) as Record<string, unknown>)}
+            />
+          </FetchContext.Provider>
+        </ReqoreUIProvider>
+      );
+    };
+    render(<Controlled />);
+    await header();
+    await user.click(document.querySelector('.options-readfirst-attention-link') as HTMLElement);
+    const input = await waitFor(() => {
+      const found = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        '[data-field="title"] input, [data-field="title"] textarea'
+      );
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await user.click(input);
+    // The first letters reach the form (the field is valid now), then the rest is typed.
+    await user.keyboard('Or');
+    await waitFor(() =>
+      expect(document.querySelector('.options-readfirst-attention-link')?.textContent).toContain(
+        '1 need attention'
+      )
+    );
+    expect(input.isConnected).toBe(true);
+    await user.keyboard('der sync');
+
+    await waitFor(() => expect(input.value).toBe('Order sync'));
+    expect(document.activeElement).toBe(input);
   });
 
   it('turns a field into a fault once someone has been to it and left it empty', async () => {

@@ -2539,6 +2539,11 @@ const FormEngineImpl = ({
       (newValue, option, optionName) => {
         if (
           showInvalidOptionsOnly &&
+          // An open row stays while the reader is in it, as its box does
+          // (`stableBucketOf`): the first character typed into an empty required
+          // field makes it valid, and hiding it then would pull the field out
+          // from under the caret mid-word.
+          !expandedOptions.includes(optionName) &&
           isOptionValid(
             optionName,
             getOptionFieldStorageType(
@@ -2561,6 +2566,7 @@ const FormEngineImpl = ({
     );
   }, [
     showInvalidOptionsOnly,
+    expandedOptions,
     isRendererOnly,
     JSON.stringify(availableOptions),
     JSON.stringify(options),
