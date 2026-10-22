@@ -190,9 +190,22 @@ describe('the tabs a form option offers', () => {
     await waitFor(() => expect(tabs(container)).toEqual(['value', 'expression', 'visual']));
   });
 
-  it('are Value and Template where it takes templates only', async () => {
-    const { container } = show({ type: 'int' as never, initial: 12, allowFunctions: false });
+  it('are Value and Template where it takes templates only and its value has a control of its own', async () => {
+    const { container } = show({
+      type: 'date' as never,
+      initial: '2026-10-22T00:00:00Z',
+      allowFunctions: false,
+    });
     await waitFor(() => expect(tabs(container)).toEqual(['value', 'template']));
+  });
+
+  it('are none where it takes templates only and its value is text, which takes the templates', async () => {
+    // a Template tab beside it was a second way to do the one thing (qorus#646, David's decision)
+    const { container } = show({ type: 'int' as never, initial: 12, allowFunctions: false });
+    await waitFor(() =>
+      expect(container.querySelector('.value-tabs-field.value-only .value-tab-text')).not.toBeNull()
+    );
+    expect(tabs(container)).toEqual([]);
   });
 
   it('are none where it takes no templates', async () => {
