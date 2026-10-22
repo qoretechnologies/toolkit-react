@@ -135,6 +135,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     attentionCount,
     attentionFaultCount,
     completion,
+    showInvalidOnly,
     onToggleInvalidOnly,
     hasMultipleOptions,
     compactQuery,
@@ -158,6 +159,23 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
   const theme = useReqoreTheme();
   const calm = useIsCalmForm();
   const intents = (theme.intents || {}) as Record<string, string>;
+  /* "N need attention →" / "N to fill in →" is a toggle (show only those fields), so it
+     is one: a button a keyboard reaches, which says whether it is on. A host that turns
+     it on for a person (a blocked submit) reads `aria-pressed` rather than guessing,
+     since the toolbar draws a different link once something becomes a fault. */
+  const attentionToggleProps = {
+    className: 'options-readfirst-attention-link',
+    role: 'button',
+    tabIndex: 0,
+    'aria-pressed': !!showInvalidOnly,
+    onClick: onToggleInvalidOnly,
+    onKeyDown: (event: React.KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        onToggleInvalidOnly?.();
+      }
+    },
+  };
   const cSuccess = intents.success || '#4a7110';
   const cWarning = intents.warning || '#d17c29';
   const cText = (theme.text?.color as string) || '#e8e8e8';
@@ -223,11 +241,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 fill in, which is the next step, not a warning: they are counted apart,
                 in the quiet colour. */}
             {attentionFaultCount ?
-              <StyledAttentionLink
-                $color={cWarning}
-                className='options-readfirst-attention-link'
-                onClick={onToggleInvalidOnly}
-              >
+              <StyledAttentionLink $color={cWarning} {...attentionToggleProps}>
                 {attentionFaultCount} need attention →
               </StyledAttentionLink>
             : null}
@@ -236,11 +250,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                 <StyledSummary style={{ color: cQuiet }}>
                   · {attentionCount - attentionFaultCount} to fill in
                 </StyledSummary>
-              : <StyledAttentionLink
-                  $color={cQuiet}
-                  className='options-readfirst-attention-link'
-                  onClick={onToggleInvalidOnly}
-                >
+              : <StyledAttentionLink $color={cQuiet} {...attentionToggleProps}>
                   {attentionCount} to fill in →
                 </StyledAttentionLink>
             : null}

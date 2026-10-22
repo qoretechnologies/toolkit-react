@@ -1708,6 +1708,7 @@ export const CompactRow = memo(
       return (
         <StyledEditCard
           key={optionName}
+          ref={rowRef}
           data-field={optionName}
           className={
             COMPACT_SINGLE_VALUE_TYPES.has(editType) ?
@@ -1847,6 +1848,11 @@ export const CompactRow = memo(
               keystroke a silent commit. Same handler, same `cancelEdit()`, so
               the two shapes cannot diverge. */}
           <div
+            // The card's editor, as the inline row's is: an opened card takes the
+            // caret too (the tap-to-edit rule above), so opening Description or
+            // Source Code by a click or by a blocked submit puts the cursor in it.
+            ref={editorRef}
+            className='options-readfirst-row-editor'
             style={{ display: 'contents' }}
             onKeyDown={(event) => {
               if (event.key === 'Escape') {

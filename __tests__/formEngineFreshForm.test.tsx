@@ -179,6 +179,63 @@ describe('a new form', () => {
     expect(document.activeElement).toBe(input);
   });
 
+  /* "N to fill in →" shows only those fields: a toggle a keyboard reaches, which says
+     whether it is on, so a host turning it on for a person never turns it off again. */
+  it('offers "N to fill in →" as a toggle that says whether it is on', async () => {
+    const user = userEvent.setup();
+    renderForm();
+    await header();
+    const toggle = () => document.querySelector('.options-readfirst-attention-link') as HTMLElement;
+    expect(toggle().getAttribute('role')).toBe('button');
+    expect(toggle().getAttribute('aria-pressed')).toBe('false');
+    toggle().focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(toggle().getAttribute('aria-pressed')).toBe('true'));
+  });
+
+  /* A long text, a description, source code: these open as a card rather than in the
+     row. The card takes the caret on opening, as the row does, so a click (or a
+     blocked submit) puts the cursor where the text goes. */
+  it('puts the caret in a field that opens as a card', async () => {
+    const user = userEvent.setup();
+    render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='iface'
+            value={{} as never}
+            options={
+              {
+                notes: {
+                  type: 'string',
+                  ui_type: 'long-string',
+                  display_name: 'Notes',
+                  required: true,
+                },
+              } as never
+            }
+            expandFirstRequired={false}
+            onChange={vi.fn()}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    await header();
+    await user.click(document.querySelector('[data-field="notes"]') as HTMLElement);
+    await waitFor(() =>
+      expect(document.querySelector('.options-readfirst-card[data-field="notes"]')).toBeTruthy()
+    );
+    await waitFor(() =>
+      expect(
+        document
+          .querySelector('.options-readfirst-card[data-field="notes"]')
+          ?.contains(document.activeElement)
+      ).toBe(true)
+    );
+    expect(['TEXTAREA', 'INPUT']).toContain(document.activeElement?.tagName);
+  });
+
   it('turns a field into a fault once someone has been to it and left it empty', async () => {
     const user = userEvent.setup();
     // The reader has the Title row open; opening Owner closes it (one row at a time),
