@@ -188,6 +188,17 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
 - **Dedicated layout.** Compact does **not** reuse the classic `ReqoreCollection` card-per-field layout —
   it renders its own flat rows (label | value | action, zebra blocks + spacing) so it reads like the
   IDE's restyled creator rather than a wall of cards. The classic always-expanded path is untouched.
+- **Choices, however they are written.** An `allowed_values` entry is read the same way everywhere it is
+  drawn, compared or validated (`allowedValueOf` / `allowedValueName` in `src/helpers/allowedValues.ts`): its
+  value from its envelope (`{value: {type, value}}`, what the server sends), a bare value (`{value: 'x'}`) or
+  its name (`{name: 'x'}`), and its name from `display_name`, else `name`, else the value. A picker that read
+  the envelope only drew a bare entry as an empty box no click could tick. Tests:
+  `__tests__/allowedValueShapes.test.tsx`.
+- **Suggestions replace what is held.** A creatable field whose value does not fit a chip (rich text, long
+  text, a hash) keeps its own editor with "Saved & Suggested Values" beside it. The field takes one value: a
+  pick replaces it, and the list ticks the suggestion the field holds (`markedValue`, matched by any spelling
+  of the choice, `heldAllowedValue`) while its trigger keeps its own name, since the editor draws the value.
+  Story: `PickingARichTextChoiceShowsItsName`.
 
 Interface-specific chrome (status hero, value chips, "Edit code", the help Hint) is intentionally **not**
 in the engine — a consumer wraps `FormEngine` and supplies that around it. The **server does not define

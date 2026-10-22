@@ -16,6 +16,7 @@ import {
   getRequiredOptionMessage,
 } from '../../../helpers/options';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
+import { allowedValueName, allowedValueOf } from '../../../helpers/allowedValues';
 import {
   hasAllDependenciesFullfilled,
   parseDependency,
@@ -110,9 +111,9 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
      ("Other"), not by the value it stands for (`__other__`, qorus#646). A value with no display name is
      quoted as it is. */
   const allowed = (dependencySchema.allowed_values as IQorusAllowedValue[] | undefined)?.find(
-    (entry) => typeof entry?.value === 'object' && String(entry.value?.value) === value
+    (entry) => String(allowedValueOf(entry)) === value
   );
-  const shown = allowed?.display_name || value;
+  const shown = allowed ? allowedValueName(allowed) : value;
 
   // `!name` names no value to compare against — it is satisfied by the sibling
   // being unanswered — so it gets a sentence of its own rather than the

@@ -16,7 +16,7 @@ import { isOptionInterfaceUiType } from './optionUiTypes';
 import { getListElementValue, getOptionsFromRequiredGroups } from './options';
 import { IProviderType, TVariableActionValue, maybeBuildOptionProvider } from './providerValue';
 import { getTemplateKey, getTemplateValue, isValueTemplate, textAroundATemplate } from './templates';
-import { getUnlistedChoiceReason } from './allowedValues';
+import { allowedValueOf, getUnlistedChoiceReason } from './allowedValues';
 import { storedColorProblem } from '../components/colorValue/colorValue';
 import { asLoneValue } from '../components/form/expressions/loneValue';
 
@@ -446,7 +446,7 @@ export const _validateField = (
 
       if (field?.allowed_values) {
         const allowedValue = field.allowed_values.find(
-          (val: any) => val.value?.value === value || val.name === value
+          (val: any) => allowedValueOf(val) === value || val.name === value
         );
 
         if (!allowedValue) {

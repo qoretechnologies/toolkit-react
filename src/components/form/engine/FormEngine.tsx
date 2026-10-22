@@ -128,6 +128,7 @@ import {
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import { TypeSentenceFormProvider, useTypeName } from '../typeSentenceForm';
 import { optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
+import { allowedValueOf } from '../../../helpers/allowedValues';
 import { isTypingControl } from './rowFocus';
 import { firstDeclaredType, isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
@@ -2579,7 +2580,7 @@ const FormEngineImpl = ({
     forEach(options || {}, (optionSchema, name) => {
       forEach(optionSchema?.allowed_values || [], (allowedValue) => {
         if (!getAllowedValueAvailability(allowedValue, availableOptions, options || {}).available) {
-          locked.push(`${name}\u0000${JSON.stringify(allowedValue?.value?.value)}`);
+          locked.push(`${name}\u0000${JSON.stringify(allowedValueOf(allowedValue))}`);
         }
       });
     });

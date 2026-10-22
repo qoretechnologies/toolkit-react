@@ -7691,9 +7691,13 @@ const ArrivingProcessorSchema: IOptionsSchema = {
     type: 'string',
     display_name: 'Processor Class',
     required: true,
+    // as the server sends a choice: its name, and its value in its envelope
     allowed_values: [
-      { name: 'ProcessorTypeTest', value: 'ProcessorTypeTest' },
-      { name: 'qogcompatibilitytest', value: 'qogcompatibilitytest' },
+      { display_name: 'ProcessorTypeTest', value: { type: 'string', value: 'ProcessorTypeTest' } },
+      {
+        display_name: 'qogcompatibilitytest',
+        value: { type: 'string', value: 'qogcompatibilitytest' },
+      },
     ],
     sort: 1,
   },
@@ -12946,6 +12950,43 @@ const RICH_TEXT_CHOICE_OPTIONS = {
   },
 } as never;
 
+/** The open list of Saved & Suggested Values: the popover that offers the channels. */
+const suggestionList = (): HTMLElement | undefined =>
+  [...document.querySelectorAll<HTMLElement>('.reqore-popover-content')].find(
+    (popover) => !!within(popover).queryByText('random', { exact: true })
+  );
+
+/** Picks a channel from Saved & Suggested Values, opening the list unless it is open. */
+const pickSuggestion = async (name: string, { listOpen = false } = {}) => {
+  if (!listOpen) {
+    await _testsClickText('Saved & Suggested Values');
+  }
+  await waitFor(() => expect(suggestionList()).toBeTruthy(), { timeout: 10000 });
+  await fireEvent.click(within(suggestionList()!).getByText(name, { exact: true }));
+  await waitFor(() => expect(suggestionList()).toBeUndefined());
+};
+
+/** Opens Saved & Suggested Values and checks that it ticks the channel held, and only that one. */
+const expectSuggestionTicked = async (held: string) => {
+  await _testsClickText('Saved & Suggested Values');
+  await waitFor(
+    () => {
+      const list = suggestionList();
+      expect(list).toBeTruthy();
+      // a channel row has no icon of its own: the one it can carry is the tick
+      const ticked = ['general', 'random'].filter(
+        (name) =>
+          !!within(list!)
+            .getByText(name, { exact: true })
+            .closest('.reqore-menu-item')
+            ?.querySelector('.reqore-icon')
+      );
+      expect(ticked).toEqual([held]);
+    },
+    { timeout: 10000 }
+  );
+};
+
 const expectChannelChip = async (canvasElement: HTMLElement) => {
   await waitFor(
     () => {
@@ -12987,7 +13028,7 @@ export const PickingARichTextChoiceShowsItsName: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with an empty rich-text Channel option. When "general" is picked from Saved & Suggested Values, the editor shows a chip reading "general" rather than the channel id it stores.',
+          'Renders a compact form with an empty rich-text Channel option. When "general" is picked from Saved & Suggested Values, the editor shows a chip reading "general" rather than the channel id it stores. The option takes one channel: opened again, the list ticks "general" as the one held, a pick of "random" replaces it (the chip reads "random", the form holds its id and the list ticks "random"), and a pick of "general" puts it back.',
       },
     },
   },
@@ -12998,14 +13039,30 @@ export const PickingARichTextChoiceShowsItsName: Story = {
     value: {},
     options: RICH_TEXT_CHOICE_OPTIONS,
   },
-  play: async ({ canvasElement }) => {
-    await _testsClickText('Saved & Suggested Values');
+  play: async ({ args, canvasElement }) => {
+    await pickSuggestion('general');
+    await expectChannelChip(canvasElement);
+
+    // one channel: the list ticks the one held, and a pick of another replaces it (David's review)
+    await expectSuggestionTicked('general');
+    await pickSuggestion('random', { listOpen: true });
     await waitFor(
-      () => expect(within(document.body).getByText('general')).toBeInTheDocument(),
+      () => {
+        const row = canvasElement.querySelector('[data-field="channel"]') as HTMLElement | null;
+        const chips = [...(row?.querySelectorAll('.reqore-tag:not(.options-readfirst-type)') ?? [])]
+          .map((chip) => chip.textContent)
+          .filter((text) => text === 'general' || text === 'random');
+        expect(chips).toEqual(['random']);
+      },
       { timeout: 10000 }
     );
-    await fireEvent.click(within(document.body).getByText('general'));
-
+    await waitFor(() =>
+      expect(JSON.stringify((args.onChange as ReturnType<typeof fn>).mock.lastCall)).toContain(
+        'C07RANDOM01'
+      )
+    );
+    await expectSuggestionTicked('random');
+    await pickSuggestion('general', { listOpen: true });
     await expectChannelChip(canvasElement);
   },
 };

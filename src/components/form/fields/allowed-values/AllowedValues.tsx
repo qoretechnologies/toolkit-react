@@ -8,6 +8,11 @@
 // - `ConnectionManagement` per-item actions — dropped (actions omitted).
 // - `Select` → reqraft `SelectFormField` (`items` instead of `defaultItems`,
 //   single-arg `onChange`; `type`/`closeCollectionOnUnMount` not forwarded).
+import {
+  allowedValueName,
+  allowedValueOf,
+  heldAllowedValue,
+} from '../../../../helpers/allowedValues';
 import { ReqoreCheckbox, ReqoreControlGroup, ReqoreSpan } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IQorusAllowedValue, TQorusType } from '@qoretechnologies/ts-toolkit';
@@ -215,8 +220,10 @@ export const FieldAllowedValues = memo(
           const resolved = availability[index];
 
           return {
-            value: value?.value,
+            // its value and its name however the entry is written: an envelope, a bare value or a name
+            value: allowedValueOf({ value, name: rest.name }),
             ...rest,
+            display_name: allowedValueName({ ...rest, value }),
             disabled: rest.disabled || resolved?.available === false,
             unavailable:
               resolved && !resolved.available ?
@@ -290,9 +297,12 @@ export const FieldAllowedValues = memo(
       );
     }
 
+    // The suggestions beside the field's own editor: a pick replaces what it holds, and the list ticks the
+    // suggestion it holds, if it holds one (qorus#646).
     return (
       <Select
         items={fullItems}
+        markedValue={heldAllowedValue(value, items)}
         onChange={(value) => onChange(name, value)}
         fluid
         fixed={false}

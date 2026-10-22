@@ -1,3 +1,4 @@
+import { allowedValueName, allowedValueOf, heldAllowedValue } from '../../../helpers/allowedValues';
 import {
   IReqoreLabelProps,
   ReqoreCheckbox,
@@ -428,7 +429,7 @@ export const FormField = <T extends TFormFieldType>({
         if (size(element_allowed_values) && !element_allowed_values_creatable) {
           const formatToServer = (vals: unknown[]) =>
             (vals || []).map((v) => {
-              const match = element_allowed_values.find((ev) => isEqual(ev.value?.value, v));
+              const match = element_allowed_values.find((ev) => isEqual(allowedValueOf(ev), v));
               return { value: v, type: match?.value?.type ?? effectiveElementType };
             });
           const formatFromServer = (vals: unknown[]) =>
@@ -439,9 +440,10 @@ export const FormField = <T extends TFormFieldType>({
             return (
               <ReqoreControlGroup vertical size={choiceSize}>
                 {element_allowed_values.map((item, index) => {
-                  const itemValue = item.value?.value;
+                  // its value and its name however the entry is written: an envelope, a bare value or a name
+                  const itemValue = allowedValueOf(item);
                   const checked = serverValue.some((v) => isEqual(v, itemValue));
-                  const label = item.display_name ?? String(itemValue);
+                  const label = allowedValueName(item);
                   // with a mouse, the hover; on a touch screen, an ⓘ beside the box, whose tap only ticks it
                   const described = describedControl(item.short_desc || item.desc, descriptions, label);
                   return besideItsInfo(
@@ -588,7 +590,8 @@ export const FormField = <T extends TFormFieldType>({
     const resolved = availability[index];
 
     return {
-      display_name: item.display_name,
+      // its name and its value however the entry is written: an envelope, a bare value or a name
+      display_name: allowedValueName(item),
       short_desc: item.short_desc,
       desc: item.desc,
       icon: item.icon,
@@ -607,7 +610,7 @@ export const FormField = <T extends TFormFieldType>({
         resolved && !resolved.available ?
           { title: resolved.title, content: resolved.reason as string, intent: resolved.intent }
         : undefined,
-      value: item.value?.value,
+      value: allowedValueOf(item),
     };
   };
 
@@ -646,12 +649,14 @@ export const FormField = <T extends TFormFieldType>({
       );
     }
 
-    // Creatable but not chip-shaped: "Saved & Suggested Values" style — no
-    // value, fills the raw field and resets
+    // Creatable but not chip-shaped: "Saved & Suggested Values" style — the
+    // raw field holds the value, and a pick replaces it
     if (allowed_values_creatable) {
       return (
         <SelectFormField
           items={allowed_values.map(mapAllowedValue)}
+          // a pick replaces what the field holds, and the list ticks the suggestion it holds (qorus#646)
+          markedValue={heldAllowedValue(value, allowed_values)}
           onChange={(val) => handleChange(val as TFormFieldValueType<T>)}
           placeholder='Saved & Suggested Values'
           minimal
@@ -676,11 +681,12 @@ export const FormField = <T extends TFormFieldType>({
             {display_name ? `${display_name}:` : 'Select one:'}
           </ReqoreSpan>
           {allowed_values.map((item, index) => {
-            const itemValue = item.value?.value;
+            // its value and its name however the entry is written: an envelope, a bare value or a name
+            const itemValue = allowedValueOf(item);
             const checked = isEqual(value, itemValue);
             const mapped = mapAllowedValue(item, index);
             const unavailable = getSelectItemUnavailability(mapped);
-            const label = item.display_name ?? JSON.stringify(itemValue);
+            const label = allowedValueName(item);
             // with a mouse, the hover; on a touch screen, an ⓘ beside the box, whose tap only ticks it
             const described = describedControl(getSelectItemShortDescription(mapped), descriptions, label);
             return besideItsInfo(

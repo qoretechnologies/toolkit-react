@@ -53,6 +53,13 @@ export interface ISelectFormFieldProps {
    * on the trigger, full names in the picker). Ignored while nothing is
    * selected. */
   valueLabel?: string;
+  /**
+   * The value the list marks as held, for a list whose trigger does not draw it: the suggestions beside an editor
+   * that holds the field's value ("Saved & Suggested Values"). The trigger keeps its own name, and the list ticks
+   * the suggestion the field holds, so a pick reads as replacing it (qorus#646, David: "if this option takes a
+   * single value, then selecting another value should replace the one that's there").
+   */
+  markedValue?: unknown;
   showPlaceholder?: boolean;
   showRightIcon?: boolean;
   hideItemCount?: boolean;
@@ -93,6 +100,7 @@ export const SelectFormField = memo(
     showDescription = true,
     canCreateItems,
     valueLabel,
+    markedValue,
     showPlaceholder = true,
     showRightIcon = true,
     hideItemCount,
@@ -182,7 +190,7 @@ export const SelectFormField = memo(
           tooltip: unavailable ? unavailable.content : undefined,
           icon: unavailable ? ('LockLine' as const) : undefined,
           value: item.value,
-          selected: isEqual(item.value, value),
+          selected: isEqual(item.value, value ?? markedValue),
           intent: item.intent,
           className: unavailable ? UNAVAILABLE_ITEM_CLASS : undefined,
           /* Its name dimmed through reqore's own `labelEffect`, and never
@@ -199,7 +207,12 @@ export const SelectFormField = memo(
           onClick: unavailable ? undefined : () => handleSelectClick(item),
         };
       });
-    }, [JSON.stringify(filteredItems), value, unavailableOpacity]) as IReqoreDropdownItem[];
+    }, [
+      JSON.stringify(filteredItems),
+      value,
+      JSON.stringify(markedValue),
+      unavailableOpacity,
+    ]) as IReqoreDropdownItem[];
 
     const getItemShortDescription = useCallback(
       (itemName: unknown, defaultDesc = '') => {
@@ -501,7 +514,7 @@ export const SelectFormField = memo(
             <SelectFieldCollection
               items={filteredItems}
               filters={filters}
-              value={value}
+              value={value ?? markedValue}
               onItemSelect={handleSelectClick}
               onClose={() => setCollectionOpen(false)}
             />
