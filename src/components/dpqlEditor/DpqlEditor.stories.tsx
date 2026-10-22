@@ -726,6 +726,11 @@ export const DetailsOnAChipOnATouchScreen: Story = {
         },
         { timeout: 10000 }
       );
+      if (touch.narrowed) {
+        // in a row a phone's width, Details is its icon alone, still named (Foxhoundn, qlip #383)
+        await waitFor(() => expect(details.textContent?.trim()).toBe(''));
+        await expect(details).toHaveAccessibleName('Show what the word at the cursor is');
+      }
       await touch.tap(details);
       await waitFor(
         () => expect(shownHovers()).toEqual([expect.stringContaining('list wildcard ([*])')]),

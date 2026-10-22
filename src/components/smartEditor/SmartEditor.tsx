@@ -28,6 +28,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { useMeasure } from 'react-use';
 import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
@@ -220,6 +221,9 @@ let completionMenuCounter = 0;
 
 /* The text's box in its row: it takes the row, and gives it up to the Details button beside it on a touch
    screen. */
+/** The width of the editor's row (Reqore's phone width) at or below which its Details button is its icon alone. */
+const DETAILS_WORD_MIN_ROW_WIDTH = 480;
+
 const EDITOR_BOX_STYLE: React.CSSProperties = {
   position: 'relative',
   flex: '1 1 auto',
@@ -302,6 +306,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     /* A finger cannot hover: where the pointer is one, "Details" shows what the server says of the word at the
        caret, in the same pop-up a mouse gets by hovering. Only where the server says anything (`hoverProvider`). */
     const coarse = useCoarsePointer();
+    /* The row the text and its Details button share, measured: in a row a phone's width or narrower, Details is its
+       icon alone - its word took the text's room (Foxhoundn on qlip #383: "The details button should be just an icon
+       on such small screen / container size"). The row, not the screen: an editor in a narrow card on a wide
+       screen is as short of room. */
+    const [rowRef, { width: rowWidth }] = useMeasure<HTMLDivElement>();
+    const detailsSaysItsWord = !rowWidth || rowWidth > DETAILS_WORD_MIN_ROW_WIDTH;
     const showDetailsButton =
       coarse &&
       enableHover &&
@@ -608,7 +618,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         {/* The text and, on a touch screen, its Details button beside it, in one row: under the text the button
             was far from it, and what it showed was drawn over the text (Foxhoundn, qlip #361). Always the row,
             so the text is not remounted when the button appears. */}
-        <ReqoreControlGroup fluid verticalAlign='flex-start' className='smart-editor-row'>
+        <ReqoreControlGroup
+          ref={rowRef}
+          fluid
+          verticalAlign='flex-start'
+          className='smart-editor-row'
+        >
           <div style={EDITOR_BOX_STYLE}>
             <ReqoreRichTextEditor
               ref={editorRef}
@@ -739,6 +754,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               flat
               minimal
               aria-label='Show what the word at the cursor is'
+              tooltip={detailsSaysItsWord ? undefined : 'Details'}
               // the press keeps the focus, and the caret the details are of, in the text
               onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
               onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
@@ -747,7 +763,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 void hover.showAtCaret({ left: right, top: bottom }).then(setDetailsHoverId);
               }}
             >
-              Details
+              {detailsSaysItsWord ? 'Details' : undefined}
             </ReqoreButton>
           )}
         </ReqoreControlGroup>

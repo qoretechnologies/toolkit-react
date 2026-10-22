@@ -791,7 +791,7 @@ export const TextModeConditionThatGivesANumberOnAPhone: Story = {
     docs: {
       description: {
         story:
-          'The condition that gives a number, on a phone (390 px, touch): the warning under the text wraps inside the field.',
+          'The condition that gives a number, on a phone (390 px, touch): the warning under the text wraps inside the field, and the Details button beside the text is its icon alone (Foxhoundn, qlip #383).',
       },
     },
   },
@@ -804,6 +804,11 @@ export const TextModeConditionThatGivesANumberOnAPhone: Story = {
         await waitFor(() =>
           expect(verdict!.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth)
         );
+        // in a row a phone's width or narrower, Details is its icon alone, still named
+        const details = context.canvasElement.querySelector<HTMLElement>('.smart-editor-details');
+        expect(details, 'the Details button').toBeTruthy();
+        await waitFor(() => expect(details!.textContent?.trim()).toBe(''));
+        await expect(details).toHaveAccessibleName('Show what the word at the cursor is');
       }
     });
   },
