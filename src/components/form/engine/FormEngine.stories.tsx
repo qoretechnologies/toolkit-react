@@ -11284,6 +11284,15 @@ const chipPaint = (root: Element | null | undefined) => {
 };
 
 /** The rows of the one completion list open at an editor's caret. */
+/** Every animation and transition on the page that ends has ended: what a capture shows is drawn in full. */
+const animationsSettled = () =>
+  Promise.all(
+    document
+      .getAnimations()
+      .filter((animation) => animation.effect?.getComputedTiming().endTime !== Infinity)
+      .map((animation) => animation.finished.catch(() => undefined))
+  );
+
 /** The rows of the list a value's text opens on a click: its templates, browsed. */
 const browseRows = () =>
   Array.from(
@@ -11617,8 +11626,12 @@ export const TemplateOnlyOptionIsItsValue: Story = {
     },
   },
   render: () => <TemplateOrExpressionForm />,
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, parameters }) => {
+    // at the size it is captured at: on a phone its row is below the fold
+    await atTheCaptureSize(parameters);
     const row = await editOption('template_only');
+    // the last row: the capture is of it
+    row.scrollIntoView({ block: 'center' });
     const editor = await waitFor(() => {
       const el = row.querySelector<HTMLElement>('.value-tab-text [data-slate-editor]');
       expect(el?.querySelector('.reqore-tag')?.textContent).toContain('pos');
@@ -11633,6 +11646,7 @@ export const TemplateOnlyOptionIsItsValue: Story = {
     await waitFor(() =>
       expect(browseRows().some((item) => item.textContent?.startsWith('pos'))).toBe(true)
     );
+    await animationsSettled();
   },
 };
 
@@ -12998,8 +13012,13 @@ export const TemplateBadgeFromTheHost: Story = {
     await waitFor(() => {
       const rows = browseRows().filter((item) => /^(pos|bezeichnung)/.test(item.textContent ?? ''));
       expect(rows, `listed: ${browseRows().map((item) => item.textContent)}`).toHaveLength(2);
-      for (const row of rows) expect(row.textContent).toContain('Row field');
+      for (const row of rows) {
+        expect(row.textContent).toContain('Row field');
+        // each can be picked: a row given an `items` with no members was drawn disabled
+        expect((row as HTMLButtonElement).disabled, `${row.textContent} can be picked`).toBe(false);
+      }
     });
+    await animationsSettled();
   },
 };
 

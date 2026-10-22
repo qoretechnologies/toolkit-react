@@ -38,6 +38,17 @@ describe('a catalogue marked with where its templates come from', () => {
     expect(marked.items[1].source).toBeUndefined();
   });
 
+  it('gives a template no `items` of its own: a list draws a row with an empty one as disabled', () => {
+    const marked = withTemplateSources(ROW_FIELDS, rowField) as unknown as {
+      items: Record<string, unknown>[];
+    };
+    const leaves = [
+      ...((marked.items[0].items as Record<string, unknown>[]) ?? []),
+      marked.items[1],
+    ];
+    for (const leaf of leaves) expect('items' in leaf).toBe(false);
+  });
+
   it('is the catalogue itself where the host names nothing', () => {
     expect(withTemplateSources(ROW_FIELDS, undefined)).toBe(ROW_FIELDS);
     expect(withTemplateSources(undefined, rowField)).toBeUndefined();

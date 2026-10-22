@@ -32,11 +32,13 @@ export const withTemplateSources = <T extends { items?: unknown[] } | undefined>
   if (!templates || !sourceOf) return templates;
   const mark = (list: TTemplateItem[] | undefined): TTemplateItem[] | undefined =>
     list?.map((item) => {
-      const items = Array.isArray(item.items) ? mark(item.items) : item.items;
       const source = typeof item.value === 'string' && item.value ? sourceOf(item) : undefined;
-      return source || items !== item.items ?
-          { ...item, items, ...(source ? { source } : {}) }
-        : item;
+      // `items` only on a group: a list draws a row with an `items` key and no members as disabled
+      return {
+        ...item,
+        ...(Array.isArray(item.items) ? { items: mark(item.items) } : {}),
+        ...(source ? { source } : {}),
+      };
     });
   return { ...templates, items: mark(templates.items as TTemplateItem[] | undefined) };
 };
