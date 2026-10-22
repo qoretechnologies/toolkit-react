@@ -451,6 +451,106 @@ describe('the stand-in tokenizer reads field names in any script, as the server 
   });
 });
 
+// qorus#646 (David's review: `pos + 1 + $pos` said nothing): text the server cannot read is published as the
+// server publishes it. Every expected value is what professor's `/lsp` published for the same text (checkout
+// 35096ca2d, capture-dpql-diagnostics.qr), the record's fields pos (int) and bezeichnung (string).
+describe('text the server cannot read is published, in its words and where it is', () => {
+  const published = (text: string) =>
+    mockPublishedDiagnostics(text).map(({ code, message, range }) => ({
+      code,
+      message,
+      from: range.start.character,
+      to: range.end.character,
+    }));
+
+  it('a $ left in front of a template', () => {
+    expect(published('$record:{pos} + 1 + $$record:{pos}')).toEqual([
+      {
+        code: 'DPQL-E031',
+        message: "Invalid template reference: expected context identifier after '$', got '$'",
+        from: 20,
+        to: 21,
+      },
+    ]);
+  });
+
+  it('a $ with nothing after it', () => {
+    expect(published('$')).toEqual([
+      {
+        code: 'DPQL-E030',
+        message: "Incomplete template reference: expected context identifier after '$'",
+        from: 0,
+        to: 1,
+      },
+    ]);
+    expect(published('$record:{pos} + 1 + $')[0]).toMatchObject({
+      code: 'DPQL-E030',
+      from: 20,
+      to: 21,
+    });
+  });
+
+  it('a value after a whole expression', () => {
+    expect(published('$record:{pos} $record:{bezeichnung}')).toEqual([
+      {
+        code: 'DPQL-E001',
+        message: "Unexpected token '$record:{bezeichnung}' after expression",
+        from: 14,
+        to: 35,
+      },
+    ]);
+    expect(published('1 + 2 )')).toEqual([
+      { code: 'DPQL-E001', message: "Unexpected token ')' after expression", from: 6, to: 7 },
+    ]);
+  });
+
+  it('an @ that names no field', () => {
+    expect(published('1 + @')).toEqual([
+      { code: 'DPQL-E003', message: 'Incomplete field reference', from: 4, to: 5 },
+    ]);
+    expect(published('@ + 1')).toEqual([
+      {
+        code: 'DPQL-E003',
+        message: "Invalid field reference: expected identifier or quoted string after '@', got ' '",
+        from: 0,
+        to: 1,
+      },
+    ]);
+  });
+
+  it('each character it cannot read, reading on past it', () => {
+    expect(published('… > …')).toEqual([
+      { code: 'DPQL-E001', message: "Unexpected character '…'", from: 0, to: 1 },
+      { code: 'DPQL-E001', message: "Unexpected character '…'", from: 4, to: 5 },
+    ]);
+  });
+
+  it('an operator with nothing after it', () => {
+    expect(published('12 +')).toEqual([
+      expect.objectContaining({
+        code: 'DPQL-E001',
+        message: 'Unexpected end of input, expected value',
+      }),
+    ]);
+  });
+
+  it('dpql/parse says the same', () => {
+    expect(mockParseDpql('$record:{pos} + 1 + $$record:{pos}').diagnostics).toEqual([
+      expect.objectContaining({
+        severity: 'error',
+        code: 'DPQL-E031',
+        message: "Invalid template reference: expected context identifier after '$', got '$'",
+        column: 21,
+        end_column: 22,
+      }),
+    ]);
+  });
+
+  it('and nothing of text it reads', () => {
+    expect(published('$record:{pos} + 1 + $record:{pos}')).toEqual([]);
+  });
+});
+
 // qorus#646: the server's parser refuses a `+` whose operands it cannot combine (DPQL-E050); the mock answers
 // as professor's language server did for the case the stories write, a hash and a number.
 describe('operands the operator cannot combine', () => {

@@ -449,6 +449,43 @@ export function getTagLabel(value: string): string {
 export const endsDpqlReference = (char: string): boolean =>
   !!char && !/^[\p{L}\p{M}\p{N}_.:{[]$/u.test(char);
 
+/** A `$` or `@` at the end of a line, and what a reference goes on with after it. */
+const REFERENCE_BEING_WRITTEN = /[@$][\p{L}\p{M}\p{N}_.:{}[\]*-]*$/u;
+
+/**
+ * How much of the end of `textBefore` (the DPQL text before the caret) is a reference still being written - a `$`
+ * or an `@` with no more than part of a name after it: the `$` typed to ask for a template, `$rec`, `$record:{po`.
+ * A template picked there takes its place, as one picked from the completion list does: left in front of the chip,
+ * it made `pos + 1 + $pos`, which the server refuses (qorus#646, David's review). 0 when there is none: after a
+ * whole reference (`$record:{pos}`, `@pos`), which is a value already, and after an `@` in a string, which is text
+ * there - a template in a string is still one (`readReferences`).
+ */
+export const dpqlReferenceBeingWritten = (textBefore: string): number => {
+  const lines = textBefore.split('\n');
+  const line = lines.pop() ?? '';
+  const match = REFERENCE_BEING_WRITTEN.exec(line);
+  if (!match) {
+    return 0;
+  }
+  const written = match[0];
+  const whole =
+    written[0] === '$' ? readTemplate(line, match.index)?.end === line.length : written.length > 1;
+  if (whole) {
+    return 0;
+  }
+  if (written[0] === '@') {
+    // the string literal open where it is written, which may have opened on a line before
+    let quote: string | undefined;
+    for (const before of lines) {
+      quote = readReferences(before, quote).quote;
+    }
+    if (readReferences(line.slice(0, match.index), quote).quote) {
+      return 0;
+    }
+  }
+  return written.length;
+};
+
 /**
  * Where the server says something of a part of a reference's chip (its text, as written): the field at its start,
  * and after it the `*` of each wildcard, each name after a dot and each key in braces - not an index, which the
@@ -491,6 +528,7 @@ export const dpqlSlateConverter: ISlateConverter = {
   selectionToOffset: slateSelectionToOffset,
   endsReference: endsDpqlReference,
   hoverOffsetsOf: dpqlHoverOffsets,
+  referenceBeingWritten: dpqlReferenceBeingWritten,
 };
 
 /**

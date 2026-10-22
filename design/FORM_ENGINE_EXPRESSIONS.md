@@ -216,6 +216,34 @@ whether it is the right type — a mismatch is something to show the author
 inside the editor, never a reason to refuse to open it. A probe never
 throws; an unreachable instance simply leaves the typed text alone.
 
+## A template picked in the Text view
+
+*Added 2026-10-22. As-built (qorus#646, David's review).*
+
+The Text view offers templates three ways: the list the field's templates
+are browsed in, opened by a click, tap or Tab into the text (reqore's
+`tags` list); the server's completion list, opened by typing `$` or `@`;
+and the templates offered beside the text (`.expression-text-template-picker`).
+A template picked from any of them takes the place of the reference being
+written where it goes: a `$` or `@` with no more than part of a name after
+it (`dpqlReferenceBeingWritten`; not an `@` in a string, which is text, nor
+a whole reference, which is a value already). The completion list's
+inserter does this itself; the browse list is reqore's, which puts a chip
+in at the caret as it is, so `SmartEditor` adds a Slate plugin to the
+editor's `insertNodes` (when its converter says what is being written, as
+the DPQL converter does) that takes the reference away in the same change.
+Before it, a `$` typed to ask for a template stayed in front of the one
+picked: `pos + 1 + $pos`. Beside the text, the pick goes at the end of the
+text, by the same rule.
+
+What does not parse is said in the server's words, under the text: the
+server publishes what `dpql-parse` says of a document on every open and
+change (`publishDiagnostics` in `QorusLspWebSocketHandler`), and the editor
+shows each error. The stories' stand-in server published nothing for text
+it could not read, so a story's editor said nothing of `pos + 1 + $pos`;
+it now publishes what the server does (DPQL-E030 and E031 for a `$` that
+starts no template, E001 for what follows a whole expression).
+
 ## Return-type checking
 
 *Added 2026-09-06. As-built.*

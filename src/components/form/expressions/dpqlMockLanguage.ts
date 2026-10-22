@@ -247,17 +247,35 @@ const RETURN_TYPES: Record<string, string> = {
   toBool: 'bool',
 };
 
+/** What the server says of text it cannot read: its words, its code, and the columns (from 1) it is said of. */
 class DpqlMockSyntaxError extends Error {
   constructor(
     message: string,
-    readonly column: number
+    readonly column: number,
+    readonly code = 'DPQL-E001',
+    readonly endColumn = column
   ) {
     super(message);
   }
 }
 
+/** Everything the tokenizer could not read in a text, as the server says each. */
+class DpqlMockSyntaxErrors extends Error {
+  constructor(readonly errors: DpqlMockSyntaxError[]) {
+    super(errors[0]?.message);
+  }
+}
+
+/** What is said of text that cannot be read: each thing it says. */
+const syntaxErrorsOf = (err: unknown): DpqlMockSyntaxError[] =>
+  err instanceof DpqlMockSyntaxErrors ? err.errors
+  : err instanceof DpqlMockSyntaxError ? [err]
+  : [];
+
 const tokenize = (text: string): TToken[] => {
   const tokens: TToken[] = [];
+  // what cannot be read, each said where it is: the server reads on past it and says each (`… > …`: two)
+  const unread: DpqlMockSyntaxError[] = [];
   LEX_RE.lastIndex = 0;
   while (LEX_RE.lastIndex < text.length) {
     const start = LEX_RE.lastIndex;
@@ -272,7 +290,51 @@ const tokenize = (text: string): TToken[] => {
     const m = LEX_RE.exec(text);
     if (!m) {
       if (text.slice(start).trim() === '') break;
-      throw new DpqlMockSyntaxError('Unexpected character', start + 1);
+      /* A `$` that does not start a template, in the server's words (Qore DpqlTokenizer, DPQL-E030 and E031): what
+         a `$` typed to ask for a template, or left in front of one picked, reads as. */
+      const char = String.fromCodePoint(text.codePointAt(at) ?? 0);
+      if (char === '$' && at + 1 >= text.length) {
+        unread.push(
+          new DpqlMockSyntaxError(
+            "Incomplete template reference: expected context identifier after '$'",
+            at + 1,
+            'DPQL-E030',
+            at + 2
+          )
+        );
+      } else if (char === '$') {
+        unread.push(
+          new DpqlMockSyntaxError(
+            `Invalid template reference: expected context identifier after '$', got '${text[at + 1]}'`,
+            at + 1,
+            'DPQL-E031',
+            at + 2
+          )
+        );
+      } else if (char === '@') {
+        // an `@` that names no field (DPQL-E003): typed to ask for one, or left in front of one picked
+        unread.push(
+          new DpqlMockSyntaxError(
+            at + 1 >= text.length ?
+              'Incomplete field reference'
+            : `Invalid field reference: expected identifier or quoted string after '@', got '${text[at + 1]}'`,
+            at + 1,
+            'DPQL-E003',
+            at + 2
+          )
+        );
+      } else {
+        unread.push(
+          new DpqlMockSyntaxError(
+            `Unexpected character '${char}'`,
+            at + 1,
+            'DPQL-E001',
+            at + 1 + char.length
+          )
+        );
+      }
+      LEX_RE.lastIndex = at + char.length;
+      continue;
     }
     const tokenStart = start + m[0].length - m[0].trimStart().length;
     if (m[1]) tokens.push({ kind: 'string', text: m[1], start: tokenStart });
@@ -281,6 +343,9 @@ const tokenize = (text: string): TToken[] => {
     else if (m[4]) tokens.push({ kind: 'word', text: m[4], start: tokenStart });
     else if (m[5]) tokens.push({ kind: 'op', text: m[5], start: tokenStart });
     else if (m[6]) tokens.push({ kind: 'template', text: `$record:{${m[6].slice(1)}}`, start: tokenStart });
+  }
+  if (unread.length) {
+    throw new DpqlMockSyntaxErrors(unread);
   }
   return tokens;
 };
@@ -300,7 +365,9 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
     const token = peek();
     throw new DpqlMockSyntaxError(
       token ? `Unexpected token '${token.text}'` : 'Unexpected end of input, expected value',
-      token ? token.start + 1 : endColumn
+      token ? token.start + 1 : endColumn,
+      'DPQL-E001',
+      token ? token.start + 1 + token.text.length : endColumn
     );
   };
 
@@ -382,7 +449,16 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
   };
 
   const root = binary(1);
-  if (pos < tokens.length) fail();
+  // what follows a whole expression, said as the server says it
+  const after = peek();
+  if (after) {
+    throw new DpqlMockSyntaxError(
+      `Unexpected token '${after.text}' after expression`,
+      after.start + 1,
+      'DPQL-E001',
+      after.start + 1 + after.text.length
+    );
+  }
   return root;
 };
 
@@ -676,8 +752,21 @@ export const mockPublishedDiagnostics = (text: string, fields: TDpqlMockFields =
       source: 'dpql',
       message: error.message,
     }));
-  } catch {
-    return [];
+  } catch (err) {
+    /* Text it cannot read is published as the server publishes it, where it is (Qorus `publishDiagnostics` runs
+       `dpql-parse` and sends what it says): the stand-in published nothing, so a story's editor said nothing of
+       `pos + 1 + $pos`, which the server refuses (qorus#646, David's review). */
+    const lead = text.length - text.trimStart().length;
+    return syntaxErrorsOf(err).map((error) => ({
+      range: {
+        start: { line: 0, character: lead + error.column - 1 },
+        end: { line: 0, character: lead + error.endColumn - 1 },
+      },
+      severity: 1,
+      code: error.code,
+      source: 'dpql',
+      message: error.message,
+    }));
   }
 };
 
@@ -716,20 +805,31 @@ export const mockParseDpql = (
       : { inferred_type: inferred, diagnostics: [] }),
     } as IDpqlMockParseResult;
   } catch (err) {
-    const column = err instanceof DpqlMockSyntaxError ? err.column : 1;
+    const said = syntaxErrorsOf(err);
     return {
       success: false,
-      diagnostics: [
-        {
-          severity: 'error',
-          message: err instanceof Error ? err.message : String(err),
-          code: 'DPQL-E001',
-          line: 1,
-          column,
-          end_line: 1,
-          end_column: column,
-        },
-      ],
+      diagnostics:
+        said.length ?
+          said.map((error) => ({
+            severity: 'error',
+            message: error.message,
+            code: error.code,
+            line: 1,
+            column: error.column,
+            end_line: 1,
+            end_column: error.endColumn,
+          }))
+        : [
+            {
+              severity: 'error',
+              message: err instanceof Error ? err.message : String(err),
+              code: 'DPQL-E001',
+              line: 1,
+              column: 1,
+              end_line: 1,
+              end_column: 1,
+            },
+          ],
     };
   }
 };

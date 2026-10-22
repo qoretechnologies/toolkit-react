@@ -10811,6 +10811,94 @@ export const ListsLookAndBehaveAlike: Story = {
   },
 };
 
+/** What the editor of an option's expression says is wrong with its text, in the server's words. */
+const expressionErrorsOf = (field: string) =>
+  Array.from(
+    optionRow(field).querySelectorAll<HTMLElement>('.expression-field [data-severity="danger"]')
+  ).map((message) => message.textContent?.trim() ?? '');
+
+/** How many times the expression an option holds names the template `value`. */
+const timesHeld = (canvasElement: HTMLElement, field: string, value: string) =>
+  JSON.stringify(heldOption(canvasElement, field) ?? null).split(JSON.stringify(value)).length - 1;
+
+export const TemplatePickedAfterADollarInAnExpression: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the form and opens Computed (pos + 1) on its Text view. ` + $` typed there does not parse, and the editor says what the server says of it: an incomplete template reference. Escape puts the completion list away; a click after the `$` lists the row's fields, and pos picked from them takes the `$`'s place: the text is pos + 1 + pos, which the server reads, and the form holds it. ` + $` again, and pos picked from the templates offered beside the text takes its place too (David's review: the `$` stayed in front of the chip, pos + 1 + $pos, and nothing said it was wrong).",
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async ({ canvasElement }) => {
+    const computed = await editOption('computed');
+    const text = await waitFor(() => {
+      const el = computed.querySelector<HTMLElement>('.expression-field [data-slate-editor]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await waitFor(() => expect(expressionTextOf('computed')).toBe('pos + 1'));
+    const rows = () =>
+      Array.from(
+        document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')
+      );
+    const askForATemplate = async (time: string) => {
+      // a click past the text puts the caret at its end
+      await userEvent.click(text);
+      await userEvent.keyboard(' + $');
+      await waitFor(() =>
+        expect(
+          openList().menu?.classList.contains('completion-menu'),
+          `the completion list, ${time}: ${expressionTextOf('computed')}`
+        ).toBe(true)
+      );
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() => expect(openList().menu).toBeFalsy());
+    };
+
+    // a `$` alone does not parse: the editor says so, as the server does
+    await askForATemplate('first');
+    await waitFor(() =>
+      expect(expressionErrorsOf('computed')).toEqual([
+        "Incomplete template reference: expected context identifier after '$'",
+      ])
+    );
+    expect(timesHeld(canvasElement, 'computed', '$record:{pos}')).toBe(1);
+
+    // a click after the `$` lists the row's fields, and the one picked takes the `$`'s place
+    await userEvent.click(text);
+    const pos = await waitFor(() => {
+      const row = rows().find((item) => item.textContent?.startsWith('pos'));
+      expect(row, 'pos in the list').toBeTruthy();
+      return row as HTMLElement;
+    });
+    await userEvent.click(pos);
+    await waitFor(() => expect(expressionTextOf('computed')).toBe('pos + 1 + pos'));
+    await waitFor(() => expect(timesHeld(canvasElement, 'computed', '$record:{pos}')).toBe(2));
+    await waitFor(() => expect(expressionErrorsOf('computed')).toEqual([]));
+    // the list is put away by the pick
+    await waitFor(() => expect(openList().menu).toBeFalsy());
+
+    // and so does one picked from the templates offered beside the text
+    await askForATemplate('again');
+    await userEvent.click(
+      optionRow('computed').querySelector<HTMLElement>(
+        '.expression-text-template-picker'
+      ) as HTMLElement
+    );
+    const besidePos = await waitFor(() => {
+      const row = rows().find((item) => item.textContent?.startsWith('pos'));
+      expect(row, 'pos offered beside the text').toBeTruthy();
+      return row as HTMLElement;
+    });
+    await userEvent.click(besidePos);
+    await waitFor(() => expect(expressionTextOf('computed')).toBe('pos + 1 + pos + pos'));
+    await waitFor(() => expect(timesHeld(canvasElement, 'computed', '$record:{pos}')).toBe(3));
+    await waitFor(() => expect(expressionErrorsOf('computed')).toEqual([]));
+  },
+};
+
 export const SavedTemplateOpensOnValue: Story = {
   parameters: {
     docs: {

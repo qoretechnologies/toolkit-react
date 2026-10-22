@@ -492,6 +492,50 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       onBlur?.();
     }, [converter, readOnly, onBlur]);
 
+    /* A chip put in at the caret takes the place of the reference being written there, wherever it is picked
+       from (qorus#646, David's review). The completion list's inserter takes it away itself; the list the
+       editor's templates are browsed in is reqore's, which puts a chip in at the caret as it is: a `$` typed to
+       ask for a template stayed in front of the one picked, and `pos + 1 + $pos` is refused by the server. A
+       Slate plugin on the editor reqore made for this one (its `insertNodes`), so both are one step of one
+       change - one text sent, one undo. A chip put in at a place of its own (`at`: a typed reference drawn as its
+       chip, a chip replaced) is left alone. */
+    const referenceBeingWritten = readOnly ? undefined : converter.referenceBeingWritten;
+    useEffect(() => {
+      const editor = editorRef.current as unknown as Editor | null;
+      if (!editor || !referenceBeingWritten) {
+        return undefined;
+      }
+      const { insertNodes } = editor;
+      editor.insertNodes = (nodes, options) => {
+        const at = editor.selection;
+        const inserted = Array.isArray(nodes) ? nodes : [nodes];
+        const chip = inserted.length === 1 && (inserted[0] as { type?: string }).type === 'tag';
+        if (chip && !options?.at && at && Range.isCollapsed(at) && at.anchor.path.length === 2) {
+          const [index, child] = at.anchor.path;
+          const paragraph = editor.children[index] as unknown as ISlateElement | undefined;
+          if (paragraph) {
+            const before = converter
+              .fromSlateNodes([paragraph])
+              .slice(0, converter.selectionToOffset([paragraph], [0, child], at.anchor.offset));
+            const written = referenceBeingWritten(before);
+            // what is being written is typed text, in the text the caret is in
+            if (written > 0 && written <= at.anchor.offset) {
+              Transforms.delete(editor, {
+                at: {
+                  anchor: { path: at.anchor.path, offset: at.anchor.offset - written },
+                  focus: at.anchor,
+                },
+              });
+            }
+          }
+        }
+        insertNodes(nodes, options);
+      };
+      return () => {
+        editor.insertNodes = insertNodes;
+      };
+    }, [converter, referenceBeingWritten]);
+
     const handleSlateChange = useCallback(
       (newNodes: ISlateElement[]) => {
         const plainText = converter.fromSlateNodes(newNodes);

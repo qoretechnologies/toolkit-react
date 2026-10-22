@@ -64,6 +64,12 @@ export interface ISlateConverter {
    * card. Without it, the chip's hover is what the server says at its start.
    */
   hoverOffsetsOf?: (tagValue: string) => number[];
+  /**
+   * How much of the end of `textBefore` (the text before the caret) is a reference still being written: what a chip
+   * put in at the caret takes the place of - from the list the editor's templates are browsed in, as from the
+   * completion list. 0 when there is none. Without it, a chip goes in beside what is typed.
+   */
+  referenceBeingWritten?: (textBefore: string) => number;
 }
 
 /**

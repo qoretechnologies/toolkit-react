@@ -17,7 +17,7 @@ import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { memo, MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef, IDpqlParseResult, useDpqlSession } from '../../dpqlEditor';
 import { TemplateBrowser } from '../fields/template/TemplateBrowser';
-import { dpqlDisplayedText } from '../../dpqlEditor/dpqlHelpers';
+import { dpqlDisplayedText, dpqlReferenceBeingWritten } from '../../dpqlEditor/dpqlHelpers';
 import { TDpqlFields } from '../../dpqlEditor/types';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
 import { DpqlRendering } from './DpqlRendering';
@@ -790,12 +790,20 @@ export const ExpressionField = memo(
       [localTemplates]
     );
     /* A template chosen from the picker goes in after the text, as a chip, and is parsed as typed text is:
-       the editor keeps no caret the field can reach, so the end of the text is where it is put. */
+       the editor keeps no caret the field can reach, so the end of the text is where it is put - in place of a
+       reference being written there (a `$` typed to ask for one), as a template picked in the text goes
+       (qorus#646, David's review: `pos + 1 + $pos`). */
     const insertTemplate = useCallback(
       (item: { value?: unknown }) => {
         if (typeof item?.value !== 'string' || !item.value) return;
         const current = text.trimEnd();
-        handleDpqlChange(current ? `${current} ${item.value}` : item.value);
+        const written = dpqlReferenceBeingWritten(current);
+        const before = current.slice(0, current.length - written);
+        handleDpqlChange(
+          !before.trim() ? item.value
+          : written ? `${before}${item.value}`
+          : `${before} ${item.value}`
+        );
       },
       [text, handleDpqlChange]
     );
