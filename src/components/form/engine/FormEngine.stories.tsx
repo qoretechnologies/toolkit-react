@@ -7681,12 +7681,12 @@ const SchemaArrivesAfterMount = (args: IFormEngineProps) => {
   return <FormEngine {...args} skeleton={!schema} value={value} options={schema ?? NoSchemaYet} />;
 };
 
-export const CompactRequiredFieldArrivesWithItsSchema: Story = {
+export const CompactRequiredFieldLoadedLateOpensByItself: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a compact form whose schema arrives after it mounts and brings a required field, Field Mappings, that the value does not hold yet. When the schema arrives, the Field Mappings row opens by itself, and the Processor Class row, already set, stays closed.',
+          'Renders a compact form whose fields are loaded after it is drawn, as a host loads them from a server. One of them, Field Mappings, needs an answer that the value does not hold yet: when the fields arrive, its row opens by itself under Needs attention, with "This field is required", and Processor Class, already set, stays closed under Set.',
       },
     },
   },
@@ -7712,6 +7712,10 @@ export const CompactRequiredFieldArrivesWithItsSchema: Story = {
     expect(
       document.querySelector('[data-field="processor"]')!.className.includes('readfirst-row')
     ).toBe(true);
+    // what the open row says: the field needs an answer
+    await expect(document.querySelector('[data-field="mappings"]')!).toHaveTextContent(
+      'This field is required'
+    );
   },
 };
 
