@@ -36,6 +36,9 @@ import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
+import { useCoarsePointer } from '../../../hooks/useCoarsePointer';
+import { optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
+import { useTypeName } from '../typeSentenceForm';
 import { revealRow } from './revealRow';
 import {
   MONO_FONT_STACK,
@@ -46,6 +49,7 @@ import {
   StyledColumn,
   StyledEditCard,
   StyledLabelBlock,
+  StyledLabelName,
   StyledAbsorbedField,
   StyledLabelDesc,
   StyledRowActions,
@@ -257,6 +261,10 @@ export const CompactRow = memo(
     const operators = useContextSelector(CompactRowContext, (v) => v.operators);
     const focusedEditing = useContextSelector(CompactRowContext, (v) => v.focusedEditing);
     const showFieldTypes = useContextSelector(CompactRowContext, (v) => v.showFieldTypes);
+    // a finger's target is `small`, a mouse's `tiny` (the help button)
+    const coarse = useCoarsePointer();
+    // what kind of value the option takes, in the words the form's type catalogue names it
+    const typeName = useTypeName();
     const showAllDescriptions = useContextSelector(CompactRowContext, (v) => v.showAllDescriptions);
     const isExpanded = useContextSelector(CompactRowContext, (v) =>
       v.expandedOptions.includes(optionName)
@@ -1376,23 +1384,45 @@ export const CompactRow = memo(
     // the inline editor: opening a field used to drop it, leaving an editing row
     // with no route to the field's description at all. Stops propagation because
     // both labels are click targets themselves (the row expands / collapses).
+    /* A real button (qorus#646, David's decision): in the tab order with a focus ring, a finger's size on a touch
+       screen (`small`) and a mouse's on a desktop (`tiny`), opening the help on a click, Enter or Space. It was a
+       12px icon the keyboard could not reach. It sits in a label or a row that opens or closes on the same keys and
+       clicks, so it keeps them: the row does not also open or close. */
     const helpIcon =
       schema?.desc ?
-        <ReqoreIcon
+        <ReqoreButton
           icon='QuestionLine'
-          size='12px'
+          size={coarse ? 'small' : 'tiny'}
+          minimal
+          flat
+          fixed
+          className={`options-readfirst-help${coarse ? ' options-readfirst-help-touch' : ''}`}
+          aria-label={`Help: ${label}`}
+          tooltip='Help'
           effect={{ opacity: rowInks.helpOpacity }}
-          margin='left'
-          marginSize='tiny'
-          role='button'
-          tabIndex={-1}
-          aria-label='Help'
-          className='options-readfirst-help'
-          style={{ cursor: 'help' }}
-          onClick={(event) => {
+          onClick={(event: React.MouseEvent) => {
             event.stopPropagation();
             handleOptionLabelClick(optionName);
           }}
+          onKeyDown={(event: React.KeyboardEvent) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.stopPropagation();
+            }
+          }}
+        />
+      : null;
+    /* What kind of value the option takes, in words: always beside an open option's name (qorus#646, David's
+       decision: "how can the user know that the type of the option is Text"), and beside a read row's name while
+       the form shows field types. Muted: it is about the field, not its value. */
+    const typeWords = optionTypeWords(schema, typeName);
+    const typeTag =
+      typeWords ?
+        <ReqoreTag
+          size='tiny'
+          minimal
+          className='options-readfirst-type'
+          label={typeWords}
+          labelEffect={{ opacity: rowInks.descOpacity }}
         />
       : null;
 
@@ -1617,11 +1647,14 @@ export const CompactRow = memo(
                   }
                 }}
               >
-                {label}
-                {required ?
-                  <ReqoreIcon icon='Asterisk' color={rowInks.danger} size='10px' />
-                : null}
-                {helpIcon}
+                <StyledLabelName>
+                  <span style={{ minWidth: 0 }}>{label}</span>
+                  {required ?
+                    <ReqoreIcon icon='Asterisk' color={rowInks.danger} size='10px' />
+                  : null}
+                  {helpIcon}
+                </StyledLabelName>
+                {typeTag}
               </StyledRowLabel>
               {/* An OPEN field always shows its short_desc — that's where the hint
                   is needed and there's no per-row button to reveal it (the edit
@@ -1828,20 +1861,24 @@ export const CompactRow = memo(
                     size='14px'
                   />
                 : null}
-                <span>
-                  {label}
-                  {required ?
-                    <ReqoreIcon icon='Asterisk' color={rowInks.danger} size='10px' />
-                  : null}
-                  {/* The `?` belongs here too. The read row and the inline
+                <StyledLabelName>
+                  <span style={{ minWidth: 0 }}>
+                    {label}
+                    {required ?
+                      <ReqoreIcon icon='Asterisk' color={rowInks.danger} size='10px' />
+                    : null}
+                    {/* The `?` belongs here too. The read row and the inline
                       editor both carry it; the edit CARD did not — and the card
                       is the path every field with an `arg_schema` takes, so a
                       nested form like an auth profile's Context Mapping opened
                       with its long description unreachable. Expanding a field
                       is exactly when its explanation is wanted, so losing the
-                      affordance on the way in is backwards. */}
+                      affordance on the way in is backwards. Beside the name, as
+                      on the read row. */}
+                  </span>
                   {helpIcon}
-                </span>
+                </StyledLabelName>
+                {typeTag}
                 {cardBadges.map((badge, index) =>
                   typeof badge === 'object' ?
                     <ReqoreTag
@@ -2180,10 +2217,8 @@ export const CompactRow = memo(
       ) ?
         `${optionField.value.trim().split('\n').length} lines`
       : undefined;
-    const typeLabel =
-      showFieldTypes ?
-        `<${(schema?.ui_type as string) || (schema?.type as string) || 'auto'}${(schema as { ui_element_type?: string } | undefined)?.ui_element_type ? `[${(schema as { ui_element_type?: string }).ui_element_type}]` : ''}>`
-      : null;
+    // the option's type beside its name, while the form shows field types: in words, as an open option says it
+    const typeLabel = showFieldTypes ? typeWords : undefined;
     // A `readonly` field is one the system owns — an assigned id, a recorded
     // provenance. The server states that on the field itself; only the older
     // compat projection also mapped it to `disabled`, so on this path the form
@@ -2420,25 +2455,31 @@ export const CompactRow = memo(
         <StyledLabelBlock className='options-readfirst-label-block'>
           <StyledRowLabel title={schema?.short_desc || undefined} $color={cKey}>
             {rowChromeIcon}
-            {/* label + asterisk + help flow as ONE inline run, so the asterisk
-                stays right after the last word even when the name wraps. */}
-            <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
-              {label}
-              {requiredMark ?
-                <ReqoreIcon
-                  icon='Asterisk'
-                  color={rowInks.danger}
-                  size='10px'
-                  margin='left'
-                  marginSize='tiny'
-                />
-              : null}
+            {/* label + asterisk flow as ONE inline run, so the asterisk
+                stays right after the last word even when the name wraps. The help
+                is a button beside them, on their first line: inline, a button a
+                finger can hit went to a line of its own after a name that nearly
+                filled the column (qorus#646). */}
+            <StyledLabelName>
+              <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
+                {label}
+                {requiredMark ?
+                  <ReqoreIcon
+                    icon='Asterisk'
+                    color={rowInks.danger}
+                    size='10px'
+                    margin='left'
+                    marginSize='tiny'
+                  />
+                : null}
+              </span>
               {helpIcon}
-            </span>
+            </StyledLabelName>
             {typeLabel ?
               <ReqoreTag
                 size='tiny'
                 minimal
+                className='options-readfirst-type'
                 label={typeLabel}
                 labelEffect={{ opacity: rowInks.descOpacity }}
               />

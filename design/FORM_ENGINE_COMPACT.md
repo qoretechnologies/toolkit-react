@@ -137,7 +137,9 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   the schema/validation/dependency messages show as slim `ReqoreMessage` strips under the row.
   The per-row ⓘ toggle is gone (compact engine redesign): `short_desc` shows under the name
   while the toolbar's ⓘ is on (and is the name's hover), and `desc` is the `?` beside the name,
-  shown only when the option has one. While a row is edited inline, the editor's own
+  shown only when the option has one; the `?` is a button in the tab order (`tiny`, `small` on a
+  touch screen). An open option shows what it takes beside its name, in words ("Text"), and
+  "Show field types" shows the same on read rows. While a row is edited inline, the editor's own
   schema-message strip is suppressed — the strips below the editing row are the single
   renderer. Stories: `CompactShowcase` (+`Mobile`).
 - **Accessibility.** Read-first rows are real controls (`role="button"`, `tabIndex={0}`, Enter/Space

@@ -505,14 +505,23 @@ export const WithTypesShown: Story = {
     docs: {
       description: {
         story:
-          'Renders the Basic FormEngine and clicks the show-types header action — every option label picks up its Qore type badge (e.g. <rgbcolor>).',
+          "Renders the Basic FormEngine and clicks the show-types header action — every option says what kind of value it takes in words from the type catalog (Color, Text, Whole number), not its type's code (<rgbcolor>, <string>): David's decision, IDE rule 7.",
       },
     },
   },
   play: async (args) => {
     await Basic.play!(args);
     await _testsClickButton({ selector: '.fields-show-types' });
-    await _testsWaitForText('<rgbcolor>');
+    // the color option, which has no short description, says what it takes: Color
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll('.system-option *')).some(
+          (el) => el.children.length === 0 && el.textContent === 'Color'
+        )
+      ).toBe(true)
+    );
+    expect(document.body.textContent).not.toContain('<rgbcolor>');
+    expect(document.body.textContent).not.toContain('<string>');
   },
 };
 
@@ -5154,9 +5163,14 @@ export const CompactRevertAndShowTypes: Story = {
     await _testsWaitForText('order-fulfilment');
     await _testsWaitForTextToNotExist('changed-name');
 
-    // "Show field types" (Fields menu) annotates each row with its type.
+    // "Show field types" (Fields menu) annotates each row with its type, in words (David's decision): not `<string>`
     await clickFieldsMenuItem('Show field types');
-    await _testsWaitForText('<string>');
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-field="name"] .options-readfirst-type')?.textContent
+      ).toBe('Text')
+    );
+    expect(document.body.textContent).not.toContain('<string>');
 
     // Edit again, then the global "Revert all changes" restores everything.
     await _testsClickText('order-fulfilment');
@@ -6594,6 +6608,17 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
     // the group's chips are on its members; the dependent is not in the form
     await _testsWaitForText('One of');
     await expect(compactRow('RequiredOption6')).toBeNull();
+    /* a member's help is on its name's line, in a narrow label column too: inline after the name, the button went
+       to a line of its own and made each row a line taller (qorus#646) */
+    const member = compactRow('RequiredOption1') as HTMLElement;
+    expect(
+      onTheNamesLine(
+        member,
+        'Required Option 1',
+        member.querySelector('.options-readfirst-help') as HTMLElement
+      ),
+      "the help on its name's line"
+    ).toBe(true);
 
     // Fulfil the group member: the dependent row comes in...
     await _testsClickText('Required Option 2');
@@ -9435,6 +9460,123 @@ export const AValueThatMentionsATemplateReadsAsOne: Story = {
   },
 };
 
+/** Whether the words `name` in `element` are drawn on one line, not broken over two. */
+const onOneLine = (element: HTMLElement, name: string) => {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const at = node.textContent?.indexOf(name) ?? -1;
+    if (at >= 0) {
+      const range = document.createRange();
+      range.setStart(node, at);
+      range.setEnd(node, at + name.length);
+      return (
+        new Set(Array.from(range.getClientRects()).map((rect) => Math.round(rect.top))).size === 1
+      );
+    }
+  }
+  return false;
+};
+
+/** Whether `control` is on the line of the name `name` in `label`: their middles a line's height apart or less. */
+const onTheNamesLine = (label: HTMLElement, name: string, control: HTMLElement) => {
+  const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const at = node.textContent?.indexOf(name) ?? -1;
+    if (at >= 0) {
+      const range = document.createRange();
+      range.setStart(node, at);
+      range.setEnd(node, at + name.length);
+      const text = range.getBoundingClientRect();
+      const box = control.getBoundingClientRect();
+      return Math.abs(text.top + text.height / 2 - (box.top + box.height / 2)) <= text.height / 2;
+    }
+  }
+  return false;
+};
+
+export const AnOptionsHelpIsAButton: Story = {
+  ...AValueThatMentionsATemplateReadsAsOne,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders the Skip when form. An option's (?) is a button (David's decision): Tab from the row reaches it, Enter opens the option's help and not the row, and Escape puts the help away. It is a mouse's size on a desktop, and the focus left on it shows its ring in the capture.",
+      },
+    },
+  },
+  play: async ({ canvasElement, parameters }) => {
+    await atTheCaptureSize(parameters);
+    const row = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('[data-field="skip_when"]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    const help = row.querySelector<HTMLElement>('.options-readfirst-help') as HTMLElement;
+    expect(help.tagName, 'a button').toBe('BUTTON');
+    // on the line of the name it is beside: a button is a block, which put it on a line of its own
+    expect(onTheNamesLine(row, 'Skip when', help), "on the name's line").toBe(true);
+    expect(help.getAttribute('aria-label')).toBe('Help: Skip when');
+    // Tab from the row reaches it
+    row.focus();
+    await userEvent.tab();
+    expect(document.activeElement).toBe(help);
+    // Enter opens the help, and not the row
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() =>
+      expect(document.querySelector('.reqore-modal')?.textContent).toContain(
+        'Uses the $.path field-reference grammar'
+      )
+    );
+    expect(row.classList.contains('readfirst-row-editing'), 'the row stays closed').toBe(false);
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.reqore-modal')).toBeFalsy());
+    // a mouse's size here, reqore's `tiny` (a finger's on a touch screen: On A Touch Screen)
+    expect(Math.round(help.getBoundingClientRect().height)).toBe(26);
+    // its focus is seen: a ring
+    help.focus();
+    await waitFor(() => expect(getComputedStyle(help).outlineStyle).toBe('solid'));
+    expect(parseFloat(getComputedStyle(help).outlineWidth)).toBeGreaterThanOrEqual(2);
+  },
+};
+
+export const AnOptionsHelpIsAButtonOnATouchScreen: Story = {
+  ...AnOptionsHelpIsAButton,
+  parameters: {
+    ...AnOptionsHelpIsAButton.parameters,
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          "The same form on a phone, where the pointer is a finger: the (?) is a finger's size (`small`), and a tap on it opens the help and not the row.",
+      },
+    },
+  },
+  decorators: [withCoarsePointer],
+  play: async ({ canvasElement, parameters }) => {
+    await atTheCaptureSize(parameters);
+    const row = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('[data-field="skip_when"]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    const help = await waitFor(() => {
+      const el = row.querySelector<HTMLElement>('.options-readfirst-help');
+      expect(el).toBeTruthy();
+      // a finger's size, reqore's `small`
+      expect(Math.round((el as HTMLElement).getBoundingClientRect().height)).toBe(32);
+      return el as HTMLElement;
+    });
+    expect(onTheNamesLine(row, 'Skip when', help), "on the name's line").toBe(true);
+    await userEvent.click(help);
+    await waitFor(() =>
+      expect(document.querySelector('.reqore-modal')?.textContent).toContain(
+        'Uses the $.path field-reference grammar'
+      )
+    );
+    expect(row.classList.contains('readfirst-row-editing'), 'the row stays closed').toBe(false);
+  },
+};
+
 /**
  * The editor a row opens recognises the SAME references the row does.
  *
@@ -11229,9 +11371,14 @@ export const SavedExpressionOpensOnExpression: Story = {
     },
   },
   render: () => <TemplateOrExpressionForm />,
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, parameters }) => {
+    await atTheCaptureSize(parameters);
     const row = await editOption('computed');
     expect(optionActiveTab(row)).toBe('expression');
+    /* the open option's name stays whole beside what it takes, which goes under it where both do not fit (a
+       phone): beside it, it broke the name in two ("Compute d", qorus#646) */
+    expect(onOneLine(row, 'Computed'), 'the name on one line').toBe(true);
+    expect(row.querySelector('.options-readfirst-type')?.textContent).toBe('Whole number');
     await waitFor(() => expect(row.querySelector('.expression-field [data-slate-editor]')?.textContent).toContain('+'));
     await chooseTab(row, 'value');
     await waitFor(() => expect(optionRow('computed').querySelector('.value-tab-cannot-show')).toBeTruthy());
@@ -11267,6 +11414,10 @@ export const SavedExpressionOpensOnExpression: Story = {
     await expect(
       optionRow('computed').querySelector('[data-testid="expression-preview"]')
     ).toBeNull();
+    // and its name is still whole beside what it takes
+    expect(onOneLine(optionRow('computed'), 'Computed'), 'the name on one line, at the end').toBe(
+      true
+    );
   },
 };
 
@@ -11979,7 +12130,7 @@ export const ValueTabPickReplacesAReferencedField: Story = {
     docs: {
       description: {
         story:
-          "Renders the form holding value($record:{bezeichnung}), opens it on Value, empties the text with its × and picks pos from the fields the text offers: it holds the field pos, a value written on the Value tab, and its chip says pos. A field picked into the text goes where the caret is, as into any text. The mouse resting on the chip shows what the field is: pos, a whole number (David's review: the hover should say the field's type); the capture leaves it open.",
+          "Renders the form holding value($record:{bezeichnung}), opens it on Value, empties the text with its × and picks pos from the fields the text offers: it holds the field pos, a value written on the Value tab, and its chip says pos. A field picked into the text goes where the caret is, as into any text. Beside the open option's name, what it takes: Text (David's decision: \"how can the user know that the type of the option is Text\"). The mouse resting on the chip shows what the field is: pos, a whole number (David's review: the hover should say the field's type); the capture leaves it open.",
       },
     },
   },
@@ -11987,6 +12138,8 @@ export const ValueTabPickReplacesAReferencedField: Story = {
   play: async ({ canvasElement, parameters }) => {
     await atTheCaptureSize(parameters);
     const row = await editOption('by_value');
+    // what the open option takes, beside its name, in words
+    expect(row.querySelector('.options-readfirst-type')?.textContent).toBe('Text');
     await chooseTab(row, 'value');
     await waitFor(() =>
       expect(valueTabChips('by_value')).toEqual([expect.stringContaining('bezeichnung')])
@@ -12626,7 +12779,10 @@ const expectChannelChip = async (canvasElement: HTMLElement) => {
     () => {
       const row = canvasElement.querySelector('[data-field="channel"]') as HTMLElement | null;
       expect(row).toBeTruthy();
-      expect(row?.querySelector('.reqore-tag')?.textContent).toContain('general');
+      // the value's chip, not the tag saying what the open option takes
+      expect(row?.querySelector('.reqore-tag:not(.options-readfirst-type)')?.textContent).toContain(
+        'general'
+      );
       expect(row?.textContent).not.toContain('C07ERBFS0P6');
     },
     { timeout: 10000 }

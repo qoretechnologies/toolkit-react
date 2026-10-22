@@ -303,3 +303,35 @@ export type TTypeSentenceForm = (typeName: string | undefined) => string | undef
 /** The built-in catalogue's sentence form of a type, for a surface no form has given the server's catalogue to. */
 export const builtInTypeSentenceForm: TTypeSentenceForm = (typeName) =>
   qorusTypeSentenceForm(defaultQorusTypes, typeName);
+
+/**
+ * A type's name as a label - its display name ("Whole number") - only where the catalogue lists it, else
+ * undefined: a type it does not list is not named by its code (`<string>`), which is no word for a reader
+ * (qorus#646, IDE rule: no raw data).
+ */
+export const qorusTypeKnownName = (
+  types: IQorusTypeObject[] | undefined,
+  typeName: string | undefined
+): string | undefined => qorusTypeEntry(types, typeName)?.display_name || undefined;
+
+/** A type's name as a label where the catalogue lists it, by a catalogue (`qorusTypeKnownName`). */
+export type TTypeName = (typeName: string | undefined) => string | undefined;
+
+/** The built-in catalogue's name for a type, for a surface no form has given the server's catalogue to. */
+export const builtInTypeName: TTypeName = (typeName) =>
+  qorusTypeKnownName(defaultQorusTypes, typeName);
+
+/**
+ * What kind of value an option takes, in words: its kind of control's name where the catalogue names it (a
+ * color), else its type's ("Whole number"), with what a list holds after it ("List (Text)"). Undefined where the
+ * catalogue names neither: nothing is said rather than the type's code.
+ */
+export const optionTypeWords = (
+  schema: { type?: unknown; ui_type?: unknown; ui_element_type?: unknown } | undefined,
+  typeName: TTypeName
+): string | undefined => {
+  const named = (type: unknown) => (typeof type === 'string' ? typeName(type) : undefined);
+  const kind = named(schema?.ui_type) ?? named(schema?.type);
+  const element = named(schema?.ui_element_type);
+  return kind && element ? `${kind} (${element})` : kind;
+};

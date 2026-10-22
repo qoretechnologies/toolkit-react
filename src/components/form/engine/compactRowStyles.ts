@@ -378,6 +378,25 @@ export const StyledLabelBlock = styled.div`
   min-width: 0;
 `;
 
+/* An option's help is a button in the tab order (qorus#646), beside the name on its line: a button is a block,
+   which put it on a line of its own under a name in a narrow label column. Its target is reqore's `tiny` (26px),
+   or `small` (32px) for a finger, taller than the name's line: it reaches into the row's padding rather than
+   making every row with help taller. Its focus ring is reqore's, drawn inside it: one outside it overlapped the
+   name's last letter. */
+const HELP_BUTTON_BESIDE_THE_NAME = `
+  .options-readfirst-help {
+    display: inline-flex;
+    vertical-align: middle;
+    flex-shrink: 0;
+    margin-top: -5px;
+    margin-bottom: -5px;
+  }
+  .options-readfirst-help-touch {
+    margin-top: -8px;
+    margin-bottom: -8px;
+  }
+`;
+
 export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>`
   display: flex;
   align-items: center;
@@ -389,6 +408,19 @@ export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>
   white-space: normal;
   overflow-wrap: anywhere;
   cursor: ${({ $pointer }) => ($pointer ? 'pointer' : 'inherit')};
+  /* what the option takes goes under the name where both do not fit on a line (a phone): beside it, it took the
+     name's room, which broke a word in two ("Compute d", qorus#646) */
+  flex-wrap: wrap;
+  row-gap: 2px;
+  ${HELP_BUTTON_BESIDE_THE_NAME}
+`;
+
+/** An option's name, its asterisk and its help: one group, which keeps the help beside the name as it wraps. */
+export const StyledLabelName = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
 `;
 
 // A field's short_desc rendered under its name in the (narrow) label column,
@@ -419,6 +451,9 @@ export const StyledCardLabel = styled.div<{ $color: string }>`
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  ${HELP_BUTTON_BESIDE_THE_NAME}
 `;
 
 /* min-width: 0 lets the grid cell shrink below its content's intrinsic width

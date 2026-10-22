@@ -126,7 +126,8 @@ import {
   TMarkdownRenderer,
 } from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
-import { TypeSentenceFormProvider } from '../typeSentenceForm';
+import { TypeSentenceFormProvider, useTypeName } from '../typeSentenceForm';
+import { optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
 import { isTypingControl } from './rowFocus';
 import { firstDeclaredType, isUntypedOptionType } from '../../../helpers/optionUiTypes';
 import {
@@ -1873,6 +1874,8 @@ const FormEngineImpl = ({
 
   const unavailableOptionsCount = useRef(0);
   const { compactValue, loading: typesLoading } = useQorusTypes();
+  // an option's type in words, while the form shows field types (qorus#646: it said the type's code, `<string>`)
+  const typeName = useTypeName();
   const templates = useTemplates(allowTemplates, stringTemplates, interfaceContext);
 
   useEffect(() => {
@@ -4941,7 +4944,9 @@ const FormEngineImpl = ({
               },
               description:
                 showFieldTypes ?
-                  `<${options[optionName].ui_type || options[optionName].type}${options[optionName]?.ui_element_type ? `[${options[optionName].ui_element_type}]` : ''}> ${options[optionName].short_desc || ''}`
+                  [optionTypeWords(options[optionName], typeName), options[optionName].short_desc]
+                    .filter(Boolean)
+                    .join(' · ')
                 : options[optionName].short_desc || '',
               descriptionEffect: {
                 textSize: '11px',

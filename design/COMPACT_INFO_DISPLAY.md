@@ -12,8 +12,14 @@ places, both from its schema:
   Template Reads As One*, whose options now carry the descriptions the Qorus IDE gives them).
 - Messages still show without interaction: the intent stripe and the strips under the row.
 
-The `?` is a 12 px icon outside the tab order (`tabIndex={-1}`): smaller than a finger's
-target, and not reachable from the keyboard.
+The `?` is a button (David's decision, 2026-10-22): in the tab order with a focus ring,
+reqore's `small` on a touch screen and `tiny` with a mouse, opening the help on a click, Enter
+or Space - not the row it is in. It was a 12 px icon outside the tab order.
+
+- **The option's type**, in words from the type catalogue ("Text", "Whole number", "List
+  (Text)"; `optionTypeWords`), is a muted tag beside an open option's name, always, and beside a
+  read row's name while "Show field types" is on - never the type's code (`<string>`). A type the
+  catalogue does not name shows no tag. Read rows stay compact by default.
 
 The decision record below is kept as it was decided.
 
