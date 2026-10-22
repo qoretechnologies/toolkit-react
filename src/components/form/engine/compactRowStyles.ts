@@ -655,8 +655,13 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row:last-child::after {
     display: none;
   }
-  .readfirst-row:hover {
-    background: ${({ $hover }) => $hover};
+  /* A row lights up under a pointer that hovers. A finger's tap leaves the browser's :hover on what it tapped
+     until the next tap elsewhere, so on a touch screen the row stayed lit after the tap as if it were chosen
+     (FormEngine · A Row Stacks On A Phone, a tap on its link). The keyboard's focus lights it on any device. */
+  @media (hover: hover) {
+    .readfirst-row:hover {
+      background: ${({ $hover }) => $hover};
+    }
   }
   .readfirst-row:focus-visible {
     outline: 2px solid ${({ $focus }) => $focus};
@@ -689,9 +694,11 @@ export const StyledGroupBody = styled.div<{
   .readfirst-more-row::after {
     display: none;
   }
-  .readfirst-more-row:hover {
-    background: ${({ $hover }) => $hover};
-    border-style: solid;
+  @media (hover: hover) {
+    .readfirst-more-row:hover {
+      background: ${({ $hover }) => $hover};
+      border-style: solid;
+    }
   }
   .readfirst-more-row:focus-visible {
     outline: 2px solid ${({ $focus }) => $focus};
@@ -784,8 +791,10 @@ export const StyledGroupBody = styled.div<{
     text-overflow: clip;
     overflow-wrap: anywhere;
   }
-  .readfirst-row-editing:hover {
-    background: ${({ $hover }) => $hover};
+  @media (hover: hover) {
+    .readfirst-row-editing:hover {
+      background: ${({ $hover }) => $hover};
+    }
   }
 
   /* Narrow FORMS (phone / slim drawer): stack each row — label + actions share

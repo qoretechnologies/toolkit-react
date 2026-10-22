@@ -12656,7 +12656,13 @@ export const ARowStacksOnAPhone: Story = {
         const value = narrowRuleRow('phone', 'url')!.children[1].getBoundingClientRect();
         await expect(value.right).toBeLessThanOrEqual(window.innerWidth + 0.5);
       }
+      const row = narrowRuleRow('phone', 'url')!;
+      const atRest = getComputedStyle(row).backgroundColor;
       await expectLinkAndWrappedText('phone', (link) => touch.tap(link));
+      // a finger does not hover: the row it tapped is not left lit as if it were chosen (once whatever it
+      // started has run its course: the hover's background came in through a transition)
+      await Promise.all(row.getAnimations().map((animation) => animation.finished));
+      await expect(getComputedStyle(row).backgroundColor).toBe(atRest);
     });
   },
 };
