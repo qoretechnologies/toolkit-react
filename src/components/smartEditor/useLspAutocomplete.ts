@@ -115,10 +115,12 @@ export interface IUseLspAutocompleteResult {
     chipPath: number[],
     chipRect: { left: number; bottom: number }
   ) => void;
-  // Drops the spurious close Reqore's outside-click detector fires on the
-  // same click that opened the popover; without it the chip click would
-  // open then immediately close.
-  handleExternalClose: (open: boolean) => void;
+  /**
+   * The list's popover with key `key` (`popoverKey` as it was drawn) says it closed - a click outside it, or
+   * Escape: the list is put away. A popover a chip has since replaced says so too, after the list has opened
+   * at that chip, and is not heard.
+   */
+  handleExternalClose: (open: boolean, key: number) => void;
   // Bumped on every (re)open; used as the ReqorePopover `key` to force a
   // fresh mount so its internal `showing` state stays in sync with ours.
   popoverKey: number;
@@ -280,18 +282,22 @@ export function useLspAutocomplete(
   // should replace that node. Holds the chip's Slate path, consumed by
   // the inserter via `ctx.replacementPath`.
   const replacingChipPathRef = useRef<number[] | null>(null);
+  /* The chip the list was opened at, kept until the list is drawn closed. A click on that chip closes the list,
+     and the popover hears the same click as one outside it first and closes the list then, which forgets the
+     chip (`close`): told by `replacingChipPathRef` alone, the chip's own click found no chip and opened the list
+     again. */
+  const anchoredChipPathRef = useRef<number[] | null>(null);
   // Holds a chip-click request made before `isReady`; fired by the effect
   // below once the session connects so the click isn't dropped.
   const pendingChipRequestRef = useRef<{
     plainText: string;
     offset: number;
   } | null>(null);
-  // Timestamp of the last `openAtChip`; `handleExternalClose` uses it to
-  // suppress the close Reqore fires on the same mousedown that opened it.
-  const justOpenedAtChipAtRef = useRef(0);
   const [isReplaceMode, setIsReplaceMode] = useState(false);
-  // See `popoverKey` in the result interface — forces a popover re-mount.
+  // See `popoverKey` in the result interface — forces a popover re-mount. The ref is the key now, before the
+  // list is drawn again: a close from the popover it replaced is told apart by it (`handleExternalClose`).
   const [popoverKey, setPopoverKey] = useState(0);
+  const popoverKeyRef = useRef(0);
   const [docsFor, setDocsFor] = useState<string | null>(null);
   /* Which request is the one the list is waiting for. A newer request, or the list put away (`close`),
      makes an answer still on its way stale, and a stale answer is dropped: it used to open the list after
@@ -781,10 +787,8 @@ export function useLspAutocomplete(
       chipPath: number[],
       chipRect: { left: number; bottom: number }
     ) => {
-      // Clicking the chip the dropdown is already anchored to closes it;
-      // without this the outside-click suppression below re-opens it on
-      // every chip click.
-      const prevPath = replacingChipPathRef.current;
+      // Clicking the chip the dropdown is already anchored to closes it.
+      const prevPath = anchoredChipPathRef.current;
       if (
         isOpen &&
         prevPath &&
@@ -796,7 +800,7 @@ export function useLspAutocomplete(
       }
       editorRef.current = editor;
       replacingChipPathRef.current = chipPath;
-      justOpenedAtChipAtRef.current = Date.now();
+      anchoredChipPathRef.current = chipPath;
       setFilterPrefix('');
       setPosition({ left: chipRect.left, top: chipRect.bottom });
       // Pre-open for immediate feedback even before the LSP is ready (the
@@ -805,7 +809,8 @@ export function useLspAutocomplete(
       setFocusedIndex(0);
       setIsReplaceMode(true);
       setIsOpen(true);
-      setPopoverKey((k) => k + 1);
+      popoverKeyRef.current += 1;
+      setPopoverKey(popoverKeyRef.current);
       const nodes = editor.children as ISlateElement[];
       const plainText = converter.fromSlateNodes(nodes);
       // Request at the END of the chip's span — the natural "what could
@@ -829,15 +834,24 @@ export function useLspAutocomplete(
     [isReady, isOpen, close, converter, performCompletionRequest]
   );
 
+  /* A click outside the list puts it away, whenever it comes; a close from a popover a chip has replaced does not.
+     A click on another chip while the list is open opens the list at that chip, under a new key, and the popover
+     it replaces says it closed only after that. Every close was ignored for 300 ms after a chip opened the list
+     instead, so a tap on Details soon after the chip's left the list open behind the card, and a later one put it
+     away: the frame showed it or not from run to run (qorus#646, DpqlEditor · Details On A Chip On A Touch
+     Screen); and a second click on the chip the list was at, later than that, closed it and opened it again. */
+  // the list drawn closed is at no chip
+  useEffect(() => {
+    if (!isOpen) {
+      anchoredChipPathRef.current = null;
+    }
+  }, [isOpen]);
+
   const handleExternalClose = useCallback(
-    (open: boolean) => {
-      if (open) return;
-      // Within ~300ms of `openAtChip`, this close is the popover reacting
-      // to the same mousedown that opened it — ignore.
-      if (Date.now() - justOpenedAtChipAtRef.current < 300) {
-        return;
+    (open: boolean, key: number) => {
+      if (!open && key === popoverKeyRef.current) {
+        close();
       }
-      close();
     },
     [close]
   );

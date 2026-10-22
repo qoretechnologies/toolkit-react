@@ -319,7 +319,10 @@ export const CompletionMenu = memo(
             handler='click'
             closeOnOutsideClick
             {...COMPLETION_POPOVER_PROPS}
-            onToggleChange={autocomplete.handleExternalClose}
+            // this popover's own key: the close of one a chip has replaced comes after the list opened there
+            onToggleChange={(open: boolean) =>
+              autocomplete.handleExternalClose(open, autocomplete.popoverKey)
+            }
           />
         )}
     </>

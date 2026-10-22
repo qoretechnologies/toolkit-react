@@ -649,6 +649,13 @@ const readyEditor = async (canvasElement: HTMLElement) => {
 };
 
 /** The chip the editor draws for `label`. */
+/** A chip's label: what a click on the chip lands on. */
+const labelOf = (chip: HTMLElement) => chip.querySelector<HTMLElement>('.reqore-tag-content')!;
+
+/** The editor's list (of completions, or of what may replace a chip), or null when it is not shown. */
+const chipList = (editable: HTMLElement) =>
+  document.getElementById(editable.getAttribute('aria-controls') ?? '');
+
 const chipFor = (editable: HTMLElement, label: string) =>
   waitFor(() => {
     const chip = Array.from(editable.querySelectorAll<HTMLElement>('.reqore-tag')).find(
@@ -726,6 +733,8 @@ export const DetailsOnAChipOnATouchScreen: Story = {
       const editable = await readyEditor(canvasElement);
       const chip = await chipFor(editable, 'record: create.items[*].id');
       await touch.tap(chip);
+      // the tap opens the chip's list, as a click does
+      await waitFor(() => expect(chipList(editable)).not.toBeNull());
       const details = await waitFor(
         () => {
           const button = canvasElement.querySelector<HTMLElement>('.smart-editor-details');
@@ -740,12 +749,64 @@ export const DetailsOnAChipOnATouchScreen: Story = {
         await expect(details).toHaveAccessibleName('Show what the word at the cursor is');
       }
       await touch.tap(details);
+      // Details is a tap outside the chip's list: the list is put away, however soon it comes, and the card is
+      // the one thing over the text (the list stayed open behind it when Details came within 300 ms)
+      await expect(chipList(editable)).toBeNull();
       await waitFor(
         () => expect(shownHovers()).toEqual([expect.stringContaining('list wildcard ([*])')]),
         { timeout: 10000 }
       );
       await expect(shownHovers()[0]).toContain('@create.items');
     });
+  },
+};
+
+export const AClickOnAChipOpensItsListAndASecondClosesIt: Story = {
+  args: { value: '@name == @customer.name', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders @name == @customer.name and clicks the chip record: name: its list of what may replace it opens under it. A second click on the chip closes the list; a click on the other chip opens the list there; a click outside the list closes it. The capture shows the list open under record: customer.name.',
+      },
+    },
+  },
+  play: async ({ canvasElement, parameters }) => {
+    // the frame at the size it is captured at: the list is drawn under its chip as captured
+    await atTheCaptureSize(parameters);
+    const editable = await readyEditor(canvasElement);
+    // a click on a chip is on its label, where the mouse is: the label takes the chip's click
+    const name = labelOf(await chipFor(editable, 'record: name'));
+    const customer = labelOf(await chipFor(editable, 'record: customer.name'));
+
+    await userEvent.click(name);
+    await waitFor(() => expect(chipList(editable)).not.toBeNull());
+
+    // the chip the list is at: the list is put away (it was put away by the click outside it, and opened
+    // again by the same click on the chip)
+    await userEvent.click(name);
+    await waitFor(() => expect(chipList(editable)).toBeNull());
+
+    await userEvent.click(name);
+    await waitFor(() => expect(chipList(editable)).not.toBeNull());
+
+    // another chip: the list is at that chip, past the first one (the popover the list was in says it closed
+    // after the list opened there)
+    await userEvent.click(customer);
+    await waitFor(() => {
+      const list = chipList(editable);
+      expect(list).not.toBeNull();
+      expect(list!.getBoundingClientRect().left).toBeGreaterThan(
+        name.getBoundingClientRect().right
+      );
+    });
+
+    // outside the list: it is put away
+    await userEvent.click(canvasElement);
+    await waitFor(() => expect(chipList(editable)).toBeNull());
+
+    await userEvent.click(customer);
+    await waitFor(() => expect(chipList(editable)).not.toBeNull());
   },
 };
 
