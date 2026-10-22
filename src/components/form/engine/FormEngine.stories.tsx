@@ -7434,8 +7434,9 @@ const CompactInvalidFilledSchema: Record<string, TCompactField> = {
     group: 'info',
     // Real format constraint: the value must be an http(s) URL. `validation_regex`
     // is read by the engine's own validation (helpers/validations.ts); it's not on
-    // the base schema type, so cast.
+    // the base schema type, so cast. The example is what a server gives an option.
     validation_regex: '^https?://',
+    example_value: 'https://api.example.com/orders',
   } as TCompactField,
   description: {
     type: 'string',
@@ -7456,7 +7457,7 @@ export const CompactAutoFocusTargetsInvalidFilledField: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with autoFocus enabled and a required field holding an invalid value — the autofocus targets the invalid filled field rather than the next empty required.',
+          'Renders a compact form with autoFocus enabled and a required field holding an invalid value — the autofocus targets the invalid filled field rather than the next empty required. The field says why the value is refused: "Must match the expected form, for example https://api.example.com/orders.", with its pattern after it as a detail.',
       },
     },
   },
@@ -7499,6 +7500,14 @@ export const CompactAutoFocusTargetsInvalidFilledField: Story = {
     // The empty `description` is NOT the one expanded/focused.
     const descField = document.querySelector('[data-field="description"]');
     expect(descField?.contains(document.activeElement)).toBeFalsy();
+
+    // why it is refused, in words the author can act on (David: "what doesn't match the pattern - what is the
+    // pattern"): the form a value must have, by its example, and the pattern as a detail
+    await waitFor(() =>
+      expect(document.querySelector('[data-field="endpoint"]')?.textContent).toContain(
+        'Must match the expected form, for example https://api.example.com/orders. Pattern: ^https?://'
+      )
+    );
   },
 };
 

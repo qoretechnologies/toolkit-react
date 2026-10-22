@@ -79,6 +79,13 @@ interface IFieldValidationProps {
   rules?: string[];
   validation_regex?: string;
   /**
+   * What `validation_regex` accepts, in words ("a host name and a port, like api.example.com:443"): said when a
+   * value does not match, in place of the pattern. Optional on the server's option info.
+   */
+  validation_regex_desc?: string;
+  /** A value the field takes, as the server gives it: said as the form a value must have, when it has no words. */
+  example_value?: unknown;
+  /**
    * The inclusive bounds a numeric field accepts — read only by the `int`, `float`
    * and `number` validators.
    *
@@ -160,6 +167,35 @@ const SEMANTIC_FORMAT_PATTERNS: Record<string, RegExp> = {
 };
 
 const validResult = (): IValidationResult => ({ isValid: true, reasons: [] });
+
+/**
+ * Why a value its field's pattern refuses is refused, in words the author can act on: what the pattern accepts,
+ * as the server says it ("Must be a host name and a port."); else the form a value must have, by the field's
+ * example; the pattern itself last, as a detail (qorus#646, David: "we need to tell the user why there's an error -
+ * i.e. what doesn't match the pattern - what is the pattern"). It said "Value does not match validation pattern".
+ */
+export const patternMismatchReason = (field?: {
+  validation_regex?: string;
+  validation_regex_desc?: string;
+  example_value?: unknown;
+}): string => {
+  const sentence = (text: string) => (/[.!?]$/.test(text) ? text : `${text}.`);
+  const desc =
+    typeof field?.validation_regex_desc === 'string' ? field.validation_regex_desc.trim() : '';
+  if (desc) {
+    return sentence(`Must be ${desc}`);
+  }
+  const example = field?.example_value;
+  const exampleText =
+    typeof example === 'string' ? example.trim()
+    : typeof example === 'number' || typeof example === 'boolean' ? String(example)
+    : '';
+  const main =
+    exampleText ?
+      `Must match the expected form, for example ${exampleText}.`
+    : 'Must match the expected form.';
+  return field?.validation_regex ? `${main} Pattern: ${field.validation_regex}` : main;
+};
 
 const invalidResult = (
   reason?: string | string[],
@@ -480,7 +516,7 @@ export const _validateField = (
         return invalidResult('Value must be a non-empty text');
       }
       if (field?.validation_regex && !value.match(field.validation_regex)) {
-        return invalidResult('Value does not match the required format');
+        return invalidResult(patternMismatchReason(field));
       }
       return resultFromBoolean(
         SEMANTIC_FORMAT_PATTERNS[type].test(value),
@@ -537,7 +573,7 @@ export const _validateField = (
       const reasons: string[] = [];
 
       if (field?.validation_regex && !value.match(field.validation_regex)) {
-        reasons.push('Value does not match validation pattern');
+        reasons.push(patternMismatchReason(field));
       }
 
       // Server `rules[]` contract: 'valid_identifier' is the only rule the

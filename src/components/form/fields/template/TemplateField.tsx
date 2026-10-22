@@ -1500,6 +1500,8 @@ const TemplateFieldImpl = memo(
     const validationField = useMemo(
       () => ({
         validation_regex: rest.validation_regex,
+        validation_regex_desc: rest.validation_regex_desc,
+        example_value: rest.example_value,
         has_to_be_valid_identifier: rest.has_to_be_valid_identifier,
         has_to_have_value: rest.has_to_have_value,
         rules: rest.rules,
@@ -1507,6 +1509,8 @@ const TemplateFieldImpl = memo(
       }),
       [
         rest.validation_regex,
+        rest.validation_regex_desc,
+        JSON.stringify(rest.example_value),
         rest.has_to_be_valid_identifier,
         rest.has_to_have_value,
         JSON.stringify(rest.rules),

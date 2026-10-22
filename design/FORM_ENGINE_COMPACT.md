@@ -194,6 +194,11 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   its name (`{name: 'x'}`), and its name from `display_name`, else `name`, else the value. A picker that read
   the envelope only drew a bare entry as an empty box no click could tick. Tests:
   `__tests__/allowedValueShapes.test.tsx`.
+- **A pattern's refusal says why.** A value `validation_regex` refuses says what the pattern accepts:
+  "Must be <validation_regex_desc>." when the server describes it (an optional field on the option info,
+  pending on the Qore and Qorus side), else "Must match the expected form, for example <example_value>.", with
+  "Pattern: <regex>" after it as a detail (`patternMismatchReason`). It said "Value does not match validation
+  pattern". Story: `CompactAutoFocusTargetsInvalidFilledField`; tests: `__tests__/patternMismatchReason.test.ts`.
 - **Suggestions replace what is held.** A creatable field whose value does not fit a chip (rich text, long
   text, a hash) keeps its own editor with "Saved & Suggested Values" beside it. The field takes one value: a
   pick replaces it, and the list ticks the suggestion the field holds (`markedValue`, matched by any spelling
