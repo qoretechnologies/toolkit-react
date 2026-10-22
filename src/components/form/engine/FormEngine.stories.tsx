@@ -9334,7 +9334,7 @@ export const AValueThatMentionsATemplateReadsAsOne: Story = {
     docs: {
       description: {
         story:
-          'A row whose value holds a reference inside the author’s own text — a skip-when predicate — draws the reference as the chip the picker names it by and leaves the comparison beside it exactly as written, instead of printing the raw token.',
+          'A row whose value holds a reference inside the author’s own text — a skip-when predicate — draws the reference as the chip the picker names it by and leaves the comparison beside it exactly as written, instead of printing the raw token. Each option says what it is with its (?) help, as the Qorus IDE describes Skip when (David’s review: an option without its description has no help to open).',
       },
     },
   },
@@ -9354,6 +9354,9 @@ export const AValueThatMentionsATemplateReadsAsOne: Story = {
       skip_when: {
         type: 'string',
         display_name: 'Skip when',
+        // as the Qorus IDE describes the field (CaseDrawer): an option says what it is, and its help opens from (?)
+        short_desc: 'Field-reference predicate; when it resolves truthy the whole case is skipped',
+        desc: 'Uses the `$.path` field-reference grammar. When the predicate resolves truthy at run time the entire case (setup, assertions, teardown) is skipped rather than failed. Leave blank to always run the case.',
         supports_templates: true,
         // The grammar this host writes its references in — `$.step.field`, which
         // carries no `$key:` and so matches none of reqraft's own token grammar.
@@ -9364,10 +9367,14 @@ export const AValueThatMentionsATemplateReadsAsOne: Story = {
       guard: {
         type: 'hash',
         display_name: 'Guard',
+        short_desc: 'The conditions this case runs under',
+        desc: 'Each condition is a field-reference predicate. The case runs only while every one of them resolves truthy.',
         arg_schema: {
           when: {
             type: 'string',
             display_name: 'When',
+            short_desc: 'Field-reference predicate the case runs under',
+            desc: 'Uses the `$.path` field-reference grammar. The case runs only while the predicate resolves truthy.',
             supports_templates: true,
             templateToken: SKIP_WHEN_GRAMMAR,
             templates: SKIP_WHEN_TEMPLATES,
@@ -9396,6 +9403,13 @@ export const AValueThatMentionsATemplateReadsAsOne: Story = {
 
     // (b) The author's comparison is still there, word for word.
     expect(row.textContent).toContain("!= 'simulate'");
+
+    // Each option offers its help, as an option the Qorus IDE describes does.
+    expect(row.querySelector('.options-readfirst-help'), 'the help of Skip when').toBeTruthy();
+    expect(
+      canvasElement.querySelector('[data-field="guard"] .options-readfirst-help'),
+      'the help of Guard'
+    ).toBeTruthy();
 
     // (c) And the engine's own spelling is nowhere on the row — not in its text,
     //     and not in a native tooltip hovering the very thing the chip replaced.

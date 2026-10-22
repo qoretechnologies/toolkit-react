@@ -1,5 +1,22 @@
 # Compact mode — descriptions, short descriptions & messages
 
+**As built today (2026-10-22, checked against `CompactRow.tsx`).** The compact engine redesign
+(004974d9) removed the per-row ⓘ toggle described below. An option says what it is in two
+places, both from its schema:
+
+- **`short_desc`** shows under the option's name while the toolbar's ⓘ ("Show all field
+  information", `.options-readfirst-descriptions`) is on, and is the name's hover otherwise.
+- **`desc`** is the `?` beside the name (`.options-readfirst-help`), which opens the help
+  dialog — on the read row and in the open editor. An option with no `desc` has no `?`: a story
+  whose options carry no description shows none (qorus#646, David on *A Value That Mentions A
+  Template Reads As One*, whose options now carry the descriptions the Qorus IDE gives them).
+- Messages still show without interaction: the intent stripe and the strips under the row.
+
+The `?` is a 12 px icon outside the tab order (`tabIndex={-1}`): smaller than a finger's
+target, and not reachable from the keyboard.
+
+The decision record below is kept as it was decided.
+
 **Status: DECIDED — `stripe-expand` (variant C), 2026-06-11.** Promoted to be *the* compact
 info display: an intent edge-stripe on rows carrying Tier-1 messages plus a per-row expandable
 panel (short_desc + all messages; auto-open on Tier 1, ⓘ toggle in the fixed info slot

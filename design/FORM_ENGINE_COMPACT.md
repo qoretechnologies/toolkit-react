@@ -131,15 +131,15 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   without opening the row, it has its own accessible name ("… (opens in a new tab)") and a focus ring,
   and its address is copied as any link's is. It was one line with an ellipsis, and an address lost its
   end at every width. Stories: `ARowStacksOnAPhone`, `ARowStacksWhereItsValueWouldBeNarrow`.
-- **Field info: intent stripe + expandable panel** (the decided "stripe-expand" display,
-  2026-06-11 — see `COMPACT_INFO_DISPLAY.md`). Rows carrying critical (Tier 1: danger/warning)
-  messages get a 3px intent edge-stripe and their info panel **auto-opens** below the row —
-  short_desc plus all schema/validation/dependency messages as slim `ReqoreMessage` strips.
-  Fields with only Tier-2 info (info/success messages, `default_value_desc` notes, short_desc)
-  stay one line: a ⓘ toggle in the fixed info slot opens the panel on demand (the per-row
-  override sticks either way). While a row is edited inline, the editor's own schema-message
-  strip is suppressed — the panel below the editing row is the single renderer. Stories:
-  `CompactShowcase` (+`Mobile`).
+- **Field info: intent stripe + message strips** (the decided "stripe-expand" display,
+  2026-06-11 — see `COMPACT_INFO_DISPLAY.md`, whose first section says what is built today).
+  Rows carrying critical (Tier 1: danger/warning) messages get a 3px intent edge-stripe, and
+  the schema/validation/dependency messages show as slim `ReqoreMessage` strips under the row.
+  The per-row ⓘ toggle is gone (compact engine redesign): `short_desc` shows under the name
+  while the toolbar's ⓘ is on (and is the name's hover), and `desc` is the `?` beside the name,
+  shown only when the option has one. While a row is edited inline, the editor's own
+  schema-message strip is suppressed — the strips below the editing row are the single
+  renderer. Stories: `CompactShowcase` (+`Mobile`).
 - **Accessibility.** Read-first rows are real controls (`role="button"`, `tabIndex={0}`, Enter/Space
   activate, visible focus ring), not just click handlers; the Done button and dropdowns are native buttons.
 - **The caret follows the row that opens.** An opened row moves the caret into the control it offers —
@@ -269,8 +269,8 @@ const loadSchema = useCallback(() => fetchSchemaSomehow(url), [url]); // memoise
   union (grouped by family) — every renderable type plus the non-renderable/interface-reference types —
   asserting colour/file/hash read-first values and the hash "view more" sub-row reveal. Beyond the
   type families it carries one-capability-per-row groups for **field chrome** (icon / image / intent /
-  badge / actions / tags), **descriptions & messages** (short_desc behind ⓘ, desc → `?` dialog,
-  Tier-1 messages auto-open, Tier-2 behind ⓘ), and **meta** (sensitive / rules / default-value note);
+  badge / actions / tags), **descriptions & messages** (short_desc behind the toolbar's ⓘ, desc →
+  `?` dialog, messages under the row), and **meta** (sensitive / rules / default-value note);
   the combined worst-case stress form is `CompactShowcase` (the flagship "real form" story). Two everything-open variants:
   `CompactFieldTypesEditing` (every row activated — all ~70 real editors mounted at once) and
   `CompactFieldTypesEditingAllRequired` (same, but every field required and unset — each editor in
