@@ -7,6 +7,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { expect, userEvent, waitFor } from 'storybook/test';
 import { MarkdownRendererContext } from '../components/Description/markdownRendererContext';
 import { defaultMarkdownRenderer } from '../components/form/fields/markdown/MarkdownView';
+import { expectChipFits } from './chips';
 import { _testsWithViewport } from './Tests/utils';
 import { withTouchScreen } from './touchScreen';
 
@@ -93,7 +94,9 @@ const expectOnOneLine = (card: HTMLElement) => {
 /** Hovered with a mouse on a wide screen, the chip's card draws its description, on one line. */
 export const playHoverIsDrawn = async ({ canvasElement }: { canvasElement: HTMLElement }) =>
   _testsWithViewport(1280, 800, async () => {
-    await userEvent.hover(await findTemplateChip(canvasElement));
+    const chip = await findTemplateChip(canvasElement);
+    expectChipFits(chip);
+    await userEvent.hover(chip);
     const card = await expectDrawnHover();
     await waitFor(() => expectOnOneLine(card));
   });
@@ -104,7 +107,10 @@ export const playHoverIsDrawn = async ({ canvasElement }: { canvasElement: HTMLE
  */
 export const playTapIsDrawnOnAPhone = async ({ canvasElement }: { canvasElement: HTMLElement }) =>
   withTouchScreen(async (touch) => {
-    await touch.tap(await findTemplateChip(canvasElement));
+    const chip = await findTemplateChip(canvasElement);
+    // a chip a finger presses: small or bigger, its label inside it
+    expectChipFits(chip);
+    await touch.tap(chip);
     const card = await expectDrawnHover();
     if (touch.narrowed) {
       await waitFor(() => {
@@ -124,7 +130,9 @@ export const playHoverIsPlainWithoutAHost = async ({
 }: {
   canvasElement: HTMLElement;
 }) => {
-  await userEvent.hover(await findTemplateChip(canvasElement));
+  const chip = await findTemplateChip(canvasElement);
+  expectChipFits(chip);
+  await userEvent.hover(chip);
   await waitFor(() => {
     const card = findHoverCard();
     expect(card).toBeTruthy();

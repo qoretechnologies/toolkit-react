@@ -53,19 +53,24 @@ export type TReferenceChipProps = Pick<IReqoreTagProps, 'size' | 'effect' | 'wra
 
 /**
  * A reference chip as every view draws it - the read summary (`TemplateText`), the read-only chip, the rich
- * text editor and the expression editor: a `tiny` box whose label takes the font of the text it sits in, so a
- * reference is the same size wherever it is shown, at whatever size its text is (qorus#646). One object for all
- * of them: written out in each, the views drifted apart, and a chip jumped as a value moved between them.
+ * text editor and the expression editor: one chip, so a reference is the same size wherever it is shown, at
+ * whatever size its text is (qorus#646). One object for all of them: written out in each, the views drifted
+ * apart, and a chip jumped as a value moved between them.
+ *
+ * - `small`, never smaller: a chip is pressed (a tap opens its card, a click its list), and a control a finger
+ *   must hit is not `micro` or `tiny` (BRAND_DESIGN, "Tap targets are finger-sized"). The one chip was `tiny`, a
+ *   14px box with the 14px text it sits in: the label was taller than its box and ran out of it, and the name
+ *   was all but cut off (Foxhoundn on qlip #383; David, 2026-10-22: one chip for every view at `small`).
+ * - its label in the font of the text it sits in, padded inside the box;
+ * - and wrapping: a chip longer than its line wraps its label inside the line. Not wrapped, it was capped at the
+ *   line's width with its label centred in it, and lost both ends - its icon, the start and the end of the path,
+ *   and its remove button (Foxhoundn on qlip #383: "The template tag is overflowing, you need to wrap it").
  */
 export const REFERENCE_CHIP_PROPS: TReferenceChipProps = Object.freeze({
-  size: 'tiny',
+  size: 'small',
   effect: Object.freeze({ textSize: 'inherit' }),
-  /* A chip longer than its line wraps its label inside the line. Not wrapped, it was capped at the line's width
-     with its label centred in it, and lost both ends - its icon, the start and the end of the path, and its
-     remove button (qorus#646, Foxhoundn on qlip #383: "The template tag is overflowing, you need to wrap it").
-     With no vertical padding, a chip that fits keeps the one line's height it had. */
   wrap: true,
-  paddingSize: 'micro',
+  paddingSize: 'small',
 });
 
 export const getTemplateTagStyle = (

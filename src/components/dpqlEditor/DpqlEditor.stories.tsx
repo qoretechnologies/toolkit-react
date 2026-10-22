@@ -13,6 +13,7 @@ import { mockTokenizeDpql } from '../form/expressions/dpqlMockLanguage';
 import { mockHoverDpql } from './__fixtures__/dpqlMockHover';
 import { DpqlEditor } from './DpqlEditor';
 import { TDpqlFsmContext } from './types';
+import { expectChipFits } from '../../stories/chips';
 import { withCoarsePointer } from '../../stories/coarsePointer';
 import {
   atTheCaptureSize,
@@ -839,6 +840,8 @@ export const AChipLongerThanItsLineWrapsInsideIt: Story = {
     const chips = Array.from(editable.querySelectorAll<HTMLElement>('.reqore-tag'));
     await expect(chips.length).toBe(4);
     for (const chip of chips) {
+      // small or bigger, and nothing in it running out of it
+      expectChipFits(chip);
       const name = (chip.textContent ?? '').replace(/\uFEFF/g, '').trim();
       const box = chip.getBoundingClientRect();
       // inside its line

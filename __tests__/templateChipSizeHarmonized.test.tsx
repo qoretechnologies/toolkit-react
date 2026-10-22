@@ -5,9 +5,9 @@
 //
 // They drew the chip at different sizes — `size='tiny'` with the prose's own font, the caller's size, and the
 // editor's default size — so switching a value between its Visual and Expression views made the chip jump. They
-// now all draw one chip (`REFERENCE_CHIP_PROPS`): a `tiny` box whose label takes the font of whatever it sits in.
-// What is drawn is measured here where jsdom can draw it; the editors' chips are measured in the browser (the
-// ExpressionField stories).
+// now all draw one chip (`REFERENCE_CHIP_PROPS`): a `small` box, big enough to press, whose label takes the font of
+// whatever it sits in and wraps inside it. What is drawn is measured here where jsdom can draw it; the boxes are
+// measured in the browser (the TemplateText, ReadOnlyTemplateTag and DpqlEditor stories, `expectChipFits`).
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
