@@ -664,7 +664,7 @@ export const TemplateWithFunctionValue: StoryObj<typeof meta> = {
       exp: 'substr',
       args: [
         { type: 'string', value: '$local:name' },
-        { type: 'int', value: '$local:start' },
+        { type: 'int', value: '$local:id' },
         { type: 'int', value: 10 },
       ],
     },
@@ -679,7 +679,7 @@ export const TemplateWithFunctionValue: StoryObj<typeof meta> = {
     docs: {
       description: {
         story:
-          'Renders TemplateField holding a substr function value with three arguments: the expression builder shows the function name and each argument slot. An argument holding a template (Start, a whole number holding $local:start) shows it as a chip in the text field the argument is written in, as every typed field does. Typing in it is not blocked; the form flags what is not a whole number, one template alone or an expression, and says what to delete.',
+          'Renders TemplateField holding a substr function value with three arguments: the expression builder shows the function name and each argument slot. An argument holding a template (Start, a whole number holding the interface ID, a whole number the server offers as $local:id) shows it as a chip in the text field the argument is written in, as every typed field does. Typing in it is not blocked; the form flags what is not a whole number, one template alone or an expression, and says what to delete.',
       },
     },
   },
@@ -698,7 +698,7 @@ export const TemplateWithNestedFunctionValue: StoryObj<typeof meta> = {
           value: {
             exp: 'PLUS-INT',
             args: [
-              { type: 'int', value: '$local:start' },
+              { type: 'int', value: '$local:id' },
               { type: 'int', value: '5' },
             ],
           },

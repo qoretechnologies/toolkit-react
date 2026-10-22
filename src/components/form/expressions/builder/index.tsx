@@ -647,6 +647,18 @@ export const Expression = ({
      "This expression gives nothing, which this field does not take" - a type it never claimed - beside the Text
      view's "Fill in each …" (qorus#646, David's review). What it lacks is said instead (`noOperationYetText`). */
   const noOperationYet = !value?.value?.exp;
+  /** What the place takes, said with what it lacks: only a type that is a type (not untyped, not `auto`). */
+  const takesText =
+    (
+      (isArray(returnType) ? returnType : [returnType]).some(
+        (type) => !!type && !isUntypedOptionType(type) && String(type) !== 'auto'
+      )
+    ) ?
+      expectedReturnTypeText
+    : undefined;
+  /** The whole expression has nothing chosen yet: its card says so, once (`noOperationYetText`). */
+  const nothingChosenYet =
+    !selectedExpression && !serverExpression && !firstArgument?.value && level === 0;
   const isReturnTypeMatching =
     noOperationYet ||
     (condition !== 'error' &&
@@ -1111,9 +1123,16 @@ export const Expression = ({
       {showSummary && (
         <ExpressionRenderTemplate exp={value} expressions={expressions.value} templates={localTemplates} />
       )}
-      {!selectedExpression && !serverExpression && !firstArgument?.value && level === 0 ? (
-        <ReqoreMessage size='small' opaque={false} intent='info'>
-          Choose what this expression does.
+      {/* One sentence for an expression with nothing chosen yet: what it lacks and what its place takes. It
+          was said twice, here and under the card (qorus#646). */}
+      {nothingChosenYet ? (
+        <ReqoreMessage
+          size='small'
+          opaque={false}
+          intent='info'
+          className='expression-no-operation-yet'
+        >
+          {noOperationYetText(false, takesText)}
         </ReqoreMessage>
       ) : (
         <ReqoreControlGroup
@@ -1438,7 +1457,7 @@ export const Expression = ({
           />
         </>
       ) : null}
-      {noOperationYet && !readOnly ?
+      {noOperationYet && !readOnly && !nothingChosenYet ?
         <>
           <ReqoreVerticalSpacer height={5} />
           <ReqoreTag
@@ -1448,16 +1467,7 @@ export const Expression = ({
             intent='warning'
             size='tiny'
             wrap
-            label={noOperationYetText(
-              isChild || level > 0,
-              (
-                (isArray(returnType) ? returnType : [returnType]).some(
-                  (type) => !!type && !isUntypedOptionType(type) && String(type) !== 'auto'
-                )
-              ) ?
-                expectedReturnTypeText
-              : undefined
-            )}
+            label={noOperationYetText(isChild || level > 0, takesText)}
           />
         </>
       : null}

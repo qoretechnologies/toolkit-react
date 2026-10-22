@@ -93,6 +93,17 @@ const localTemplates = {
       badge: 'richtext',
       items: [{ label: 'Richtext Template', badge: 'richtext', value: '$local:some-richtext' }],
     },
+    // the values the stories' expressions use, listed as a host lists them: a reference its catalogue does not
+    // list is drawn as a warning (qorus#646)
+    {
+      label: 'Local values',
+      items: [
+        { label: 'input', value: '$local:input' },
+        { label: 'id', badge: 'int', value: '$local:id' },
+        { label: 'text', badge: 'string', value: '$local:str' },
+        { label: 'prefix', badge: 'string', value: '$local:p' },
+      ],
+    },
   ],
 } as any;
 
@@ -182,7 +193,7 @@ export const DefaultBoolean: Story = {
     docs: {
       description: {
         story:
-          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation. It says what it lacks and what its place takes, the type named inside the sentence as the server names it (its sentence form): "Choose what this expression does: this field takes true or false." It said "This expression gives nothing", a type it never claimed (qorus#646, David\'s review).',
+          'Renders the ExpressionBuilder with no value and a boolean return type — a single empty expression card is shown so the operator can pick a boolean-returning operation. It says what it lacks and what its place takes, the type named inside the sentence as the server names it (its sentence form): "Choose what this expression does: this field takes true or false." It said "This expression gives nothing", a type it never claimed (qorus#646, David\'s review), and it is said once.',
       },
     },
   },
@@ -194,6 +205,8 @@ export const DefaultBoolean: Story = {
         'Choose what this expression does: this field takes true or false.'
       )
     );
+    // said once: it was said twice, once without what the field takes
+    expect(document.body.textContent?.split('Choose what this expression does').length).toBe(2);
   },
 };
 
