@@ -6,7 +6,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   builtInTypeName,
+  builtInTypeSentenceForm,
   defaultQorusTypes,
+  optionTypeSentence,
   optionTypeWords,
   qorusTypeKnownName,
 } from '../src/helpers/qorusTypeCatalogue';
@@ -45,5 +47,21 @@ describe("an option's type in words", () => {
     expect(optionTypeWords({ type: 'string' }, (name) => qorusTypeKnownName(german, name))).toBe(
       'Text (de)'
     );
+  });
+});
+
+describe("an option's type inside a sentence, as its hover and its help say it", () => {
+  const sentence = (schema: Record<string, unknown>) =>
+    optionTypeSentence(schema, builtInTypeName, builtInTypeSentenceForm);
+
+  it('is the sentence form of its kind of control, or of its type', () => {
+    expect(sentence({ type: 'int' })).toBe('a whole number');
+    expect(sentence({ type: 'string' })).toBe('text');
+    expect(sentence({ type: 'rgbcolor', ui_type: 'rgbcolor' })).toBe('a color');
+    expect(sentence({ type: 'string', ui_type: 'long-string' })).toBe('text');
+  });
+
+  it('is nothing where the catalogue names neither', () => {
+    expect(sentence({ type: 'some-custom-type' })).toBeUndefined();
   });
 });

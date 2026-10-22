@@ -335,3 +335,18 @@ export const optionTypeWords = (
   const element = named(schema?.ui_element_type);
   return kind && element ? `${kind} (${element})` : kind;
 };
+
+/**
+ * What kind of value an option takes, inside a sentence ("a whole number": "Takes a whole number."), by its kind of
+ * control where the catalogue names it, else by its type. Undefined where the catalogue names neither.
+ */
+export const optionTypeSentence = (
+  schema: { type?: unknown; ui_type?: unknown } | undefined,
+  typeName: TTypeName,
+  typeSentenceForm: TTypeSentenceForm
+): string | undefined => {
+  const named = [schema?.ui_type, schema?.type].find(
+    (type): type is string => typeof type === 'string' && !!typeName(type)
+  );
+  return named ? typeSentenceForm(named) : undefined;
+};

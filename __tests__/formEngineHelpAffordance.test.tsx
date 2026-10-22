@@ -106,10 +106,9 @@ describe('an option keeps its help affordance when it is opened', () => {
     expect(helpIcons(container, 'name').length).toBeGreaterThan(0);
   });
 
-  it('offers no ? when a field has no long description to reach', async () => {
-    // The affordance has to mean something: a `?` that opens an empty dialog is
-    // worse than no `?`, so it is bound to `desc` being present, not to the
-    // field being expanded.
+  it('offers a ? that says what the field takes, a long description or not', async () => {
+    // qorus#646, David's review: a field's type is said in its help, beside its description, not by default
+    // beside its name - so a field with a type in words has a help to open, with that in it
     const { container } = renderForm(
       {
         plain: {
@@ -120,6 +119,24 @@ describe('an option keeps its help affordance when it is opened', () => {
         },
       } as never,
       { plain: { type: 'string', value: 'set' } } as never,
+      ['plain']
+    );
+
+    await waitFor(() => expect(container.querySelector('[data-field="plain"]')).toBeTruthy());
+    expect(helpIcons(container, 'plain').length).toBeGreaterThan(0);
+  });
+
+  it('offers no ? when a field has nothing to say: no long description, and no type in words', async () => {
+    // The affordance has to mean something: a `?` that opens an empty dialog is worse than no `?`.
+    const { container } = renderForm(
+      {
+        plain: {
+          type: 'some-custom-type',
+          display_name: 'Plain',
+          short_desc: 'Has a short description only',
+        },
+      } as never,
+      { plain: { type: 'some-custom-type', value: 'set' } } as never,
       ['plain']
     );
 

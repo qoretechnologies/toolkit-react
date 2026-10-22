@@ -37,8 +37,8 @@ import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
 import { useCoarsePointer } from '../../../hooks/useCoarsePointer';
-import { optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
-import { useTypeName } from '../typeSentenceForm';
+import { optionTypeSentence, optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
+import { useTypeName, useTypeSentenceForm } from '../typeSentenceForm';
 import { revealRow } from './revealRow';
 import {
   MONO_FONT_STACK,
@@ -265,6 +265,7 @@ export const CompactRow = memo(
     const coarse = useCoarsePointer();
     // what kind of value the option takes, in the words the form's type catalogue names it
     const typeName = useTypeName();
+    const typeSentenceForm = useTypeSentenceForm();
     const showAllDescriptions = useContextSelector(CompactRowContext, (v) => v.showAllDescriptions);
     const isExpanded = useContextSelector(CompactRowContext, (v) =>
       v.expandedOptions.includes(optionName)
@@ -1388,8 +1389,19 @@ export const CompactRow = memo(
        screen (`small`) and a mouse's on a desktop (`tiny`), opening the help on a click, Enter or Space. It was a
        12px icon the keyboard could not reach. It sits in a label or a row that opens or closes on the same keys and
        clicks, so it keeps them: the row does not also open or close. */
+    /* What kind of value the option takes (qorus#646, David's review: "type information should be shown on hover or
+       after clicking the 'Show all field information' control rather than by default"): in its name's hover and
+       in its help, beside its description, and beside its name only while the form shows all field information or
+       its types. */
+    const typeWords = optionTypeWords(schema, typeName);
+    const typeSentence = optionTypeSentence(schema, typeName, typeSentenceForm);
+    const labelHover =
+      [schema?.short_desc, typeSentence && `Takes ${typeSentence}.`].filter(Boolean).join('\n') ||
+      undefined;
+    const typeShown = !!showFieldTypes || showAllDescriptions === true;
+    // the help says what the option takes, and its description where it has one: every option with either has it
     const helpIcon =
-      schema?.desc ?
+      schema?.desc || typeSentence ?
         <ReqoreButton
           icon='QuestionLine'
           size={coarse ? 'small' : 'tiny'}
@@ -1411,12 +1423,9 @@ export const CompactRow = memo(
           }}
         />
       : null;
-    /* What kind of value the option takes, in words: always beside an open option's name (qorus#646, David's
-       decision: "how can the user know that the type of the option is Text"), and beside a read row's name while
-       the form shows field types. Muted: it is about the field, not its value. */
-    const typeWords = optionTypeWords(schema, typeName);
+    // beside the name, muted: it is about the field, not its value
     const typeTag =
-      typeWords ?
+      typeWords && typeShown ?
         <ReqoreTag
           size='tiny'
           minimal
@@ -1636,7 +1645,7 @@ export const CompactRow = memo(
                 role='button'
                 tabIndex={0}
                 aria-label={`Collapse ${label}`}
-                title={schema?.short_desc || undefined}
+                title={labelHover}
                 $color={cKey}
                 $pointer
                 onClick={collapse}
@@ -1850,7 +1859,7 @@ export const CompactRow = memo(
             }}
           >
             <StyledCardHeading>
-              <StyledCardLabel $color={cKey}>
+              <StyledCardLabel $color={cKey} title={labelHover}>
                 {(
                   (schema as { icon?: string } | undefined)?.icon ||
                   (schema as { image?: string } | undefined)?.image
@@ -2218,7 +2227,7 @@ export const CompactRow = memo(
         `${optionField.value.trim().split('\n').length} lines`
       : undefined;
     // the option's type beside its name, while the form shows field types: in words, as an open option says it
-    const typeLabel = showFieldTypes ? typeWords : undefined;
+    const typeLabel = typeShown ? typeWords : undefined;
     // A `readonly` field is one the system owns — an assigned id, a recorded
     // provenance. The server states that on the field itself; only the older
     // compat projection also mapped it to `disabled`, so on this path the form
@@ -2453,7 +2462,7 @@ export const CompactRow = memo(
       >
         {clusterNode}
         <StyledLabelBlock className='options-readfirst-label-block'>
-          <StyledRowLabel title={schema?.short_desc || undefined} $color={cKey}>
+          <StyledRowLabel title={labelHover} $color={cKey}>
             {rowChromeIcon}
             {/* label + asterisk flow as ONE inline run, so the asterisk
                 stays right after the last word even when the name wraps. The help

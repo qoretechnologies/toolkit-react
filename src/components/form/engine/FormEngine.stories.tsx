@@ -11402,10 +11402,8 @@ export const SavedExpressionOpensOnExpression: Story = {
     await atTheCaptureSize(parameters);
     const row = await editOption('computed');
     expect(optionActiveTab(row)).toBe('expression');
-    /* the open option's name stays whole beside what it takes, which goes under it where both do not fit (a
-       phone): beside it, it broke the name in two ("Compute d", qorus#646) */
+    // the open option's name stays whole, on a phone too: beside its type it broke in two ("Compute d", qorus#646)
     expect(onOneLine(row, 'Computed'), 'the name on one line').toBe(true);
-    expect(row.querySelector('.options-readfirst-type')?.textContent).toBe('Whole number');
     await waitFor(() => expect(row.querySelector('.expression-field [data-slate-editor]')?.textContent).toContain('+'));
     await chooseTab(row, 'value');
     await waitFor(() => expect(optionRow('computed').querySelector('.value-tab-cannot-show')).toBeTruthy());
@@ -12151,6 +12149,44 @@ const valueTabChips = (field: string) =>
     (chip) => chip.textContent?.trim()
   );
 
+export const AnOptionSaysWhatItTakesInItsHoverAndHelp: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form and opens Quantity, a whole number: what it takes is in its name\'s hover - "Takes a whole number." - and in its help, opened from its (?), above its description; not beside its name (David\'s review: type information on hover, in the (?) help, or with "Show all field information"). With all field information shown, it is beside the name: Whole number. The capture leaves that on.',
+      },
+    },
+  },
+  render: () => <TemplateOrExpressionForm />,
+  play: async () => {
+    const row = await editOption('quantity');
+    expect(
+      row.querySelector('.options-readfirst-type'),
+      'no type beside the name by default'
+    ).toBeNull();
+    expect(row.querySelector('[title*="Takes"]')?.getAttribute('title')).toContain(
+      'Takes a whole number.'
+    );
+    // the help says it, every option having one
+    await userEvent.click(row.querySelector('.options-readfirst-help') as HTMLElement);
+    await waitFor(() =>
+      expect(document.querySelector('.reqore-modal .options-help-type')?.textContent).toBe(
+        'Takes a whole number.'
+      )
+    );
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.reqore-modal')).toBeFalsy());
+    // with all field information shown, beside the name
+    await userEvent.click(document.querySelector('.options-readfirst-descriptions') as HTMLElement);
+    await waitFor(() =>
+      expect(optionRow('quantity').querySelector('.options-readfirst-type')?.textContent).toBe(
+        'Whole number'
+      )
+    );
+  },
+};
+
 export const ALoneFieldReadsAsTheFieldInEveryView: Story = {
   parameters: {
     docs: {
@@ -12216,7 +12252,7 @@ export const ValueTabPickReplacesAReferencedField: Story = {
     docs: {
       description: {
         story:
-          "Renders the form holding value($record:{bezeichnung}), opens it on Value, empties the text with its × and picks pos from the fields the text offers: it holds the field pos, a value written on the Value tab, and its chip says pos. A field picked into the text goes where the caret is, as into any text. Beside the open option's name, what it takes: Text (David's decision: \"how can the user know that the type of the option is Text\"). The mouse resting on the chip shows what the field is: pos, a whole number (David's review: the hover should say the field's type); the capture leaves it open.",
+          "Renders the form holding value($record:{bezeichnung}), opens it on Value, empties the text with its × and picks pos from the fields the text offers: it holds the field pos, a value written on the Value tab, and its chip says pos. A field picked into the text goes where the caret is, as into any text. The option's name says, on hover, what it takes: text (David's review: in the hover and the help, not by default beside the name). The mouse resting on the chip shows what the field is: pos, a whole number (David's review: the hover should say the field's type); the capture leaves it open.",
       },
     },
   },
@@ -12224,8 +12260,9 @@ export const ValueTabPickReplacesAReferencedField: Story = {
   play: async ({ canvasElement, parameters }) => {
     await atTheCaptureSize(parameters);
     const row = await editOption('by_value');
-    // what the open option takes, beside its name, in words
-    expect(row.querySelector('.options-readfirst-type')?.textContent).toBe('Text');
+    // what the open option takes, in its name's hover: not beside the name by default
+    expect(row.querySelector('[title*="Takes"]')?.getAttribute('title')).toContain('Takes text.');
+    expect(row.querySelector('.options-readfirst-type')).toBeNull();
     await chooseTab(row, 'value');
     await waitFor(() =>
       expect(valueTabChips('by_value')).toEqual([expect.stringContaining('bezeichnung')])

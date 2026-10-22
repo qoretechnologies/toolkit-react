@@ -16,10 +16,14 @@ The `?` is a button (David's decision, 2026-10-22): in the tab order with a focu
 reqore's `small` on a touch screen and `tiny` with a mouse, opening the help on a click, Enter
 or Space - not the row it is in. It was a 12 px icon outside the tab order.
 
-- **The option's type**, in words from the type catalogue ("Text", "Whole number", "List
-  (Text)"; `optionTypeWords`), is a muted tag beside an open option's name, always, and beside a
-  read row's name while "Show field types" is on - never the type's code (`<string>`). A type the
-  catalogue does not name shows no tag. Read rows stay compact by default.
+- **The option's type**, in words from the type catalogue (David's review, 2026-10-22: "type
+  information should be shown on hover or after clicking the Show all field information control
+  rather than by default"): in the name's hover ("Takes a whole number.", under the short
+  description) and in the help, above the description - so every option the catalogue can say
+  the type of has a `?`, a description or not. Beside the name, as a muted tag ("Whole number",
+  "List (Text)"; `optionTypeWords`), only while "Show all field information" or "Show field
+  types" is on; never the type's code (`<string>`). A type the catalogue does not name says
+  nothing.
 
 The decision record below is kept as it was decided.
 
