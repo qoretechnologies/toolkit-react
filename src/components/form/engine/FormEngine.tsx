@@ -2949,9 +2949,9 @@ const FormEngineImpl = ({
     const row = wrap?.querySelector<HTMLElement>(`[data-field="${target}"]`);
     if (row) {
       revealRow(row, 'auto');
-      findRowFocusTarget(row.querySelector<HTMLElement>('.options-readfirst-row-editor'))?.focus({
-        preventScroll: true,
-      });
+      findRowFocusTarget(row.querySelector<HTMLElement>('.options-readfirst-row-editor'), {
+        textEntryOnly: row.classList.contains('options-readfirst-card'),
+      })?.focus({ preventScroll: true });
     }
   }, [focusAttentionRequest]);
 

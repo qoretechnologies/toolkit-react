@@ -960,7 +960,8 @@ export const CompactRow = memo(
           settled = true;
           return true;
         }
-        const control = findRowFocusTarget(editor);
+        // A card hands the caret only to where text goes (see `findRowFocusTarget`).
+        const control = findRowFocusTarget(editor, { textEntryOnly: !inlineEditable });
         if (!control) return false;
         // The least scroll that shows the row clear of the pinned box header,
         // and none when it is already in view (see `revealRow`).
