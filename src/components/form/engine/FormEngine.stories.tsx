@@ -1351,7 +1351,7 @@ export const CompactRowReleasesItsOpeningFloor: Story = {
   args: {
     compact: true,
     minColumnWidth: '360px',
-    value: { cookie_name: { type: 'string', value: 'my-cookie' } },
+    value: { cookie_name: { type: 'string', value: 'my cookie' } },
     options: {
       cookie_name: {
         type: 'string',
@@ -1359,9 +1359,11 @@ export const CompactRowReleasesItsOpeningFloor: Story = {
         display_name: 'Cookie Name',
         short_desc: 'Cookie name for cookie authentication',
         // A message is what makes a read row tall enough for the stuck floor
-        // to be visible rather than merely present.
+        // to be visible rather than merely present. It is about the name it is shown for: one with a space
+        // (David's review: the warning was shown for a name it said nothing about, and stayed after the rename).
         messages: [
           {
+            when: ['cookie_name=my cookie'],
             intent: 'warning',
             title: 'This name is not one the browser will keep',
             content:
@@ -1399,6 +1401,12 @@ export const CompactRowReleasesItsOpeningFloor: Story = {
         expect(still?.style.minHeight ?? '').toBe('');
       },
       { timeout: 5000 }
+    );
+    // the warning was about the name renamed: it goes, as it says it will
+    await waitFor(() =>
+      expect(canvasElement.querySelector('[data-field="cookie_name"]')?.textContent).not.toContain(
+        'This name is not one the browser will keep'
+      )
     );
   },
 };
