@@ -1389,45 +1389,54 @@ export const ReadOnly: Story = {
 };
 
 /**
- * Templates via the `$` trigger — the server's design (mirrored in the
- * mock): typing `$` opens template-namespace completions
- * (`$data:`, `$config:`, `$static:`, `$timestamp:`), the same on-typing
- * dropdown that `@` uses for fields. There is no separate "Templates"
- * button — `dpql-get-completions` is position-aware and returns
- * templates after `$`, fields after `@`.
+ * Templates via the `$` trigger: the templates the editor is given, as whole values. The server answers `$` with
+ * its template contexts (`$data:`, `$config:`, …), each of which needs a name typed after it, so a pick of one left
+ * the text invalid (qorus#646, David: "clicking a variable immediately results in errors"); they are not listed,
+ * and a context can still be typed by hand. `@` lists the record's fields.
  */
 export const WithTemplates: Story = {
   args: {
     value: '',
     onChange: fn(),
+    templates: {
+      items: [
+        {
+          label: 'Order data',
+          items: [
+            { label: 'order id', value: '$static:{order_id}', badge: 'int' },
+            { label: 'customer', value: '$static:{customer}', badge: 'string' },
+          ],
+        },
+      ],
+    } as never,
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Type `$` to open the template namespaces (`$data:`, ' +
-          '`$config:`, …). Templates and fields share one on-typing ' +
-          'completion dropdown — `$`→templates, `@`→fields. No ' +
-          'separate Templates button.',
+          'Type `$` to list the templates the editor is given (order id, customer), each a whole value - not the ' +
+          "server's template contexts ($data:, $config:), which need a name typed after them. Templates and " +
+          'fields share one completion list: `$` lists templates, `@` fields (@name, @status, @age).',
       },
     },
   },
-  // CI guard: `$` opens templates, `@` opens fields — proves the
-  // position-aware routing.
+  // CI guard: `$` lists whole templates and no bare context, `@` lists fields
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
 
-    // `$` → templates
+    // `$` → the templates, as whole values
     await userEvent.type(editable, '$');
     await waitFor(
       () => {
-        const dropdown = document.querySelector('.reqore-menu');
+        const dropdown = document.querySelector('.completion-menu');
         expect(dropdown).not.toBeNull();
-        expect(dropdown!.textContent).toContain('$data:');
-        expect(dropdown!.textContent).toContain('$config:');
-        // Field refs must NOT appear in the `$` dropdown.
+        expect(dropdown!.textContent).toContain('order id');
+        expect(dropdown!.textContent).toContain('customer');
+        // no context that needs a name typed after it, and no field
+        expect(dropdown!.textContent).not.toContain('$data:');
+        expect(dropdown!.textContent).not.toContain('$config:');
         expect(dropdown!.textContent).not.toContain('@name');
       },
       { timeout: 30000 }
@@ -1438,9 +1447,42 @@ export const WithTemplates: Story = {
     await userEvent.type(editable, '@');
     await waitFor(
       () => {
-        const dropdown = document.querySelector('.reqore-menu');
+        const dropdown = document.querySelector('.completion-menu');
         expect(dropdown).not.toBeNull();
         expect(dropdown!.textContent).toContain('@name');
+        expect(dropdown!.textContent).not.toContain('$data:');
+      },
+      { timeout: 30000 }
+    );
+  },
+};
+
+/**
+ * `$` in an editor given no templates: the list says there are none. It listed the server's template contexts, and
+ * a pick of one left the text invalid (qorus#646).
+ */
+export const ADollarWithNoTemplatesSaysThereAreNone: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Type `$` in an editor given no templates: the list says "No templates here" - not the server\'s ' +
+          'template contexts ($data:, $config:), each of which needs a name typed after it, so a pick of one left ' +
+          'the text invalid (David: "clicking a variable immediately results in errors"). A context can still be ' +
+          'typed by hand.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.type(editable, '$');
+    await waitFor(
+      () => {
+        const dropdown = document.querySelector('.completion-menu');
+        expect(dropdown).not.toBeNull();
+        expect(dropdown!.textContent).toContain('No templates here');
         expect(dropdown!.textContent).not.toContain('$data:');
       },
       { timeout: 30000 }

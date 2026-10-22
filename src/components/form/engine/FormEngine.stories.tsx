@@ -7670,9 +7670,9 @@ export const CompactAutoFocusPickOneFirstQuestion: Story = {
     );
     const active = document.activeElement as HTMLElement;
     // The control the row actually offers: a choice, not a text box.
-    // the first choice, a native checkbox since reqore 0.78
+    // the first choice, a native radio: one choice of a few (qorus#646)
     expect(active.tagName).not.toBe('TEXTAREA');
-    expect((active as HTMLInputElement).type).toBe('checkbox');
+    expect((active as HTMLInputElement).type).toBe('radio');
   },
 };
 
@@ -9620,7 +9620,7 @@ export const AnOptionsHelpIsAButton: Story = {
     await userEvent.keyboard('{Enter}');
     await waitFor(() =>
       expect(document.querySelector('.reqore-modal')?.textContent).toContain(
-        'Uses the $.path field-reference grammar'
+        'Choose a value this case captures and what it must be.'
       )
     );
     expect(row.classList.contains('readfirst-row-editing'), 'the row stays closed').toBe(false);
@@ -9666,7 +9666,7 @@ export const AnOptionsHelpIsAButtonOnATouchScreen: Story = {
     await userEvent.click(help);
     await waitFor(() =>
       expect(document.querySelector('.reqore-modal')?.textContent).toContain(
-        'Uses the $.path field-reference grammar'
+        'Choose a value this case captures and what it must be.'
       )
     );
     expect(row.classList.contains('readfirst-row-editing'), 'the row stays closed').toBe(false);
@@ -12194,7 +12194,7 @@ export const CancelingAnEditThatMadeAnExpressionPutsBackTheValue: Story = {
     docs: {
       description: {
         story:
-          'Renders the form, opens Quantity (12) on Value and writes " + 2", which makes it an expression, then cancels the edit: Quantity holds 12 again, a value, not marked as an expression.',
+          'Renders the form, opens Quantity (12) on Value and writes " + 2", which it offers as an expression; used as one, the edit is canceled: Quantity holds 12 again, a value, not marked as an expression.',
       },
     },
   },
@@ -12209,6 +12209,17 @@ export const CancelingAnEditThatMadeAnExpressionPutsBackTheValue: Story = {
       })
     );
     await userEvent.keyboard(' + 2');
+    // offered, and used as an expression (it is never switched to without asking: David's review)
+    await userEvent.click(
+      await waitFor(
+        () => {
+          const button = optionRow('quantity').querySelector<HTMLElement>('.dpql-detected-offer');
+          expect(button, 'the offer of an expression').toBeTruthy();
+          return button as HTMLElement;
+        },
+        { timeout: 10000 }
+      )
+    );
     await waitFor(() => expect(heldOption(canvasElement, 'quantity')?.is_expression).toBe(true), {
       timeout: 10000,
     });

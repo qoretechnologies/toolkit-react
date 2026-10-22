@@ -1639,7 +1639,7 @@ export const FieldMenuStaysInTheToolbar: Story = {
     docs: {
       description: {
         story:
-          "Types 1 + 2 on a compact row whose field also has templates: the field enters its value on tabs (Value · Expression · Visual), and the expression moves it to Expression. The row shows ONE More menu — the field publishes its items into the row's ⋮ rather than drawing its own — and that menu sits in the tabs' row, not part-way down the editor.",
+          "Types 1 + 2 on a compact row whose field also has templates: the field enters its value on tabs (Value · Expression · Visual), and the expression is offered; used as one, it moves the field to Expression. The row shows ONE More menu — the field publishes its items into the row's ⋮ rather than drawing its own — and that menu sits in the tabs' row, not part-way down the editor.",
       },
     },
   },
@@ -1692,7 +1692,17 @@ export const FieldMenuStaysInTheToolbar: Story = {
     )) as HTMLElement;
     await userEvent.click(input);
     await userEvent.type(input, '1 + 2');
-    // the Value tab never holds an expression: the field moves to Expression, in the tabs' row
+    // offered, never switched to without asking (David's review); used as one, the field moves to Expression
+    await userEvent.click(
+      await waitFor(
+        () => {
+          const button = canvasElement.querySelector<HTMLElement>('.dpql-detected-offer');
+          expect(button, 'the offer of an expression').toBeTruthy();
+          return button as HTMLElement;
+        },
+        { timeout: 10000 }
+      )
+    );
     await waitFor(
       () =>
         expect(
