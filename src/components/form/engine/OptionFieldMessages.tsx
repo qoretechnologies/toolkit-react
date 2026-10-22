@@ -3,9 +3,11 @@ import {
   ReqoreP,
   ReqoreTag,
   ReqoreVerticalSpacer,
+  useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { IQorusFormField, IQorusFormSchema, TQorusForm } from '@qoretechnologies/ts-toolkit';
 import { isArray, size } from 'lodash';
 import { useMemo } from 'react';
@@ -471,8 +473,10 @@ export const OptionFieldMessages = ({
   allOptions,
   getType,
   isRendererOnly,
+  requirementPending,
 }: IOptionFieldMessagesProps) => {
   const calm = useIsCalmForm();
+  const theme = useReqoreTheme();
   const messages: IReqoreTagProps[] = useMemo(
     () =>
       getOptionFieldMessages({
@@ -483,6 +487,7 @@ export const OptionFieldMessages = ({
         getType,
         isRendererOnly,
         calm,
+        requirementPending,
       }),
     [
       JSON.stringify(schema),
@@ -491,6 +496,7 @@ export const OptionFieldMessages = ({
       name,
       isRendererOnly,
       calm,
+      requirementPending,
     ]
   );
 
@@ -513,6 +519,13 @@ export const OptionFieldMessages = ({
             key={index}
             size='small'
             intent={message.intent}
+            // A requirement nobody has been asked about yet carries no intent: it is
+            // said in the same faint colour as the row's pending word, not in full text.
+            effect={
+              message.intent ? undefined : (
+                { color: `${getReadableColor(theme, undefined, undefined, true)}a6` }
+              )
+            }
             className='options-field-message'
           >
             {message.label}

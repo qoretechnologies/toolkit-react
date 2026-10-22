@@ -3260,6 +3260,9 @@ const FormEngineImpl = ({
             option={{ type: resolvedType, ...other }}
             getType={getTypeForOption}
             isRendererOnly={isRendererOnly}
+            // Open is not left: a field the form opened for typing (the first empty
+            // one, on a new form) says what it needs without already being wrong.
+            requirementPending={!(revealRequired || visitedOptions.includes(optionName))}
           />
           {operators && size(operators) && size(other.op) ?
             <>
@@ -3311,6 +3314,8 @@ const FormEngineImpl = ({
       getTypeForOption,
       inheritedScopes,
       inheritedFromParent,
+      revealRequired,
+      visitedOptions,
     ]
   );
 

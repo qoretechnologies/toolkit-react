@@ -459,7 +459,7 @@ export const CalmNewForm: Story = {
     docs: {
       description: {
         story:
-          'A brand-new form in the calm look. A new form is not already wrong: its required fields are still to fill in, so the first section reads **To fill in** with no amber dot, each empty required field says **Required · add a value** in the quiet colour, and the readiness line says "3 to fill in". Opening a required field and leaving it empty makes it a fault: the section becomes **Needs attention**, with its amber dot, that field\'s words turn amber, and the readiness line says "1 need attention · 2 to fill in".',
+          'A brand-new form in the calm look. A new form is not already wrong: its required fields are still to fill in, so the first section reads **To fill in** with no amber dot, each empty required field says **Required · add a value** in the quiet colour (under its editor too, while it is open for typing), and the readiness line says "3 to fill in". Opening a required field and leaving it empty makes it a fault: the section becomes **Needs attention**, with its amber dot, that field\'s words turn amber, and the readiness line says "1 need attention · 2 to fill in".',
       },
     },
   },
@@ -476,8 +476,22 @@ export const CalmNewForm: Story = {
     expect(link.textContent).toContain('to fill in');
     expect(isAmber(getComputedStyle(link).color)).toBe(false);
 
-    // Open Name, then open another field: Name has been visited and left empty.
+    // Open Name: an open field is not yet a left one, so the line under its editor
+    // says what it needs in the quiet colour (a host that opens the first empty field
+    // on a new form must not show it as already wrong).
     await _testsClickText('Name');
+    const openMessage = await waitFor(() => {
+      // An open row is no longer a read-first row, so it is found by its field alone.
+      const found = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-field="display_name"] .options-field-message')
+      ).find((el) => el.textContent === CALM_REQUIRED_LABEL);
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    expect(isAmber(getComputedStyle(openMessage).color)).toBe(false);
+    expect(heading()).toContain('To fill in');
+
+    // Then open another field: Name has been visited and left empty.
     await _testsClickText('Version');
     await waitFor(() => expect(heading()).toContain('Needs attention'));
     // Only the visited field is a fault; the other two are still to fill in.
