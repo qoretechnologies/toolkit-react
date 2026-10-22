@@ -700,6 +700,9 @@ export const TextModeTypeFits: Story = typedExpressionStory(
 /** The mark a host sets on a field that is a condition. */
 const CONDITION_SCHEMA = { metadata: { condition: true } };
 
+/** The record of an order, as the stand-in server knows it (`DPQL_MOCK_PROVIDERS`). */
+const ORDERS_PROVIDER = 'orders-db/orders';
+
 /** Settled when the server has read this text as a condition. */
 const readAsCondition = async (canvasElement: HTMLElement, text: string) => {
   await waitFor(
@@ -722,7 +725,7 @@ const NOT_A_CONDITION_TEXT = 'The condition evaluates to text, but it must evalu
 export const TextModeConditionThatGivesANumber: Story = typedExpressionStory(
   'bool',
   '1 + 2',
-  "Types `1 + 2` into the Text view of a condition (a Qog if state's value, say). The result is a number, which Qorus reads as true unless it is 0: the field says so in the server's words, and how to make that explicit (compare it, for example @count > 0).",
+  "Types `1 + 2` into the Text view of a condition on the orders record (whose fields an @ offers there). The result is a number, which Qorus reads as true unless it is 0: the field says so in the server's words, and how to make that explicit (compare it, for example @count > 0).",
   async (canvasElement) => {
     await readAsCondition(canvasElement, '1 + 2');
     await waitFor(() => expect(canvasElement.textContent).toContain(CONDITION_BY_TRUTHINESS), {
@@ -731,7 +734,8 @@ export const TextModeConditionThatGivesANumber: Story = typedExpressionStory(
     expect(canvasElement.textContent).not.toContain('This does not fit');
     expect(canvasElement.textContent).not.toContain('This may not fit');
   },
-  CONDITION_SCHEMA
+  // a condition on the orders record, which the server names for the option
+  { ...CONDITION_SCHEMA, dpql_provider: ORDERS_PROVIDER }
 );
 
 export const TextModeConditionThatGivesText: Story = typedExpressionStory(
@@ -1026,12 +1030,34 @@ const ConditionToggleForm = () => {
             supports_expressions: true,
             expressions: mockExpressions,
             metadata: { condition: true },
+            // the record the condition is on, named by the server for an option on a connection
+            dpql_provider: ORDERS_PROVIDER,
           },
         } as any
       }
       value={value}
       onChange={(_n, v) => setValue(v)}
     />
+  );
+};
+
+/**
+ * The fields the Text view offers after an `@`: the record's, which the server names for the option
+ * (`dpql_provider`), not a list of its own.
+ */
+const expectRecordFieldsOffered = async (canvasElement: HTMLElement) => {
+  const editable = canvasElement.querySelector<HTMLElement>(
+    '.expression-field [data-slate-editor]'
+  )!;
+  await userEvent.click(editable);
+  await userEvent.keyboard('@');
+  await waitFor(
+    () => {
+      for (const field of ['@order_id', '@customer', '@total', '@shipped']) {
+        expect(document.body.textContent, `the record's field ${field}`).toContain(field);
+      }
+    },
+    { timeout: 6000 }
   );
 };
 
@@ -1058,7 +1084,7 @@ export const WriteAConditionInFormEngine: Story = {
     docs: {
       description: {
         story:
-          'Renders a FormEngine field that is a condition (its host marks it one) and holds nothing yet. Its More menu offers "Write a condition" - what the item is for, so it has no tooltip to repeat it - where a value field offers "Use Expression"; clicking it opens the condition on its Text view.',
+          'Renders a FormEngine field that is a condition (its host marks it one) and holds nothing yet: a search condition on the orders record, which takes no templates (as the Qorus app\'s exec-search condition takes none), and whose record the server names. Its More menu offers "Write a condition" - what the item is for, so it has no tooltip to repeat it - where a value field offers "Use Expression"; clicking it opens the condition on its Text view, where an @ offers the record\'s fields: @order_id, @customer, @total and @shipped.',
       },
     },
   },
@@ -1073,6 +1099,7 @@ export const WriteAConditionInFormEngine: Story = {
       () => expect(canvasElement.querySelector('.expression-field [data-slate-editor]')).toBeInTheDocument(),
       { timeout: 6000 }
     );
+    await expectRecordFieldsOffered(canvasElement);
   },
 };
 
@@ -1084,7 +1111,7 @@ export const WriteAConditionInFormEngineOnAPhone: Story = {
     docs: {
       description: {
         story:
-          'The same condition field on a phone (390 px, touch): its More menu offers "Write a condition", inside the screen, and a tap on it opens the condition.',
+          'The same condition field on a phone (390 px, touch): its More menu offers "Write a condition", inside the screen, and a tap on it opens the condition, where an @ offers the order record\'s fields.',
       },
     },
   },
@@ -1103,6 +1130,7 @@ export const WriteAConditionInFormEngineOnAPhone: Story = {
           ).toBeInTheDocument(),
         { timeout: 6000 }
       );
+      await expectRecordFieldsOffered(context.canvasElement);
     });
   },
 };

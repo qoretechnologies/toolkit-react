@@ -319,6 +319,9 @@ export interface IValueTabsLabels {
   expressionDraftNotUsed?: string;
 }
 
+/** Why a field that takes templates offers none here: its context's catalogue has none of its type. */
+export const NO_TEMPLATES_ON_OFFER = 'No templates are offered here for this field.';
+
 /** The keyboard a whole number or a number is typed on, on the Value tab. */
 const TEXTABLE_INPUT_MODES: Record<string, 'numeric' | 'decimal'> = {
   int: 'numeric',
@@ -1703,7 +1706,16 @@ const TemplateFieldImpl = memo(
                 {
                   label: 'Use Template',
                   icon: 'MoneyDollarCircleLine' as const,
-                  tooltip: 'Use a template',
+                  /* With no template on offer here - a context whose catalogue has none, or none of this
+                     type - the way in leads to an empty list: it is shown, not taken, and says why
+                     (qorus#646, David: "Are there cases where no templates or fields are available?"). */
+                  ...(hasTemplatesOnOffer ?
+                    { tooltip: 'Use a template' }
+                  : {
+                      disabled: true,
+                      description: NO_TEMPLATES_ON_OFFER,
+                      tooltip: NO_TEMPLATES_ON_OFFER,
+                    }),
                   onClick: handleTemplateToggleClick,
                 },
               ]
@@ -1740,6 +1752,7 @@ const TemplateFieldImpl = memo(
         canOfferExpression,
         functions.loading,
         canOfferTemplate,
+        hasTemplatesOnOffer,
         canOfferCustomValue,
         menuItems,
         handleSelectFunctionChange,
@@ -1758,7 +1771,7 @@ const TemplateFieldImpl = memo(
        by value would loop. */
     const publishedKey = [
       canOfferExpression && !functions.loading ? 'expression' : '',
-      canOfferTemplate ? 'template' : '',
+      canOfferTemplate ? `template${hasTemplatesOnOffer ? '' : '-none-on-offer'}` : '',
       canOfferCustomValue ? 'custom-value' : '',
       `custom:${((menuItems ?? []) as { label?: unknown }[]).map((item) => String(item.label ?? '')).join('|')}`,
       canSaveValue ? `save:${JSON.stringify(value)}` : '',
@@ -1919,7 +1932,9 @@ const TemplateFieldImpl = memo(
                     transparent
                     icon='MoneyDollarCircleLine'
                     className='template-toggle'
-                    tooltip={'Use a template'}
+                    // none on offer: shown, not taken, and saying why (as the menu's item does)
+                    tooltip={hasTemplatesOnOffer ? 'Use a template' : NO_TEMPLATES_ON_OFFER}
+                    disabled={!hasTemplatesOnOffer}
                     compact
                     size={rest.size}
                     onClick={handleTemplateToggleClick}
@@ -2032,6 +2047,7 @@ const TemplateFieldImpl = memo(
       rest.readonly,
       rest.size,
       showTemplateToggle,
+      hasTemplatesOnOffer,
       // reaches the menu through `templateSupportsCustomValues`
       allowCustomValues,
       hasOnlyExpressions,
@@ -2256,6 +2272,11 @@ const TemplateFieldImpl = memo(
               expressions={rest.expressions}
               expressionsUrl={rest.expressions_url}
               fields={rest.dpql_fields}
+              /* The record the server names for the option (`dpql_provider`: its connection and path), with the
+                 server's own default record type. It was never read: the server sends it, and the Text view
+                 offered no field of the record (qorus#646). */
+              provider={rest.dpql_provider}
+              recordType={rest.dpql_provider ? 'record' : undefined}
               serverHandled={rest.server_expression_handling}
               // a condition (a Qog if state's value, a while or for block's condition), marked by the host
               condition={isConditionOption(rest)}
@@ -2379,6 +2400,9 @@ const TemplateFieldImpl = memo(
                 expressionsUrl={rest.expressions_url}
                 // the record's fields for the Text view, from the field's schema (`dpql_fields`)
                 fields={rest.dpql_fields}
+                // the record the server names for the option (see above)
+                provider={rest.dpql_provider}
+                recordType={rest.dpql_provider ? 'record' : undefined}
                 serverHandled={rest.server_expression_handling}
                 // a condition (a Qog if state's value, a while or for block's condition), marked by the host
                 condition={isConditionOption(rest)}

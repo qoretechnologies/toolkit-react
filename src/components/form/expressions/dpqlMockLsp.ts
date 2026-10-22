@@ -64,6 +64,45 @@ const DPQL_MOCK_FIELD_ITEMS = [
 const dpqlMockDocumentFields = new Map<string, TDpqlMockFields>();
 
 /**
+ * The records the stand-in server knows by provider path, as the server answers `dpql/setContext` for a
+ * provider: a field's display name, its description and its type. The Qorus server names the provider of an
+ * expression option's record in the option's schema (`dpql_provider`, the option's connection and its path), and
+ * the editor binds its document to it.
+ */
+export const DPQL_MOCK_PROVIDERS: Record<
+  string,
+  Record<string, { type: string; display_name: string; short_desc?: string }>
+> = {
+  'orders-db/orders': {
+    order_id: { type: 'int', display_name: 'Order ID', short_desc: 'The number of the order.' },
+    customer: { type: 'string', display_name: 'Customer', short_desc: 'Who placed the order.' },
+    total: { type: 'number', display_name: 'Total', short_desc: 'What the order costs, with tax.' },
+    shipped: {
+      type: 'bool',
+      display_name: 'Shipped',
+      short_desc: 'Whether the order has shipped.',
+    },
+  },
+};
+
+/** The provider each document is bound to, by its URI. */
+const dpqlMockDocumentProviders = new Map<string, string>();
+
+/** Binds the document `uri` to the record of `provider`, if the stand-in knows it; returns the record. */
+const bindMockProvider = (uri: string, provider: unknown) => {
+  const record = typeof provider === 'string' ? DPQL_MOCK_PROVIDERS[provider] : undefined;
+  if (!record) {
+    return undefined;
+  }
+  dpqlMockDocumentProviders.set(uri, provider as string);
+  dpqlMockDocumentFields.set(
+    uri,
+    Object.fromEntries(Object.entries(record).map(([name, field]) => [name, { type: field.type }]))
+  );
+  return record;
+};
+
+/**
  * A document's text as plain DPQL: the editor sends text, or rich text whose chips are references
  * (`{type: 'tag', value}`), which the server reads as the references they are.
  */
@@ -102,7 +141,21 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
       return { isIncomplete: false, items: DPQL_MOCK_TEMPLATE_ITEMS };
     }
     if (sigil === '@') {
-      return { isIncomplete: false, items: DPQL_MOCK_FIELD_ITEMS };
+      // a document bound to a provider is offered its record's fields, as the server offers them
+      const provider = dpqlMockDocumentProviders.get(String(msg.params?.textDocument?.uri));
+      const record = provider ? DPQL_MOCK_PROVIDERS[provider] : undefined;
+      return {
+        isIncomplete: false,
+        items:
+          record ?
+            Object.entries(record).map(([name, field]) => ({
+              label: `@${name}`,
+              insertText: `@${name}`,
+              kind: 5,
+              detail: field.type,
+            }))
+          : DPQL_MOCK_FIELD_ITEMS,
+      };
     }
     return { isIncomplete: false, items: [] };
   },
@@ -116,7 +169,23 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
     if (msg.params?.fields) {
       dpqlMockDocumentFields.set(String(msg.params.uri), msg.params.fields as TDpqlMockFields);
     }
-    return { fields: {} };
+    // a provider's record, answered as the server answers it: each field with its name, description and type
+    const record = bindMockProvider(String(msg.params?.uri), msg.params?.provider);
+    return {
+      fields:
+        record ?
+          Object.fromEntries(
+            Object.entries(record).map(([name, field]) => [
+              name,
+              {
+                display_name: field.display_name,
+                short_desc: field.short_desc,
+                type: { name: field.type },
+              },
+            ])
+          )
+        : {},
+    };
   },
 
   // the server publishes what it finds in a document's text on every open and change
@@ -126,9 +195,10 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
       text?: unknown;
       metadata?: { fields?: TDpqlMockFields };
     };
-    const fields = (doc.metadata ?? (msg.params?.metadata as { fields?: TDpqlMockFields }))
-      ?.fields;
-    if (fields) dpqlMockDocumentFields.set(String(doc.uri), fields);
+    const metadata = (doc.metadata ?? msg.params?.metadata) as
+      { fields?: TDpqlMockFields; provider?: string } | undefined;
+    if (metadata?.fields) dpqlMockDocumentFields.set(String(doc.uri), metadata.fields);
+    bindMockProvider(String(doc.uri), metadata?.provider);
     publishDiagnostics(server, String(doc.uri), plainText(doc.text ?? ''));
   },
 
@@ -188,6 +258,7 @@ export const startDpqlMockLspServer = (
 ): { lsp: IMockLspServer; stop: () => void } => {
   dpqlMockParseCalls.length = 0;
   dpqlMockDocumentFields.clear();
+  dpqlMockDocumentProviders.clear();
   const lsp = createMockLspServer(MOCK_LSP_URL, {
     capabilities: {
       ...DEFAULT_LSP_CAPABILITIES,
