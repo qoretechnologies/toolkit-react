@@ -3,7 +3,6 @@
 // capture shows the hover, as the next story starts. Shared by the stories of every editor that shows the
 // server's hover (SmartEditor, DpqlEditor).
 
-import { fireEvent } from 'storybook/test';
 import { CAPTURE_VIEWPORT } from './captureViewport';
 
 /** The middle of `word` in the editor's text, on the screen. */
@@ -60,6 +59,42 @@ export const atTheCaptureSize = async (parameters?: {
 };
 
 /**
+ * What a browser sends as a mouse moves onto `at`, dispatched where there is no mouse to move (Storybook's UI): over
+ * and enter events, then a move, to the element under the point (`element` if nothing is there). A move alone
+ * reached what listens for pointer moves (an editor's own hover) and not what opens on `mouseenter` (a tag's
+ * card), so a story about a chip's card failed in Storybook's UI and passed in the test run (DpqlEditor · A Chip
+ * With Its Own Description Shows One Hover). Enter events go to the element and each of its ancestors, outermost
+ * first, as they do when the mouse comes from outside the page.
+ */
+const moveDispatchedMouseTo = (element: HTMLElement, at: { clientX: number; clientY: number }) => {
+  const target =
+    (document.elementFromPoint(at.clientX, at.clientY) as HTMLElement | null) ?? element;
+  const init = {
+    ...at,
+    pointerType: 'mouse',
+    pointerId: 1,
+    isPrimary: true,
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+  };
+  const entered: Element[] = [];
+  for (let node: Element | null = target; node; node = node.parentElement) {
+    entered.unshift(node);
+  }
+  target.dispatchEvent(new PointerEvent('pointerover', init));
+  entered.forEach((node) =>
+    node.dispatchEvent(new PointerEvent('pointerenter', { ...init, bubbles: false }))
+  );
+  target.dispatchEvent(new MouseEvent('mouseover', init));
+  entered.forEach((node) =>
+    node.dispatchEvent(new MouseEvent('mouseenter', { ...init, bubbles: false }))
+  );
+  target.dispatchEvent(new PointerEvent('pointermove', init));
+  target.dispatchEvent(new MouseEvent('mousemove', init));
+};
+
+/**
  * Rests the mouse on `at` in `element`. In the test runner it is the browser's own mouse, moved there by
  * Playwright, whose pointer events say "mouse" as a person's do; in Storybook's UI, where there is none to
  * move, a mouse's pointer event at that point. A story that moves the browser's mouse puts it back off the
@@ -72,7 +107,7 @@ export const restMouseOn = async (
 ) => {
   const browser = await vitestBrowser();
   if (!browser) {
-    fireEvent.pointerMove(element, { pointerType: 'mouse', ...at });
+    moveDispatchedMouseTo(element, at);
     return;
   }
   const box = element.getBoundingClientRect();
