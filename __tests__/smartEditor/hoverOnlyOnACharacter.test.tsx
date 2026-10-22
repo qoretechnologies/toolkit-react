@@ -215,3 +215,70 @@ describe('a mouse resting where one leaf of the text meets the next', () => {
     expect(getHover).toHaveBeenCalledWith(0, 5);
   });
 });
+
+describe('a mouse at the page corner, after the text has become a chip', () => {
+  it('asks for nothing, though the caret position nearest it is in a zero-width leaf', async () => {
+    // Slate's text before a chip: a zero-width character in a span of no width, where the browser puts the
+    // caret position nearest the page's corner
+    const zeroWidth = document.createElement('span');
+    zeroWidth.setAttribute('data-slate-zero-width', 'z');
+    const empty = document.createTextNode('\uFEFF');
+    zeroWidth.appendChild(empty);
+    dom.editor!.insertBefore(zeroWidth, dom.editor!.firstChild);
+    const originalBox = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
+      const box = originalBox.call(this);
+      return this.hasAttribute('data-slate-zero-width') ?
+          ({ ...box, width: 0, right: box.left } as DOMRect)
+        : box;
+    };
+    (document as any).caretRangeFromPoint = () => {
+      const range = document.createRange();
+      range.setStart(empty, 0);
+      range.collapse(true);
+      return range;
+    };
+    hookOnAnEditor();
+
+    pointerAt(0, 0);
+    await rest();
+
+    expect(getHover).not.toHaveBeenCalled();
+  });
+});
+
+describe('a mouse outside the text', () => {
+  it('asks for nothing where the caret position nearest it is in an element, not in a text', async () => {
+    // outside every line the browser can give a caret position in the editor's element itself
+    (document as any).caretRangeFromPoint = () => {
+      const range = document.createRange();
+      range.setStart(dom.editor!, 0);
+      range.collapse(true);
+      return range;
+    };
+    hookOnAnEditor();
+
+    pointerAt(0, 0);
+    await rest();
+
+    expect(getHover).not.toHaveBeenCalled();
+  });
+
+  it('asks for nothing where what is under it is not the editor (a card drawn over its text)', async () => {
+    // on the first character's place, but what the pointer is on there is something else, drawn over it
+    const card = document.createElement('div');
+    document.body.appendChild(card);
+    (document as any).elementFromPoint = () => card;
+    try {
+      hookOnAnEditor();
+
+      pointerAt(CHARACTER.left + 2, 12);
+      await rest();
+
+      expect(getHover).not.toHaveBeenCalled();
+    } finally {
+      delete (document as any).elementFromPoint;
+      card.remove();
+    }
+  });
+});

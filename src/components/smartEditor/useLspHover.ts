@@ -48,6 +48,27 @@ function mousePositionToSlatePoint(
   clientX: number,
   clientY: number
 ): Point | null {
+  /* The editor's own element: what is under the pointer is judged against it. A page that lays nothing out
+     (jsdom) measures every box as empty, and there nothing can be judged. Asked of the editor, not of the text's
+     own element: the text Slate keeps beside a chip is a zero-width character in a span of no width. */
+  let root: HTMLElement | null = null;
+  try {
+    root = ReactEditor.toDOMNode(editor, editor) as HTMLElement;
+  } catch {
+    root = null;
+  }
+  const laidOut = (root?.getBoundingClientRect().width ?? 0) > 0;
+
+  /* What the pointer is on is the editor's, or there is nothing of the editor's to hover: a pointer event the
+     editor heard at the page's corner - a scripted click sends its events there - or a point covered by
+     something drawn over the text. */
+  if (laidOut && root && typeof document.elementFromPoint === 'function') {
+    const under = document.elementFromPoint(clientX, clientY);
+    if (!under || !root.contains(under)) {
+      return null;
+    }
+  }
+
   let domRange: Range | null = null;
 
   // Chromium / WebKit
@@ -76,10 +97,13 @@ function mousePositionToSlatePoint(
      of the chip"). Where the layout cannot be measured (no boxes), the caret position stands. */
   let container: globalThis.Node = domRange.startContainer;
   let offset = domRange.startOffset;
+  /* A caret position in an element, not in a text, is where no line is: beside the lines or under them. The
+     pointer is on no character there. (Taken for the start of the text, it gave the page's corner the hover of
+     the chip the typing had just made: DpqlEditor · Quoted Field Typed Out Is A Chip.) */
+  if (container.nodeType !== 3 && laidOut) {
+    return null;
+  }
   if (container.nodeType === 3) {
-    const root = container.parentElement?.closest('[data-slate-editor="true"]') ?? null;
-    // a page that lays nothing out (jsdom) measures every box as empty: there, nothing can be judged
-    const laidOut = (container.parentElement?.getBoundingClientRect().width ?? 0) > 0;
     /** The text node before or after `node` in the editor: the leaves of one line are text nodes of their own. */
     const neighbour = (node: globalThis.Node, forward: boolean): Text | null => {
       if (!root) {
