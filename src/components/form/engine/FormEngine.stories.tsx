@@ -12626,13 +12626,25 @@ export const ARowStacksOnANarrowFormEvenWithShortLabels: Story = {
     docs: {
       description: {
         story:
-          'Renders the short-labelled form at 440px, where even beside its narrowest label column the value would have under 320px: it stacks, each value 12px in under its label (qorus#646).',
+          'Renders the short-labelled form at 440px, where even beside its narrowest label column the value would have under 320px: it stacks, each value 12px in under its label (qorus#646). The note is opened: its editor shows all of it, wrapped onto as many lines as it takes, and offers no resize grip (it is a one-line field, and its height is the height of its text).',
       },
     },
   },
   render: () => <NarrowRuleForm name='short-440' width={440} labels='short' />,
   play: async () => {
     await expectNarrowRule('short-440', true);
+    // the note opened: its editor shows all of it, wrapped, with no grip that a drag could not move
+    await userEvent.click(narrowRuleRow('short-440', 'note')!);
+    const editor = await waitFor(() => {
+      const textarea = document.querySelector<HTMLTextAreaElement>(
+        '.story-narrow-rule-short-440 [data-field="note"] textarea'
+      );
+      expect(textarea, 'the editor of the note').toBeTruthy();
+      return textarea!;
+    });
+    await expect(getComputedStyle(editor).resize).toBe('none');
+    // all of its text inside the box (reqore's autosize leaves the box's own 2px border out of its height)
+    await waitFor(() => expect(editor.scrollHeight).toBeLessThanOrEqual(editor.offsetHeight));
   },
 };
 

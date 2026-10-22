@@ -1,6 +1,14 @@
 import { ReqoreTextarea } from '@qoretechnologies/reqore';
 import { IReqoreTextareaProps } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { ChangeEvent, KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ChangeEvent,
+  CSSProperties,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useDebounce } from 'react-use';
 import {
   flattenToSingleLine,
@@ -126,17 +134,23 @@ export const LongStringFormField = ({
     onClearClick?.();
   }, [emit, onClearClick, pending]);
 
+  const style = (rest as { style?: CSSProperties }).style;
+
   return (
     <ReqoreTextarea
-      // A one-line field must not grow, and must not offer a resize grip that
-      // implies it can hold more than it will keep.
-      scaleWithContent={!singleLine}
+      /* A one-line field holds no line break, but a long one wraps: it grows with its text, so the whole value
+         is read in the row's editor (an editable row shows three lines of it, and the rest is here). It offers
+         no resize grip: its height is its text's, and in its one-line height the clear button covered the
+         corner the grip is drawn in - the grip showed and could not be dragged (David on FormEngine · A Row
+         Stacks On A Narrow Form Even With Short Labels, qorus#646). A multi-line field grows and keeps its grip. */
+      scaleWithContent
       rows={singleLine ? 1 : undefined}
       fluid
       value={localValue}
       onChange={handleChange}
       onClearClick={handleClearClick}
       {...rest}
+      style={singleLine ? { ...style, resize: 'none' } : style}
       onKeyDown={handleKeyDown}
     />
   );
