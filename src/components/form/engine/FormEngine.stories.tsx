@@ -4174,27 +4174,28 @@ export const CompactValidIdentifierRule: Story = {
 };
 
 // Operators (filter/mapper-style forms): the `operators` prop renders the
-// operator selector + the WHERE/IS summary in the card editor.
+// operator selector + the sentence that says the comparison, in the card editor.
 export const CompactOperators: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a compact form with per-option operator support — each row shows the operator select alongside the value and the WHERE/IS summary tags.',
+          'Renders a compact form whose Status option is compared by an operator, as a search form does. Opened, its row shows the operator select reading "equals (==)" above the value, and under it the sentence Status equals (==) "COMPLETE": the option by its name, the operator by the server\'s name for it and the value in quotes.',
       },
     },
   },
   args: {
     compact: true,
     minColumnWidth: '300px',
+    // as the server sends its search operators: keyed by symbol, each with its name
     operators: {
-      equals: { name: 'equals', display_name: 'Equals' },
-      'not-equals': { name: 'not-equals', display_name: 'Not equals' },
+      '==': { name: '==', display_name: 'equals (==)' },
+      '!=': { name: '!=', display_name: 'not equals (!=)' },
     } as never,
     options: {
       status: { type: 'string', ui_type: 'string', display_name: 'Status', preselected: true },
     } as IOptionsSchema,
-    value: { status: { type: 'string', value: 'COMPLETE', op: 'equals' } } as IOptions,
+    value: { status: { type: 'string', value: 'COMPLETE', op: '==' } } as IOptions,
   },
   play: async () => {
     await _testsWaitForText('Status');
@@ -4205,9 +4206,13 @@ export const CompactOperators: Story = {
       timeout: 10000,
     });
     await expect(document.querySelectorAll('.options-readfirst-inline')).toHaveLength(0);
-    // The operator row + the WHERE <field> IS <op> summary render.
-    await _testsWaitForText('WHERE');
-    await _testsWaitForText('equals');
+    // the operator row, and the sentence under the value: in names, with no keyword, key or JSON
+    await _testsWaitForText('equals (==)');
+    await waitFor(() =>
+      expect(document.querySelector('.options-operator-summary')?.textContent).toBe(
+        'Status equals (==) "COMPLETE"'
+      )
+    );
 
     // Single clear: a single-value card hides the editor's own input ✕ (it has
     // no Reqore prop, so the card marks itself `-single` and CSS hides it) and

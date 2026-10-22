@@ -7,7 +7,6 @@ import {
   ReqoreMessage,
   ReqoreP,
   ReqoreTag,
-  ReqoreTagGroup,
   ReqoreVerticalSpacer,
   useReqoreProperty,
   useReqoreTheme,
@@ -18,6 +17,7 @@ import { IReqorePanelProps } from '@qoretechnologies/reqore/dist/components/Pane
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TFieldWithOwnTemplates } from './rendererTypes';
 import { getReadFirstInks } from './readFirstColors';
+import { operatorSummary } from './operatorSummary';
 import {
   getReadableShade,
   getReadableTextOpacity,
@@ -59,12 +59,7 @@ import size from 'lodash/size';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
 import styled, { css } from 'styled-components';
-import {
-  fixOperatorValue,
-  getDefaultValue,
-  insertAtIndex,
-  richtextToString,
-} from '../../../helpers/common';
+import { fixOperatorValue, getDefaultValue, insertAtIndex } from '../../../helpers/common';
 import {
   getRequiredOptionMessage,
   resolveDegenerateRequiredGroups,
@@ -144,6 +139,7 @@ import {
   isFixedCompactAllowedValueOption,
   shouldAutoCollapseCompactOption,
   isUnsetSchemaHash,
+  formatOptionValue,
 } from './readFirst';
 
 // Re-export types for consumers
@@ -3675,22 +3671,18 @@ const FormEngineImpl = ({
           {operators && size(operators) && size(other.op) ?
             <>
               <ReqoreVerticalSpacer height={5} />
-              <ReqoreMessage size='small'>
-                <ReqoreTagGroup>
-                  <ReqoreTag size='small' labelKey='WHERE' label={optionName} />
-                  <ReqoreTag size='small' labelKey='IS' label={operatorParts.join(' ')} />
-                  <ReqoreTag
-                    size='small'
-                    intent='info'
-                    label={
-                      other.value ?
-                        resolvedType === 'richtext' ?
-                          richtextToString(other.value)
-                        : JSON.stringify(other.value)
-                      : ''
-                    }
-                  />
-                </ReqoreTagGroup>
+              {/* in names: the option, its operators and the value as the row reads it */}
+              <ReqoreMessage size='small' className='options-operator-summary'>
+                {operatorSummary({
+                  label: optionSchema?.display_name || optionName,
+                  operatorKeys: operatorParts,
+                  operators: operators as Record<string, { name?: string; display_name?: string }>,
+                  value: other.value,
+                  shown: formatOptionValue(
+                    { type: resolvedType, ...other } as IQorusFormField,
+                    optionSchema
+                  ),
+                })}
               </ReqoreMessage>
             </>
           : null}
