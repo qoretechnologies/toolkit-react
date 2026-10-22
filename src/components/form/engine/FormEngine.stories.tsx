@@ -11141,7 +11141,14 @@ const completionRows = () =>
 const completionRow = (label: string) =>
   waitFor(() => {
     const row = completionRows().find((item) => item.textContent?.startsWith(label));
-    expect(row, `${label} in the completion list`).toBeTruthy();
+    expect(
+      row,
+      `${label} in the completion list (listed: ${completionRows()
+        .map((item) => item.textContent)
+        .join(
+          ', '
+        )}; text: ${document.querySelector('.expression-field [data-slate-editor]')?.textContent})`
+    ).toBeTruthy();
     return row as HTMLElement;
   });
 
@@ -11156,7 +11163,7 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     docs: {
       description: {
         story:
-          "Renders a whole number with nothing in it and opens its Expression tab. A click in the empty text lists the row's fields in the one completion list (David's decision: opened by a click, a tap or Tab as by typing), and so does Tab into it; pos picked from it is the text. A click after pos lists what the server says can follow a value, operators, and no template (`pos pos` is refused); the templates beside the text cannot be used there, saying why. With ` + ` typed, a click lists the fields again, and bezeichnung picked from them makes pos + bezeichnung; ` + ` again, and the list a click opens is left open.",
+          "Renders a whole number with nothing in it and opens its Expression tab. A click in the empty text lists the row's fields in the one completion list (David's decision: opened by a click, a tap or Tab as by typing) - and no template context alone ($data:), which is no value - and so does Tab into it; pos picked from it is the text. A click after pos lists what can follow a value, operators, and no template (`pos pos` is refused); the templates beside the text cannot be used there, saying why. == picked from it goes after pos, which stays (David's review: an operator took pos's place). A click lists the fields again, and bezeichnung makes pos == bezeichnung. A click on pos lists what can stand in its place, and bezeichnung picked takes it (David's review: a click on pos listed nothing); the capture leaves that list open.",
       },
     },
   },
@@ -11176,10 +11183,11 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
         '.expression-text-template-picker'
       ) as HTMLElement;
 
-    // a click in the empty text lists the fields
+    // a click in the empty text lists the fields, and no template context alone, which is no value
     await userEvent.click(text);
     await completionRow('bezeichnung');
     expect(text.contains(document.activeElement), 'the focus stays in the text').toBe(true);
+    expect(completionRows().filter((row) => row.textContent?.startsWith('$'))).toEqual([]);
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(completionRows()).toEqual([]));
 
@@ -11199,20 +11207,39 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
       completionRows().filter((row) => /^(pos|bezeichnung)/.test(row.textContent ?? ''))
     ).toEqual([]);
     expect(isDisabled(picker()), 'the templates beside the text, after pos').toBe(true);
-    await userEvent.keyboard('{Escape}');
-    await waitFor(() => expect(completionRows()).toEqual([]));
 
-    // where a value can be written, the fields again
-    await userEvent.keyboard(' + ');
+    // an operator picked goes after the value, which stays
+    await userEvent.click(await completionRow('=='));
+    await waitFor(() => expect(expressionTextOf('count')).toBe('pos =='));
     await waitFor(() => expect(isDisabled(picker())).toBe(false));
-    await userEvent.click(text);
-    await userEvent.click(await completionRow('bezeichnung'));
-    await waitFor(() => expect(expressionTextOf('count')).toBe('pos + bezeichnung'));
-    expect(expressionErrorsOf('count')).toEqual([]);
 
-    // the list a click opens, left open for the capture
-    await userEvent.keyboard(' + ');
+    // where a value can be written, the fields again - and no template context alone, which is no value
     await userEvent.click(text);
+    const bezeichnung = await completionRow('bezeichnung');
+    expect(completionRows().filter((row) => row.textContent?.startsWith('$'))).toEqual([]);
+    await userEvent.click(bezeichnung);
+    await waitFor(() => expect(expressionTextOf('count')).toBe('pos == bezeichnung'));
+
+    // a click on a chip lists what can stand in its place, and the pick takes it
+    const chips = () =>
+      Array.from(
+        optionRow('count').querySelectorAll<HTMLElement>(
+          '.expression-field [data-slate-editor] .reqore-tag'
+        )
+      );
+    // what the pointer is on: the chip's name, where a click lands (a click's target is the innermost element)
+    const nameOf = (chip: HTMLElement) =>
+      (Array.from(chip.querySelectorAll<HTMLElement>('*')).find(
+        (part) => part.children.length === 0 && !!part.textContent?.trim()
+      ) ?? chip) as HTMLElement;
+    await userEvent.click(
+      nameOf(chips().find((chip) => chip.textContent?.includes('pos')) as HTMLElement)
+    );
+    await userEvent.click(await completionRow('bezeichnung'));
+    await waitFor(() => expect(expressionTextOf('count')).toBe('bezeichnung == bezeichnung'));
+
+    // the list a click on a chip opens, left open for the capture
+    await userEvent.click(nameOf(chips()[0]));
     await completionRow('pos');
   },
 };

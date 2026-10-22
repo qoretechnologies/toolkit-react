@@ -58,9 +58,34 @@ describe('what the one completion list offers', () => {
       '$record:{pos}',
       '$record:{bezeichnung}',
       '$config:rate',
-      '$config:',
       '!',
     ]);
+  });
+
+  /* qorus#646, David's review: picking `$data:` made text the server refuses ("expected value after ':'"), and it
+     offers nothing more after it (professor's `/lsp`, 0 items) */
+  it("does not offer a template's context alone, which is no value", () => {
+    const contexts: ILspCompletionItem[] = [
+      { label: '$data:', insertText: '$data:', kind: 6, detail: 'requires argument' },
+      { label: '$qore-expr:', insertText: '$qore-expr:', kind: 6, detail: 'requires argument' },
+    ];
+    expect(listed(complete('1 + $|', contexts))).toEqual([
+      '$record:{pos}',
+      '$record:{bezeichnung}',
+      '$config:rate',
+    ]);
+    expect(
+      dpqlCompletionsWith(undefined)({ plainText: '1 + $', offset: 5, serverItems: contexts })
+    ).toEqual([]);
+    // what the server offers after a context is a whole value: kept
+    const after: ILspCompletionItem[] = [
+      { label: '$timestamp:now', insertText: '$timestamp:now', kind: 6 },
+    ];
+    expect(
+      listed(
+        dpqlCompletionsWith(undefined)({ plainText: '$timestamp:', offset: 11, serverItems: after })
+      )
+    ).toEqual(['$timestamp:now']);
   });
 
   it('offers no template after a whole value, where the server offers operators (no `12 pos`)', () => {
@@ -104,7 +129,7 @@ describe('what the one completion list offers', () => {
         offset: 4,
         serverItems: AFTER_AN_OPERATOR,
       })
-    ).toEqual(AFTER_AN_OPERATOR);
+    ).toEqual(AFTER_AN_OPERATOR.filter((item) => item.label !== '$config:'));
   });
 });
 
@@ -137,6 +162,11 @@ describe('what the list says where it offers nothing', () => {
   it('says there is no record after an @', () => {
     expect(dpqlEmptyCompletionMessage('1 + @', 5)).toBe('No record fields here');
     expect(dpqlEmptyCompletionMessage('@na', 3)).toBe('No record fields here');
+  });
+
+  it('says there are no templates after a $', () => {
+    expect(dpqlEmptyCompletionMessage('1 + $', 5)).toBe('No templates here');
+    expect(dpqlEmptyCompletionMessage('1 + $da', 7)).toBe('No templates here');
   });
 
   it('says nothing elsewhere, nor after an @ in a string', () => {

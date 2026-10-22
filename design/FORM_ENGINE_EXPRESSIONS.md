@@ -243,6 +243,15 @@ the catalogue both offer is listed once. Where nothing is offered after an
 `@`, the list says "No record fields here" (`dpqlEmptyCompletionMessage`;
 not with no server, which might know a record).
 
+It offers only what makes a value: not a template's context alone
+(`$data:`, `$qore-expr:` - the server offers every one "requires argument",
+offers nothing after it, and refuses it, DPQL-E033); after a `$` with
+nothing to offer it says "No templates here". A click or tap on a chip lists
+what can stand in its place (asked at the chip's place, the chip taken out)
+and the pick replaces it. What a pick takes the place of is only what was
+typed in the text the caret is in, never across a chip, and an operator goes
+in apart from the value before it (`pos == `).
+
 The templates beside the text (`.expression-text-template-picker`) stay, to
 browse a catalogue as it nests. Their pick goes at the end of the text, so
 they cannot be used where a value cannot be written there, and say why

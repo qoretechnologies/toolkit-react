@@ -1775,16 +1775,30 @@ export const TextModeSeedsWhenAstArrivesLate: Story = {
  * what the server offers. Which contexts the live Qorus server offers is its
  * own question, and this cannot answer it.
  */
+/** The templates a field offers: its catalogue, as a form gives it. */
+const FIELD_TEMPLATES = {
+  items: [
+    {
+      label: 'Fields of the row',
+      items: [
+        { label: 'pos', value: '$record:{pos}', badge: 'int' },
+        { label: 'bezeichnung', value: '$record:{bezeichnung}', badge: 'string' },
+      ],
+    },
+  ],
+};
+
 export const TextModeOffersTemplateCompletions: Story = {
   args: {
     value: { is_expression: true, value: { args: [] } },
     defaultMode: 'text',
+    localTemplates: FIELD_TEMPLATES as never,
   },
   parameters: {
     docs: {
       description: {
         story:
-          "Types `$` into the shell's Text view — the DPQL editor asks the language server in position and the template namespaces ($data:, $config:, …) open in the completion dropdown. While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
+          "Types `$` into the Text view of an expression whose field offers the row's fields: the completion list offers them, pos and bezeichnung - not the server's template contexts alone ($data:, $config:, …), which are no value: picked, one is refused (David's review). While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
       },
     },
   },
@@ -1808,13 +1822,13 @@ export const TextModeOffersTemplateCompletions: Story = {
     // than in the canvas.
     await waitFor(
       () => {
-        const dropdown = document.querySelector('.reqore-menu');
-        expect(dropdown).not.toBeNull();
-        expect(dropdown!.textContent).toContain('$data:');
-        expect(dropdown!.textContent).toContain('$config:');
+        expect(completionListed().some((row) => row.startsWith('pos'))).toBe(true);
+        expect(completionListed().some((row) => row.startsWith('bezeichnung'))).toBe(true);
       },
       { timeout: 20000 }
     );
+    // no template context alone, which is no value
+    expect(completionListed().filter((row) => row.startsWith('$'))).toEqual([]);
     // nothing is said of the `$` while its list is open
     expect(saidUnderTheText(canvasElement)).toEqual([]);
     // the list put away, the server's words are said
@@ -1826,9 +1840,7 @@ export const TextModeOffersTemplateCompletions: Story = {
     );
     // and held again while a click after the `$` has the list open
     await userEvent.click(editable);
-    await waitFor(() =>
-      expect(completionListed().some((row) => row.startsWith('$data:'))).toBe(true)
-    );
+    await waitFor(() => expect(completionListed().some((row) => row.startsWith('pos'))).toBe(true));
     expect(saidUnderTheText(canvasElement)).toEqual([]);
   },
 };

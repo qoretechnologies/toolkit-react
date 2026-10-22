@@ -643,17 +643,21 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         /* An editor with a browse list (`tags`) answers a click on a chip with that list, as a click anywhere
            in its text, and as a value's text does: one list at a time. Opening the chip's replacements beside
            it put two lists over the text, and what was typed then reached neither (qorus#646, David: "you
-           can't type"). An editor that completes on a click lists what can be written at the caret, which a
-           click on a chip is not: the chip's own controls answer it. */
-        if (hasBrowseList || completeOnClick) return;
+           can't type"). */
+        if (hasBrowseList) return;
         try {
           const tagPath = ReactEditor.findPath(editor, tag as any);
           const domNode = ReactEditor.toDOMNode(editor, tag as any);
           const rect = (domNode as HTMLElement).getBoundingClientRect();
-          autocomplete.openAtChip(editor, tagPath, {
-            left: rect.left,
-            bottom: rect.bottom,
-          });
+          /* An editor that completes on a click lists what can stand in the chip's place - the fields and
+             templates the chip is one of - and the pick replaces it (qorus#646, David: a click on pos listed
+             nothing). */
+          autocomplete.openAtChip(
+            editor,
+            tagPath,
+            { left: rect.left, bottom: rect.bottom },
+            { inItsPlace: completeOnClick }
+          );
         } catch {
           // Tag may have been removed mid-render — ignore.
         }

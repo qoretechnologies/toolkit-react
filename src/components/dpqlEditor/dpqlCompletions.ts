@@ -15,6 +15,14 @@ const NO_VALUE_KINDS = new Set([14, 24]);
 const RECORD_FIELD = /^\$record:\{(.+)\}$/;
 /** An `@` and the field name typed after it, at the end of a text. */
 const FIELD_BEING_ASKED = /@[\p{L}\p{M}\p{N}_.]*$/u;
+/**
+ * A template's context alone (`$data:`, `$qore-expr:`): the server offers each where a value can go, "requires
+ * argument", and picked it is no value - nothing more is offered after it, and the server refuses it ("Incomplete
+ * template reference: expected value after ':'", professor's `/lsp`). Not offered: a pick makes a value, and an
+ * author works with the field's templates and fields, not with how they are written (qorus#646, David's review).
+ */
+const BARE_CONTEXT = /^\$[\w-]+:$/;
+
 /** What a value cannot follow - so it can be written next: an operator, an opening bracket, a comma. */
 const BEFORE_A_VALUE = /[-+*/%<>=!&|,([?:]$/;
 
@@ -44,16 +52,19 @@ const asksForAField = (textBefore: string): boolean => {
  * can stand: after `12` the server offers operators, and no template is offered (`12 pos` is refused).
  *
  * After an `@`, only the templates that are the record's fields. A field the server offers that a template names
- * already is listed once, as the template, with its group and type in its detail line.
+ * already is listed once, as the template, with its group and type in its detail line. A template's context alone
+ * (`$data:`) is not offered (`BARE_CONTEXT`).
  */
 export const dpqlCompletionsWith =
   (templates?: IReqoreFormTemplates) =>
   ({ plainText, offset, serverItems }: ICompletionContext): ILspCompletionItem[] => {
-    const server = serverItems ?? [];
+    const server = (serverItems ?? []).filter(
+      (item) => !BARE_CONTEXT.test(item.insertText ?? item.label)
+    );
     const before = plainText.slice(0, offset);
     const valueHere =
-      server.length ?
-        server.some((item) => !NO_VALUE_KINDS.has(item.kind ?? 0))
+      serverItems?.length ?
+        serverItems.some((item) => !NO_VALUE_KINDS.has(item.kind ?? 0))
       : dpqlExpectsValue(before);
     const offered = valueHere ? templateCompletionItems(templates) : [];
     const ours =
@@ -70,12 +81,21 @@ export const dpqlCompletionsWith =
     ];
   };
 
-/** What the list says where it offers nothing at the caret: after an `@`, that there is no record (qorus#646). */
+/**
+ * What the list says where it offers nothing at the caret (qorus#646): after an `@`, that there is no record; after
+ * a `$`, that there are no templates here.
+ */
 export const dpqlEmptyCompletionMessage = (
   plainText: string,
   offset: number
-): string | undefined =>
-  asksForAField(plainText.slice(0, offset)) ? 'No record fields here' : undefined;
+): string | undefined => {
+  const before = plainText.slice(0, offset);
+  if (asksForAField(before)) {
+    return 'No record fields here';
+  }
+  const written = dpqlReferenceBeingWritten(before);
+  return written && before[before.length - written] === '$' ? 'No templates here' : undefined;
+};
 
 /** What is said of the placeholders an unfinished expression is written with, for each part not chosen yet. */
 export const UNFINISHED_PARTS_MESSAGE = `Fill in each ${EXPRESSION_HOLE} (the parts not chosen yet).`;

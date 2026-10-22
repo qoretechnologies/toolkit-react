@@ -474,6 +474,18 @@ describe('text the server cannot read is published, in its words and where it is
     ]);
   });
 
+  it("a template's context with nothing after it", () => {
+    // professor's `/lsp` on `$record:{pos} + $data:`: E033 over `$data:`
+    expect(published('$record:{pos} + $data:')).toEqual([
+      {
+        code: 'DPQL-E033',
+        message: "Incomplete template reference: expected value after ':'",
+        from: 16,
+        to: 22,
+      },
+    ]);
+  });
+
   it('a $ with nothing after it', () => {
     expect(published('$')).toEqual([
       {

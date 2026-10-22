@@ -293,6 +293,20 @@ const tokenize = (text: string): TToken[] => {
       /* A `$` that does not start a template, in the server's words (Qore DpqlTokenizer, DPQL-E030 and E031): what
          a `$` typed to ask for a template, or left in front of one picked, reads as. */
       const char = String.fromCodePoint(text.codePointAt(at) ?? 0);
+      // a template's context with nothing after its `:` (DPQL-E033): what a picked `$data:` reads as
+      const context = char === '$' ? /^\$[A-Za-z_][\w-]*:/.exec(text.slice(at))?.[0] : undefined;
+      if (context) {
+        unread.push(
+          new DpqlMockSyntaxError(
+            "Incomplete template reference: expected value after ':'",
+            at + 1,
+            'DPQL-E033',
+            at + 1 + context.length
+          )
+        );
+        LEX_RE.lastIndex = at + context.length;
+        continue;
+      }
       if (char === '$' && at + 1 >= text.length) {
         unread.push(
           new DpqlMockSyntaxError(

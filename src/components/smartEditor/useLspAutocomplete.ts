@@ -131,7 +131,14 @@ export interface IUseLspAutocompleteResult {
   openAtChip: (
     editor: BaseEditor & ReactEditor & HistoryEditor,
     chipPath: number[],
-    chipRect: { left: number; bottom: number }
+    chipRect: { left: number; bottom: number },
+    options?: {
+      /**
+       * Ask what can be written in the chip's place - the text without it, at its start - rather than what could
+       * complete it: a DPQL editor's chip is a whole value, and after it only operators could be written.
+       */
+      inItsPlace?: boolean;
+    }
   ) => void;
   /**
    * The list's popover with key `key` (`popoverKey` as it was drawn) says it closed - a click outside it, or
@@ -842,7 +849,8 @@ export function useLspAutocomplete(
     (
       editor: BaseEditor & ReactEditor & HistoryEditor,
       chipPath: number[],
-      chipRect: { left: number; bottom: number }
+      chipRect: { left: number; bottom: number },
+      { inItsPlace = false }: { inItsPlace?: boolean } = {}
     ) => {
       // Clicking the chip the dropdown is already anchored to closes it.
       const prevPath = anchoredChipPathRef.current;
@@ -882,10 +890,14 @@ export function useLspAutocomplete(
           : '';
       const chipStart = converter.selectionToOffset(nodes, chipPath, 0);
       const chipEnd = chipStart + chipText.length;
+      const asked =
+        inItsPlace ?
+          { plainText: plainText.slice(0, chipStart) + plainText.slice(chipEnd), offset: chipStart }
+        : { plainText, offset: chipEnd };
       if (isReady) {
-        performCompletionRequest(plainText, chipEnd);
+        performCompletionRequest(asked.plainText, asked.offset);
       } else {
-        pendingChipRequestRef.current = { plainText, offset: chipEnd };
+        pendingChipRequestRef.current = asked;
       }
     },
     [isReady, isOpen, close, converter, performCompletionRequest]
