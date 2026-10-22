@@ -10764,10 +10764,21 @@ export const ValueTabPerOptionType: Story = {
   },
 };
 
-/** A form with a value field and a condition field (its host marks it one), each holding an expression. */
+/** A form with a condition field (its host marks it one) holding an expression, and a yes / no value. */
 const ConditionOptionForm = () => {
   const [value, setValue] = useState<any>({
-    rule: { type: 'bool', value: true },
+    // @pos >= 10, as a saved expression is held
+    rule: {
+      type: 'bool',
+      is_expression: true,
+      value: {
+        exp: '>=',
+        args: [
+          { type: 'int', value: '$record:{pos}' },
+          { type: 'int', value: 10 },
+        ],
+      },
+    },
     active: { type: 'bool', value: true },
   });
   return (
@@ -10809,12 +10820,12 @@ const tabHoverText = async (row: HTMLElement, tab: string) => {
   return text;
 };
 
-export const ConditionOptionTabsSayCondition: Story = {
+export const ConditionOptionTabsSayExpression: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a form with a condition field (Rule; its host marks it one) and a yes / no value (Active), and opens each. The condition\'s tabs read Value · Condition · Visual, their hovers "Write the condition - it also takes templates" and "Build the condition visually"; the value keeps Value · Expression · Visual.',
+          'Renders a form with a condition field (Rule; its host marks it one) holding the expression @pos >= 10, and a yes / no value (Active), and opens each. The condition\'s tabs read Value · Expression · Visual, as every field\'s do: a condition is written as an expression, and the hovers say so: "Write the condition as an expression" and "Build the condition visually". Active\'s Expression tab says "Write an expression - it also takes templates".',
       },
     },
   },
@@ -10822,30 +10833,36 @@ export const ConditionOptionTabsSayCondition: Story = {
   play: async () => {
     const rule = await editOption('rule');
     await waitFor(() => expect(optionTabs(rule)).toEqual(['value', 'expression', 'visual']));
-    expect(tabLabel(rule, 'expression')).toBe('Condition');
-    expect(await tabHoverText(rule, 'expression')).toContain('Write the condition - it also takes templates');
+    // one name for the tab in every field (David: "what is "Condition"? Is it meant to be an expression?")
+    expect(tabLabel(rule, 'expression')).toBe('Expression');
+    expect(await tabHoverText(rule, 'expression')).toContain(
+      'Write the condition as an expression'
+    );
     expect(await tabHoverText(rule, 'visual')).toContain('Build the condition visually');
     const active = await editOption('active');
     await waitFor(() => expect(tabLabel(active, 'expression')).toBe('Expression'));
+    expect(await tabHoverText(active, 'expression')).toContain(
+      'Write an expression - it also takes templates'
+    );
   },
 };
 
-export const ConditionOptionTabsSayConditionOnAPhone: Story = {
-  ...ConditionOptionTabsSayCondition,
+export const ConditionOptionTabsSayExpressionOnAPhone: Story = {
+  ...ConditionOptionTabsSayExpression,
   parameters: {
-    ...ConditionOptionTabsSayCondition.parameters,
+    ...ConditionOptionTabsSayExpression.parameters,
     qlip: { viewport: { width: 390, height: 844 } },
     docs: {
       description: {
         story:
-          'The same form on a phone (390 px): the condition\'s tabs read Value · Condition · Visual and stay inside its row.',
+          "The same form on a phone (390 px): the condition's tabs read Value · Expression · Visual and stay inside its row.",
       },
     },
   },
   play: async () => {
     await _testsWithViewport(390, 844, async (narrowed) => {
       const rule = await editOption('rule');
-      await waitFor(() => expect(tabLabel(rule, 'expression')).toBe('Condition'));
+      await waitFor(() => expect(tabLabel(rule, 'expression')).toBe('Expression'));
       if (narrowed) {
         const tabs = rule.querySelector<HTMLElement>('.value-tabs') as HTMLElement;
         expect(tabs.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth + 0.5);

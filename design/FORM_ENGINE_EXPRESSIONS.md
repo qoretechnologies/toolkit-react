@@ -328,6 +328,16 @@ The same analysis lives in two server handlers (the LSP's `dpql/parse` and
 the Creator WS equivalent); both were changed together. Deduplicating them
 is a separate cleanup.
 
+## A condition field's tabs
+
+A field its host marks as a condition (`metadata.condition`, `isConditionOption`) keeps the tab names every
+field has: Value · Expression · Visual. A condition is written as an expression, so the Expression tab's
+hover says so ("Write the condition as an expression", `conditionTooltip`) and the Visual tab's hover says
+"Build the condition visually". The tab was called "Condition" for a while, which read as a fourth way to
+enter a value (qorus#646, David: "what is "Condition"? Is it meant to be an expression?"). Without tabs, the
+classic field's More menu still offers "Write a condition", a verb that says what the item does. Stories:
+`ConditionOptionTabsSayExpression` (+ `OnAPhone`).
+
 ## Out of scope
 
 - `server_expression_handling` server-function-vs-qorus-function

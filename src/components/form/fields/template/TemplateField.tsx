@@ -289,11 +289,10 @@ export interface IValueTabsLabels {
   /** Said on the Value tab for an expression that is not a lone value or template. */
   cannotShowExpression: string;
   /**
-   * The Expression tab's label, in a field that is a condition (`isConditionOption`): what it holds is used as a
-   * condition, so it is called one. The Visual tab keeps its label.
+   * The Expression tab's tooltip, in a field that is a condition (`isConditionOption`). The tab keeps its name:
+   * a condition is written as an expression, and the hover says so (qorus#646, David: "what is "Condition"? Is
+   * it meant to be an expression?").
    */
-  condition: string;
-  /** The Expression tab's tooltip, in a condition field. */
   conditionTooltip: string;
   /** The Visual tab's tooltip, in a condition field. */
   conditionVisualTooltip: string;
@@ -342,8 +341,7 @@ export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = {
   visualTooltip: 'Build the expression visually',
   templateTooltip: 'Choose a template',
   cannotShowExpression: "This expression can't be shown as a value.",
-  condition: 'Condition',
-  conditionTooltip: 'Write the condition - it also takes templates',
+  conditionTooltip: 'Write the condition as an expression',
   conditionVisualTooltip: 'Build the condition visually',
   cannotShowCondition: "This condition can't be shown as a value.",
   templateShownOn: (tab) => `A template is shown on the ${tab} tab, not here.`,
@@ -2091,10 +2089,10 @@ const TemplateFieldImpl = memo(
       /** A type named inside a sentence: the host's own words, or the type catalogue's sentence form (none for no type). */
       const typeInSentence: (type: string | undefined) => string | undefined =
         words.typeName ?? qorusTypes.getTypeSentenceForm;
-      /* A condition field's Expression tab holds what is used as a condition, so it is called one (qorus#646):
-         "condition" where the value is used as a condition, "expression" everywhere else. */
+      /* A condition field's Expression tab is called Expression, as every field's is: a condition is written as
+         an expression, and the tab's hover says so (qorus#646). */
       const conditionField = isConditionOption(rest);
-      const expressionTabLabel = conditionField ? words.condition : words.expression;
+      const expressionTabLabel = words.expression;
       const tabButton = (
         key: TValueTab,
         label: string,
