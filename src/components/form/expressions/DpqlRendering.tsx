@@ -34,10 +34,10 @@ export const DpqlRendering = ({ text, templates, 'data-testid': testId }: IDpqlR
       value={text}
       onChange={noop}
       readOnly
-      // The text is a rendering, not something being written: nothing to
-      // diagnose, and a hover would describe tokens of a document nobody edits.
+      /* The text is a rendering, not something being written: nothing to diagnose. Its hover says what a
+         function, an operator or a reference in it is, as the editor's does: a collapsed row's `trim(…)` told a
+         reader nothing of `trim` (David on FormEngine · Compact Expression Template Chips, qorus#646). */
       showDiagnostics={false}
-      enableHover={false}
       templateTagsUseIntent
       templates={templates}
       // The text is already known; only its colors wait for the server, so

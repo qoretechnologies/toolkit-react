@@ -314,6 +314,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const detailsSaysItsWord = !rowWidth || rowWidth > DETAILS_WORD_MIN_ROW_WIDTH;
     const showDetailsButton =
       coarse &&
+      // Details says what the word at the caret is, and a read-only text has no caret: a tap on a read-only
+      // rendering (a collapsed row's expression) opens what holds it, where Details is
+      !readOnly &&
       enableHover &&
       session.isReady &&
       !!(session.client?.capabilities as { hoverProvider?: unknown } | null | undefined)?.hoverProvider;

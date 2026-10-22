@@ -47,6 +47,7 @@ import { storyApiUrl } from '../../../stories/storyNetwork';
 import { withCoarsePointer } from '../../../stories/coarsePointer';
 import { PHONE_VIEWPORT } from '../../../stories/tracking';
 import { withTouchScreen } from '../../../stories/touchScreen';
+import { atTheCaptureSize, middleOf, mouseOffThePage, restMouseOn } from '../../../stories/mouse';
 
 // schema data
 
@@ -93,6 +94,10 @@ const TestOptionsWithRequiredGroups: IOptionsSchema = {
 const meta: Meta<typeof FormEngine> = {
   component: FormEngine,
   title: 'Form/Engine/FormEngine',
+  // every story starts with the mouse off the page: a story whose capture shows a hover leaves it resting
+  async beforeEach() {
+    await mouseOffThePage();
+  },
   args: {
     onChange: fn(),
     onSingleOptionsChange: fn(),
@@ -8267,6 +8272,12 @@ export const CompactListOfHashReadsInSchemaWordsMobile: Story = {
   },
 };
 
+/** Whether the server's hover of `trim` is shown: what the function is, in its own words. */
+const trimHoverShown = () =>
+  Array.from(document.querySelectorAll('.reqore-popover-content')).some((popover) =>
+    popover.textContent?.includes('Trims whitespace from both sides of a string')
+  );
+
 /**
  * The read-first summary of an EXPRESSION: it reads as DPQL, and a template
  * reference inside it used to print as its own raw token — the same reference
@@ -8279,7 +8290,7 @@ export const CompactExpressionTemplateChips: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact read-first row whose value is an expression wrapping a template reference — the summary reads as DPQL and the reference inside it is a chip named from the form\'s template catalog, trim(Choices[0].message.content), rather than its raw $data token or its path.',
+          'Renders a compact read-first row whose value is an expression wrapping a template reference — the summary reads as DPQL and the reference inside it is a chip named from the template catalog of the form, trim(Choices[0].message.content), rather than its raw $data token or its path. The mouse resting on trim in the open editor shows what the server says of it (Trims whitespace from both sides of a string), and, the row closed, resting on trim in the read-only summary shows the same: the capture leaves that one open.',
       },
     },
     chromatic: { disable: true },
@@ -8330,7 +8341,8 @@ export const CompactExpressionTemplateChips: Story = {
       onChange={fn()}
     />
   ),
-  play: async ({ canvasElement }) => {
+  play: async (context) => {
+    const { canvasElement } = context;
     await waitFor(() => {
       const summary = canvasElement.querySelector('.readfirst-row .dpql-rendering');
       // The summary keeps its literal text…
@@ -8343,6 +8355,37 @@ export const CompactExpressionTemplateChips: Story = {
       // Named, so neither the raw token nor the path it resolves.
       expect(summary?.textContent).not.toContain('$data:{');
       expect(summary?.textContent).not.toContain('dc_ai_reply');
+    });
+
+    // the frame at the size it is captured at: the mouse is on what it hovers when the hover is captured
+    await atTheCaptureSize(context.parameters);
+    // a function says what it is (David on this story): in the editor, the row opened...
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.readfirst-row')!);
+    const editor = await waitFor(() => {
+      const element = canvasElement.querySelector<HTMLElement>(
+        '[data-field="reply"] [contenteditable="true"]'
+      );
+      expect(element, 'the open editor').toBeTruthy();
+      return element!;
+    });
+    await waitFor(() => expect(editor.textContent).toContain('trim'));
+    await restMouseOn(editor, middleOf(editor, 'trim'));
+    await waitFor(() => expect(trimHoverShown(), 'in the editor').toBe(true), { timeout: 10000 });
+    await mouseOffThePage();
+    await waitFor(() => expect(trimHoverShown()).toBe(false));
+    fireEvent.click(canvasElement.querySelector<HTMLElement>('.options-readfirst-done')!);
+
+    // ...and in the summary, read-only, where the capture leaves it open
+    const summaryText = await waitFor(() => {
+      const element = canvasElement.querySelector<HTMLElement>(
+        '.readfirst-row .dpql-rendering [data-slate-editor]'
+      );
+      expect(element, 'the summary').toBeTruthy();
+      return element!;
+    });
+    await restMouseOn(summaryText, middleOf(summaryText, 'trim'));
+    await waitFor(() => expect(trimHoverShown(), 'in the summary').toBe(true), {
+      timeout: 10000,
     });
   },
 };
