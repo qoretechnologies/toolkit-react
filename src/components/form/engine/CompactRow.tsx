@@ -951,9 +951,27 @@ export const CompactRow = memo(
       const editor = editorRef.current;
       if (!editor) return undefined;
       let settled = false;
+      /* A control that is not a text box holds the caret PROVISIONALLY. An editor that
+         takes text can mount after the row opens (a code editor loads late), and until
+         it does the only control there is its chrome: a fullscreen toggle. When the
+         text box arrives it takes the caret, unless the reader has moved it since. A
+         row that never grows one (a pick-one) simply keeps its control. */
+      let provisional: HTMLElement | null = null;
       const takeCaret = (): boolean => {
         if (settled) return true;
         const active = document.activeElement as HTMLElement | null;
+        if (provisional) {
+          if (active !== provisional) {
+            // The reader moved the caret themselves. Leave it there.
+            settled = true;
+            return true;
+          }
+          const textEntry = findRowFocusTarget(editor, { textEntryOnly: true });
+          if (!textEntry) return false;
+          textEntry.focus({ preventScroll: true });
+          settled = true;
+          return true;
+        }
         if (active && active !== document.body && !rowRef.current?.contains(active)) {
           // Someone else holds the caret — a field the reader moved into while
           // this row's editor was still arriving. Leave it where it is.
@@ -988,6 +1006,13 @@ export const CompactRow = memo(
         if (openedByAuthor.current && inlineEditable && isClosedPickerTrigger(control)) {
           openedByAuthor.current = false;
           setOpenThePicker(true);
+          settled = true;
+          return true;
+        }
+        if (findRowFocusTarget(editor, { textEntryOnly: true }) !== control) {
+          // Not a text box: hold it until one arrives (see `provisional`).
+          provisional = control;
+          return false;
         }
         settled = true;
         return true;
