@@ -102,6 +102,7 @@ const localTemplates = {
         { label: 'id', badge: 'int', value: '$local:id' },
         { label: 'text', badge: 'string', value: '$local:str' },
         { label: 'prefix', badge: 'string', value: '$local:p' },
+        { label: 'time', badge: 'int', value: '$local:time' },
       ],
     },
   ],

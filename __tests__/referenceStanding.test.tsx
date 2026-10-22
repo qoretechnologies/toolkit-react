@@ -49,6 +49,26 @@ describe('what names a reference', () => {
     expect(referenceStanding(CASE_VALUES, '$._case.attempt')).toEqual({ unlisted: true });
   });
 
+  it('is said only by a catalogue that lists something in its context', () => {
+    // the record's fields are the record's, not the catalogue's: a catalogue of the case's values says nothing of
+    // them, nor of a context it lists nothing in
+    expect(referenceStanding(CASE_VALUES, '$record:{orders[*].id}')).toEqual({ unlisted: false });
+    expect(referenceStanding(CASE_VALUES, '$config:billing_url')).toEqual({ unlisted: false });
+    const withRecord = {
+      items: [...CASE_VALUES.items, { label: 'pos', value: '$record:{pos}', badge: 'int' }],
+    };
+    expect(referenceStanding(withRecord, '$record:{qty}')).toEqual({ unlisted: true });
+  });
+
+  it('knows a walk into a listed value as that value', () => {
+    const withOrders = { items: [{ label: 'orders', value: '$record:{orders}', badge: 'list' }] };
+    expect(referenceStanding(withOrders, '$record:{orders[*].id}')).toEqual({ unlisted: false });
+    expect(referenceStanding(withOrders, '$record:{orders.count}')).toEqual({ unlisted: false });
+    // a value whose name only starts the same is another value
+    expect(referenceStanding(withOrders, '$record:{orders_total}')).toEqual({ unlisted: true });
+    expect(referenceStanding(CASE_VALUES, '$._case.mode.code')).toEqual({ unlisted: false });
+  });
+
   it('cannot be told against a catalogue with nothing in it, so nothing is said to be unlisted', () => {
     expect(referenceStanding(undefined, '$._case.attempt')).toEqual({ unlisted: false });
     expect(referenceStanding({ items: [] }, '$._case.attempt')).toEqual({ unlisted: false });

@@ -5728,6 +5728,15 @@ export const CompactFieldTypes: Story = {
         display_name: 'Template (templated string)',
         supports_templates: true,
         group: 'text',
+        // the configuration items its host lists: a reference its catalogue does not list is drawn as a warning
+        templates: {
+          items: [
+            {
+              label: 'Configuration items',
+              items: [{ label: 'Billing URL', value: '$config:billing_url', badge: 'string' }],
+            },
+          ],
+        },
       },
       schedule: { type: 'string', ui_type: 'cron', display_name: 'Cron', group: 'text' },
       when: { type: 'date', ui_type: 'date', display_name: 'Date', group: 'text' },
@@ -6112,7 +6121,7 @@ export const CompactFieldTypes: Story = {
     // labels, list joins, richtext flattening, color hex/rgba, filename, and
     // the hash "N fields" summary.
     await _testsWaitForText('hello'); // string
-    await _testsWaitForText('$config:billing_url'); // templated string
+    await _testsWaitForText('Billing URL'); // templated string, by the name its catalogue gives it
     await _testsWaitForText('rich note'); // richtext flattened to plain text
     await _testsWaitForText('https://example.com/webhook'); // url
     await _testsWaitForText('42'); // integer
@@ -7832,7 +7841,21 @@ const RichtextTemplateSchema: IOptionsSchema = {
     ui_type: 'richtext',
     display_name: 'Message Body',
     required: true,
-  },
+    // the alert's values, as the host lists them for a message body: a reference its catalogue does not list is
+    // drawn as a warning (qorus#646)
+    templates: {
+      items: [
+        {
+          label: 'Alert',
+          items: [
+            { label: 'alert_code', value: '$alert:code', badge: 'string' },
+            { label: 'severity', value: '$alert:severity', badge: 'string' },
+            { label: 'rule_name', value: '$alert:rule', badge: 'string' },
+          ],
+        },
+      ],
+    },
+  } as never,
 };
 
 const RichtextTemplateValue: IOptions = {

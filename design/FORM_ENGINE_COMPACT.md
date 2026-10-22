@@ -209,8 +209,10 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   not list is drawn as a warning (`.reqraft-reference-unlisted`) with the host's hint on hover (FormEngine's
   `templateReferences.unlistedHint`; the IDE: "Not a value this case captures"; else "Not one of the values
   offered here"), on the read row and in the editor alike (`referenceStanding`). A host can name a reference it
-  knows but does not list (`templateReferences.label`), which then reads as any named chip. Against a catalogue
-  with nothing in it nothing is called unlisted. Stories: `AHostGrammarSurvivesTheEditorTheRowOpens`,
+  knows but does not list (`templateReferences.label`), which then reads as any named chip. A reference is
+  called unlisted only against a catalogue that lists something in its context (`$._case.mode` for
+  `$._case.attempt`): a catalogue of templates says nothing of a record's fields (`$record:`) or of a context it
+  lists nothing in, and one with nothing in it tells nothing apart; a walk into a listed value is that value's. Stories: `AHostGrammarSurvivesTheEditorTheRowOpens`,
   `AReferenceItsHostKnowsWearsItsName`; tests: `__tests__/referenceStanding.test.tsx`.
 - **Help is in the author's words.** An option's help says what it does and how to fill it in (pick a value,
   choose a field), never a grammar, a syntax or an internal path (David's decision, 2026-10-22). The stories'

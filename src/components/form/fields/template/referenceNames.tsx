@@ -2,6 +2,7 @@
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { size } from 'lodash';
 import { createContext, useContext } from 'react';
+import { catalogueValues } from '../../../../helpers/templateText';
 import { describeTemplateReference } from '../../../../helpers/templates';
 
 /**
@@ -39,8 +40,17 @@ export interface IReferenceStanding {
 }
 
 /**
- * Whether anything names a reference: the catalogue, else the host. A catalogue with nothing in it (not loaded yet,
- * or a field that offers none) tells nothing apart, so nothing is said to be unlisted against it.
+ * The context a reference is in: `$record:` for `$record:{orders[*].id}`, `$._case` for `$._case.attempt` (a host's
+ * own grammar, its root).
+ */
+export const referenceContext = (reference: string): string =>
+  /^\$[\w-]*:/.exec(reference)?.[0] ?? /^\$\.?[^.[{]+/.exec(reference)?.[0] ?? reference;
+
+/**
+ * Whether anything names a reference: the catalogue, else the host. A reference is said to be unlisted only against
+ * a catalogue that speaks for its context - one that lists something in it (`$._case.mode` for `$._case.attempt`):
+ * a catalogue of templates says nothing of a record's fields (`$record:`, the record's own), nor of a context it
+ * lists nothing in, and one with nothing in it (not loaded yet, or a field that offers none) tells nothing apart.
  */
 export const referenceStanding = (
   templates: IReqoreFormTemplates | undefined,
@@ -54,7 +64,14 @@ export const referenceStanding = (
   if (typeof label === 'string' && label) {
     return { label, unlisted: false };
   }
-  return { unlisted: size(templates?.items) > 0 };
+  if (!size(templates?.items)) {
+    return { unlisted: false };
+  }
+  // (a walk into a listed value is that value's: `describeTemplateReference` names it)
+  const context = referenceContext(reference);
+  return {
+    unlisted: catalogueValues(templates).some((value) => referenceContext(value) === context),
+  };
 };
 
 /** The chip props a reference nothing names draws with: a warning, and the host's hint on hover. */

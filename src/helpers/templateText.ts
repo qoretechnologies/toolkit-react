@@ -81,7 +81,7 @@ export const templateChipLabel = (templates: IReqoreFormTemplates | undefined, v
    Walking a 29-item catalogue per row per render is work with one answer. */
 const catalogueValueCache = new WeakMap<object, string[]>();
 
-const catalogueValues = (templates?: IReqoreFormTemplates): string[] => {
+export const catalogueValues = (templates?: IReqoreFormTemplates): string[] => {
   if (!templates) {
     return [];
   }
