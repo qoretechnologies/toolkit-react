@@ -691,12 +691,12 @@ export const StringWithCreatableAllowedValues: Story = {
     allowed_values: [
       {
         display_name: 'status from create',
-        short_desc: '$.create.status (int)',
+        short_desc: 'The status code the create step returned',
         value: { type: 'string', value: '$.create.status' },
       },
       {
         display_name: 'body from create',
-        short_desc: '$.create.body (auto)',
+        short_desc: 'The body the create step returned',
         value: { type: 'string', value: '$.create.body' },
       },
     ],
@@ -719,12 +719,12 @@ export const StringWithCreatableAllowedValuesOutsideTheList: Story = {
     allowed_values: [
       {
         display_name: 'status from create',
-        short_desc: '$.create.status (int)',
+        short_desc: 'The status code the create step returned',
         value: { type: 'string', value: '$.create.status' },
       },
       {
         display_name: 'body from create',
-        short_desc: '$.create.body (auto)',
+        short_desc: 'The body the create step returned',
         value: { type: 'string', value: '$.create.body' },
       },
     ],

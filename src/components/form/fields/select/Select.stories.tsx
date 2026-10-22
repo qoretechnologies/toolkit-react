@@ -401,17 +401,17 @@ export const ItemValuesAreObjectsAndCanBeSelected: Story = {
 const PATH_ITEMS = [
   {
     display_name: 'status from create',
-    short_desc: '$.create.status (int)',
+    short_desc: 'The status code the create step returned',
     value: '$.create.status',
   },
   {
     display_name: 'body from create',
-    short_desc: '$.create.body (auto)',
+    short_desc: 'The body the create step returned',
     value: '$.create.body',
   },
   {
     display_name: 'headers from create',
-    short_desc: '$.create.headers (hash)',
+    short_desc: 'The headers the create step returned',
     value: '$.create.headers',
   },
 ];

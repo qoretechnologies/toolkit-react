@@ -9322,7 +9322,9 @@ export const TemplateValueHoversOnceAndDescribesItself: Story = {
                 {
                   value: '$._case.title',
                   label: 'title (this case)',
-                  description: 'A short line naming what this case verifies. (string)',
+                  // its kind in the catalogue's badge, said in words on hover ("Text.")
+                  badge: 'string',
+                  description: 'A short line naming what this case verifies.',
                 },
               ],
             },
