@@ -5,6 +5,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { configDefaults, defineConfig, mergeConfig } from 'vitest/config';
+import { CAPTURE_VIEWPORT } from './src/stories/captureViewport';
 import viteConfig from './vite.config';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,7 +35,7 @@ const qlip = qlipVitestPlugin({
   captureOnError: true,
   disableAnimations: true,
   pauseAnimationsAtEnd: true,
-  viewport: { width: 1920, height: 1080 },
+  viewport: { ...CAPTURE_VIEWPORT },
   ...(qlipUploadToken ? { upload: { uploadToken: qlipUploadToken } } : {}),
 });
 

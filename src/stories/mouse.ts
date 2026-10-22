@@ -1,8 +1,10 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-// A mouse in a story: resting on a word, and taken off the page when the story ends. Shared by the stories
-// of every editor that shows the server's hover (SmartEditor, DpqlEditor).
+// A mouse in a story: resting on a word, and taken off the page when the story ends - or, where the story's
+// capture shows the hover, as the next story starts. Shared by the stories of every editor that shows the
+// server's hover (SmartEditor, DpqlEditor).
 
 import { fireEvent } from 'storybook/test';
+import { CAPTURE_VIEWPORT } from './captureViewport';
 
 /** The middle of `word` in the editor's text, on the screen. */
 export const middleOf = (editable: HTMLElement, word: string) => {
@@ -23,6 +25,7 @@ export const middleOf = (editable: HTMLElement, word: string) => {
 interface IVitestMouse {
   userEvent: { hover(element: Element, options?: unknown): Promise<void> };
   cdp(): { send(method: string, params?: Record<string, unknown>): Promise<unknown> };
+  page: { viewport(width: number, height: number): Promise<void> };
 }
 
 /** The test runner's browser, or none where the play runs in Storybook's UI (see `withTouchScreen`). */
@@ -35,10 +38,33 @@ const vitestBrowser = async (): Promise<IVitestMouse | undefined> => {
 };
 
 /**
+ * The story's frame at the size qlip captures it: called before the mouse is rested in a story whose capture
+ * shows a hover.
+ *
+ * qlip resizes the frame once the play has ended (`CAPTURE_VIEWPORT`, or the story's `parameters.qlip.viewport`),
+ * and the test runner scales the resized frame to fit its window, so a mouse that did not move is at another
+ * point of the story when it is captured. Rested near the bottom of a chip, it was off the chip, whose card
+ * closed as the mouse left it, and the capture showed no hover (qorus#646, Foxhoundn on DpqlEditor · A Chip
+ * With Its Own Description Shows One Hover: "What is the snapshot for if the description is not seen?"). At the
+ * capture's size from the start, the frame is not resized, and the hover the play checked is the one captured.
+ *
+ * Not put back: Storybook sizes each story's frame as the story starts. In Storybook's UI, where there is no
+ * test runner, nothing is resized.
+ */
+export const atTheCaptureSize = async (parameters?: {
+  qlip?: { viewport?: { width: number; height: number } };
+}) => {
+  const browser = await vitestBrowser();
+  const { width, height } = parameters?.qlip?.viewport ?? CAPTURE_VIEWPORT;
+  await browser?.page.viewport(width, height);
+};
+
+/**
  * Rests the mouse on `at` in `element`. In the test runner it is the browser's own mouse, moved there by
  * Playwright, whose pointer events say "mouse" as a person's do; in Storybook's UI, where there is none to
  * move, a mouse's pointer event at that point. A story that moves the browser's mouse puts it back off the
- * page when it ends (`mouseOffThePage`).
+ * page when it ends (`mouseOffThePage`); one whose capture shows the hover leaves it resting, and its stories
+ * take it off the page as each starts (DpqlEditor).
  */
 export const restMouseOn = async (
   element: HTMLElement,

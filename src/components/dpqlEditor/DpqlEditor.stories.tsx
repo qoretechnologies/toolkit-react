@@ -14,7 +14,13 @@ import { mockHoverDpql } from './__fixtures__/dpqlMockHover';
 import { DpqlEditor } from './DpqlEditor';
 import { TDpqlFsmContext } from './types';
 import { withCoarsePointer } from '../../stories/coarsePointer';
-import { middleOf, middleOfElement, mouseOffThePage, restMouseOn } from '../../stories/mouse';
+import {
+  atTheCaptureSize,
+  middleOf,
+  middleOfElement,
+  mouseOffThePage,
+  restMouseOn,
+} from '../../stories/mouse';
 import { withTouchScreen } from '../../stories/touchScreen';
 import { PHONE_VIEWPORT } from '../../stories/tracking';
 
@@ -64,6 +70,10 @@ const meta = {
     onChange: fn(),
   },
   async beforeEach(context) {
+    /* Every story starts with the mouse off the page: the hover stories leave theirs resting where their hover is
+       open, so that the capture shows the hover they are about (qorus#646, Foxhoundn: "If a story is about hover,
+       the hover needs to be seen"), and a mouse left there opened a hover in the story after. */
+    await mouseOffThePage();
     // Live stories (those with `parameters: { live: true }`) skip
     // the mock-socket server so the editor's WebSocket reaches the
     // real Qorus `/lsp` endpoint at `wss://hq.qoretechnologies.com:8092/lsp`.
@@ -658,17 +668,16 @@ export const HoverSaysWhatAFunctionIs: Story = {
       },
     },
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, parameters }) => {
+    // the frame at the size it is captured at: the mouse is on what it hovers when the hover is captured
+    await atTheCaptureSize(parameters);
     const editable = await readyEditor(canvasElement);
-    try {
-      await restMouseOn(editable, middleOf(editable, 'size'));
-      await waitFor(() => expect(shownHovers()).toEqual([expect.stringContaining('Get Size')]), {
-        timeout: 10000,
-      });
-      await expect(shownHovers()[0]).toContain('Returns the size of the operand');
-    } finally {
-      await mouseOffThePage();
-    }
+    // the mouse stays on size: the capture shows the hover (the next story starts with the mouse off the page)
+    await restMouseOn(editable, middleOf(editable, 'size'));
+    await waitFor(() => expect(shownHovers()).toEqual([expect.stringContaining('Get Size')]), {
+      timeout: 10000,
+    });
+    await expect(shownHovers()[0]).toContain('Returns the size of the operand');
   },
 };
 
@@ -682,21 +691,20 @@ export const HoverOverAChipSaysWhatItsPathIs: Story = {
       },
     },
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, parameters }) => {
+    // the frame at the size it is captured at: the mouse is on what it hovers when the hover is captured
+    await atTheCaptureSize(parameters);
     const editable = await readyEditor(canvasElement);
     const chip = await chipFor(editable, 'record: create.items[*].id');
-    try {
-      await restMouseOn(chip, middleOfElement(chip));
-      await waitFor(
-        () => expect(shownHovers()).toEqual([expect.stringContaining('list wildcard ([*])')]),
-        { timeout: 10000 }
-      );
-      const [hover] = shownHovers();
-      await expect(hover).toContain('@create.items');
-      await expect(hover).toMatch(/field\s*id/);
-    } finally {
-      await mouseOffThePage();
-    }
+    // the mouse stays on the chip: the capture shows the hover
+    await restMouseOn(chip, middleOfElement(chip));
+    await waitFor(
+      () => expect(shownHovers()).toEqual([expect.stringContaining('list wildcard ([*])')]),
+      { timeout: 10000 }
+    );
+    const [hover] = shownHovers();
+    await expect(hover).toContain('@create.items');
+    await expect(hover).toMatch(/field\s*id/);
   },
 };
 
@@ -798,19 +806,18 @@ export const AChipWithItsOwnDescriptionShowsOneHover: Story = {
       },
     },
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, parameters }) => {
+    // the frame at the size it is captured at: the mouse is on what it hovers when the hover is captured
+    await atTheCaptureSize(parameters);
     const editable = await readyEditor(canvasElement);
     const chip = await chipFor(editable, 'record: name');
-    try {
-      await restMouseOn(chip, middleOfElement(chip));
-      await waitFor(
-        () => expect(shownHovers()).toEqual([expect.stringContaining("The customer's full name")]),
-        { timeout: 10000 }
-      );
-      await expect(shownHovers().join(' ')).not.toContain('Type: string');
-    } finally {
-      await mouseOffThePage();
-    }
+    // the mouse stays on the chip: the capture shows its description, the one hover
+    await restMouseOn(chip, middleOfElement(chip));
+    await waitFor(
+      () => expect(shownHovers()).toEqual([expect.stringContaining("The customer's full name")]),
+      { timeout: 10000 }
+    );
+    await expect(shownHovers().join(' ')).not.toContain('Type: string');
   },
 };
 
