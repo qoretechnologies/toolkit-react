@@ -854,9 +854,13 @@ export interface IReadFirstCompletion {
  * status BOX bucketing (FormEngine) so the two can never disagree:
  *   invalid  — a value fails validation, or a danger message is present (red)
  *   todo     — empty & required (or has a warning message), needs a value (amber)
+ *   pending  — empty & required, but the person has not been to it yet: still to
+ *              fill in, not yet a fault (neutral). A new form is not already wrong;
+ *              the field becomes `todo` once they open it and leave it empty, or the
+ *              host reports a submit attempt (`revealRequired`)
  *   set      — has a valid value (green)
  *   optional — empty & not required, or covered by a one-of sibling (calm) */
-export type TReadFirstStatus = 'invalid' | 'todo' | 'set' | 'optional';
+export type TReadFirstStatus = 'invalid' | 'todo' | 'pending' | 'set' | 'optional';
 
 export const getReadFirstStatus = (s: {
   empty: boolean;
@@ -867,17 +871,26 @@ export const getReadFirstStatus = (s: {
   invalid: boolean;
   /** A warning message is attached (surfaces an empty field for attention). */
   warned: boolean;
+  /**
+   * Whether the person has been to this field (opened it and left it), or the host
+   * reported a submit attempt. Until then an empty required field is `pending`, not
+   * `todo`. Unset means visited, the behaviour before this existed.
+   */
+  visited?: boolean;
 }): TReadFirstStatus => {
   if (s.invalid) return 'invalid';
   if (!s.empty) return 'set';
   // A one-of member covered by a satisfied sibling reads as "set" (green) — the
   // requirement is met; the row just shows a "Covered by …" note.
   if (s.covered) return 'set';
-  if (s.required || s.warned) return 'todo';
+  if (s.warned) return 'todo';
+  if (s.required) return s.visited === false ? 'pending' : 'todo';
   return 'optional';
 };
 
-/** Coarse bucket for the three status boxes (Needs attention / Set / Optional). */
+/** Coarse bucket for the three status boxes (Needs attention / Set / Optional). A
+ *  `pending` field is in the first box too: it still has to be filled in. The box only
+ *  reads "To fill in" instead of "Needs attention" while nothing in it is a fault. */
 export const getReadFirstBucket = (status: TReadFirstStatus): 'attention' | 'set' | 'optional' =>
   status === 'set' ? 'set'
   : status === 'optional' ? 'optional'

@@ -8,7 +8,7 @@
 // - `ConnectionManagement` per-item actions — dropped (actions omitted).
 // - `Select` → reqraft `SelectFormField` (`items` instead of `defaultItems`,
 //   single-arg `onChange`; `type`/`closeCollectionOnUnMount` not forwarded).
-import { ReqoreCheckbox, ReqoreControlGroup, ReqoreSpan } from '@qoretechnologies/reqore';
+import { ReqoreCheckbox, ReqoreControlGroup } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IQorusAllowedValue, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size as count, isEqual } from 'lodash';
@@ -20,6 +20,7 @@ import {
 } from '../select/SelectCollection';
 import { ISelectFormFieldItem, SelectFormField as Select } from '../select/Select';
 import { useAllowedValueAvailability } from '../../engine/OptionFieldMessages';
+import { ChoiceGroupHeading, useSelectedChoiceIntent } from '../ChoiceGroupHeading';
 import type { IReqraftAllowedValue } from '../Field';
 
 export interface IFieldAllowedValuesProps extends Pick<
@@ -97,13 +98,15 @@ export const FieldAllowedValuesCheckGroup = memo(
      */
     label?: string;
   }) => {
+    const selectedChoiceIntent = useSelectedChoiceIntent();
+
     return (
       <ReqoreControlGroup vertical size={rest.size || 'small'} gapSize='tiny'>
-        <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
+        <ChoiceGroupHeading>
           {label ? `${label}:`
           : multiSelect ? 'Select one or more:'
           : 'Select one:'}
-        </ReqoreSpan>
+        </ChoiceGroupHeading>
         {items?.map((item) => {
           const unavailable = getSelectItemUnavailability(item);
 
@@ -134,7 +137,7 @@ export const FieldAllowedValuesCheckGroup = memo(
                  which keeps the pointer events the tooltip is read through.
                  It does not withhold `onClick` — the handler below does. */
               readOnly={rest.readOnly || !!unavailable}
-              intent={item.value === value ? 'info' : undefined}
+              intent={selectedChoiceIntent(item.value === value)}
               // `isEqual`, and only once there is a value to match. The single
               // -select branch compared JSON.stringify(value) with
               // JSON.stringify(item.value), and JSON.stringify(undefined) is

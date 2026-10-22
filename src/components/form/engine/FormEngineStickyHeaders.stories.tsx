@@ -122,8 +122,12 @@ const scroller = () => document.getElementById(SCROLLER) as HTMLElement;
 
 /** One box's header element, found by the label it carries. */
 const boxHeader = (label: string): HTMLElement => {
+  // The first box is "To fill in" until something in it is a fault (a new form).
+  const labels = label === 'Needs attention' ? ['Needs attention', 'To fill in'] : [label];
   const box = Array.from(document.querySelectorAll('.options-readfirst-group')).find((el) =>
-    (el.querySelector(':scope > .reqore-panel-title')?.textContent ?? '').includes(label)
+    labels.some((name) =>
+      (el.querySelector(':scope > .reqore-panel-title')?.textContent ?? '').includes(name)
+    )
   );
   if (!box) {
     throw new Error(`no status box labelled ${label}`);

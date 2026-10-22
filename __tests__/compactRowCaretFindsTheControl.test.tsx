@@ -110,6 +110,89 @@ describe('the caret an opened row takes', () => {
     expect((document.activeElement as HTMLElement).textContent).toContain('Choose a connection');
   });
 
+  /* A code editor draws its chrome first (a fullscreen toggle) and its edit area once
+     it has loaded. The caret may rest on the chrome for that moment, but the edit area
+     takes it when it arrives: otherwise the next space typed presses the toggle. */
+  const LateCodeEditor = ({ onMount }: { onMount: (mount: () => void) => void }) => {
+    const [ready, setReady] = React.useState(false);
+    React.useEffect(() => onMount(() => setReady(true)), []);
+    return (
+      <div>
+        <button type='button'>Fullscreen</button>
+        {ready ? <div role='textbox' tabIndex={0} aria-label='Editor content' /> : null}
+      </div>
+    );
+  };
+  const codeField = {
+    source: { type: 'string', ui_type: 'late-code', display_name: 'Source', required: true },
+  };
+
+  it('moves from an editor\'s chrome to its text box when the text box arrives late', async () => {
+    let mount: () => void = () => undefined;
+    renderForm(codeField, {}, {
+      componentOverrides: {
+        'late-code': () => <LateCodeEditor onMount={(fn) => (mount = fn)} />,
+      },
+    });
+
+    await waitFor(() => expect(focusedField()).toBe('source'));
+    expect(document.activeElement?.textContent).toBe('Fullscreen');
+
+    mount();
+
+    await waitFor(() =>
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Editor content')
+    );
+  });
+
+  /* Monaco inserts its edit area before it can take focus, and focus() on it then does
+     nothing. The caret counts as handed over only once it has actually landed. */
+  it('keeps trying until the text box can actually take the caret', async () => {
+    let makeFocusable: () => void = () => undefined;
+    const SlowEditArea = () => {
+      const [focusable, setFocusable] = React.useState(false);
+      React.useEffect(() => {
+        makeFocusable = () => setFocusable(true);
+      }, []);
+      return (
+        <div>
+          <button type='button'>Fullscreen</button>
+          <div role='textbox' aria-label='Editor content' {...(focusable ? { tabIndex: 0 } : {})} />
+        </div>
+      );
+    };
+    renderForm(codeField, {}, { componentOverrides: { 'late-code': SlowEditArea } });
+
+    // The text box is there but cannot take focus yet: the row waits for it rather
+    // than settling on the toolbar beside it.
+    await waitFor(() => expect(document.querySelector('.readfirst-row-editing')).toBeTruthy());
+    expect(document.activeElement?.textContent).not.toBe('Fullscreen');
+
+    makeFocusable();
+
+    await waitFor(() =>
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('Editor content')
+    );
+  });
+
+  it('leaves the caret where the reader put it, even when the text box arrives later', async () => {
+    let mount: () => void = () => undefined;
+    const { container } = renderForm(codeField, {}, {
+      componentOverrides: {
+        'late-code': () => <LateCodeEditor onMount={(fn) => (mount = fn)} />,
+      },
+    });
+    await waitFor(() => expect(focusedField()).toBe('source'));
+
+    const elsewhere = document.createElement('input');
+    container.appendChild(elsewhere);
+    elsewhere.focus();
+    mount();
+
+    await waitFor(() => expect(document.querySelector('[aria-label="Editor content"]')).toBeTruthy());
+    expect(document.activeElement).toBe(elsewhere);
+  });
+
   it('leaves a caret the reader moved elsewhere alone', async () => {
     // A late editor plus a reader who did not wait: the row must not yank the
     // caret out of the control they moved into themselves.

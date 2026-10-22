@@ -35,6 +35,9 @@ export interface ICompactToolbarContext {
   // Completion meter
   invalidCount: number;
   attentionCount: number;
+  /** How many of `attentionCount` are faults (invalid, or a required field the person
+   *  has been to and left empty). Zero on a fresh form: the rest are only to fill in. */
+  attentionFaultCount: number;
   completion: { set: number; done: number; total: number; pct: number };
   // Invalid-fields banner (pinned in the sticky header)
   showInvalidOnly: boolean;

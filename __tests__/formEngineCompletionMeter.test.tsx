@@ -95,7 +95,9 @@ describe('the completion header', () => {
     expect(text).not.toContain('Draft');
     expect(text).not.toContain('Ready');
     expect(text).toContain('0/2 set');
-    expect(text).toContain('2 need attention');
+    // Nobody has been to either field yet, so they are still to fill in, not faults.
+    expect(text).toContain('2 to fill in');
+    expect(text).not.toContain('need attention');
   });
 
   it('still reads Ready at 100% when nothing is flagged', async () => {

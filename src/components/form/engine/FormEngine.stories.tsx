@@ -41,6 +41,12 @@ import {
 import { basicFormValue, getBasicFormOptions as getOptions } from './__fixtures__/basicFormOptions';
 import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOptions';
 
+/** The first status box: "To fill in" while nothing in it is a fault (a new form),
+ *  "Needs attention" once something is. Stories about which box a field lands in find
+ *  it under either name. */
+const FIRST_BOX = /^(Needs attention|To fill in)$/;
+const FIRST_BOX_PREFIX = /^(Needs attention|To fill in)/;
+
 // schema data
 
 const TestOptionsWithRequiredGroups: IOptionsSchema = {
@@ -2243,6 +2249,7 @@ export const CompactLockedRequiredNeedsNoAttention: Story = {
     await expect(document.querySelector('[data-field="min"]')).toBeTruthy();
     await expect(document.querySelector('[data-field="max"]')).toBeTruthy();
     await _testsWaitForTextToNotExist('Needs attention');
+    await _testsWaitForTextToNotExist('To fill in');
     // Nothing the author can fill in is missing, so the form is Ready — the
     // locked fields do not apply until a kind is picked.
     await _testsWaitForText('Ready');
@@ -2266,11 +2273,11 @@ export const CompactUnlockedRequiredNeedsAttention: Story = {
     value: { kind: { type: 'string', value: 'between' } } as IOptions,
   },
   play: async () => {
-    await _testsWaitForText('Needs attention');
+    await _testsWaitForText(FIRST_BOX);
     await _testsWaitForText('Incomplete');
     await _testsWaitForTextToNotExist('Draft');
     const attention = [...document.querySelectorAll('.options-readfirst-group')].find((group) =>
-      (group.textContent || '').startsWith('Needs attention')
+      FIRST_BOX_PREFIX.test(group.textContent || '')
     );
     await expect(attention).toBeTruthy();
     for (const field of ['expected', 'min', 'max']) {
@@ -3070,6 +3077,7 @@ export const CompactReadOnly: Story = {
     await _testsWaitForTextToNotExist('Incomplete');
     await _testsWaitForTextToNotExist('Draft');
     await _testsWaitForTextToNotExist('Needs attention');
+    await _testsWaitForTextToNotExist('To fill in');
     await _testsWaitForTextToNotExist('Optional');
     // A required field nobody set is listed, unset, with no amber dot.
     await _testsWaitForText('Description');
@@ -3551,6 +3559,7 @@ export const CompactReadOnlyValues: Story = {
     expect(document.querySelector('.options-readfirst-completion')).toBeNull();
     expect(document.querySelector('.options-readfirst-group')).toBeNull();
     await _testsWaitForTextToNotExist('Needs attention');
+    await _testsWaitForTextToNotExist('To fill in');
     await _testsWaitForTextToNotExist('Optional');
     // An optional field nobody set is not listed at all…
     await _testsWaitForTextToNotExist('Notes');
@@ -3932,7 +3941,7 @@ export const CompactValidIdentifierRule: Story = {
     // The rules-driven validation marks the form as needing attention — the
     // dedicated "Needs attention" box (and the header link) signal it.
     await _testsWaitForText('Incomplete');
-    await _testsWaitForText('Needs attention');
+    await _testsWaitForText(FIRST_BOX);
   },
 };
 
@@ -6764,7 +6773,7 @@ export const CompactShowcase: Story = {
     // Optional box's fold, which scrolls, so the frame is put back afterwards:
     // this story's snapshot is the form's top.
     const attentionBox = Array.from(document.querySelectorAll('.options-readfirst-group')).find(
-      (group) => (group.textContent || '').startsWith('Needs attention')
+      (group) => FIRST_BOX_PREFIX.test(group.textContent || '')
     );
     await expect(
       attentionBox?.querySelector('[data-field="optionWithShortDescription"]')
@@ -8092,9 +8101,11 @@ export const CompactExpressionWithoutCatalogue: Story = {
  *  A collapsed ReqorePanel unmounts its content, so "has no
  *  `.reqore-panel-content`" IS the collapsed assertion. */
 const findStatusBox = (title: string) =>
-  Array.from(document.querySelectorAll('.options-readfirst-group')).find((panel) =>
-    panel.querySelector('.reqore-panel-title')?.textContent?.includes(title)
-  );
+  Array.from(document.querySelectorAll('.options-readfirst-group')).find((panel) => {
+    const heading = panel.querySelector('.reqore-panel-title')?.textContent ?? '';
+    // The first box is "To fill in" until something in it is a fault.
+    return title === 'Needs attention' ? FIRST_BOX_PREFIX.test(heading) : heading.includes(title);
+  });
 
 const expectBoxCollapsed = async (title: string) => {
   await waitFor(
@@ -9417,7 +9428,7 @@ export const ANewFormSaysWhatIsRequired: Story = {
     docs: {
       description: {
         story:
-          'A brand-new form with two empty required fields. Each says "This field is required" from the start, including the first one, which opens for editing, without waiting for the author to visit it.',
+          'A brand-new form with two empty required fields. Each says "This field is required" from the start, including the first one, which opens for editing, without waiting for the author to visit it. Saying what is required is not saying something is wrong: the first box reads "To fill in", in the quiet colour, until a field has been visited and left empty.',
       },
     },
   },
@@ -9429,7 +9440,8 @@ export const ANewFormSaysWhatIsRequired: Story = {
     expandFirstRequired: true,
   },
   play: async ({ canvasElement }) => {
-    await _testsWaitForText('Needs attention');
+    await _testsWaitForText('To fill in');
+    await _testsWaitForTextToNotExist('Needs attention');
     await waitFor(() => {
       const title = canvasElement.querySelector('[data-field="title"]');
       const owner = canvasElement.querySelector('[data-field="owner"]');
@@ -9551,7 +9563,7 @@ export const AMovedRowInViewIsNotScrolled: Story = {
     options: MovedRowSchema,
   },
   play: async () => {
-    await _testsWaitForText('Needs attention');
+    await _testsWaitForText(FIRST_BOX);
     const watch = watchRowScrolls();
     try {
       const scroller = movedRowScroller();
@@ -9610,7 +9622,7 @@ export const AMovedRowLandsClearOfThePinnedHeader: Story = {
       await scrolled;
       const row = document.querySelector<HTMLElement>('.readfirst-row[data-field="owner"]')!;
       const attention = [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')].find(
-        (group) => (group.textContent || '').startsWith('Needs attention')
+        (group) => FIRST_BOX_PREFIX.test(group.textContent || '')
       )!;
       const header = attention.querySelector<HTMLElement>(':scope > .reqore-panel-title')!;
       const rowRect = row.getBoundingClientRect();
@@ -9634,12 +9646,12 @@ export const AMovedRowLandsClearOfThePinnedHeader: Story = {
  * slide UNDER the toolbar, never over it. Each step waits on `scrollend`.
  */
 const assertBoxHeaderSlidesUnderToolbar = async (scroller: HTMLElement) => {
-  await _testsWaitForText('Needs attention');
+  await _testsWaitForText(FIRST_BOX);
   const toolbar = document.querySelector<HTMLElement>(
     '.options-readfirst-scroll > .reqore-panel > .reqore-panel-title'
   )!;
   const box = [...document.querySelectorAll<HTMLElement>('.options-readfirst-group')].find(
-    (group) => (group.textContent || '').startsWith('Needs attention')
+    (group) => FIRST_BOX_PREFIX.test(group.textContent || '')
   )!;
   const header = box.querySelector<HTMLElement>(':scope > .reqore-panel-title')!;
   const scrollBy = async (delta: number) => {

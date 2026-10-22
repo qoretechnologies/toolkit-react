@@ -59,7 +59,11 @@ const box = (container: HTMLElement, title: string) =>
     (group.textContent || '').startsWith(title)
   );
 
-const attentionBox = (container: HTMLElement) => box(container, 'Needs attention');
+// The first box: "To fill in" while nothing in it is a fault yet (a form nobody has been
+// to), "Needs attention" once something is. These tests are about which box a field is
+// in, not about its name.
+const attentionBox = (container: HTMLElement) =>
+  box(container, 'Needs attention') ?? box(container, 'To fill in');
 
 const row = (container: HTMLElement, field: string) =>
   container.querySelector(`[data-field="${field}"]`);
@@ -76,6 +80,7 @@ describe('a required field locked by its dependency does not need attention', ()
     // Nothing the author can act on, so there is no Needs attention box at all.
     expect(attentionBox(container)).toBeUndefined();
     expect(container.textContent).not.toContain('Needs attention');
+    expect(container.textContent).not.toContain('To fill in');
   });
 
   it('still shows the locked field, among the optional ones, with what unlocks it', async () => {
@@ -205,6 +210,7 @@ describe('a locked required field and the completeness status', () => {
     expect(text).toContain('Ready');
     expect(text).not.toContain('Incomplete');
     expect(text).not.toContain('need attention');
+    expect(text).not.toContain('to fill in');
     await waitFor(() => expect(onValidityChange).toHaveBeenLastCalledWith(true, expect.anything()));
   });
 

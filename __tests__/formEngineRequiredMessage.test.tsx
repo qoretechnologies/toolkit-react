@@ -47,7 +47,7 @@ const renderForm = (value: Record<string, unknown> = {}, props: Record<string, u
   );
 
 describe('an empty required field', () => {
-  it('states the requirement on arrival, and counts as needing attention', async () => {
+  it('states the requirement on arrival, and counts as still to fill in, not as a fault', async () => {
     renderForm();
     // The row is open — this is the state the reader actually meets.
     await waitFor(() => expect(document.querySelector('[data-field="title"]')).toBeTruthy());
@@ -57,7 +57,10 @@ describe('an empty required field', () => {
       )
     );
     await waitFor(() => expect(document.body.textContent).toContain(REQUIRED_MESSAGE));
-    expect(document.body.textContent).toContain('Needs attention');
+    // A new form is not already wrong: the field is to fill in until the reader has
+    // been in it and left it empty.
+    expect(document.body.textContent).toContain('To fill in');
+    expect(document.body.textContent).not.toContain('Needs attention');
   });
 
   it('states the error once the reader has been in it and left it empty', async () => {

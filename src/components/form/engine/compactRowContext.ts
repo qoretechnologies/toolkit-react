@@ -69,6 +69,11 @@ export interface ICompactRowContext {
   // display name in the read-first chip.
   templates?: IReqoreFormTemplates;
   expandedOptions: string[];
+  /** Fields the person has opened and left: an empty required one among them is a
+   *  fault (`todo`); one they have not been to yet is only `pending`. */
+  visitedOptions: string[];
+  /** The host reported a submit attempt: every empty required field is a fault. */
+  revealRequired: boolean;
   highlightedOptions: string[];
   flashedOptions: string[];
   infoPanelOverrides: Record<string, boolean>;

@@ -1,6 +1,13 @@
-import { ReqoreControlGroup, ReqoreTag, ReqoreVerticalSpacer } from '@qoretechnologies/reqore';
+import {
+  ReqoreControlGroup,
+  ReqoreP,
+  ReqoreTag,
+  ReqoreVerticalSpacer,
+  useReqoreTheme,
+} from '@qoretechnologies/reqore';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { IQorusFormField, IQorusFormSchema, TQorusForm } from '@qoretechnologies/ts-toolkit';
 import { isArray, size } from 'lodash';
 import { useMemo } from 'react';
@@ -19,6 +26,7 @@ import {
   unsatisfiedRequiredGroups,
 } from '../../../helpers/validations';
 import { OptionsContext } from './optionsContext';
+import { CALM_REQUIRED_LABEL, CALM_REQUIRED_READ_LABEL, useIsCalmForm } from './formAppearance';
 
 /** A `messages` entry that appears only for certain values of its siblings. */
 export interface IConditionalFieldMessage {
@@ -335,6 +343,22 @@ export interface IOptionFieldMessagesProps {
    * reqraft's built-in editors are known.
    */
   isRendererOnly?: (type?: any) => boolean;
+  /**
+   * The calm appearance says an empty required field the calm way: an amber
+   * "Required · add a value" (or, read-only, "Required · not set") rather than
+   * a red "This field is required". Waiting for a person is amber; red is for
+   * something that failed.
+   */
+  calm?: boolean;
+  /** Read-only: the reader cannot add a value, so the calm wording only states it. */
+  readOnly?: boolean;
+  /**
+   * Nobody has been to this field yet. The requirement is still stated, but with no
+   * intent: a new form is not already wrong, and saying what is required is not saying
+   * something failed. It takes its colour once the person has opened the field and left
+   * it empty (`FormEngine`'s `visitedOptions` / `revealRequired`).
+   */
+  requirementPending?: boolean;
 }
 
 /**
@@ -349,6 +373,9 @@ export const getOptionFieldMessages = ({
   allOptions,
   getType,
   isRendererOnly,
+  calm,
+  readOnly,
+  requirementPending,
 }: IOptionFieldMessagesProps): IReqoreTagProps[] => {
   const optionSchema = schema[name];
   const result: IReqoreTagProps[] = [];
@@ -394,7 +421,13 @@ export const getOptionFieldMessages = ({
     // locked field is not asked for: the dependency message below says what
     // unlocks it, and until then there is nothing to fill in.
     if (optionSchema?.required && !locked) {
-      result.push({ label: 'This field is required', intent: 'danger' });
+      const message =
+        calm ?
+          { label: readOnly ? CALM_REQUIRED_READ_LABEL : CALM_REQUIRED_LABEL, intent: 'warning' }
+        : { label: 'This field is required', intent: 'danger' };
+      result.push(
+        requirementPending ? { label: message.label } : (message as IReqoreTagProps)
+      );
     }
 
     if (
@@ -440,7 +473,10 @@ export const OptionFieldMessages = ({
   allOptions,
   getType,
   isRendererOnly,
+  requirementPending,
 }: IOptionFieldMessagesProps) => {
+  const calm = useIsCalmForm();
+  const theme = useReqoreTheme();
   const messages: IReqoreTagProps[] = useMemo(
     () =>
       getOptionFieldMessages({
@@ -450,6 +486,8 @@ export const OptionFieldMessages = ({
         allOptions,
         getType,
         isRendererOnly,
+        calm,
+        requirementPending,
       }),
     [
       JSON.stringify(schema),
@@ -457,11 +495,44 @@ export const OptionFieldMessages = ({
       JSON.stringify(allOptions),
       name,
       isRendererOnly,
+      calm,
+      requirementPending,
     ]
   );
 
   if (!size(messages)) {
     return null;
+  }
+
+  // Calm: each message is a line of text in its own colour under the editor —
+  // a word, not a tinted chip with a warning glyph.
+  if (calm) {
+    return (
+      <ReqoreControlGroup
+        className='options-field-messages'
+        vertical
+        gapSize='tiny'
+        style={{ marginTop: 6 }}
+      >
+        {messages.map((message, index) => (
+          <ReqoreP
+            key={index}
+            size='small'
+            intent={message.intent}
+            // A requirement nobody has been asked about yet carries no intent: it is
+            // said in the same faint colour as the row's pending word, not in full text.
+            effect={
+              message.intent ? undefined : (
+                { color: `${getReadableColor(theme, undefined, undefined, true)}a6` }
+              )
+            }
+            className='options-field-message'
+          >
+            {message.label}
+          </ReqoreP>
+        ))}
+      </ReqoreControlGroup>
+    );
   }
 
   return (
