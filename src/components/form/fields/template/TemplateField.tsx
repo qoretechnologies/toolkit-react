@@ -1571,16 +1571,6 @@ const TemplateFieldImpl = memo(
         </ReqoreControlGroup>
       : null;
 
-    // Held in a ref so the debounce below does not depend on it. `onChange`
-    // comes from the host form and can be a fresh function on any render;
-    // with the callback in the effect's deps, a re-render caused by a
-    // DIFFERENT field would restart this field's timer, and a form the
-    // author is typing in re-renders constantly.
-    const enterExpressionRef = useRef(enterExpressionFromText);
-    useEffect(() => {
-      enterExpressionRef.current = enterExpressionFromText;
-    }, [enterExpressionFromText]);
-
     // Detection only runs on a field that could hold an expression and is
     // currently showing a plain editor — never on a read-only field, a
     // fixed-value list, or one already in template or expression mode.
@@ -1646,10 +1636,10 @@ const TemplateFieldImpl = memo(
               detectedTexts.current.set(text, { expression: parsed.expression, outcome });
             }
 
-            // on tabs, an expression detected switches (with an undo) rather than being offered
-            if (outcome === 'switch' || (outcome === 'offer' && tabsKindRef.current === 'full')) {
-              enterExpressionRef.current(text, parsed.expression);
-            } else if (outcome === 'offer') {
+            /* An expression detected is offered, never switched to: the author chooses (qorus#646, David's
+               review: "@pos + @bezeichnung" became an expression without asking). Text that cannot be a value
+               of the field's type is said to be one it refuses, beside the offer. */
+            if (outcome !== 'none') {
               setDpqlOffer({ text, expression: parsed.expression });
             } else {
               setDpqlOffer(null);

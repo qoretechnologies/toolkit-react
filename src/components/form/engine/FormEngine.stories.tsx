@@ -11468,12 +11468,12 @@ export const TemplateOnlyOptionHasValueAndTemplate: Story = {
   },
 };
 
-export const ExpressionTypedOnValueSwitchesWithUndo: Story = {
+export const ExpressionTypedOnValueIsOfferedWithUndo: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders the form, opens Quantity, a whole number, on Value and writes 12 + 2: the Value tab never holds an expression, so it moves to Expression, with an Undo that puts the text back on Value. Put back, 12 + 2 is not a whole number: the field says so, and offers it again as an expression - "Use as expression", or the cross to keep it as text (qorus#646).',
+          'Renders the form, opens Quantity, a whole number, on Value and writes 12 + 2: it is not a whole number, and the field says so, and offers it as an expression - "Use as expression", or the cross to keep it as text. It is offered, not switched to (David\'s review: an expression typed became one without asking). Used as one, it moves to Expression, with an Undo that puts the text back on Value; put back, it is offered again (qorus#646).',
       },
     },
   },
@@ -11487,7 +11487,19 @@ export const ExpressionTypedOnValueSwitchesWithUndo: Story = {
     });
     await userEvent.click(editor);
     await userEvent.keyboard(' + 2');
-    await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('expression'), { timeout: 10000 });
+    // offered, not switched to: the tab stays, and the field holds no expression
+    const offered = await waitFor(
+      () => {
+        const button = optionRow('quantity').querySelector<HTMLElement>('.dpql-detected-offer');
+        expect(button, 'the offer of an expression').toBeTruthy();
+        return button!;
+      },
+      { timeout: 10000 }
+    );
+    expect(optionActiveTab(optionRow('quantity'))).toBe('value');
+    expect(heldOption(canvasElement, 'quantity').is_expression).toBeFalsy();
+    await userEvent.click(offered);
+    await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('expression'));
     await waitFor(() => expect(heldOption(canvasElement, 'quantity').is_expression).toBe(true));
     await userEvent.click(optionRow('quantity').querySelector('.dpql-detected-undo') as HTMLElement);
     await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('value'));
@@ -11532,12 +11544,12 @@ const UntypedValueForm = () => {
   );
 };
 
-export const ExpressionTypedOnAnUntypedValueSwitchesToo: Story = {
+export const ExpressionTypedOnAnUntypedValueIsOfferedToo: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'Renders an untyped option (any) holding 12 and writes 12 + 2 on its Value tab: as on every option that takes an expression, it moves to Expression, with an Undo. It used to be kept as the text "12 + 2", and offered as nothing: detection did not run where an untyped option takes its value (qorus#646).',
+          'Renders an untyped option (any) holding 12 and writes 12 + 2 on its Value tab: as on every option that takes an expression, it is offered as one, and used as one it moves to Expression, with an Undo. It used to be kept as the text "12 + 2", and offered as nothing: detection did not run where an untyped option takes its value (qorus#646).',
       },
     },
   },
@@ -11551,9 +11563,18 @@ export const ExpressionTypedOnAnUntypedValueSwitchesToo: Story = {
     });
     await userEvent.click(editor);
     await userEvent.keyboard(' + 2');
-    await waitFor(() => expect(optionActiveTab(optionRow('anything'))).toBe('expression'), {
-      timeout: 10000,
-    });
+    // offered, and used as one
+    await userEvent.click(
+      await waitFor(
+        () => {
+          const button = optionRow('anything').querySelector<HTMLElement>('.dpql-detected-offer');
+          expect(button, 'the offer of an expression').toBeTruthy();
+          return button!;
+        },
+        { timeout: 10000 }
+      )
+    );
+    await waitFor(() => expect(optionActiveTab(optionRow('anything'))).toBe('expression'));
     await waitFor(() =>
       expect(
         JSON.parse(canvasElement.querySelector('.untyped-value-form')!.getAttribute('data-held')!)
@@ -11569,7 +11590,7 @@ export const ExpressionTypedOnValueAfterTheExpressionTabShowsWhatWasTyped: Story
     docs: {
       description: {
         story:
-          'Renders the form, opens Quantity (12) on the Expression tab and goes back to Value, then writes " + 2" there: it moves to Expression, and the Text view shows 12 + 2, the expression the option now holds. The Text view showed 12, what it had shown on the first visit, and leaving the tab saved that: what was typed was lost (qorus#646).',
+          'Renders the form, opens Quantity (12) on the Expression tab and goes back to Value, then writes " + 2" there and uses it as an expression, as offered: it moves to Expression, and the Text view shows 12 + 2, the expression the option now holds. The Text view showed 12, what it had shown on the first visit, and leaving the tab saved that: what was typed was lost (qorus#646).',
       },
     },
   },
@@ -11593,7 +11614,17 @@ export const ExpressionTypedOnValueAfterTheExpressionTabShowsWhatWasTyped: Story
     });
     await userEvent.click(editor);
     await userEvent.keyboard(' + 2');
-    await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('expression'), { timeout: 10000 });
+    await userEvent.click(
+      await waitFor(
+        () => {
+          const button = optionRow('quantity').querySelector<HTMLElement>('.dpql-detected-offer');
+          expect(button, 'the offer of an expression').toBeTruthy();
+          return button!;
+        },
+        { timeout: 10000 }
+      )
+    );
+    await waitFor(() => expect(optionActiveTab(optionRow('quantity'))).toBe('expression'));
     await waitFor(() => expect(heldOption(canvasElement, 'quantity').is_expression).toBe(true));
     // the Text view shows what the option holds: what was typed, not the first visit's text
     await waitFor(() =>
@@ -12243,6 +12274,47 @@ export const ValueTabPickReplacesAReferencedField: Story = {
       );
       expect(card?.textContent, "the field's hover").toContain('A whole number.');
     });
+  },
+};
+
+export const AnExpressionTypedAsTextIsOffered: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the form holding value($record:{bezeichnung}) in By value, a text, opens it on Value, empties the text and writes @pos + @bezeichnung: it reads as an expression, and is offered as one - "Use as expression", or the cross to keep it as text - under the text, which the field keeps (David\'s review: it became an expression without asking).',
+      },
+    },
+  },
+  render: () => <ReferenceForm />,
+  play: async ({ canvasElement }) => {
+    const row = await editOption('by_value');
+    await chooseTab(row, 'value');
+    await userEvent.click(
+      await waitFor(() => {
+        const el = optionRow('by_value').querySelector<HTMLElement>(
+          '.value-tabs-field .reqore-clear-input-button'
+        );
+        expect(el, "the text's clear button").toBeTruthy();
+        return el as HTMLElement;
+      })
+    );
+    const text = optionRow('by_value').querySelector<HTMLElement>(
+      '.value-tab-text [data-slate-editor], [data-slate-editor].value-tab-text'
+    ) as HTMLElement;
+    await userEvent.click(text);
+    await userEvent.keyboard('@pos + @bezeichnung');
+    await waitFor(
+      () =>
+        expect(
+          optionRow('by_value').querySelector('.dpql-detected-offer'),
+          `the offer of an expression (holds ${JSON.stringify(heldOption(canvasElement, 'by_value'))}, tab ${optionActiveTab(optionRow('by_value'))})`
+        ).toBeTruthy(),
+      { timeout: 10000 }
+    );
+    // offered, not switched to
+    expect(optionActiveTab(optionRow('by_value'))).toBe('value');
+    expect(heldOption(canvasElement, 'by_value')?.is_expression).toBeFalsy();
   },
 };
 

@@ -163,17 +163,19 @@ Text that is not DPQL at all is safe on its own: `hello world`, `x@y.com`,
    the field's declared type (the form's own `validateField` answers that),
    `offer` when it could, `none` otherwise.
 
-**Why the asymmetry.** Rewriting the string `a + b` into a concatenation on
-a `string` field would destroy a value the author meant, so a type that
-accepts any text is only ever OFFERED the switch. Text that could not be a
-literal there was already an error the moment it was typed, so switching
-costs nothing and explains the error. Every switch carries an Undo that
-restores the exact text, and a declined text is never asked about again.
+**Always an offer.** Since 2026-10-22 (David's review: "@pos + @bezeichnung"
+became an expression without asking) a detected expression is only ever
+OFFERED - "Use as expression", or the cross to keep the text - whichever
+the verdict: text that cannot be a literal of the field's type stays, and
+the field says it refuses it, beside the offer. The author chooses. An
+accepted offer carries an Undo that restores the exact text, and a declined
+text is never asked about again. (Before, text that could not be a literal
+switched at once, and on a form's tabs every detection did.)
 
 **Where it runs.** Wherever a field takes free text and can hold an
 expression: a `string` (constrained or not), `binary`, `hash`, and the numbers,
 which are typed freely now (`int` and `float` no longer render
-`input[type=number]`; text that is not a number switches). On a form's Value ·
+`input[type=number]`; text that is not a number is offered). On a form's Value ·
 Expression · Visual tabs it runs on the Value tab whenever that tab is written
 as text, the untyped `any` / `auto` options included: before 2026-10-22 an
 untyped option's Value tab was left out, because the form forbids it custom
@@ -181,9 +183,9 @@ values, and an expression typed there was kept as text (story
 `ExpressionTypedOnAnUntypedValueSwitchesToo`). Expression-builder operands and
 list items do not detect: they are parts of an expression already.
 
-**On tabs, a detection switches.** The Value tab never holds an expression, so
-on a form's tabs an `offer` is taken as a `switch` too: the field moves to the
-Expression tab, with an Undo on that tab that puts the text back on Value.
+**On tabs too.** The offer is under the Value tab's text; accepted, the field
+moves to the Expression tab, with an Undo there that puts the text back on
+Value.
 
 **An undone switch is asked about again when the text cannot stay.** Undo is
 the author keeping the text as a value. Text that can be a value of the field's
