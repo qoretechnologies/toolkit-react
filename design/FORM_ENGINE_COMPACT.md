@@ -194,6 +194,16 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   its name (`{name: 'x'}`), and its name from `display_name`, else `name`, else the value. A picker that read
   the envelope only drew a bare entry as an empty box no click could tick. Tests:
   `__tests__/allowedValueShapes.test.tsx`.
+- **A reference nothing names says so.** A chip names its reference from the catalogue. One the catalogue does
+  not list is drawn as a warning (`.reqraft-reference-unlisted`) with the host's hint on hover (FormEngine's
+  `templateReferences.unlistedHint`; the IDE: "Not a value this case captures"; else "Not one of the values
+  offered here"), on the read row and in the editor alike (`referenceStanding`). A host can name a reference it
+  knows but does not list (`templateReferences.label`), which then reads as any named chip. Against a catalogue
+  with nothing in it nothing is called unlisted. Stories: `AHostGrammarSurvivesTheEditorTheRowOpens`,
+  `AReferenceItsHostKnowsWearsItsName`; tests: `__tests__/referenceStanding.test.tsx`.
+- **Help is in the author's words.** An option's help says what it does and how to fill it in (pick a value,
+  choose a field), never a grammar, a syntax or an internal path (David's decision, 2026-10-22). The stories'
+  help follows it, and so do the IDE texts they were copied from.
 - **A pattern's refusal says why.** A value `validation_regex` refuses says what the pattern accepts:
   "Must be <validation_regex_desc>." when the server describes it (an optional field on the option info,
   pending on the Qore and Qorus side), else "Must match the expected form, for example <example_value>.", with

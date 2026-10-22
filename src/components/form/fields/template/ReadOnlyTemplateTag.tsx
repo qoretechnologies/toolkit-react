@@ -10,6 +10,11 @@ import {
 } from '../../../../helpers/templates';
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { useTypeSentenceForm } from '../../typeSentenceForm';
+import {
+  referenceStanding,
+  unlistedReferenceChipProps,
+  useTemplateReferenceNames,
+} from './referenceNames';
 
 export interface IReadOnlyTemplateTagProps {
   /** The template reference value, e.g. `$local:test`. */
@@ -38,7 +43,11 @@ export interface IReadOnlyTemplateTagProps {
 export const ReadOnlyTemplateTag = memo(
   ({ value, templates, label: givenLabel }: IReadOnlyTemplateTagProps) => {
     const { label: described, item } = describeTemplateReference(templates, value);
-    const label = givenLabel ?? described;
+    // a reference nothing names says so; one the host knows wears its name (`referenceStanding`)
+    const names = useTemplateReferenceNames();
+    const standing = referenceStanding(templates, value, names);
+    const unlisted = standing.unlisted ? unlistedReferenceChipProps(names) : undefined;
+    const label = givenLabel ?? standing.label ?? described;
     const metadata = item?.metadata as TTemplateMeta | undefined;
     const descriptions = useDescriptionTooltips();
     const getTypeSentenceForm = useTypeSentenceForm();
@@ -50,9 +59,14 @@ export const ReadOnlyTemplateTag = memo(
           icon='ExchangeDollarLine'
           leftIconProps={{ image: metadata?.image }}
           label={label}
-          tooltip={templateTooltip(templates, value, descriptions, getTypeSentenceForm)}
+          className={unlisted?.className}
+          tooltip={
+            unlisted?.tooltip ??
+            templateTooltip(templates, value, descriptions, getTypeSentenceForm)
+          }
           {...REFERENCE_CHIP_PROPS}
           {...getTemplateTagStyle(metadata)}
+          {...(unlisted ? { intent: unlisted.intent } : {})}
         />
       </ReqoreTagGroup>
     );

@@ -42,6 +42,11 @@ import {
 import { TEMPLATE_BROWSE_LIST_PROPS, useTemplateTags } from './useTemplateTags';
 import { CompletionMenu } from '../../../smartEditor/CompletionMenu';
 import { defaultSlateConverter } from '../../../smartEditor/helpers';
+import {
+  referenceStanding,
+  unlistedReferenceChipProps,
+  useTemplateReferenceNames,
+} from '../template/referenceNames';
 import { templateChipInserter, templateCompletionItems } from '../../../smartEditor/templateCompletions';
 import { useLspAutocomplete } from '../../../smartEditor/useLspAutocomplete';
 
@@ -386,11 +391,13 @@ export const RichTextFormField = memo(({
     setLocalValue(val);
   };
 
-  // A chip's hover draws its description as the picker rows draw the same
-  // string, and opens on a tap where there is no hover.
-  const descriptions = useDescriptionTooltips();
-  // a template's hover says its type, in words
-  const getTypeSentenceForm = useTypeSentenceForm();
+    // A chip's hover draws its description as the picker rows draw the same
+    // string, and opens on a tap where there is no hover.
+    const descriptions = useDescriptionTooltips();
+    // what the host knows of references its catalogue does not list (`referenceNames`)
+    const referenceNames = useTemplateReferenceNames();
+    // a template's hover says its type, in words
+    const getTypeSentenceForm = useTypeSentenceForm();
 
   const descriptionByValue = useMemo(() => getChipTooltipDescriptions(naming), [namingKey]);
 
@@ -458,19 +465,26 @@ export const RichTextFormField = memo(({
          same value (`ReadOnlyTemplateTag`): named from the catalogue, its
          description on hover. Read at render, so a catalogue that arrives
          after the value still names it. */
-      if (isText && tagValue.startsWith('$')) {
-        const { item } = describeTemplateReference(naming, tagValue);
-        const metadata = item?.metadata as TTemplateMeta | undefined;
-        return {
-          icon: 'ExchangeDollarLine',
-          leftIconProps: { image: metadata?.image },
-          label: templateChipLabel(naming, tagValue),
-          tooltip: templateTooltip(naming, tagValue, descriptions, getTypeSentenceForm),
-          // The same chip the read summary (`TemplateText`) and the read-only tag draw.
-          ...REFERENCE_CHIP_PROPS,
-          ...getTemplateTagStyle(metadata),
-        };
-      }
+        if (isText && tagValue.startsWith('$')) {
+          const { item } = describeTemplateReference(naming, tagValue);
+          const metadata = item?.metadata as TTemplateMeta | undefined;
+          // a reference nothing names says so; one the host knows wears its name (`referenceStanding`)
+          const standing = referenceStanding(naming, tagValue, referenceNames);
+          const unlisted =
+            standing.unlisted ? unlistedReferenceChipProps(referenceNames) : undefined;
+          return {
+            icon: 'ExchangeDollarLine',
+            leftIconProps: { image: metadata?.image },
+            label: standing.label ?? templateChipLabel(naming, tagValue),
+            tooltip:
+              unlisted?.tooltip ??
+              templateTooltip(naming, tagValue, descriptions, getTypeSentenceForm),
+            // The same chip the read summary (`TemplateText`) and the read-only tag draw.
+            ...REFERENCE_CHIP_PROPS,
+            ...getTemplateTagStyle(metadata),
+            ...(unlisted ? { intent: unlisted.intent, className: unlisted.className } : {}),
+          };
+        }
 
       if (tagValue.startsWith('$')) {
         return {
@@ -494,18 +508,19 @@ export const RichTextFormField = memo(({
         };
       }
 
-      return {};
-    },
-    [
-      descriptionByValue,
-      descriptions,
-      getTypeSentenceForm,
-      isText,
-      naming,
-      chipBehavior.click,
-      openChoiceChip,
-    ]
-  );
+        return {};
+      },
+      [
+        descriptionByValue,
+        descriptions,
+        getTypeSentenceForm,
+        isText,
+        naming,
+        referenceNames,
+        chipBehavior.click,
+        openChoiceChip,
+      ]
+    );
 
   /* Leaving the field: text that is exactly one of the choices becomes its
      chip again, as the picker would have drawn it. Only here, never while

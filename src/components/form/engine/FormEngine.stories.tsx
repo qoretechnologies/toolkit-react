@@ -9359,6 +9359,30 @@ export const TemplateValueHoversOnceAndDescribesItself: Story = {
 const SKIP_WHEN_GRAMMAR = /(\$\.[A-Za-z_][\w]*(?:(?:\.[A-Za-z_][\w]*)|(?:\[\d+\]))*)/g;
 
 /** What that case's own picker offers, and the names it offers them under. */
+/** The chips under `root` drawn as references nothing names, by what they read, and what each says on hover. */
+const expectUnlisted = async (root: HTMLElement, expected: string[]) => {
+  await waitFor(() =>
+    expect(
+      Array.from(root.querySelectorAll<HTMLElement>('.reqraft-reference-unlisted')).map((chip) =>
+        chip.textContent?.trim()
+      )
+    ).toEqual(expected)
+  );
+  for (const chip of Array.from(
+    root.querySelectorAll<HTMLElement>('.reqraft-reference-unlisted')
+  )) {
+    await userEvent.hover(chip);
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll('.reqore-popover-content')).some((popover) =>
+          popover.textContent?.includes('Not a value this case captures')
+        )
+      ).toBe(true)
+    );
+    await userEvent.unhover(chip);
+  }
+};
+
 const SKIP_WHEN_TEMPLATES = {
   items: [
     {
@@ -9367,7 +9391,8 @@ const SKIP_WHEN_TEMPLATES = {
         {
           value: '$._case.mode',
           label: 'mode (this case)',
-          description: 'How this case runs — live, or simulated. (string)',
+          badge: 'string',
+          description: 'How this case runs: live, or simulated.',
         },
       ],
     },
@@ -9416,9 +9441,10 @@ export const AValueThatMentionsATemplateReadsAsOne: Story = {
       skip_when: {
         type: 'string',
         display_name: 'Skip when',
-        // as the Qorus IDE describes the field (CaseDrawer): an option says what it is, and its help opens from (?)
-        short_desc: 'Field-reference predicate; when it resolves truthy the whole case is skipped',
-        desc: 'Uses the `$.path` field-reference grammar. When the predicate resolves truthy at run time the entire case (setup, assertions, teardown) is skipped rather than failed. Leave blank to always run the case.',
+        // help in the author's words: what the option does and how to fill it in, never its grammar (David's
+        // decision; the Qorus IDE's CaseDrawer gets the same words)
+        short_desc: 'Skip this case when the condition holds',
+        desc: 'Choose a value this case captures and what it must be. When that holds, the whole case (its setup, checks and clean-up) is skipped instead of run. Leave it empty to always run the case.',
         supports_templates: true,
         // The grammar this host writes its references in — `$.step.field`, which
         // carries no `$key:` and so matches none of reqraft's own token grammar.
@@ -9430,13 +9456,13 @@ export const AValueThatMentionsATemplateReadsAsOne: Story = {
         type: 'hash',
         display_name: 'Guard',
         short_desc: 'The conditions this case runs under',
-        desc: 'Each condition is a field-reference predicate. The case runs only while every one of them resolves truthy.',
+        desc: 'Add a condition for each thing that must hold for the case to run. The case runs only while every one of them holds.',
         arg_schema: {
           when: {
             type: 'string',
             display_name: 'When',
-            short_desc: 'Field-reference predicate the case runs under',
-            desc: 'Uses the `$.path` field-reference grammar. The case runs only while the predicate resolves truthy.',
+            short_desc: 'A condition the case runs under',
+            desc: 'Choose a value this case captures and what it must be. The case runs only while that holds.',
             supports_templates: true,
             templateToken: SKIP_WHEN_GRAMMAR,
             templates: SKIP_WHEN_TEMPLATES,
@@ -9634,12 +9660,14 @@ export const AHostGrammarSurvivesTheEditorTheRowOpens: Story = {
     docs: {
       description: {
         story:
-          'Opens the Skip when row whose field declares its own token grammar — the reference stays the chip the picker names it by inside the editor, with the author’s comparison beside it, instead of reverting to its raw spelling.',
+          'Opens the Skip when row whose field declares its own token grammar — the reference stays the chip the picker names it by inside the editor, with the author’s comparison beside it, instead of reverting to its raw spelling. The second reference, $._case.attempt, is one the case does not capture and its host does not know: its chip says so, in warning colors and with the hover "Not a value this case captures", on the row and in the editor (David\'s decision).',
       },
     },
   },
   args: {
     ...AValueThatMentionsATemplateReadsAsOne.args,
+    // the host's words for a reference nothing names (the Qorus IDE: a test case's values)
+    templateReferences: { unlistedHint: 'Not a value this case captures' },
     /* A SECOND reference the catalogue does not list. It is the one that
        separates the two mechanisms: `$._case.mode` is an offered value and
        would be found by matching the catalogue's literals alone, while
@@ -9672,6 +9700,9 @@ export const AHostGrammarSurvivesTheEditorTheRowOpens: Story = {
         )
       ).toEqual(['mode (this case)', '$._case.attempt'])
     );
+    // the one nothing names says so (David: "the chips / templates / etc were meant to abstract the technical
+    // format from our users")
+    await expectUnlisted(row, ['$._case.attempt']);
 
     // Open the row.
     fireEvent.click(row);
@@ -9705,6 +9736,42 @@ export const AHostGrammarSurvivesTheEditorTheRowOpens: Story = {
     expect(editor.textContent).toContain("!= 'simulate'");
     expect(editor.textContent).toContain('== 1');
     expect(editor.textContent).not.toContain('$._case.mode');
+    // and the editor says of the unnamed one what the row says
+    await expectUnlisted(editor, ['$._case.attempt']);
+  },
+};
+
+export const AReferenceItsHostKnowsWearsItsName: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The same Skip when value, from a host that knows $._case.attempt though the case does not list it: it names it "attempt (this case)", so the row reads mode (this case) != \'simulate\' && attempt (this case) == 1, with no reference in its raw spelling and none drawn as a warning.',
+      },
+    },
+  },
+  args: {
+    ...AHostGrammarSurvivesTheEditorTheRowOpens.args,
+    templateReferences: {
+      label: (reference: string) =>
+        reference === '$._case.attempt' ? 'attempt (this case)' : undefined,
+      unlistedHint: 'Not a value this case captures',
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('[data-field="skip_when"]');
+      expect(el).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await waitFor(() =>
+      expect(
+        Array.from(row.querySelectorAll('.reqraft-template-chip')).map((chip) =>
+          chip.textContent?.trim()
+        )
+      ).toEqual(['mode (this case)', 'attempt (this case)'])
+    );
+    await expectUnlisted(row, []);
   },
 };
 

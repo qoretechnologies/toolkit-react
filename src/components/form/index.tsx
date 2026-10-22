@@ -31,6 +31,7 @@ export * from './fields/select/SelectCollection';
 export * from './fields/string/String';
 export * from './fields/template/ExampleValueModal';
 export * from './fields/template/TemplateField';
+export * from './fields/template/referenceNames';
 export * from './engine/FormEngine';
 export * from './engine/FormFieldsSkeleton';
 export * from './engine/optionActions';

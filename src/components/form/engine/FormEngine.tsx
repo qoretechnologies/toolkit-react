@@ -122,6 +122,10 @@ import {
 } from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import { TypeSentenceFormProvider, useTypeName } from '../typeSentenceForm';
+import {
+  ITemplateReferenceNames,
+  TemplateReferenceNamesProvider,
+} from '../fields/template/referenceNames';
 import { optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
 import { allowedValueOf } from '../../../helpers/allowedValues';
 import { isTypingControl } from './rowFocus';
@@ -1009,6 +1013,12 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
   /** Opt-in: fetch global templates from `system/getContextData` for this context. */
   interfaceContext?: string;
   templateFieldProps?: Partial<ITemplateFieldProps>;
+  /**
+   * SEAM (reqraft): what the host knows of the references its values mention beyond the catalogue: a name for
+   * one it knows but does not list, and what a chip of one nothing names says on hover (the IDE: "Not a value this
+   * case captures"). Such a chip is drawn as a warning (qorus#646).
+   */
+  templateReferences?: ITemplateReferenceNames;
   /**
    * Force single-value selectors to use inline dropdowns even when their
    * allowed values carry descriptions.
@@ -5105,13 +5115,24 @@ const FormEngineImpl = ({
  * a child of the row it belongs to. Threading a renderer to each of them by
  * hand is how one of them gets missed.
  */
-export const FormEngine = (props: IFormEngineProps) => (
-  <MarkdownRendererContext.Provider value={props.markdownRenderer}>
-    {/* and the server's words for each type, which a reference's hover says (qorus#646) */}
-    <TypeSentenceFormProvider>
-      <FormEngineImpl {...props} />
-    </TypeSentenceFormProvider>
-  </MarkdownRendererContext.Provider>
-);
+export const FormEngine = (props: IFormEngineProps) => {
+  // what the host knows of references beyond the catalogue, for every chip the form draws (qorus#646)
+  const referenceNames = useMemo(
+    () => props.templateReferences ?? NO_REFERENCE_NAMES,
+    [props.templateReferences]
+  );
+  return (
+    <MarkdownRendererContext.Provider value={props.markdownRenderer}>
+      {/* and the server's words for each type, which a reference's hover says (qorus#646) */}
+      <TypeSentenceFormProvider>
+        <TemplateReferenceNamesProvider value={referenceNames}>
+          <FormEngineImpl {...props} />
+        </TemplateReferenceNamesProvider>
+      </TypeSentenceFormProvider>
+    </MarkdownRendererContext.Provider>
+  );
+};
+
+const NO_REFERENCE_NAMES: ITemplateReferenceNames = {};
 
 export default FormEngine;
