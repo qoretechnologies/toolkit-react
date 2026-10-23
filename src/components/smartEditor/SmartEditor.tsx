@@ -872,13 +872,14 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 }
                 openOnMount
                 noArrow
-                /* A mouse's hover floats over the word it is of, as glass. What Details shows is a card of its
-                   own, under the button and beside the text, on a surface it reads on. */
+                /* A mouse's hover is over the word it is of; what Details shows is under the button, beside the
+                   text. Both are a popover's card, the surface a chip's hover is drawn on: drawn as glass, a hover
+                   over an empty page was its words with nothing under them (Foxhoundn, qlip #392: "It looks like
+                   the background is transparent? Is it not using a ReqorePopover / the tags tooltip?"). */
                 placement={detailsShown ? 'bottom-end' : 'top'}
                 handler='hover'
                 closeOnOutsideClick
                 minWidth='220px'
-                {...(detailsShown ? {} : { flat: true, transparent: true, backgroundBlur: 20 })}
                 onToggleChange={(open: boolean) => {
                   // this hover only: a popover replaced by the next hover says it closed as it goes
                   if (!open) hover.clearHover(shownHoverId);

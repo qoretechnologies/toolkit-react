@@ -639,6 +639,18 @@ const shownHovers = () =>
     .map((popover) => (popover.textContent ?? '').replace(/\s+/g, ' ').trim())
     .filter(Boolean);
 
+/**
+ * The hover's card is a surface: an opaque background under its words, as a chip's hover is drawn. Drawn as glass it
+ * was its words over an empty page (Foxhoundn, qlip #392: "It looks like the background is transparent?").
+ */
+const expectHoverOnACard = () => {
+  const card = document.querySelector<HTMLElement>('.reqore-popover-content .reqore-popover-text');
+  expect(card, "the hover's card").toBeTruthy();
+  const background = getComputedStyle(card!).backgroundColor;
+  const alpha = /rgba\([^)]*,\s*([\d.]+)\)/.exec(background)?.[1];
+  expect(alpha === undefined ? 1 : Number(alpha), `the card's background (${background})`).toBe(1);
+};
+
 /** The editor, once its server is connected and the record described: a hover asked for from now on is answered. */
 const readyEditor = async (canvasElement: HTMLElement) => {
   await waitFor(
@@ -656,6 +668,15 @@ const labelOf = (chip: HTMLElement) => chip.querySelector<HTMLElement>('.reqore-
 /** The editor's list (of completions, or of what may replace a chip), or null when it is not shown. */
 const chipList = (editable: HTMLElement) =>
   document.getElementById(editable.getAttribute('aria-controls') ?? '');
+
+/** A chip's list is under the chip, from its left edge. */
+const expectListUnder = (label: HTMLElement, list: HTMLElement | null) => {
+  const chip = (label.closest('.reqore-tag') as HTMLElement).getBoundingClientRect();
+  const card = (list?.closest('.reqore-popover-content') as HTMLElement | null)?.getBoundingClientRect();
+  expect(card, "the chip's list").toBeTruthy();
+  expect(Math.abs(card!.left - chip.left), "the list from the chip's left edge").toBeLessThanOrEqual(2);
+  expect(card!.top, 'the list under the chip').toBeGreaterThanOrEqual(chip.bottom - 1);
+};
 
 const chipFor = (editable: HTMLElement, label: string) =>
   waitFor(() => {
@@ -686,6 +707,7 @@ export const HoverSaysWhatAFunctionIs: Story = {
       timeout: 10000,
     });
     await expect(shownHovers()[0]).toContain('Returns the size of the operand');
+    expectHoverOnACard();
   },
 };
 
@@ -713,6 +735,7 @@ export const HoverOverAChipSaysWhatItsPathIs: Story = {
     const [hover] = shownHovers();
     await expect(hover).toContain('@create.items');
     await expect(hover).toMatch(/field\s*id/);
+    expectHoverOnACard();
   },
 };
 
@@ -804,6 +827,8 @@ export const AClickOnAChipOpensItsListAndASecondClosesIt: Story = {
         name.getBoundingClientRect().right
       );
     });
+    // under the chip clicked, from its left edge: not at the caret the click left after it (Foxhoundn, qlip #392)
+    await waitFor(() => expectListUnder(customer, chipList(editable)));
 
     // outside the list: it is put away
     await userEvent.click(canvasElement);
@@ -811,6 +836,8 @@ export const AClickOnAChipOpensItsListAndASecondClosesIt: Story = {
 
     await userEvent.click(customer);
     await waitFor(() => expect(chipList(editable)).not.toBeNull());
+    // the list the capture shows: under record: customer.name, as the description says
+    await waitFor(() => expectListUnder(customer, chipList(editable)));
   },
 };
 

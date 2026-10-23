@@ -401,8 +401,12 @@ export function useLspAutocomplete(
       // `onSlateChangeImpl` can fire before the DOM commit, where
       // `toDOMRange` throws or returns a stale range and the popover lands
       // at {top: 0, left: 0}.
+      //
+      // Not for a chip's list: it is under the chip it was opened at (`openAtChip`), and the caret the click
+      // left after the chip moved it past the chip's end (Foxhoundn, qlip #392: "The opened list is not under
+      // the 2nd chip").
       const editor = editorRef.current;
-      if (editor && editor.selection) {
+      if (editor && editor.selection && !anchoredChipPathRef.current) {
         try {
           const domRange = ReactEditor.toDOMRange(editor, editor.selection);
           const rect = domRange.getBoundingClientRect();
@@ -511,6 +515,8 @@ export function useLspAutocomplete(
       fetchingTimerRef.current = null;
     }
     replacingChipPathRef.current = null;
+    // a list put away is at no chip, from now: the next one asked by typing is at the caret
+    anchoredChipPathRef.current = null;
     pendingChipRequestRef.current = null;
     askedAtRef.current = null;
     requestCompletions.cancel();
