@@ -1071,10 +1071,13 @@ export const CompactRowCancelEdit: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    // Open the field.
-    const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
-    expect(row).toBeTruthy();
-    fireEvent.click(row!);
+    // Open the field, once the form has drawn it: in Storybook's UI the play starts before the rows are drawn
+    const row = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    fireEvent.click(row);
     await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy());
 
     // An untouched field offers no Cancel — it would do exactly what Done does.
@@ -1769,9 +1772,13 @@ export const CompactRowCancelEditAffordance: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    const row = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
-    expect(row).toBeTruthy();
-    fireEvent.click(row!);
+    // once the form has drawn the row: in Storybook's UI the play starts before the rows are drawn
+    const row = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>('[data-field="cookie_name"]');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    fireEvent.click(row);
     await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy());
 
     const input = canvasElement.querySelector<HTMLInputElement>(
@@ -12705,7 +12712,7 @@ export const RevertingARemovedExpressionPutsItBack: Story = {
     docs: {
       description: {
         story:
-          "Renders Computed (the expression pos + 1) in the form that is not compact, removes its value and reverts it from its row's ⋯ menu: Computed holds pos + 1 again, as an expression.",
+          "Renders Computed (the expression pos + 1) in the form that is not compact, removes its value and reverts it from its row's ⋯ menu: Computed holds pos + 1 again, as an expression, and its Expression tab shows it (it stayed empty).",
       },
     },
   },
@@ -12717,6 +12724,12 @@ export const RevertingARemovedExpressionPutsItBack: Story = {
     await openOptionRowMenu(0);
     await _testsClickButton({ selector: '.options-item-revert', nth: 0 });
     await waitFor(() => expect(heldOption(canvasElement, 'computed')).toEqual(COMPUTED_EXPRESSION));
+    // and the editor shows what the form holds: the text was emptied with the value and stayed empty
+    await waitFor(() =>
+      expect(
+        (canvasElement.querySelector('[data-slate-editor]')?.textContent ?? '').replace(/\uFEFF/g, '')
+      ).toMatch(/pos\s*\+\s*1/)
+    );
   },
 };
 

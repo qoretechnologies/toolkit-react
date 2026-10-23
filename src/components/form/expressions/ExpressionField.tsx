@@ -611,6 +611,10 @@ export const ExpressionField = memo(
      * part-way through typing before their first parse lands.
      */
     const hadExpression = useRef(false);
+    /** Whether this visit to Text mode has already put the AST in the editor. The host's own text for the
+     *  first visit (`initialText`, such as the value written as `concat("SUP-", $record:{pos})`) is that visit's
+     *  text: the session does not write over it once it is ready. */
+    const seededRef = useRef(!!initialText);
     useEffect(() => {
       /* GONE, not merely incomplete.
        *
@@ -635,6 +639,11 @@ export const ExpressionField = memo(
       if (hadExpression.current) {
         hadExpression.current = false;
         userTypedRef.current = false;
+        /* Emptied, the editor holds nothing of the value: an expression that comes back (a revert, an undo) is
+           written into it, as on entering Text. Left marked seeded, the visit kept the empty text, and a revert
+           put `pos + 1` back in the form with nothing in the editor (FormEngine · Reverting A Removed Expression
+           Puts It Back, qorus#646). */
+        seededRef.current = false;
         setText('');
       }
     }, [ast, heldAsValue]);
@@ -700,11 +709,6 @@ export const ExpressionField = memo(
       },
       [flushPendingParse, setDraft]
     );
-
-    /** Whether this visit to Text mode has already put the AST in the editor. The host's own text for the
-     *  first visit (`initialText`, such as the value written as `concat("SUP-", $record:{pos})`) is that visit's
-     *  text: the session does not write over it once it is ready. */
-    const seededRef = useRef(!!initialText);
 
     /* Seed the Text editor from the AST whenever Text mode becomes active
      * (including a `defaultMode='text'` mount). This must run as an effect: the
