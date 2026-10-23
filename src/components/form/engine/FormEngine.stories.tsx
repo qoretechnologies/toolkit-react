@@ -10139,7 +10139,9 @@ export const AReferenceItsHostKnowsWearsItsName: Story = {
       unlistedHint: 'Not a value this case captures',
     },
   },
-  play: async ({ canvasElement }) => {
+  play: async ({ canvasElement, parameters }) => {
+    // at the size it is captured at: a resize after the play would put the hover it leaves open away
+    await atTheCaptureSize(parameters);
     const row = await waitFor(() => {
       const el = canvasElement.querySelector<HTMLElement>('[data-field="skip_when"]');
       expect(el).toBeTruthy();
