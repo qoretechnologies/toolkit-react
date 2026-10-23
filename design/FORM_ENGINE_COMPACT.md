@@ -268,6 +268,28 @@ These are rules: every surface that shows help, a hover or a choice follows them
   (`src/stories/choiceLayout.ts`: gaps equal within 1px, the ring clear, the name centered within 1px). Stories:
   `AChoiceDrawnByItsPictureSaysWhichIsChosen` (+ `OnAPhone`, `InALightTheme`).
 
+- **An option's name: its help at the column's edge, its asterisk on its line.** In a row's label column the
+  (?) is at the column's right edge, the same x in every row of the column (Foxhoundn on qlip #392: "right align
+  the question mark to get rid of the stair-case look"), on the name's first line. The required asterisk follows
+  the name's last character, held to it by a word joiner, so it is on the name's last line and never on a line of
+  its own (qlip #392). The column is the widest name plus what trails it, summed from the parts: the asterisk, the
+  help button at its real width (26px, 32px for a finger, `labelAffordanceWidth`) and the gaps, and never
+  narrower than 152px (`LABEL_COLUMN_MIN`). Stories check it (`src/stories/labelLayout.ts`):
+  `CompactOptionDependsOnOptionInRequiredGroup`, `CancelingAnEditThatMadeAnExpressionPutsBackTheValue`.
+- **One reference chip.** Every view draws a reference as the same tag (`REFERENCE_CHIP_PROPS`): the read row,
+  the read-only chip, the rich text editor and the expression editor. Never a badge: reqore's rich text editor
+  draws its chips as compact badges, rounder pills, unless told otherwise (Foxhoundn on qlip #392: "Some template
+  chips are pills, some are badges - let's unify them please"). Story: `ExpressionTypedOnValueIsOfferedWithUndo`
+  (`expectOneChipShape`).
+- **Less to read in an open row.** An open field says what it must and nothing about where it goes: it stays
+  in its box while open and moves when closed, without a note saying so (Foxhoundn on qlip #392: "Remove the
+  whole `Moves to` please"). An expression found in what was typed is offered to the right of the field, on its
+  line, and under it only where the row has no room for both. Story: `ExpressionTypedOnValueIsOfferedWithUndo`;
+  test: `__tests__/heldFieldSaysNothingOfItsMove.test.tsx`.
+- **A hover is a card.** What an editor's hover or Details says is drawn on a popover's card, the surface a
+  chip's hover is drawn on, never as glass over the page (qlip #392). Stories: `DpqlEditor · HoverSaysWhatAFunctionIs`,
+  `HoverOverAChipSaysWhatItsPathIs`.
+
 ## Where the logic lives
 
 - [`readFirst.ts`](../src/components/form/engine/readFirst.ts) — pure, unit-tested helpers:
@@ -286,7 +308,7 @@ These are rules: every surface that shows help, a hover or a choice follows them
   read-first summary and rows draw their own words and marks in, so they stand out from what they are drawn
   on (WCAG AA: 4.5:1 text, 3:1 icons; qorus#646). A row may be drawn on the page, a status box's tint (the
   attention box's warning, the set box's success, both at 12%), the optional box's darker surface, or any
-  of them hovered: intent words (reasons, "Moves to …", the required asterisk, "Ready" / "Incomplete") are a
+  of them hovered: intent words (reasons, the required asterisk, "Ready" / "Incomplete") are a
   shade of the intent that reads on all of them, and faded notes (size and line notes, a label's short
   description, the type tag, an empty value's dash, the help mark) fade only as far as they still read.
   The helpers are reqraft's own (`src/helpers/readableColors.ts`, `useReadableOpacity`) until reqraft builds

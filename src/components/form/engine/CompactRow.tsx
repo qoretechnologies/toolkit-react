@@ -50,7 +50,9 @@ import {
   StyledCodePreview,
   StyledColumn,
   StyledEditCard,
+  LABEL_ASTERISK_SIZE,
   StyledLabelBlock,
+  StyledLabelAsterisk,
   StyledLabelName,
   StyledAbsorbedField,
   StyledLabelDesc,
@@ -219,7 +221,6 @@ const WebLink = memo(({ address, color }: { address: string; color?: string }) =
 WebLink.displayName = 'WebLink';
 
 /** The status boxes by name, as their headers say them. */
-const BOX_NAMES = { attention: 'Needs attention', set: 'Set', optional: 'Optional' } as const;
 
 /** A read-only editor's change: there is none to take. */
 const ignoreReadOnlyChange = () => undefined;
@@ -277,7 +278,6 @@ export const CompactRow = memo(
       v.expandedOptions.includes(optionName)
     );
     // the box this open field moves to when it is closed, when that is not the one it is shown in
-    const movesTo = useContextSelector(CompactRowContext, (v) => v.heldOptions?.[optionName]);
     const isHighlighted = useContextSelector(CompactRowContext, (v) =>
       v.highlightedOptions.includes(optionName)
     );
@@ -710,6 +710,26 @@ export const CompactRow = memo(
 
     const schema = options?.[optionName];
     const label = schema?.display_name || optionName;
+    /* The name and its asterisk, which a word joiner (U+2060) holds to the name's last character: it is on the
+       name's (last) line, never on a line of its own under it (Foxhoundn, qlip #392). The name stays one text,
+       found by its words as it always was. */
+    const nameWithAsterisk = (asterisk: boolean) => (
+      <>
+        {label}
+        {asterisk ?
+          <StyledLabelAsterisk className='options-readfirst-required'>
+            {'\u2060'}
+            <ReqoreIcon
+              icon='Asterisk'
+              color={rowInks.danger}
+              size={`${LABEL_ASTERISK_SIZE}px`}
+              margin='left'
+              marginSize='tiny'
+            />
+          </StyledLabelAsterisk>
+        : null}
+      </>
+    );
     const injectedOptionActions = React.useMemo<IReqorePanelAction[]>(
       () =>
         schema ?
@@ -1677,14 +1697,13 @@ export const CompactRow = memo(
                   }
                 }}
               >
-                <StyledLabelName>
-                  <span style={{ minWidth: 0 }}>{label}</span>
-                  {required ?
-                    <ReqoreIcon icon='Asterisk' color={rowInks.danger} size='10px' />
-                  : null}
+                <StyledLabelName $fill>
+                  <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
+                    {nameWithAsterisk(!!required)}
+                    {typeTag}
+                  </span>
                   {helpIcon}
                 </StyledLabelName>
-                {typeTag}
               </StyledRowLabel>
               {/* An OPEN field always shows its short_desc — that's where the hint
                   is needed and there's no per-row button to reveal it (the edit
@@ -1766,20 +1785,6 @@ export const CompactRow = memo(
                   </PendingEditsContext.Provider>
                 </RowMenuContext.Provider>
               </RowOpenPickerContext.Provider>
-              {/* Why a value already right is still in this box: an open field stays where it was opened
-                  (moving it would take the focus), and says where it goes when it is closed. */}
-              {movesTo ?
-                <ReqoreP
-                  size='small'
-                  className='options-readfirst-moves-to'
-                  effect={{
-                    color: movesTo === 'attention' ? rowInks.warning : rowInks.success,
-                  }}
-                  style={{ marginTop: 4 }}
-                >
-                  {`Moves to "${BOX_NAMES[movesTo]}" when you close it (✓)`}
-                </ReqoreP>
-              : null}
             </div>
             <StyledRowActions>
               {draftChip}
@@ -1892,11 +1897,8 @@ export const CompactRow = memo(
                   />
                 : null}
                 <StyledLabelName>
-                  <span style={{ minWidth: 0 }}>
-                    {label}
-                    {required ?
-                      <ReqoreIcon icon='Asterisk' color={rowInks.danger} size='10px' />
-                    : null}
+                  <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
+                    {nameWithAsterisk(!!required)}
                     {/* The `?` belongs here too. The read row and the inline
                       editor both carry it; the edit CARD did not — and the card
                       is the path every field with an `arg_schema` takes, so a
@@ -2485,35 +2487,23 @@ export const CompactRow = memo(
         <StyledLabelBlock className='options-readfirst-label-block'>
           <StyledRowLabel title={labelHover} $color={cKey}>
             {rowChromeIcon}
-            {/* label + asterisk flow as ONE inline run, so the asterisk
-                stays right after the last word even when the name wraps. The help
-                is a button beside them, on their first line: inline, a button a
-                finger can hit went to a line of its own after a name that nearly
-                filled the column (qorus#646). */}
-            <StyledLabelName>
+            {/* The name, its asterisk with its last word and what it takes flow as one run that wraps; the help is
+                at the column's right edge, on the name's first line, the same x in every row (`StyledLabelName`). */}
+            <StyledLabelName $fill>
               <span className='options-readfirst-label-text' style={{ minWidth: 0 }}>
-                {label}
-                {requiredMark ?
-                  <ReqoreIcon
-                    icon='Asterisk'
-                    color={rowInks.danger}
-                    size='10px'
-                    margin='left'
-                    marginSize='tiny'
+                {nameWithAsterisk(requiredMark)}
+                {typeLabel ?
+                  <ReqoreTag
+                    size='tiny'
+                    minimal
+                    className='options-readfirst-type'
+                    label={typeLabel}
+                    labelEffect={{ opacity: rowInks.descOpacity }}
                   />
                 : null}
               </span>
               {helpIcon}
             </StyledLabelName>
-            {typeLabel ?
-              <ReqoreTag
-                size='tiny'
-                minimal
-                className='options-readfirst-type'
-                label={typeLabel}
-                labelEffect={{ opacity: rowInks.descOpacity }}
-              />
-            : null}
           </StyledRowLabel>
           {showLabelDesc ?
             /* A sentence in the label's own type, clamped to three lines: drawn as the prose its markdown

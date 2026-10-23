@@ -7,7 +7,7 @@ import {
   isCompactNarrow,
   LABEL_AFFORDANCE_WIDTH,
   LABEL_COL_MAX,
-  LABEL_COL_MIN,
+  LABEL_COLUMN_MIN,
 } from '../src/components/form/engine/compactRowStyles';
 
 /**
@@ -16,7 +16,7 @@ import {
  * Stacks Where Its Value Would Be Narrow, and those after it) measure the layout; these hold the rule's edges.
  */
 const widestColumn = LABEL_COL_MAX + LABEL_AFFORDANCE_WIDTH;
-const narrowestColumn = LABEL_COL_MIN + LABEL_AFFORDANCE_WIDTH;
+const narrowestColumn = LABEL_COLUMN_MIN;
 const besideTheLabel = (column: number) => column + COMPACT_ROW_GAP + 2 * COMPACT_ROW_PAD_X;
 
 describe('a compact form stacks its rows', () => {
@@ -33,7 +33,8 @@ describe('a compact form stacks its rows', () => {
     expect(isCompactNarrow(560, narrowestColumn)).toBe(false);
     expect(isCompactNarrow(440, narrowestColumn)).toBe(true);
     expect(besideTheLabel(widestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeGreaterThan(580);
-    expect(besideTheLabel(widestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeLessThan(620);
+    // the widest column holds the help button at its real width, 26px (qlip #392), which moved the edge from 606
+    expect(besideTheLabel(widestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeLessThan(630);
     expect(besideTheLabel(narrowestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeGreaterThan(480);
     expect(besideTheLabel(narrowestColumn) + COMPACT_MIN_VALUE_WIDTH).toBeLessThan(520);
   });

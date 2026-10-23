@@ -50,7 +50,9 @@ import {
 import { basicFormValue, getBasicFormOptions as getOptions } from './__fixtures__/basicFormOptions';
 import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOptions';
 import { storyApiUrl } from '../../../stories/storyNetwork';
+import { expectOneChipShape } from '../../../stories/chips';
 import { expectPictureChoiceLayout } from '../../../stories/choiceLayout';
+import { expectLabelChromeInPlace } from '../../../stories/labelLayout';
 import { withCoarsePointer } from '../../../stories/coarsePointer';
 import { PHONE_VIEWPORT } from '../../../stories/tracking';
 import { withTouchScreen } from '../../../stories/touchScreen';
@@ -1164,17 +1166,17 @@ export const DoneStraightAfterTypingKeepsTheEdit: Story = {
   },
 };
 
-export const CompactRowSaysWhereItMoves: Story = {
+export const CompactRowStaysInItsBoxWhileOpen: Story = {
   parameters: {
-    /* Nothing to SEE in the end frame: the note this story asserts is shown only while the field is open,
-       and the play closes it, so the capture is an ordinary filled row. Rejected on qlip build
-       20261008-083118 ("if it says that during the play test, then remove the snapshot"); the story stays
-       because the behaviour it pins is the point. */
+    /* Nothing to SEE in the end frame: what this story asserts happens while a field is open, and the play
+       closes it, so the capture is an ordinary filled row. Rejected on qlip build 20261008-083118 ("if it says
+       that during the play test, then remove the snapshot"); the story stays because the behaviour it pins is
+       the point. */
     qlip: { skip: true },
     docs: {
       description: {
         story:
-          'Renders a compact form with two required fields left empty, in Needs attention. The first, opened and filled in, stays where it is while it is open (moving it would take the focus), and says it moves to Set when it is closed; closed, it is in Set. The second, filled in, stays where it is too, and says nothing: the form says it once, on the first field edited.',
+          'Renders a compact form with two required fields left empty, in Needs attention. Each, opened and filled in, stays where it is while it is open (moving it would take the focus), and goes to Set when it is closed. Nothing says so: a note under the open field saying where it would move was one more line to read while writing a value (Foxhoundn, qlip #392: "Remove the whole `Moves to` please").',
       },
     },
   },
@@ -1207,15 +1209,14 @@ export const CompactRowSaysWhereItMoves: Story = {
       '[data-field="cookie_name"] input, [data-field="cookie_name"] textarea'
     );
     fireEvent.change(input!, { target: { value: 'session' } });
-    // filled in, it says where it goes - and stays put, the editor still open
-    await waitFor(() => expect(canvasElement.textContent).toContain('Moves to "Set" when you close it (✓)'), {
-      timeout: 5000,
-    });
+    // filled in, it stays put, the editor still open, and nothing says where it goes
+    await waitFor(() => expect(canvasElement.textContent).toContain('1/2 set'));
     expect(canvasElement.querySelector('.readfirst-row-editing')).toBeTruthy();
+    expect(canvasElement.textContent).not.toContain('when you close it');
     fireEvent.click(canvasElement.querySelector<HTMLElement>('.options-readfirst-done')!);
     await waitFor(() => expect(canvasElement.querySelector('.readfirst-row-editing')).toBeNull());
     expect(canvasElement.textContent).not.toContain('Moves to');
-    // the second field edited is held as the first was, and does not say so again
+    // the second field edited is held as the first was
     fireEvent.click(canvasElement.querySelector<HTMLElement>('[data-field="cookie_path"]')!);
     const path = await waitFor(() => {
       const el = canvasElement.querySelector<HTMLInputElement>(
@@ -6891,7 +6892,7 @@ export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
     } as IOptionsSchema,
     value: {} as IOptions,
   },
-  play: async () => {
+  play: async ({ canvasElement }) => {
     await _testsWaitForText('Required Option 5');
     // neither holds a value: Required Option 6 is not in the form
     await expect(compactRow('RequiredOption6')).toBeNull();
@@ -6918,6 +6919,8 @@ export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
       ) as HTMLElement
     );
     await waitFor(() => expect(compactRow('RequiredOption6')).toBeNull());
+    // each member's asterisk on its name's line, and its (?) at the column's right edge (Foxhoundn, qlip #392)
+    expectLabelChromeInPlace(canvasElement);
   },
 };
 
@@ -6950,7 +6953,7 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
     } as IOptionsSchema,
     value: {} as IOptions,
   },
-  play: async () => {
+  play: async ({ canvasElement }) => {
     // the group's chips are on its members; the dependent is not in the form
     await _testsWaitForText('One of');
     await expect(compactRow('RequiredOption6')).toBeNull();
@@ -6991,6 +6994,8 @@ export const CompactOptionDependsOnOptionInRequiredGroup: Story = {
       ) as HTMLElement
     );
     await waitFor(() => expect(compactRow('RequiredOption6')).toBeNull());
+    // each member's asterisk on its name's line, and its (?) at the column's right edge (Foxhoundn, qlip #392)
+    expectLabelChromeInPlace(canvasElement);
   },
 };
 
@@ -12068,7 +12073,7 @@ export const ExpressionTypedOnValueIsOfferedWithUndo: Story = {
     docs: {
       description: {
         story:
-          'Renders the form, opens Quantity, a whole number, on Value and writes 12 + 2: it is not a whole number, and the field says so, and offers it as an expression - "Use as expression", or the cross to keep it as text. It is offered, not switched to (David\'s review: an expression typed became one without asking). Used as one, it moves to Expression, with an Undo that puts the text back on Value; put back, it is offered again (qorus#646).',
+          'Renders the form, opens Quantity, a whole number, on Value and writes 12 + 2: it is not a whole number, and the field says so, and offers it as an expression to the right of the text - "Use as expression", or the cross to keep it as text. It is offered, not switched to (David\'s review: an expression typed became one without asking). Used as one, it moves to Expression, with an Undo that puts the text back on Value; put back, it is offered again (qorus#646).',
       },
     },
   },
@@ -12106,6 +12111,17 @@ export const ExpressionTypedOnValueIsOfferedWithUndo: Story = {
     });
     await expect(optionRow('quantity')).toHaveTextContent('Value must be a whole number');
     await expect(offer).toHaveTextContent('Use as expression');
+    /* Less to read before the value (Foxhoundn, qlip #392): the offer is to the right of the text it is of, on its
+       line, and nothing says where the row moves when it is closed */
+    const text = optionRow('quantity').querySelector<HTMLElement>('.value-tab-text') as HTMLElement;
+    const field = text.getBoundingClientRect();
+    const beside = offer.getBoundingClientRect();
+    expect(beside.left, 'the offer right of the text').toBeGreaterThanOrEqual(field.right);
+    expect((beside.top + beside.bottom) / 2, "the offer on the text's line").toBeGreaterThan(field.top);
+    expect((beside.top + beside.bottom) / 2, "the offer on the text's line").toBeLessThan(field.bottom);
+    expect(canvasElement.textContent).not.toContain('when you close it');
+    // every reference chip of the form is the one chip: the expression's, in Computed, too
+    expectOneChipShape(canvasElement, ['pos', 'bezeichnung']);
   },
 };
 
@@ -12660,6 +12676,8 @@ export const CancelingAnEditThatMadeAnExpressionPutsBackTheValue: Story = {
     await waitFor(() =>
       expect(heldOption(canvasElement, 'quantity')).toEqual({ type: 'int', value: 12 })
     );
+    // every row's (?) at the label column's right edge, not a step after each name (Foxhoundn, qlip #392)
+    expectLabelChromeInPlace(canvasElement);
   },
 };
 

@@ -257,6 +257,8 @@ const FIELD_WIDTH_BOX: React.CSSProperties = {
   minWidth: 'fit-content',
 };
 const CONTENT_WIDTH_BOX: React.CSSProperties = { width: 'auto', maxWidth: '100%', minWidth: 0 };
+/** A value beside the offer of an expression: the row's room left of the offer, never narrower than a text field. */
+const OFFER_BESIDE_VALUE_BOX: React.CSSProperties = { flex: '1 1 150px', width: 'auto', minWidth: '150px' };
 /** The editor in a `content` box: never narrower than a free text field. */
 const CONTENT_WIDTH_EDITOR: React.CSSProperties = { minWidth: '150px' };
 
@@ -1603,6 +1605,17 @@ const TemplateFieldImpl = memo(
         </ReqoreControlGroup>
       : null;
 
+    /* The offer beside the field it is of, to its right, and under it only where the row has no room for both: under
+       it, with the field's message under that, an offer was one more line to read before the value (Foxhoundn, qlip
+       #392: "move the `Use as an expression` to the right of the field"). */
+    const withOfferBeside = (field: React.ReactNode) =>
+      dpqlOfferPrompt ?
+        <ReqoreControlGroup fluid wrap gapSize='small' verticalAlign='flex-start' className='dpql-offer-beside'>
+          {field}
+          {dpqlOfferPrompt}
+        </ReqoreControlGroup>
+      : field;
+
     // Detection only runs on a field that could hold an expression and is
     // currently showing a plain editor — never on a read-only field, a
     // fixed-value list, or one already in template or expression mode.
@@ -2190,9 +2203,8 @@ const TemplateFieldImpl = memo(
           return cannotShow(conditionField ? words.cannotShowCondition : words.cannotShowExpression);
         }
         if (valueTabIsText) {
-          return (
-            <ReqoreControlGroup vertical fluid gapSize='small'>
-              <RichTextFormField
+          const valueText = (
+            <RichTextFormField
                 className='template-selector value-tab-text'
                 valueFormat='text'
                 /* A whole number or a number is typed on a numeric keyboard where the device has one, as its own
@@ -2220,12 +2232,16 @@ const TemplateFieldImpl = memo(
                   ...(rest as { panelProps?: object }).panelProps,
                   style: {
                     ...(rest as { panelProps?: { style?: object } }).panelProps?.style,
-                    width: '100%',
+                    // beside an offer, the value takes the room the offer leaves, and goes over it where none is left
+                    ...(dpqlOfferPrompt ? OFFER_BESIDE_VALUE_BOX : { width: '100%' }),
                   },
                 }}
                 aria-label={fieldAriaLabel}
               />
-              {dpqlOfferPrompt}
+          );
+          return (
+            <ReqoreControlGroup vertical fluid gapSize='small'>
+              {withOfferBeside(valueText)}
               {conversionNote ?
                 <ReqoreMessage
                   size='small'
@@ -2259,13 +2275,8 @@ const TemplateFieldImpl = memo(
             className={`${className} template-selector`}
           />
         );
-        // an expression detected in what the type's own control holds is offered under it, as on the text
-        return dpqlOfferPrompt ?
-            <ReqoreControlGroup vertical fluid gapSize='small'>
-              {ownControl}
-              {dpqlOfferPrompt}
-            </ReqoreControlGroup>
-          : ownControl;
+        // an expression detected in what the type's own control holds is offered beside it, as on the text
+        return withOfferBeside(ownControl);
       };
       const expressionBody = () => (
         <ReqoreControlGroup vertical fluid gapSize='small'>

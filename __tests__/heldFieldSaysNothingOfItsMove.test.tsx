@@ -10,9 +10,10 @@ import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
 
 /**
- * qlip build 20261008-083118 (Foxhoundn): 'Moves to "Set" when you close it (✓)' "does not need to be shown
- * everytime, the user will learn what happens after the first time". David's decision: once per form, on the
- * first field the user edits that is held in its box. Once that field is closed, no field says it again.
+ * An open field is held in the box it was opened in, so finishing an edit does not move it and take the focus. A
+ * note under the first such field said where it would move when closed ('Moves to "Set" when you close it (✓)');
+ * it was one more line to read while writing a value, and it is gone (Foxhoundn, qlip #392: "Remove the whole
+ * `Moves to` please"). The field is still held, and moves when it is closed.
  */
 const NOTE = 'when you close it (✓)';
 
@@ -58,29 +59,29 @@ const fill = async (container: HTMLElement, name: string, text: string) => {
 const close = (container: HTMLElement, name: string) =>
   fireEvent.click(container.querySelector<HTMLElement>(`[data-field="${name}"] .options-readfirst-done`)!);
 
-describe('the note saying where an open field moves', () => {
-  it('is said on the first field edited, and on no field after it is closed', async () => {
+describe('an open field held in its box', () => {
+  it('says nothing of where it moves, and moves when it is closed', async () => {
     const { container } = render(<Form />);
     await fill(container, 'first', 'a');
-    await waitFor(() => expect(row(container, 'first')!.textContent).toContain(NOTE));
+    // set, and still open where it was opened, with nothing under it saying where it goes
+    await waitFor(() => expect(container.textContent).toContain('1/2 set'));
+    expect(container.querySelector('[data-field="first"].readfirst-row-editing')).toBeTruthy();
+    expect(container.textContent).not.toContain(NOTE);
     close(container, 'first');
-    await waitFor(() => expect(container.textContent).not.toContain(NOTE));
+    await waitFor(() => expect(container.querySelector('.readfirst-row-editing')).toBeNull());
 
     await fill(container, 'second', 'b');
-    // the second field is set, and held open in "Needs attention" like the first was - and does not say so
     await waitFor(() => expect(container.textContent).toContain('2/2 set'));
     await waitFor(() => expect(container.querySelector('.readfirst-row-editing')).toBeTruthy());
     expect(container.textContent).not.toContain(NOTE);
   });
 
-  it('is said on one field only while two are held', async () => {
+  it('says nothing while two are held', async () => {
     const { container } = render(<Form expandMode='multi' />);
     await fill(container, 'first', 'a');
-    await waitFor(() => expect(row(container, 'first')!.textContent).toContain(NOTE));
     await fill(container, 'second', 'b');
     await waitFor(() => expect(container.textContent).toContain('2/2 set'));
     await waitFor(() => expect(container.querySelectorAll('.readfirst-row-editing').length).toBe(2));
-    expect(row(container, 'first')!.textContent).toContain(NOTE);
-    expect(row(container, 'second')!.textContent).not.toContain(NOTE);
+    expect(container.textContent).not.toContain(NOTE);
   });
 });

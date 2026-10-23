@@ -1,5 +1,5 @@
 import { ReqoreFonts, ReqoreP, ReqorePanel } from '@qoretechnologies/reqore';
-import { GAP_FROM_SIZE, TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
+import { GAP_FROM_SIZE, SIZE_TO_PX, TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import styled, { css } from 'styled-components';
 
 // Styled primitives for the compact (read-first) rows and their editor cards.
@@ -40,30 +40,48 @@ export const isCompactNarrow = (width: number, labelColumn: number): boolean =>
 export const GROUP_INDENT = `${COMPACT_ROW_PAD_X}px`;
 
 // Measured label column (GLOBAL). The label column sizes to the WIDEST field
-// label across the whole form, clamped to [MIN, MAX]. FormEngine measures the
+// label across the whole form, its text clamped to MAX, and is never narrower
+// than LABEL_COLUMN_MIN. FormEngine measures the
 // labels once and writes the result to `LABEL_COL_VAR` on the compact scroll
 // wrap; the grid column and the value-surface offsets below all read it (falling
 // back to the fixed default until the measurement lands). Expressing the offsets
 // FROM the column var preserves the "value surface starts at a constant x"
 // invariant — the column may resize, but the surface stays glued to its edge.
-export const LABEL_COL_MIN = 120;
 export const LABEL_COL_MAX = COMPACT_LABEL_COL; // 220
 /**
- * Room reserved beside a field's NAME for the chrome that trails it, summed from
- * the parts rather than guessed: the required asterisk (10px), the `?` that opens
- * the long description (12px), and the two 3px gaps of `StyledRowLabel`.
- *
- * Added to the measured column AFTER the min/max clamp. Inside it, a label long
- * enough to reach the ceiling spends the allowance on itself and the `?` wraps to
- * a line of its own.
- *
- * The 4px of slack is not padding for its own sake: the measurement rounds (an
- * off-DOM `offsetWidth` is an integer) while the rendered text width is
- * fractional, so a column sized to the exact sum still wraps. Measured on an auth
- * profile — "Authentication Schemes" renders 152px of text and needs
- * 152+3+10+3+12 = 180, was given exactly 180, and wrapped anyway.
+ * The narrowest label column, chrome included: a form of short names keeps the column it always had (a 120px floor
+ * under the name plus the 32px its chrome was reckoned at). The floor is the column's, not the name's: put under the
+ * name, it widened every form by the help button's real width, where only names that need the room should take it.
  */
-export const LABEL_AFFORDANCE_WIDTH = 10 + 12 + 3 * 2 + 4;
+export const LABEL_COLUMN_MIN = 152;
+/** The required asterisk beside a name, and the room it takes: the icon and its tiny left margin. */
+export const LABEL_ASTERISK_SIZE = 10;
+export const LABEL_ASTERISK_WIDTH = LABEL_ASTERISK_SIZE + 2;
+/**
+ * The help button beside a name: reqore's `tiny` button (26px), or `small` (32px) for a finger. It is a button in the
+ * tab order (qorus#646), so the room it takes is its own width, not the 12px of the icon it once was.
+ */
+export const LABEL_HELP_WIDTH = SIZE_TO_PX.tiny;
+export const LABEL_HELP_WIDTH_TOUCH = SIZE_TO_PX.small;
+/**
+ * Room reserved beside a field's NAME for the chrome that trails it, summed from the parts rather than guessed: the
+ * required asterisk, the help button and the two 3px gaps of the name's line.
+ *
+ * Added to the measured column AFTER the min/max clamp. Inside it, a label long enough to reach the ceiling wraps,
+ * with the asterisk on its last line, after its last word, and the help at the column's right edge.
+ *
+ * It counted the help as the 12px icon it was before it became a button (26px): every name within 14px of the
+ * column's width put its asterisk on a line of its own under it (Foxhoundn, qlip #392: "The required asterisk on a
+ * new line is not good, keep it on the same line as the field name").
+ *
+ * The 4px of slack is not padding for its own sake: the measurement rounds (an off-DOM `offsetWidth` is an integer)
+ * while the rendered text width is fractional, so a column sized to the exact sum still wraps. Measured on an auth
+ * profile — "Authentication Schemes" renders 152px of text and, given exactly the sum, wrapped anyway.
+ */
+export const labelAffordanceWidth = (coarse = false): number =>
+  LABEL_ASTERISK_WIDTH + (coarse ? LABEL_HELP_WIDTH_TOUCH : LABEL_HELP_WIDTH) + 3 * 2 + 4;
+/** The room beside a name for a mouse's pointer; a finger's help is wider (`labelAffordanceWidth(true)`). */
+export const LABEL_AFFORDANCE_WIDTH = labelAffordanceWidth();
 export const LABEL_COL_VAR = '--readfirst-label-col';
 export const LABEL_COL = `var(${LABEL_COL_VAR}, ${COMPACT_LABEL_COL}px)`;
 export const PANEL_LEFT_CSS = `calc(${LABEL_COL} + ${COMPACT_ROW_PAD_X + COMPACT_ROW_GAP - 10}px)`;
@@ -415,12 +433,45 @@ export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>
   ${HELP_BUTTON_BESIDE_THE_NAME}
 `;
 
-/** An option's name, its asterisk and its help: one group, which keeps the help beside the name as it wraps. */
-export const StyledLabelName = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
+/**
+ * An option's name, its asterisk and its help: one group.
+ *
+ * In a row's label column (`$fill`) it is the column's width: the name on the left, wrapping, and the help at the
+ * column's right edge, so every row's (?) is on one line down the form rather than a step after each name
+ * (Foxhoundn, qlip #392: "please right align the question mark to get rid of the stair-case look"). The help is on
+ * the name's first line.
+ */
+export const StyledLabelName = styled.span<{ $fill?: boolean }>`
+  ${({ $fill }) =>
+    $fill ?
+      css`
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+        width: 100%;
+        column-gap: 3px;
+
+        .options-readfirst-help {
+          justify-self: end;
+        }
+        /* what the option takes flows after the name, under it where both do not fit */
+        .options-readfirst-type {
+          display: inline-flex;
+          vertical-align: middle;
+          margin-left: 4px;
+        }
+      `
+    : css`
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+      `}
   min-width: 0;
+`;
+
+/** A name's asterisk: after a word joiner, which no line breaks at, so it is on the line of the name's last word. */
+export const StyledLabelAsterisk = styled.span`
+  white-space: nowrap;
 `;
 
 // A field's short_desc rendered under its name in the (narrow) label column,

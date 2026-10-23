@@ -72,6 +72,7 @@ import {
   validateField,
   validateFieldWithResult,
 } from '../../../helpers/validations';
+import { useCoarsePointer } from '../../../hooks/useCoarsePointer';
 import { useQorusTypes } from '../../../hooks/useQorusTypes';
 import { useTemplates } from '../../../hooks/useTemplates';
 import { isQueryCancelled } from '../../../utils/fetch';
@@ -91,10 +92,10 @@ import {
   COMPACT_LABEL_COL,
   GROUP_INDENT,
   isCompactNarrow,
-  LABEL_AFFORDANCE_WIDTH,
   LABEL_COL_MAX,
-  LABEL_COL_MIN,
+  LABEL_COLUMN_MIN,
   LABEL_COL_VAR,
+  labelAffordanceWidth,
   StyledCompactPanel,
   StyledGroupBody,
   StyledGroupHeader,
@@ -1574,8 +1575,6 @@ const FormEngineImpl = ({
   // stays put when its status flips (e.g. becomes valid) instead of jumping to
   // another box mid-edit and stealing focus. Keyed by option name.
   const settledBucket = useRef<Record<string, 'attention' | 'set' | 'optional'>>({});
-  // the one field that says where it moves when it is closed: see `heldOptions`
-  const movesToNoteFor = useRef<string | null | undefined>(undefined);
   // Measured form width (not viewport — the form lives in drawers/panels of
   // arbitrary width) drives the stacked narrow layout.
   const [compactWrapRef, { width: compactWrapWidth }] = useMeasure<HTMLDivElement>();
@@ -1604,6 +1603,8 @@ const FormEngineImpl = ({
      default until it is. A form stacks its rows where its value column would be too narrow
      beside it (`isCompactNarrow`), not at one form width whatever its labels are. */
   const [compactLabelColumn, setCompactLabelColumn] = useState<number>(COMPACT_LABEL_COL);
+  // the label column holds a finger's help button where the pointer is a finger (`labelAffordanceWidth`)
+  const coarsePointer = useCoarsePointer();
   const compactNarrow = !!compactWrapWidth && isCompactNarrow(compactWrapWidth, compactLabelColumn);
 
   /* How much pinned chrome sits above a status-box header.
@@ -1697,11 +1698,12 @@ const FormEngineImpl = ({
     // survives at every label length. MAX still bounds how much room the NAME may
     // take, which is what it is for; the asterisk and the `?` are chrome that has
     // to fit beside it either way.
-    const text = Math.max(LABEL_COL_MIN, Math.min(LABEL_COL_MAX, Math.round(widest)));
-    const column = text + LABEL_AFFORDANCE_WIDTH;
+    const text = Math.min(LABEL_COL_MAX, Math.round(widest));
+    // a finger's help button is wider than a mouse's (`labelAffordanceWidth`); a short name's column is the floor
+    const column = Math.max(LABEL_COLUMN_MIN, text + labelAffordanceWidth(coarsePointer));
     wrap.style.setProperty(LABEL_COL_VAR, `${column}px`);
     setCompactLabelColumn(column);
-  }, [compact, options, theme, compactWrapNode]);
+  }, [compact, options, theme, compactWrapNode, coarsePointer]);
   // Editing rows pin min-height to the measured read row they replace, so the
   // toggle never shifts neighbours (height varies with chrome — measure it).
   const readRowHeights = useRef<Record<string, number>>({});
@@ -3728,35 +3730,9 @@ const FormEngineImpl = ({
   // The closure surface the extracted CompactRow reads through context. Refs and
   // setters are stable; the state/memo/handler fields change identity as they do
   // today, so a row re-renders exactly when its inputs do.
-  /* An open field is held in the box it was opened in, so finishing an edit does not remount it elsewhere
-     and take the focus (see `stableBucketOf`). Held, it says where it now belongs - otherwise a value
-     already right sat under "Needs attention" until ✓ was pressed, with nothing saying why (David's review
-     of qorus#646). Keyed by option name: the box it moves to when closed.
-
-     It is said once per form, on the first field held this way, and on no field once that one is closed:
-     the user knows it from then on, and saying it on every field takes room (qlip build 20261008-083118;
-     David's decision). `movesToNoteFor` is that field - undefined until one is held, null once it is
-     closed. */
-  const heldEntries = expandedOptions
-    .map((name) => [name, settledBucket.current[name], getOptionBucket(name)] as const)
-    .filter(([, held, now]) => !!held && held !== now)
-    .map(([name, , now]) => [name, now] as const);
-  if (movesToNoteFor.current === undefined && heldEntries.length) {
-    movesToNoteFor.current = heldEntries[0][0];
-  } else if (movesToNoteFor.current && !expandedOptions.includes(movesToNoteFor.current)) {
-    movesToNoteFor.current = null;
-  }
-  const heldOptionsKey = JSON.stringify(
-    Object.fromEntries(heldEntries.filter(([name]) => name === movesToNoteFor.current))
-  );
-  const heldOptions = useMemo<Record<string, 'attention' | 'set' | 'optional'>>(
-    () => JSON.parse(heldOptionsKey),
-    [heldOptionsKey]
-  );
   const compactRowContextValue = useMemo<ICompactRowContext>(
     () => ({
       templates: templates.value,
-      heldOptions,
       readOnly,
       onReadOnlyActivate,
       commitMode,
@@ -3811,7 +3787,6 @@ const FormEngineImpl = ({
     }),
     [
       templates.value,
-      heldOptions,
       readOnly,
       commitMode,
       expandMode,
