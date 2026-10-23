@@ -29,8 +29,10 @@ const StyledAllowedValues = styled.div<{
     margin-bottom: 4px;
   }
 
+  /* as wide as what it says, up to the help's width: stretched across a wide dialog, its columns stood apart */
   table {
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     border-collapse: collapse;
     font-size: inherit;
   }
