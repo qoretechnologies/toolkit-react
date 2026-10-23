@@ -32,3 +32,24 @@ export const expectChipFits = (chip: HTMLElement) => {
     expect(inner.right, `${what} ends in the chip`).toBeLessThanOrEqual(box.right + 0.5);
   });
 };
+
+/**
+ * Every reference chip named `labels` under `root` is the one chip: the same shape, a tag's corners, and the same
+ * height within the text it sits in. The rich text editor drew its chips as badges, pills with rounder corners,
+ * beside the tags of every other view (Foxhoundn on qlip #392: "Some template chips are pills, some are badges -
+ * let's unify them please").
+ */
+export const expectOneChipShape = (root: ParentNode, labels: string[]) => {
+  const chips = Array.from(root.querySelectorAll<HTMLElement>('.reqore-tag')).filter((tag) =>
+    labels.includes((tag.textContent ?? '').replace(/﻿/g, '').trim())
+  );
+  expect(chips.length, `chips named ${labels.join(', ')}`).toBeGreaterThan(1);
+  const [first, ...others] = chips;
+  const shapeOf = (chip: HTMLElement) => getComputedStyle(chip).borderRadius;
+  const heightOf = (chip: HTMLElement) => chip.getBoundingClientRect().height;
+  others.forEach((chip) => {
+    const name = (chip.textContent ?? '').replace(/﻿/g, '').trim();
+    expect(shapeOf(chip), `${name}: the corners of every other chip`).toBe(shapeOf(first));
+    expect(Math.abs(heightOf(chip) - heightOf(first)), `${name}: the height of every other chip`).toBeLessThan(2);
+  });
+};

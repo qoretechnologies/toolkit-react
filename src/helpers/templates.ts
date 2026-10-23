@@ -57,7 +57,10 @@ const byLabel = (a: { label?: unknown }, b: { label?: unknown }): number =>
 export type TTemplateMeta = { image?: string; builtIn?: boolean; isEventTrigger?: boolean };
 
 /** What every view's reference chip is drawn with (`REFERENCE_CHIP_PROPS`). */
-export type TReferenceChipProps = Pick<IReqoreTagProps, 'size' | 'effect' | 'wrap' | 'paddingSize'>;
+export type TReferenceChipProps = Pick<
+  IReqoreTagProps,
+  'size' | 'effect' | 'wrap' | 'paddingSize' | 'asBadge' | 'compact'
+>;
 
 /**
  * A reference chip as every view draws it - the read summary (`TemplateText`), the read-only chip, the rich
@@ -73,12 +76,18 @@ export type TReferenceChipProps = Pick<IReqoreTagProps, 'size' | 'effect' | 'wra
  * - and wrapping: a chip longer than its line wraps its label inside the line. Not wrapped, it was capped at the
  *   line's width with its label centred in it, and lost both ends - its icon, the start and the end of the path,
  *   and its remove button (Foxhoundn on qlip #383: "The template tag is overflowing, you need to wrap it").
+ * - a tag, never a badge: reqore's rich text editor draws its chips as compact badges (`asBadge`, `compact`), a
+ *   pill with rounder corners and its own height, so a reference in an expression or a rich text field was a pill
+ *   beside the tags of every other view (Foxhoundn on qlip #392: "Some template chips are pills, some are badges -
+ *   let's unify them please"). Said here, the editor's chip is the tag the others are.
  */
 export const REFERENCE_CHIP_PROPS: TReferenceChipProps = Object.freeze({
   size: 'small',
   effect: Object.freeze({ textSize: 'inherit' }),
   wrap: true,
   paddingSize: 'small',
+  asBadge: false,
+  compact: false,
 });
 
 export const getTemplateTagStyle = (
