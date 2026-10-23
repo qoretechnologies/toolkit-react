@@ -366,6 +366,11 @@ export function useLspHover(
   const fetchHover = useRef<ReturnType<typeof debounce>>(
     debounce(() => undefined)
   );
+  /* Where a hovering pointer rests over the editor, until it leaves: what a hover is asked for once the session can
+     answer. A mouse that came to rest on a word while the editor was still connecting (a read-only summary drawn as
+     a row closes) showed nothing until it moved again. */
+  const restingAt = useRef<{ clientX: number; clientY: number } | null>(null);
+  const couldAnswer = useRef(false);
 
   useEffect(() => {
     fetchHover.current.cancel();
@@ -435,6 +440,12 @@ export function useLspHover(
         clearHover();
       }
     }, debounceMs);
+    // the session has just come to answer: a pointer already resting on the text is answered now
+    const canAnswer = !!(enabled && session.client && session.isReady && session.isContextReady);
+    if (canAnswer && !couldAnswer.current && restingAt.current) {
+      fetchHover.current(restingAt.current.clientX, restingAt.current.clientY);
+    }
+    couldAnswer.current = canAnswer;
     return () => fetchHover.current.cancel();
   }, [
     session.client,
@@ -467,6 +478,7 @@ export function useLspHover(
       if (!isHoveringPointer(e)) {
         return;
       }
+      restingAt.current = { clientX: e.clientX, clientY: e.clientY };
       // Cancel any pending hover the moment the mouse moves — the
       // previous coords are stale. The debounced trailing call only
       // fires after `debounceMs` of true idle.
@@ -478,6 +490,7 @@ export function useLspHover(
       if (!isHoveringPointer(e)) {
         return;
       }
+      restingAt.current = null;
       fetchHover.current.cancel();
       clearHover();
     };
