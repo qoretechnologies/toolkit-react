@@ -66,9 +66,13 @@ export const atTheCaptureSize = async (parameters?: {
  * With Its Own Description Shows One Hover). Enter events go to the element and each of its ancestors, outermost
  * first, as they do when the mouse comes from outside the page.
  */
+/** Where a dispatched mouse rests (Storybook's UI), and the point it is at: what it leaves when taken off the page. */
+let dispatchedAt: { target: Element; at: { clientX: number; clientY: number } } | undefined;
+
 const moveDispatchedMouseTo = (element: HTMLElement, at: { clientX: number; clientY: number }) => {
   const target =
     (document.elementFromPoint(at.clientX, at.clientY) as HTMLElement | null) ?? element;
+  dispatchedAt = { target, at };
   const init = {
     ...at,
     pointerType: 'mouse',
@@ -124,7 +128,47 @@ export const restMouseOn = async (
  */
 export const mouseOffThePage = async () => {
   const browser = await vitestBrowser();
-  await browser?.cdp().send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: -1, y: -1 });
+  if (browser) {
+    await browser.cdp().send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: -1, y: -1 });
+    return;
+  }
+  /* Storybook's UI, where the mouse was a dispatched one (`restMouseOn`): what a browser sends as the mouse leaves
+     the page, out and leave events from where it rested, innermost first. Taken off the page by nothing, it stayed
+     where it was, and a hover the play waited to close never did (FormEngine · Compact Expression Template Chips
+     failed in Storybook's UI and passed in the test run). */
+  if (!dispatchedAt) {
+    return;
+  }
+  const { at } = dispatchedAt;
+  // what is under the point now: what the mouse rested on may have been redrawn since (an editor's text is)
+  const target = dispatchedAt.target.isConnected
+    ? dispatchedAt.target
+    : (document.elementFromPoint(at.clientX, at.clientY) ?? document.body);
+  dispatchedAt = undefined;
+  const init = {
+    ...at,
+    pointerType: 'mouse',
+    pointerId: 1,
+    isPrimary: true,
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    relatedTarget: null,
+  };
+  // the elements left, taken before any is told: a leave can redraw what it reaches, and a redrawn element has no
+  // parent to go on to
+  const left: Element[] = [];
+  for (let node: Element | null = target; node; node = node.parentElement) {
+    left.push(node);
+  }
+  target.dispatchEvent(new PointerEvent('pointerout', init));
+  left.forEach((node) =>
+    node.dispatchEvent(new PointerEvent('pointerleave', { ...init, bubbles: false }))
+  );
+  target.dispatchEvent(new MouseEvent('mouseout', init));
+  left.forEach((node) =>
+    node.dispatchEvent(new MouseEvent('mouseleave', { ...init, bubbles: false }))
+  );
 };
 
 /** The middle of `element` on the screen: where a mouse rests to hover it (a chip). */
