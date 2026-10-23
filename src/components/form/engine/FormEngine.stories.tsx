@@ -50,6 +50,7 @@ import {
 import { basicFormValue, getBasicFormOptions as getOptions } from './__fixtures__/basicFormOptions';
 import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOptions';
 import { storyApiUrl } from '../../../stories/storyNetwork';
+import { expectPictureChoiceLayout } from '../../../stories/choiceLayout';
 import { withCoarsePointer } from '../../../stories/coarsePointer';
 import { PHONE_VIEWPORT } from '../../../stories/tracking';
 import { withTouchScreen } from '../../../stories/touchScreen';
@@ -1435,6 +1436,8 @@ const expectChosenWithoutColor = async (root: HTMLElement, chosen: string) => {
     const others = marks.filter((_mark, index) => index !== at);
     expect(new Set(others).size).toBe(1);
     expect(marks[at]).not.toBe(others[0]);
+    // and laid out as David asked: even gaps, the ring clear of the picture, the name centered, the others gray
+    expectPictureChoiceLayout(root, chosen);
   });
 };
 
@@ -1625,6 +1628,19 @@ export const AnOptionsHelpListsItsAllowedValues: Story = {
     // allowed values: the policy
     const language = await openOptionHelp(canvasElement, 'language');
     expect(language.textContent).toContain('It decides which runtime runs it.');
+    // what it takes, its description and its allowed values in one size (the dialog's title apart)
+    const sizes = new Set(
+      [
+        language.querySelector<HTMLElement>('.options-help-type'),
+        ...Array.from(language.querySelectorAll<HTMLElement>('.allowed-values-help *')),
+      ]
+        .filter(
+          (element): element is HTMLElement =>
+            !!element && element.children.length === 0 && !!element.textContent?.trim()
+        )
+        .map((element) => getComputedStyle(element).fontSize)
+    );
+    expect([...sizes], 'one font size in the help').toHaveLength(1);
     expect(language.textContent).not.toContain('No description was given');
     await expectAllowedValuesHelp(language, [
       ['qore', 'Qore', 'Runs in the server itself'],
@@ -1730,6 +1746,10 @@ export const CompactRowAbsorbsLanguage: Story = {
       expect(choice.querySelector('img')?.getAttribute('src')).toBeTruthy();
     }
     expect(choices[0].querySelector('input')?.checked).toBe(true);
+    expectPictureChoiceLayout(
+      canvasElement.querySelector('.options-readfirst-absorbed') as HTMLElement,
+      'Qore'
+    );
     // and the code is a line per line, in the host's editor
     expect(
       canvasElement.querySelectorAll('[data-field="source"] .code-editor-standin-code').length
@@ -5755,6 +5775,8 @@ export const CompactEnumWithImages: Story = {
         expect(card?.textContent).toContain('Python');
         expect(card?.textContent).toContain('Java');
         expect(card?.querySelectorAll('.reqore-checkbox img').length).toBeGreaterThan(0);
+        // each logo beside its name, laid out as David asked, the others gray (qorus#646)
+        expectPictureChoiceLayout(card as HTMLElement, 'Qore');
       },
       { timeout: 10000 }
     );
@@ -9721,8 +9743,8 @@ const hoverCardOf = async (element: HTMLElement) => {
 };
 
 /**
- * Allowed values as help shows them (qorus#646, David's policy): a bold "Allowed values" heading, then a bullet a
- * value - the exact value as data, its name, its description.
+ * Allowed values as help shows them (qorus#646, David's policy): a bold "Allowed values" heading, then a table, a
+ * row a value - the exact value as data, its name, its description - in one font size, every cell inside the help.
  */
 const expectAllowedValuesHelp = async (root: HTMLElement, values: [string, string, string][]) => {
   const help = await waitFor(() => {
@@ -9733,18 +9755,36 @@ const expectAllowedValuesHelp = async (root: HTMLElement, values: [string, strin
   const heading = help.querySelector<HTMLElement>('.allowed-values-heading') as HTMLElement;
   expect(heading.textContent).toBe('Allowed values');
   expect(Number(getComputedStyle(heading).fontWeight)).toBeGreaterThanOrEqual(600);
-  const bullets = Array.from(help.querySelectorAll<HTMLElement>('ul > li'));
-  expect(bullets.map((bullet) => bullet.querySelector('code.allowed-value')?.textContent)).toEqual(
-    values.map(([value]) => value)
+  const table = help.querySelector<HTMLTableElement>('table') as HTMLTableElement;
+  expect(table, 'a table, not a list (David: "try a table for this instead")').toBeTruthy();
+  expect(Array.from(table.querySelectorAll('th')).map((th) => th.textContent)).toEqual([
+    'Value',
+    'Name',
+    'Description',
+  ]);
+  const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>('tbody tr'));
+  expect(rows.map((row) => Array.from(row.cells).map((cell) => cell.textContent))).toEqual(values);
+  // data styling: the exact value in a monospaced face, at the size of the rest
+  const code = table.querySelector('code.allowed-value') as HTMLElement;
+  expect(getComputedStyle(code).fontFamily).toMatch(/mono|Menlo|Consolas/i);
+  const sizes = new Set(
+    [heading, ...Array.from(table.querySelectorAll<HTMLElement>('th, td, code'))].map(
+      (element) => getComputedStyle(element).fontSize
+    )
   );
-  values.forEach(([, name, description], index) => {
-    expect(bullets[index].textContent).toContain(name);
-    expect(bullets[index].textContent).toContain(description);
-  });
-  // data styling: the exact value in a monospaced face
-  expect(
-    getComputedStyle(help.querySelector('code.allowed-value') as HTMLElement).fontFamily
-  ).toMatch(/mono|Menlo|Consolas/i);
+  expect([...sizes], 'one font size').toHaveLength(1);
+  // nothing runs together: a description is its own cell, apart from its value
+  for (const row of rows) {
+    expect(row.cells[2].getBoundingClientRect().left).toBeGreaterThan(
+      (row.cells[0].querySelector('code') as HTMLElement).getBoundingClientRect().right
+    );
+  }
+  // and it fits where it is shown: no cell runs out of the help
+  const box = help.getBoundingClientRect();
+  for (const cell of Array.from(table.querySelectorAll<HTMLElement>('th, td'))) {
+    expect(cell.getBoundingClientRect().right).toBeLessThanOrEqual(box.right + 0.5);
+  }
+  expect(box.right).toBeLessThanOrEqual(window.innerWidth + 0.5);
 };
 
 const SKIP_WHEN_TEMPLATES = {
@@ -10167,6 +10207,13 @@ export const AReferenceItsHostKnowsWearsItsName: Story = {
     // mode: what it is, and its allowed values, each exact value as data, by its name, described
     const card = await hoverCard(chip('mode (this case)'));
     expect(card.textContent).toContain('How this case runs.');
+    // what it is and its allowed values in one size
+    const sizes = new Set(
+      Array.from(card.querySelectorAll<HTMLElement>('.reference-hover *'))
+        .filter((element) => element.children.length === 0 && !!element.textContent?.trim())
+        .map((element) => getComputedStyle(element).fontSize)
+    );
+    expect([...sizes], 'one font size in the hover').toHaveLength(1);
     await expectAllowedValuesHelp(card, [
       ['live', 'Live', 'Calls the real services'],
       ['simulate', 'Simulated', 'Calls stand-ins; nothing leaves the test'],

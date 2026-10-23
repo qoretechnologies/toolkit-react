@@ -50,6 +50,7 @@ export const OptionsHelpDialog = ({ option, onClose }: IOptionsHelpDialogProps) 
       <AllowedValuesHelp
         values={(option.allowed_values as unknown[] | undefined) ?? []}
         suggested={!!(option as { allowed_values_creatable?: boolean }).allowed_values_creatable}
+        compact
       />
     </ReqoreModal>
   );

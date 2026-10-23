@@ -200,14 +200,15 @@ describe('templateTooltip', () => {
       'Text.\n\nHow this case runs.'
     );
     expect(container.querySelector('.allowed-values-heading')?.textContent).toBe('Allowed values');
-    const bullets = Array.from(container.querySelectorAll('.allowed-values-help li'));
-    expect(bullets.map((bullet) => bullet.querySelector('code')?.textContent)).toEqual([
-      'live',
-      'simulate',
+    const rows = Array.from(container.querySelectorAll('.allowed-values-help tbody tr')).map(
+      (row) => Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent)
+    );
+    // a table: the exact value, its name, its description; nothing where a value has none
+    expect(rows).toEqual([
+      ['live', 'Live', 'Calls the real services'],
+      ['simulate', '', ''],
     ]);
-    expect(bullets[0].textContent).toBe('live Live: Calls the real services');
-    // a value with no name of its own and no description is the value alone
-    expect(bullets[1].textContent).toBe('simulate');
+    expect(container.querySelectorAll('.allowed-values-help td code')).toHaveLength(2);
   });
 
   /* qorus#646, David on Form Engine · Value Tab Pick Replaces A Referenced Field: the hover of a field should say

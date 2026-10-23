@@ -206,7 +206,7 @@ describe('the descriptors, on their own', () => {
 describe('the item the field holds', () => {
   // qorus#646, David: "using color on the icon on the choice makes it harder to see which one is chosen and
   // impossible to see for people with issues recognizing colors"
-  it('is marked with a tick and a word, not only a colour, whatever icon or picture it has', async () => {
+  it('is marked with a tick and a word, not only a color, whatever icon or picture it has', async () => {
     render(
       <ReqoreUIProvider>
         <SelectFieldCollection
@@ -229,5 +229,18 @@ describe('the item the field holds', () => {
     expect(card('Python').textContent).toContain('stable');
     expect(card('Qore').textContent).not.toContain('Chosen');
     expect(card('Java').textContent).not.toContain('Chosen');
+    // and once one is chosen, the others' pictures are gray, the chosen one's in color
+    const filterOf = (name: string) => {
+      const picture = card(name).querySelector('img') as HTMLElement;
+      let element: HTMLElement | null = picture;
+      const filters: string[] = [];
+      while (element && element !== card(name)) {
+        filters.push(getComputedStyle(element).filter);
+        element = element.parentElement;
+      }
+      return filters.join(' ');
+    };
+    expect(filterOf('Qore')).toContain('grayscale');
+    expect(filterOf('Python')).not.toContain('grayscale');
   });
 });

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { StoryMeta } from '../../../../types';
 import { RadioGroupFormField } from './RadioGroup';
 
+import { expectPictureChoiceLayout } from '../../../../stories/choiceLayout';
 import java from './images/java-96x128.png';
 import python from './images/python-129x128.png';
 import qore from './images/qore-106x128.png';
@@ -82,6 +83,9 @@ export const WithImages: Story = {
     await expect(canvasElement.querySelector(`img[src="${qore}"]`)).toBeInTheDocument();
     await expect(canvasElement.querySelector(`img[src="${java}"]`)).toBeInTheDocument();
     await expect(canvasElement.querySelector(`img[src="${python}"]`)).toBeInTheDocument();
+    // a radio each, its logo beside its name as far from the radio as from the name, the name centered on it,
+    // the others gray (qorus#646, David)
+    expectPictureChoiceLayout(canvasElement, 'Qore');
   },
 };
 

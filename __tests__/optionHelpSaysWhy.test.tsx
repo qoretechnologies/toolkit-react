@@ -36,7 +36,7 @@ describe("an option's help", () => {
     expect(document.body.textContent).not.toContain('No description was given');
   });
 
-  it('lists its allowed values under a bold heading, each exact value as data', () => {
+  it('lists its allowed values under a bold heading, in a table, each exact value as data', () => {
     help({
       type: 'string',
       desc: 'The language the code is written in.',
@@ -51,13 +51,32 @@ describe("an option's help", () => {
     });
     const list = document.body.querySelector('.allowed-values-help') as HTMLElement;
     expect(list.querySelector('.allowed-values-heading')?.textContent).toBe('Allowed values');
-    expect(Array.from(list.querySelectorAll('li')).map((bullet) => bullet.textContent)).toEqual([
-      'qore Qore: Runs in the server',
-      'python',
+    const table = list.querySelector('table') as HTMLTableElement;
+    expect(Array.from(table.querySelectorAll('th')).map((th) => th.textContent)).toEqual([
+      'Value',
+      'Name',
+      'Description',
     ]);
     expect(
-      Array.from(list.querySelectorAll('li code.allowed-value')).map((code) => code.textContent)
+      Array.from(table.querySelectorAll('tbody tr')).map((row) =>
+        Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent)
+      )
+    ).toEqual([
+      ['qore', 'Qore', 'Runs in the server'],
+      ['python', '', ''],
+    ]);
+    expect(
+      Array.from(table.querySelectorAll('td code.allowed-value')).map((code) => code.textContent)
     ).toEqual(['qore', 'python']);
+  });
+
+  it('leaves out a column no value has anything in', () => {
+    help({ type: 'string', allowed_values: [{ value: 'a' }, { value: 'b' }] });
+    expect(
+      Array.from(document.body.querySelectorAll('.allowed-values-help th')).map(
+        (th) => th.textContent
+      )
+    ).toEqual(['Value']);
   });
 
   it("calls a field's values suggestions where it takes others too", () => {
@@ -90,8 +109,13 @@ describe('an allowed value as help shows it', () => {
       </ReqoreUIProvider>
     );
     expect(
-      Array.from(container.querySelectorAll('li')).map((bullet) => bullet.textContent)
-    ).toEqual(['3', 'auto Automatic']);
+      Array.from(container.querySelectorAll('tbody tr')).map((row) =>
+        Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent)
+      )
+    ).toEqual([
+      ['3', ''],
+      ['auto', 'Automatic'],
+    ]);
   });
 });
 

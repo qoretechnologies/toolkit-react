@@ -442,6 +442,7 @@ export const SelectFieldCollection = ({
   /** The item the field holds. */
   const isTheChosenOne = (itemValue: unknown) =>
     itemValue !== undefined && itemValue !== null && isEqual(itemValue, value);
+  const somethingChosen = items.some((item) => isTheChosenOne(item.value));
 
   return (
     <StyledSelectDialog
@@ -574,6 +575,10 @@ export const SelectFieldCollection = ({
             iconProps: {
               size: '20px',
               rounded: true,
+              // once one is chosen, the others' pictures are gray: a second sign beside the "Chosen" mark
+              ...(somethingChosen && !isTheChosenOne(item.value) ?
+                { effect: { grayscale: true } }
+              : {}),
             },
             /* No handler is what makes an unavailable row inert, and it is
                deliberately NOT reqore's `disabled`: see the stylesheet on

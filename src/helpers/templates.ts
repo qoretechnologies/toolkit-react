@@ -536,9 +536,10 @@ export const templateTooltip = (
   // the values it is one of, as help shows allowed values (`AllowedValuesHelp`), under what it is
   return {
     title,
+    // one size for what it is and the values it is one of (`AllowedValuesHelp` compact is that size)
     content: createElement(
       'div',
-      { className: 'reference-hover' },
+      { className: 'reference-hover', style: { fontSize: 12 } },
       describedContent(body as string, descriptions),
       createElement(AllowedValuesHelp, { values: allowed, compact: true })
     ),

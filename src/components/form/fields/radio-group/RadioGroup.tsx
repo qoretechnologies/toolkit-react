@@ -1,7 +1,7 @@
 import { ReqoreRadioGroup } from '@qoretechnologies/reqore';
 import { IReqoreRadioGroupProps } from '@qoretechnologies/reqore/dist/components/RadioGroup';
 import { useMemo } from 'react';
-import { pictureBesideTheName } from '../allowed-values/choicePicture';
+import { choicePictureState, pictureBesideTheName } from '../allowed-values/choicePicture';
 
 export interface IRadioGroupFormFieldProps
   extends Omit<IReqoreRadioGroupProps, 'onChange' | 'onSelectClick' | 'selected'> {
@@ -29,10 +29,17 @@ export const RadioGroupFormField = ({
         },
         ...item,
         // a picture beside the name, the radio kept: it says which is chosen without color (qorus#646)
-        ...pictureBesideTheName((item as { image?: unknown }).image, rest.size),
+        ...pictureBesideTheName(
+          (item as { image?: unknown }).image,
+          rest.size || 'normal',
+          choicePictureState(
+            item.value === value,
+            _items.some((choice) => choice.value === value)
+          )
+        ),
         disabled: disabled || item.disabled,
       })),
-    [_items]
+    [_items, value, rest.size]
   );
 
   return (

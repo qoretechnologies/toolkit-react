@@ -239,11 +239,14 @@ These are rules: every surface that shows help, a hover or a choice follows them
 (qorus#646, David's review, 2026-10-23).
 
 - **Allowed values in help.** Every help or hover that presents a field's or a value's allowed values shows a bold
-  "Allowed values" heading, then a bulleted list: each exact value in data styling (monospaced, in the code chip
-  the markdown view draws code in), then its name where it has one of its own, and its description where it has
-  one: `live` Live: Calls the real services. A field that takes other values too heads them "Suggested values".
-  One component draws it (`AllowedValuesHelp`); it is used by an option's (?) help (`OptionsHelpDialog`) and by a
-  reference's hover where its catalogue gives the values it is one of (`allowed_values` on a catalogue item,
+  "Allowed values" heading, then a small table, a row a value: the exact value in a code chip (monospaced, the
+  chip the markdown view draws code in), its name where it has one of its own, and its description. A column no
+  value has anything in is left out. One font size for the heading, the column names, the values and what is
+  said of them, the same as the help's own text around it; every cell wraps, so the table never runs wider than
+  the help, at 390px too. A field that takes other values too heads them "Suggested values". It was a bulleted
+  list whose descriptions ran on after their values in a larger font (David: "try a table for this instead").
+  One component draws it (`AllowedValuesHelp`); it is used by an option's (?) help (`OptionsHelpDialog`) and by
+  a reference's hover where its catalogue gives the values it is one of (`allowed_values` on a catalogue item,
   `templateTooltip`). An option's name hover is a plain-text title and lists none: its (?) does. Tests:
   `__tests__/optionHelpSaysWhy.test.tsx`, `__tests__/descriptionTooltip.test.tsx`; stories:
   `AnOptionsHelpListsItsAllowedValues` (+ `OnAPhone`), `AReferenceItsHostKnowsWearsItsName`.
@@ -255,9 +258,15 @@ These are rules: every surface that shows help, a hover or a choice follows them
 - **Which choice is chosen is never only a color.** A choice with a picture (a language's logo) has the picture
   beside its name and keeps its radio or check box, whose mark is a shape (`pictureBesideTheName`): Reqore drew
   the picture in place of the radio, the chosen one in color and the others gray. Its native input is a radio
-  (one value) or a checkbox (several), checked as chosen, with the box's focus ring for the keyboard. In the
-  select dialog the chosen item carries a tick and the word "Chosen" beside its own badge (`CHOSEN_BADGE`).
-  Stories: `AChoiceDrawnByItsPictureSaysWhichIsChosen` (+ `OnAPhone`, `InALightTheme`).
+  (one value) or a checkbox (several), checked as chosen, with the box's focus ring for the keyboard. Once one is
+  chosen the others' pictures are gray and the chosen one's in color: a second sign, the shape the first. The
+  picture is as far from the radio as from the name (`CHOICE_PICTURE_GAP`, 10px), so the radio's focus ring
+  keeps clear of it, and the name is centered on it (David's review: the highlight touched the picture, the gaps
+  differed and the names sat higher than the pictures). This holds in the short choice groups, the enum radio
+  group and the language picker of a code row; in the select dialog the chosen item carries a tick and the word
+  "Chosen" beside its own badge, and the others' pictures are gray. The plays measure it
+  (`src/stories/choiceLayout.ts`: gaps equal within 1px, the ring clear, the name centered within 1px). Stories:
+  `AChoiceDrawnByItsPictureSaysWhichIsChosen` (+ `OnAPhone`, `InALightTheme`).
 
 ## Where the logic lives
 

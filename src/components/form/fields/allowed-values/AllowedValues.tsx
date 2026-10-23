@@ -21,7 +21,7 @@ import { memo, useId, useMemo } from 'react';
 import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { besideItsInfo, describedControl } from '../../../Description/describedControl';
-import { pictureBesideTheName } from './choicePicture';
+import { choicePictureState, pictureBesideTheName } from './choicePicture';
 import {
   getSelectItemShortDescription,
   getSelectItemUnavailability,
@@ -112,6 +112,13 @@ export const FieldAllowedValuesCheckGroup = memo(
     const descriptions = useDescriptionTooltips();
     // one choice of several is a radio, in a group of its own (qorus#646)
     const choiceGroup = useId();
+    /** Whether a choice is held: one of several, or the one. */
+    const isChosen = (itemValue: unknown) =>
+      multiSelect ?
+        Array.isArray(value) && value.some((v) => isEqual(v, itemValue))
+      : value !== undefined && value !== null && isEqual(value, itemValue);
+    // once one is chosen, the others' pictures are gray (`pictureBesideTheName`)
+    const anyChosen = (items ?? []).some((item) => isChosen(item.value));
     return (
       <ReqoreControlGroup vertical size={rest.size || 'small'} gapSize='tiny'>
         <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
@@ -134,7 +141,11 @@ export const FieldAllowedValuesCheckGroup = memo(
                  David). A refused one keeps its lock. */
               type={multiSelect ? 'checkbox' : 'radio'}
               name={multiSelect ? undefined : choiceGroup}
-              {...pictureBesideTheName(item.image, rest.size)}
+              {...pictureBesideTheName(
+                item.image,
+                rest.size || 'small',
+                choicePictureState(isChosen(item.value), anyChosen)
+              )}
               tooltip={described.tooltip}
               /* The reason is IN the row: a checkbox has no body to put it in,
                  and a hover is the one affordance a touch screen and a keyboard
