@@ -21,6 +21,7 @@ import { memo, useId, useMemo } from 'react';
 import { useReadableOpacity } from '../../../../hooks/useReadableOpacity';
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { besideItsInfo, describedControl } from '../../../Description/describedControl';
+import { pictureBesideTheName } from './choicePicture';
 import {
   getSelectItemShortDescription,
   getSelectItemUnavailability,
@@ -128,12 +129,12 @@ export const FieldAllowedValuesCheckGroup = memo(
             <ReqoreCheckbox
               margin='right'
               label={choiceName}
-              /* One choice is a radio, several are checkboxes; and a choice with a picture (a language's logo) is
-                 drawn by it, as its own control and the picker draw it - it was a bare box (qorus#646, David:
-                 "the languages are missing the language icons"). A refused one keeps its lock. */
+              /* One choice is a radio, several are checkboxes; a choice with a picture (a language's logo) has it
+                 beside its name, and keeps its radio or box, which says it is chosen without color (qorus#646,
+                 David). A refused one keeps its lock. */
               type={multiSelect ? 'checkbox' : 'radio'}
               name={multiSelect ? undefined : choiceGroup}
-              image={unavailable ? undefined : (item.image as string | undefined)}
+              {...pictureBesideTheName(item.image, rest.size)}
               tooltip={described.tooltip}
               /* The reason is IN the row: a checkbox has no body to put it in,
                  and a hover is the one affordance a touch screen and a keyboard

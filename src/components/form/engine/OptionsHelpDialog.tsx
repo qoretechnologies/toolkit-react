@@ -3,6 +3,8 @@ import { TQorusFormFieldSchema } from '@qoretechnologies/ts-toolkit';
 import { ReqoreP } from '@qoretechnologies/reqore';
 import { optionTypeSentence } from '../../../helpers/qorusTypeCatalogue';
 import { Description } from '../../Description';
+import { AllowedValuesHelp } from '../../Description/AllowedValuesHelp';
+import { NO_OPTION_DESCRIPTION } from '../../../helpers/noDescription';
 import { useTypeName, useTypeSentenceForm } from '../typeSentenceForm';
 
 export interface IOptionsHelpDialogProps extends IReqoreModalProps {
@@ -39,7 +41,16 @@ export const OptionsHelpDialog = ({ option, onClose }: IOptionsHelpDialogProps) 
       : null}
       {description ?
         <Description longDescription={description} longDescriptionOnly />
-      : null}
+      : /* why there is none, never a blank (qorus#646) */
+        <ReqoreP className='options-help-no-description' size='small'>
+          {NO_OPTION_DESCRIPTION}
+        </ReqoreP>
+      }
+      {/* the values it takes, as help shows allowed values: the exact values, by name, described */}
+      <AllowedValuesHelp
+        values={(option.allowed_values as unknown[] | undefined) ?? []}
+        suggested={!!(option as { allowed_values_creatable?: boolean }).allowed_values_creatable}
+      />
     </ReqoreModal>
   );
 };

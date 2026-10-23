@@ -9,7 +9,14 @@ import {
 import { cloneDeep, size } from 'lodash';
 import { createElement } from 'react';
 import { ReqraftTemplateExampleValueModal } from '../components/form/fields/template/ExampleValueModal';
-import { descriptionTooltip, IDescriptionTooltipOptions } from './descriptionTooltip';
+import {
+  describedContent,
+  DESCRIPTION_TOOLTIP_MAX_WIDTH,
+  descriptionTooltip,
+  IDescriptionTooltipOptions,
+} from './descriptionTooltip';
+import { NO_VALUE_DESCRIPTION } from './noDescription';
+import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
 import { builtInTypeSentenceForm, TTypeSentenceForm } from './qorusTypeCatalogue';
 
@@ -506,15 +513,44 @@ export const templateTooltip = (
   templates: IReqoreFormTemplates | undefined,
   value: string,
   descriptions: IDescriptionTooltipOptions,
-  typeSentenceForm: TTypeSentenceForm = builtInTypeSentenceForm
+  typeSentenceForm: TTypeSentenceForm = builtInTypeSentenceForm,
+  /** What the host says of a reference it knows and does not list (`ITemplateReferenceNames`). */
+  host?: { label?: string; description?: string; noDescription?: string }
 ): TReqoreTooltipProp => {
   const { label, item } = describeTemplateReference(templates, value);
   const { description, badge } = (item ?? {}) as { description?: unknown; badge?: unknown };
   // the catalogue gives a template's type as its badge (`buildTemplates`)
   const type = typeof badge === 'string' && badge ? typeSentenceForm(badge) : undefined;
-  return (
-    descriptionTooltip(describedWithType(description, type), descriptions, label || value) ?? value
+  /* What it is, and where nothing says so, why: a hover with no description said only the name, and a reader
+     could not tell an undescribed value from a broken hover (qorus#646, David). */
+  const given = [description, host?.description].find(
+    (text): text is string => typeof text === 'string' && !!text.trim()
   );
+  const body = describedWithType(given ?? (host?.noDescription || NO_VALUE_DESCRIPTION), type);
+  // the catalogue's name where it lists the reference, else the host's
+  const title = (item ? label : host?.label) || label || value;
+  const allowed = templateAllowedValues(item);
+  if (!allowed.length) {
+    return descriptionTooltip(body, descriptions, title) ?? value;
+  }
+  // the values it is one of, as help shows allowed values (`AllowedValuesHelp`), under what it is
+  return {
+    title,
+    content: createElement(
+      'div',
+      { className: 'reference-hover' },
+      describedContent(body as string, descriptions),
+      createElement(AllowedValuesHelp, { values: allowed, compact: true })
+    ),
+    maxWidth: DESCRIPTION_TOOLTIP_MAX_WIDTH,
+    ...(descriptions.tapToOpen ? { handler: 'click' as const } : {}),
+  };
+};
+
+/** The values a template is one of, where its catalogue says (`allowed_values`, as a field's are written). */
+export const templateAllowedValues = (item: unknown): unknown[] => {
+  const values = (item as { allowed_values?: unknown } | undefined)?.allowed_values;
+  return Array.isArray(values) ? values : [];
 };
 
 /**
@@ -621,6 +657,8 @@ interface ITemplateItemPayload {
   type?: string;
   items?: ITemplateItemPayload[];
   data_role?: string;
+  /** The values it is one of, written as a field's are; its hover lists them (`templateTooltip`). */
+  allowed_values?: unknown[];
 }
 
 export interface ITemplatesPayload {
@@ -663,6 +701,7 @@ export const buildTemplates = (
         type,
         items: childItems,
         data_role: itemDataRole,
+        allowed_values,
       }): TReqoreDropdownItem => {
         const serializedExample =
           example_value !== undefined ? JSON.stringify(example_value) : undefined;
@@ -698,7 +737,8 @@ export const buildTemplates = (
           flat: false,
           transparent: false,
           minimal: true,
-        };
+          ...(Array.isArray(allowed_values) && allowed_values.length ? { allowed_values } : {}),
+        } as TReqoreDropdownItem;
 
         if (exampleIsLong) {
           // Menu-item actions stop propagation, so the click never selects or

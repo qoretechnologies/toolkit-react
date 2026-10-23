@@ -16,9 +16,23 @@ import { describeTemplateReference } from '../../../../helpers/templates';
 export interface ITemplateReferenceNames {
   /** A name for a reference the host knows but does not list (the IDE: a value every case has). */
   label?: (reference: string) => string | undefined;
+  /**
+   * What a reference the host knows but does not list is: its hover's description. A host that names a reference
+   * and says nothing of it leaves its hover saying there is no description (`noDescription`).
+   */
+  describe?: (reference: string) => string | undefined;
+  /** Why a reference's hover has no description, in the host's words; "No description was given for this value." */
+  noDescription?: string;
   /** What the chip of a reference nothing names says on hover (the IDE: "Not a value this case captures"). */
   unlistedHint?: string;
 }
+
+/** What a reference's hover says of it beyond the catalogue: the host's name, description and reason for none. */
+export const hostSaysOf = (reference: string, names: ITemplateReferenceNames) => ({
+  label: names.label?.(reference),
+  description: names.describe?.(reference),
+  noDescription: names.noDescription,
+});
 
 /** What the chip of a reference nothing names says on hover, where the host says nothing of its own. */
 export const DEFAULT_UNLISTED_REFERENCE_HINT = 'Not one of the values offered here';

@@ -13,6 +13,7 @@ import {
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { useTypeSentenceForm } from '../../typeSentenceForm';
 import {
+  hostSaysOf,
   referenceStanding,
   unlistedReferenceChipProps,
   useTemplateReferenceNames,
@@ -122,7 +123,13 @@ const TemplateTextBody = ({ segments, templates, full, className }: ITemplateTex
             // opened by a tap on a touch screen.
             tooltip={
               unlisted?.tooltip ??
-              templateTooltip(templates, segment.value || '', descriptions, getTypeSentenceForm)
+              templateTooltip(
+                templates,
+                segment.value || '',
+                descriptions,
+                getTypeSentenceForm,
+                hostSaysOf(segment.value || '', names)
+              )
             }
             {...getTemplateTagStyle(
               (templates ? findTemplate(templates, segment.value || '') : undefined)?.metadata as

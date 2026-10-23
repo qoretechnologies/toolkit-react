@@ -413,6 +413,9 @@ export const buildSelectItemTooltip = (
   return { ...rest, content: <Component {...props} /> };
 };
 
+/** The mark of the item a field holds, beside its own badge: a tick and a word. */
+export const CHOSEN_BADGE = { icon: 'CheckLine', label: 'Chosen' } as const;
+
 export const SelectFieldCollection = ({
   onClose,
   items,
@@ -435,6 +438,10 @@ export const SelectFieldCollection = ({
       return isMatch;
     });
   }, [items, appliedFilters]);
+
+  /** The item the field holds. */
+  const isTheChosenOne = (itemValue: unknown) =>
+    itemValue !== undefined && itemValue !== null && isEqual(itemValue, value);
 
   return (
     <StyledSelectDialog
@@ -553,12 +560,15 @@ export const SelectFieldCollection = ({
             ),
             flat: false,
             minimal: true,
-            selected: item.value !== undefined && item.value !== null && isEqual(item.value, value),
-            intent:
-              item.value !== undefined && item.value !== null && isEqual(item.value, value)
-                ? 'info'
-                : item.intent,
-            badge: item.badge,
+            selected: isTheChosenOne(item.value),
+            intent: isTheChosenOne(item.value) ? 'info' : item.intent,
+            /* Which one is chosen is a tick and a word, not only the color of its card: an item with an icon or a
+               picture of its own had no other mark (qorus#646, David: "impossible to see for people with issues
+               recognizing colors"). */
+            badge:
+              isTheChosenOne(item.value) ?
+                [...(item.badge === undefined ? [] : [item.badge].flat()), CHOSEN_BADGE]
+              : item.badge,
             icon: item.icon,
             iconImage: item.image,
             iconProps: {

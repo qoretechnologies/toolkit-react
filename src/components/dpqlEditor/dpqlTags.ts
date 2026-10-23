@@ -2,6 +2,7 @@
 // DPQL tag rendering — colors per template prefix, field-meta tooltips,
 // `getTagProps` callback for ReqoreRichTextEditor.
 
+import { NO_FIELD_DESCRIPTION } from '../../helpers/noDescription';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/descriptionTooltip';
@@ -147,7 +148,11 @@ export function makeDpqlTagRenderer(
       const tooltip =
         meta ?
           descriptionTooltip(
-            describedWithType(meta.short_desc, typeSentenceForm(meta.type?.name)),
+            // what the field is, or why nothing says so (qorus#646)
+            describedWithType(
+              meta.short_desc?.trim() ? meta.short_desc : NO_FIELD_DESCRIPTION,
+              typeSentenceForm(meta.type?.name)
+            ),
             options.descriptions ?? {},
             meta.display_name || fieldName
           )

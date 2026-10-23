@@ -8,6 +8,7 @@ import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { FieldAllowedValuesCheckGroup } from '../src/components/form/fields/allowed-values/AllowedValues';
+import { RadioGroupFormField } from '../src/components/form/fields/radio-group/RadioGroup';
 import { FormEngine } from '../src/components/form/engine/FormEngine';
 import { FetchContext } from '../src/contexts/FetchContext';
 import { emptyFetchContext } from './support/fetchContext';
@@ -123,6 +124,32 @@ describe('a short list of one choice', () => {
     expect(
       Array.from(container.querySelectorAll('img')).map((img) => img.getAttribute('src'))
     ).toEqual(['qore.png', 'python.png']);
+    // the picture beside the name, the radio's own mark kept: which one is chosen is not only a colour
+    expect(container.querySelectorAll('.choice-picture img')).toHaveLength(2);
+    expect(container.querySelectorAll('.reqore-checkbox-box img')).toHaveLength(0);
+    expect(inputs.map((input) => input.checked)).toEqual([true, false]);
+  });
+
+  it('drawn by the enum radio group keeps its radios too', () => {
+    const { container } = render(
+      <ReqoreUIProvider>
+        <RadioGroupFormField
+          value='python'
+          onChange={vi.fn()}
+          items={[
+            { label: 'Qore', value: 'qore', image: 'qore.png' },
+            { label: 'Python', value: 'python', image: 'python.png' },
+          ]}
+        />
+      </ReqoreUIProvider>
+    );
+    const inputs = Array.from(container.querySelectorAll<HTMLInputElement>('input'));
+    expect(inputs.map((input) => [input.type, input.checked])).toEqual([
+      ['radio', false],
+      ['radio', true],
+    ]);
+    expect(container.querySelectorAll('.choice-picture img')).toHaveLength(2);
+    expect(container.querySelectorAll('.reqore-checkbox-box img')).toHaveLength(0);
   });
 
   it('of several is checkboxes', () => {

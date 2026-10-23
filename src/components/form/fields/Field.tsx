@@ -1,4 +1,5 @@
 import { allowedValueName, allowedValueOf, heldAllowedValue } from '../../../helpers/allowedValues';
+import { pictureBesideTheName } from './allowed-values/choicePicture';
 import {
   IReqoreLabelProps,
   ReqoreCheckbox,
@@ -693,10 +694,10 @@ export const FormField = <T extends TFormFieldType>({
               <ReqoreCheckbox
                 margin='right'
                 label={label}
-                // one choice, a radio in its own group; a choice with a picture is drawn by it (qorus#646)
+                // one choice, a radio in its own group; a picture beside the name, the radio kept (qorus#646)
                 type='radio'
                 name={`${id}-choice`}
-                image={unavailable ? undefined : (item.image as string | undefined)}
+                {...pictureBesideTheName(item.image, choiceSize)}
                 tooltip={described.tooltip}
                 /* The reason is IN the row, not only on its hover: a checkbox
                    has no body to bury it in, and a hover is the one affordance

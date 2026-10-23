@@ -11,6 +11,7 @@ import {
 import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
 import { useTypeSentenceForm } from '../../typeSentenceForm';
 import {
+  hostSaysOf,
   referenceStanding,
   unlistedReferenceChipProps,
   useTemplateReferenceNames,
@@ -62,7 +63,13 @@ export const ReadOnlyTemplateTag = memo(
           className={unlisted?.className}
           tooltip={
             unlisted?.tooltip ??
-            templateTooltip(templates, value, descriptions, getTypeSentenceForm)
+            templateTooltip(
+              templates,
+              value,
+              descriptions,
+              getTypeSentenceForm,
+              hostSaysOf(value, names)
+            )
           }
           {...REFERENCE_CHIP_PROPS}
           {...getTemplateTagStyle(metadata)}

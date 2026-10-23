@@ -201,10 +201,10 @@ layout (templates, `on_change`, validation, dependents). Nothing about the schem
   gives neither (David's decision, 2026-10-22). reqraft ships no code editor. The stories use
   `src/stories/CodeEditorStandin.tsx`, a stand-in that draws code a line per line, numbered and coloured, and
   real Qore samples. Tests: `__tests__/readOnlyCodeUsesTheHostEditor.test.tsx`.
-- **One choice of a few is a radio, drawn by its picture.** A short list of choices (three or fewer) is radios
-  for one value and checkboxes for several, and a choice with an `image` (a language's logo) is drawn by it; a
-  collapsed row that carries an absorbed choice names it and shows its picture ("Qore" with its logo, not
-  `qore`). Story: `CompactRowAbsorbsLanguage`.
+- **One choice of a few is a radio, its picture beside its name.** A short list of choices (three or fewer) is
+  radios for one value and checkboxes for several; a choice with an `image` (a language's logo) has it beside its
+  name and keeps its radio (see the rules below); a collapsed row that carries an absorbed choice names it and
+  shows its picture ("Qore" with its logo, not `qore`). Story: `CompactRowAbsorbsLanguage`.
 - **A reference nothing names says so.** A chip names its reference from the catalogue. One the catalogue does
   not list is drawn as a warning (`.reqraft-reference-unlisted`) with the host's hint on hover (FormEngine's
   `templateReferences.unlistedHint`; the IDE: "Not a value this case captures"; else "Not one of the values
@@ -232,6 +232,32 @@ Interface-specific chrome (status hero, value chips, "Edit code", the help Hint)
 in the engine — a consumer wraps `FormEngine` and supplies that around it. The **server does not define
 group display metadata** (only the bare `group` string per field; no label/icon/order), so each UI owns
 it — hence the engine takes group display via the `groups` prop rather than hardcoding it.
+
+## Rules for help, hovers and choices
+
+These are rules: every surface that shows help, a hover or a choice follows them, and a new one does too
+(qorus#646, David's review, 2026-10-23).
+
+- **Allowed values in help.** Every help or hover that presents a field's or a value's allowed values shows a bold
+  "Allowed values" heading, then a bulleted list: each exact value in data styling (monospaced, in the code chip
+  the markdown view draws code in), then its name where it has one of its own, and its description where it has
+  one: `live` Live: Calls the real services. A field that takes other values too heads them "Suggested values".
+  One component draws it (`AllowedValuesHelp`); it is used by an option's (?) help (`OptionsHelpDialog`) and by a
+  reference's hover where its catalogue gives the values it is one of (`allowed_values` on a catalogue item,
+  `templateTooltip`). An option's name hover is a plain-text title and lists none: its (?) does. Tests:
+  `__tests__/optionHelpSaysWhy.test.tsx`, `__tests__/descriptionTooltip.test.tsx`; stories:
+  `AnOptionsHelpListsItsAllowedValues` (+ `OnAPhone`), `AReferenceItsHostKnowsWearsItsName`.
+- **A missing description says why.** A hover or help never shows a blank where a description would be: it says
+  "No description was given for this value." (a reference), "… for this option." (an option's help, and its
+  name's hover where it has neither a short nor a long description) or "… for this field." (a record field in
+  an expression), or the host's own reason (`templateReferences.noDescription`). A host that names a reference
+  it does not list can describe it too (`templateReferences.describe`).
+- **Which choice is chosen is never only a color.** A choice with a picture (a language's logo) has the picture
+  beside its name and keeps its radio or check box, whose mark is a shape (`pictureBesideTheName`): Reqore drew
+  the picture in place of the radio, the chosen one in color and the others gray. Its native input is a radio
+  (one value) or a checkbox (several), checked as chosen, with the box's focus ring for the keyboard. In the
+  select dialog the chosen item carries a tick and the word "Chosen" beside its own badge (`CHOSEN_BADGE`).
+  Stories: `AChoiceDrawnByItsPictureSaysWhichIsChosen` (+ `OnAPhone`, `InALightTheme`).
 
 ## Where the logic lives
 

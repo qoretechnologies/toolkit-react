@@ -42,7 +42,9 @@ import {
 import { TEMPLATE_BROWSE_LIST_PROPS, useTemplateTags } from './useTemplateTags';
 import { CompletionMenu } from '../../../smartEditor/CompletionMenu';
 import { defaultSlateConverter } from '../../../smartEditor/helpers';
+import { NO_VALUE_DESCRIPTION } from '../../../../helpers/noDescription';
 import {
+  hostSaysOf,
   referenceStanding,
   unlistedReferenceChipProps,
   useTemplateReferenceNames,
@@ -478,7 +480,13 @@ export const RichTextFormField = memo(({
             label: standing.label ?? templateChipLabel(naming, tagValue),
             tooltip:
               unlisted?.tooltip ??
-              templateTooltip(naming, tagValue, descriptions, getTypeSentenceForm),
+              templateTooltip(
+                naming,
+                tagValue,
+                descriptions,
+                getTypeSentenceForm,
+                hostSaysOf(tagValue, referenceNames)
+              ),
             // The same chip the read summary (`TemplateText`) and the read-only tag draw.
             ...REFERENCE_CHIP_PROPS,
             ...getTemplateTagStyle(metadata),
@@ -501,12 +509,16 @@ export const RichTextFormField = memo(({
              field's help and in the picker row for an unlabelled value. */
           /* Drawn, as the picker row draws the same string (`descriptionTooltip`):
              left raw, it printed the punctuation the row does not. */
-          tooltip: descriptionTooltip(descriptionByValue[tagValue], descriptions),
-          // The same chip the read summary and the read-only tag draw.
-          ...REFERENCE_CHIP_PROPS,
-          ...getTemplateTagStyle(tag.metadata),
-        };
-      }
+            // what the value is, or why nothing says so (qorus#646)
+            tooltip: descriptionTooltip(
+              descriptionByValue[tagValue] || NO_VALUE_DESCRIPTION,
+              descriptions
+            ),
+            // The same chip the read summary and the read-only tag draw.
+            ...REFERENCE_CHIP_PROPS,
+            ...getTemplateTagStyle(tag.metadata),
+          };
+        }
 
         return {};
       },

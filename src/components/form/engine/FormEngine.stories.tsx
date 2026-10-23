@@ -2,6 +2,7 @@ import {
   ReqoreButton,
   ReqoreFonts,
   ReqoreInput,
+  ReqoreUIProvider,
   ReqoreP,
   ReqoreTag,
   ReqoreTagGroup,
@@ -1389,6 +1390,265 @@ export const CompactRowReleasesItsOpeningFloor: Story = {
 // language" — and the form used to ask it as two unrelated rows one above the
 // other. `absorb_fields` lets the editor take the language into its own
 // container so the pair reads as the single element it is.
+/** A language to write code in, with its logo, as the IDE gives each language choice. */
+const LANGUAGE_CHOICE_OPTIONS = {
+  language: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Language',
+    short_desc: 'The language the code is written in',
+    required: true,
+    allowed_values: [
+      { display_name: 'Qore', value: { type: 'string', value: 'qore' }, image: qoreLogo },
+      { display_name: 'Python', value: { type: 'string', value: 'python' }, image: pythonLogo },
+      { display_name: 'Java', value: { type: 'string', value: 'java' }, image: javaLogo },
+    ],
+  },
+} as never;
+
+/**
+ * The choices of a group drawn with pictures, and which one is chosen - said without color (qorus#646, David: "using
+ * color on the icon on the choice makes it harder to see which one is chosen and impossible to see for people with
+ * issues recognizing colors"): each is a radio whose own mark is not its picture, the picture beside its name; the
+ * chosen one's radio is checked and its mark is another shape than the others'.
+ */
+const expectChosenWithoutColor = async (root: HTMLElement, chosen: string) => {
+  await waitFor(() => {
+    const choices = Array.from(root.querySelectorAll<HTMLElement>('.reqore-checkbox'));
+    expect(choices.map((choice) => choice.textContent?.trim())).toEqual(['Qore', 'Python', 'Java']);
+    const marks = choices.map((choice) => {
+      const input = choice.querySelector<HTMLInputElement>('input');
+      // a radio, its picture beside its name, and a mark of its own that is not the picture
+      expect(input?.type, `${choice.textContent} is a radio`).toBe('radio');
+      expect(choice.querySelector('.choice-picture img')?.getAttribute('src')).toBeTruthy();
+      expect(
+        choice.querySelector('.reqore-checkbox-box img'),
+        'its mark is not its picture'
+      ).toBeNull();
+      expect(input?.checked, `${choice.textContent} is chosen`).toBe(
+        choice.textContent?.trim() === chosen
+      );
+      return (choice.querySelector('.reqore-checkbox-box') as HTMLElement).innerHTML;
+    });
+    // the chosen mark is another shape than the others', which are all alike
+    const at = ['Qore', 'Python', 'Java'].indexOf(chosen);
+    const others = marks.filter((_mark, index) => index !== at);
+    expect(new Set(others).size).toBe(1);
+    expect(marks[at]).not.toBe(others[0]);
+  });
+};
+
+/** Picks a language by its name, and opens its row again if the pick closed it: the open row, its choice drawn. */
+const pickTheChoiceAndOpenAgain = async (canvasElement: HTMLElement, name: string) => {
+  const row = () =>
+    canvasElement.querySelector<HTMLElement>('[data-field="language"]') as HTMLElement;
+  const choice = Array.from(row().querySelectorAll<HTMLElement>('.reqore-checkbox')).find(
+    (item) => item.textContent?.trim() === name
+  ) as HTMLElement;
+  await userEvent.click(choice.querySelector('.reqore-checkbox-label') as HTMLElement);
+  await waitFor(() => expect(row().textContent).toContain(name));
+  if (!row().querySelector('.reqore-checkbox')) {
+    await userEvent.click(row());
+  }
+  return waitFor(() => {
+    expect(row().querySelector('.reqore-checkbox')).toBeTruthy();
+    return row();
+  });
+};
+
+export const AChoiceDrawnByItsPictureSaysWhichIsChosen: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with Language open: three languages, each with its logo. Each is a radio with its logo beside its name, and Python, the one chosen, is a filled radio where the others are empty ones - which one is chosen is a shape, not only a color (David: "the radio buttons are missing"). A click on Qore moves the mark there (the row closes on a pick; opened again, Qore is the filled radio), and from the keyboard Tab lands on the chosen radio and draws its focus ring, which the capture shows.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    initialExpandedOptions: ['language'],
+    value: { language: { type: 'string', value: 'python' } },
+    options: LANGUAGE_CHOICE_OPTIONS,
+  },
+  play: async ({ canvasElement, parameters }) => {
+    await atTheCaptureSize(parameters);
+    const row = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('[data-field="language"]');
+      expect(el?.querySelector('.reqore-checkbox')).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await expectChosenWithoutColor(row, 'Python');
+
+    // a pick moves the mark (the row closes on a pick: opened again, it shows the choice)
+    const open = await pickTheChoiceAndOpenAgain(canvasElement, 'Qore');
+    await expectChosenWithoutColor(open, 'Qore');
+
+    // from the keyboard: Tab into the group lands on the chosen radio, and its ring is drawn on its mark
+    const chosenInput = open.querySelectorAll<HTMLInputElement>('.reqore-checkbox input')[0];
+    chosenInput.focus();
+    await userEvent.tab({ shift: true });
+    await userEvent.tab();
+    await waitFor(() => expect(document.activeElement).toBe(chosenInput));
+    const mark = chosenInput.nextElementSibling as HTMLElement;
+    await waitFor(() => expect(getComputedStyle(mark).outlineStyle).toBe('solid'));
+  },
+};
+
+export const AChoiceDrawnByItsPictureSaysWhichIsChosenOnAPhone: Story = {
+  ...AChoiceDrawnByItsPictureSaysWhichIsChosen,
+  decorators: [withCoarsePointer],
+  parameters: {
+    ...AChoiceDrawnByItsPictureSaysWhichIsChosen.parameters,
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'The same form on a phone (390 px, a finger): each language is a radio with its logo beside its name, inside the screen, and a tap on Qore moves the filled radio there (shown with the row opened again).',
+      },
+    },
+  },
+  play: async ({ canvasElement, parameters }) => {
+    await atTheCaptureSize(parameters);
+    const row = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('[data-field="language"]');
+      expect(el?.querySelector('.reqore-checkbox')).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await expectChosenWithoutColor(row, 'Python');
+    for (const choice of Array.from(row.querySelectorAll<HTMLElement>('.reqore-checkbox'))) {
+      expect(choice.getBoundingClientRect().right).toBeLessThanOrEqual(window.innerWidth + 0.5);
+    }
+    await expectChosenWithoutColor(await pickTheChoiceAndOpenAgain(canvasElement, 'Qore'), 'Qore');
+  },
+};
+
+export const AChoiceDrawnByItsPictureSaysWhichIsChosenInALightTheme: Story = {
+  ...AChoiceDrawnByItsPictureSaysWhichIsChosen,
+  parameters: {
+    ...AChoiceDrawnByItsPictureSaysWhichIsChosen.parameters,
+    docs: {
+      description: {
+        story:
+          'The same form in a light theme: the radios, the filled one chosen, read on a light surface as on a dark one.',
+      },
+    },
+  },
+  render: (args) => (
+    <ReqoreUIProvider theme={{ main: '#f4f4f4' }}>
+      <FormEngine {...(args as IFormEngineProps)} onChange={fn()} />
+    </ReqoreUIProvider>
+  ),
+  play: async ({ canvasElement }) => {
+    const row = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('[data-field="language"]');
+      expect(el?.querySelector('.reqore-checkbox')).toBeTruthy();
+      return el as HTMLElement;
+    });
+    await expectChosenWithoutColor(row, 'Python');
+  },
+};
+
+/** Options whose help says what they take: one with allowed values, one with no description at all. */
+const HELP_WITH_ALLOWED_VALUES_OPTIONS = {
+  language: {
+    type: 'string',
+    ui_type: 'string',
+    display_name: 'Language',
+    short_desc: 'The language the code is written in',
+    desc: 'The language the service code is written in. It decides which runtime runs it.',
+    allowed_values: [
+      {
+        display_name: 'Qore',
+        short_desc: 'Runs in the server itself',
+        value: { type: 'string', value: 'qore' },
+      },
+      {
+        display_name: 'Python',
+        short_desc: 'Runs in an embedded Python',
+        value: { type: 'string', value: 'python' },
+      },
+      {
+        display_name: 'Java',
+        short_desc: 'Runs in an embedded JVM',
+        value: { type: 'string', value: 'java' },
+      },
+    ],
+  },
+  retries: { type: 'int', ui_type: 'int', display_name: 'Retries' },
+} as never;
+
+/** Opens an option's help from its (?) and returns the dialog. */
+const openOptionHelp = async (canvasElement: HTMLElement, field: string) => {
+  const row = await waitFor(() => {
+    const el = canvasElement.querySelector<HTMLElement>(`[data-field="${field}"]`);
+    expect(el?.querySelector('.options-readfirst-help')).toBeTruthy();
+    return el as HTMLElement;
+  });
+  await userEvent.click(row.querySelector('.options-readfirst-help') as HTMLElement);
+  return waitFor(() => {
+    const dialog = document.querySelector<HTMLElement>('.reqore-modal');
+    expect(dialog).toBeTruthy();
+    return dialog as HTMLElement;
+  });
+};
+
+export const AnOptionsHelpListsItsAllowedValues: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a compact form with Language (three allowed values) and Retries (no description at all). The help of Retries says what it takes and why nothing else: "No description was given for this option." (David: "there should be a reason given why there is no description"). The help of Language says what it takes, its description, and its allowed values under a bold "Allowed values": qore (Qore), python (Python) and java (Java), each exact value as data, with its description. The capture leaves that help open.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '360px',
+    value: {
+      language: { type: 'string', value: 'qore' },
+      retries: { type: 'int', value: 3 },
+    },
+    options: HELP_WITH_ALLOWED_VALUES_OPTIONS,
+  },
+  play: async ({ canvasElement, parameters }) => {
+    await atTheCaptureSize(parameters);
+    // no description: it says so, never a blank
+    const retries = await openOptionHelp(canvasElement, 'retries');
+    expect(retries.textContent).toContain('Takes a whole number.');
+    expect(retries.textContent).toContain('No description was given for this option.');
+    expect(retries.querySelector('.allowed-values-help')).toBeNull();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.reqore-modal')).toBeNull());
+
+    // allowed values: the policy
+    const language = await openOptionHelp(canvasElement, 'language');
+    expect(language.textContent).toContain('It decides which runtime runs it.');
+    expect(language.textContent).not.toContain('No description was given');
+    await expectAllowedValuesHelp(language, [
+      ['qore', 'Qore', 'Runs in the server itself'],
+      ['python', 'Python', 'Runs in an embedded Python'],
+      ['java', 'Java', 'Runs in an embedded JVM'],
+    ]);
+  },
+};
+
+export const AnOptionsHelpListsItsAllowedValuesOnAPhone: Story = {
+  ...AnOptionsHelpListsItsAllowedValues,
+  decorators: [withCoarsePointer],
+  parameters: {
+    ...AnOptionsHelpListsItsAllowedValues.parameters,
+    qlip: { viewport: { width: 390, height: 844 } },
+    docs: {
+      description: {
+        story:
+          'The same help on a phone (390 px, a finger): the allowed values of Language, a bullet each, inside the screen.',
+      },
+    },
+  },
+};
+
 export const CompactRowAbsorbsLanguage: Story = {
   parameters: {
     docs: {
@@ -5844,7 +6104,7 @@ export const CompactFieldTypes: Story = {
         group: 'structured',
       },
       // Color & file
-      colour: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Color', group: 'visual' },
+      color: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Color', group: 'visual' },
       tint: {
         type: 'rgbcolor',
         ui_type: 'rgbcolor',
@@ -6072,7 +6332,7 @@ export const CompactFieldTypes: Story = {
         },
       },
       // Color & file
-      colour: { type: 'rgbcolor', value: { r: 0, g: 0, b: 255, a: 1 } },
+      color: { type: 'rgbcolor', value: { r: 0, g: 0, b: 255, a: 1 } },
       tint: { type: 'rgbcolor', value: { r: 255, g: 0, b: 0, a: 0.5 } },
       upload: { type: 'file', value: { name: 'config.txt', size: 1234, content: 'data' } },
       // Any & special
@@ -6280,7 +6540,7 @@ const _compactExpandAllRows = async () => {
  * which a stored color is not (qorus#646, David) but which are still drawn.
  */
 const COMPACT_COLOUR_VALUES = {
-  colour: { r: 100, g: 149, b: 237, a: 1 },
+  color: { r: 100, g: 149, b: 237, a: 1 },
   noOpacity: { r: 46, g: 125, b: 50 },
   seeThrough: { r: 255, g: 0, b: 0, a: 0.5 },
   hexObject: { hex: '#7b1fa2' },
@@ -6299,7 +6559,7 @@ export const CompactColorRows: Story = {
   args: {
     compact: true,
     options: {
-      colour: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Color' },
+      color: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Color' },
       noOpacity: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Color without opacity' },
       seeThrough: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'See-through color' },
       hexObject: { type: 'rgbcolor', ui_type: 'rgbcolor', display_name: 'Hex code' },
@@ -6315,21 +6575,21 @@ export const CompactColorRows: Story = {
   play: async ({ canvasElement }) => {
     await _testsWaitForText('#6495ED');
     await _testsWaitForText('rgba(255, 0, 0, 0.5)');
-    const colours = Array.from(
+    const colors = Array.from(
       canvasElement.querySelectorAll<HTMLElement>('.readfirst-row .reqraft-color-value')
     );
     // in the form's own order
-    await expect(colours.map((colour) => colour.getAttribute('data-color')).sort()).toEqual([
+    await expect(colors.map((color) => color.getAttribute('data-color')).sort()).toEqual([
       '#2E7D32',
       '#6495ED',
       '#7B1FA2',
       '#F80',
       'rgba(255, 0, 0, 0.5)',
     ]);
-    for (const colour of colours) {
-      await expect(colour).toHaveAttribute('data-size', 'compact');
-      const swatch = colour.querySelector<HTMLElement>('[role="img"]')!;
-      await expect(swatch).toHaveAccessibleName(`Color ${colour.getAttribute('data-color')}`);
+    for (const color of colors) {
+      await expect(color).toHaveAttribute('data-size', 'compact');
+      const swatch = color.querySelector<HTMLElement>('[role="img"]')!;
+      await expect(swatch).toHaveAccessibleName(`Color ${color.getAttribute('data-color')}`);
       await expect(swatch.getBoundingClientRect().width).toBe(12);
     }
     // the two hex codes need attention, each saying what is wrong; the three stored colors do not
@@ -9439,6 +9699,54 @@ const expectUnlisted = async (root: HTMLElement, expected: string[]) => {
   }
 };
 
+/** Rests the mouse on an element and returns its hover card, left open. */
+const hoverCard = async (element: HTMLElement) => {
+  await restMouseOn(element, middleOfElement(element));
+  return waitFor(() => {
+    const card = Array.from(
+      document.querySelectorAll<HTMLElement>('.reqore-popover-content')
+    ).pop();
+    expect(card, 'the hover card').toBeTruthy();
+    return card as HTMLElement;
+  });
+};
+
+/** What an element's hover card says; the card is put away again. */
+const hoverCardOf = async (element: HTMLElement) => {
+  const text = (await hoverCard(element)).textContent ?? '';
+  await userEvent.unhover(element);
+  await mouseOffThePage();
+  await waitFor(() => expect(document.querySelector('.reqore-popover-content')).toBeNull());
+  return text;
+};
+
+/**
+ * Allowed values as help shows them (qorus#646, David's policy): a bold "Allowed values" heading, then a bullet a
+ * value - the exact value as data, its name, its description.
+ */
+const expectAllowedValuesHelp = async (root: HTMLElement, values: [string, string, string][]) => {
+  const help = await waitFor(() => {
+    const el = root.querySelector<HTMLElement>('.allowed-values-help');
+    expect(el, 'the allowed values').toBeTruthy();
+    return el as HTMLElement;
+  });
+  const heading = help.querySelector<HTMLElement>('.allowed-values-heading') as HTMLElement;
+  expect(heading.textContent).toBe('Allowed values');
+  expect(Number(getComputedStyle(heading).fontWeight)).toBeGreaterThanOrEqual(600);
+  const bullets = Array.from(help.querySelectorAll<HTMLElement>('ul > li'));
+  expect(bullets.map((bullet) => bullet.querySelector('code.allowed-value')?.textContent)).toEqual(
+    values.map(([value]) => value)
+  );
+  values.forEach(([, name, description], index) => {
+    expect(bullets[index].textContent).toContain(name);
+    expect(bullets[index].textContent).toContain(description);
+  });
+  // data styling: the exact value in a monospaced face
+  expect(
+    getComputedStyle(help.querySelector('code.allowed-value') as HTMLElement).fontFamily
+  ).toMatch(/mono|Menlo|Consolas/i);
+};
+
 const SKIP_WHEN_TEMPLATES = {
   items: [
     {
@@ -9448,7 +9756,20 @@ const SKIP_WHEN_TEMPLATES = {
           value: '$._case.mode',
           label: 'mode (this case)',
           badge: 'string',
-          description: 'How this case runs: live, or simulated.',
+          description: 'How this case runs.',
+          // the values it is one of: its hover lists them, as help lists allowed values
+          allowed_values: [
+            {
+              display_name: 'Live',
+              short_desc: 'Calls the real services',
+              value: { type: 'string', value: 'live' },
+            },
+            {
+              display_name: 'Simulated',
+              short_desc: 'Calls stand-ins; nothing leaves the test',
+              value: { type: 'string', value: 'simulate' },
+            },
+          ],
         },
       ],
     },
@@ -9802,7 +10123,7 @@ export const AReferenceItsHostKnowsWearsItsName: Story = {
     docs: {
       description: {
         story:
-          'The same Skip when value, from a host that knows $._case.attempt though the case does not list it: it names it "attempt (this case)", so the row reads mode (this case) != \'simulate\' && attempt (this case) == 1, with no reference in its raw spelling and none drawn as a warning.',
+          'The same Skip when value, from a host that knows $._case.attempt though the case does not list it: it names it "attempt (this case)" and says what it is, so the row reads mode (this case) != \'simulate\' && attempt (this case) == 1, with no reference in its raw spelling and none drawn as a warning. The hover of attempt says what it is (David: "why is the description missing for attempt?"); the hover of mode says what it is and lists its allowed values under a bold "Allowed values": live (Live) and simulate (Simulated), each value as data, with its description. The capture leaves that hover open.',
       },
     },
   },
@@ -9811,6 +10132,10 @@ export const AReferenceItsHostKnowsWearsItsName: Story = {
     templateReferences: {
       label: (reference: string) =>
         reference === '$._case.attempt' ? 'attempt (this case)' : undefined,
+      describe: (reference: string) =>
+        reference === '$._case.attempt' ?
+          'How many times this case has run, this run included.'
+        : undefined,
       unlistedHint: 'Not a value this case captures',
     },
   },
@@ -9828,6 +10153,22 @@ export const AReferenceItsHostKnowsWearsItsName: Story = {
       ).toEqual(['mode (this case)', 'attempt (this case)'])
     );
     await expectUnlisted(row, []);
+
+    const chip = (name: string) =>
+      Array.from(row.querySelectorAll<HTMLElement>('.reqraft-template-chip')).find(
+        (item) => item.textContent?.trim() === name
+      ) as HTMLElement;
+    // attempt: what the host says it is
+    expect(await hoverCardOf(chip('attempt (this case)'))).toContain(
+      'How many times this case has run, this run included.'
+    );
+    // mode: what it is, and its allowed values, each exact value as data, by its name, described
+    const card = await hoverCard(chip('mode (this case)'));
+    expect(card.textContent).toContain('How this case runs.');
+    await expectAllowedValuesHelp(card, [
+      ['live', 'Live', 'Calls the real services'],
+      ['simulate', 'Simulated', 'Calls stand-ins; nothing leaves the test'],
+    ]);
   },
 };
 
@@ -11086,8 +11427,8 @@ const isDisabled = (control: HTMLElement) =>
 /** The background an element is seen on: its own, or the first one painted behind it. */
 const seenBackground = (el: HTMLElement | null | undefined) => {
   for (let node = el; node; node = node.parentElement) {
-    const colour = getComputedStyle(node).backgroundColor;
-    if (colour && colour !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(colour)) return colour;
+    const color = getComputedStyle(node).backgroundColor;
+    if (color && color !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(color)) return color;
   }
   return undefined;
 };

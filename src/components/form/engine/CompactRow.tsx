@@ -40,6 +40,7 @@ import { useCoarsePointer } from '../../../hooks/useCoarsePointer';
 import { optionTypeSentence, optionTypeWords } from '../../../helpers/qorusTypeCatalogue';
 import { useTypeName, useTypeSentenceForm } from '../typeSentenceForm';
 import { resolveInheritProps } from './inheritProps';
+import { NO_OPTION_DESCRIPTION } from '../../../helpers/noDescription';
 import { revealRow } from './revealRow';
 import {
   MONO_FONT_STACK,
@@ -1409,9 +1410,14 @@ export const CompactRow = memo(
        its types. */
     const typeWords = optionTypeWords(schema, typeName);
     const typeSentence = optionTypeSentence(schema, typeName, typeSentenceForm);
+    // what the option is, or, where it has no description at all, why nothing says so (qorus#646)
     const labelHover =
-      [schema?.short_desc, typeSentence && `Takes ${typeSentence}.`].filter(Boolean).join('\n') ||
-      undefined;
+      [
+        schema?.short_desc || (!schema?.desc && typeSentence ? NO_OPTION_DESCRIPTION : undefined),
+        typeSentence && `Takes ${typeSentence}.`,
+      ]
+        .filter(Boolean)
+        .join('\n') || undefined;
     const typeShown = !!showFieldTypes || showAllDescriptions === true;
     /* the help says what the option takes, and its description where it has one: every option with either has
        it, a short description too, so a touch screen, which has no hover, reaches the type (qorus#646, David) */

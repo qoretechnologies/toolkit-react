@@ -38,6 +38,10 @@ export const useDescriptionTooltips = (): IDescriptionTooltipOptions => {
   return useMemo(() => ({ render, tapToOpen }), [render, tapToOpen]);
 };
 
+/** A description drawn as a hover draws it: by the host's renderer, compact, else as its plain text. */
+export const describedContent = (description: string, { render }: IDescriptionTooltipOptions) =>
+  render ? render({ value: description, compact: true }) : plainTextNode(description);
+
 /**
  * A description from the server as the hover of whatever it describes: a template chip, a choice, a
  * section of a schema.
@@ -64,9 +68,7 @@ export const descriptionTooltip = (
     // a title alone says what the thing it is on already says: nothing for a finger to open
     return title || undefined;
   }
-  const content = (
-    render ? render({ value: description, compact: true }) : plainTextNode(description)
-  ) as IReqoreTooltip['content'];
+  const content = describedContent(description, { render }) as IReqoreTooltip['content'];
   if (typeof content === 'string' && !title && !tapToOpen) {
     return content;
   }

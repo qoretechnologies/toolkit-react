@@ -126,8 +126,88 @@ describe('templateTooltip', () => {
     expect(drawn(tooltip).dataset.drawn).toBe(DESCRIPTION);
   });
 
-  it('is the name alone for a template the catalogue does not describe', () => {
-    expect(templateTooltip(TEMPLATES, '$local:order', { render: hostRender })).toBe('Order id');
+  /* qorus#646, David: "in such cases there should be a reason given why there is no description in the hover" */
+  it('says why there is no description for a template the catalogue does not describe', () => {
+    const tooltip = templateTooltip(TEMPLATES, '$local:order', { render: hostRender });
+    expect(tooltip).toMatchObject({ title: 'Order id' });
+    expect(drawn(tooltip).dataset.drawn).toBe('No description was given for this value.');
+  });
+
+  it("says what a host says of a reference it names, else the host's reason, else why there is none", () => {
+    const described = templateTooltip(
+      TEMPLATES,
+      '$._case.attempt',
+      { render: hostRender },
+      undefined,
+      {
+        label: 'attempt (this case)',
+        description: 'How many times this case has run.',
+      }
+    );
+    expect(described).toMatchObject({ title: 'attempt (this case)' });
+    expect(drawn(described).dataset.drawn).toBe('How many times this case has run.');
+    const hostReason = templateTooltip(
+      TEMPLATES,
+      '$._case.attempt',
+      { render: hostRender },
+      undefined,
+      {
+        label: 'attempt (this case)',
+        noDescription: 'The case does not describe its own counters.',
+      }
+    );
+    expect(drawn(hostReason).dataset.drawn).toBe('The case does not describe its own counters.');
+    // the catalogue's name and description win over the host's for a reference it lists
+    const listed = templateTooltip(
+      TEMPLATES,
+      '$local:customer',
+      { render: hostRender },
+      undefined,
+      {
+        label: 'not this',
+        description: 'nor this',
+      }
+    );
+    expect(listed).toMatchObject({ title: 'Customer name' });
+    expect(drawn(listed).dataset.drawn).toBe(DESCRIPTION);
+  });
+
+  it('lists the allowed values of a template under its description, as help shows them', () => {
+    const withValues = {
+      items: [
+        {
+          label: 'mode',
+          value: '$._case.mode',
+          badge: 'string',
+          description: 'How this case runs.',
+          allowed_values: [
+            {
+              display_name: 'Live',
+              short_desc: 'Calls the real services',
+              value: { type: 'string', value: 'live' },
+            },
+            { value: { type: 'string', value: 'simulate' } },
+          ],
+        },
+      ],
+    } as never;
+    const tooltip = templateTooltip(withValues, '$._case.mode', { render: hostRender });
+    expect(tooltip).toMatchObject({ title: 'mode' });
+    const { container } = render(
+      <ReqoreUIProvider>{(tooltip as IReqoreTooltip).content as ReactNode}</ReqoreUIProvider>
+    );
+    expect(container.querySelector('[data-drawn]')?.getAttribute('data-drawn')).toBe(
+      'Text.\n\nHow this case runs.'
+    );
+    expect(container.querySelector('.allowed-values-heading')?.textContent).toBe('Allowed values');
+    const bullets = Array.from(container.querySelectorAll('.allowed-values-help li'));
+    expect(bullets.map((bullet) => bullet.querySelector('code')?.textContent)).toEqual([
+      'live',
+      'simulate',
+    ]);
+    expect(bullets[0].textContent).toBe('live Live: Calls the real services');
+    // a value with no name of its own and no description is the value alone
+    expect(bullets[1].textContent).toBe('simulate');
   });
 
   /* qorus#646, David on Form Engine · Value Tab Pick Replaces A Referenced Field: the hover of a field should say
@@ -146,7 +226,9 @@ describe('templateTooltip', () => {
     } as IReqoreFormTemplates;
     const pos = templateTooltip(typed, '$record:{pos}', { render: hostRender });
     expect(pos).toMatchObject({ title: 'pos' });
-    expect(drawn(pos).dataset.drawn).toBe('A whole number.');
+    expect(drawn(pos).dataset.drawn).toBe(
+      'A whole number.\n\nNo description was given for this value.'
+    );
     const customer = templateTooltip(typed, '$local:customer', { render: hostRender });
     expect(customer).toMatchObject({ title: 'Customer name' });
     expect(drawn(customer).dataset.drawn).toBe(`Text.\n\n${DESCRIPTION}`);
@@ -154,7 +236,9 @@ describe('templateTooltip', () => {
     const said = templateTooltip(typed, '$record:{pos}', { render: hostRender }, (type) =>
       type === 'int' ? 'eine ganze Zahl' : undefined
     );
-    expect(drawn(said).dataset.drawn).toBe('Eine ganze Zahl.');
+    expect(drawn(said).dataset.drawn).toBe(
+      'Eine ganze Zahl.\n\nNo description was given for this value.'
+    );
   });
 });
 
@@ -169,13 +253,16 @@ describe('makeDpqlTagRenderer', () => {
     expect(drawn(props.tooltip).dataset.drawn).toBe(`Text.\n\n${DESCRIPTION}`);
   });
 
-  it("says a field's type where the record does not describe it", () => {
+  it("says a field's type, and why nothing else, where the record does not describe it", () => {
     const props = makeDpqlTagRenderer(
       { total: { display_name: 'Total', type: { name: 'number' } } },
       { descriptions: { render: hostRender } }
     )({ type: 'tag', value: '@total', children: [{ text: '' }] } as never);
     expect(props.tooltip).toMatchObject({ title: 'Total' });
-    expect(drawn(props.tooltip).dataset.drawn).toBe('An exact number.');
+    // and why nothing else: the record gives no description (qorus#646)
+    expect(drawn(props.tooltip).dataset.drawn).toBe(
+      'An exact number.\n\nNo description was given for this field.'
+    );
   });
 });
 

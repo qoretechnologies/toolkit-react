@@ -202,3 +202,32 @@ describe('the descriptors, on their own', () => {
     expect(tooltip).toMatchObject({ handler: 'hover', delay: 300, placement: 'bottom-start' });
   });
 });
+
+describe('the item the field holds', () => {
+  // qorus#646, David: "using color on the icon on the choice makes it harder to see which one is chosen and
+  // impossible to see for people with issues recognizing colors"
+  it('is marked with a tick and a word, not only a colour, whatever icon or picture it has', async () => {
+    render(
+      <ReqoreUIProvider>
+        <SelectFieldCollection
+          value='python'
+          items={[
+            { display_name: 'Qore', value: 'qore', image: 'qore.png' },
+            { display_name: 'Python', value: 'python', image: 'python.png', badge: 'stable' },
+            { display_name: 'Java', value: 'java', icon: 'CodeLine' },
+          ]}
+          onClose={vi.fn()}
+          onItemSelect={vi.fn()}
+        />
+      </ReqoreUIProvider>
+    );
+    const card = (name: string) =>
+      screen.getAllByText(name)[0].closest('.reqore-collection-item, .reqore-panel') as HTMLElement;
+    await waitFor(() => expect(card('Python')).toBeTruthy());
+    expect(card('Python').textContent).toContain('Chosen');
+    // its own badge kept beside the mark
+    expect(card('Python').textContent).toContain('stable');
+    expect(card('Qore').textContent).not.toContain('Chosen');
+    expect(card('Java').textContent).not.toContain('Chosen');
+  });
+});
