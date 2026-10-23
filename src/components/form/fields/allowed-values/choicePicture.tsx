@@ -1,5 +1,4 @@
 // Copyright 2026 Qore Technologies, s.r.o.
-import { ReqoreIcon } from '@qoretechnologies/reqore';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 
 /** The class of a choice's picture, drawn beside its name. */
@@ -17,13 +16,20 @@ export const pictureBesideTheName = (image: unknown, size?: TSizes) =>
   typeof image === 'string' && image ?
     {
       image: undefined,
+      /* A plain picture in a square, scaled to fit: logos are not square (Qore 106x128, Python 129x128, Java
+         96x128), and a reqore icon fills its width and clips what is taller, as the IDE's radio field found. */
       labelDetail: (
-        <ReqoreIcon
-          className={CHOICE_PICTURE_CLASS}
-          image={image}
-          size={size === 'tiny' || size === 'small' ? '16px' : '20px'}
-          margin='right'
-        />
+        <span className={CHOICE_PICTURE_CLASS} style={{ display: 'inline-flex', marginRight: 6 }}>
+          <img
+            src={image}
+            alt=''
+            style={{
+              width: size === 'tiny' || size === 'small' ? 16 : 20,
+              height: size === 'tiny' || size === 'small' ? 16 : 20,
+              objectFit: 'contain',
+            }}
+          />
+        </span>
       ),
       labelDetailPosition: 'left' as const,
     }
