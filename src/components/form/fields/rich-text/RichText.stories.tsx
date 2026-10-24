@@ -2,6 +2,15 @@ import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 
+import {
+  MARKDOWN_TEMPLATE_VALUE,
+  MARKDOWN_TEMPLATES,
+  playHoverIsDrawn,
+  playTapIsDrawnOnAPhone,
+  withHostMarkdown,
+} from '../../../../stories/templateHover';
+import { withCoarsePointer } from '../../../../stories/coarsePointer';
+import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { StoryMeta } from '../../../../types';
 import { RichTextFormField } from './RichText';
 
@@ -162,7 +171,7 @@ export const ClickOpensTheChoiceChip: Story = {
     docs: {
       description: {
         story:
-          'Renders the RichText field holding a choice drawn as the chip "general", with the default chip behaviour. A click on the chip opens it into its value as editable text: the editor shows C07ERBFS0P6 and no chip, the cursor at its end, so Backspace and a typed 7 make it C07ERBFS0P7, which is what the field emits.',
+          'Renders the RichText field holding a choice drawn as the chip "general", with the default chip behavior. A click on the chip opens it into its value as editable text: the editor shows C07ERBFS0P6 and no chip, the cursor at its end, so Backspace and a typed 7 make it C07ERBFS0P7, which is what the field emits.',
       },
     },
   },
@@ -226,6 +235,68 @@ export const BackspaceOpensTheChoiceChip: Story = {
   },
 };
 
+/** A catalog that names a reference no grammar reads: `@create` is a reference only because it names it. */
+const ARRIVING_CATALOG = { items: [{ label: 'Created order', value: '@create' }] } as never;
+const NO_CATALOG_YET = { items: [] } as never;
+
+export const ChipDrawnWhenItsCatalogArrives: Story = {
+  args: {
+    valueFormat: 'text',
+    allowTemplates: true,
+    value: '@create + 1',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the RichText field holding "@create + 1" before its template catalog has arrived, so @create is text. When the catalog arrives (it names @create "Created order"), @create is drawn as the "Created order" chip, the text unchanged.',
+      },
+    },
+  },
+  render(args) {
+    const [value, setValue] = useState(args.value);
+    // the catalog is fetched: it arrives after the field's first render
+    const [templates, setTemplates] = useState(NO_CATALOG_YET);
+    return (
+      <>
+        <RichTextFormField
+          {...args}
+          templates={templates}
+          value={value}
+          onChange={(next) => {
+            args.onChange?.(next);
+            setValue(next);
+          }}
+        />
+        <button
+          type='button'
+          className='catalog-arrives'
+          onClick={() => setTemplates(ARRIVING_CATALOG)}
+        >
+          Catalog arrives
+        </button>
+      </>
+    );
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    const editor = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
+      expect(el?.textContent).toContain('@create');
+      return el as HTMLElement;
+    });
+    // no catalog yet: nothing names @create
+    expect(editor.querySelector('.reqore-tag')).toBeNull();
+
+    await userEvent.click(canvas.getByText('Catalog arrives'));
+
+    await waitFor(() =>
+      expect(editor.querySelector('.reqore-tag')?.textContent).toContain('Created order')
+    );
+    expect(editor.textContent).toContain('+ 1');
+  },
+};
+
 export const Empty: Story = {
   parameters: {
     docs: {
@@ -257,4 +328,39 @@ export const WithSlateValue: Story = {
     await expect(canvas.getByRole('textbox')).toBeInTheDocument();
     await expect(canvas.getByText('Rich text with Slate format')).toBeInTheDocument();
   },
+};
+
+export const TemplateHoverDrawsTheDescription: Story = {
+  args: {
+    value: `Dear ${MARKDOWN_TEMPLATE_VALUE}, your order has shipped.`,
+    valueFormat: 'text',
+    templates: MARKDOWN_TEMPLATES,
+  },
+  decorators: [withHostMarkdown],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a text field holding a template ("Dear Customer name, your order has shipped."), in a host that draws markdown. Hovered, the chip\'s card shows the description drawn as the template list draws it: "customer’s" in bold and customer.name as code, with no asterisks or backticks, on one line on a wide screen (the card is as wide as what it says, up to 560px).',
+      },
+    },
+  },
+  play: playHoverIsDrawn,
+};
+
+export const TemplateTappedOnAPhone: Story = {
+  tags: ['touch'],
+  args: TemplateHoverDrawsTheDescription.args,
+  // the pointer is a finger where the touches are dispatched too (Storybook's own UI), as on a phone
+  decorators: [withCoarsePointer, withHostMarkdown],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'Renders the same text field on a phone (390 px, touch). Tapped by a finger, the chip\'s card opens with the description drawn (bold and code, no markdown marks) and stays inside the screen.',
+      },
+    },
+  },
+  play: playTapIsDrawnOnAPhone,
 };

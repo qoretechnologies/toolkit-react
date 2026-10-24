@@ -1,6 +1,8 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // Type definitions for the generic SmartEditor primitive.
 
+import { IReqoreRichTextEditorProps } from '@qoretechnologies/reqore/dist/components/RichTextEditor';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { BaseEditor } from 'slate';
 import { HistoryEditor } from 'slate-history';
@@ -48,6 +50,26 @@ export interface ISlateConverter {
     anchorPath: number[],
     anchorOffset: number
   ) => number;
+  /**
+   * Whether `char`, typed right after a reference, ends it: it cannot go on to make the reference longer (a
+   * space or an operator, not a `.` before a sub-field). A reference typed out in full is drawn as its chip once
+   * such a character follows it, as one picked from the completion list is. Without it, a typed reference is
+   * drawn as its chip only once the editor is left.
+   */
+  endsReference?: (char: string) => boolean;
+  /**
+   * Where in a chip's text (its tag `value`, as written) the server says something of a part of it: the field of
+   * `@create.items[*].id`, the `*` of its wildcard, the `id` after it. A chip replaces its text, so the hover a
+   * mouse resting on it - or "Details" with it selected - shows is what the server says at each of these, in one
+   * card. Without it, the chip's hover is what the server says at its start.
+   */
+  hoverOffsetsOf?: (tagValue: string) => number[];
+  /**
+   * How much of the end of `textBefore` (the text before the caret) is a reference still being written: what a chip
+   * put in at the caret takes the place of - from the list the editor's templates are browsed in, as from the
+   * completion list. 0 when there is none. Without it, a chip goes in beside what is typed.
+   */
+  referenceBeingWritten?: (textBefore: string) => number;
 }
 
 /**
@@ -85,7 +107,7 @@ export type TCompletionInserter = (
   context: ICompletionInserterContext
 ) => void;
 
-import { ILspCompletionItem } from '../../utils/lspClient.types';
+import { ILspCompletionItem, ILspDiagnostic } from '../../utils/lspClient.types';
 
 export type { ILspCompletionItem };
 
@@ -153,6 +175,13 @@ export interface ISmartEditorProps {
    */
   height?: string;
 
+  /**
+   * The size the text is drawn at, as a field of that size draws it - and the chips in it with it. A host
+   * drawing the same value as another field (an expression's Value and Expression tabs) gives both one size,
+   * so a reference is the same chip in either (qorus#646). The editor's own when not given.
+   */
+  size?: TSizes;
+
   /** Read-only mode. */
   readOnly?: boolean;
 
@@ -162,12 +191,17 @@ export interface ISmartEditorProps {
    * for read-only display surfaces showing text that is not expected to
    * be valid in the session's language — e.g. the expression "Explain"
    * panel, which renders the server's human-readable rendering through
-   * the editor for chips + token colours but is not parseable DPQL.
+   * the editor for chips + token colors but is not parseable DPQL.
    */
   showDiagnostics?: boolean;
 
   /** Called when the editor loses focus. */
   onBlur?: () => void;
+  /**
+   * What the editor lists when it is clicked, tapped or tabbed into, and inserts as chips - the field's
+   * templates (see `useTemplateTags`). The language server's completion stays as it is, opened by typing.
+   */
+  tags?: IReqoreRichTextEditorProps['tags'];
 
   /**
    * Custom loading indicator rendered as an overlay on top of the
@@ -186,6 +220,12 @@ export interface ISmartEditorProps {
    * distracting.
    */
   enableHover?: boolean;
+
+  /**
+   * How long the mouse rests before its hover is asked for, in ms. Default 300: a mouse passing over the
+   * text asks nothing. Only a mouse (or a pen held above the screen) hovers; a finger has "Details".
+   */
+  hoverDelayMs?: number;
 
   /**
    * Generic "this editor is busy" flag — when `true`, the loading
@@ -208,4 +248,35 @@ export interface ISmartEditorProps {
    * don't support it.
    */
   enableSignatureHelp?: boolean;
+
+  /**
+   * A click, a tap or Tab into the text asks what can be written at the caret, and the completion list opens
+   * there if anything can - in place of a browse list (`tags`): one list for what can be written, opened by a
+   * click as by typing (qorus#646, David's decision).
+   */
+  completeOnClick?: boolean;
+
+  /**
+   * What the completion list offers at the caret, from what the server offered there: the host's own entries
+   * (a field's templates) merged in where they can be written. `serverItems` is undefined where no server can be
+   * asked: the list is the host's alone then.
+   */
+  completionsWith?: (context: ICompletionContext) => ILspCompletionItem[];
+
+  /** What the completion list says where it has nothing to offer at the caret, or undefined for no list there. */
+  emptyCompletionMessage?: (plainText: string, offset: number) => string | undefined;
+
+  /**
+   * The server's diagnostics as the editor says them, for the text they are of: a host's own words for what it
+   * wrote itself (an unfinished expression's placeholders), say.
+   */
+  presentDiagnostics?: (diagnostics: ILspDiagnostic[], plainText: string) => ILspDiagnostic[];
+}
+
+/** Where the completion list is asked for: the text, the caret's offset in it, and what the server offered. */
+export interface ICompletionContext {
+  plainText: string;
+  offset: number;
+  /** What the server offered at the caret; undefined where no server can be asked. */
+  serverItems?: ILspCompletionItem[];
 }

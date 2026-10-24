@@ -137,7 +137,8 @@ async function doFetchData(
   noApiPrefix = false,
   instance = fetchConfig.instance,
   headers?: Record<string, string>,
-  token?: string
+  token?: string,
+  signal?: AbortSignal
 ): Promise<Response> {
   // We do not check for token because Qorus now handles auth automatically via cookies
   // token is only supplied in a dev environment
@@ -158,6 +159,7 @@ async function doFetchData(
     headers: finalHeaders,
     body: JSON.stringify(body),
     credentials: 'include',
+    signal,
   }).catch((error) => {
     return new Response(JSON.stringify({}), {
       status: 500,
@@ -211,6 +213,13 @@ export interface IReqraftQueryConfig {
    * runner or a Storybook preview) pass `false`.
    */
   redirectOnUnauthorized?: boolean;
+  /**
+   * Abandons the request when it aborts: the request is cancelled, and the call is answered as a
+   * request that failed (`ok: false`). For a caller that must not wait on a server that does not
+   * answer, such as `ReqraftWebSocket`'s server-status probe. A call that joins an identical
+   * request already in flight shares that request, which this signal does not cancel.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -318,6 +327,7 @@ export async function query<T>({
   cacheKey,
   staleTime,
   redirectOnUnauthorized = true,
+  signal,
 }: IReqraftQueryConfig): Promise<IReqraftFetchResponse<T>> {
   const shouldCache = method === 'DELETE' || method === 'POST' ? false : cache;
   const key = cacheKey ?? reqraftCacheKey({ url, method, body, noApiPrefix, instance, token });
@@ -325,7 +335,16 @@ export async function query<T>({
   const requestData = await queryClient.fetchQuery({
     queryKey: [key],
     queryFn: async () => {
-      const response = await doFetchData(url, method, body, noApiPrefix, instance, headers, token);
+      const response = await doFetchData(
+        url,
+        method,
+        body,
+        noApiPrefix,
+        instance,
+        headers,
+        token,
+        signal
+      );
 
       if (response.status === 401 && redirectOnUnauthorized && fetchConfig.unauthorizedRedirect) {
         // `replace`, not an assignment: the page being left is dead, and a
@@ -412,6 +431,7 @@ export async function queryRaw({
   token,
   accept = '*/*',
   redirectOnUnauthorized = true,
+  signal,
 }: Omit<IReqraftQueryConfig, 'cache' | 'queryClient' | 'cacheKey' | 'staleTime'> & {
   accept?: string;
 }): Promise<IReqraftRawResponse> {
@@ -426,7 +446,8 @@ export async function queryRaw({
         Accept: accept,
         ...(headers ?? {}),
       },
-      token
+      token,
+      signal
     );
 
     if (response.status === 401 && redirectOnUnauthorized && fetchConfig.unauthorizedRedirect) {

@@ -128,18 +128,84 @@ describe('an unfulfilled dependency withholds a field instead of offering it', (
     expect(row(container, 'cookie_name')).toBeTruthy();
   });
 
-  it('keeps a dependent field that already has a value, so it cannot be orphaned', async () => {
-    // Withholding applies to NOT-YET-ADDED fields only. A profile saved as a
-    // cookie scheme and later switched to Permissive still carries the value;
-    // dropping its row would hide a value that is still being submitted, with no
-    // way to see or clear it. It stays listed, and renders disabled with the
-    // reason — which is what the disabled treatment is for.
-    const { container } = renderForm({
-      type: { type: 'string', value: 'permissive' },
-      redirect_url: { type: 'string', value: 'https://example.com/login' },
-    } as never);
+  it('hides a dependent field that already has a value, keeps the value, and says so', async () => {
+    // A profile saved as a cookie scheme and later switched to Permissive still carries the value. The field
+    // does not apply, so it is not shown (qorus#646, David: a field waiting, locked, in front of its value, is
+    // removed until it can be used). The value is not dropped: the form keeps it, and its note says so.
+    const onChange = vi.fn();
+    const { container } = render(
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine
+            compact
+            name='scheme'
+            value={
+              {
+                type: { type: 'string', value: 'permissive' },
+                redirect_url: { type: 'string', value: 'https://example.com/login' },
+              } as never
+            }
+            options={SCHEME}
+            onChange={onChange}
+          />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
 
-    await waitFor(() => expect(row(container, 'redirect_url')).toBeTruthy());
-    expect(row(container, 'redirect_url')?.className).toContain('readfirst-row-disabled');
+    const note = await waitFor(() => {
+      const found = container.querySelector('[data-field-hidden="redirect_url"]');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    expect(row(container, 'redirect_url')).toBeNull();
+    expect(note.textContent).toBe(
+      '"Redirect URL" is hidden until it applies ("Scheme Type" must be "cookie"). Its value is kept, and not used until then.'
+    );
+    // the value is not cleared
+    for (const [, value] of onChange.mock.calls) {
+      expect((value as Record<string, { value?: unknown }>).redirect_url?.value).toBe(
+        'https://example.com/login'
+      );
+    }
+  });
+
+  it('hides it in the classic form too, and shows it once its dependency holds', async () => {
+    const classic = (value: Record<string, unknown>) => (
+      <ReqoreUIProvider>
+        <FetchContext.Provider value={fetchContext}>
+          <FormEngine name='scheme' value={value as never} options={SCHEME} onChange={vi.fn()} />
+        </FetchContext.Provider>
+      </ReqoreUIProvider>
+    );
+    const shown = (container: HTMLElement, label: string) =>
+      (container.textContent || '').includes(label);
+    const { container, rerender } = render(
+      classic({
+        type: { type: 'string', value: 'permissive' },
+        redirect_url: { type: 'string', value: 'https://example.com/login' },
+      })
+    );
+    await waitFor(() =>
+      expect(container.querySelector('[data-field-hidden="redirect_url"]')).toBeTruthy()
+    );
+    // the field is not drawn: its name is said only in the note
+    const outsideNote = () =>
+      [...container.querySelectorAll<HTMLElement>('*')].some(
+        (element) =>
+          element.childElementCount === 0 &&
+          element.textContent === 'Redirect URL' &&
+          !element.closest('.form-hidden-field-notes')
+      );
+    expect(outsideNote()).toBe(false);
+
+    rerender(
+      classic({
+        type: { type: 'string', value: 'cookie' },
+        redirect_url: { type: 'string', value: 'https://example.com/login' },
+      })
+    );
+    await waitFor(() => expect(outsideNote()).toBe(true));
+    expect(container.querySelector('.form-hidden-field-notes')).toBeNull();
+    expect(shown(container, 'https://example.com/login')).toBe(true);
   });
 });

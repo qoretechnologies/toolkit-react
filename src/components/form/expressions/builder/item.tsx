@@ -7,11 +7,15 @@ import { rgba } from 'polished';
 import { useCallback, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-export const StyledExpressionItem: React.FC<IExpressionItemProps> = styled.div`
+// The item's own flags style it as transient props (`$`): styled-components keeps those, so an item drawn
+// `as` a panel never hands them on.
+export const StyledExpressionItem: React.FC<
+  IReqorePanelProps & { $isChild?: boolean; $isAndOr?: boolean; $index?: number }
+> = styled.div`
   position: relative;
   overflow: unset;
 
-  ${({ isChild, isAndOr, index }) =>
+  ${({ $isChild: isChild, $isAndOr: isAndOr, $index: index }) =>
     isChild &&
     css`
       &::before {
@@ -33,7 +37,13 @@ export interface IExpressionItemProps extends IReqorePanelProps {
   readOnly?: boolean;
 }
 
-export const ExpressionItem = (props: IExpressionItemProps) => {
+export const ExpressionItem = ({
+  isChild,
+  isAndOr,
+  index,
+  readOnly,
+  ...props
+}: IExpressionItemProps) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   const handleFullscreenToggle = useCallback(() => {
@@ -48,9 +58,12 @@ export const ExpressionItem = (props: IExpressionItemProps) => {
         responsiveTitle={false}
         collapseButtonProps={{ size: 'tiny' }}
         {...props}
+        $isChild={isChild}
+        $isAndOr={isAndOr}
+        $index={index}
         actions={[
           {
-            show: focused || props.readOnly ? false : 'hover',
+            show: focused || readOnly ? false : 'hover',
             icon: 'FullscreenLine',
             tooltip: 'Focused Editing',
             className: 'expression-item-fullscreen',

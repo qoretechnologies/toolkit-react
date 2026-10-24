@@ -17,7 +17,13 @@ export interface IConfirmUnsupportedTypeModalProps extends IReqoreModalProps {
 }
 
 export const ConfirmUnsupportedTypeModal = memo(
-  ({ acceptedTypes, children, ...rest }: IConfirmUnsupportedTypeModalProps) => {
+  ({
+    acceptedTypes,
+    children,
+    // this modal's own prop; ReqoreModal does not take it, so it stops here
+    exactMatch, // eslint-disable-line @typescript-eslint/no-unused-vars
+    ...rest
+  }: IConfirmUnsupportedTypeModalProps) => {
     const types = useQorusTypes();
     const [doNotShowTypeConfirmation, setDoNotShowTypeConfirmation] = useReqraftStorage<boolean>(
       'doNotShowTypeExpressionConfirmation',
@@ -39,19 +45,15 @@ export const ConfirmUnsupportedTypeModal = memo(
         ) : (
           <ReqoreControlGroup vertical fluid horizontalAlign='center' gapSize='big'>
             <ReqoreP style={{ textAlign: 'center' }}>
-              The type you have selected does not conform to the expected types for this argument.
-              Expected types are:{' '}
+              This value needs one of these types:
             </ReqoreP>
             <ReqoreTagGroup size='small' align='center'>
               {acceptedTypes?.map((t) => (
-                <ReqoreTag
-                  key={t}
-                  label={types.value?.find((type) => type.name === t)?.display_name || t}
-                />
+                <ReqoreTag key={t} label={types.getTypeDisplayName(t)} />
               ))}
             </ReqoreTagGroup>
             <ReqoreP style={{ textAlign: 'center' }}>
-              Are you sure you want to proceed with this type?
+              Use this type anyway?
             </ReqoreP>
             <ReqoreCheckbox
               label="Don't show again"

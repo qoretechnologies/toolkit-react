@@ -70,7 +70,7 @@ describe('a compact row carrying an expression', () => {
   it('shows the expression as DPQL, through the one read-only rendering', async () => {
     /* Every read-only expression surface — Explain, Preview, a suggested
        conversion, this row — draws through `DpqlRendering`, so the row and the
-       editor it opens read the same: monospace, server-coloured, references as
+       editor it opens read the same: monospace, server-colored, references as
        chips. Proportional text here was the one place that differed. */
     renderRow({
       type: 'auto',

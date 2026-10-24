@@ -1,0 +1,486 @@
+[
+  {
+    "name": "any",
+    "display_name": "Any",
+    "sentence_form": "any value",
+    "short_desc": "Any data type",
+    "desc": "Any data type",
+    "types_accepted": [
+      "any"
+    ],
+    "exact_match": [
+      "any"
+    ],
+    "offered": true
+  },
+  {
+    "name": "context",
+    "display_name": "Context",
+    "sentence_form": "a value of the context's type",
+    "short_desc": "The data type is determined by the context value chosen",
+    "desc": "The data type is determined by the context value chosen",
+    "types_accepted": [
+      "any"
+    ],
+    "exact_match": [
+      "any"
+    ],
+    "offered": true
+  },
+  {
+    "name": "string",
+    "display_name": "Text",
+    "sentence_form": "text",
+    "short_desc": "Text",
+    "desc": "Text",
+    "types_accepted": [
+      "any"
+    ],
+    "exact_match": [
+      "string",
+      "richtext"
+    ],
+    "offered": true
+  },
+  {
+    "name": "richtext",
+    "display_name": "Rich text",
+    "sentence_form": "formatted text",
+    "short_desc": "Text with formatting",
+    "desc": "Text with formatting",
+    "types_accepted": [
+      "any"
+    ],
+    "exact_match": [
+      "string",
+      "richtext"
+    ],
+    "offered": true
+  },
+  {
+    "name": "int",
+    "display_name": "Whole number",
+    "sentence_form": "a whole number",
+    "short_desc": "A whole number (64-bit)",
+    "desc": "A whole number (64-bit)",
+    "types_accepted": [
+      "int",
+      "float",
+      "number"
+    ],
+    "exact_match": [
+      "int",
+      "float",
+      "number"
+    ],
+    "offered": true
+  },
+  {
+    "name": "float",
+    "display_name": "Number",
+    "sentence_form": "a number",
+    "short_desc": "A number with a fractional part (double precision)",
+    "desc": "A number with a fractional part (double precision)",
+    "types_accepted": [
+      "float",
+      "int",
+      "number"
+    ],
+    "exact_match": [
+      "float",
+      "int",
+      "number"
+    ],
+    "offered": true
+  },
+  {
+    "name": "number",
+    "display_name": "Exact number",
+    "sentence_form": "an exact number",
+    "short_desc": "A decimal number kept exactly",
+    "desc": "A decimal number kept exactly",
+    "types_accepted": [
+      "number",
+      "float",
+      "int"
+    ],
+    "exact_match": [
+      "number",
+      "float",
+      "int"
+    ],
+    "offered": true
+  },
+  {
+    "name": "bool",
+    "display_name": "True or false",
+    "sentence_form": "true or false",
+    "short_desc": "True or false",
+    "desc": "True or false",
+    "types_accepted": [
+      "bool"
+    ],
+    "exact_match": [
+      "bool"
+    ],
+    "offered": true
+  },
+  {
+    "name": "date",
+    "display_name": "Date",
+    "sentence_form": "a date and time",
+    "short_desc": "A date and time",
+    "desc": "A date and time",
+    "types_accepted": [
+      "date"
+    ],
+    "exact_match": [
+      "date"
+    ],
+    "offered": true
+  },
+  {
+    "name": "time",
+    "display_name": "Time",
+    "sentence_form": "a time of day",
+    "short_desc": "A time of day",
+    "desc": "A time of day",
+    "types_accepted": [
+      "date"
+    ],
+    "exact_match": [
+      "date"
+    ],
+    "offered": true
+  },
+  {
+    "name": "binary",
+    "display_name": "Binary data",
+    "sentence_form": "binary data",
+    "short_desc": "Binary data",
+    "desc": "Binary data",
+    "types_accepted": [
+      "binary"
+    ],
+    "exact_match": [
+      "binary"
+    ],
+    "offered": true
+  },
+  {
+    "name": "data",
+    "display_name": "Text or binary data",
+    "sentence_form": "text or binary data",
+    "short_desc": "Text or binary data",
+    "desc": "Text or binary data",
+    "types_accepted": [
+      "string",
+      "richtext",
+      "binary",
+      "data",
+      "email",
+      "uri",
+      "uuid",
+      "hostname",
+      "ipv4",
+      "ipv6",
+      "phone"
+    ],
+    "exact_match": [
+      "string",
+      "richtext",
+      "binary",
+      "data"
+    ],
+    "offered": true
+  },
+  {
+    "name": "hash",
+    "display_name": "Key-value pairs (hash)",
+    "sentence_form": "key-value pairs (a hash)",
+    "short_desc": "Key-value pairs (hash)",
+    "desc": "Key-value pairs (a hash): each value is stored under a named key",
+    "types_accepted": [
+      "hash",
+      "file"
+    ],
+    "exact_match": [
+      "hash"
+    ],
+    "offered": true
+  },
+  {
+    "name": "list",
+    "display_name": "List",
+    "sentence_form": "a list",
+    "short_desc": "List",
+    "desc": "List",
+    "types_accepted": [
+      "list"
+    ],
+    "exact_match": [
+      "list"
+    ],
+    "offered": true
+  },
+  {
+    "name": "rgbcolor",
+    "display_name": "Color",
+    "sentence_form": "a color",
+    "short_desc": "A color: red, green and blue from 0 to 255 and an opacity from 0 to 1",
+    "desc": "A color, stored as a hash: r, g and b are integers from 0 to 255, and a is the opacity, from 0 (transparent) to 1 (opaque); a missing or null a is opaque. A hex code such as #ff0000 is not a stored color.",
+    "types_accepted": [
+      "rgbcolor"
+    ],
+    "exact_match": [
+      "rgbcolor"
+    ],
+    "offered": true
+  },
+  {
+    "name": "workflow",
+    "display_name": "Workflow",
+    "sentence_form": "a workflow",
+    "short_desc": "Qorus workflow",
+    "desc": "Qorus workflow",
+    "types_accepted": [
+      "workflow",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "workflow",
+      "string",
+      "richtext"
+    ],
+    "offered": true
+  },
+  {
+    "name": "service",
+    "display_name": "Service",
+    "sentence_form": "a service",
+    "short_desc": "Qorus service",
+    "desc": "Qorus service",
+    "types_accepted": [
+      "service",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "service",
+      "string",
+      "richtext"
+    ],
+    "offered": true
+  },
+  {
+    "name": "job",
+    "display_name": "Job",
+    "sentence_form": "a job",
+    "short_desc": "Qorus job",
+    "desc": "Qorus job",
+    "types_accepted": [
+      "job",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "job",
+      "string",
+      "richtext"
+    ],
+    "offered": true
+  },
+  {
+    "name": "mapper",
+    "display_name": "Mapper",
+    "sentence_form": "a mapper",
+    "short_desc": "Qorus mapper",
+    "desc": "Qorus mapper",
+    "types_accepted": [
+      "mapper",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "mapper",
+      "string",
+      "richtext"
+    ],
+    "offered": true
+  },
+  {
+    "name": "data-provider",
+    "display_name": "Data provider",
+    "sentence_form": "a data provider",
+    "short_desc": "Qorus data provider",
+    "desc": "Qorus data provider",
+    "types_accepted": [
+      "data-provider"
+    ],
+    "exact_match": [
+      "data-provider"
+    ],
+    "offered": true
+  },
+  {
+    "name": "connection",
+    "display_name": "Connection",
+    "sentence_form": "a connection",
+    "short_desc": "Qorus connection",
+    "desc": "Qorus connection",
+    "types_accepted": [
+      "connection",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "connection",
+      "string",
+      "richtext"
+    ],
+    "offered": true
+  },
+  {
+    "name": "email",
+    "display_name": "Email address",
+    "sentence_form": "an email address",
+    "short_desc": "An email address",
+    "desc": "An email address, such as user@example.com",
+    "types_accepted": [
+      "email",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "email",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "uri",
+    "display_name": "Address (URI)",
+    "sentence_form": "an address (a URI)",
+    "short_desc": "An address that starts with its scheme (a URI)",
+    "desc": "An address that starts with its scheme (a URI), such as https://example.com/",
+    "types_accepted": [
+      "uri",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "uri",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "uuid",
+    "display_name": "Unique identifier (UUID)",
+    "sentence_form": "a unique identifier (a UUID)",
+    "short_desc": "A universally unique identifier (a UUID)",
+    "desc": "A universally unique identifier (a UUID): 32 hexadecimal digits in groups of 8, 4, 4, 4 and 12, such as 123e4567-e89b-12d3-a456-426614174000",
+    "types_accepted": [
+      "uuid",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "uuid",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "hostname",
+    "display_name": "Host name",
+    "sentence_form": "a host name",
+    "short_desc": "A host or domain name",
+    "desc": "A host or domain name, such as example.com",
+    "types_accepted": [
+      "hostname",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "hostname",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "ipv4",
+    "display_name": "IPv4 address",
+    "sentence_form": "an IPv4 address",
+    "short_desc": "An IPv4 address",
+    "desc": "An IPv4 address, such as 192.0.2.1",
+    "types_accepted": [
+      "ipv4",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "ipv4",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "ipv6",
+    "display_name": "IPv6 address",
+    "sentence_form": "an IPv6 address",
+    "short_desc": "An IPv6 address",
+    "desc": "An IPv6 address, such as 2001:db8::1",
+    "types_accepted": [
+      "ipv6",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "ipv6",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "phone",
+    "display_name": "Phone number",
+    "sentence_form": "a phone number",
+    "short_desc": "A telephone number",
+    "desc": "A telephone number, such as +1 555 0100",
+    "types_accepted": [
+      "phone",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "phone",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "file",
+    "display_name": "File",
+    "sentence_form": "a file",
+    "short_desc": "A file: its name, its content and its MIME type",
+    "desc": "A file, stored as a hash: its name, its content (raw or base64-encoded) and its MIME type",
+    "types_accepted": [
+      "file",
+      "hash"
+    ],
+    "exact_match": [
+      "file",
+      "hash"
+    ],
+    "offered": false
+  }
+]

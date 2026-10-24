@@ -10,23 +10,34 @@ import { expandSnippet, lspPositionToOffset } from '../smartEditor/helpers';
 import { ISlateElement, TCompletionInserter } from '../smartEditor/types';
 import { getTagLabel, isTagCompletion } from './dpqlHelpers';
 
+/** The word typed before the caret: a sigil (`@`, `$`) and what a name or a template goes on with after it. */
+const TYPED_WORD = /[@$]?[\w.:{}-]*$/;
+
 /**
- * Walk back from the cursor to find the start of the partial token the
- * user typed. Matches the same heuristic the generic
- * `useLspAutocomplete.findTokenStart` uses internally — duplicated here
- * because the inserter runs at completion-accept time and needs to slice
- * the partial token before inserting the chosen completion.
+ * What is typed before the caret in the text it is in: what a pick may take the place of. Never anything across a
+ * chip: read from the whole text, the word before a caret just after a chip was the chip's own text
+ * (`$record:{pos}`), and a pick deleted the chip - an operator picked after `pos` took its place (qorus#646,
+ * David's review).
  */
-function findTokenStart(plainText: string, cursorOffset: number): number {
-  let i = cursorOffset - 1;
-  while (i >= 0 && /[\w.:{}-]/.test(plainText[i])) {
-    i--;
+const typedBeforeCaret = (editor: BaseEditor & ReactEditor & HistoryEditor): string => {
+  const at = editor.selection?.anchor;
+  if (!at) {
+    return '';
   }
-  if (i >= 0 && /[@$]/.test(plainText[i])) {
-    i--;
+  try {
+    const [node] = Editor.node(editor, at.path);
+    return typeof (node as { text?: unknown }).text === 'string' ?
+        (node as { text: string }).text.slice(0, at.offset)
+      : '';
+  } catch {
+    // a path the editor no longer has: nothing was typed there
+    return '';
   }
-  return i + 1;
-}
+};
+
+/** An operator that joins two values (`==`, `&&`, `between`): written with a space on each side. */
+const isJoiningOperator = (item: { kind?: number; label?: string }) =>
+  (item.kind === 14 || item.kind === 24) && !!item.label && !/^[[{.(!]/.test(item.label);
 
 /**
  * DPQL completion inserter. For tag completions (`@field` / `$template:…`),
@@ -84,20 +95,19 @@ export const dpqlCompletionInserter: TCompletionInserter = (item, editor, ctx) =
   // inserting at the cursor.
   if (!ed.selection) return;
 
-  let charsToDelete: number;
-  if (item.textEdit) {
-    const startOffset = lspPositionToOffset(ctx.plainText, item.textEdit.range.start);
-    charsToDelete = Math.max(0, ctx.cursorOffset - startOffset);
-  } else {
-    // Heuristic fallback — same logic the old DPQL inserter used.
-    const tokenStart = findTokenStart(ctx.plainText, ctx.cursorOffset);
-    charsToDelete = Math.max(0, ctx.cursorOffset - tokenStart);
-  }
-
+  // what the pick takes the place of: what was typed for it, in the text the caret is in
+  const typed = typedBeforeCaret(ed);
+  const charsToDelete = Math.min(
+    typed.length,
+    item.textEdit ?
+      Math.max(0, ctx.cursorOffset - lspPositionToOffset(ctx.plainText, item.textEdit.range.start))
+    : (TYPED_WORD.exec(typed)?.[0].length ?? 0)
+  );
   if (charsToDelete > 0) {
-    for (let i = 0; i < charsToDelete; i++) {
-      Editor.deleteBackward(ed, { unit: 'character' });
-    }
+    const at = ed.selection.anchor;
+    Transforms.delete(ed, {
+      at: { anchor: { path: at.path, offset: at.offset - charsToDelete }, focus: at },
+    });
   }
 
   if (isTagCompletion(insertValue)) {
@@ -109,6 +119,11 @@ export const dpqlCompletionInserter: TCompletionInserter = (item, editor, ctx) =
     };
     Transforms.insertNodes(ed, tagElement as any);
     Transforms.move(ed);
+  } else if (isJoiningOperator(item)) {
+    // an operator after a value is written apart from it, and from the value that follows it: `pos == `
+    const before = typedBeforeCaret(ed);
+    const joined = /\s$/.test(before) || (!before && !hasChipBefore(ed)) ? '' : ' ';
+    Transforms.insertText(ed, `${joined}${insertValue} `);
   } else {
     Transforms.insertText(ed, insertValue);
   }
@@ -117,5 +132,20 @@ export const dpqlCompletionInserter: TCompletionInserter = (item, editor, ctx) =
     ReactEditor.focus(ed);
   } catch {
     // Editor may not be focused.
+  }
+};
+
+/** Whether a chip is just before the caret, in the text the caret starts: a value an operator is written apart from. */
+const hasChipBefore = (editor: BaseEditor & ReactEditor & HistoryEditor): boolean => {
+  const at = editor.selection?.anchor;
+  if (!at || at.offset !== 0) {
+    return false;
+  }
+  try {
+    const previous = Editor.previous(editor, { at: at.path });
+    return (previous?.[0] as { type?: string } | undefined)?.type === 'tag';
+  } catch {
+    // nothing before it
+    return false;
   }
 };

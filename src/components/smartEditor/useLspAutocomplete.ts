@@ -2,7 +2,7 @@
 
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BaseEditor, Transforms } from 'slate';
+import { BaseEditor, BasePoint, Point, Range, Transforms } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
 import { ILspCompletionItem } from '../../utils/lspClient.types';
@@ -24,7 +24,7 @@ const COMPLETION_KIND_LABELS: Record<number, string> = {
   15: 'Snippets',
 };
 
-const COMPLETION_KIND_CHIPS: Record<number, string> = {
+export const COMPLETION_KIND_CHIPS: Record<number, string> = {
   1: 'Text',
   2: 'Method',
   3: 'Function',
@@ -88,6 +88,11 @@ export interface IUseLspAutocompleteOptions {
    * value is inserted as a tag element, plain text, with re-trigger, etc.
    */
   inserter: TCompletionInserter;
+  /**
+   * What the list says where it has nothing to offer at the caret (`plainText` up to `offset`), or undefined for no
+   * list there: "No record fields here" for an `@` where there is no record (qorus#646).
+   */
+  emptyMessage?: (plainText: string, offset: number) => string | undefined;
 }
 
 export interface IUseLspAutocompleteResult {
@@ -98,6 +103,10 @@ export interface IUseLspAutocompleteResult {
   // open with a stub even when `items` is empty, unlike normal typing.
   isReplaceMode: boolean;
   isFetching: boolean;
+  /** What the open list says in place of rows, where nothing can be offered (`emptyMessage`). */
+  emptyMessage?: string;
+  /** The list is open, or asked for and on its way. */
+  isActive: boolean;
   focusedIndex: number;
   close: () => void;
   onSlateChange: (
@@ -108,22 +117,167 @@ export interface IUseLspAutocompleteResult {
     item: ICompletionDropdownItem,
     editor: BaseEditor & ReactEditor & HistoryEditor
   ) => void;
+  /**
+   * Asks for what can be written at `caret` (the caret a click, a tap or Tab put there, read from the page),
+   * and opens the list at `rect` if anything can: a click, tap or Tab into an editor asks, as typing does.
+   */
+  openAtCaret: (
+    editor: BaseEditor & ReactEditor & HistoryEditor,
+    caret: BasePoint,
+    rect: { left: number; bottom: number }
+  ) => void;
   // Open in "replace mode" anchored at an existing tag chip; `chipRect`
   // is the chip's viewport rect, `chipPath` is forwarded to the inserter.
   openAtChip: (
     editor: BaseEditor & ReactEditor & HistoryEditor,
     chipPath: number[],
-    chipRect: { left: number; bottom: number }
+    chipRect: { left: number; bottom: number },
+    options?: {
+      /**
+       * Ask what can be written in the chip's place - the text without it, at its start - rather than what could
+       * complete it: a DPQL editor's chip is a whole value, and after it only operators could be written.
+       */
+      inItsPlace?: boolean;
+    }
   ) => void;
-  // Drops the spurious close Reqore's outside-click detector fires on the
-  // same click that opened the popover; without it the chip click would
-  // open then immediately close.
-  handleExternalClose: (open: boolean) => void;
+  /**
+   * The list's popover with key `key` (`popoverKey` as it was drawn) says it closed - a click outside it, or
+   * Escape: the list is put away. A popover a chip has since replaced says so too, after the list has opened
+   * at that chip, and is not heard.
+   */
+  handleExternalClose: (open: boolean, key: number) => void;
   // Bumped on every (re)open; used as the ReqorePopover `key` to force a
   // fresh mount so its internal `showing` state stays in sync with ours.
   popoverKey: number;
   position: { top: number; left: number };
+  /**
+   * The row whose documentation is shown under it in the list (its `value`), or null. A row's documentation
+   * is otherwise a hover, which a keyboard and a finger cannot reach: its ⓘ, or Ctrl+Space on the row the
+   * keyboard is on, shows it.
+   */
+  docsFor: string | null;
+  /** Show the documentation of the row with `value`, or put it away when it is shown; the keyboard's row when
+   *  no value is given. */
+  toggleDocs: (value?: string) => void;
 }
+
+/**
+ * The list's rows in groups: as ranked when the server ranked them (`sortText`), otherwise by kind - Field,
+ * Variable, Function... - when there is more than one.
+ */
+export const groupCompletionItems = (items: ICompletionDropdownItem[]): ICompletionGroup[] => {
+  if (items.length === 0) return [];
+
+  // When the server populates `sortText` it has already ranked items;
+  // use the flat list directly rather than re-ordering across kinds.
+  // Qonsole takes this path; DPQL has no sortText and falls through.
+  const hasSortText = items.some((i) => i.raw.sortText);
+  if (hasSortText) {
+    return [{ label: '', items: items }];
+  }
+
+  const groupMap = new Map<string, ICompletionDropdownItem[]>();
+  for (const item of items) {
+    const kind = item.metadata?.kind;
+    const groupLabel = (kind && COMPLETION_KIND_LABELS[kind]) || 'Other';
+    if (!groupMap.has(groupLabel)) {
+      groupMap.set(groupLabel, []);
+    }
+    groupMap.get(groupLabel)!.push(item);
+  }
+  if (groupMap.size <= 1) {
+    return [{ label: '', items: items }];
+  }
+  return Array.from(groupMap.entries()).map(([label, groupItems]) => ({
+    label,
+    items: groupItems,
+  }));
+};
+
+/** Completion items as the list's rows. */
+export const toDropdownItems = (lspItems: ILspCompletionItem[]): ICompletionDropdownItem[] =>
+  lspItems.map((item) => {
+    const insertText = item.insertText || item.label;
+    return {
+      label: item.label,
+      value: insertText,
+      icon: mapCompletionKindToIcon(item.kind),
+      description: item.detail,
+      documentation: item.documentation,
+      kindLabel:
+        item.kind !== undefined
+          ? COMPLETION_KIND_CHIPS[item.kind]
+          : undefined,
+      warning: item.warning,
+      raw: item,
+      metadata: {
+        insertTextFormat: item.insertTextFormat,
+        retrigger: insertText.endsWith(':'),
+        kind: item.kind,
+      },
+    };
+  });
+
+/**
+ * The list's keys, the same wherever it is open, and as the browse list's (`TemplateBrowser`): ArrowDown and
+ * ArrowUp move through it, Enter takes the row the keyboard is on, Escape puts it away, Tab leaves it as it
+ * leaves any control. Heard before anything else on the page while the list is
+ * open - the focus stays where it is (an editor, a picker's button), the list never takes it.
+ */
+export const useCompletionKeys = ({
+  isOpen,
+  count,
+  setFocusedIndex,
+  onAccept,
+  onClose,
+  onOtherKey,
+}: {
+  isOpen: boolean;
+  count: number;
+  setFocusedIndex: (update: (index: number) => number) => void;
+  onAccept: () => void;
+  onClose: () => void;
+  /** Any other key, for the list to take (true) or leave to the page. */
+  onOtherKey?: (event: KeyboardEvent) => boolean;
+}) => {
+  const handlers = useRef({ onAccept, onClose, onOtherKey });
+  handlers.current = { onAccept, onClose, onOtherKey };
+  useEffect(() => {
+    if (!isOpen || count === 0) return undefined;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const take = () => {
+        e.preventDefault();
+        e.stopPropagation();
+      };
+      switch (e.key) {
+        case 'ArrowDown':
+          take();
+          setFocusedIndex((prev) => Math.min(prev + 1, count - 1));
+          break;
+        case 'ArrowUp':
+          take();
+          setFocusedIndex((prev) => Math.max(prev - 1, 0));
+          break;
+        case 'Enter':
+          take();
+          handlers.current.onAccept();
+          break;
+        case 'Tab':
+          // leaves the list, as it leaves the browse list: the focus moves on, nothing is chosen
+          handlers.current.onClose();
+          break;
+        case 'Escape':
+          take();
+          handlers.current.onClose();
+          break;
+        default:
+          if (handlers.current.onOtherKey?.(e)) take();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, count, setFocusedIndex]);
+};
 
 export function useLspAutocomplete(
   opts: IUseLspAutocompleteOptions
@@ -134,6 +288,7 @@ export function useLspAutocomplete(
     triggerCharacters = DEFAULT_TRIGGER_CHARS,
     converter,
     inserter,
+    emptyMessage: emptyMessageAt,
   } = opts;
 
   const [items, setItems] = useState<ICompletionDropdownItem[]>([]);
@@ -141,6 +296,9 @@ export function useLspAutocomplete(
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [isFetching, setIsFetching] = useState(false);
+  const [emptyMessage, setEmptyMessage] = useState<string>();
+  // asked for and not answered yet: the debounce running, or the answer on its way (`pendingRequestRef`)
+  const [isRequested, setIsRequested] = useState(false);
   // Handle for the deferred `setIsFetching(true)`; cleared on resolve or
   // close so the loader never flashes on a fast-resolved request.
   const fetchingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -153,18 +311,34 @@ export function useLspAutocomplete(
   // should replace that node. Holds the chip's Slate path, consumed by
   // the inserter via `ctx.replacementPath`.
   const replacingChipPathRef = useRef<number[] | null>(null);
+  /* The chip the list was opened at, kept until the list is drawn closed. A click on that chip closes the list,
+     and the popover hears the same click as one outside it first and closes the list then, which forgets the
+     chip (`close`): told by `replacingChipPathRef` alone, the chip's own click found no chip and opened the list
+     again. */
+  const anchoredChipPathRef = useRef<number[] | null>(null);
   // Holds a chip-click request made before `isReady`; fired by the effect
   // below once the session connects so the click isn't dropped.
   const pendingChipRequestRef = useRef<{
     plainText: string;
     offset: number;
   } | null>(null);
-  // Timestamp of the last `openAtChip`; `handleExternalClose` uses it to
-  // suppress the close Reqore fires on the same mousedown that opened it.
-  const justOpenedAtChipAtRef = useRef(0);
   const [isReplaceMode, setIsReplaceMode] = useState(false);
-  // See `popoverKey` in the result interface — forces a popover re-mount.
+  // See `popoverKey` in the result interface — forces a popover re-mount. The ref is the key now, before the
+  // list is drawn again: a close from the popover it replaced is told apart by it (`handleExternalClose`).
   const [popoverKey, setPopoverKey] = useState(0);
+  const popoverKeyRef = useRef(0);
+  const [docsFor, setDocsFor] = useState<string | null>(null);
+  /* Which request is the one the list is waiting for. A newer request, or the list put away (`close`),
+     makes an answer still on its way stale, and a stale answer is dropped: it used to open the list after
+     the author had dismissed it - typed, pressed Escape before the list came, and the list came anyway,
+     under the next tap, which then took one of its rows (qorus#646). */
+  const requestGenerationRef = useRef(0);
+  /* A request typing has asked for and the list has not shown yet: the debounce running, or the server's
+     answer on its way. An Escape then puts it away too, as it puts away an open list. */
+  const pendingRequestRef = useRef(false);
+  /* The caret a click, a tap or Tab asked at (`openAtCaret`). Setting Slate's selection to it is a change of
+     selection only, which puts an open list away; this one asked for the list, and is not heard as moving off. */
+  const askedAtRef = useRef<BasePoint | null>(null);
 
   useEffect(() => {
     focusedIndexRef.current = focusedIndex;
@@ -200,34 +374,7 @@ export function useLspAutocomplete(
     }
   }, [filteredItems.length, focusedIndex]);
 
-  const groups = useMemo((): ICompletionGroup[] => {
-    if (filteredItems.length === 0) return [];
-
-    // When the server populates `sortText` it has already ranked items;
-    // use the flat list directly rather than re-ordering across kinds.
-    // Qonsole takes this path; DPQL has no sortText and falls through.
-    const hasSortText = filteredItems.some((i) => i.raw.sortText);
-    if (hasSortText) {
-      return [{ label: '', items: filteredItems }];
-    }
-
-    const groupMap = new Map<string, ICompletionDropdownItem[]>();
-    for (const item of filteredItems) {
-      const kind = item.metadata?.kind;
-      const groupLabel = (kind && COMPLETION_KIND_LABELS[kind]) || 'Other';
-      if (!groupMap.has(groupLabel)) {
-        groupMap.set(groupLabel, []);
-      }
-      groupMap.get(groupLabel)!.push(item);
-    }
-    if (groupMap.size <= 1) {
-      return [{ label: '', items: filteredItems }];
-    }
-    return Array.from(groupMap.entries()).map(([label, groupItems]) => ({
-      label,
-      items: groupItems,
-    }));
-  }, [filteredItems]);
+  const groups = useMemo(() => groupCompletionItems(filteredItems), [filteredItems]);
 
   // Fires the LSP request and commits results into state. Separate from
   // the debounced wrapper so imperative callers (`openAtChip`) can bypass
@@ -244,13 +391,22 @@ export function useLspAutocomplete(
       // in no-suggestion spots (inside a string, a dead-end identifier).
       const { eager = true } = opts;
       if (!isReady) return;
+      const generation = ++requestGenerationRef.current;
+      pendingRequestRef.current = true;
+      setIsRequested(true);
+      // whether this answer is still the one the list is waiting for
+      const current = () => generation === requestGenerationRef.current;
       // Re-measure the caret now that the debounce expired and Slate has
       // committed the char to the DOM. The earlier measure in
       // `onSlateChangeImpl` can fire before the DOM commit, where
       // `toDOMRange` throws or returns a stale range and the popover lands
       // at {top: 0, left: 0}.
+      //
+      // Not for a chip's list: it is under the chip it was opened at (`openAtChip`), and the caret the click
+      // left after the chip moved it past the chip's end (Foxhoundn, qlip #392: "The opened list is not under
+      // the 2nd chip").
       const editor = editorRef.current;
-      if (editor && editor.selection) {
+      if (editor && editor.selection && !anchoredChipPathRef.current) {
         try {
           const domRange = ReactEditor.toDOMRange(editor, editor.selection);
           const rect = domRange.getBoundingClientRect();
@@ -275,14 +431,24 @@ export function useLspAutocomplete(
       }
       try {
         const lspItems = await getCompletions(plainText, offset);
+        if (!current()) return;
         if (lspItems.length === 0) {
           setItems([]);
+          // what the list says where nothing can be offered, if anything: said in the list
+          const said =
+            replacingChipPathRef.current ? undefined : emptyMessageAt?.(plainText, offset);
+          setEmptyMessage(said);
+          if (said) {
+            setIsOpen(true);
+            return;
+          }
           // Replace mode keeps the popover open to show "No alternatives".
           if (!replacingChipPathRef.current) {
             setIsOpen(false);
           }
           return;
         }
+        setEmptyMessage(undefined);
         // Sort by `sortText` when present (Qonsole encodes rank into it);
         // otherwise preserve server order, as DPQL doesn't populate it.
         const sortedLspItems = lspItems.some((i) => i.sortText)
@@ -291,48 +457,42 @@ export function useLspAutocomplete(
             )
           : lspItems;
 
-        const mapped: ICompletionDropdownItem[] = sortedLspItems.map((item) => {
-          const insertText = item.insertText || item.label;
-          return {
-            label: item.label,
-            value: insertText,
-            icon: mapCompletionKindToIcon(item.kind),
-            description: item.detail,
-            documentation: item.documentation,
-            kindLabel:
-              item.kind !== undefined
-                ? COMPLETION_KIND_CHIPS[item.kind]
-                : undefined,
-            warning: item.warning,
-            raw: item,
-            metadata: {
-              insertTextFormat: item.insertTextFormat,
-              retrigger: insertText.endsWith(':'),
-              kind: item.kind,
-            },
-          };
-        });
+        const mapped = toDropdownItems(sortedLspItems);
         setItems(mapped);
         setFocusedIndex(0);
         setIsOpen(true);
       } catch {
+        if (!current()) return;
         setItems([]);
         setIsOpen(false);
       } finally {
-        if (fetchingTimerRef.current !== null) {
-          clearTimeout(fetchingTimerRef.current);
-          fetchingTimerRef.current = null;
+        // a stale answer leaves the state to the request that replaced it, or to `close`
+        if (current()) {
+          pendingRequestRef.current = false;
+          setIsRequested(false);
+          if (fetchingTimerRef.current !== null) {
+            clearTimeout(fetchingTimerRef.current);
+            fetchingTimerRef.current = null;
+          }
+          setIsFetching(false);
         }
-        setIsFetching(false);
       }
     },
-    [getCompletions, isReady]
+    [getCompletions, isReady, emptyMessageAt]
   );
 
-  const requestCompletions = useMemo(
-    () => debounce(performCompletionRequest, DEBOUNCE_MS),
-    [performCompletionRequest]
-  );
+  const requestCompletions = useMemo(() => {
+    const debounced = debounce(performCompletionRequest, DEBOUNCE_MS);
+    // asked for: pending from now, not only once the debounce runs out
+    const request = ((...args: Parameters<typeof performCompletionRequest>) => {
+      pendingRequestRef.current = true;
+      setIsRequested(true);
+      return debounced(...args);
+    }) as typeof debounced;
+    request.cancel = debounced.cancel;
+    request.flush = debounced.flush;
+    return request;
+  }, [performCompletionRequest]);
 
   useEffect(() => {
     return () => {
@@ -341,8 +501,11 @@ export function useLspAutocomplete(
   }, [requestCompletions]);
 
   const close = useCallback(() => {
+    setDocsFor(null);
     setIsOpen(false);
     setItems([]);
+    setEmptyMessage(undefined);
+    setIsRequested(false);
     setFocusedIndex(0);
     setFilterPrefix('');
     setIsReplaceMode(false);
@@ -352,9 +515,42 @@ export function useLspAutocomplete(
       fetchingTimerRef.current = null;
     }
     replacingChipPathRef.current = null;
+    // a list put away is at no chip, from now: the next one asked by typing is at the caret
+    anchoredChipPathRef.current = null;
     pendingChipRequestRef.current = null;
+    askedAtRef.current = null;
     requestCompletions.cancel();
+    // an answer still on its way is for a list that has been put away
+    requestGenerationRef.current++;
+    pendingRequestRef.current = false;
   }, [requestCompletions]);
+
+  /* Escape in the editor before the list has come puts the request away, as Escape puts a list with rows
+     away (`useCompletionKeys`, which hears it then). Not taken from the page: with no list shown, an Escape
+     may mean something else there too. */
+  const showsRows = isOpen && filteredItems.length > 0;
+  // the list open with what it says in place of rows: Escape puts it away, and nothing else
+  const showsMessage = isOpen && !showsRows && !!emptyMessage;
+  useEffect(() => {
+    if (showsRows) return undefined;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || !(pendingRequestRef.current || showsMessage)) return;
+      const editor = editorRef.current;
+      try {
+        if (!editor || !ReactEditor.toDOMNode(editor, editor).contains(event.target as Node)) return;
+      } catch {
+        // the editor is not drawn: nothing of it is in the page to have had the key
+        return;
+      }
+      if (showsMessage) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      close();
+    };
+    document.addEventListener('keydown', handleKeyDown, true);
+    return () => document.removeEventListener('keydown', handleKeyDown, true);
+  }, [showsRows, showsMessage, close]);
 
   const positionTrigger = useCallback(
     (editor: BaseEditor & ReactEditor & HistoryEditor) => {
@@ -437,64 +633,50 @@ export function useLspAutocomplete(
     [close, inserter, converter]
   );
 
-  useEffect(() => {
-    // Keyboard nav operates on the filtered list, not the raw items.
-    if (!isOpen || filteredItems.length === 0) return undefined;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          e.stopPropagation();
-          setFocusedIndex((prev) => Math.min(prev + 1, filteredItems.length - 1));
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          e.stopPropagation();
-          setFocusedIndex((prev) => Math.max(prev - 1, 0));
-          break;
-        case 'Enter':
-        case 'Tab': {
-          e.preventDefault();
-          e.stopPropagation();
-          const item = filteredItems[focusedIndexRef.current];
-          if (item && editorRef.current) {
-            selectItem(item);
-          }
-          break;
-        }
-        case 'Escape':
-          e.preventDefault();
-          e.stopPropagation();
-          close();
-          break;
-        default: {
-          // `commitCharacters`: typing a commit char accepts the item and
-          // inserts the char (VS Code semantics).
-          if (e.key.length !== 1) break;
-          const focusedItem = filteredItems[focusedIndexRef.current];
-          const commits = focusedItem?.raw.commitCharacters;
-          if (!commits || !commits.includes(e.key)) break;
-          const editor = editorRef.current;
-          if (!editor) break;
-          e.preventDefault();
-          e.stopPropagation();
-          // Don't double-insert when the server's edit already ends with
-          // the committed char (e.g. `--limit=` for an `=`-committed flag).
-          const inserted =
-            focusedItem.raw.textEdit?.newText ??
-            focusedItem.raw.insertText ??
-            focusedItem.raw.label;
-          selectItem(focusedItem);
-          if (!inserted.endsWith(e.key)) {
-            Transforms.insertText(editor, e.key);
-          }
-          break;
-        }
+  const toggleDocs = useCallback(
+    (value?: string) => {
+      const target = value ?? filteredItems[focusedIndexRef.current]?.value ?? null;
+      setDocsFor((shown) => (shown === target ? null : target));
+    },
+    [filteredItems]
+  );
+  const toggleDocsRef = useRef(toggleDocs);
+  toggleDocsRef.current = toggleDocs;
+
+  useCompletionKeys({
+    isOpen: isOpen && filteredItems.length > 0,
+    count: filteredItems.length,
+    setFocusedIndex,
+    onAccept: () => {
+      const item = filteredItems[focusedIndexRef.current];
+      if (item && editorRef.current) selectItem(item);
+    },
+    onClose: close,
+    onOtherKey: (e) => {
+      // Ctrl+Space: the documentation of the row the keyboard is on, shown under it or put away (VS Code's key)
+      if (e.key === ' ' && e.ctrlKey && !e.metaKey && !e.altKey) {
+        toggleDocsRef.current();
+        return true;
       }
-    };
-    document.addEventListener('keydown', handleKeyDown, true);
-    return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, filteredItems, close, selectItem]);
+      // `commitCharacters`: typing a commit char accepts the item and
+      // inserts the char (VS Code semantics).
+      if (e.key.length !== 1) return false;
+      const focusedItem = filteredItems[focusedIndexRef.current];
+      const commits = focusedItem?.raw.commitCharacters;
+      if (!commits || !commits.includes(e.key)) return false;
+      const editor = editorRef.current;
+      if (!editor) return false;
+      // Don't double-insert when the server's edit already ends with
+      // the committed char (e.g. `--limit=` for an `=`-committed flag).
+      const inserted =
+        focusedItem.raw.textEdit?.newText ?? focusedItem.raw.insertText ?? focusedItem.raw.label;
+      selectItem(focusedItem);
+      if (!inserted.endsWith(e.key)) {
+        Transforms.insertText(editor, e.key);
+      }
+      return true;
+    },
+  });
 
   /**
    * Opens, narrows or closes the completions for what the editor holds at its caret, after a content
@@ -616,6 +798,16 @@ export function useLspAutocomplete(
         (op) => op.type !== 'set_selection'
       );
       if (!isContentChange) {
+        // the caret a click asked at, set: the list it asked for stays
+        const askedAt = askedAtRef.current;
+        if (
+          askedAt &&
+          editor.selection &&
+          Range.isCollapsed(editor.selection) &&
+          Point.equals(editor.selection.anchor, askedAt)
+        ) {
+          return;
+        }
         // Replace mode anchors on a chip; the selection echo from the
         // opening click must not close it (outside-click handler does).
         if (isOpen && !replacingChipPathRef.current) {
@@ -623,6 +815,7 @@ export function useLspAutocomplete(
         }
         return;
       }
+      askedAtRef.current = null;
       // A content edit in replace mode means the user typed instead of
       // picking a replacement — fall back to normal flow.
       if (replacingChipPathRef.current) {
@@ -662,12 +855,11 @@ export function useLspAutocomplete(
     (
       editor: BaseEditor & ReactEditor & HistoryEditor,
       chipPath: number[],
-      chipRect: { left: number; bottom: number }
+      chipRect: { left: number; bottom: number },
+      { inItsPlace = false }: { inItsPlace?: boolean } = {}
     ) => {
-      // Clicking the chip the dropdown is already anchored to closes it;
-      // without this the outside-click suppression below re-opens it on
-      // every chip click.
-      const prevPath = replacingChipPathRef.current;
+      // Clicking the chip the dropdown is already anchored to closes it.
+      const prevPath = anchoredChipPathRef.current;
       if (
         isOpen &&
         prevPath &&
@@ -679,7 +871,7 @@ export function useLspAutocomplete(
       }
       editorRef.current = editor;
       replacingChipPathRef.current = chipPath;
-      justOpenedAtChipAtRef.current = Date.now();
+      anchoredChipPathRef.current = chipPath;
       setFilterPrefix('');
       setPosition({ left: chipRect.left, top: chipRect.bottom });
       // Pre-open for immediate feedback even before the LSP is ready (the
@@ -688,7 +880,8 @@ export function useLspAutocomplete(
       setFocusedIndex(0);
       setIsReplaceMode(true);
       setIsOpen(true);
-      setPopoverKey((k) => k + 1);
+      popoverKeyRef.current += 1;
+      setPopoverKey(popoverKeyRef.current);
       const nodes = editor.children as ISlateElement[];
       const plainText = converter.fromSlateNodes(nodes);
       // Request at the END of the chip's span — the natural "what could
@@ -703,24 +896,83 @@ export function useLspAutocomplete(
           : '';
       const chipStart = converter.selectionToOffset(nodes, chipPath, 0);
       const chipEnd = chipStart + chipText.length;
+      const asked =
+        inItsPlace ?
+          { plainText: plainText.slice(0, chipStart) + plainText.slice(chipEnd), offset: chipStart }
+        : { plainText, offset: chipEnd };
       if (isReady) {
-        performCompletionRequest(plainText, chipEnd);
+        performCompletionRequest(asked.plainText, asked.offset);
       } else {
-        pendingChipRequestRef.current = { plainText, offset: chipEnd };
+        pendingChipRequestRef.current = asked;
       }
     },
     [isReady, isOpen, close, converter, performCompletionRequest]
   );
 
-  const handleExternalClose = useCallback(
-    (open: boolean) => {
-      if (open) return;
-      // Within ~300ms of `openAtChip`, this close is the popover reacting
-      // to the same mousedown that opened it — ignore.
-      if (Date.now() - justOpenedAtChipAtRef.current < 300) {
+  /* A click, a tap or Tab into the editor asks what can be written at the caret it put there, as typing asks
+     (qorus#646, David: one list for what can be written, opened by a click as by typing). The caret is the
+     page's, given as a Slate point: Slate's own selection follows the page's later, so it is set to it here, for
+     the pick to go where the caret is. What is being written at the caret, in the text it is in, filters the
+     list as typing does; nothing opens where nothing can be written (`eager: false`). */
+  const openAtCaret = useCallback(
+    (
+      editor: BaseEditor & ReactEditor & HistoryEditor,
+      caret: BasePoint,
+      rect: { left: number; bottom: number }
+    ) => {
+      editorRef.current = editor;
+      replacingChipPathRef.current = null;
+      anchoredChipPathRef.current = null;
+      setIsReplaceMode(false);
+      askedAtRef.current = caret;
+      try {
+        Transforms.select(editor, caret);
+      } catch {
+        // a point the editor no longer has: nothing is asked
         return;
       }
-      close();
+      const nodes = editor.children as ISlateElement[];
+      const plainText = converter.fromSlateNodes(nodes);
+      const offset = converter.selectionToOffset(nodes, caret.path as number[], caret.offset);
+      const caretPath = caret.path as number[];
+      const textNode = nodes[caretPath[0]]?.children?.[caretPath[1]] as
+        { text?: string } | undefined;
+      const written =
+        typeof textNode?.text === 'string' ?
+          (/[@$/]?[\w.:{}-]*$/.exec(textNode.text.slice(0, caret.offset))?.[0] ?? '')
+        : '';
+      setFilterPrefix(written);
+      setDocsFor(null);
+      setItems([]);
+      setFocusedIndex(0);
+      setEmptyMessage(undefined);
+      setPosition({ left: rect.left, top: rect.bottom });
+      popoverKeyRef.current += 1;
+      setPopoverKey(popoverKeyRef.current);
+      requestCompletions.cancel();
+      void performCompletionRequest(plainText, offset, { eager: false });
+    },
+    [converter, performCompletionRequest, requestCompletions]
+  );
+
+  /* A click outside the list puts it away, whenever it comes; a close from a popover a chip has replaced does not.
+     A click on another chip while the list is open opens the list at that chip, under a new key, and the popover
+     it replaces says it closed only after that. Every close was ignored for 300 ms after a chip opened the list
+     instead, so a tap on Details soon after the chip's left the list open behind the card, and a later one put it
+     away: the frame showed it or not from run to run (qorus#646, DpqlEditor · Details On A Chip On A Touch
+     Screen); and a second click on the chip the list was at, later than that, closed it and opened it again. */
+  // the list drawn closed is at no chip
+  useEffect(() => {
+    if (!isOpen) {
+      anchoredChipPathRef.current = null;
+    }
+  }, [isOpen]);
+
+  const handleExternalClose = useCallback(
+    (open: boolean, key: number) => {
+      if (!open && key === popoverKeyRef.current) {
+        close();
+      }
     },
     [close]
   );
@@ -746,13 +998,18 @@ export function useLspAutocomplete(
     isOpen,
     isReplaceMode,
     isFetching,
+    emptyMessage: isOpen ? emptyMessage : undefined,
+    isActive: isOpen || isRequested,
     focusedIndex,
     close,
     onSlateChange: onSlateChangeImpl,
     onItemSelect,
+    openAtCaret,
     openAtChip,
     handleExternalClose,
     popoverKey,
     position,
+    docsFor,
+    toggleDocs,
   };
 }

@@ -49,7 +49,7 @@ export default meta;
 type Story = StoryObj<typeof StructuredDataView>;
 
 // Nested objects/lists collapse to "Object · N fields" / "List · N items",
-// scalar lists inline as chips, dates/numbers are type-coloured.
+// scalar lists inline as chips, dates/numbers are type-colored.
 export const WorkflowOrderData: Story = {
   args: {
     value: ORDER_DATA_SAMPLE,

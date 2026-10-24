@@ -1,18 +1,29 @@
-import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
-import { TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size } from 'lodash';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import {
+  compactTypesList,
+  defaultQorusTypes,
+  IQorusTypeObject,
+  offeredQorusTypes,
+  qorusTypeDisplayName,
+  qorusTypeEntry,
+  qorusTypeSentenceForm,
+  setServerQorusTypes,
+} from '../helpers/qorusTypeCatalogue';
 import { useFetch } from './useFetch/useFetch';
 
-export interface IQorusTypeObject {
-  display_name: string;
-  name: TQorusType | string;
-  desc?: string;
-  short_desc?: string;
-  icon?: IReqoreIconName;
-  types_accepted: (TQorusType | string)[];
-  exact_match?: (TQorusType | string)[];
-}
+// the catalogue and its names are the hook's public API as they always were
+export {
+  compactTypesList,
+  defaultQorusTypes,
+  getQorusTypes,
+  offeredQorusTypes,
+  qorusTypeDisplayName,
+  qorusTypeEntry,
+  qorusTypeSentenceForm,
+  UNKNOWN_TYPE_NAME,
+} from '../helpers/qorusTypeCatalogue';
+export type { IQorusTypeObject } from '../helpers/qorusTypeCatalogue';
 
 export interface IUseTypes {
   loading: boolean;
@@ -20,169 +31,16 @@ export interface IUseTypes {
   retry: () => void;
   value?: IQorusTypeObject[];
   compactValue?: IQorusTypeObject[];
-  getAcceptedTypes: (typeName: string) => string[];
-  getExactMatches: (typeName: string) => string[];
-  getTypeDisplayName: (typeName: string) => string;
+  /** What a place of the type takes; a type the catalogue does not list, by its `baseType` (`qorusTypeEntry`). */
+  getAcceptedTypes: (typeName: string, baseType?: string) => string[];
+  getExactMatches: (typeName: string, baseType?: string) => string[];
+  /** The type's name as a label; see `qorusTypeDisplayName`. `undefined` for no type. */
+  getTypeDisplayName: (typeName: string | undefined, baseType?: string) => string | undefined;
+  /** The type's name inside a sentence; see `qorusTypeSentenceForm`. `undefined` for no type. */
+  getTypeSentenceForm: (typeName: string | undefined, baseType?: string) => string | undefined;
+  /** What a picker that lists every type offers, with the type a value already has; see `offeredQorusTypes`. */
+  getOfferedTypes: (held?: string | string[]) => IQorusTypeObject[];
 }
-
-export const compactTypesList = ['richtext', 'float', 'hash', 'list', 'bool', 'date', 'binary'];
-
-export const defaultQorusTypes: IQorusTypeObject[] = [
-  {
-    name: 'any',
-    display_name: 'Any',
-    short_desc: 'Any data type',
-    desc: 'Any data type',
-    types_accepted: ['any'],
-    exact_match: ['any'],
-  },
-  {
-    name: 'context',
-    display_name: 'Context',
-    short_desc: 'The data type is determined by the context value chosen',
-    desc: 'The data type is determined by the context value chosen',
-    types_accepted: ['any'],
-    exact_match: ['any'],
-  },
-  {
-    name: 'string',
-    display_name: 'String',
-    short_desc: 'String data',
-    desc: 'String data',
-    types_accepted: ['any'],
-    exact_match: ['string', 'richtext'],
-  },
-  {
-    name: 'richtext',
-    display_name: 'Text',
-    short_desc: 'Rich text string data',
-    desc: 'Rich text string data',
-    types_accepted: ['any'],
-    exact_match: ['string', 'richtext'],
-  },
-  {
-    name: 'int',
-    display_name: 'Integer',
-    short_desc: '64-bit integer',
-    desc: '64-bit integer',
-    types_accepted: ['int', 'integer'],
-    exact_match: ['int', 'integer'],
-  },
-  {
-    name: 'float',
-    display_name: 'Number',
-    short_desc: 'Double-precision floating-point number',
-    desc: 'Double-precision floating-point number',
-    types_accepted: ['float', 'int', 'integer'],
-    exact_match: ['float', 'int', 'integer'],
-  },
-  {
-    name: 'number',
-    display_name: 'Scientific Number',
-    short_desc: 'Arbitrary-precision floating-point number',
-    desc: 'Arbitrary-precision floating-point number',
-    types_accepted: ['number', 'float', 'int', 'integer'],
-    exact_match: ['number', 'float', 'int', 'integer'],
-  },
-  {
-    name: 'bool',
-    display_name: 'Boolean',
-    short_desc: 'Boolean value',
-    desc: 'Boolean value',
-    types_accepted: ['bool'],
-    exact_match: ['bool'],
-  },
-  {
-    name: 'date',
-    display_name: 'Date',
-    short_desc: 'Date-time value',
-    desc: 'Date-time value',
-    types_accepted: ['date'],
-    exact_match: ['date'],
-  },
-  {
-    name: 'binary',
-    display_name: 'Binary',
-    short_desc: 'Binary value',
-    desc: 'Binary value',
-    types_accepted: ['binary'],
-    exact_match: ['binary'],
-  },
-  {
-    name: 'data',
-    display_name: 'Data',
-    short_desc: 'Binary or string value',
-    desc: 'Binary or string value',
-    types_accepted: ['string', 'richtext', 'binary'],
-    exact_match: ['string', 'richtext', 'binary'],
-  },
-  {
-    name: 'hash',
-    display_name: 'Hash',
-    short_desc: 'Ordered key-value pair / hash',
-    desc: 'Ordered key-value pair / hash',
-    types_accepted: ['hash'],
-    exact_match: ['hash'],
-  },
-  {
-    name: 'list',
-    display_name: 'List',
-    short_desc: 'List',
-    desc: 'List',
-    types_accepted: ['list'],
-    exact_match: ['list'],
-  },
-  {
-    name: 'rgbcolor',
-    display_name: 'Color',
-    short_desc: 'RGB Color value',
-    desc: 'RGB Color value',
-    types_accepted: ['rgbcolor'],
-    exact_match: ['rgbcolor'],
-  },
-  {
-    name: 'workflow',
-    display_name: 'Workflow',
-    short_desc: 'Qorus workflow',
-    desc: 'Qorus workflow',
-    types_accepted: ['workflow', 'string', 'richtext'],
-    exact_match: ['workflow', 'string', 'richtext'],
-  },
-  {
-    name: 'service',
-    display_name: 'Service',
-    short_desc: 'Qorus service',
-    desc: 'Qorus service',
-    types_accepted: ['service', 'string', 'richtext'],
-    exact_match: ['service', 'string', 'richtext'],
-  },
-  {
-    name: 'job',
-    display_name: 'Job',
-    short_desc: 'Qorus job',
-    desc: 'Qorus job',
-    types_accepted: ['job', 'string', 'richtext'],
-    exact_match: ['job', 'string', 'richtext'],
-  },
-  {
-    name: 'mapper',
-    display_name: 'Mapper',
-    short_desc: 'Qorus mapper',
-    desc: 'Qorus mapper',
-    types_accepted: ['mapper', 'string', 'richtext'],
-    exact_match: ['mapper', 'string', 'richtext'],
-  },
-  {
-    name: 'connection',
-    display_name: 'Connection',
-    short_desc: 'Qorus connection',
-    desc: 'Qorus connection',
-    types_accepted: ['connection', 'string', 'richtext'],
-    exact_match: ['connection', 'string', 'richtext'],
-  },
-];
-
-export const getQorusTypes = (): IQorusTypeObject[] => defaultQorusTypes;
 
 export const useQorusTypes = (): IUseTypes => {
   const { data, loading, error, load } = useFetch<IQorusTypeObject[]>({
@@ -192,28 +50,40 @@ export const useQorusTypes = (): IUseTypes => {
   });
 
   const value = size(data) ? data : defaultQorusTypes;
+  // the server's answer, once there is one: what `getQorusTypes` gives code outside a component from then on
+  const answered = value === defaultQorusTypes ? undefined : value;
+  useEffect(() => {
+    if (answered) {
+      setServerQorusTypes(answered);
+    }
+  }, [answered]);
 
   const getAcceptedTypes = useCallback(
-    (typeName: string): string[] => {
-      const type = value?.find((t) => t.name === typeName);
-      return type ? (type.types_accepted as string[]) : [];
-    },
+    (typeName: string, baseType?: string): string[] =>
+      (qorusTypeEntry(value, typeName, baseType)?.types_accepted as string[]) ?? [],
     [value]
   );
 
   const getExactMatches = useCallback(
-    (typeName: string): string[] => {
-      const type = value?.find((t) => t.name === typeName);
-      return type && type.exact_match ? (type.exact_match as string[]) : [];
-    },
+    (typeName: string, baseType?: string): string[] =>
+      (qorusTypeEntry(value, typeName, baseType)?.exact_match as string[]) ?? [],
     [value]
   );
 
   const getTypeDisplayName = useCallback(
-    (typeName: string): string => {
-      const type = value?.find((t) => t.name === typeName);
-      return type ? type.display_name : typeName;
-    },
+    (typeName: string | undefined, baseType?: string): string | undefined =>
+      qorusTypeDisplayName(value, typeName, baseType),
+    [value]
+  );
+
+  const getTypeSentenceForm = useCallback(
+    (typeName: string | undefined, baseType?: string): string | undefined =>
+      qorusTypeSentenceForm(value, typeName, baseType),
+    [value]
+  );
+
+  const getOfferedTypes = useCallback(
+    (held?: string | string[]): IQorusTypeObject[] => offeredQorusTypes(value, held),
     [value]
   );
 
@@ -227,7 +97,19 @@ export const useQorusTypes = (): IUseTypes => {
       getAcceptedTypes,
       getExactMatches,
       getTypeDisplayName,
+      getTypeSentenceForm,
+      getOfferedTypes,
     }),
-    [JSON.stringify(value), loading, error, load, getAcceptedTypes, getExactMatches, getTypeDisplayName]
+    [
+      JSON.stringify(value),
+      loading,
+      error,
+      load,
+      getAcceptedTypes,
+      getExactMatches,
+      getTypeDisplayName,
+      getTypeSentenceForm,
+      getOfferedTypes,
+    ]
   );
 };

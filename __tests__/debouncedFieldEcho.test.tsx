@@ -198,6 +198,35 @@ describe('NumberFormField and the echo of its own emit', () => {
   });
 });
 
+describe('NumberFormField and an edit undone while its emit is in flight', () => {
+  it('reports the number it went back to', async () => {
+    // "50" is emitted at 100 ms and handed back at 220 ms; the "0" is deleted at 110 ms. Compared with the 5 it
+    // was given, the field took "5" for no change and sent nothing, and the parent kept 50 (qorus#646).
+    const reported: unknown[] = [];
+    const Parent = () => {
+      const [value, setValue] = useState<number | string | undefined>(5);
+      return (
+        <NumberFormField
+          value={value}
+          onChange={(next) => {
+            reported.push(next);
+            setTimeout(() => setValue(next), PARENT_ECHO_MS);
+          }}
+        />
+      );
+    };
+    render(<Parent />);
+    fireEvent.change(screen.getByTestId('input'), { target: { value: '50' } });
+    await act(() => vi.advanceTimersByTimeAsync(110));
+    expect(reported.at(-1)).toBe(50);
+    fireEvent.change(screen.getByTestId('input'), { target: { value: '5' } });
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+
+    expect((screen.getByTestId('input') as HTMLInputElement).value).toBe('5');
+    expect(reported.at(-1)).toBe(5);
+  });
+});
+
 describe('NumberFormField takes whatever is typed', () => {
   // A typed field is typed freely (David's review of qorus#646): a `number` input dropped every character that
   // is not part of a number, so a template (`$local:x`) or an expression (`@qty * 2`) could not be typed into a
@@ -312,6 +341,32 @@ describe('ReqraftBinaryFormField and the echo of its own emit', () => {
   });
 });
 
+describe('ReqraftBinaryFormField and an edit undone while its emit is in flight', () => {
+  it('reports the value it went back to', async () => {
+    const reported: unknown[] = [];
+    const Parent = () => {
+      const [value, setValue] = useState<string | undefined>('AAAA');
+      return (
+        <ReqraftBinaryFormField
+          value={value}
+          onChange={(next) => {
+            reported.push(next);
+            setTimeout(() => setValue(next), PARENT_ECHO_MS);
+          }}
+        />
+      );
+    };
+    render(<Parent />);
+    fireEvent.change(screen.getByTestId('textarea'), { target: { value: 'AAAAB' } });
+    await act(() => vi.advanceTimersByTimeAsync(110));
+    expect(reported.at(-1)).toBe('AAAAB');
+    fireEvent.change(screen.getByTestId('textarea'), { target: { value: 'AAAA' } });
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+
+    expect(reported.at(-1)).toBe('AAAA');
+  });
+});
+
 describe('EmittedValues', () => {
   it('treats an emit in flight as an echo, and acknowledges the ones before it', () => {
     const emitted = new EmittedValues<string>();
@@ -336,6 +391,20 @@ describe('EmittedValues', () => {
     emitted.record('x');
     expect(emitted.isEcho('x')).toBe(true);
     expect(emitted.isEcho('x')).toBe(false);
+  });
+
+  it('settles on the latest emit in flight, and on what the parent holds with none', () => {
+    const emitted = new EmittedValues<string>();
+    expect(emitted.settled('held')).toBe('held');
+    emitted.record('a');
+    emitted.record('ab');
+    expect(emitted.settled('held')).toBe('ab');
+    expect(emitted.isEcho('ab')).toBe(true);
+    expect(emitted.settled('ab')).toBe('ab');
+    // an emit of nothing is still an emit
+    const empty = new EmittedValues<string | undefined>();
+    empty.record(undefined);
+    expect(empty.settled('held')).toBeUndefined();
   });
 
   it('compares structured values with the equality it is given', () => {

@@ -6,7 +6,6 @@
 import {
   ReqoreButton,
   ReqoreControlGroup,
-  ReqoreDropdown,
   ReqoreErrorBoundary,
   ReqoreMenu,
   ReqoreMenuItem,
@@ -17,6 +16,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { IReqoreButtonProps } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
+import { TReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/Menu/item';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import ReqoreMenuDivider, {
@@ -28,24 +28,21 @@ import {
   IReqoreTextareaProps,
 } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IQorusFormFieldSchemaBase, TQorusType } from '@qoretechnologies/ts-toolkit';
-import { size } from 'lodash';
+import { isEqual, size } from 'lodash';
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
   filterTemplatesByType as templatesFilterFunc,
   getTemplateKey,
   getTemplateValue,
-  isBracedTemplateToken,
+  findTemplate,
   isCompleteTemplateToken,
   describeTemplateReference,
   isValueTemplate,
+  templateType,
 } from '../../../../helpers/templates';
 import { classifyTypedText, mightBeDpqlExpression } from '../../../../helpers/dpqlDetection';
-import {
-  renderTemplateItemDescriptions,
-  templateItemsToShow,
-} from '../../../../helpers/templateItems';
-import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
+import { templateItemsToShow } from '../../../../helpers/templateItems';
 import { getTypeFromValue } from '../../../../helpers/validations';
 import { useDpqlProbe } from '../../../dpqlEditor/useDpqlProbe';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
@@ -53,20 +50,41 @@ import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 import { ExpressionBuilder, IExpressionBuilderProps } from '../../expressions/builder';
 // Direct import — the cycle (TemplateField → ExpressionField → builder →
 // TemplateField) is render-time only, safe like the other Field cycles.
-import { ExpressionField } from '../../expressions/ExpressionField';
+import {
+  ExpressionField,
+  IExpressionModeLabels,
+  TExpressionMode,
+} from '../../expressions/ExpressionField';
 import { IExpression, TExpressionReorder } from '../../expressions/types';
 import { useExpressions } from '../../expressions/useExpressions';
 import { AutoFormField as Auto, IQorusType as IQorusFormType } from '../auto/AutoFormField';
-import BooleanFormField from '../boolean/Boolean';
+import BooleanFormField, { yesNoShown } from '../boolean/Boolean';
 import { DateFormField } from '../date/Date';
 import { ReqraftFileFormField } from '../file/File';
 import LongStringFormField from '../long-string/LongString';
-import NumberFormField from '../number/Number';
+import NumberFormField, { numberKindOf } from '../number/Number';
 import { ReadOnlyTemplateTag } from './ReadOnlyTemplateTag';
 import { RichTextFormField } from '../rich-text/RichText';
+import { TemplateBrowser } from './TemplateBrowser';
 import { richtextToString } from '../../../../helpers/common';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
+import { isConditionOption } from '../../../../helpers/expressions';
+import { withTemplateSources } from '../../../smartEditor/templateCompletions';
+import {
+  expressionSeedOf,
+  isWrittenAsText,
+  isWrittenAsTextOnTheValueTab,
+  loneTemplateOf,
+  loneValueOf,
+  expressionTextOfValue,
+  sameValueType,
+  valueTextOf,
+  TValueTab,
+  templateOfExpression,
+  templateTextValue,
+  untypedTextOf,
+} from './writtenAsText';
 import {
   IRowMenuRegistration,
   RowMenuContext,
@@ -113,13 +131,19 @@ const LongStringField = ({ name, onChange, type, level, allowTemplates, ...rest 
     onChange={(value: string) => onChange?.(name, value)}
   />
 );
+// `type` becomes the kind of number it holds: without it, a float field took every number for a
+// whole one.
 const Number = ({ name, onChange, type, level, allowTemplates, ...rest }: any) => (
-  <NumberFormField {...rest} onChange={(value: number | string) => onChange?.(name, value)} />
+  <NumberFormField
+    {...rest}
+    type={numberKindOf(type)}
+    onChange={(value: number | string) => onChange?.(name, value)}
+  />
 );
 const BooleanField = ({ name, onChange, value, type, level, allowTemplates, ...rest }: any) => (
   <BooleanFormField
     {...rest}
-    checked={!!value}
+    checked={yesNoShown(value)}
     onChange={(checked: boolean) => onChange?.(name, checked)}
   />
 );
@@ -184,6 +208,31 @@ export interface ITemplateFieldProps extends Partial<
    */
   allowTextExpressions?: boolean;
   /**
+   * The value is entered on tabs (qorus#646, David): Value · Expression · Visual where the field takes
+   * templates and expressions written as text, Value · Template where it takes templates only. A form's
+   * options set it (FormEngine); an expression's operands and other hosts keep the field as it was.
+   */
+  valueTabs?: boolean;
+  /** SEAM (reqraft): values the host keeps for reuse - see `ITemplateFieldSavedValues`. */
+  savedValues?: ITemplateFieldSavedValues;
+  /** SEAM (reqraft): the badge a template shows in the template picker - see `TTemplateBadge`. */
+  templateBadge?: TTemplateBadge;
+  /** The words of the value tabs, for a host that translates them; English where not given. */
+  valueTabsLabels?: Partial<IValueTabsLabels>;
+  /** The words of an expression's own Text / Visual toggle (no value tabs), for a host that translates them. */
+  expressionModeLabels?: Partial<IExpressionModeLabels>;
+  /**
+   * How wide the value is when it is written as text:
+   * - `field` (the default): 150px, as a free text field is, wider for what it holds, and narrower only
+   *   where its row has less room;
+   * - `content`: as wide as what it holds, from 150px, and narrower than that only where its row has less
+   *   room, where the editor is cut at the field's edge (a chip's name is still on its hover). An
+   *   expression's operand is drawn so: a reference chip takes the font of the text it sits in, so a long
+   *   one is wider than a narrow condition's column, and a field never narrower than what it holds pushed
+   *   its own ⋮ out of the row (qorus#646).
+   */
+  textWidth?: 'field' | 'content';
+  /**
    * SEAM (reqraft): host-injected per-card actions for the expression editor
    * this field renders in expression mode (the IDE's AI-assist button).
    * Declared here — not left to the index signature — so it is destructured
@@ -202,6 +251,18 @@ export interface ITemplateFieldProps extends Partial<
   default_value?: unknown;
 }
 
+/** The box a value written as text is drawn in, by `textWidth` (see it). */
+const FIELD_WIDTH_BOX: React.CSSProperties = {
+  width: '150px',
+  maxWidth: '100%',
+  minWidth: 'fit-content',
+};
+const CONTENT_WIDTH_BOX: React.CSSProperties = { width: 'auto', maxWidth: '100%', minWidth: 0 };
+/** A value beside the offer of an expression: the row's room left of the offer, never narrower than a text field. */
+const OFFER_BESIDE_VALUE_BOX: React.CSSProperties = { flex: '1 1 150px', width: 'auto', minWidth: '150px' };
+/** The editor in a `content` box: never narrower than a free text field. */
+const CONTENT_WIDTH_EDITOR: React.CSSProperties = { minWidth: '150px' };
+
 export const ComponentMap = {
   string: LongStringField,
   number: Number,
@@ -217,8 +278,134 @@ export const ComponentMap = {
   file: FileField,
 };
 
+/**
+ * The words of the value tabs (qorus#646). A host that translates its interface passes its own; a label that
+ * holds a value is a function of it, so the host keeps its language's word order.
+ */
+export interface IValueTabsLabels {
+  value: string;
+  expression: string;
+  visual: string;
+  template: string;
+  expressionTooltip: string;
+  visualTooltip: string;
+  templateTooltip: string;
+  /** Said on the Value tab for an expression that is not a lone value or template. */
+  cannotShowExpression: string;
+  /**
+   * The Expression tab's tooltip, in a field that is a condition (`isConditionOption`). The tab keeps its name:
+   * a condition is written as an expression, and the hover says so (qorus#646, David: "what is "Condition"? Is
+   * it meant to be an expression?").
+   */
+  conditionTooltip: string;
+  /** The Visual tab's tooltip, in a condition field. */
+  conditionVisualTooltip: string;
+  /** Said on the Value tab for a condition that is not a lone value or template. */
+  cannotShowCondition: string;
+  /** Said on the Value tab for a template it cannot show; `tab` is the tab's own label. */
+  templateShownOn: (tab: string) => string;
+  replaceWithAValue: string;
+  /** A template of another type than the field's; `from` and `to` name the types inside the sentence. */
+  conversion: (from: string, to: string) => string;
+  /**
+   * The name of a type inside `conversion`'s sentence. Unless a host gives its own, it is the type catalogue's
+   * sentence form ("a whole number"), in the language the server answered in (qorus#646).
+   */
+  typeName?: (type: string) => string;
+  undo: string;
+  /** The undo's tooltip; `text` is what was typed. */
+  undoTooltip: (text: string) => string;
+  /**
+   * Said on the Value tab while the Expression tab holds text that does not parse: the field keeps the value
+   * shown here, and the text waits there with its error (qorus#646).
+   */
+  expressionDraftNotUsed?: string;
+}
+
+/** Why a field that takes templates offers none here: its context's catalogue has none of its type. */
+export const NO_TEMPLATES_ON_OFFER = 'No templates are offered here for this field.';
+
+/** The keyboard a whole number or a number is typed on, on the Value tab. */
+const TEXTABLE_INPUT_MODES: Record<string, 'numeric' | 'decimal'> = {
+  int: 'numeric',
+  integer: 'numeric',
+  softint: 'numeric',
+  number: 'decimal',
+  float: 'decimal',
+  softfloat: 'decimal',
+  softnumber: 'decimal',
+};
+
+export const DEFAULT_VALUE_TABS_LABELS: IValueTabsLabels = {
+  value: 'Value',
+  expression: 'Expression',
+  visual: 'Visual',
+  template: 'Template',
+  expressionTooltip: 'Write an expression - it also takes templates',
+  visualTooltip: 'Build the expression visually',
+  templateTooltip: 'Choose a template',
+  cannotShowExpression: "This expression can't be shown as a value.",
+  conditionTooltip: 'Write the condition as an expression',
+  conditionVisualTooltip: 'Build the condition visually',
+  cannotShowCondition: "This condition can't be shown as a value.",
+  templateShownOn: (tab) => `A template is shown on the ${tab} tab, not here.`,
+  replaceWithAValue: 'Replace it with a value',
+  // the sentence starts with the first type
+  conversion: (from, to) =>
+    `${from.charAt(0).toUpperCase()}${from.slice(1)} is converted to ${to} when the value is used; a value that does not convert fails`,
+  undo: 'Undo',
+  undoTooltip: (text) => `Keep "${text}" as a value instead`,
+  expressionDraftNotUsed:
+    'The Expression tab holds text that does not parse, so the field keeps this value until it does.',
+};
+
+/** A value the host keeps for reuse (qorus#646): saved from one field, offered in every field of its type. */
+export interface ITemplateFieldSavedValue {
+  id: string;
+  label: string;
+  description?: string;
+  /** The type of the field it was saved from; it is offered in fields of that type. */
+  type: string;
+  value: unknown;
+}
+
+/**
+ * SEAM (reqraft): values the host keeps for reuse. The field's `⋮` offers "Save this value", which hands the
+ * value to the host (it asks for a name and keeps it), and "Use a saved value", which lists the values saved
+ * for the field's type. The host owns the storage; the field only offers and takes them.
+ */
+export interface ITemplateFieldSavedValues {
+  items: ITemplateFieldSavedValue[];
+  onSave?: (value: unknown, type: string) => void;
+  onRemove?: (id: string) => void;
+  /** The menu's words, English where not given. */
+  labels?: Partial<{ save: string; saveTooltip: string; use: string; remove: string }>;
+}
+
+const DEFAULT_SAVED_VALUES_LABELS = {
+  save: 'Save this value',
+  saveTooltip: 'Save this value to use it again',
+  use: 'Use a saved value',
+  remove: 'Remove saved value',
+};
+
+/** SEAM (reqraft): the badge a template shows in the template picker - where it comes from, as the host knows. */
+export type TTemplateBadge = (
+  template: TReqoreDropdownItem
+) => IReqoreButtonProps['badge'] | undefined;
+
+/** A badge's words: its label, or the badge itself when it is a string or a number. */
+const badgeText = (badge: unknown): string | undefined => {
+  const label =
+    badge !== null && typeof badge === 'object' && 'label' in badge ?
+      (badge as { label?: unknown }).label
+    : badge;
+  return typeof label === 'string' || typeof label === 'number' ? String(label) : undefined;
+};
+
 export interface ITemplateDropdownSelectorProps extends IReqoreDropdownProps {
   onRemoveClick?: IReqoreButtonProps['onClick'];
+  templateBadge?: TTemplateBadge;
   allowCustomValues?: boolean;
   hasOnlyAllowedValues?: boolean;
   templates?: IReqoreFormTemplates;
@@ -410,16 +597,11 @@ export const TemplateDropdownSelector = memo(
     hasOnlyAllowedValues,
     value,
     size,
+    templateBadge,
     ...rest
   }: ITemplateDropdownSelectorProps) => {
-    /* The LAST hop before Reqore, which is the only place a drawn description
-       may be made: `filteredTemplates` upstream is a `JSON.stringify` memo key,
-       and an element in it throws on its own circular owner. */
-    const renderMarkdown = useMarkdownRenderer();
-    const shownItems = useMemo(
-      () => renderTemplateItemDescriptions(templateItemsToShow(items), renderMarkdown),
-      [items, renderMarkdown]
-    );
+    /* The catalogue browsed: `TemplateBrowser` draws its descriptions at the hand-off to Reqore. */
+    const browsed = useMemo(() => ({ items }) as IReqoreFormTemplates, [items]);
 
     // One resolver for every surface that names a reference — the picker chip
     // here, the read-only tag, and the compact row's expression summary. The
@@ -435,9 +617,9 @@ export const TemplateDropdownSelector = memo(
       }),
       [template]
     );
-    // SEAM (reqraft): the IDE resolves the template's app/action via
-    // `useGetAppActionData` and renders the action's display name as a badge
-    // here — the app catalogue is IDE-only, so the badge is dropped.
+    // SEAM (reqraft): where the template comes from (the IDE: the app action that captures it), as the
+    // host says, beside its name
+    const badge = template && templateBadge ? templateBadge(template) : undefined;
 
     return (
       <ReqoreControlGroup vertical fluid>
@@ -448,17 +630,18 @@ export const TemplateDropdownSelector = memo(
           </ReqoreMessage>
         )}
         <ReqoreControlGroup stack>
-          <ReqoreDropdown
+          <TemplateBrowser
             className='template-selector'
             customTheme={TemplatesListProps.listCustomTheme}
             minimal
             compact
             onItemSelect={onItemSelect}
-            items={shownItems}
+            templates={browsed}
+            focusFilter
             label={label}
             leftIconProps={leftIconProps}
+            badge={badge}
             caretPosition='right'
-            filterable
             size={size}
             {...TemplatesListProps}
           />
@@ -525,6 +708,12 @@ const TemplateFieldImpl = memo(
     allowTemplates = true,
     allowFunctions,
     allowTextExpressions,
+    valueTabs,
+    valueTabsLabels,
+    expressionModeLabels,
+    textWidth = 'field',
+    savedValues,
+    templateBadge,
     extraActions,
     componentOverrides,
     allowCustomValues = true,
@@ -575,7 +764,13 @@ const TemplateFieldImpl = memo(
       let result: IReqoreFormTemplates = templates;
 
       if (filterTemplatesByType) {
-        result = templatesFilterFunc(templates, type, !!rest.arg_schema);
+        result = templatesFilterFunc(
+          templates,
+          type,
+          !!rest.arg_schema,
+          qorusTypes.value,
+          rest.base_type
+        );
       }
 
       if (filterTemplatesFunc) {
@@ -603,7 +798,27 @@ const TemplateFieldImpl = memo(
       filterTemplatesByType,
       JSON.stringify(rest.arg_schema),
       filterTemplatesFunc,
+      qorusTypes.value,
+      rest.base_type,
     ]);
+    /* Where each template comes from, as the host says (`templateBadge`): the template picker showed it beside
+       the template held, and the lists of templates the value's text and an expression's text open show it in
+       the template's row - a text field's templates are picked there, not on a tab of their own (qorus#646). */
+    const sourceOfTemplate = useMemo(
+      () =>
+        templateBadge ?
+          (template: unknown) => badgeText(templateBadge(template as TReqoreDropdownItem))
+        : undefined,
+      [templateBadge]
+    );
+    const listedTemplates = useMemo(
+      () => withTemplateSources(filteredTemplates, sourceOfTemplate),
+      [filteredTemplates, sourceOfTemplate]
+    );
+    const listedCatalogue = useMemo(
+      () => withTemplateSources(templates, sourceOfTemplate),
+      [templates, sourceOfTemplate]
+    );
 
     // An `any`-typed field has no editor of its own until a concrete type is
     // chosen, so it opened on the TYPE PICKER: before an author could say what
@@ -663,15 +878,73 @@ const TemplateFieldImpl = memo(
     const emptyLandsOnTemplates =
       typeIsAnyLike && (hasTemplatesOnOffer || (!!allowCustomValues && !hasOnlyAllowedValues));
     const opensOnTemplates = isEmptyValue && emptyLandsOnTemplates;
+    /* An untyped field holding null is written in the same text field, as `null`: the editor an untyped
+       field otherwise falls to drew null as an empty box, the same as a field holding nothing, so the
+       author could not tell the two apart (qorus#646). */
+    const nullWrittenAsText =
+      value === null && typeIsAnyLike && !!allowCustomValues && !hasOnlyAllowedValues;
+
+    /* The tabs a value is entered on (qorus#646, David): Value · Expression · Visual where the field takes
+       templates and expressions written as text, Value · Template where it takes templates only, none where
+       it takes no templates. One value, three views: see `selectTab`. */
+    const valueTabIsText = isWrittenAsTextOnTheValueTab(type as string) && !hasOnlyAllowedValues;
+    const tabsKind: 'full' | 'template' | undefined =
+      !valueTabs || !allowTemplates || editorHandlesTemplates || rest.arg_schema ? undefined
+      : allowFunctions && allowTextExpressions && !hasOnlyAllowedValues ? 'full'
+      : 'template';
+    /** The value is an expression (its AST), as the host says. */
+    const valueIsExpression =
+      !!(isFunction || isDefaultFunction) && value !== null && typeof value === 'object';
+    /** An expression that is nothing but one template (`value($record:{pos})`, as a host may hold a reference to
+     *  a field): the Value tab shows it as that template, where it can show no other expression (qorus#646). */
+    const expressionTemplate = valueIsExpression ? templateOfExpression(value) : undefined;
+    /** Where a saved value opens: an expression on Expression; a template on Value where it is written as
+     *  text, else on Expression (or Template, for a template-only field); anything else on Value. */
+    const [tab, setTab] = useState<TValueTab>(() => {
+      if (!tabsKind) return 'value';
+      if (valueIsExpression) return tabsKind === 'full' ? 'expression' : 'value';
+      if (typeof value === 'string' && isValueTemplate(value) && !valueTabIsText) {
+        return tabsKind === 'full' ? 'expression' : 'template';
+      }
+      return 'value';
+    });
+    const opensInExpressionText = tabsKind === 'full' && tab === 'expression' && !valueIsExpression;
+    const tabsKindRef = useRef(tabsKind);
+    tabsKindRef.current = tabsKind;
+    /** What the Text view is seeded with when the value is not an expression yet; null outside it. */
+    const [expressionSeed, setExpressionSeed] = useState<string | null>(
+      opensInExpressionText ? expressionTextOfValue(value) : null
+    );
+    /* What the author wrote on the Expression tab that the field does not hold (it did not parse), and the value
+       it was written over. The tab's editor goes when the tab is left; the next visit shows the text as it was
+       written while the field still holds that value, not the value written out (qorus#646). */
+    const expressionDraft = useRef<{ text: string; over: unknown } | null>(null);
+    const valueRef = useRef(value);
+    valueRef.current = value;
+    const handleExpressionDraft = useCallback((text: string | undefined) => {
+      expressionDraft.current = text === undefined ? null : { text, over: valueRef.current };
+    }, []);
+    /** The draft the Expression tab's editor is given back on this visit; null when there is none. */
+    const [expressionDraftText, setExpressionDraftText] = useState<string | null>(null);
+    /** Whether the Expression tab was left with a draft (see the Value tab's note); read with the value it holds. */
+    const [leftWithDraft, setLeftWithDraft] = useState(false);
+    const hasExpressionDraft =
+      leftWithDraft && !!expressionDraft.current && isEqual(expressionDraft.current.over, value);
 
     const [isTemplateState, setIsTemplate] = useState<boolean>(
-      (isDefaultTemplate || isValueTemplate(value) || !allowCustomValues || opensOnTemplates) &&
-        allowTemplates
+      tabsKind ?
+        tab === 'template' || (tab === 'value' && valueTabIsText)
+      : (isDefaultTemplate ||
+          isValueTemplate(value) ||
+          !allowCustomValues ||
+          opensOnTemplates ||
+          nullWrittenAsText) &&
+          !!allowTemplates
     );
 
     const isTemplate = editorHandlesTemplates ? false : isTemplateState;
     const [internalIsFunction, setInternalIsFunction] = useState<boolean>(
-      !!isDefaultFunction && !!allowFunctions
+      tabsKind ? tab === 'expression' || tab === 'visual' : !!isDefaultFunction && !!allowFunctions
     );
     const [templateValue, setTemplateValue] = useState<string | null>(value);
 
@@ -681,10 +954,20 @@ const TemplateFieldImpl = memo(
     // expression mode — kept so the switch is undoable, and so the editor
     // opens on the Text view the author was already writing in.
     const [expressionFromText, setExpressionFromText] = useState<string | null>(null);
+    /* The view the expression editor (without value tabs) is on. It opens on Text (qorus#646, David); when it
+       is mounted again - an expression removed in Visual and put back empty by its host, as a row rule's
+       condition is - it opens where the author was, not back on Text. */
+    const [expressionMode, setExpressionMode] = useState<TExpressionMode>('text');
     // Texts the author has said no to. Without this, dismissing an offer (or
     // undoing a switch) would re-detect the same text on the next render and
     // ask again forever.
     const declinedTexts = useRef<Set<string>>(new Set());
+    /* What detection found for each text: the server's expression, and whether the text could stay a value of
+       the field's type ('offer') or could not ('switch'). An undone switch is asked about again (see
+       `undoExpressionFromText`), so the expression it would become is kept here. */
+    const detectedTexts = useRef<Map<string, { expression: any; outcome: 'offer' | 'switch' }>>(
+      new Map()
+    );
     const detectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const probeDpql = useDpqlProbe();
 
@@ -700,6 +983,12 @@ const TemplateFieldImpl = memo(
     useEffect(() => {
       if (isTemplate && isValueTemplate(value)) {
         setTemplateValue(value);
+      }
+      /* Emptied from outside the editor - the card's "Clear value", an undo, a host's reset - the text the
+         value is written in is emptied too. It kept its own copy, so a cleared value went on showing what it
+         had held (qorus#646: "Clear value" had no effect). The editor's own emptying sets this already. */
+      if (isEmptyValue && templateValue) {
+        setTemplateValue(null);
       }
     }, [JSON.stringify(value)]);
 
@@ -766,8 +1055,22 @@ const TemplateFieldImpl = memo(
       }
     }, [allowCustomValues]);
 
+    // null arriving later (written in the Text tab, say) is written in the text field too - see above
     useEffect(() => {
-      if (!isTemplate && isValueTemplate(value) && allowTemplates) {
+      if (!isTemplate && nullWrittenAsText && allowTemplates) {
+        setTemplateValue(null);
+        setIsTemplate(true);
+      }
+    }, [nullWrittenAsText, allowTemplates]);
+
+    useEffect(() => {
+      // a template on the Expression tab stays there: it is the expression editor's to show
+      if (
+        !isTemplate &&
+        isValueTemplate(value) &&
+        allowTemplates &&
+        !(tabsKind && internalIsFunction)
+      ) {
         // In auto mode, leave user-typed dollar-strings alone ('$foo: hello'
         // passes the loose check) — but a string that IS one well-formed token
         // ($data:{…}, $config:item) must still flip into template mode, or an
@@ -799,7 +1102,20 @@ const TemplateFieldImpl = memo(
     // When template key or template value change run the onChange function
     useUpdateEffect(() => {
       if (templateValue) {
-        onChange?.(name, templateValue, type as TQorusType, effectiveIsFunction);
+        /* On the tabs this text is the Value or the Template tab's - a value, never an expression -
+           whichever tab is open by the time it arrives: an edit sent as its field goes away (the tab
+           switched straight after it) arrives on the next tab (qorus#646). */
+        const asExpression = tabsKindRef.current ? false : effectiveIsFunction;
+        /* Read from the text where the field is written as text: a lone template takes its own
+           type in an untyped field, a scalar's literal is that literal, other text is text. The Value
+           tab's text is the value written as text too, even where the field takes no value of the
+           author's own (an untyped field's templates are picked there: qorus#646). */
+        if (templateSupportsCustomValues || (tabsKindRef.current && valueTabIsText)) {
+          const read = templateTextValue(templateValue, type as string, filteredTemplates);
+          onChange?.(name, read.value, read.type as TQorusType, asExpression);
+          return;
+        }
+        onChange?.(name, templateValue, type as TQorusType, asExpression);
       }
     }, [JSON.stringify(templateValue)]);
 
@@ -807,15 +1123,6 @@ const TemplateFieldImpl = memo(
     // there emptied the field and showed nothing in its place
     const showTemplateToggle =
       allowCustomValues && allowTemplates && !rest.arg_schema && !editorHandlesTemplates;
-
-    // Only a BRACED context ref (`$data:{…}` — machine-written, nobody types
-    // one) renders as the picker chip (named via `resolveTemplateLabel`)
-    // rather than as its raw text in a string editor. Plain word-path tokens
-    // (`$local:id`) are typeable, so per the build #123 review they keep the
-    // input that offers templates while typing. Mixed text-and-token strings
-    // keep the string editor too; the chip-in-editor treatment arrives with
-    // the rich-text string mode.
-    const templateValueIsBracedToken = isBracedTemplateToken(templateValue);
 
     /* An UNTYPED field can be typed into as well as picked from.
     
@@ -832,11 +1139,19 @@ const TemplateFieldImpl = memo(
        specific to that field: every empty untyped field with templates on
        offer got the same downgrade. The editor still offers the same templates
        on focus, so nothing is lost by being able to type as well. */
+    /* And so can a scalar: a whole number, a number or a yes/no is written as text too
+       (qorus#646). A template chosen into it is a chip in that text, not a pick-only
+       control that holds the template and nothing else, so text can be written around it;
+       what the field then holds is read from the text (writtenAsText). A date keeps its
+       date control. */
     const templateSupportsCustomValues =
-      allowCustomValues && (type === 'string' || typeIsAnyLike) && !hasOnlyAllowedValues;
+      allowCustomValues && isWrittenAsText(type as string) && !hasOnlyAllowedValues;
     const showTemplatesDropdown =
       allowTemplates && (!allowCustomValues || (isTemplate && !templateSupportsCustomValues));
     const hasOnlyExpressions = !allowCustomValues && !allowTemplates && allowFunctions;
+    /** A date field with templates on offer: they are offered beside its date control. */
+    const dateTakesTemplates =
+      type === 'date' && !!allowTemplates && hasTemplatesOnOffer && !hasOnlyAllowedValues;
     // True when some input control renders besides the ⋮ menu. When nothing
     // does (an empty `any` field: custom values are disallowed and the value's
     // type is picked FROM the menu), the menu trigger is the field's only
@@ -860,8 +1175,11 @@ const TemplateFieldImpl = memo(
           /* Emptying the text leaves the field where an empty field lands. For
              an untyped field that is THIS editor: switching to custom mode here
              mounted a different editor in its place, so deleting the last
-             character lost the cursor. */
-          if (!(emptyLandsOnTemplates && allowTemplates)) {
+             character lost the cursor. A field written as text (a whole number, a
+             number, a yes/no) is the same: deleting the template in it left a
+             different, empty editor in its place, and what was typed next went
+             nowhere. */
+          if (!((emptyLandsOnTemplates || templateSupportsCustomValues) && allowTemplates)) {
             setIsTemplate(false);
           }
           setTemplateValue(null);
@@ -870,7 +1188,7 @@ const TemplateFieldImpl = memo(
           setTemplateValue(val);
         }
       },
-      [name, onChange, emptyLandsOnTemplates, allowTemplates]
+      [name, onChange, emptyLandsOnTemplates, templateSupportsCustomValues, allowTemplates]
     );
 
     const handleTemplateTextChange = useCallback(
@@ -882,8 +1200,9 @@ const TemplateFieldImpl = memo(
       // If the field has allowed values and supports templates, we do not want to overwrite the field type with the template type
       (item) => {
         // If the template type is richtext, we need to wrap the template value in the richtext template format
+        // the template's type (`templateType`): a list's badge is its type's name
         const value =
-          item.badge === 'richtext' ?
+          templateType(item) === 'richtext' ?
             ([
               {
                 type: 'paragraph',
@@ -913,7 +1232,7 @@ const TemplateFieldImpl = memo(
         onChange(
           name,
           value,
-          hasOnlyAllowedValues ? (type as TQorusType) : (item.badge as TQorusType)
+          hasOnlyAllowedValues ? (type as TQorusType) : (templateType(item) as TQorusType)
         );
       },
       [name, onChange]
@@ -922,6 +1241,15 @@ const TemplateFieldImpl = memo(
     // SEAM (reqraft): the IDE computes `canSaveValue` here and renders a
     // `SaveValueButton` in the controls menu — the saved-values storage is
     // IDE-only, so the menu item is dropped (`allowSaving` is inert).
+
+    /* A template chosen beside a date control is the value at once, IN the template control: handed to
+       the form while the field was still drawing its date control, the reference reached the date
+       picker first, which threw on it ("Invalid ISO 8601 date time string"). */
+    const handleSelectDateTemplate = useCallback((item: { value?: unknown }) => {
+      if (typeof item?.value !== 'string') return;
+      setIsTemplate(true);
+      setTemplateValue(item.value);
+    }, []);
 
     const handleRemoveTemplateClick = useCallback(() => {
       /* This is the `×` ON the template control, and it means "I do not want a
@@ -990,6 +1318,153 @@ const TemplateFieldImpl = memo(
       }
     }, [name, onChange, value, templateValue]);
 
+    /* One value, three views (qorus#646, David). Value → Expression writes the literal or template as
+       expression text, emitting nothing until it is edited. Expression ↔ Visual is the editor's own toggle.
+       Expression → Value converts only a literal or a lone template; any other expression stays, and the
+       Value tab says it cannot show it and offers to replace it. Nothing is lost silently. */
+    /** Reads the Expression tab's text typed and not yet read (see `ExpressionField.flushRef`). */
+    const expressionFlush = useRef<(() => Promise<IExpression | undefined>) | null>(null);
+
+    const selectTab = useCallback(
+      async (next: TValueTab) => {
+        if (next === tab) return;
+        /* What was just typed on the Expression tab is read before the tab goes, and is the expression the
+           field now holds; it was lost with the editor when the tab was left before it was read (qorus#646). */
+        const flushed = tab === 'expression' ? await expressionFlush.current?.() : undefined;
+        // left with text that did not parse: the Value tab says the field keeps its value
+        setLeftWithDraft(tab === 'expression' && !flushed && !!expressionDraft.current);
+        const envelope =
+          flushed ?? (valueIsExpression ? { is_expression: true, value } : undefined);
+        if (next === 'value' || next === 'template') {
+          if (envelope) {
+            const template = loneTemplateOf(envelope);
+            const literal = template === undefined ? loneValueOf(envelope) : undefined;
+            if (template !== undefined) {
+              setTemplateValue(template);
+              onChange?.(name, template, type as TQorusType, false);
+            } else if (literal !== undefined) {
+              setTemplateValue(valueTextOf(literal.value, type as string) || null);
+              onChange?.(name, literal.value, type as TQorusType, false);
+            }
+          }
+          setInternalIsFunction(false);
+          setExpressionFromText(null);
+          setIsTemplate(next === 'template' || valueTabIsText);
+        } else {
+          /* The seed is the value written as text while it is not an expression yet. One that is shows itself:
+             a seed left from an earlier visit was shown in its place - the value as it was opened, not the
+             expression written since - and leaving the tab saved it (qorus#646). */
+          setExpressionSeed(!flushed && !valueIsExpression ? expressionTextOfValue(value) : null);
+          // the text written there that did not parse, while the field still holds what it was written over
+          const draft = expressionDraft.current;
+          const keepsDraft = !flushed && !!draft && isEqual(draft.over, value);
+          if (!keepsDraft) expressionDraft.current = null;
+          setExpressionDraftText(keepsDraft ? draft.text : null);
+          setInternalIsFunction(true);
+        }
+        setTab(next);
+      },
+      [tab, valueIsExpression, value, name, onChange, type, valueTabIsText]
+    );
+
+    /** Replace what a tab cannot show with an empty value of its own kind. */
+    const replaceWithAValue = useCallback(() => {
+      setInternalIsFunction(false);
+      setTemplateValue(null);
+      setExpressionSeed(null);
+      onChange?.(name, undefined, type as TQorusType, false);
+    }, [name, onChange, type]);
+
+    /* A saved value is the value at once, shown where its kind is: a template on the Value tab where the
+       field is written as text, else on the Expression tab (or Template, for a template-only field); any
+       other value on the Value tab - or, without tabs, in template mode for a template. */
+    const takeSavedValue = useCallback(
+      (saved: unknown) => {
+        const isSavedTemplate = typeof saved === 'string' && isValueTemplate(saved);
+        setExpressionFromText(null);
+        setTemplateValue(typeof saved === 'string' ? saved : null);
+        if (tabsKindRef.current) {
+          const next: TValueTab =
+            isSavedTemplate && !valueTabIsText ?
+              tabsKindRef.current === 'full' ?
+                'expression'
+              : 'template'
+            : 'value';
+          setExpressionSeed(next === 'expression' ? expressionTextOfValue(saved) : null);
+          setInternalIsFunction(next === 'expression');
+          setIsTemplate(next === 'template' || (next === 'value' && valueTabIsText));
+          setTab(next);
+        } else {
+          setExpressionSeed(null);
+          setInternalIsFunction(false);
+          setIsTemplate(isSavedTemplate && !!allowTemplates);
+        }
+        onChange?.(name, saved, type as TQorusType, false);
+      },
+      [name, onChange, type, valueTabIsText, allowTemplates]
+    );
+
+    // the values saved for this field's type, and whether this value can be saved
+    const savedWords = { ...DEFAULT_SAVED_VALUES_LABELS, ...savedValues?.labels };
+    const savedForType = useMemo(
+      () => (savedValues?.items ?? []).filter((item) => item.type === type),
+      [savedValues?.items, type]
+    );
+    const editable = !rest.readonly && !rest.readOnly && !rest.disabled;
+    const canSaveValue =
+      !!savedValues?.onSave &&
+      editable &&
+      type !== 'bool' &&
+      type !== 'boolean' &&
+      !hasOnlyAllowedValues &&
+      !valueIsExpression &&
+      !isEmptyValue &&
+      value !== null;
+    const canUseSavedValue = editable && savedForType.length > 0;
+    const savedValueItems = [
+      ...(canSaveValue ?
+        [
+          {
+            label: savedWords.save,
+            icon: 'SaveLine' as const,
+            tooltip: savedWords.saveTooltip,
+            className: 'save-value',
+            onClick: () => savedValues!.onSave!(value, type as string),
+          },
+        ]
+      : []),
+      ...(canUseSavedValue ?
+        [
+          {
+            label: savedWords.use,
+            icon: 'HistoryLine' as const,
+            className: 'use-saved-value',
+            items: savedForType.map((item) => ({
+              label: item.label,
+              description: item.description,
+              className: 'saved-value',
+              onClick: () => takeSavedValue(item.value),
+              ...(savedValues?.onRemove ?
+                {
+                  rightAction: {
+                    icon: 'DeleteBinLine' as const,
+                    intent: 'danger' as const,
+                    minimal: true,
+                    className: 'saved-value-remove',
+                    tooltip: savedWords.remove,
+                    onClick: (event: React.MouseEvent<HTMLElement>) => {
+                      event.stopPropagation();
+                      savedValues.onRemove!(item.id);
+                    },
+                  },
+                }
+              : {}),
+            })),
+          },
+        ]
+      : []),
+    ];
+
     const handleTemplateToggleClick = useCallback(() => {
       setInternalIsFunction(false);
       onChange(name, undefined, undefined, false);
@@ -1001,12 +1476,24 @@ const TemplateFieldImpl = memo(
       (expressionValue: IExpression | undefined, remove: boolean) => {
         if (remove) {
           setInternalIsFunction(false);
+          setExpressionSeed(null);
           // The expression is gone, so there is no longer a switch to undo.
           setExpressionFromText(null);
         }
+        /* On the Expression tab a lone template is kept as the expression the server parses it into,
+           template(...): the option takes expressions (qorus#646, David). A template-only option has no
+           Expression tab and keeps the bare template. A lone value (12, true) is that value, the field's own
+           shape (see `loneValueOf`). */
+        const onTabs = !!tabsKindRef.current;
+        const literal = remove || !onTabs ? undefined : loneValueOf(expressionValue);
+        if (literal !== undefined) {
+          setExpressionSeed(expressionSeedOf(literal.value));
+          onChange(name, literal.value, type as TQorusType, false);
+          return;
+        }
         onChange(name, expressionValue?.value, expressionDataType as TQorusType, !remove);
       },
-      [name, onChange, expressionDataType, value]
+      [name, onChange, expressionDataType, value, type]
     );
 
     // ─── Text typed into a plain field that is really a DPQL expression ───
@@ -1025,6 +1512,8 @@ const TemplateFieldImpl = memo(
     const validationField = useMemo(
       () => ({
         validation_regex: rest.validation_regex,
+        validation_regex_desc: rest.validation_regex_desc,
+        example_value: rest.example_value,
         has_to_be_valid_identifier: rest.has_to_be_valid_identifier,
         has_to_have_value: rest.has_to_have_value,
         rules: rest.rules,
@@ -1032,6 +1521,8 @@ const TemplateFieldImpl = memo(
       }),
       [
         rest.validation_regex,
+        rest.validation_regex_desc,
+        JSON.stringify(rest.example_value),
         rest.has_to_be_valid_identifier,
         rest.has_to_have_value,
         JSON.stringify(rest.rules),
@@ -1043,9 +1534,15 @@ const TemplateFieldImpl = memo(
       (text: string, expression: any) => {
         setDpqlOffer(null);
         setExpressionFromText(text);
+        /* The value is an expression now, and the Text view shows it. A seed left from an earlier visit to
+           the Expression tab - the value as it was then - was shown in its place, and leaving the tab saved
+           it: what had just been typed was lost (qorus#646). */
+        setExpressionSeed(null);
         setInternalIsFunction(true);
         setIsTemplate(false);
         setTemplateValue(null);
+        // the Value tab never holds an expression: detected, it moves to the Expression tab, with an undo
+        if (tabsKindRef.current === 'full') setTab('expression');
         // `dpql/parse` answers with the field-ready envelope
         // (`{is_expression, value}`); this field stores the inner AST and
         // signals the flag through `onChange`'s fourth argument, exactly as
@@ -1062,8 +1559,20 @@ const TemplateFieldImpl = memo(
 
       declinedTexts.current.add(expressionFromText);
       setInternalIsFunction(false);
+      if (tabsKind) {
+        setTab('value');
+        setIsTemplate(valueTabIsText);
+      }
       setExpressionFromText(null);
       onChange?.(name, expressionFromText, type as TQorusType, false);
+      /* Text that cannot be a value of the field's type (`12 + 2` in a whole number) is not a value it can
+         keep: put back, it is a value the field refuses. It is offered again as an expression, beside that
+         refusal, so the way back is in sight; text that can be a value is kept as one, as the undo asked
+         (David on FormEngine · Expression Typed On Value Switches With Undo, qorus#646). */
+      const detected = detectedTexts.current.get(expressionFromText);
+      if (detected?.outcome === 'switch') {
+        setDpqlOffer({ text: expressionFromText, expression: detected.expression });
+      }
     }, [expressionFromText, name, onChange, type]);
 
     const declineDpqlOffer = useCallback(() => {
@@ -1080,15 +1589,42 @@ const TemplateFieldImpl = memo(
       }
     }, [dpqlOffer, enterExpressionFromText]);
 
-    // Held in a ref so the debounce below does not depend on it. `onChange`
-    // comes from the host form and can be a fresh function on any render;
-    // with the callback in the effect's deps, a re-render caused by a
-    // DIFFERENT field would restart this field's timer, and a form the
-    // author is typing in re-renders constantly.
-    const enterExpressionRef = useRef(enterExpressionFromText);
-    useEffect(() => {
-      enterExpressionRef.current = enterExpressionFromText;
-    }, [enterExpressionFromText]);
+    /* The offer of an expression detected in text the field keeps, beside the field, in every layout: on the
+       Value tab of a form's tabs too, where it is how an undone switch's text is made an expression again. */
+    const dpqlOfferPrompt =
+      dpqlOffer ?
+        <ReqoreControlGroup fixed stack size={rest.size}>
+          <ReqoreButton
+            compact
+            icon='Functions'
+            intent='info'
+            className='dpql-detected-offer'
+            tooltip={`"${dpqlOffer.text}" could be an expression. It is kept as text; use it as an expression instead?`}
+            onClick={acceptDpqlOffer}
+          >
+            Use as expression
+          </ReqoreButton>
+          <ReqoreButton
+            compact
+            icon='CloseLine'
+            intent='info'
+            className='dpql-detected-dismiss'
+            tooltip='Keep it as plain text'
+            onClick={declineDpqlOffer}
+          />
+        </ReqoreControlGroup>
+      : null;
+
+    /* The offer beside the field it is of, to its right, and under it only where the row has no room for both: under
+       it, with the field's message under that, an offer was one more line to read before the value (Foxhoundn, qlip
+       #392: "move the `Use as an expression` to the right of the field"). */
+    const withOfferBeside = (field: React.ReactNode) =>
+      dpqlOfferPrompt ?
+        <ReqoreControlGroup fluid wrap gapSize='small' verticalAlign='flex-start' className='dpql-offer-beside'>
+          {field}
+          {dpqlOfferPrompt}
+        </ReqoreControlGroup>
+      : field;
 
     // Detection only runs on a field that could hold an expression and is
     // currently showing a plain editor — never on a read-only field, a
@@ -1097,7 +1633,10 @@ const TemplateFieldImpl = memo(
       !!allowFunctions &&
       !!allowTextExpressions &&
       !effectiveIsFunction &&
-      !isTemplate &&
+      /* the template editor is text too: an expression written around a template is detected there; and a
+         form's Value tab written as text takes any text, whatever the field says of custom values (an untyped
+         option's did, and an expression typed there was kept as text, offered as nothing: qorus#646) */
+      (!isTemplate || templateSupportsCustomValues || (tabsKind === 'full' && valueTabIsText)) &&
       !hasOnlyAllowedValues &&
       !rest.readonly &&
       !rest.readOnly &&
@@ -1126,12 +1665,12 @@ const TemplateFieldImpl = memo(
         : Array.isArray(value) ? richtextToString(value as never)
         : undefined;
 
-      if (
-        !canDetectDpql ||
-        !text ||
-        declinedTexts.current.has(text) ||
-        !mightBeDpqlExpression(text)
-      ) {
+      if (text && canDetectDpql && declinedTexts.current.has(text)) {
+        // asked about already: an offer made for this very text (an undone switch's) stands, any other goes
+        setDpqlOffer((offer) => (offer?.text === text ? offer : null));
+        return undefined;
+      }
+      if (!canDetectDpql || !text || !mightBeDpqlExpression(text)) {
         setDpqlOffer(null);
         return undefined;
       }
@@ -1148,10 +1687,14 @@ const TemplateFieldImpl = memo(
             }
 
             const outcome = classifyTypedText({ text, type, field: validationField, parsed });
+            if (outcome !== 'none') {
+              detectedTexts.current.set(text, { expression: parsed.expression, outcome });
+            }
 
-            if (outcome === 'switch') {
-              enterExpressionRef.current(text, parsed.expression);
-            } else if (outcome === 'offer') {
+            /* An expression detected is offered, never switched to: the author chooses (qorus#646, David's
+               review: "@pos + @bezeichnung" became an expression without asking). Text that cannot be a value
+               of the field's type is said to be one it refuses, beside the offer. */
+            if (outcome !== 'none') {
               setDpqlOffer({ text, expression: parsed.expression });
             } else {
               setDpqlOffer(null);
@@ -1188,36 +1731,51 @@ const TemplateFieldImpl = memo(
 
     const publishedItems = useMemo(
       () => [
-        ...(canOfferExpression && !functions.loading
-          ? [
-              {
-                label: 'Use Expression',
-                icon: 'Functions' as const,
-                tooltip: 'Run a function on this value',
-                onClick: handleSelectFunctionChange,
-              },
-            ]
-          : []),
-        ...(canOfferTemplate
-          ? [
-              {
-                label: 'Use Template',
-                icon: 'MoneyDollarCircleLine' as const,
-                tooltip: 'Use a template',
-                onClick: handleTemplateToggleClick,
-              },
-            ]
-          : []),
-        ...(canOfferCustomValue
-          ? [
-              {
-                label: 'Use Custom Value',
-                icon: 'EditLine' as const,
-                tooltip: 'Write the value here instead of choosing a template',
-                onClick: handleUseCustomValueClick,
-              },
-            ]
-          : []),
+        // on tabs, the menu keeps value actions only: the tabs are the mode switch
+        ...(tabsKind ?
+          []
+        : [
+            ...(canOfferExpression && !functions.loading ?
+              [
+                {
+                  // in a condition field the label says what it is for; the value's tooltip would only repeat it
+                  label: isConditionOption(rest) ? 'Write a condition' : 'Use Expression',
+                  icon: 'Functions' as const,
+                  ...(isConditionOption(rest) ? {} : { tooltip: 'Run a function on this value' }),
+                  onClick: handleSelectFunctionChange,
+                },
+              ]
+            : []),
+            ...(canOfferTemplate ?
+              [
+                {
+                  label: 'Use Template',
+                  icon: 'MoneyDollarCircleLine' as const,
+                  /* With no template on offer here - a context whose catalogue has none, or none of this
+                     type - the way in leads to an empty list: it is shown, not taken, and says why
+                     (qorus#646, David: "Are there cases where no templates or fields are available?"). */
+                  ...(hasTemplatesOnOffer ?
+                    { tooltip: 'Use a template' }
+                  : {
+                      disabled: true,
+                      description: NO_TEMPLATES_ON_OFFER,
+                      tooltip: NO_TEMPLATES_ON_OFFER,
+                    }),
+                  onClick: handleTemplateToggleClick,
+                },
+              ]
+            : []),
+          ]),
+        ...(canOfferCustomValue && !tabsKind ?
+          [
+            {
+              label: 'Use Custom Value',
+              icon: 'EditLine' as const,
+              tooltip: 'Write the value here instead of choosing a template',
+              onClick: handleUseCustomValueClick,
+            },
+          ]
+        : []),
         /* The "set a value of this type" choices an untyped field offers.
            Dividers are dropped: they grouped items in a menu this field drew
            itself, and in the row's shared menu they would divide other
@@ -1233,16 +1791,23 @@ const TemplateFieldImpl = memo(
                 setTemplateValue(null);
               }),
           })),
+        ...savedValueItems,
       ],
       [
         canOfferExpression,
         functions.loading,
         canOfferTemplate,
+        hasTemplatesOnOffer,
         canOfferCustomValue,
         menuItems,
         handleSelectFunctionChange,
         handleTemplateToggleClick,
         handleUseCustomValueClick,
+        // the saved values offered, and whether this value can be saved
+        canSaveValue,
+        value,
+        savedForType,
+        takeSavedValue,
       ]
     );
 
@@ -1251,22 +1816,34 @@ const TemplateFieldImpl = memo(
        by value would loop. */
     const publishedKey = [
       canOfferExpression && !functions.loading ? 'expression' : '',
-      canOfferTemplate ? 'template' : '',
+      canOfferTemplate ? `template${hasTemplatesOnOffer ? '' : '-none-on-offer'}` : '',
       canOfferCustomValue ? 'custom-value' : '',
       `custom:${((menuItems ?? []) as { label?: unknown }[]).map((item) => String(item.label ?? '')).join('|')}`,
+      canSaveValue ? `save:${JSON.stringify(value)}` : '',
+      canUseSavedValue ? `saved:${savedForType.map((item) => item.id).join('|')}` : '',
     ].join(',');
 
     useRowMenuPublisher(rowMenu, publishedKey, publishedItems as never);
 
     const renderControls = useCallback(() => {
+      // on tabs, the tabs are the mode switch: the menu keeps value actions only
       const showFunctionsDropdown =
-        allowFunctions && !hasOnlyAllowedValues && !rest.readonly && !internalIsFunction;
-      const showTemplatesButton = showTemplateToggle && !isTemplate;
+        !tabsKind &&
+        allowFunctions &&
+        !hasOnlyAllowedValues &&
+        !rest.readonly &&
+        !internalIsFunction;
+      const showTemplatesButton = !tabsKind && showTemplateToggle && !isTemplate;
       // The way back out of template mode, where the editor draws no `×`.
-      const showCustomValueButton = showTemplateToggle && isTemplate && templateSupportsCustomValues;
+      const showCustomValueButton =
+        !tabsKind && showTemplateToggle && isTemplate && templateSupportsCustomValues;
       // The "Set value" label promises a way to set one — reorder rows alone don't.
       const hasValueRows =
-        showFunctionsDropdown || showTemplatesButton || showCustomValueButton || size(menuItems) > 0;
+        showFunctionsDropdown ||
+        showTemplatesButton ||
+        showCustomValueButton ||
+        size(menuItems) > 0 ||
+        savedValueItems.length > 0;
 
       /* A lone group opens itself. Two of the menu's groups are collapsed
          sections, so a menu holding nothing but one of them asked for a click
@@ -1282,6 +1859,7 @@ const TemplateFieldImpl = memo(
           showCustomValueButton,
           size(menuActions?.items) > 0,
           size(menuItems) > 0,
+          canUseSavedValue,
         ].filter(Boolean).length === 1;
 
       /* ONE menu per control. Where this field sits in a form ROW, the row
@@ -1306,7 +1884,7 @@ const TemplateFieldImpl = memo(
                 label='Create New Expression'
                 className='function-selector'
                 icon='Functions'
-                tooltip='This field only accepts expressions'
+                tooltip='This field takes an expression.'
                 onClick={() => {
                   setIsTemplate(false);
                   setTemplateValue(null);
@@ -1385,21 +1963,23 @@ const TemplateFieldImpl = memo(
                   : <ReqoreButton
                       compact
                       transparent
-                      label='Use Expression'
+                      label={isConditionOption(rest) ? 'Write a condition' : 'Use Expression'}
                       className='function-selector'
                       icon='Functions'
-                      tooltip='Run a function on this value'
+                      tooltip={isConditionOption(rest) ? undefined : 'Run a function on this value'}
                       onClick={handleSelectFunctionChange}
                     />
 
                 : null}
 
-                {showTemplatesButton ?
+                {showTemplatesButton && !(showFunctionsDropdown && allowTextExpressions) ?
                   <ReqoreButton
                     transparent
                     icon='MoneyDollarCircleLine'
                     className='template-toggle'
-                    tooltip={'Use a template'}
+                    // none on offer: shown, not taken, and saying why (as the menu's item does)
+                    tooltip={hasTemplatesOnOffer ? 'Use a template' : NO_TEMPLATES_ON_OFFER}
+                    disabled={!hasTemplatesOnOffer}
                     compact
                     size={rest.size}
                     onClick={handleTemplateToggleClick}
@@ -1441,6 +2021,55 @@ const TemplateFieldImpl = memo(
                   />
                 : null}
 
+                {canSaveValue ?
+                  <ReqoreButton
+                    compact
+                    transparent
+                    icon='SaveLine'
+                    className='save-value'
+                    tooltip={savedWords.saveTooltip}
+                    size={rest.size}
+                    onClick={() => savedValues!.onSave!(value, type as string)}
+                  >
+                    {savedWords.save}
+                  </ReqoreButton>
+                : null}
+
+                {canUseSavedValue ?
+                  <ReqoreMenuSection
+                    label={savedWords.use}
+                    icon='HistoryLine'
+                    className='use-saved-value'
+                    transparent
+                    isCollapsed={!loneSectionStartsExpanded}
+                  >
+                    {savedForType.map((item) => (
+                      <ReqoreMenuItem
+                        key={item.id}
+                        className='saved-value'
+                        label={item.label}
+                        description={item.description}
+                        onClick={() => takeSavedValue(item.value)}
+                        rightAction={
+                          savedValues?.onRemove ?
+                            {
+                              icon: 'DeleteBinLine',
+                              intent: 'danger',
+                              minimal: true,
+                              className: 'saved-value-remove',
+                              tooltip: savedWords.remove,
+                              onClick: (event) => {
+                                event.stopPropagation();
+                                savedValues.onRemove!(item.id);
+                              },
+                            }
+                          : undefined
+                        }
+                      />
+                    ))}
+                  </ReqoreMenuSection>
+                : null}
+
                 {size(menuTrailingItems) > 0 ?
                   <MenuTrailingItems items={menuTrailingItems} size={rest.size} />
                 : null}
@@ -1457,11 +2086,13 @@ const TemplateFieldImpl = memo(
       handleSelectFunctionChange,
       handleTemplateToggleClick,
       handleUseCustomValueClick,
+      allowTextExpressions,
       hasOnlyAllowedValues,
       isTemplate,
       rest.readonly,
       rest.size,
       showTemplateToggle,
+      hasTemplatesOnOffer,
       // reaches the menu through `templateSupportsCustomValues`
       allowCustomValues,
       hasOnlyExpressions,
@@ -1475,6 +2106,12 @@ const TemplateFieldImpl = memo(
       hasInputAffordance,
       // the row decides whether this field draws a menu at all
       rowMenu,
+      tabsKind,
+      canSaveValue,
+      canUseSavedValue,
+      savedForType,
+      takeSavedValue,
+      savedValues,
     ]);
 
     // When the type is a list, and it has an element type - that element type is different
@@ -1503,6 +2140,304 @@ const TemplateFieldImpl = memo(
       type,
     ]);
 
+    // ─── Value · Expression · Visual (or Value · Template) ───────────────────────────────────────────
+    if (tabsKind && !rest.disabled) {
+      const words: IValueTabsLabels = { ...DEFAULT_VALUE_TABS_LABELS, ...valueTabsLabels };
+      /** A type named inside a sentence: the host's own words, or the type catalogue's sentence form (none for no type). */
+      const typeInSentence: (type: string | undefined) => string | undefined =
+        words.typeName ?? qorusTypes.getTypeSentenceForm;
+      /* A condition field's Expression tab is called Expression, as every field's is: a condition is written as
+         an expression, and the tab's hover says so (qorus#646). */
+      const conditionField = isConditionOption(rest);
+      const expressionTabLabel = words.expression;
+      const tabButton = (
+        key: TValueTab,
+        label: string,
+        icon: IReqoreIconName,
+        tooltip?: string
+      ) => (
+        <ReqoreButton
+          key={key}
+          compact
+          size={rest.size}
+          icon={icon}
+          active={tab === key}
+          aria-pressed={tab === key}
+          data-tab={key}
+          className={`value-tab value-tab-${key}`}
+          tooltip={tooltip}
+          disabled={rest.readOnly || rest.readonly}
+          onClick={() => selectTab(key)}
+        >
+          {label}
+        </ReqoreButton>
+      );
+      /* A lone template of another type than the field's is converted when the value is used: said as a
+         warning, not a block - whether it converts depends on the data (qorus#646, David). */
+      const loneTemplate =
+        typeof value === 'string' && isCompleteTemplateToken(value) ? value : expressionTemplate;
+      const loneTemplateType =
+        loneTemplate && !typeIsAnyLike ?
+          templateType(findTemplate(templates ?? {}, loneTemplate))
+        : undefined;
+      // the types inside the sentence; with either one not known there is nothing to say converts to what
+      const conversionFrom =
+        typeof loneTemplateType === 'string' && !sameValueType(loneTemplateType, type as string) ?
+          typeInSentence(loneTemplateType)
+        : undefined;
+      const conversionTo = conversionFrom ? typeInSentence(type as string) : undefined;
+      const conversionNote =
+        conversionFrom && conversionTo ? words.conversion(conversionFrom, conversionTo) : undefined;
+      const cannotShow = (message: string) => (
+        <ReqoreMessage
+          size='small'
+          flat
+          opaque={false}
+          intent='muted'
+          className='value-tab-cannot-show'
+        >
+          {message}{' '}
+          <ReqoreButton
+            compact
+            size={rest.size}
+            className='value-tab-replace'
+            onClick={replaceWithAValue}
+            disabled={rest.readOnly || rest.readonly}
+          >
+            {words.replaceWithAValue}
+          </ReqoreButton>
+        </ReqoreMessage>
+      );
+      const valueBody = () => {
+        if (valueIsExpression && expressionTemplate === undefined) {
+          return cannotShow(conditionField ? words.cannotShowCondition : words.cannotShowExpression);
+        }
+        if (valueTabIsText) {
+          const valueText = (
+            <RichTextFormField
+                className='template-selector value-tab-text'
+                valueFormat='text'
+                /* A whole number or a number is typed on a numeric keyboard where the device has one, as its own
+                   input was (qorus#646); templates are picked from the list the field opens, and an expression
+                   is written on the Expression tab. */
+                inputMode={TEXTABLE_INPUT_MODES[type as string]}
+                singleLine={isSingleLineStringType('string')}
+                value={
+                  typeof templateValue === 'string' ? templateValue : (
+                    (expressionTemplate ?? valueTextOf(value, type as string))
+                  )
+                }
+                templates={listedTemplates}
+                // a chip of a field not of this type is named as the catalogue names it
+                namingTemplates={templates}
+                allowTemplates
+                onChange={handleTemplateTextChange}
+                {...rest}
+                fixed={false}
+                fluid
+                /* The value takes the row the tabs give it (qorus#646, David: a small box beside empty room
+                   was clicked beside, and offered nothing). An operand's own field sizes itself to its
+                   column instead - that is the field outside the tabs. */
+                panelProps={{
+                  ...(rest as { panelProps?: object }).panelProps,
+                  style: {
+                    ...(rest as { panelProps?: { style?: object } }).panelProps?.style,
+                    // beside an offer, the value takes the room the offer leaves, and goes over it where none is left
+                    ...(dpqlOfferPrompt ? OFFER_BESIDE_VALUE_BOX : { width: '100%' }),
+                  },
+                }}
+                aria-label={fieldAriaLabel}
+              />
+          );
+          return (
+            <ReqoreControlGroup vertical fluid gapSize='small'>
+              {withOfferBeside(valueText)}
+              {conversionNote ?
+                <ReqoreMessage
+                  size='small'
+                  flat
+                  opaque={false}
+                  intent='warning'
+                  className='value-tab-conversion'
+                >
+                  {conversionNote}
+                </ReqoreMessage>
+              : null}
+            </ReqoreControlGroup>
+          );
+        }
+        if (loneTemplate !== undefined || (typeof value === 'string' && isValueTemplate(value))) {
+          return cannotShow(
+            words.templateShownOn(tabsKind === 'full' ? expressionTabLabel : words.template)
+          );
+        }
+        const ownControl = (
+          <Component
+            value={value}
+            allowTemplates={false}
+            onChange={onChange}
+            name={name}
+            level={level}
+            {...rest}
+            componentOverrides={componentOverrides}
+            {...componentTypeProp}
+            aria-label={fieldAriaLabel}
+            className={`${className} template-selector`}
+          />
+        );
+        // an expression detected in what the type's own control holds is offered beside it, as on the text
+        return withOfferBeside(ownControl);
+      };
+      const expressionBody = () => (
+        <ReqoreControlGroup vertical fluid gapSize='small'>
+          <ReqoreErrorBoundary>
+            <ExpressionField
+              /* A value that is not an expression yet is shown as the server reads it written alone:
+                 value(12) - so the Visual tab starts from the value, not from an operand with no operation. */
+              value={{
+                is_expression: true,
+                value:
+                  value !== null && typeof value === 'object' ? value
+                  : !isEmptyValue && value !== null ?
+                    { exp: 'value', args: [{ type: type as TQorusType, value }] }
+                  : undefined,
+              }}
+              initialText={expressionSeed ?? undefined}
+              draftText={expressionDraftText ?? undefined}
+              onDraftChange={handleExpressionDraft}
+              heldAsValue={!isEmptyValue && value !== null && typeof value !== 'object'}
+              componentOverrides={componentOverrides}
+              localTemplates={listedCatalogue}
+              type={type as string}
+              returnType={(returnType || expressionDataType) as any}
+              // a field of a type the catalogue does not list takes what its base type takes
+              returnBaseType={returnType ? undefined : rest.base_type}
+              onChange={handleExpressionChange}
+              readOnly={rest.readOnly || rest.disabled}
+              expressions={rest.expressions}
+              expressionsUrl={rest.expressions_url}
+              fields={rest.dpql_fields}
+              /* The record the server names for the option (`dpql_provider`: its connection and path), with the
+                 server's own default record type. It was never read: the server sends it, and the Text view
+                 offered no field of the record (qorus#646). */
+              provider={rest.dpql_provider}
+              recordType={rest.dpql_provider ? 'record' : undefined}
+              serverHandled={rest.server_expression_handling}
+              // a condition (a Qog if state's value, a while or for block's condition), marked by the host
+              condition={isConditionOption(rest)}
+              extraActions={extraActions}
+              size={rest.size}
+              defaultMode={tab === 'visual' ? 'visual' : 'text'}
+              requestedMode={tab === 'visual' ? 'visual' : 'text'}
+              hideModeToggle
+              flushRef={expressionFlush}
+              // no language server: the Visual tab is where the expression is built
+              onTextUnavailable={() => setTab('visual')}
+              reorder={reorder}
+            />
+          </ReqoreErrorBoundary>
+          {expressionFromText !== null ?
+            <ReqoreButton
+              fixed
+              compact
+              minimal
+              icon='ArrowGoBackLine'
+              size={rest.size}
+              className='dpql-detected-undo'
+              tooltip={words.undoTooltip(expressionFromText)}
+              onClick={undoExpressionFromText}
+            >
+              {words.undo}
+            </ReqoreButton>
+          : null}
+        </ReqoreControlGroup>
+      );
+      const templateBody = () => (
+        <TemplateDropdownSelector
+          allowCustomValues={false}
+          templates={templates}
+          value={typeof value === 'string' && isValueTemplate(value) ? value : null}
+          items={filteredTemplates?.items}
+          onItemSelect={handleSelectTemplateFromList}
+          onRemoveClick={replaceWithAValue}
+          templateBadge={templateBadge}
+          size={rest.size}
+          label={label}
+          hasOnlyAllowedValues={hasOnlyAllowedValues}
+        />
+      );
+      /* A field that takes templates and no expression, whose value is written as text: the text takes its
+         templates as chips, from the list it opens, so a Template tab beside it would be a second way to do the
+         one thing (qorus#646, David). It is the value alone, with the field's menu beside it. */
+      if (tabsKind === 'template' && valueTabIsText) {
+        const controls = renderControls();
+        return (
+          <ReqoreControlGroup
+            vertical
+            fluid
+            gapSize='small'
+            className='value-tabs-field value-only'
+          >
+            {controls ?
+              <ReqoreControlGroup fluid size={rest.size} verticalAlign='flex-start'>
+                {valueBody()}
+                {controls}
+              </ReqoreControlGroup>
+            : valueBody()}
+          </ReqoreControlGroup>
+        );
+      }
+      return (
+        <ReqoreControlGroup vertical fluid gapSize='small' className='value-tabs-field'>
+          <ReqoreControlGroup fluid size={rest.size} verticalAlign='center'>
+            <ReqoreControlGroup stack size={rest.size} className='value-tabs' fixed>
+              {tabButton('value', words.value, 'EditLine')}
+              {tabsKind === 'full' ?
+                [
+                  tabButton(
+                    'expression',
+                    expressionTabLabel,
+                    'CodeLine',
+                    conditionField ? words.conditionTooltip : words.expressionTooltip
+                  ),
+                  tabButton(
+                    'visual',
+                    words.visual,
+                    'NodeTree',
+                    conditionField ? words.conditionVisualTooltip : words.visualTooltip
+                  ),
+                ]
+              : tabButton(
+                  'template',
+                  words.template,
+                  'MoneyDollarCircleLine',
+                  words.templateTooltip
+                )
+              }
+            </ReqoreControlGroup>
+            {renderControls()}
+          </ReqoreControlGroup>
+          {/* the author's expression is not lost and not used: said where the value it did not replace is shown */}
+          {tab === 'value' && hasExpressionDraft ?
+            <ReqoreMessage
+              size='small'
+              flat
+              opaque={false}
+              intent='warning'
+              className='value-tab-expression-draft'
+            >
+              {words.expressionDraftNotUsed}
+            </ReqoreMessage>
+          : null}
+          {tab === 'value' ?
+            valueBody()
+          : tab === 'template' ?
+            templateBody()
+          : expressionBody()}
+        </ReqoreControlGroup>
+      );
+    }
+
     if (effectiveIsFunction && !hasOnlyAllowedValues) {
       // SEAM (reqraft): `allowTextExpressions` swaps the IDE's bare builder
       // for the ExpressionField shell (Visual = the same builder, Text = the
@@ -1522,22 +2457,33 @@ const TemplateFieldImpl = memo(
                 // builder's operands render "Unknown type!" for any consumer
                 // ui_type (an assertion's `test-reference` Value, for one).
                 componentOverrides={componentOverrides}
-                localTemplates={templates}
+                localTemplates={listedCatalogue}
                 type={type as string}
                 returnType={(returnType || expressionDataType) as any}
+                // a field of a type the catalogue does not list takes what its base type takes
+                returnBaseType={returnType ? undefined : rest.base_type}
                 onChange={handleExpressionChange}
                 readOnly={rest.readOnly || rest.disabled}
                 expressions={rest.expressions}
                 expressionsUrl={rest.expressions_url}
                 // the record's fields for the Text view, from the field's schema (`dpql_fields`)
                 fields={rest.dpql_fields}
+                // the record the server names for the option (see above)
+                provider={rest.dpql_provider}
+                recordType={rest.dpql_provider ? 'record' : undefined}
                 serverHandled={rest.server_expression_handling}
+                // a condition (a Qog if state's value, a while or for block's condition), marked by the host
+                condition={isConditionOption(rest)}
                 extraActions={extraActions}
                 size={rest.size}
-                // An author who typed the expression as text is already
-                // writing in that language — dropping them into the visual
-                // builder would make them find their own sentence again.
-                defaultMode={expressionFromText !== null ? 'text' : 'visual'}
+                modeLabels={expressionModeLabels}
+                /* An expression opens on its Text view, the first of Text · Visual, as the value's tabs open on
+                   Expression before Visual (qorus#646, David); without a language server it falls back to
+                   Visual by itself. It opened on Visual, on an empty "Select operation", unless the
+                   expression had just been typed as text. Mounted again, it opens on the view the author
+                   was on - except for an expression just typed as text, which is shown as the text it is. */
+                defaultMode={expressionFromText !== null ? 'text' : expressionMode}
+                onModeChange={setExpressionMode}
                 reorder={reorder}
               />
             </ReqoreErrorBoundary>
@@ -1571,15 +2517,19 @@ const TemplateFieldImpl = memo(
                 value,
               }}
               componentOverrides={componentOverrides}
-              localTemplates={templates}
+              localTemplates={listedCatalogue}
               level={level}
               type={type as string}
               returnType={(returnType || expressionDataType) as any}
+              // a field of a type the catalogue does not list takes what its base type takes
+              returnBaseType={returnType ? undefined : rest.base_type}
               onChange={handleExpressionChange}
               readOnly={rest.readOnly || rest.disabled}
               expressions={rest.expressions}
               expressionsUrl={rest.expressions_url}
               serverHandled={rest.server_expression_handling}
+              // a condition (a Qog if state's value, a while or for block's condition), marked by the host
+              condition={isConditionOption(rest)}
               extraActions={extraActions}
               reorder={reorder}
             />
@@ -1593,9 +2543,9 @@ const TemplateFieldImpl = memo(
       if (isTemplate) {
         // SEAM (reqraft): the IDE renders a bare `<ReqoreTag label={templateValue}/>`
         // here; reqraft upgrades the read-only template to a proper picker chip —
-        // the $-dollar icon + resolved display name + app image, coloured by the
+        // the $-dollar icon + resolved display name + app image, colored by the
         // IDE's intent scheme. Shared with the compact read-first row.
-        return <ReadOnlyTemplateTag value={templateValue} templates={templates} size={rest.size} />;
+        return <ReadOnlyTemplateTag value={templateValue} templates={templates} />;
       }
 
       return (
@@ -1634,52 +2584,72 @@ const TemplateFieldImpl = memo(
           />
         : null}
 
+        {/* A date keeps its date control - it is not written as text - and takes a template beside it:
+            chosen, the template is the value (the template control, whose × returns to the date). */}
+        {/* A date keeps its date control - it is not written as text - and takes a template beside it:
+            chosen, the template is the value (the template control, whose × returns to the date). */}
+        {!isTemplate && allowCustomValues && dateTakesTemplates ?
+          <TemplateBrowser
+            className='date-template-picker'
+            icon='MoneyDollarCircleLine'
+            fixed
+            compact
+            size={rest.size}
+            tooltip='Use a template'
+            aria-label='Use a template'
+            templates={filteredTemplates}
+            focusFilter
+            onItemSelect={handleSelectDateTemplate}
+          />
+        : null}
+
         {/* Template mode's editor for a value that can also be typed: each
             reference in it is a chip named as the catalogue names it, while the
             field still stores the plain string. A textarea spelled a chosen
             template `$local:name` wherever it was edited — in the Visual
             builder's operands, in every string field that takes templates. */}
-        {isTemplate && templateSupportsCustomValues && !templateValueIsBracedToken ?
+        {isTemplate && templateSupportsCustomValues ?
           <RichTextFormField
             className='template-selector'
             valueFormat='text'
             singleLine={isSingleLineStringType('string')}
-            value={typeof templateValue === 'string' ? templateValue : ''}
-            templates={filteredTemplates}
+            /* null shows as null, not as an empty field: the two are different values, and an
+               untyped field holding null looked exactly like one holding nothing (qorus#646) */
+            value={
+              typeof templateValue === 'string' ? templateValue : (
+                (untypedTextOf(value, type as string) ?? '')
+              )
+            }
+            templates={listedTemplates}
+            // a chip of a field not of this type (text around it, say) is named as the catalogue names it
+            namingTemplates={templates}
             allowTemplates
             onChange={handleTemplateTextChange}
             {...rest}
+            /* The text the value is written in takes the room its row gives it and gives it back: a
+               caller's \`fixed\` sized a picker chip, and on a text field it kept the field at its full
+               width, pushing the ⋮ past an operand's row in a narrow column. */
+            fixed={false}
+            fluid
+            /* As wide as `textWidth` says. A field: 150px, as a free text field is, wider for what it
+               holds, and narrower only where its row has less room, as a number's input is (a fixed 150px
+               minimum held it at full width in a narrow column). Its content: the box takes its width from
+               what it holds, with no minimum, and the editor in it keeps 150px. */
+            panelProps={{
+              ...(rest as { panelProps?: object }).panelProps,
+              style: {
+                ...(rest as { panelProps?: { style?: object } }).panelProps?.style,
+                ...(textWidth === 'content' ? CONTENT_WIDTH_BOX : FIELD_WIDTH_BOX),
+              },
+              ...(textWidth === 'content' ? { contentStyle: CONTENT_WIDTH_EDITOR } : {}),
+            }}
             aria-label={fieldAriaLabel}
           />
         : null}
 
-        {dpqlOffer ?
-          <ReqoreControlGroup fixed stack size={rest.size}>
-            <ReqoreButton
-              compact
-              icon='Functions'
-              intent='info'
-              className='dpql-detected-offer'
-              tooltip={`"${dpqlOffer.text}" reads as an expression. It is also valid text here, so nothing has been changed — use it as an expression?`}
-              onClick={acceptDpqlOffer}
-            >
-              Use as expression
-            </ReqoreButton>
-            <ReqoreButton
-              compact
-              icon='CloseLine'
-              intent='info'
-              className='dpql-detected-dismiss'
-              tooltip='Keep it as plain text'
-              onClick={declineDpqlOffer}
-            />
-          </ReqoreControlGroup>
-        : null}
+        {dpqlOfferPrompt}
 
-        {(
-          showTemplatesDropdown ||
-          (isTemplate && templateSupportsCustomValues && templateValueIsBracedToken)
-        ) ?
+        {showTemplatesDropdown ?
           <TemplateDropdownSelector
             allowCustomValues={allowCustomValues}
             templates={templates}
@@ -1687,6 +2657,7 @@ const TemplateFieldImpl = memo(
             items={filteredTemplates?.items}
             onItemSelect={handleSelectTemplateFromList}
             onRemoveClick={handleRemoveTemplateClick}
+            templateBadge={templateBadge}
             size={rest.size}
             label={label}
             hasOnlyAllowedValues={hasOnlyAllowedValues}

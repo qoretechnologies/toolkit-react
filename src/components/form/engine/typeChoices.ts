@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * Which options offer the per-type choices ("Integer", "Text", "Hash", …) in
+ * Which options offer the per-type choices ("Whole number", "Text", "Hash", …) in
  * the row's menu.
  *
  * A field that pins no concrete type has to give the author some way to say

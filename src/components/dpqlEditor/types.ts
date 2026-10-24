@@ -3,6 +3,7 @@
 // (`ISlateElement`, `ISlateText`, `TSlateNode`) live in the smartEditor
 // primitive's `types.ts` — re-export them here for backward compat.
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 
 export type {
   ISlateElement,
@@ -32,6 +33,22 @@ export interface IDpqlParseResult {
   coercion_may_fail?: boolean;
   /** The conversion that would make the expression fit, when one would. */
   suggested_fix?: { text: string; description?: string };
+  /**
+   * How the server reads the expression as a condition, when the request asked (`condition: true`):
+   * `condition` (it gives true or false), `truthiness` (a number, a list, a hash: true unless it is zero or
+   * empty), `not_a_condition` (text, a date or a time), `unknown` (a result it cannot tell). A server that
+   * does not know the question leaves it out.
+   */
+  condition_reading?: 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
+  /**
+   * With `condition`: each part of the expression's `&&`, `||` and `!`, at any depth, with the type it gives
+   * and how a condition reads it - in the server's walk order (qorus#646). `condition_reading` is the worst of
+   * the expression's own reading and its parts'.
+   */
+  parts?: Array<{
+    type: string;
+    reading: 'condition' | 'truthiness' | 'not_a_condition' | 'unknown';
+  }>;
   diagnostics: Array<{
     range: {
       start: { line: number; character: number };
@@ -42,6 +59,15 @@ export interface IDpqlParseResult {
     code?: string | number;
     source?: string;
   }>;
+}
+
+/** What else a `dpql/parse` asks. */
+export interface IDpqlParseOptions {
+  /**
+   * The expression is a condition: ask how the server reads it as one (`condition: true`) instead of
+   * whether it fits a type; the target type is not sent.
+   */
+  condition?: boolean;
 }
 
 /** A record's fields for `dpql/setContext`: each field's type (or types) and an optional description. */
@@ -83,28 +109,33 @@ export interface IDpqlEditorProps {
    * fields); pass e.g. `'200px'` for a taller multi-line code editor.
    */
   height?: string;
+  /**
+   * The size the text is drawn at, as a field of that size draws it - and the chips in it with it. A host
+   * drawing the same value as another field (an expression's Value and Expression tabs) gives both one size,
+   * so a reference is the same chip in either (qorus#646). The editor's own when not given.
+   */
+  size?: TSizes;
   /** Read-only mode. */
   readOnly?: boolean;
   /**
    * Whether to render diagnostic underlines. Default `true`. Set `false`
    * for display-only surfaces whose text is not valid DPQL — e.g. the
    * expression "Explain" panel (server rendering shown through the editor
-   * for template chips + LSP token colours). See `ISmartEditorProps`.
+   * for template chips + LSP token colors). See `ISmartEditorProps`.
    */
   showDiagnostics?: boolean;
   /** Whether to show hover popovers (`textDocument/hover`). Default `true`. */
   enableHover?: boolean;
   /**
-   * Color template (`$…`) tags with the `info` intent instead of the per-prefix
-   * palette — for read-only render surfaces (the Explain panel) that mirror
-   * qorus-ide's uniform `info` template styling. Default `false` (per-prefix
-   * palette, the editor's at-a-glance prefix coloring).
+   * Draw a template (`$…`) chip as every other template chip is drawn (`getTemplateTagStyle`: `info`, or the
+   * catalogue entry's built-in or event-trigger intent). Default `true` (qorus#646): a template was blue in a
+   * value's text and gray in an expression's. `false` keeps the per-prefix palette (`TEMPLATE_COLORS`).
    */
   templateTagsUseIntent?: boolean;
   /**
    * The overlay shown while the language server connects. Forwarded to
    * `SmartEditor`; pass `null` to show the text without one — a read-only
-   * rendering already has its text, and only its colours wait for the server.
+   * rendering already has its text, and only its colors wait for the server.
    */
   loadingIndicator?: React.ReactNode;
   /**
@@ -114,6 +145,24 @@ export interface IDpqlEditorProps {
   templates?: IReqoreFormTemplates;
   /** Called when the editor loses focus. */
   onBlur?: () => void;
+  /**
+   * Called once when there is no language server to talk to (connecting failed): the editor can show the
+   * text but not parse, serialize or complete it, so a host that needs those offers what works without it.
+   */
+  onUnavailable?: () => void;
+  /**
+   * Called once the language server can parse and write this editor's text: its session is connected and
+   * its context bound. A host that parses or serializes through the editor's ref waits for this rather
+   * than asking earlier, when the answer is "nothing parsed".
+   */
+  onReady?: () => void;
+  /**
+   * A click, a tap or Tab into the text asks what can be written at the caret, and the one completion list
+   * opens there: the server's completion, with the field's templates where a value can be written (qorus#646,
+   * David's decision). On by default where the editor has templates; an expression's Text view turns it on
+   * always.
+   */
+  completeOnClick?: boolean;
   /**
    * Opt-in to server-driven plain-text → Slate parsing via the LSP's
    * `dpql/toRichtext` custom method. When `true`, the editor calls
@@ -196,8 +245,17 @@ export interface IDpqlEditorRef {
    * `targetType` asks the server, in the same round trip, whether the
    * expression's result can satisfy that type — see `coercion_may_fail` on
    * the result. Omit it to ask only whether the text parses.
+   *
+   * `condition` asks instead how the server reads the expression as a condition (`condition_reading`).
    */
-  parse: (text: string, targetType?: string) => Promise<IDpqlParseResult>;
-  /** Serialize an expression AST back to DPQL text via `dpql/serialize`. */
+  parse: (
+    text: string,
+    targetType?: string,
+    options?: IDpqlParseOptions
+  ) => Promise<IDpqlParseResult>;
+  /**
+   * Serialize an expression AST back to DPQL text via `dpql/serialize`: '' while the session has no client,
+   * and rejected, with the server's reason, when the server refuses to write the value.
+   */
   serialize: (expression: Record<string, any>) => Promise<string>;
 }

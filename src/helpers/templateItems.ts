@@ -1,4 +1,5 @@
 import type { TMarkdownRenderer } from '../components/Description/markdownRendererContext';
+import { markdownToProse } from './markdownText';
 
 /**
  * What a template picker should actually list.
@@ -48,14 +49,14 @@ export const templateItemsToShow = <T,>(items: T[] | undefined): T[] | undefined
  * description into a `ReqoreTextEffect` and styled-components filters the prop
  * off the DOM.
  *
- * Without a host renderer the items are returned untouched, so a host that has
- * no markdown keeps exactly what it had.
+ * Without a host renderer a description reads as the prose its markdown renders
+ * to (`markdownToProse`): the words, none of the marks, on the row's one line.
  */
 export const renderTemplateItemDescriptions = <T,>(
   items: T[] | undefined,
   render: TMarkdownRenderer | undefined
 ): T[] | undefined => {
-  if (!render || !items?.length) {
+  if (!items?.length) {
     return items;
   }
 
@@ -67,7 +68,8 @@ export const renderTemplateItemDescriptions = <T,>(
       /* `compact`, for the reason the context gives: a row is a constrained
          container, and markdown authored as a document opens with a heading
          that would outgrow the label above it. */
-      next.description = render({ value: entry.description, compact: true });
+      next.description =
+        render ? render({ value: entry.description, compact: true }) : markdownToProse(entry.description);
     }
 
     // Only when the item HAS children — writing the key unconditionally would

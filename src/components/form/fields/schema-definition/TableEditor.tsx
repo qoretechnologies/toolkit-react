@@ -14,6 +14,8 @@ import {
   ReqoreTag,
 } from '@qoretechnologies/reqore';
 import { memo, useMemo, useState } from 'react';
+import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { describedControl } from '../../../Description/describedControl';
 import { partitionCatalogOptions } from './catalog';
 import { CatalogNodeEditor, RenameField } from './CatalogNodeEditor';
 import { SECTION_ICONS, sectionCount } from './helpers';
@@ -57,6 +59,8 @@ export const TableEditor = memo(
     onChange,
     readOnly,
   }: ITableEditorProps) => {
+    // a section's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
+    const descriptions = useDescriptionTooltips();
     const sections = useMemo(
       () => partitionCatalogOptions(options).nested,
       [options]
@@ -94,7 +98,8 @@ export const TableEditor = memo(
               label: node.display_name,
               icon: SECTION_ICONS[key],
               badge: count || undefined,
-              tooltip: node.short_desc,
+              // with a mouse, the tab's hover; on a touch screen the ⓘ in its content, so a tap only switches
+              tooltip: describedControl(node.short_desc, descriptions, node.display_name).tooltip,
             };
           })}
         >
@@ -108,8 +113,14 @@ export const TableEditor = memo(
                 readOnly={readOnly}
               />
             );
+            const { info } = describedControl(node.short_desc, descriptions, node.display_name);
             return (
               <ReqoreTabsContent key={key} tabId={key}>
+                {info ?
+                  <ReqoreControlGroup className='reqraft-described-tab' fluid horizontalAlign='flex-end'>
+                    {info}
+                  </ReqoreControlGroup>
+                : null}
                 {SECTIONS_WITH_SUGGESTIONS.has(key as TKnownSection) ? (
                   <SectionWithSuggestions
                     tableName={tableName}

@@ -10,13 +10,15 @@
 // This is the bug CI caught and a local story run could not: on a fast machine
 // the session is always up before the 300ms debounce.
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 /** When the fake session starts answering `parse`. */
 let parseReady = false;
 let parseCalls = 0;
+/** The field's `onReady`, called when the fake session comes up, as the real editor calls it. */
+let sessionUp: (() => void) | undefined;
 
 /** What the server returns for "text used as a number" — a conversion that
  *  may fail, which is the one case that warrants a warning. */
@@ -36,7 +38,8 @@ const mayNotFitResult = {
 };
 
 vi.mock('../src/components/dpqlEditor', () => ({
-  DpqlEditor: forwardRef<any, any>(({ onChange, readOnly, value }, ref) => {
+  DpqlEditor: forwardRef<any, any>(({ onChange, readOnly, value, onReady }, ref) => {
+    if (!readOnly) sessionUp = onReady;
     /* A GETTER, not a snapshot: the real ref gains `parse` when the session
        attaches, so the handle has to answer differently over time. Freezing it
        at mount (the obvious `[]`-dep version) models a session that never
@@ -108,6 +111,8 @@ describe('the type analysis survives a language server that attaches late', () =
        again. */
     setTimeout(() => {
       parseReady = true;
+      // the session says it is up, as the real editor's `onReady` does: nothing guesses by time
+      act(() => sessionUp?.());
     }, 700);
 
     /* Matched against the container's text rather than with `getByText`:
@@ -118,8 +123,9 @@ describe('the type analysis survives a language server that attaches late', () =
     await waitFor(
       () => {
         expect(container.textContent).toContain('This may not fit');
-        expect(container.querySelector('[data-testid="expression-type-fix"]')?.textContent)
-          .toContain('toInt(');
+        expect(
+          container.querySelector('[data-testid="expression-type-fix"]')?.textContent
+        ).toContain('toInt(');
       },
       { timeout: 12000 }
     );

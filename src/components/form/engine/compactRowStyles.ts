@@ -1,5 +1,5 @@
-import { ReqoreP, ReqorePanel } from '@qoretechnologies/reqore';
-import { GAP_FROM_SIZE, TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
+import { ReqoreFonts, ReqoreP, ReqorePanel } from '@qoretechnologies/reqore';
+import { GAP_FROM_SIZE, SIZE_TO_PX, TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import styled, { css } from 'styled-components';
 
 // Styled primitives for the compact (read-first) rows and their editor cards.
@@ -18,36 +18,70 @@ export const COMPACT_ROW_GAP = 14; // grid column gap
 export const COMPACT_VALUE_LEFT = COMPACT_ROW_PAD_X + COMPACT_LABEL_COL + COMPACT_ROW_GAP;
 // The surface starts a touch left of the value text, for inner left padding.
 export const COMPACT_PANEL_LEFT = COMPACT_VALUE_LEFT - 10;
+/**
+ * The least room a row's value has beside its label (qorus#646, David: "on a narrow screen... put the wide output
+ * on a line below the header, slightly indented"). A form where the value column would be narrower stacks its rows:
+ * the label and the row's actions on the first line, the value under them, indented by
+ * `COMPACT_STACKED_VALUE_INDENT`.
+ */
+export const COMPACT_MIN_VALUE_WIDTH = 320;
+/** How far a stacked row's value is indented under its label. */
+export const COMPACT_STACKED_VALUE_INDENT = 12;
+/**
+ * Whether a form `width` wide stacks its rows: beside a label column `labelColumn` wide (the measured one,
+ * `LABEL_COL_VAR`), the row's gap and its padding, its value column would be under `COMPACT_MIN_VALUE_WIDTH`. With
+ * the widest labels (220px and their affordances) that is a form under about 600px; with the narrowest, about 500px.
+ */
+export const isCompactNarrow = (width: number, labelColumn: number): boolean =>
+  width - (labelColumn + COMPACT_ROW_GAP + 2 * COMPACT_ROW_PAD_X) < COMPACT_MIN_VALUE_WIDTH;
 // Left offset for the group sub-labels / cluster header, kept equal to the row's
 // own horizontal padding so the labels line up flush with the field labels below
 // them (no extra gutter — the spine/rail that used a fluid indent are gone).
 export const GROUP_INDENT = `${COMPACT_ROW_PAD_X}px`;
 
 // Measured label column (GLOBAL). The label column sizes to the WIDEST field
-// label across the whole form, clamped to [MIN, MAX]. FormEngine measures the
+// label across the whole form, its text clamped to MAX, and is never narrower
+// than LABEL_COLUMN_MIN. FormEngine measures the
 // labels once and writes the result to `LABEL_COL_VAR` on the compact scroll
 // wrap; the grid column and the value-surface offsets below all read it (falling
 // back to the fixed default until the measurement lands). Expressing the offsets
 // FROM the column var preserves the "value surface starts at a constant x"
 // invariant — the column may resize, but the surface stays glued to its edge.
-export const LABEL_COL_MIN = 120;
 export const LABEL_COL_MAX = COMPACT_LABEL_COL; // 220
 /**
- * Room reserved beside a field's NAME for the chrome that trails it, summed from
- * the parts rather than guessed: the required asterisk (10px), the `?` that opens
- * the long description (12px), and the two 3px gaps of `StyledRowLabel`.
- *
- * Added to the measured column AFTER the min/max clamp. Inside it, a label long
- * enough to reach the ceiling spends the allowance on itself and the `?` wraps to
- * a line of its own.
- *
- * The 4px of slack is not padding for its own sake: the measurement rounds (an
- * off-DOM `offsetWidth` is an integer) while the rendered text width is
- * fractional, so a column sized to the exact sum still wraps. Measured on an auth
- * profile — "Authentication Schemes" renders 152px of text and needs
- * 152+3+10+3+12 = 180, was given exactly 180, and wrapped anyway.
+ * The narrowest label column, chrome included: a form of short names keeps the column it always had (a 120px floor
+ * under the name plus the 32px its chrome was reckoned at). The floor is the column's, not the name's: put under the
+ * name, it widened every form by the help button's real width, where only names that need the room should take it.
  */
-export const LABEL_AFFORDANCE_WIDTH = 10 + 12 + 3 * 2 + 4;
+export const LABEL_COLUMN_MIN = 152;
+/** The required asterisk beside a name, and the room it takes: the icon and its tiny left margin. */
+export const LABEL_ASTERISK_SIZE = 10;
+export const LABEL_ASTERISK_WIDTH = LABEL_ASTERISK_SIZE + 2;
+/**
+ * The help button beside a name: reqore's `tiny` button (26px), or `small` (32px) for a finger. It is a button in the
+ * tab order (qorus#646), so the room it takes is its own width, not the 12px of the icon it once was.
+ */
+export const LABEL_HELP_WIDTH = SIZE_TO_PX.tiny;
+export const LABEL_HELP_WIDTH_TOUCH = SIZE_TO_PX.small;
+/**
+ * Room reserved beside a field's NAME for the chrome that trails it, summed from the parts rather than guessed: the
+ * required asterisk, the help button and the two 3px gaps of the name's line.
+ *
+ * Added to the measured column AFTER the min/max clamp. Inside it, a label long enough to reach the ceiling wraps,
+ * with the asterisk on its last line, after its last word, and the help at the column's right edge.
+ *
+ * It counted the help as the 12px icon it was before it became a button (26px): every name within 14px of the
+ * column's width put its asterisk on a line of its own under it (Foxhoundn, qlip #392: "The required asterisk on a
+ * new line is not good, keep it on the same line as the field name").
+ *
+ * The 4px of slack is not padding for its own sake: the measurement rounds (an off-DOM `offsetWidth` is an integer)
+ * while the rendered text width is fractional, so a column sized to the exact sum still wraps. Measured on an auth
+ * profile — "Authentication Schemes" renders 152px of text and, given exactly the sum, wrapped anyway.
+ */
+export const labelAffordanceWidth = (coarse = false): number =>
+  LABEL_ASTERISK_WIDTH + (coarse ? LABEL_HELP_WIDTH_TOUCH : LABEL_HELP_WIDTH) + 3 * 2 + 4;
+/** The room beside a name for a mouse's pointer; a finger's help is wider (`labelAffordanceWidth(true)`). */
+export const LABEL_AFFORDANCE_WIDTH = labelAffordanceWidth();
 export const LABEL_COL_VAR = '--readfirst-label-col';
 export const LABEL_COL = `var(${LABEL_COL_VAR}, ${COMPACT_LABEL_COL}px)`;
 export const PANEL_LEFT_CSS = `calc(${LABEL_COL} + ${COMPACT_ROW_PAD_X + COMPACT_ROW_GAP - 10}px)`;
@@ -56,7 +90,7 @@ export const PANEL_LEFT_CSS = `calc(${LABEL_COL} + ${COMPACT_ROW_PAD_X + COMPACT
 // gives its sticky header) with a translucent theme tint + a moderate blur, the
 // way the IDE's DashboardModule overrides its own header. `translateZ(0)`
 // promotes the header to its own GPU layer, which stops the backdrop-filter
-// repaint flicker on scroll. `$headerBg` is a pre-mixed translucent colour so
+// repaint flicker on scroll. `$headerBg` is a pre-mixed translucent color so
 // content blurs softly through.
 export const StyledCompactPanel = styled(ReqorePanel)<{
   $headerBg: string;
@@ -154,7 +188,7 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   }
 
   /* Group framing. The HORIZONTAL rule is a real element in the header
-     (StyledGroupHeaderLine) so it sits on the name's row, centred, and stretches
+     (StyledGroupHeaderLine) so it sits on the name's row, centered, and stretches
      from the name out to the status chip pinned at the far end — which needs the
      title's left group to fill the header width. The VERTICAL group spine is
      drawn by StyledGroupBody (so it shares the required-group rail's coordinate
@@ -170,7 +204,7 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   }
 
   /* An injected option action declared \`show: 'hover'\` — the shape ReqorePanel
-     honours on the classic path — is revealed only while its row or card is
+     honors on the classic path — is revealed only while its row or card is
      hovered or holds focus. The compact slots render plain buttons, so the gate
      has to be CSS here. Kept focus-visible too, so the action stays reachable by
      keyboard. Opacity rather than display keeps the slot's width stable, so rows
@@ -218,7 +252,7 @@ export const StyledGroupHeaderLine = styled.span<{ $color: string }>`
 
 // A status box (Needs attention / Set / Optional). Matches the "Focus" prototype:
 // a barely-there accent border + a ~5%-opacity tint, NOT the loud intent border a
-// stock ReqorePanel draws. `$accent` is the box's theme colour (warning/success/
+// stock ReqorePanel draws. `$accent` is the box's theme color (warning/success/
 // muted).
 export const StyledStatusBox = styled(ReqorePanel)<{
   $accent: string;
@@ -229,7 +263,7 @@ export const StyledStatusBox = styled(ReqorePanel)<{
   &&& {
     border: 1px solid ${({ $accent }) => `${$accent}33`};
     /* $bg lets the muted "Optional" box opt into a darker, recessed surface
-       instead of the faint accent tint the coloured boxes use. */
+       instead of the faint accent tint the colored boxes use. */
     background: ${({ $accent, $bg }) => $bg || `${$accent}1f`};
     border-radius: 10px;
   }
@@ -271,7 +305,7 @@ export const StyledRequiredClusterBox = styled.div<{ $border: string; $tint: str
   padding: 2px 6px 6px;
   margin: 4px 0;
   /* The members render directly here (not via the gapped group body), so give
-     them the same modest gap the rest of the rows have. Pin the divider-centring
+     them the same modest gap the rest of the rows have. Pin the divider-centering
      var to that gap (it doesn't widen in narrow like the group body's does). */
   display: flex;
   flex-flow: column;
@@ -362,6 +396,25 @@ export const StyledLabelBlock = styled.div`
   min-width: 0;
 `;
 
+/* An option's help is a button in the tab order (qorus#646), beside the name on its line: a button is a block,
+   which put it on a line of its own under a name in a narrow label column. Its target is reqore's `tiny` (26px),
+   or `small` (32px) for a finger, taller than the name's line: it reaches into the row's padding rather than
+   making every row with help taller. Its focus ring is reqore's, drawn inside it: one outside it overlapped the
+   name's last letter. */
+const HELP_BUTTON_BESIDE_THE_NAME = `
+  .options-readfirst-help {
+    display: inline-flex;
+    vertical-align: middle;
+    flex-shrink: 0;
+    margin-top: -5px;
+    margin-bottom: -5px;
+  }
+  .options-readfirst-help-touch {
+    margin-top: -8px;
+    margin-bottom: -8px;
+  }
+`;
+
 export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>`
   display: flex;
   align-items: center;
@@ -373,6 +426,52 @@ export const StyledRowLabel = styled.div<{ $color: string; $pointer?: boolean }>
   white-space: normal;
   overflow-wrap: anywhere;
   cursor: ${({ $pointer }) => ($pointer ? 'pointer' : 'inherit')};
+  /* what the option takes goes under the name where both do not fit on a line (a phone): beside it, it took the
+     name's room, which broke a word in two ("Compute d", qorus#646) */
+  flex-wrap: wrap;
+  row-gap: 2px;
+  ${HELP_BUTTON_BESIDE_THE_NAME}
+`;
+
+/**
+ * An option's name, its asterisk and its help: one group.
+ *
+ * In a row's label column (`$fill`) it is the column's width: the name on the left, wrapping, and the help at the
+ * column's right edge, so every row's (?) is on one line down the form rather than a step after each name
+ * (Foxhoundn, qlip #392: "please right align the question mark to get rid of the stair-case look"). The help is on
+ * the name's first line.
+ */
+export const StyledLabelName = styled.span<{ $fill?: boolean }>`
+  ${({ $fill }) =>
+    $fill ?
+      css`
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+        width: 100%;
+        column-gap: 3px;
+
+        .options-readfirst-help {
+          justify-self: end;
+        }
+        /* what the option takes flows after the name, under it where both do not fit */
+        .options-readfirst-type {
+          display: inline-flex;
+          vertical-align: middle;
+          margin-left: 4px;
+        }
+      `
+    : css`
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+      `}
+  min-width: 0;
+`;
+
+/** A name's asterisk: after a word joiner, which no line breaks at, so it is on the line of the name's last word. */
+export const StyledLabelAsterisk = styled.span`
+  white-space: nowrap;
 `;
 
 // A field's short_desc rendered under its name in the (narrow) label column,
@@ -403,6 +502,9 @@ export const StyledCardLabel = styled.div<{ $color: string }>`
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  ${HELP_BUTTON_BESIDE_THE_NAME}
 `;
 
 /* min-width: 0 lets the grid cell shrink below its content's intrinsic width
@@ -417,9 +519,9 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
   align-items: baseline;
   column-gap: 10px;
   row-gap: 2px;
-  /* The muted/translucent colour applies to the VALUE TEXT only — not the whole
+  /* The muted/translucent color applies to the VALUE TEXT only — not the whole
      cell — so the message panels and the structured preview below render at full
-     opacity instead of inheriting the dimmed value colour. */
+     opacity instead of inheriting the dimmed value color. */
   .options-readfirst-valuetext {
     min-width: 0;
     max-width: 100%;
@@ -428,6 +530,18 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  /* A value that is a web address: a link, underlined, broken anywhere so a long one wraps inside the row, with a
+     focus ring of its own color when reached with the keyboard. */
+  .options-readfirst-link {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    overflow-wrap: anywhere;
+    border-radius: 2px;
+  }
+  .options-readfirst-link:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
   }
   /* The code size chip kept above an OPEN editor. The read row puts the same chip
      at the top of the value cell with a 2px row-gap under it; matching that here is
@@ -439,6 +553,15 @@ export const StyledRowValue = styled.div<{ $color: string; $empty?: boolean }>`
     font-style: italic;
     font-size: 12px;
     line-height: 1.3;
+  }
+  /* The reason that follows the value shares its line and wraps within its own box. As a flex item
+     sized to its text it could only share the line whole: a reason longer than the room beside the
+     value went to the line below as a block, and an empty value's dash was left alone on its line,
+     the reason under it like the text of a list item under its bullet (qorus#646). It goes below
+     only when the value leaves it less than 16em. */
+  .options-readfirst-valuetext + .options-readfirst-reason {
+    flex: 1 1 16em;
+    min-width: 0;
   }
   /* Schema message panels: full width of the value column, on their own line
      directly beneath the value. */
@@ -478,7 +601,7 @@ export const StyledRowActions = styled.div`
   gap: 6px;
 `;
 
-// A single status mark pinned at the row's trailing edge: one dot, colour =
+// A single status mark pinned at the row's trailing edge: one dot, color =
 // severity (danger/warning/success). This is the "Focus" read-first signal that
 // replaces the recessed value surface's intent stripe — attention dots carry a
 // faint ring, a plain "set" dot does not. `unset` rows render no dot.
@@ -513,17 +636,12 @@ export const StyledRowInset = styled.div`
 `;
 
 /**
- * The stack literal text renders in: source, ids, tokens, data strings.
- *
- * Defined HERE rather than taken from reqore's `ReqoreFonts.mono`, which is the
- * same stack. Reqore is a peer dependency at `>=0.71.16` and that export arrived
- * later, so reading it would crash every consumer inside the declared range —
- * the whole form preview lost over a font choice. One local constant costs
- * nothing and keeps the code preview and the schema view's data values
- * identical, which is the only reason to share it in the first place.
+ * The stack literal text renders in: source, ids, tokens, data strings - reqore's own (`ReqoreFonts.mono`), as
+ * the expression editor's, so the code preview, the schema view's data values and the editor's text are one face.
+ * It has been in reqore since 0.72.7, below the peer range (`>=0.74.0`). Never the bare generic `monospace`:
+ * that is the browser's default fixed-width font (Courier in Chrome on macOS), larger than the text beside it.
  */
-export const MONO_FONT_STACK =
-  "ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace";
+export const MONO_FONT_STACK = ReqoreFonts.mono;
 
 // A collapsed code-block preview shown under the value summary for a
 // `code-editor` field.  Multi-line, monospace, subtle background — matches
@@ -545,16 +663,6 @@ export const StyledCodePreview = styled.pre<{ $bg: string; $border: string; $fg:
   max-width: 100%;
 `;
 
-// A small inline colour swatch shown before an rgbcolor value's hex string.
-export const StyledColorSwatch = styled.span<{ $color: string; $border: string }>`
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  flex: 0 0 auto;
-  background: ${({ $color }) => $color};
-  border: 1px solid ${({ $border }) => $border};
-`;
-
 export const StyledGroupBody = styled.div<{
   $divider: string;
   $hover: string;
@@ -562,15 +670,15 @@ export const StyledGroupBody = styled.div<{
   $success: string;
   $rowBg: string;
   $lineColor: string;
-  /** Edge colour for the "N more fields" row. Its own value because the row
+  /** Edge color for the "N more fields" row. Its own value because the row
       HAS to be seen — the divider tint that separates two fields is ~8% of the
-      text colour, which disappears entirely as a 1px dashed border. */
+      text color, which disappears entirely as a 1px dashed border. */
   $moreBorder: string;
 }>`
   display: flex;
   flex-flow: column;
   position: relative;
-  /* Exposed as a var so the inter-field divider can centre itself in the gap
+  /* Exposed as a var so the inter-field divider can center itself in the gap
      (the gap differs wide vs narrow). */
   --readfirst-row-gap: 4px;
   gap: var(--readfirst-row-gap);
@@ -596,7 +704,7 @@ export const StyledGroupBody = styled.div<{
        minimum lets it shrink and the value cell's ellipsis take over instead. */
     grid-template-columns: ${LABEL_COL} minmax(0, 1fr) auto;
     /* CENTRE the cells vertically: on the common single-line read row the label,
-       value and status dot all sit on one centred line. Tall rows (a shown
+       value and status dot all sit on one centered line. Tall rows (a shown
        description, message panels or a hash preview) opt back into top-alignment
        (.readfirst-row-info-open / .readfirst-row-tall below) so the label + dot
        stay on the value's FIRST line instead of floating to the middle. */
@@ -621,7 +729,7 @@ export const StyledGroupBody = styled.div<{
        the full box edge-to-edge. */
     left: ${COMPACT_ROW_PAD_X}px;
     right: ${COMPACT_ROW_PAD_X}px;
-    /* Centred in the inter-field gap (which differs wide vs narrow) so the space
+    /* Centered in the inter-field gap (which differs wide vs narrow) so the space
        above and below each line is equal. */
     bottom: calc(var(--readfirst-row-gap, 4px) / -2);
     height: 1px;
@@ -633,8 +741,13 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row:last-child::after {
     display: none;
   }
-  .readfirst-row:hover {
-    background: ${({ $hover }) => $hover};
+  /* A row lights up under a pointer that hovers. A finger's tap leaves the browser's :hover on what it tapped
+     until the next tap elsewhere, so on a touch screen the row stayed lit after the tap as if it were chosen
+     (FormEngine · A Row Stacks On A Phone, a tap on its link). The keyboard's focus lights it on any device. */
+  @media (hover: hover) {
+    .readfirst-row:hover {
+      background: ${({ $hover }) => $hover};
+    }
   }
   .readfirst-row:focus-visible {
     outline: 2px solid ${({ $focus }) => $focus};
@@ -667,9 +780,11 @@ export const StyledGroupBody = styled.div<{
   .readfirst-more-row::after {
     display: none;
   }
-  .readfirst-more-row:hover {
-    background: ${({ $hover }) => $hover};
-    border-style: solid;
+  @media (hover: hover) {
+    .readfirst-more-row:hover {
+      background: ${({ $hover }) => $hover};
+      border-style: solid;
+    }
   }
   .readfirst-more-row:focus-visible {
     outline: 2px solid ${({ $focus }) => $focus};
@@ -717,9 +832,9 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row-editing {
     cursor: default;
     /* Top-anchor the cells: with multi-line editors (e.g. allowed-values =
-       input + picker), per-cell centring gives every control a different
+       input + picker), per-cell centering gives every control a different
        anchor. Instead everything aligns to the FIRST editor line — label and
-       the ✓/↺ cluster get small offsets to sit optically centred on it. */
+       the ✓/↺ cluster get small offsets to sit optically centered on it. */
     align-items: start;
     background: ${({ $hover }) => $hover};
     /* No top padding (the per-cell nudges below anchor the editor to the first
@@ -731,10 +846,10 @@ export const StyledGroupBody = styled.div<{
        read as one control cluster, not two separated groups. */
     column-gap: 6px;
   }
-  /* Centre each cell's content on the row's ~38px first-line band. The label
+  /* Center each cell's content on the row's ~38px first-line band. The label
      text (+10) and the ✓/↺ cluster (+3) were already nudged, but the editor
      cell was not — so a single-line input sat ~3px above the buttons. A 32px
-     control needs +3 to centre in 38px, so the editor gets the same offset and
+     control needs +3 to center in 38px, so the editor gets the same offset and
      lines up with the buttons. (A multi-line editor's first line lands on the
      band too; its extra rows grow downward.) */
   .readfirst-row-editing > div:nth-child(1) {
@@ -762,14 +877,18 @@ export const StyledGroupBody = styled.div<{
     text-overflow: clip;
     overflow-wrap: anywhere;
   }
-  .readfirst-row-editing:hover {
-    background: ${({ $hover }) => $hover};
+  @media (hover: hover) {
+    .readfirst-row-editing:hover {
+      background: ${({ $hover }) => $hover};
+    }
   }
 
   /* Narrow FORMS (phone / slim drawer): stack each row — label + actions share
-     the first line, the value cell (or the inline editor) takes the full width
-     beneath. The class is set from a measured wrap width (react-use useMeasure)
-     rather than a viewport media query, so a slim desktop drawer stacks too.
+     the first line, the value cell (or the inline editor) takes the width
+     beneath. The class is set where the value column would be narrower than
+     COMPACT_MIN_VALUE_WIDTH beside the measured label column (isCompactNarrow),
+     from the measured wrap width (react-use useMeasure) rather than a viewport
+     media query, so a slim desktop drawer stacks too.
      The 3 row children are placed explicitly:
      label (1,1) · actions (1,2) · value (2, span both). */
   /* Generous breathing room BETWEEN fields when stacked — far easier to scan and
@@ -797,8 +916,8 @@ export const StyledGroupBody = styled.div<{
   /* Read (non-editing) rows: float the trailing actions (status dot + the
      hover-revealed delete/revert) out of the grid flow so a delete button can't
      inflate the first row and push the value down. They're pinned to a band the
-     height of the LABEL line and vertically centred in it — so the dot always
-     sits at the same place (centred on the field name), never the bare corner. */
+     height of the LABEL line and vertically centered in it — so the dot always
+     sits at the same place (centered on the field name), never the bare corner. */
   &.readfirst-narrow .readfirst-row:not(.readfirst-row-editing) > :nth-child(3) {
     position: absolute;
     top: 2px;
@@ -836,7 +955,7 @@ export const StyledGroupBody = styled.div<{
   /* (The required-group connection rail was removed — the "One of the below is
      required" box now carries the grouping.) */
 
-  /* Tall rows top-anchor (overriding the row's centred default) so the label and
+  /* Tall rows top-anchor (overriding the row's centered default) so the label and
      dot stay on the value's FIRST line rather than floating to the vertical
      middle: .readfirst-row-info-open = a shown short_desc grows the LABEL;
      .readfirst-row-tall = message panels / a hash preview grow the VALUE cell. */
@@ -844,10 +963,10 @@ export const StyledGroupBody = styled.div<{
   .readfirst-row-tall {
     align-items: start;
   }
-  /* Narrow stacks label-over-value: the value aligns flush UNDER the label (no
-     indent), like the Focus prototype. */
+  /* Narrow stacks label-over-value: the value sits on the line below the label,
+     slightly indented under it (David, qorus#646), so it reads as the label's. */
   &.readfirst-narrow .readfirst-row > :nth-child(2) {
-    padding-left: 0;
+    padding-left: ${COMPACT_STACKED_VALUE_INDENT}px;
   }
   &.readfirst-narrow > *:not(.options-readfirst-card)::before {
     left: 0;

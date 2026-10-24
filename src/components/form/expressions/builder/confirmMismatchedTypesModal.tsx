@@ -2,7 +2,7 @@ import { ReqoreButton, ReqoreControlGroup, ReqoreModal, ReqoreP } from '@qoretec
 import { IReqoreModalProps } from '@qoretechnologies/reqore/dist/components/Modal';
 import { omit, size } from 'lodash';
 import { memo, useState } from 'react';
-import { getArgumentType } from '../../../../helpers/expressions';
+import { conversionText, getArgumentType } from '../../../../helpers/expressions';
 import { useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { IExpression, IExpressionSchema } from '../types';
 
@@ -76,8 +76,7 @@ export const ConfirmMismatchedTypesModal = memo(
       >
         <ReqoreControlGroup vertical fluid horizontalAlign='center' gapSize='big'>
           <ReqoreP style={{ textAlign: 'center' }}>
-            The following arguments have types that do not match the expected types, but can be used
-            and will be transformed.
+            These values have other types than expected. Qorus converts them when it runs.
           </ReqoreP>
           <ReqoreP style={{ textAlign: 'center' }}>
             Please deselect the arguments you do not wish to transform:
@@ -95,10 +94,16 @@ export const ConfirmMismatchedTypesModal = memo(
                 key={index}
                 description={
                   fixedArgs[index].types_mismatch === false
-                    ? `This argument will be transformed from ${types.getTypeDisplayName(getArgumentType(expressions, arg, expression.args[index]))} to ${types.getTypeDisplayName(expression.args[index].ui_type)}`
+                    ? // the types named inside a sentence, by their sentence forms (qorus#646)
+                      conversionText(
+                        types.getTypeSentenceForm(
+                          getArgumentType(expressions, arg, expression.args[index])
+                        ),
+                        types.getTypeSentenceForm(expression.args[index].ui_type)
+                      )
                     : fixedArgs[index].types_mismatch === true
-                      ? 'This argument will be cleared and no transformation will be applied'
-                      : 'This argument requires no transformation'
+                      ? 'Cleared, not converted'
+                      : 'No conversion needed'
                 }
                 disabled={!arg.types_mismatch}
                 onClick={() => handleArgToggle(fixedArgs[index])}

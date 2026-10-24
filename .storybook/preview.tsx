@@ -1,13 +1,15 @@
-import withMockdate from '@netsells/storybook-mockdate';
 import {
   ReqoreContent,
   ReqoreLayoutContent,
   ReqoreModalsWrapper,
   ReqoreUIProvider,
 } from '@qoretechnologies/reqore';
-import { initializeReqraft } from '../src';
+import { initializeReqraft, ReqraftQueryClient } from '../src';
 import { startDpqlMockLsp } from '../src/components/form/expressions/dpqlMockLsp';
+import { _resetServerQorusTypesForTests } from '../src/helpers/qorusTypeCatalogue';
+import { _resetExpressionTypeTransportForTests } from '../src/components/form/expressions/useExpressionType';
 import { _resetRenderExpressionTransportForTests } from '../src/components/form/expressions/useRenderExpression';
+import { IStoryClockParameters, startStoryClock } from '../src/stories/storyClock';
 import { GLOBAL_STORY_MOCK_DATA, STORY_QORUS_INSTANCE } from '../src/stories/storyNetwork';
 import { fetchConfig } from '../src/utils/fetch';
 import { _resetSharedLspConnectionsForTests } from '../src/utils/lspClient';
@@ -54,15 +56,49 @@ export const parameters = {
 // one without a server would show only its loading state. A story that needs
 // different answers starts its own server on the URL, which replaces this one;
 // a `live` story reaches the real server instead.
-export const beforeEach = ({ parameters }: { parameters?: { live?: boolean } }) => {
-  _resetRenderExpressionTransportForTests();
-  _resetSharedLspConnectionsForTests();
-  return parameters?.live ? undefined : startDpqlMockLsp();
+//
+// ...and every story starts at the same instant, `STORY_NOW`, so a date it
+// shows as "3 hours ago" says so on every day it is captured (see
+// src/stories/storyClock.ts; `parameters.mockdate` stops the clock, a `live`
+// story keeps the real one).
+//
+// ...and with an empty query cache, as every unit test does. The cache lives as
+// long as the page, so a story was served whatever an earlier one had fetched:
+// four FormEngine plays only passed after an earlier story had loaded the type
+// catalogue, and failed when the story was opened on its own. The clock makes it
+// worse: an answer carries the time it was fetched, and the clock takes every
+// story back to `STORY_NOW`, so an answer fetched a few seconds into the previous
+// story would read as fetched in the future, fresh even to a request that never
+// caches, and be served in place of this story's own mocks (useStorage's stored
+// value, useFetch's 409). Emptied before anything mounts: a request the previous
+// story left in flight is cancelled with nothing left waiting for it.
+export const beforeEach = ({ parameters }: { parameters?: IStoryClockParameters }) => {
+  ReqraftQueryClient.clear();
+  // and without the type catalogue an earlier story's server answered with (`getQorusTypes`)
+  _resetServerQorusTypesForTests();
+  const restoreClock = startStoryClock(parameters);
+  try {
+    _resetRenderExpressionTransportForTests();
+    // the expression type client too, and the types it cached: a story's server says what its expressions give
+    _resetExpressionTypeTransportForTests();
+    _resetSharedLspConnectionsForTests();
+    const stopLsp = parameters?.live ? undefined : startDpqlMockLsp();
+    return () => {
+      try {
+        stopLsp?.();
+      } finally {
+        restoreClock();
+      }
+    };
+  } catch (error) {
+    restoreClock();
+    throw error;
+  }
 };
 
 export const argTypes = {
   mainTheme: {
-    control: 'color',
+    control: 'color' as const,
     description: 'The overall theme for all ReQore components',
     name: 'Main Theme',
     defaultValue: '#333333',
@@ -76,7 +112,6 @@ export const argTypes = {
 };
 
 export const decorators = [
-  withMockdate,
   (Story, context) => {
     // Live stories (`parameters: { live: true }`) hit this instance. Override
     // it to point at your own Qorus for live data, e.g.

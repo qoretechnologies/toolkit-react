@@ -86,12 +86,10 @@ describe('the list the template picker is given', () => {
     expect(seen.items[0].label).toBe('result');
   });
 
-  it('leaves a host with no renderer exactly as it was', () => {
-    // The built-in behaviour is the fallback, not a second opinion.
+  it('says a description without its marks for a host with no renderer', () => {
+    // No dialect the host never chose, and no `**` either: the words, as plain text.
     renderSelector(undefined);
 
-    expect(seen.items[0].description).toBe(
-      'What the target returned. Set **Fixture Output** to declare it.'
-    );
+    expect(seen.items[0].description).toBe('What the target returned. Set Fixture Output to declare it.');
   });
 });

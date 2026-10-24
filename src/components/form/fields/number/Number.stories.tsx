@@ -142,18 +142,19 @@ export const TypedFreely: Story = {
     docs: {
       description: {
         story:
-          'Renders the Number field in integer mode after typing what is not a number: 12abc stays as typed (the form flags it, it is not cut to 12), and a template ($local:quantity) or an expression (@qty * 2) is passed on as typed for the field around it to take up.',
+          'Renders the bare Number editor in integer mode, given no templates, after typing what is not a number: 12abc stays as typed (the form flags it, it is not cut to 12), and a decimal point typed before its digits is kept. A number field that takes templates is TemplateField around this editor: see Components/Form/Template › Number Typed Freely.',
       },
     },
   },
   async play({ args, canvasElement }) {
     const canvas = within(canvasElement);
     const input = canvas.getByLabelText('Number');
-    for (const text of ['12abc', '@qty * 2', '$local:quantity']) {
-      await userEvent.clear(input);
-      await userEvent.type(input, text);
-      await expect(input).toHaveValue(text);
-      await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(text), { timeout: 500 });
-    }
+    await userEvent.clear(input);
+    await userEvent.type(input, '12abc');
+    await expect(input).toHaveValue('12abc');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('12abc'), { timeout: 500 });
+    await userEvent.clear(input);
+    await userEvent.type(input, '10.');
+    await expect(input).toHaveValue('10.');
   },
 };

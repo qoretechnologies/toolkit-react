@@ -1,6 +1,7 @@
 import { modalStore } from '@qoretechnologies/reqore';
 import { TReqoreTooltipProp } from '@qoretechnologies/reqore/dist/types/global';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import {
   TReqoreDropdownItem,
   TReqoreDropdownItems,
@@ -8,7 +9,24 @@ import {
 import { cloneDeep, size } from 'lodash';
 import { createElement } from 'react';
 import { ReqraftTemplateExampleValueModal } from '../components/form/fields/template/ExampleValueModal';
+import {
+  describedContent,
+  DESCRIPTION_TOOLTIP_MAX_WIDTH,
+  descriptionTooltip,
+  IDescriptionTooltipOptions,
+} from './descriptionTooltip';
+import { NO_VALUE_DESCRIPTION } from './noDescription';
+import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
+import { templateBaseType, templateType } from './templateType';
+
+export { templateBaseType, templateType } from './templateType';
+import {
+  builtInTypeSentenceForm,
+  getQorusTypes,
+  IQorusTypeObject,
+  TTypeSentenceForm,
+} from './qorusTypeCatalogue';
 
 /**
  * The DOM ceiling for a serialized example value in a picker item — a
@@ -46,6 +64,40 @@ const byLabel = (a: { label?: unknown }, b: { label?: unknown }): number =>
 
 export type TTemplateMeta = { image?: string; builtIn?: boolean; isEventTrigger?: boolean };
 
+/** What every view's reference chip is drawn with (`REFERENCE_CHIP_PROPS`). */
+export type TReferenceChipProps = Pick<
+  IReqoreTagProps,
+  'size' | 'effect' | 'wrap' | 'paddingSize' | 'asBadge' | 'compact'
+>;
+
+/**
+ * A reference chip as every view draws it - the read summary (`TemplateText`), the read-only chip, the rich
+ * text editor and the expression editor: one chip, so a reference is the same size wherever it is shown, at
+ * whatever size its text is (qorus#646). One object for all of them: written out in each, the views drifted
+ * apart, and a chip jumped as a value moved between them.
+ *
+ * - `small`, never smaller: a chip is pressed (a tap opens its card, a click its list), and a control a finger
+ *   must hit is not `micro` or `tiny` (BRAND_DESIGN, "Tap targets are finger-sized"). The one chip was `tiny`, a
+ *   14px box with the 14px text it sits in: the label was taller than its box and ran out of it, and the name
+ *   was all but cut off (Foxhoundn on qlip #383; David, 2026-10-22: one chip for every view at `small`).
+ * - its label in the font of the text it sits in, padded inside the box;
+ * - and wrapping: a chip longer than its line wraps its label inside the line. Not wrapped, it was capped at the
+ *   line's width with its label centred in it, and lost both ends - its icon, the start and the end of the path,
+ *   and its remove button (Foxhoundn on qlip #383: "The template tag is overflowing, you need to wrap it").
+ * - a tag, never a badge: reqore's rich text editor draws its chips as compact badges (`asBadge`, `compact`), a
+ *   pill with rounder corners and its own height, so a reference in an expression or a rich text field was a pill
+ *   beside the tags of every other view (Foxhoundn on qlip #392: "Some template chips are pills, some are badges -
+ *   let's unify them please"). Said here, the editor's chip is the tag the others are.
+ */
+export const REFERENCE_CHIP_PROPS: TReferenceChipProps = Object.freeze({
+  size: 'small',
+  effect: Object.freeze({ textSize: 'inherit' }),
+  wrap: true,
+  paddingSize: 'small',
+  asBadge: false,
+  compact: false,
+});
+
 export const getTemplateTagStyle = (
   meta?: TTemplateMeta
 ): { intent: 'success' | 'info' | 'custom1' } => {
@@ -82,17 +134,146 @@ export const getTemplateValue = (value: string): string => {
  * LOOSER (starts with `$`, has `:`): it answers "does the user mean a
  * template here" while typing; use the strict check below when a decision
  * must not misfire on user-typed dollar-strings.
+ *
+ * A braced segment ends where Qorus ends it (UserApi `_priv_get_template_bracket_arg`, qorus#646): braces nest,
+ * and `\{`, `\}` and `\\` are a brace or a backslash of the value, not one that opens or closes it. So
+ * `$record:{prices{*}}` - a wildcard written as a template - is one token; a pattern ending the value at its first
+ * `}` drew the chip "record: prices{*" and a stray "}". No pattern can count braces, so the grammar is read one
+ * character at a time (`templateTokenSpans`).
  */
-export const TEMPLATE_TOKEN_SOURCE =
-  '\\$[A-Za-z_][\\w-]*(?::(?:\\{[^}]*\\}|[A-Za-z_][\\w-]*))+';
+const TEMPLATE_KEY = /[A-Za-z_][\w-]*/y;
+const TEMPLATE_WORD_SEGMENT = /[A-Za-z_][\w-]*/y;
 
-const COMPLETE_TEMPLATE_TOKEN = new RegExp(`^${TEMPLATE_TOKEN_SOURCE}$`);
+/** Where a braced segment that opens at `from` (its `{`) ends: the index after the `}` that closes it, or -1. */
+const endOfBracedSegment = (text: string, from: number): number => {
+  let depth = 0;
+  for (let i = from; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === '\\' && ['{', '}', '\\'].includes(text[i + 1])) {
+      i += 1;
+    } else if (char === '{') {
+      depth += 1;
+    } else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return i + 1;
+      }
+    }
+  }
+  return -1;
+};
+
+/** Where the template token that starts at `at` (its `$`) ends, or -1 when none starts there. */
+const endOfTemplateToken = (text: string, at: number): number => {
+  if (text[at] !== '$') {
+    return -1;
+  }
+  TEMPLATE_KEY.lastIndex = at + 1;
+  if (!TEMPLATE_KEY.test(text)) {
+    return -1;
+  }
+  let end = TEMPLATE_KEY.lastIndex;
+  let segments = 0;
+  // `:<segment>` once or more; a `:` with no segment after it is not part of the token
+  while (text[end] === ':') {
+    let segmentEnd: number;
+    if (text[end + 1] === '{') {
+      segmentEnd = endOfBracedSegment(text, end + 1);
+    } else {
+      TEMPLATE_WORD_SEGMENT.lastIndex = end + 1;
+      segmentEnd = TEMPLATE_WORD_SEGMENT.test(text) ? TEMPLATE_WORD_SEGMENT.lastIndex : -1;
+    }
+    if (segmentEnd < 0) {
+      break;
+    }
+    end = segmentEnd;
+    segments += 1;
+  }
+  return segments ? end : -1;
+};
+
+/** Every template token in `text`, in order and apart: each `[start, end)`. */
+export const templateTokenSpans = (text: string): Array<[number, number]> => {
+  const spans: Array<[number, number]> = [];
+  for (let at = text.indexOf('$'); at !== -1; at = text.indexOf('$', at)) {
+    const end = endOfTemplateToken(text, at);
+    if (end > 0) {
+      spans.push([at, end]);
+      at = end;
+    } else {
+      at += 1;
+    }
+  }
+  return spans;
+};
+
+/** The record field a template names - `$record:{orders[*].id}` is `orders[*].id` - when it is that template alone
+ *  (one braced segment, nothing after it); otherwise undefined. */
+export const recordFieldOfTemplate = (token: string): string | undefined => {
+  const prefix = '$record:';
+  return (
+      token.startsWith(`${prefix}{`) && endOfBracedSegment(token, prefix.length) === token.length
+    ) ?
+      token.slice(prefix.length + 1, -1)
+    : undefined;
+};
+
+/** `text` cut at its template tokens: the pieces of text and the tokens, in order, none of them empty. */
+export const splitAtTemplateTokens = (text: string): string[] => {
+  const parts: string[] = [];
+  let last = 0;
+  templateTokenSpans(text).forEach(([start, end]) => {
+    parts.push(text.slice(last, start), text.slice(start, end));
+    last = end;
+  });
+  parts.push(text.slice(last));
+  return parts.filter((part) => part !== '');
+};
 
 /** STRICT whole-value check: the entire string is one well-formed template
  *  token (`:{id.path}`, `:item`, …) — nothing before or after.
  *  `'$foo: hello'` passes the loose check but not this one. */
 export const isCompleteTemplateToken = (value?: unknown): value is string =>
-  typeof value === 'string' && COMPLETE_TEMPLATE_TOKEN.test(value);
+  typeof value === 'string' && endOfTemplateToken(value, 0) === value.length;
+
+/**
+ * Text with a template in it that is not the template alone: `$record:{pos} Stk.`, `SUP-$record:{pos}`,
+ * two templates side by side. In text it is text; a whole number, a number, a yes/no or a date cannot
+ * hold it (qorus#646).
+ */
+export const hasTextAroundATemplate = (value?: unknown): value is string =>
+  typeof value === 'string' &&
+  templateTokenSpans(value).length > 0 &&
+  !isCompleteTemplateToken(value);
+
+/** The text around the templates in a value that is not one template alone, and how many templates it holds. */
+export interface ITextAroundATemplate {
+  /** The pieces of text before, between and after the templates, trimmed; empty pieces left out. */
+  text: string[];
+  templates: number;
+}
+
+/**
+ * What makes a value text rather than one template alone: `$record:{pos} Stk.` holds the text "Stk." and
+ * one template; `$record:{a}$record:{b}` no text and two. `undefined` where the value is not text with a
+ * template in it, or is one template alone (see {@link hasTextAroundATemplate}).
+ */
+export const textAroundATemplate = (value?: unknown): ITextAroundATemplate | undefined => {
+  if (!hasTextAroundATemplate(value)) {
+    return undefined;
+  }
+  const spans = templateTokenSpans(value);
+  const text: string[] = [];
+  let last = 0;
+  [...spans, [value.length, value.length] as [number, number]].forEach(([start, end]) => {
+    const piece = value.slice(last, start).trim();
+    if (piece !== '') {
+      text.push(piece);
+    }
+    last = end;
+  });
+  return { text, templates: spans.length };
+};
 
 /** A complete token carrying at least one BRACED context segment —
  *  `$data:{W2n….filename}`, `$qore-expr:{1 + 2}`. These are machine-written
@@ -335,19 +516,78 @@ export const describeTemplateReference = (
  * the field's own help, which teaches the grammar with a worked example, and
  * the picker, for the walks no list can hold.
  *
+ * The description is drawn by the host's markdown renderer, as the template
+ * list draws the same string, and opens on a tap where there is no hover
+ * (`descriptionTooltip`, with the surface's `useDescriptionTooltips`): a hover
+ * that printed it raw showed the reader the `**` and backticks the list beside
+ * it does not, and a finger could not open it at all.
+ *
  * Falls back to the resolved label (itself the stripped path when the catalogue
  * explains nothing), because a surface with no catalogue must still say what
  * the value is rather than nothing at all.
  */
 export const templateTooltip = (
   templates: IReqoreFormTemplates | undefined,
-  value: string
+  value: string,
+  descriptions: IDescriptionTooltipOptions,
+  typeSentenceForm: TTypeSentenceForm = builtInTypeSentenceForm,
+  /** What the host says of a reference it knows and does not list (`ITemplateReferenceNames`). */
+  host?: { label?: string; description?: string; noDescription?: string }
 ): TReqoreTooltipProp => {
   const { label, item } = describeTemplateReference(templates, value);
-  const description = (item as { description?: unknown } | undefined)?.description;
-  return typeof description === 'string' && description.trim() ?
-      { title: label, content: description, maxWidth: '360px' }
-    : label || value;
+  const { description } = (item ?? {}) as { description?: unknown };
+  // the template's type (`templateType`), by its base type where the catalogue lists it under no name
+  const templateTypeName = templateType(item);
+  const type = templateTypeName ? typeSentenceForm(templateTypeName, templateBaseType(item)) : undefined;
+  /* What it is, and where nothing says so, why: a hover with no description said only the name, and a reader
+     could not tell an undescribed value from a broken hover (qorus#646, David). */
+  const given = [description, host?.description].find(
+    (text): text is string => typeof text === 'string' && !!text.trim()
+  );
+  const body = describedWithType(given ?? (host?.noDescription || NO_VALUE_DESCRIPTION), type);
+  // the catalogue's name where it lists the reference, else the host's
+  const title = (item ? label : host?.label) || label || value;
+  const allowed = templateAllowedValues(item);
+  if (!allowed.length) {
+    return descriptionTooltip(body, descriptions, title) ?? value;
+  }
+  // the values it is one of, as help shows allowed values (`AllowedValuesHelp`), under what it is
+  return {
+    title,
+    // one size for what it is and the values it is one of (`AllowedValuesHelp` compact is that size)
+    content: createElement(
+      'div',
+      { className: 'reference-hover', style: { fontSize: 12 } },
+      describedContent(body as string, descriptions),
+      createElement(AllowedValuesHelp, { values: allowed, compact: true })
+    ),
+    maxWidth: DESCRIPTION_TOOLTIP_MAX_WIDTH,
+    ...(descriptions.tapToOpen ? { handler: 'click' as const } : {}),
+  };
+};
+
+/** The values a template is one of, where its catalogue says (`allowed_values`, as a field's are written). */
+export const templateAllowedValues = (item: unknown): unknown[] => {
+  const values = (item as { allowed_values?: unknown } | undefined)?.allowed_values;
+  return Array.isArray(values) ? values : [];
+};
+
+/**
+ * What a reference's hover says under its name: what kind of value it is, in words - "A whole number." from the
+ * type's sentence form - then its description (qorus#646, David: a field's hover should say the field's type).
+ * The type was in the catalogue (its badge) and in no hover; where a hover said it, it said it raw, `(int)`.
+ * Undefined when there is neither.
+ */
+export const describedWithType = (
+  description: unknown,
+  typeSentenceForm: string | undefined
+): string | undefined => {
+  const kind =
+    typeSentenceForm ?
+      `${typeSentenceForm.charAt(0).toLocaleUpperCase()}${typeSentenceForm.slice(1)}.`
+    : undefined;
+  const text = typeof description === 'string' && description.trim() ? description : undefined;
+  return [kind, text].filter(Boolean).join('\n\n') || undefined;
 };
 
 // Ported verbatim from qorus-ide `helpers/functions.tsx` (FIELD_STACK_REPORT
@@ -357,7 +597,10 @@ export const templateTooltip = (
 export const filterTemplatesByType = (
   templates: IReqoreFormTemplates = {},
   fieldType = 'string',
-  hasArgSchema?: boolean
+  hasArgSchema?: boolean,
+  types: IQorusTypeObject[] = getQorusTypes(),
+  // the field's base data type: what a field type the catalogue does not list takes (`qorusTypeEntry`)
+  baseType?: string
 ): IReqoreFormTemplates => {
   if ((fieldType === 'hash' || fieldType === 'list') && hasArgSchema) {
     return templates;
@@ -368,7 +611,14 @@ export const filterTemplatesByType = (
   const filterItems = (items: TReqoreDropdownItems = []): TReqoreDropdownItems => {
     return items?.reduce((newItems: TReqoreDropdownItem[], subItem): TReqoreDropdownItem[] => {
       const newSubItem = cloneDeep(subItem);
-      const isCompatible = areQorusTypesCompatible(fieldType, subItem.badge as string);
+      // a template of a type the catalogue does not list fits as its base type, as a field of one takes
+      const isCompatible = areQorusTypesCompatible(
+        fieldType,
+        templateType(subItem) as string,
+        types,
+        baseType,
+        templateBaseType(subItem)
+      );
 
       if (subItem.items) {
         newSubItem.items = filterItems(subItem.items);
@@ -434,8 +684,15 @@ interface ITemplateItemPayload {
   value?: string;
   example_value?: unknown;
   type?: string;
+  /**
+   * The base data type of its values, which Qorus gives with every template (`string` for an email address): what
+   * a template of a type the catalogue does not list fits as (`filterTemplatesByType`).
+   */
+  base_type?: string;
   items?: ITemplateItemPayload[];
   data_role?: string;
+  /** The values it is one of, written as a field's are; its hover lists them (`templateTooltip`). */
+  allowed_values?: unknown[];
 }
 
 export interface ITemplatesPayload {
@@ -476,8 +733,10 @@ export const buildTemplates = (
         value,
         example_value,
         type,
+        base_type,
         items: childItems,
         data_role: itemDataRole,
+        allowed_values,
       }): TReqoreDropdownItem => {
         const serializedExample =
           example_value !== undefined ? JSON.stringify(example_value) : undefined;
@@ -508,12 +767,16 @@ export const buildTemplates = (
             app,
             action,
             dataRole: itemDataRole || dataRole,
+            // the template's type, a typed member: the badge is a list's to name (`templateType`)
+            ...(type ? { type } : {}),
+            ...(base_type ? { baseType: base_type } : {}),
           },
           value,
           flat: false,
           transparent: false,
           minimal: true,
-        };
+          ...(Array.isArray(allowed_values) && allowed_values.length ? { allowed_values } : {}),
+        } as TReqoreDropdownItem;
 
         if (exampleIsLong) {
           // Menu-item actions stop propagation, so the click never selects or

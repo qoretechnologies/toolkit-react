@@ -15,8 +15,9 @@ import { useEffect, useState } from 'react';
 
 import { StoryMeta } from '../../../../types';
 import { buildTemplates } from '../../../../helpers/templates';
+import { defaultQorusTypes } from '../../../../hooks/useQorusTypes';
 import { FormEngine } from '../../engine/FormEngine';
-import templates from '../template/__fixtures__/templates.json';
+import { templates } from '../template/__fixtures__/templateFixtures';
 import { AutoFormField } from './AutoFormField';
 
 const meta = {
@@ -54,14 +55,14 @@ const waitForText = async (text: string | RegExp) => {
 
 /** The readable names of the types an untyped field's picker offers. */
 const IMMEDIATE_TYPE_NAMES = [
-  'True/False',
+  'True or false',
   'Date',
   'Text',
-  'Binary',
-  'Decimal',
+  'Binary data',
+  'Number',
   'List',
   'Key/Value {}',
-  'Integer',
+  'Whole number',
   'RGB Color',
 ];
 
@@ -260,9 +261,10 @@ export const Nullable: Story = {
 
     await userEvent.click(toggle);
 
-    // Value cleared to null, toggle flips, the field shows the null sentinel.
+    // Value cleared to null - a value, not an expression (the last argument) - the toggle flips, and the
+    // field shows the null sentinel.
     await waitFor(() =>
-      expect(args.onChange).toHaveBeenLastCalledWith(undefined, null, 'string', true)
+      expect(args.onChange).toHaveBeenLastCalledWith(undefined, null, 'string', false)
     );
     await expect(canvas.getByText('Unset null')).toBeInTheDocument();
     await expect(canvas.queryByDisplayValue('some text')).not.toBeInTheDocument();
@@ -289,7 +291,7 @@ export const AllowedTypesSubset: Story = {
     await expect(within(canvasElement).queryByText('Please select data type')).not.toBeInTheDocument();
     const popover = await openTypePicker(canvasElement);
     await expectOffered(popover, ['Integer', 'Text']);
-    await expect(within(popover).queryByText('Decimal')).not.toBeInTheDocument();
+    await expect(within(popover).queryByText('Number', { exact: true })).not.toBeInTheDocument();
   },
 };
 
@@ -305,7 +307,7 @@ export const NoSoftTypes: Story = {
     docs: {
       description: {
         story:
-          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True/False, Date, Text, Binary, Decimal, List, Key/Value {}, Integer, RGB Color) and no soft type, and shows no item count.',
+          'Renders an untyped AutoFormField holding a text value. The type picker, chosen as Text, offers the 9 base types by readable name (True or false, Date, Text, Binary, Number, List, Key/Value {}, Whole number, RGB Color) and no soft type, and shows no item count.',
       },
     },
   },
@@ -416,8 +418,10 @@ export const ViaFormEngineMenuOpensItsOnlyGroup: Story = {
       () => expect(document.body.textContent).toContain('Set Custom Value'),
       { timeout: 10000 }
     );
-    // ...and the rows are there to click, with no header click in between.
-    await waitFor(() => expect(document.body.textContent).toContain('Ordered key-value pair'), {
+    // ...and the rows are there to click, with no header click in between: each type with the description the
+    // server's catalogue gives it (key-value pairs: "Key-value pairs (hash)").
+    const setOfFields = defaultQorusTypes.find((type) => type.name === 'hash')!.short_desc!;
+    await waitFor(() => expect(document.body.textContent).toContain(setOfFields), {
       timeout: 10000,
     });
   },
@@ -613,14 +617,14 @@ export const AllowedSoftTypesOfferedAsTheirBase: Story = {
     docs: {
       description: {
         story:
-          'Renders AutoFormField whose allowedTypes are softint, int and softstring. The type picker offers Integer once and Text, with no soft type and no item count.',
+          'Renders AutoFormField whose allowedTypes are softint, int and softstring. The type picker offers Whole number once and Text, with no soft type and no item count.',
       },
     },
   },
   async play({ canvasElement }) {
     const popover = await openTypePicker(canvasElement);
-    await expectOffered(popover, ['Integer', 'Text']);
-    await expect(within(popover).getAllByText('Integer', { exact: true })).toHaveLength(1);
+    await expectOffered(popover, ['Whole number', 'Text']);
+    await expect(within(popover).getAllByText('Whole number', { exact: true })).toHaveLength(1);
   },
 };
 
@@ -635,7 +639,7 @@ export const SavedSoftTypeEditsAsItsBase: Story = {
     docs: {
       description: {
         story:
-          'Renders an untyped AutoFormField holding 5, saved with the soft type softint. It is edited with the integer editor and the type picker reads Integer, instead of drawing "Unknown type!".',
+          'Renders an untyped AutoFormField holding 5, saved with the soft type softint. It is edited with the integer editor and the type picker reads Whole number, instead of drawing "Unknown type!".',
       },
     },
   },
@@ -643,7 +647,7 @@ export const SavedSoftTypeEditsAsItsBase: Story = {
     const canvas = within(canvasElement);
     await expect(await canvas.findByDisplayValue('5')).toBeInTheDocument();
     await expect(canvas.queryByText('Unknown type!')).not.toBeInTheDocument();
-    const popover = await openTypePicker(canvasElement, 'Integer');
+    const popover = await openTypePicker(canvasElement, 'Whole number');
     await expectOffered(popover, IMMEDIATE_TYPE_NAMES);
     // End on what the story is about: the integer editor, holding 5.
     await closeTypePicker(popover);
@@ -687,12 +691,12 @@ export const StringWithCreatableAllowedValues: Story = {
     allowed_values: [
       {
         display_name: 'status from create',
-        short_desc: '$.create.status (int)',
+        short_desc: 'The status code the create step returned',
         value: { type: 'string', value: '$.create.status' },
       },
       {
         display_name: 'body from create',
-        short_desc: '$.create.body (auto)',
+        short_desc: 'The body the create step returned',
         value: { type: 'string', value: '$.create.body' },
       },
     ],
@@ -715,12 +719,12 @@ export const StringWithCreatableAllowedValuesOutsideTheList: Story = {
     allowed_values: [
       {
         display_name: 'status from create',
-        short_desc: '$.create.status (int)',
+        short_desc: 'The status code the create step returned',
         value: { type: 'string', value: '$.create.status' },
       },
       {
         display_name: 'body from create',
-        short_desc: '$.create.body (auto)',
+        short_desc: 'The body the create step returned',
         value: { type: 'string', value: '$.create.body' },
       },
     ],
@@ -821,5 +825,104 @@ export const NamedArgSchemaFetchFails: Story = {
   ],
   play: async () => {
     await waitForText(/Failed to fetch the field schema|could not be loaded/);
+  },
+};
+
+// --- A host editor's own report, handed back -------------------------------------------------------------
+
+/** How long the host editor below waits before it reports what is typed: wide, so the play can act inside it. */
+const HOST_EDITOR_PAUSE = 1000;
+
+/** What the story's form listens for: it stores an emptied field again, as `undefined` rather than `''`. */
+const STORE_EMPTY_AS_UNDEFINED = 'story-store-empty-as-undefined';
+
+/**
+ * A host editor as the Qorus IDE's rich text is one (`componentOverrides`): it keeps what is typed, reports it
+ * after a pause, and takes any value it is handed that differs from what it holds for a change from outside,
+ * putting it in place of what it holds.
+ */
+const HostTextEditor = ({
+  value,
+  onChange,
+}: {
+  value?: unknown;
+  onChange?: (value: unknown) => void;
+}) => {
+  const [local, setLocal] = useState<unknown>(value);
+  useEffect(() => {
+    if (local !== value) {
+      setLocal(value);
+    }
+  }, [JSON.stringify(value)]);
+  useEffect(() => {
+    if (local === value) {
+      return undefined;
+    }
+    const timer = setTimeout(() => onChange?.(local), HOST_EDITOR_PAUSE);
+    return () => clearTimeout(timer);
+  }, [local]);
+  return (
+    <input
+      aria-label='Host editor'
+      className='host-editor'
+      value={typeof local === 'string' ? local : ''}
+      onChange={(event) => setLocal(event.target.value)}
+    />
+  );
+};
+
+const HOST_EDITORS = { 'host-text': HostTextEditor };
+
+/** A form holding one field, which stores an emptied field once more, as `undefined`, when told to. */
+const FormStoringEmptyTwice = () => {
+  const [held, setHeld] = useState<unknown>('$local:pos');
+  useEffect(() => {
+    const store = () => setHeld((current: unknown) => (current === '' ? undefined : current));
+    window.addEventListener(STORE_EMPTY_AS_UNDEFINED, store);
+    return () => window.removeEventListener(STORE_EMPTY_AS_UNDEFINED, store);
+  }, []);
+  return (
+    <>
+      <AutoFormField
+        name='checked_value'
+        type={'host-text' as any}
+        defaultType={'host-text' as any}
+        value={held}
+        componentOverrides={HOST_EDITORS}
+        onChange={(_name: string, value: unknown) => setHeld(value)}
+      />
+      <code className='held-value'>{held === undefined ? '(no value)' : JSON.stringify(held)}</code>
+    </>
+  );
+};
+
+export const HostEditorKeepsWhatIsTypedWhenItsReportComesBack: Story = {
+  render: () => <FormStoringEmptyTwice />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a field drawn by a host editor (`componentOverrides`) that, as the Qorus IDE\'s rich text does, keeps what is typed, reports it after a pause and takes any other value it is handed for a change from outside. The field is emptied - it reports "" - and the form, as a form engine does once it has stored it, hands the empty value back again as undefined, after a 1 is typed and before it is reported. The 1 stays and is then reported: the field hands a host editor its own report back as it reported it, so an empty value stored a second way is no change. It was taken for one, and the 1 was wiped (the IDE\'s test-case Value, under load, qorus#646).',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editor = within(canvasElement).getByLabelText('Host editor') as HTMLInputElement;
+    const held = () => canvasElement.querySelector('.held-value')?.textContent;
+    await waitFor(() => expect(editor.value).toBe('$local:pos'));
+
+    // emptied: reported "" after the pause, and held as ""
+    await userEvent.clear(editor);
+    await waitFor(() => expect(held()).toBe('""'), { timeout: HOST_EDITOR_PAUSE * 5 });
+
+    // a key typed, and before it is reported, the form hands the empty value back once more, as undefined
+    await userEvent.type(editor, '1');
+    window.dispatchEvent(new Event(STORE_EMPTY_AS_UNDEFINED));
+    await waitFor(() => expect(held()).toBe('(no value)'));
+
+    // what was typed is still there, and is reported
+    await expect(editor.value).toBe('1');
+    await waitFor(() => expect(held()).toBe('"1"'), { timeout: HOST_EDITOR_PAUSE * 5 });
+    await expect(editor.value).toBe('1');
   },
 };
