@@ -249,6 +249,25 @@ yarn build:test         # Type-check without emit
   `(hover: none)` (it never shows on a Mac, which always reports a mouse).
   `.storybook/vitest.setup.ts` checks every story's browser is its project's:
   `(hover: hover) and (pointer: fine)`, or on the phone `(hover: none) and (pointer: coarse)`.
+- **Story clock — every story starts at the same instant.** Components write dates
+  relative to the clock ("3 hours ago"), so a story dated against the real clock captured
+  "1 month ago" in one build and "3 months ago" a few weeks later.
+  - `.storybook/preview.tsx` starts every story at `STORY_NOW` (30 June 2026, 12:00 UTC,
+    `src/stories/storyClock.ts`). Date story data from it with `storyMinutesAgo(n)`,
+    never with `Date.now()`, `new Date()` or a literal date of its own.
+  - The clock runs on in real time from `STORY_NOW`, because a stopped clock stops lodash's
+    `debounce` and `throttle` (ControlGroup's resize, Slate's selection sync). A story is
+    captured well inside the minute the shortest "… ago" takes to change.
+  - `parameters.mockdate` stops the clock at an instant, for a story whose every reading
+    must be the same (log lines stamped to the millisecond). `parameters.live` stories keep
+    the real clock.
+  - The clock goes back to `STORY_NOW` at every story, so anything a page keeps from story
+    to story with a timestamp must not outlive its freshness: when a story ends, the
+    preview drops the `ReqraftQueryClient` answers already stale for the request that
+    fetched them, or the next story would read them as fetched in the future and be served
+    them instead of its own mocks. Any other such store needs the same treatment.
+  - The capture browser runs in UTC and US English (`vitest.config.ts`), as CI does, so a
+    date written in the viewer's zone or language captures the same on every machine.
 - **Visual regression via Qlip** (not Chromatic): the story run captures snapshots through the `qlip` Vitest plugin. Upload is gated on `QLIP_UPLOAD_TOKEN` (`vitest.config.ts`), so **local runs capture but never upload** — PNGs land in `qlip/screenshots/<ts>/stories/auto/<StoryId>.png` (gitignored); read the PNG to verify a visual change. CI (`.github/workflows/tests.yml`) sets the token and uploads a build for dashboard review. The full visual-change flow + the `qlip` MCP review skill live in the imported `stacks/frontend/FRONTEND.md`.
 
 ## Code Patterns & Conventions

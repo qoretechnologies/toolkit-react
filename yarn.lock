@@ -975,14 +975,6 @@
   resolved "https://registry.yarnpkg.com/@neoconfetti/react/-/react-1.0.0.tgz#9a619d980a2285a829b1f8c78ca6484f0364a370"
   integrity sha512-klcSooChXXOzIm+SE5IISIAn3bYzYfPjbX7D7HoqZL84oAfgREeSg5vSIaSFH+DaGzzvImTyWe1OyrJ67vik4A==
 
-"@netsells/storybook-mockdate@^0.3.3":
-  version "0.3.3"
-  resolved "https://registry.npmjs.org/@netsells/storybook-mockdate/-/storybook-mockdate-0.3.3.tgz"
-  integrity sha512-z2Ecxe4GViFnJrdL5L3IMa9nldB3SiWEj3tma1TT5dfG8W8W5Bhp7if6H0QlGvQREKmY6q+q+H1sc+sc2T8Qpw==
-  dependencies:
-    dayjs "^1.11.11"
-    mockdate "^3.0.5"
-
 "@nodelib/fs.scandir@2.1.5":
   version "2.1.5"
   resolved "https://registry.npmjs.org/@nodelib/fs.scandir/-/fs.scandir-2.1.5.tgz"
@@ -4145,11 +4137,6 @@ data-view-byte-offset@^1.0.0:
     es-errors "^1.3.0"
     is-data-view "^1.0.1"
 
-dayjs@^1.11.11:
-  version "1.11.11"
-  resolved "https://registry.npmjs.org/dayjs/-/dayjs-1.11.11.tgz"
-  integrity sha512-okzr3f11N6WuqYtZSvm+F776mB41wRZMhKP+hc34YdW+KmtYYK9iqvHSwo2k9FEH3fhGXvOPV6yz2IcSrfRUDg==
-
 debug@^4.0.0, debug@^4.1.0, debug@^4.3.1, debug@^4.3.2, debug@^4.3.4:
   version "4.3.4"
   resolved "https://registry.npmjs.org/debug/-/debug-4.3.4.tgz"
@@ -6516,11 +6503,6 @@ mock-xmlhttprequest@^8.1.0:
   version "8.3.0"
   resolved "https://registry.npmjs.org/mock-xmlhttprequest/-/mock-xmlhttprequest-8.3.0.tgz"
   integrity sha512-yjNaP8HskE7GhO0D12kB35+OvCnNAh2fJnD1/mC5Y3WW8WcozJnC23w+8UoU+dmVR4x1KpAB8PPtybY9wI16Ew==
-
-mockdate@^3.0.5:
-  version "3.0.5"
-  resolved "https://registry.npmjs.org/mockdate/-/mockdate-3.0.5.tgz"
-  integrity sha512-iniQP4rj1FhBdBYS/+eQv7j1tadJ9lJtdzgOpvsOHng/GbcDh2Fhdeq+ZRldrPYdXvCyfFUmFeEwEGXZB5I/AQ==
 
 mri@^1.1.0:
   version "1.2.0"

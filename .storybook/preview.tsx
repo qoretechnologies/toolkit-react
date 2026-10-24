@@ -1,14 +1,15 @@
-import withMockdate from '@netsells/storybook-mockdate';
 import {
   ReqoreContent,
   ReqoreLayoutContent,
   ReqoreModalsWrapper,
   ReqoreUIProvider,
 } from '@qoretechnologies/reqore';
-import { initializeReqraft } from '../src';
+import type { FetchQueryOptions } from '@tanstack/react-query';
+import { initializeReqraft, ReqraftQueryClient } from '../src';
 import { startDpqlMockLsp } from '../src/components/form/expressions/dpqlMockLsp';
 import { _resetExpressionTypeTransportForTests } from '../src/components/form/expressions/useExpressionType';
 import { _resetRenderExpressionTransportForTests } from '../src/components/form/expressions/useRenderExpression';
+import { IStoryClockParameters, startStoryClock } from '../src/stories/storyClock';
 import { GLOBAL_STORY_MOCK_DATA, STORY_QORUS_INSTANCE } from '../src/stories/storyNetwork';
 import { fetchConfig } from '../src/utils/fetch';
 import { _resetSharedLspConnectionsForTests } from '../src/utils/lspClient';
@@ -55,17 +56,63 @@ export const parameters = {
 // one without a server would show only its loading state. A story that needs
 // different answers starts its own server on the URL, which replaces this one;
 // a `live` story reaches the real server instead.
-export const beforeEach = ({ parameters }: { parameters?: { live?: boolean } }) => {
-  _resetRenderExpressionTransportForTests();
-  // the expression type client too, and the types it cached: a story's server says what its expressions give
-  _resetExpressionTypeTransportForTests();
-  _resetSharedLspConnectionsForTests();
-  return parameters?.live ? undefined : startDpqlMockLsp();
+//
+// ...and every story starts at the same instant, `STORY_NOW`, so a date it
+// shows as "3 hours ago" says so on every day it is captured (see
+// src/stories/storyClock.ts; `parameters.mockdate` stops the clock, a `live`
+// story keeps the real one).
+//
+// ...and what one story fetched does not outlive its freshness in the next. The
+// query cache lives as long as the page and stamps every answer with the time it
+// was fetched, and the next story's clock starts back at `STORY_NOW`: an answer
+// fetched a few seconds into this story would read as fetched in the future -
+// fresh even to a request that never caches - and be served in place of the next
+// story's own mocks (useStorage's stored value, useFetch's 409). So when a story
+// ends, while its clock still reads, the answers already stale for the request
+// that fetched them are dropped. The ones kept (the type and expression
+// catalogues) are the ones the next story would have been served on a real clock.
+// A request still in flight is left alone: removing it would cancel it under
+// whatever is still waiting for it, and its answer is stamped by the clock it
+// lands in.
+const dropStaleAnswers = () => {
+  for (const cached of ReqraftQueryClient.getQueryCache().getAll()) {
+    if (
+      cached.state.fetchStatus === 'idle' &&
+      cached.isStaleByTime((cached.options as FetchQueryOptions).staleTime)
+    ) {
+      ReqraftQueryClient.removeQueries({ queryKey: cached.queryKey, exact: true });
+    }
+  }
+};
+
+export const beforeEach = ({ parameters }: { parameters?: IStoryClockParameters }) => {
+  const restoreClock = startStoryClock(parameters);
+  try {
+    _resetRenderExpressionTransportForTests();
+    // the expression type client too, and the types it cached: a story's server says what its expressions give
+    _resetExpressionTypeTransportForTests();
+    _resetSharedLspConnectionsForTests();
+    const stopLsp = parameters?.live ? undefined : startDpqlMockLsp();
+    return () => {
+      try {
+        stopLsp?.();
+      } finally {
+        try {
+          dropStaleAnswers();
+        } finally {
+          restoreClock();
+        }
+      }
+    };
+  } catch (error) {
+    restoreClock();
+    throw error;
+  }
 };
 
 export const argTypes = {
   mainTheme: {
-    control: 'color',
+    control: 'color' as const,
     description: 'The overall theme for all ReQore components',
     name: 'Main Theme',
     defaultValue: '#333333',
@@ -79,7 +126,6 @@ export const argTypes = {
 };
 
 export const decorators = [
-  withMockdate,
   (Story, context) => {
     // Live stories (`parameters: { live: true }`) hit this instance. Override
     // it to point at your own Qorus for live data, e.g.

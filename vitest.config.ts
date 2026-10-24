@@ -53,9 +53,16 @@ const qlip = qlipVitestPlugin({
  */
 const storyBrowser = (phone = false) => ({
   enabled: true,
-  provider: playwright(
-    phone ? { contextOptions: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } } : {}
-  ),
+  provider: playwright({
+    contextOptions: {
+      // Every capture host renders dates as CI does: in UTC and in US English. A story's date
+      // ("2026-06-10 09:14:22", a log line's time, a date field) is otherwise written in the zone
+      // and language of whichever machine took the snapshot.
+      timezoneId: 'UTC',
+      locale: 'en-US',
+      ...(phone ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {}),
+    },
+  }),
   headless: true,
   // Match the Chromatic snapshot viewport (preview.tsx sets [1440]).
   viewport: { width: 1440, height: 900 },

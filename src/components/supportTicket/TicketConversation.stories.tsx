@@ -2,6 +2,7 @@ import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn } from 'storybook/test';
 import { ReactNode } from 'react';
+import { storyMinutesAgo } from '../../stories/storyClock';
 import { StoryMeta } from '../../types';
 import { ITicketThreadMessage, TicketThread } from '../ticketThread/TicketThread';
 import { InterfaceReferenceTags } from './InterfaceReferenceTags';
@@ -26,7 +27,7 @@ const CUSTOMER: ITicketThreadMessage = {
   author_type: 'customer',
   author_id: 'ops@acme.io',
   body: 'Since upgrading to 3.2 our nightly SFTP transfer to the partner endpoint times out after about 30 seconds. It ran fine on 3.1 with the same connection config.',
-  created: '2026-07-16T09:12:00Z',
+  created: storyMinutesAgo(78),
   referenced_interfaces: [{ interface_kind: 'connection', interface_name: 'sftp-partner' }],
 };
 const STAFF: ITicketThreadMessage = {
@@ -34,7 +35,7 @@ const STAFF: ITicketThreadMessage = {
   author_type: 'staff',
   author_id: 'nick',
   body: "Thanks for the detailed report — we've reproduced the timeout and a fix is in review. In the meantime, can you confirm the datasource pool size configured for the sftp-partner connection?",
-  created: '2026-07-16T10:03:00Z',
+  created: storyMinutesAgo(27),
 };
 const INTERNAL: ITicketThreadMessage = {
   message_id: 'm3',
@@ -42,7 +43,7 @@ const INTERNAL: ITicketThreadMessage = {
   author_id: 'nick',
   internal: true,
   body: 'Root cause: the connection-pool default silently dropped from 4 to 1 in the 3.2 migration. Patch is in review against develop.',
-  created: '2026-07-16T10:05:00Z',
+  created: storyMinutesAgo(25),
 };
 
 const themed = (node: ReactNode) => (
