@@ -15,6 +15,11 @@ import {
   optionTypeSentence,
   optionTypeWords,
 } from '../src/helpers/qorusTypeCatalogue';
+import {
+  TypeSentenceFormProvider,
+  useTypeName,
+  useTypeSentenceForm,
+} from '../src/components/form/typeSentenceForm';
 import { filterTemplatesByType } from '../src/helpers/templates';
 import {
   defaultQorusTypes,
@@ -106,5 +111,22 @@ describe('a type the catalogue does not list', () => {
     expect(result.current.getTypeDisplayName(ORDER, 'hash')).toBe('Key-value pairs (hash)');
     expect(result.current.getAcceptedTypes(ORDER, 'hash')).toEqual(['hash', 'file']);
     expect(result.current.getTypeDisplayName('blob')).toBe('Unknown type');
+  });
+
+  it("is named the same in a form's type words", async () => {
+    const { result } = renderHook(
+      () => ({ name: useTypeName(), sentenceForm: useTypeSentenceForm() }),
+      {
+        wrapper: ({ children }) => (
+          <FetchContext.Provider value={emptyFetchContext()}>
+            <TypeSentenceFormProvider>{children}</TypeSentenceFormProvider>
+          </FetchContext.Provider>
+        ),
+      }
+    );
+    await waitFor(() => expect(result.current.name('string')).toBe('Text'));
+    expect(result.current.name(ORDER, 'hash')).toBe('Key-value pairs (hash)');
+    expect(result.current.sentenceForm(ORDER, 'hash')).toBe('key-value pairs (a hash)');
+    expect(result.current.name('blob')).toBeUndefined();
   });
 });

@@ -35,7 +35,9 @@ export const TypeSentenceFormProvider = ({ children }: { children: ReactNode }) 
   const words = useMemo(
     () => ({
       sentenceForm: getTypeSentenceForm,
-      name: (typeName: string | undefined) => qorusTypeKnownName(value, typeName),
+      // a type the catalogue does not list, by its base type (`qorusTypeEntry`)
+      name: (typeName: string | undefined, baseType?: string) =>
+        qorusTypeKnownName(value, typeName, baseType),
     }),
     [getTypeSentenceForm, value]
   );

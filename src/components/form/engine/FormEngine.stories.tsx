@@ -12826,6 +12826,87 @@ export const AnOptionSaysWhatItTakesInItsHoverAndHelp: Story = {
   },
 };
 
+/** Options of types the type catalogue does not list: a user type with its base type, and a type with none. */
+const UNLISTED_TYPE_OPTIONS = {
+  order_ref: {
+    type: 'qoretechnologies/order-ref',
+    base_type: 'string',
+    display_name: 'Order reference',
+    short_desc: 'The order the payment is for.',
+  },
+  legacy_code: {
+    type: 'legacy-code',
+    display_name: 'Legacy code',
+    short_desc: 'The code the old system gave the payment.',
+  },
+} as never;
+
+export const AFieldOfAnUnlistedTypeIsNamedByItsBaseType: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a form whose Order reference is a user type the type catalog does not list, qoretechnologies/order-ref, with its base type, text; and whose Legacy code is a type with neither. Order reference\'s help says "Takes text.", as its base type, and with all field information shown it says Text beside its name; Legacy code says no type rather than its code.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    value: {
+      order_ref: { type: 'qoretechnologies/order-ref', value: 'SO-1042' },
+      legacy_code: { type: 'legacy-code', value: 'A7' },
+    },
+    options: UNLISTED_TYPE_OPTIONS,
+  },
+  play: async ({ parameters }) => {
+    await atTheCaptureSize(parameters);
+    await waitFor(() => expect(optionRow('order_ref')).toBeTruthy(), { timeout: 10000 });
+    // its help says what it takes, as its base type
+    await userEvent.click(
+      optionRow('order_ref')?.querySelector('.options-readfirst-help') as HTMLElement
+    );
+    await waitFor(() =>
+      expect(document.querySelector('.reqore-modal .options-help-type')?.textContent).toBe(
+        'Takes text.'
+      )
+    );
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.reqore-modal')).toBeFalsy());
+    await userEvent.click(document.querySelector('.options-readfirst-descriptions') as HTMLElement);
+    await waitFor(() =>
+      expect(optionRow('order_ref')?.querySelector('.options-readfirst-type')?.textContent).toBe(
+        'Text'
+      )
+    );
+    // a type named by nothing is not named by its code
+    expect(optionRow('legacy_code')?.querySelector('.options-readfirst-type')).toBeNull();
+    expect(optionRow('legacy_code')?.textContent).not.toContain('legacy-code');
+  },
+};
+
+export const AFieldOfAnUnlistedTypeIsNamedByItsBaseTypeOnAPhone: Story = {
+  ...AFieldOfAnUnlistedTypeIsNamedByItsBaseType,
+  globals: { viewport: { value: 'phone' } },
+  parameters: {
+    viewport: {
+      options: {
+        phone: {
+          name: 'Phone',
+          styles: { width: `${PHONE_VIEWPORT.width}px`, height: `${PHONE_VIEWPORT.height}px` },
+        },
+      },
+    },
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The same form at phone width (390 px): Order reference says Text, as its base type, and Legacy code says no type rather than its code.',
+      },
+    },
+  },
+};
+
 export const ALoneFieldReadsAsTheFieldInEveryView: Story = {
   parameters: {
     docs: {
