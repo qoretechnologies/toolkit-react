@@ -817,17 +817,11 @@ export const AClickOnAChipOpensItsListAndASecondClosesIt: Story = {
     await userEvent.click(name);
     await waitFor(() => expect(chipList(editable)).not.toBeNull());
 
-    // another chip: the list is at that chip, past the first one (the popover the list was in says it closed
+    // another chip: the list is at that chip, where it is drawn - past the first one on a wide line, below it on
+    // the next line where the line wraps (a phone) - under it from its left edge, not at the caret the click left
+    // after it (Foxhoundn, qlip #392), nor still at the first chip (the popover the list was in says it closed
     // after the list opened there)
     await userEvent.click(customer);
-    await waitFor(() => {
-      const list = chipList(editable);
-      expect(list).not.toBeNull();
-      expect(list!.getBoundingClientRect().left).toBeGreaterThan(
-        name.getBoundingClientRect().right
-      );
-    });
-    // under the chip clicked, from its left edge: not at the caret the click left after it (Foxhoundn, qlip #392)
     await waitFor(() => expectListUnder(customer, chipList(editable)));
 
     // outside the list: it is put away
