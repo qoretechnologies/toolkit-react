@@ -1877,7 +1877,7 @@ export const TextModeOffersTemplateCompletions: Story = {
     await userEvent.keyboard('{Escape}');
     await waitFor(() =>
       expect(saidUnderTheText(canvasElement)).toEqual([
-        "Incomplete template reference: expected context identifier after '$'",
+        'A `$` starts a template: pick one from the list, or remove the `$`.',
       ])
     );
     // and held again while a click after the `$` has the list open
@@ -1924,7 +1924,9 @@ export const AnAtWithNoRecordSaysThereIsNone: Story = {
     await userEvent.keyboard('{Escape}');
     await waitFor(() => expect(completionListed()).toEqual([]));
     await waitFor(() =>
-      expect(saidUnderTheText(canvasElement)).toEqual(['Incomplete field reference'])
+      expect(saidUnderTheText(canvasElement)).toEqual([
+        'An `@` names a field: pick one from the list, or remove the `@`.',
+      ])
     );
     // a click after the `@` asks again, and the list says it again
     await userEvent.click(editable);

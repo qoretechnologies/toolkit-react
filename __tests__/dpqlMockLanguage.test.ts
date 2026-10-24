@@ -16,6 +16,7 @@ import {
   mockPublishedDiagnostics,
   mockExpressionTypeDpql,
 } from '../src/components/form/expressions/dpqlMockLanguage';
+import { dpqlMockTypeName } from '../src/components/form/expressions/dpqlMockLsp';
 
 /** Decode LSP semantic tokens into `[text, typeIndex]` pairs for one line. */
 const decodeTokens = (text: string) => {
@@ -38,7 +39,7 @@ describe('dpql/parse', () => {
     expect(result.diagnostics).toHaveLength(1);
     expect(result.diagnostics[0]).toMatchObject({
       severity: 'error',
-      message: 'Unexpected end of input, expected value',
+      message: "Something is missing at the end: a value after '=='.",
       code: 'DPQL-E001',
     });
   });
@@ -452,8 +453,9 @@ describe('the stand-in tokenizer reads field names in any script, as the server 
 });
 
 // qorus#646 (David's review: `pos + 1 + $pos` said nothing): text the server cannot read is published as the
-// server publishes it. Every expected value is what professor's `/lsp` published for the same text (checkout
-// 35096ca2d, capture-dpql-diagnostics.qr), the record's fields pos (int) and bezeichnung (string).
+// server publishes it. Every expected value is what Qore's DataProvider says for the same text
+// (parseDpqlExpressionWithInfo, Qore batch 6 at 28a6bbcb14, installed on professor): its codes, its ranges, and
+// its words, which since batch 6 say what to do, in plain words.
 describe('text the server cannot read is published, in its words and where it is', () => {
   const published = (text: string) =>
     mockPublishedDiagnostics(text).map(({ code, message, range }) => ({
@@ -462,68 +464,94 @@ describe('text the server cannot read is published, in its words and where it is
       from: range.start.character,
       to: range.end.character,
     }));
+  const LONE_TEMPLATE_MARKER =
+    'A `$` starts a template: pick one from the list, or remove the `$`.';
+  const LONE_FIELD_MARKER = 'An `@` names a field: pick one from the list, or remove the `@`.';
+  const UNFINISHED_TEMPLATE =
+    "This template isn't finished: pick one from the list, or write what it refers to after the ':'.";
 
   it('a $ left in front of a template', () => {
     expect(published('$record:{pos} + 1 + $$record:{pos}')).toEqual([
       {
         code: 'DPQL-E031',
-        message: "Invalid template reference: expected context identifier after '$', got '$'",
+        message: "'$' can't follow a `$`: pick a template from the list, or remove the `$`.",
         from: 20,
         to: 21,
       },
     ]);
   });
 
-  it("a template's context with nothing after it", () => {
-    // professor's `/lsp` on `$record:{pos} + $data:`: E033 over `$data:`
-    expect(published('$record:{pos} + $data:')).toEqual([
+  it('a character that cannot follow a $ is named once', () => {
+    expect(published('$#')).toEqual([
       {
-        code: 'DPQL-E033',
-        message: "Incomplete template reference: expected value after ':'",
-        from: 16,
-        to: 22,
+        code: 'DPQL-E031',
+        message: "'#' can't follow a `$`: pick a template from the list, or remove the `$`.",
+        from: 0,
+        to: 1,
+      },
+    ]);
+  });
+
+  it("a template's context with nothing after it", () => {
+    expect(published('$record:{pos} + $data:')).toEqual([
+      { code: 'DPQL-E033', message: UNFINISHED_TEMPLATE, from: 16, to: 22 },
+    ]);
+    expect(published('$local: ')).toEqual([
+      { code: 'DPQL-E033', message: UNFINISHED_TEMPLATE, from: 0, to: 7 },
+    ]);
+  });
+
+  it("a template's context without its ':'", () => {
+    expect(published('1 + $pos')).toEqual([
+      {
+        code: 'DPQL-E032',
+        message:
+          "This template needs a ':' after `$pos`: pick one from the list, or remove the `$`.",
+        from: 4,
+        to: 8,
       },
     ]);
   });
 
   it('a $ with nothing after it', () => {
     expect(published('$')).toEqual([
-      {
-        code: 'DPQL-E030',
-        message: "Incomplete template reference: expected context identifier after '$'",
-        from: 0,
-        to: 1,
-      },
+      { code: 'DPQL-E030', message: LONE_TEMPLATE_MARKER, from: 0, to: 1 },
     ]);
-    expect(published('$record:{pos} + 1 + $')[0]).toMatchObject({
-      code: 'DPQL-E030',
-      from: 20,
-      to: 21,
-    });
+    expect(published('$record:{pos} + 1 + $')).toEqual([
+      { code: 'DPQL-E030', message: LONE_TEMPLATE_MARKER, from: 20, to: 21 },
+    ]);
+    // a space after it is nothing after it too, said under the code for a $ that starts no template
+    expect(published('$ + 1')).toEqual([
+      { code: 'DPQL-E031', message: LONE_TEMPLATE_MARKER, from: 0, to: 1 },
+    ]);
   });
 
   it('a value after a whole expression', () => {
     expect(published('$record:{pos} $record:{bezeichnung}')).toEqual([
       {
         code: 'DPQL-E001',
-        message: "Unexpected token '$record:{bezeichnung}' after expression",
+        message:
+          'Something follows a complete value here: join them with an operator, such as +, == or &&.',
         from: 14,
         to: 35,
       },
     ]);
     expect(published('1 + 2 )')).toEqual([
-      { code: 'DPQL-E001', message: "Unexpected token ')' after expression", from: 6, to: 7 },
+      { code: 'DPQL-E001', message: "This ')' has no '(' to close: remove it.", from: 6, to: 7 },
     ]);
   });
 
   it('an @ that names no field', () => {
     expect(published('1 + @')).toEqual([
-      { code: 'DPQL-E003', message: 'Incomplete field reference', from: 4, to: 5 },
+      { code: 'DPQL-E003', message: LONE_FIELD_MARKER, from: 4, to: 5 },
     ]);
     expect(published('@ + 1')).toEqual([
+      { code: 'DPQL-E003', message: LONE_FIELD_MARKER, from: 0, to: 1 },
+    ]);
+    expect(published('@1')).toEqual([
       {
         code: 'DPQL-E003',
-        message: "Invalid field reference: expected identifier or quoted string after '@', got ' '",
+        message: "'1' can't follow an `@`: pick a field from the list, or remove the `@`.",
         from: 0,
         to: 1,
       },
@@ -531,18 +559,66 @@ describe('text the server cannot read is published, in its words and where it is
   });
 
   it('each character it cannot read, reading on past it', () => {
+    const message = "'…' can't be used here: remove it, or put it in quotes to make it text.";
     expect(published('… > …')).toEqual([
-      { code: 'DPQL-E001', message: "Unexpected character '…'", from: 0, to: 1 },
-      { code: 'DPQL-E001', message: "Unexpected character '…'", from: 4, to: 5 },
+      { code: 'DPQL-E001', message, from: 0, to: 1 },
+      { code: 'DPQL-E001', message, from: 4, to: 5 },
     ]);
   });
 
-  it('an operator with nothing after it', () => {
+  it('a value missing, said where the token before it starts', () => {
     expect(published('12 +')).toEqual([
-      expect.objectContaining({
+      {
         code: 'DPQL-E001',
-        message: 'Unexpected end of input, expected value',
-      }),
+        message: "Something is missing at the end: a value after '+'.",
+        from: 3,
+        to: 3,
+      },
+    ]);
+    expect(published('+ 1')).toEqual([
+      {
+        code: 'DPQL-E001',
+        message: "Something is missing before '+': a value, such as a field or a template.",
+        from: 0,
+        to: 1,
+      },
+    ]);
+  });
+
+  it("a '(' left open", () => {
+    expect(published('(1 + 2')).toEqual([
+      {
+        code: 'DPQL-E001',
+        message: "Something is missing at the end: a ')' to close the '('.",
+        from: 5,
+        to: 5,
+      },
+    ]);
+    expect(published('(1 + 2 3')).toEqual([
+      {
+        code: 'DPQL-E001',
+        message:
+          "Something follows a complete value here: join them with an operator, or close the '(' with ')'.",
+        from: 7,
+        to: 8,
+      },
+    ]);
+    expect(published('f(1 2)')).toEqual([
+      {
+        code: 'DPQL-E001',
+        message:
+          "Something follows a complete value here: separate the values with ',', or close the '(' with ')'.",
+        from: 4,
+        to: 5,
+      },
+    ]);
+    expect(published('f(1')).toEqual([
+      {
+        code: 'DPQL-E001',
+        message: "Something is missing at the end: a ')' to close the '('.",
+        from: 2,
+        to: 2,
+      },
     ]);
   });
 
@@ -551,7 +627,7 @@ describe('text the server cannot read is published, in its words and where it is
       expect.objectContaining({
         severity: 'error',
         code: 'DPQL-E031',
-        message: "Invalid template reference: expected context identifier after '$', got '$'",
+        message: "'$' can't follow a `$`: pick a template from the list, or remove the `$`.",
         column: 21,
         end_column: 22,
       }),
@@ -681,5 +757,39 @@ describe('dpql/expressionType in the mock (the server: getExpressionTypeInfo)', 
         ],
       } as never)
     ).toEqual({ inferred_type: 'auto', ui_type: 'any', known: false });
+  });
+});
+
+// Qore batch 6: a completion's detail names a type as DataProvider's DataTypeCatalogue does, and a template
+// context that needs a value says so. Each name is what DataTypeCatalogue::lookupType() gives for the type.
+describe("the stand-in's completion details are the server's plain words", () => {
+  it('names a type as the catalogue does, by its base for an optional, soft or complex form', () => {
+    expect(
+      [
+        'int',
+        '*string',
+        'softint',
+        'hash<auto>',
+        'number',
+        'float',
+        'bool',
+        'date',
+        'list<auto>',
+      ].map(dpqlMockTypeName)
+    ).toEqual([
+      'Whole number',
+      'Text',
+      'Whole number',
+      'Key-value pairs (hash)',
+      'Exact number',
+      'Number',
+      'True or false',
+      'Date',
+      'List',
+    ]);
+  });
+
+  it('keeps the name of a type the catalogue does not name', () => {
+    expect(dpqlMockTypeName('qoretechnologies/order')).toBe('qoretechnologies/order');
   });
 });

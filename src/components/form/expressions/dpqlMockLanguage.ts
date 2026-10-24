@@ -247,6 +247,37 @@ const RETURN_TYPES: Record<string, string> = {
   toBool: 'bool',
 };
 
+/* The server's words for what it cannot read (Qore DpqlTokenizer and DpqlParser, batch 6: plain words that say what
+   to do). Each was checked against the installed DataProvider for the same text. */
+const LONE_TEMPLATE_MARKER = 'A `$` starts a template: pick one from the list, or remove the `$`.';
+const LONE_FIELD_MARKER = 'An `@` names a field: pick one from the list, or remove the `@`.';
+const UNFINISHED_TEMPLATE =
+  "This template isn't finished: pick one from the list, or write what it refers to after the ':'.";
+const cannotFollowMarker = (char: string, marker: '$' | '@') =>
+  marker === '$' ?
+    `'${char}' can't follow a \`$\`: pick a template from the list, or remove the \`$\`.`
+  : `'${char}' can't follow an \`@\`: pick a field from the list, or remove the \`@\`.`;
+const templateNeedsColon = (template: string) =>
+  `This template needs a ':' after \`${template}\`: pick one from the list, or remove the \`$\`.`;
+const cannotBeUsedHere = (char: string) =>
+  `'${char}' can't be used here: remove it, or put it in quotes to make it text.`;
+/** What the server says of a token after a whole value (DpqlParser getTrailingTokenMessage). */
+const trailingTokenMessage = (token: string): string => {
+  switch (token.toLowerCase()) {
+    case ')':
+      return "This ')' has no '(' to close: remove it.";
+    case ',':
+      return "A ',' separates the values of a function or a list, and there's none here: remove it.";
+    case 'and':
+      return "Use && to join two conditions: 'and' only joins the two bounds of between.";
+    case 'or':
+      return "Use || to join two conditions: 'or' isn't an operator.";
+    case 'not':
+      return '\'not\' goes before in or between, as in @status not in ("closed", "lost").';
+  }
+  return 'Something follows a complete value here: join them with an operator, such as +, == or &&.';
+};
+
 /** What the server says of text it cannot read: its words, its code, and the columns (from 1) it is said of. */
 class DpqlMockSyntaxError extends Error {
   constructor(
@@ -276,6 +307,8 @@ const tokenize = (text: string): TToken[] => {
   const tokens: TToken[] = [];
   // what cannot be read, each said where it is: the server reads on past it and says each (`… > …`: two)
   const unread: DpqlMockSyntaxError[] = [];
+  // where a character named as one that cannot follow a `$` or an `@` is: not said again
+  let named = -1;
   LEX_RE.lastIndex = 0;
   while (LEX_RE.lastIndex < text.length) {
     const start = LEX_RE.lastIndex;
@@ -290,61 +323,67 @@ const tokenize = (text: string): TToken[] => {
     const m = LEX_RE.exec(text);
     if (!m) {
       if (text.slice(start).trim() === '') break;
-      /* A `$` that does not start a template, in the server's words (Qore DpqlTokenizer, DPQL-E030 and E031): what
-         a `$` typed to ask for a template, or left in front of one picked, reads as. */
+      /* A `$` or an `@` that does not start a reference, in the server's words (Qore DpqlTokenizer): what a `$`
+         typed to ask for a template, or left in front of one picked, reads as. The character named as one that
+         cannot follow it is not said again. */
       const char = String.fromCodePoint(text.codePointAt(at) ?? 0);
-      // a template's context with nothing after its `:` (DPQL-E033): what a picked `$data:` reads as
-      const context = char === '$' ? /^\$[A-Za-z_][\w-]*:/.exec(text.slice(at))?.[0] : undefined;
-      if (context) {
+      const next =
+        at + 1 < text.length ? String.fromCodePoint(text.codePointAt(at + 1) ?? 0) : undefined;
+      if (char === '$') {
+        // a template's context: with nothing after its `:` (DPQL-E033, what a picked `$data:` reads as), or no `:`
+        const context = /^\$[A-Za-z_][\w-]*/.exec(text.slice(at))?.[0];
+        if (context && text[at + context.length] === ':') {
+          unread.push(
+            new DpqlMockSyntaxError(
+              UNFINISHED_TEMPLATE,
+              at + 1,
+              'DPQL-E033',
+              at + 2 + context.length
+            )
+          );
+          LEX_RE.lastIndex = at + context.length + 1;
+          continue;
+        }
+        if (context) {
+          unread.push(
+            new DpqlMockSyntaxError(
+              templateNeedsColon(context),
+              at + 1,
+              'DPQL-E032',
+              at + 1 + context.length
+            )
+          );
+          named = /\S/.test(text[at + context.length] ?? '') ? at + context.length : named;
+          LEX_RE.lastIndex = at + context.length;
+          continue;
+        }
         unread.push(
           new DpqlMockSyntaxError(
-            "Incomplete template reference: expected value after ':'",
+            next === undefined || /\s/.test(next) ?
+              LONE_TEMPLATE_MARKER
+            : cannotFollowMarker(next, '$'),
             at + 1,
-            'DPQL-E033',
-            at + 1 + context.length
-          )
-        );
-        LEX_RE.lastIndex = at + context.length;
-        continue;
-      }
-      if (char === '$' && at + 1 >= text.length) {
-        unread.push(
-          new DpqlMockSyntaxError(
-            "Incomplete template reference: expected context identifier after '$'",
-            at + 1,
-            'DPQL-E030',
+            next === undefined ? 'DPQL-E030' : 'DPQL-E031',
             at + 2
           )
         );
-      } else if (char === '$') {
-        unread.push(
-          new DpqlMockSyntaxError(
-            `Invalid template reference: expected context identifier after '$', got '${text[at + 1]}'`,
-            at + 1,
-            'DPQL-E031',
-            at + 2
-          )
-        );
+        named = next !== undefined && /\S/.test(next) ? at + 1 : named;
       } else if (char === '@') {
         // an `@` that names no field (DPQL-E003): typed to ask for one, or left in front of one picked
         unread.push(
           new DpqlMockSyntaxError(
-            at + 1 >= text.length ?
-              'Incomplete field reference'
-            : `Invalid field reference: expected identifier or quoted string after '@', got '${text[at + 1]}'`,
+            next === undefined || /\s/.test(next) ?
+              LONE_FIELD_MARKER
+            : cannotFollowMarker(next, '@'),
             at + 1,
             'DPQL-E003',
             at + 2
           )
         );
-      } else {
+        named = next !== undefined && /\S/.test(next) ? at + 1 : named;
+      } else if (at !== named) {
         unread.push(
-          new DpqlMockSyntaxError(
-            `Unexpected character '${char}'`,
-            at + 1,
-            'DPQL-E001',
-            at + 1 + char.length
-          )
+          new DpqlMockSyntaxError(cannotBeUsedHere(char), at + 1, 'DPQL-E001', at + 1 + char.length)
         );
       }
       LEX_RE.lastIndex = at + char.length;
@@ -375,14 +414,52 @@ const asOperand = (node: IDpqlMockNode): IDpqlMockNode =>
 const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
   let pos = 0;
   const peek = () => tokens[pos];
+  /* What the server says where a value is missing (DpqlParser): before the token there, or, at the end, after the
+     last token, said where that token starts. */
+  const atTheEnd = (missing: string): never => {
+    const last = tokens[pos - 1];
+    const column = last ? last.start + 1 : endColumn;
+    throw new DpqlMockSyntaxError(
+      `Something is missing at the end: ${missing}.`,
+      column,
+      'DPQL-E001',
+      column
+    );
+  };
+  const said = (message: string, token: TToken): never => {
+    throw new DpqlMockSyntaxError(
+      message,
+      token.start + 1,
+      'DPQL-E001',
+      token.start + 1 + token.text.length
+    );
+  };
   const fail = (): never => {
     const token = peek();
-    throw new DpqlMockSyntaxError(
-      token ? `Unexpected token '${token.text}'` : 'Unexpected end of input, expected value',
-      token ? token.start + 1 : endColumn,
-      'DPQL-E001',
-      token ? token.start + 1 + token.text.length : endColumn
+    if (!token) {
+      const last = tokens[pos - 1];
+      return atTheEnd(last ? `a value after '${last.text}'` : 'a value');
+    }
+    return said(
+      `Something is missing before '${token.text}': a value, such as a field or a template.`,
+      token
     );
+  };
+  /* A `(` the server expects closed: at the end, a `)` is missing; before anything else, a call's values are
+     separated with commas and a group's are joined with an operator. */
+  const closeParenthesis = (call: boolean): void => {
+    const token = peek();
+    if (!token) {
+      atTheEnd("a ')' to close the '('");
+    } else if (token.text !== ')') {
+      said(
+        call ?
+          "Something follows a complete value here: separate the values with ',', or close the '(' with ')'."
+        : "Something follows a complete value here: join them with an operator, or close the '(' with ')'.",
+        token
+      );
+    }
+    pos++;
   };
 
   const primary = (): IDpqlMockNode => {
@@ -410,12 +487,12 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
           const args: IDpqlMockNode[] = [];
           while (peek() && peek()!.text !== ')') {
             args.push(asOperand(binary(1)));
-            if (peek()?.text === ',') {
-              pos++;
+            if (peek()?.text !== ',') {
+              break;
             }
+            pos++;
           }
-          if (peek()?.text !== ')') return fail();
-          pos++;
+          closeParenthesis(true);
           return { exp: NAME_BY_SYMBOL.get(token.text) ?? token.text, args };
         }
         return { type: 'string', value: token.text };
@@ -423,8 +500,7 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
       case 'op':
         if (token.text === '(') {
           const inner = binary(1);
-          if (peek()?.text !== ')') return fail();
-          pos++;
+          closeParenthesis(false);
           return inner;
         }
         if (token.text === '!') {
@@ -466,12 +542,7 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
   // what follows a whole expression, said as the server says it
   const after = peek();
   if (after) {
-    throw new DpqlMockSyntaxError(
-      `Unexpected token '${after.text}' after expression`,
-      after.start + 1,
-      'DPQL-E001',
-      after.start + 1 + after.text.length
-    );
+    said(trailingTokenMessage(after.text), after);
   }
   return root;
 };

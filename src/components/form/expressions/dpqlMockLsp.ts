@@ -46,12 +46,33 @@ export interface IDpqlMockParseCall {
 }
 export const dpqlMockParseCalls: IDpqlMockParseCall[] = [];
 
+/* A completion's detail in the server's plain words (Qore DpqlCompletionProvider, batch 6): a template context that
+   needs a value says so, and a type is named as Qore's DataTypeCatalogue names it. */
+const NEEDS_A_VALUE = "needs a value after ':'";
+const DPQL_MOCK_TYPE_NAMES: Record<string, string> = {
+  any: 'Any',
+  string: 'Text',
+  int: 'Whole number',
+  float: 'Number',
+  number: 'Exact number',
+  bool: 'True or false',
+  date: 'Date',
+  binary: 'Binary data',
+  data: 'Text or binary data',
+  hash: 'Key-value pairs (hash)',
+  list: 'List',
+  nothing: 'No value',
+};
+/** A type as the catalogue names it: an optional or soft form, or a complex one, by its base; else its own name. */
+export const dpqlMockTypeName = (type: string): string =>
+  DPQL_MOCK_TYPE_NAMES[type.replace(/^\*/, '').replace(/^soft/, '').replace(/<.*>$/, '')] ?? type;
+
 /** The template namespaces the server offers after a `$`, and where a value can be written: Variables. */
 const DPQL_MOCK_TEMPLATE_ITEMS = [
-  { label: '$data:', insertText: '$data:', kind: 6, detail: 'requires argument' },
-  { label: '$config:', insertText: '$config:', kind: 6, detail: 'requires argument' },
-  { label: '$static:', insertText: '$static:', kind: 6, detail: 'requires argument' },
-  { label: '$timestamp:', insertText: '$timestamp:', kind: 6, detail: 'requires argument' },
+  { label: '$data:', insertText: '$data:', kind: 6, detail: NEEDS_A_VALUE },
+  { label: '$config:', insertText: '$config:', kind: 6, detail: NEEDS_A_VALUE },
+  { label: '$static:', insertText: '$static:', kind: 6, detail: NEEDS_A_VALUE },
+  { label: '$timestamp:', insertText: '$timestamp:', kind: 6, detail: NEEDS_A_VALUE },
 ];
 
 /** What the server offers after a whole value: operators (Keywords), never a value. */
@@ -155,7 +176,11 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
       label: `@${name}`,
       insertText: `@${name}`,
       kind: 5,
-      detail: [(field as { type?: string | string[] }).type ?? []].flat().join(' or ') || undefined,
+      detail:
+        [(field as { type?: string | string[] }).type ?? []]
+          .flat()
+          .map(dpqlMockTypeName)
+          .join(' or ') || undefined,
     }));
     // a template being written: its contexts
     if (token.startsWith('$') && !MOCK_WHOLE_TEMPLATE.test(token)) {

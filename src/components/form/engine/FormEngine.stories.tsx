@@ -11617,7 +11617,7 @@ export const TemplatePickedAfterADollarInAnExpression: Story = {
     await askForATemplate('first');
     await waitFor(() =>
       expect(expressionErrorsOf('computed')).toEqual([
-        "Incomplete template reference: expected context identifier after '$'",
+        'A `$` starts a template: pick one from the list, or remove the `$`.',
       ])
     );
     expect(timesHeld(canvasElement, 'computed', '$record:{pos}')).toBe(1);

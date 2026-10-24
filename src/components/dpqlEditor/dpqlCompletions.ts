@@ -16,10 +16,10 @@ const RECORD_FIELD = /^\$record:\{(.+)\}$/;
 /** An `@` and the field name typed after it, at the end of a text. */
 const FIELD_BEING_ASKED = /@[\p{L}\p{M}\p{N}_.]*$/u;
 /**
- * A template's context alone (`$data:`, `$qore-expr:`): the server offers each where a value can go, "requires
- * argument", and picked it is no value - nothing more is offered after it, and the server refuses it ("Incomplete
- * template reference: expected value after ':'", professor's `/lsp`). Not offered: a pick makes a value, and an
- * author works with the field's templates and fields, not with how they are written (qorus#646, David's review).
+ * A template's context alone (`$data:`, `$qore-expr:`): the server offers each where a value can go, "needs a
+ * value after ':'", and picked it is no value - nothing more is offered after it, and the server refuses it
+ * (DPQL-E033, "This template isn't finished"). Not offered: a pick makes a value, and an author works with the
+ * field's templates and fields, not with how they are written (qorus#646, David's review).
  */
 const BARE_CONTEXT = /^\$[\w-]+:$/;
 
@@ -102,7 +102,7 @@ export const UNFINISHED_PARTS_MESSAGE = `Fill in each ${EXPRESSION_HOLE} (the pa
 
 /**
  * The server's diagnostics as a DPQL editor says them. The Text view writes an unfinished expression with a
- * placeholder for each part not chosen yet (`… > …`), and the server refuses each: "Unexpected character '…'",
+ * placeholder for each part not chosen yet (`… > …`), and the server refuses each: "'…' can't be used here",
  * twice, of text the author did not write (qorus#646, David's decision). Those are said once, as what to do; what
  * the server says of anything else is said as it says it.
  */

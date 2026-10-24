@@ -31,9 +31,9 @@ const TEMPLATES = {
 
 /** What the server offers after an operator: the record's fields, its template contexts, functions. */
 const AFTER_AN_OPERATOR: ILspCompletionItem[] = [
-  { label: 'pos', kind: 5, detail: 'int' },
-  { label: 'bezeichnung', kind: 5, detail: 'string' },
-  { label: '$config:', kind: 6, detail: 'requires argument' },
+  { label: 'pos', kind: 5, detail: 'Whole number' },
+  { label: 'bezeichnung', kind: 5, detail: 'Text' },
+  { label: '$config:', kind: 6, detail: "needs a value after ':'" },
   { label: '!', kind: 14 },
 ];
 /** What it offers after a whole value (`12 `): operators only. */
@@ -62,12 +62,17 @@ describe('what the one completion list offers', () => {
     ]);
   });
 
-  /* qorus#646, David's review: picking `$data:` made text the server refuses ("expected value after ':'"), and it
-     offers nothing more after it (professor's `/lsp`, 0 items) */
+  /* qorus#646, David's review: picking `$data:` made text the server refuses (DPQL-E033, "This template isn't
+     finished"), and it offers nothing more after it (professor's `/lsp`, 0 items) */
   it("does not offer a template's context alone, which is no value", () => {
     const contexts: ILspCompletionItem[] = [
-      { label: '$data:', insertText: '$data:', kind: 6, detail: 'requires argument' },
-      { label: '$qore-expr:', insertText: '$qore-expr:', kind: 6, detail: 'requires argument' },
+      { label: '$data:', insertText: '$data:', kind: 6, detail: "needs a value after ':'" },
+      {
+        label: '$qore-expr:',
+        insertText: '$qore-expr:',
+        kind: 6,
+        detail: "needs a value after ':'",
+      },
     ];
     expect(listed(complete('1 + $|', contexts))).toEqual([
       '$record:{pos}',
@@ -175,6 +180,10 @@ describe('what the list says where it offers nothing', () => {
   });
 });
 
+/** The server's words for a character it cannot read (DPQL-E001, Qore batch 6). */
+const CANNOT_BE_USED_HERE =
+  "'…' can't be used here: remove it, or put it in quotes to make it text.";
+
 describe('what the editor says of what the server refuses', () => {
   const at = (from: number, to: number, message: string): ILspDiagnostic => ({
     range: { start: { line: 0, character: from }, end: { line: 0, character: to } },
@@ -185,9 +194,9 @@ describe('what the editor says of what the server refuses', () => {
   });
 
   it("says once what to do with an unfinished expression's placeholders, not the server's refusal of each", () => {
-    // professor's `/lsp` on `… > …`: "Unexpected character '…'" at 0 and at 4
+    // the server on `… > …`: "'…' can't be used here" at 0 and at 4 (DPQL-E001)
     const said = presentDpqlDiagnostics(
-      [at(0, 1, "Unexpected character '…'"), at(4, 5, "Unexpected character '…'")],
+      [at(0, 1, CANNOT_BE_USED_HERE), at(4, 5, CANNOT_BE_USED_HERE)],
       '… > …'
     );
     expect(said).toEqual([
@@ -197,12 +206,10 @@ describe('what the editor says of what the server refuses', () => {
   });
 
   it('says everything else as the server says it', () => {
-    const other = at(2, 3, 'Unexpected end of input, expected value');
+    const other = at(2, 2, "Something is missing at the end: a value after '+'.");
     expect(presentDpqlDiagnostics([other], '1 +')).toEqual([other]);
     expect(
-      presentDpqlDiagnostics([at(0, 1, "Unexpected character '…'"), other], '… +').map(
-        (d) => d.message
-      )
-    ).toEqual([UNFINISHED_PARTS_MESSAGE, 'Unexpected end of input, expected value']);
+      presentDpqlDiagnostics([at(0, 1, CANNOT_BE_USED_HERE), other], '… +').map((d) => d.message)
+    ).toEqual([UNFINISHED_PARTS_MESSAGE, "Something is missing at the end: a value after '+'."]);
   });
 });

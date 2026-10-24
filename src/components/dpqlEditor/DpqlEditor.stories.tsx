@@ -127,7 +127,7 @@ const meta = {
               label: '@name',
               insertText: '@name',
               kind: 5,
-              detail: 'string',
+              detail: 'Text',
               documentation: {
                 kind: 'markdown',
                 value:
@@ -140,7 +140,7 @@ const meta = {
               label: '@status',
               insertText: '@status',
               kind: 5,
-              detail: 'string',
+              detail: 'Text',
               documentation: {
                 kind: 'markdown',
                 value:
@@ -152,7 +152,7 @@ const meta = {
               label: '@age',
               insertText: '@age',
               kind: 5,
-              detail: 'int',
+              detail: 'Whole number',
               documentation: {
                 kind: 'plaintext',
                 value: 'Age in years, computed from birth_date.',
@@ -167,14 +167,14 @@ const meta = {
               label: '$data:',
               insertText: '$data:',
               kind: 1,
-              detail: 'template',
+              detail: "needs a value after ':'",
               documentation: { kind: 'plaintext', value: 'FSM state data.' },
             },
             {
               label: '$config:',
               insertText: '$config:',
               kind: 1,
-              detail: 'template',
+              detail: "needs a value after ':'",
               documentation: {
                 kind: 'plaintext',
                 value: 'Interface configuration item.',
@@ -184,7 +184,7 @@ const meta = {
               label: '$static:',
               insertText: '$static:',
               kind: 1,
-              detail: 'template',
+              detail: "needs a value after ':'",
               documentation: {
                 kind: 'plaintext',
                 value: 'Static workflow data.',
@@ -194,7 +194,7 @@ const meta = {
               label: '$timestamp:',
               insertText: '$timestamp:',
               kind: 1,
-              detail: 'template',
+              detail: "needs a value after ':'",
               documentation: {
                 kind: 'plaintext',
                 value: 'Timestamp value (e.g. `now`).',
@@ -208,7 +208,7 @@ const meta = {
               label: 'substr',
               insertText: 'substr',
               kind: 3,
-              detail: '(string, start, length) → string',
+              detail: 'gives text',
               documentation: {
                 kind: 'markdown',
                 value: 'Extract a substring.',
@@ -218,7 +218,7 @@ const meta = {
               label: 'coalesce',
               insertText: 'coalesce',
               kind: 3,
-              detail: '(value, …) → auto',
+              detail: 'gives any value',
               documentation: {
                 kind: 'markdown',
                 value: 'First non-null value.',
@@ -228,7 +228,7 @@ const meta = {
               label: 'round',
               insertText: 'round',
               kind: 3,
-              detail: '(number, precision) → auto',
+              detail: 'gives any value',
               documentation: {
                 kind: 'markdown',
                 value: 'Round a number.',
