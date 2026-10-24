@@ -31,7 +31,16 @@ try {
 }
 
 // the shape the server answers with: a list of types, each with these fields
-const FIELDS = ['name', 'display_name', 'sentence_form', 'short_desc', 'desc', 'types_accepted', 'exact_match'];
+const FIELDS = [
+  'name',
+  'display_name',
+  'sentence_form',
+  'short_desc',
+  'desc',
+  'types_accepted',
+  'exact_match',
+  'offered',
+];
 const problems =
   !Array.isArray(types) ? ['the answer is not a list of types']
   : !types.length ? ['the answer lists no types']

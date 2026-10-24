@@ -4,6 +4,7 @@ import {
   compactTypesList,
   defaultQorusTypes,
   IQorusTypeObject,
+  offeredQorusTypes,
   qorusTypeDisplayName,
   qorusTypeSentenceForm,
   setServerQorusTypes,
@@ -15,6 +16,7 @@ export {
   compactTypesList,
   defaultQorusTypes,
   getQorusTypes,
+  offeredQorusTypes,
   qorusTypeDisplayName,
   qorusTypeSentenceForm,
 } from '../helpers/qorusTypeCatalogue';
@@ -32,6 +34,8 @@ export interface IUseTypes {
   getTypeDisplayName: (typeName: string | undefined) => string | undefined;
   /** The type's name inside a sentence; see `qorusTypeSentenceForm`. `undefined` for no type. */
   getTypeSentenceForm: (typeName: string | undefined) => string | undefined;
+  /** What a picker that lists every type offers, with the type a value already has; see `offeredQorusTypes`. */
+  getOfferedTypes: (held?: string | string[]) => IQorusTypeObject[];
 }
 
 export const useQorusTypes = (): IUseTypes => {
@@ -76,6 +80,11 @@ export const useQorusTypes = (): IUseTypes => {
     [value]
   );
 
+  const getOfferedTypes = useCallback(
+    (held?: string | string[]): IQorusTypeObject[] => offeredQorusTypes(value, held),
+    [value]
+  );
+
   return useMemo(
     () => ({
       loading,
@@ -87,6 +96,7 @@ export const useQorusTypes = (): IUseTypes => {
       getExactMatches,
       getTypeDisplayName,
       getTypeSentenceForm,
+      getOfferedTypes,
     }),
     [
       JSON.stringify(value),
@@ -97,6 +107,7 @@ export const useQorusTypes = (): IUseTypes => {
       getExactMatches,
       getTypeDisplayName,
       getTypeSentenceForm,
+      getOfferedTypes,
     ]
   );
 };

@@ -7,15 +7,18 @@
  * expressions fit a place. A copy that differs from the server says other names, and offers or refuses other
  * expressions, than it does once the server answers.
  *
- * fixtures/qorusTypeInfo.json is a server's answer, recorded from professor (qorus 8.0.0 e7600de62, with the catalogue
- * of develop 04e6c502f: the hash type is "Key-value pairs (hash)", and 113756c40's rgbcolor descriptions). When the
- * server's catalogue changes, record its answer again and change the copy
+ * fixtures/qorusTypeInfo.json is the server's answer for qorus 974643455 (the string format types and the file type,
+ * not offered; every entry says whether it is offered): QorusDataTypeCatalogue::Info of that commit, as the endpoint
+ * answers it in English, with the DataProvider of Qore 28a6bbcb14 that gives the new types their names - no
+ * running server had it yet. When the server's catalogue changes, record its answer again and change the copy
  * until this passes:
  *
  *   qrest -j system/qorus-type-info | yarn -s record:type-info
  */
 import { describe, expect, it } from 'vitest';
-import { defaultQorusTypes, getQorusTypes } from '../src/hooks/useQorusTypes';
+import { areQorusTypesCompatible } from '../src/helpers/expressions';
+import { offeredQorusTypes } from '../src/helpers/qorusTypeCatalogue';
+import { defaultQorusTypes, getQorusTypes, qorusTypeDisplayName } from '../src/hooks/useQorusTypes';
 import recorded from './fixtures/qorusTypeInfo.json';
 
 describe("reqraft's copy of the server's type catalogue", () => {
@@ -61,11 +64,56 @@ describe("reqraft's copy of the server's type catalogue", () => {
           'display_name',
           'exact_match',
           'name',
+          'offered',
           'sentence_form',
           'short_desc',
           'types_accepted',
         ].sort()
       );
     }
+  });
+});
+
+// qorus 974643455: the server gives a field of a string format type, or of a file, that type as its UI type
+describe('the types that name fields but are not offered', () => {
+  const FORMATS = ['email', 'uri', 'uuid', 'hostname', 'ipv4', 'ipv6', 'phone'];
+
+  it('are named as the DataProvider module names them', () => {
+    expect(
+      [...FORMATS, 'file'].map((name) => qorusTypeDisplayName(defaultQorusTypes, name))
+    ).toEqual([
+      'Email address',
+      'Address (URI)',
+      'Unique identifier (UUID)',
+      'Host name',
+      'IPv4 address',
+      'IPv6 address',
+      'Phone number',
+      'File',
+    ]);
+  });
+
+  it('take text, and are text; a file takes a hash, and is one', () => {
+    for (const format of FORMATS) {
+      expect(areQorusTypesCompatible(format, 'string', defaultQorusTypes), format).toBe(true);
+      expect(areQorusTypesCompatible(format, 'int', defaultQorusTypes), format).toBe(false);
+      expect(areQorusTypesCompatible('data', format, defaultQorusTypes), format).toBe(true);
+    }
+    expect(areQorusTypesCompatible('file', 'hash', defaultQorusTypes)).toBe(true);
+    expect(areQorusTypesCompatible('hash', 'file', defaultQorusTypes)).toBe(true);
+  });
+
+  it('are left out of a picker that lists every type, unless a value has one', () => {
+    const offered = offeredQorusTypes(defaultQorusTypes).map((type) => type.name);
+    expect(offered).toEqual(
+      defaultQorusTypes.filter((type) => type.offered).map((type) => type.name)
+    );
+    expect(offered).not.toContain('email');
+    expect(offered).not.toContain('file');
+    expect(offered).toContain('rgbcolor');
+
+    const withHeld = offeredQorusTypes(defaultQorusTypes, '*email').map((type) => type.name);
+    expect(withHeld).toContain('email');
+    expect(withHeld).not.toContain('phone');
   });
 });

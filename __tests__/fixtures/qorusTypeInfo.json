@@ -10,7 +10,8 @@
     ],
     "exact_match": [
       "any"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "context",
@@ -23,7 +24,8 @@
     ],
     "exact_match": [
       "any"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "string",
@@ -37,7 +39,8 @@
     "exact_match": [
       "string",
       "richtext"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "richtext",
@@ -51,7 +54,8 @@
     "exact_match": [
       "string",
       "richtext"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "int",
@@ -68,7 +72,8 @@
       "int",
       "float",
       "number"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "float",
@@ -85,7 +90,8 @@
       "float",
       "int",
       "number"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "number",
@@ -102,7 +108,8 @@
       "number",
       "float",
       "int"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "bool",
@@ -115,7 +122,8 @@
     ],
     "exact_match": [
       "bool"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "date",
@@ -128,7 +136,8 @@
     ],
     "exact_match": [
       "date"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "time",
@@ -141,7 +150,8 @@
     ],
     "exact_match": [
       "date"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "binary",
@@ -154,7 +164,8 @@
     ],
     "exact_match": [
       "binary"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "data",
@@ -166,14 +177,22 @@
       "string",
       "richtext",
       "binary",
-      "data"
+      "data",
+      "email",
+      "uri",
+      "uuid",
+      "hostname",
+      "ipv4",
+      "ipv6",
+      "phone"
     ],
     "exact_match": [
       "string",
       "richtext",
       "binary",
       "data"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "hash",
@@ -182,11 +201,13 @@
     "short_desc": "Key-value pairs (hash)",
     "desc": "Key-value pairs (a hash): each value is stored under a named key",
     "types_accepted": [
-      "hash"
+      "hash",
+      "file"
     ],
     "exact_match": [
       "hash"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "list",
@@ -199,7 +220,8 @@
     ],
     "exact_match": [
       "list"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "rgbcolor",
@@ -212,7 +234,8 @@
     ],
     "exact_match": [
       "rgbcolor"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "workflow",
@@ -229,7 +252,8 @@
       "workflow",
       "string",
       "richtext"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "service",
@@ -246,7 +270,8 @@
       "service",
       "string",
       "richtext"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "job",
@@ -263,7 +288,8 @@
       "job",
       "string",
       "richtext"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "mapper",
@@ -280,7 +306,8 @@
       "mapper",
       "string",
       "richtext"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "data-provider",
@@ -293,7 +320,8 @@
     ],
     "exact_match": [
       "data-provider"
-    ]
+    ],
+    "offered": true
   },
   {
     "name": "connection",
@@ -310,6 +338,149 @@
       "connection",
       "string",
       "richtext"
-    ]
+    ],
+    "offered": true
+  },
+  {
+    "name": "email",
+    "display_name": "Email address",
+    "sentence_form": "an email address",
+    "short_desc": "An email address",
+    "desc": "An email address, such as user@example.com",
+    "types_accepted": [
+      "email",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "email",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "uri",
+    "display_name": "Address (URI)",
+    "sentence_form": "an address (a URI)",
+    "short_desc": "An address that starts with its scheme (a URI)",
+    "desc": "An address that starts with its scheme (a URI), such as https://example.com/",
+    "types_accepted": [
+      "uri",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "uri",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "uuid",
+    "display_name": "Unique identifier (UUID)",
+    "sentence_form": "a unique identifier (a UUID)",
+    "short_desc": "A universally unique identifier (a UUID)",
+    "desc": "A universally unique identifier (a UUID): 32 hexadecimal digits in groups of 8, 4, 4, 4 and 12, such as 123e4567-e89b-12d3-a456-426614174000",
+    "types_accepted": [
+      "uuid",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "uuid",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "hostname",
+    "display_name": "Host name",
+    "sentence_form": "a host name",
+    "short_desc": "A host or domain name",
+    "desc": "A host or domain name, such as example.com",
+    "types_accepted": [
+      "hostname",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "hostname",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "ipv4",
+    "display_name": "IPv4 address",
+    "sentence_form": "an IPv4 address",
+    "short_desc": "An IPv4 address",
+    "desc": "An IPv4 address, such as 192.0.2.1",
+    "types_accepted": [
+      "ipv4",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "ipv4",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "ipv6",
+    "display_name": "IPv6 address",
+    "sentence_form": "an IPv6 address",
+    "short_desc": "An IPv6 address",
+    "desc": "An IPv6 address, such as 2001:db8::1",
+    "types_accepted": [
+      "ipv6",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "ipv6",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "phone",
+    "display_name": "Phone number",
+    "sentence_form": "a phone number",
+    "short_desc": "A telephone number",
+    "desc": "A telephone number, such as +1 555 0100",
+    "types_accepted": [
+      "phone",
+      "string",
+      "richtext"
+    ],
+    "exact_match": [
+      "phone",
+      "string",
+      "richtext"
+    ],
+    "offered": false
+  },
+  {
+    "name": "file",
+    "display_name": "File",
+    "sentence_form": "a file",
+    "short_desc": "A file: its name, its content and its MIME type",
+    "desc": "A file, stored as a hash: its name, its content (raw or base64-encoded) and its MIME type",
+    "types_accepted": [
+      "file",
+      "hash"
+    ],
+    "exact_match": [
+      "file",
+      "hash"
+    ],
+    "offered": false
   }
 ]

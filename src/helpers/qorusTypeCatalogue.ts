@@ -19,6 +19,12 @@ export interface IQorusTypeObject {
   icon?: IReqoreIconName;
   types_accepted: (TQorusType | string)[];
   exact_match?: (TQorusType | string)[];
+  /**
+   * Whether a picker that lists every type offers it as a choice. A type that is not offered (the string format
+   * types, a file) names a field or an option whose UI type it is, and says what values it takes, but nobody
+   * chooses it for a value; see `offeredQorusTypes`. A server before qorus 974643455 says nothing: offered.
+   */
+  offered?: boolean;
 }
 
 export const compactTypesList = ['richtext', 'float', 'hash', 'list', 'bool', 'date', 'binary'];
@@ -37,6 +43,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'Any data type',
     types_accepted: ['any'],
     exact_match: ['any'],
+    offered: true,
   },
   {
     name: 'context',
@@ -46,6 +53,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'The data type is determined by the context value chosen',
     types_accepted: ['any'],
     exact_match: ['any'],
+    offered: true,
   },
   {
     name: 'string',
@@ -55,6 +63,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'Text',
     types_accepted: ['any'],
     exact_match: ['string', 'richtext'],
+    offered: true,
   },
   {
     name: 'richtext',
@@ -64,6 +73,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'Text with formatting',
     types_accepted: ['any'],
     exact_match: ['string', 'richtext'],
+    offered: true,
   },
   {
     name: 'int',
@@ -73,6 +83,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'A whole number (64-bit)',
     types_accepted: ['int', 'float', 'number'],
     exact_match: ['int', 'float', 'number'],
+    offered: true,
   },
   {
     name: 'float',
@@ -82,6 +93,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'A number with a fractional part (double precision)',
     types_accepted: ['float', 'int', 'number'],
     exact_match: ['float', 'int', 'number'],
+    offered: true,
   },
   {
     name: 'number',
@@ -91,6 +103,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'A decimal number kept exactly',
     types_accepted: ['number', 'float', 'int'],
     exact_match: ['number', 'float', 'int'],
+    offered: true,
   },
   {
     name: 'bool',
@@ -100,6 +113,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'True or false',
     types_accepted: ['bool'],
     exact_match: ['bool'],
+    offered: true,
   },
   {
     name: 'date',
@@ -109,6 +123,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'A date and time',
     types_accepted: ['date'],
     exact_match: ['date'],
+    offered: true,
   },
   {
     name: 'time',
@@ -118,6 +133,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'A time of day',
     types_accepted: ['date'],
     exact_match: ['date'],
+    offered: true,
   },
   {
     name: 'binary',
@@ -127,6 +143,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'Binary data',
     types_accepted: ['binary'],
     exact_match: ['binary'],
+    offered: true,
   },
   {
     name: 'data',
@@ -134,8 +151,22 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     sentence_form: 'text or binary data',
     short_desc: 'Text or binary data',
     desc: 'Text or binary data',
-    types_accepted: ['string', 'richtext', 'binary', 'data'],
+    // a value of a string format type is text
+    types_accepted: [
+      'string',
+      'richtext',
+      'binary',
+      'data',
+      'email',
+      'uri',
+      'uuid',
+      'hostname',
+      'ipv4',
+      'ipv6',
+      'phone',
+    ],
     exact_match: ['string', 'richtext', 'binary', 'data'],
+    offered: true,
   },
   {
     name: 'hash',
@@ -143,8 +174,10 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     sentence_form: 'key-value pairs (a hash)',
     short_desc: 'Key-value pairs (hash)',
     desc: 'Key-value pairs (a hash): each value is stored under a named key',
-    types_accepted: ['hash'],
+    // a file is a hash
+    types_accepted: ['hash', 'file'],
     exact_match: ['hash'],
+    offered: true,
   },
   {
     name: 'list',
@@ -154,6 +187,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'List',
     types_accepted: ['list'],
     exact_match: ['list'],
+    offered: true,
   },
   {
     name: 'rgbcolor',
@@ -163,6 +197,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'A color, stored as a hash: r, g and b are integers from 0 to 255, and a is the opacity, from 0 (transparent) to 1 (opaque); a missing or null a is opaque. A hex code such as #ff0000 is not a stored color.',
     types_accepted: ['rgbcolor'],
     exact_match: ['rgbcolor'],
+    offered: true,
   },
   {
     name: 'workflow',
@@ -172,6 +207,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'Qorus workflow',
     types_accepted: ['workflow', 'string', 'richtext'],
     exact_match: ['workflow', 'string', 'richtext'],
+    offered: true,
   },
   {
     name: 'service',
@@ -181,6 +217,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'Qorus service',
     types_accepted: ['service', 'string', 'richtext'],
     exact_match: ['service', 'string', 'richtext'],
+    offered: true,
   },
   {
     name: 'job',
@@ -190,6 +227,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'Qorus job',
     types_accepted: ['job', 'string', 'richtext'],
     exact_match: ['job', 'string', 'richtext'],
+    offered: true,
   },
   {
     name: 'mapper',
@@ -199,6 +237,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'Qorus mapper',
     types_accepted: ['mapper', 'string', 'richtext'],
     exact_match: ['mapper', 'string', 'richtext'],
+    offered: true,
   },
   {
     name: 'data-provider',
@@ -208,6 +247,7 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'Qorus data provider',
     types_accepted: ['data-provider'],
     exact_match: ['data-provider'],
+    offered: true,
   },
   {
     name: 'connection',
@@ -217,6 +257,90 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     desc: 'Qorus connection',
     types_accepted: ['connection', 'string', 'richtext'],
     exact_match: ['connection', 'string', 'richtext'],
+    offered: true,
+  },
+  /* Not offered: a type the server gives a field or an option as its UI type, and so names and converts, but that a
+     person choosing a type for a value does not choose - the DataProvider module's string format types, which are
+     text, and its file type, which is a hash (qorus 974643455). */
+  {
+    name: 'email',
+    display_name: 'Email address',
+    sentence_form: 'an email address',
+    short_desc: 'An email address',
+    desc: 'An email address, such as user@example.com',
+    types_accepted: ['email', 'string', 'richtext'],
+    exact_match: ['email', 'string', 'richtext'],
+    offered: false,
+  },
+  {
+    name: 'uri',
+    display_name: 'Address (URI)',
+    sentence_form: 'an address (a URI)',
+    short_desc: 'An address that starts with its scheme (a URI)',
+    desc: 'An address that starts with its scheme (a URI), such as https://example.com/',
+    types_accepted: ['uri', 'string', 'richtext'],
+    exact_match: ['uri', 'string', 'richtext'],
+    offered: false,
+  },
+  {
+    name: 'uuid',
+    display_name: 'Unique identifier (UUID)',
+    sentence_form: 'a unique identifier (a UUID)',
+    short_desc: 'A universally unique identifier (a UUID)',
+    desc: 'A universally unique identifier (a UUID): 32 hexadecimal digits in groups of 8, 4, 4, 4 and 12, such as 123e4567-e89b-12d3-a456-426614174000',
+    types_accepted: ['uuid', 'string', 'richtext'],
+    exact_match: ['uuid', 'string', 'richtext'],
+    offered: false,
+  },
+  {
+    name: 'hostname',
+    display_name: 'Host name',
+    sentence_form: 'a host name',
+    short_desc: 'A host or domain name',
+    desc: 'A host or domain name, such as example.com',
+    types_accepted: ['hostname', 'string', 'richtext'],
+    exact_match: ['hostname', 'string', 'richtext'],
+    offered: false,
+  },
+  {
+    name: 'ipv4',
+    display_name: 'IPv4 address',
+    sentence_form: 'an IPv4 address',
+    short_desc: 'An IPv4 address',
+    desc: 'An IPv4 address, such as 192.0.2.1',
+    types_accepted: ['ipv4', 'string', 'richtext'],
+    exact_match: ['ipv4', 'string', 'richtext'],
+    offered: false,
+  },
+  {
+    name: 'ipv6',
+    display_name: 'IPv6 address',
+    sentence_form: 'an IPv6 address',
+    short_desc: 'An IPv6 address',
+    desc: 'An IPv6 address, such as 2001:db8::1',
+    types_accepted: ['ipv6', 'string', 'richtext'],
+    exact_match: ['ipv6', 'string', 'richtext'],
+    offered: false,
+  },
+  {
+    name: 'phone',
+    display_name: 'Phone number',
+    sentence_form: 'a phone number',
+    short_desc: 'A telephone number',
+    desc: 'A telephone number, such as +1 555 0100',
+    types_accepted: ['phone', 'string', 'richtext'],
+    exact_match: ['phone', 'string', 'richtext'],
+    offered: false,
+  },
+  {
+    name: 'file',
+    display_name: 'File',
+    sentence_form: 'a file',
+    short_desc: 'A file: its name, its content and its MIME type',
+    desc: 'A file, stored as a hash: its name, its content (raw or base64-encoded) and its MIME type',
+    types_accepted: ['file', 'hash'],
+    exact_match: ['file', 'hash'],
+    offered: false,
   },
 ];
 
@@ -230,6 +354,21 @@ let serverQorusTypes: IQorusTypeObject[] | undefined;
  * gives the checks `useQorusTypes().value` instead, so that it draws again when the answer comes.
  */
 export const getQorusTypes = (): IQorusTypeObject[] => serverQorusTypes ?? defaultQorusTypes;
+
+/**
+ * The types a picker that lists every type offers: the ones the catalogue offers (`offered` is not false), and the
+ * type a value already has (`held`), so that a value of a type that is not offered still shows what it is. In the
+ * catalogue's order.
+ */
+export const offeredQorusTypes = (
+  types: IQorusTypeObject[] | undefined,
+  held?: string | string[]
+): IQorusTypeObject[] => {
+  const heldNames = ([] as string[])
+    .concat(held ?? [])
+    .map((name) => qorusTypeEntry(types, name)?.name);
+  return (types ?? []).filter((type) => type.offered !== false || heldNames.includes(type.name));
+};
 
 /** Keeps the server's answer for `getQorusTypes`; `useQorusTypes` gives it each answer it has. */
 export const setServerQorusTypes = (types: IQorusTypeObject[] | undefined): void => {
