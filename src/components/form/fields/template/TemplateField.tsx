@@ -763,7 +763,13 @@ const TemplateFieldImpl = memo(
       let result: IReqoreFormTemplates = templates;
 
       if (filterTemplatesByType) {
-        result = templatesFilterFunc(templates, type, !!rest.arg_schema, qorusTypes.value);
+        result = templatesFilterFunc(
+          templates,
+          type,
+          !!rest.arg_schema,
+          qorusTypes.value,
+          rest.base_type
+        );
       }
 
       if (filterTemplatesFunc) {
@@ -792,6 +798,7 @@ const TemplateFieldImpl = memo(
       JSON.stringify(rest.arg_schema),
       filterTemplatesFunc,
       qorusTypes.value,
+      rest.base_type,
     ]);
     /* Where each template comes from, as the host says (`templateBadge`): the template picker showed it beside
        the template held, and the lists of templates the value's text and an expression's text open show it in

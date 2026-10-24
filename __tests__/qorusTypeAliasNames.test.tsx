@@ -35,9 +35,10 @@ describe('a type named the way Qore also names it', () => {
     expect(qorusTypeDisplayName(catalogue, 'boolean')).toBe('Flag');
   });
 
-  it('keeps the name of a type no catalogue lists under any name', () => {
-    expect(qorusTypeDisplayName(defaultQorusTypes, 'order-status')).toBe('order-status');
-    expect(qorusTypeDisplayName(defaultQorusTypes, 'softorder')).toBe('softorder');
+  // qorus#646: a type is never named by its code - a user type by its path, anything else as unknown
+  it('names a type no catalogue lists under any name as unknown, never by its code', () => {
+    expect(qorusTypeDisplayName(defaultQorusTypes, 'order-status')).toBe('Unknown type');
+    expect(qorusTypeDisplayName(defaultQorusTypes, 'softorder')).toBe('Unknown type');
   });
 
   it('is called the same by the hook the messages use', async () => {

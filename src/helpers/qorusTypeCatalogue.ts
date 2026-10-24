@@ -393,50 +393,66 @@ export const catalogueTypeName = (typeName: string): string => QORE_TYPE_ALIASES
  * The catalogue lists each type once, by its own name, and the catalogue's own entry for a name always wins. A type
  * named another way is the type it is, as the server names it (qorus c6b3fb97c): `boolean` and `integer` are `bool`
  * and `int`; an optional type (`*string`) and a soft one (`softint`, a declaration that converts a value to its base
- * type) are their base type; a complex one (`hash<auto>`, `list<string>`) is its kind. Undefined for a type the
- * catalogue lists under no name.
+ * type) are their base type; a complex one (`hash<auto>`, `list<string>`) is its kind.
+ *
+ * A type the catalogue lists under none of those names is the type of its `baseType`: the base data type that
+ * Qorus gives with every field, option and argument (`base_type`), so that a type the catalogue does not list (a
+ * user type, a type of a newer server) is the kind of value it holds. Undefined where neither is listed.
  */
-const qorusTypeEntry = (
+export const qorusTypeEntry = (
   types: IQorusTypeObject[] | undefined,
-  typeName: string | undefined
+  typeName: string | undefined,
+  baseType?: string
 ): IQorusTypeObject | undefined => {
   // a place with no type yet is named by nothing
   if (!typeName) {
     return undefined;
   }
   const listed = (name: string) => types?.find((type) => type.name === name);
-  const base = typeName.replace(/^\*/, '').replace(/<.*$/, '');
-  const unsoft = /^soft[a-z]/.test(base) ? base.slice(4) : base;
-  return (
-    listed(typeName) ??
-    listed(base) ??
-    listed(QORE_TYPE_ALIASES[base] ?? '') ??
-    listed(unsoft) ??
-    listed(QORE_TYPE_ALIASES[unsoft] ?? '')
-  );
+  const named = (name: string) => {
+    const base = name.replace(/^\*/, '').replace(/<.*$/, '');
+    const unsoft = /^soft[a-z]/.test(base) ? base.slice(4) : base;
+    return (
+      listed(name) ??
+      listed(base) ??
+      listed(QORE_TYPE_ALIASES[base] ?? '') ??
+      listed(unsoft) ??
+      listed(QORE_TYPE_ALIASES[unsoft] ?? '')
+    );
+  };
+  return named(typeName) ?? (baseType ? named(baseType) : undefined);
 };
 
+/** The name of a type no catalogue entry names: a user type by its path, anything else as unknown. */
+export const UNKNOWN_TYPE_NAME = 'Unknown type';
+const unlistedTypeName = (typeName: string): string =>
+  typeName.includes('/') ? typeName : UNKNOWN_TYPE_NAME;
+
 /**
- * What a type is called as a label ("Whole number"), by the type catalogue; a type it lists under no name keeps its
- * name. See `qorusTypeEntry` for the names a type goes by.
+ * What a type is called as a label ("Whole number"), by the type catalogue, or by its `baseType` where the
+ * catalogue lists it under no name (see `qorusTypeEntry`). A type named by neither is never named by its code: a
+ * user type is named by its path, anything else is "Unknown type" (qorus#646).
  *
  * No type (`undefined` or an empty name: a place whose type is not known yet) has no name: `undefined`, and the
  * caller draws or words its text without one (qorus#646).
  */
 export const qorusTypeDisplayName = (
   types: IQorusTypeObject[] | undefined,
-  typeName: string | undefined
+  typeName: string | undefined,
+  baseType?: string
 ): string | undefined =>
-  typeName ? (qorusTypeEntry(types, typeName)?.display_name ?? typeName) : undefined;
+  typeName ?
+    (qorusTypeEntry(types, typeName, baseType)?.display_name ?? unlistedTypeName(typeName))
+  : undefined;
 
 /**
  * What a type is called inside a sentence ("a whole number": "The expression gives a whole number"), by the type
  * catalogue - its sentence form, which the server gives in the language it is asked for (qorus#646, c6b3fb97c).
  *
  * A catalogue with no sentence form for it (a server before c6b3fb97c) gives a wording that needs no article -
- * "a value of type Whole number" - with its display name, or the type's own name where the catalogue lists it under
- * none. An English article is never built from a display name: "a Exact number", "a Whole number" in a sentence
- * of another language.
+ * "a value of type Whole number" - with its display name. An English article is never built from a display name:
+ * "a Exact number", "a Whole number" in a sentence of another language. A type named neither by the catalogue
+ * nor by its `baseType` is "a value of type" its path where it is a user type, else "a value of an unknown type".
  *
  * No type (`undefined` or an empty name) has no sentence form: `undefined`, and the caller words its sentence
  * without a type ("This expression gives nothing", "Converted to a whole number") rather than "a value of type
@@ -444,21 +460,28 @@ export const qorusTypeDisplayName = (
  */
 export const qorusTypeSentenceForm = (
   types: IQorusTypeObject[] | undefined,
-  typeName: string | undefined
+  typeName: string | undefined,
+  baseType?: string
 ): string | undefined => {
   if (!typeName) {
     return undefined;
   }
-  const entry = qorusTypeEntry(types, typeName);
-  return entry?.sentence_form || `a value of type ${entry?.display_name ?? typeName}`;
+  const entry = qorusTypeEntry(types, typeName, baseType);
+  if (entry) {
+    return entry.sentence_form || `a value of type ${entry.display_name}`;
+  }
+  return typeName.includes('/') ? `a value of type ${typeName}` : 'a value of an unknown type';
 };
 
 /** What a type is called inside a sentence ("a whole number"), by a catalogue: `useQorusTypes().getTypeSentenceForm`. */
-export type TTypeSentenceForm = (typeName: string | undefined) => string | undefined;
+export type TTypeSentenceForm = (
+  typeName: string | undefined,
+  baseType?: string
+) => string | undefined;
 
 /** The built-in catalogue's sentence form of a type, for a surface no form has given the server's catalogue to. */
-export const builtInTypeSentenceForm: TTypeSentenceForm = (typeName) =>
-  qorusTypeSentenceForm(defaultQorusTypes, typeName);
+export const builtInTypeSentenceForm: TTypeSentenceForm = (typeName, baseType) =>
+  qorusTypeSentenceForm(defaultQorusTypes, typeName, baseType);
 
 /**
  * A type's name as a label - its display name ("Whole number") - only where the catalogue lists it, else
@@ -467,15 +490,16 @@ export const builtInTypeSentenceForm: TTypeSentenceForm = (typeName) =>
  */
 export const qorusTypeKnownName = (
   types: IQorusTypeObject[] | undefined,
-  typeName: string | undefined
-): string | undefined => qorusTypeEntry(types, typeName)?.display_name || undefined;
+  typeName: string | undefined,
+  baseType?: string
+): string | undefined => qorusTypeEntry(types, typeName, baseType)?.display_name || undefined;
 
 /** A type's name as a label where the catalogue lists it, by a catalogue (`qorusTypeKnownName`). */
-export type TTypeName = (typeName: string | undefined) => string | undefined;
+export type TTypeName = (typeName: string | undefined, baseType?: string) => string | undefined;
 
 /** The built-in catalogue's name for a type, for a surface no form has given the server's catalogue to. */
-export const builtInTypeName: TTypeName = (typeName) =>
-  qorusTypeKnownName(defaultQorusTypes, typeName);
+export const builtInTypeName: TTypeName = (typeName, baseType) =>
+  qorusTypeKnownName(defaultQorusTypes, typeName, baseType);
 
 /**
  * What kind of value an option takes, in words: its kind of control's name where the catalogue names it (a
@@ -483,11 +507,16 @@ export const builtInTypeName: TTypeName = (typeName) =>
  * catalogue names neither: nothing is said rather than the type's code.
  */
 export const optionTypeWords = (
-  schema: { type?: unknown; ui_type?: unknown; ui_element_type?: unknown } | undefined,
+  schema:
+    | { type?: unknown; ui_type?: unknown; ui_element_type?: unknown; base_type?: unknown }
+    | undefined,
   typeName: TTypeName
 ): string | undefined => {
-  const named = (type: unknown) => (typeof type === 'string' ? typeName(type) : undefined);
-  const kind = named(schema?.ui_type) ?? named(schema?.type);
+  const baseType = typeof schema?.base_type === 'string' ? schema.base_type : undefined;
+  const named = (type: unknown, base?: string) =>
+    typeof type === 'string' ? typeName(type, base) : undefined;
+  // a type no catalogue entry names is the kind of value its base type is
+  const kind = named(schema?.ui_type) ?? named(schema?.type, baseType);
   const element = named(schema?.ui_element_type);
   return kind && element ? `${kind} (${element})` : kind;
 };
@@ -497,12 +526,15 @@ export const optionTypeWords = (
  * control where the catalogue names it, else by its type. Undefined where the catalogue names neither.
  */
 export const optionTypeSentence = (
-  schema: { type?: unknown; ui_type?: unknown } | undefined,
+  schema: { type?: unknown; ui_type?: unknown; base_type?: unknown } | undefined,
   typeName: TTypeName,
   typeSentenceForm: TTypeSentenceForm
 ): string | undefined => {
-  const named = [schema?.ui_type, schema?.type].find(
-    (type): type is string => typeof type === 'string' && !!typeName(type)
-  );
-  return named ? typeSentenceForm(named) : undefined;
+  const baseType = typeof schema?.base_type === 'string' ? schema.base_type : undefined;
+  if (typeof schema?.ui_type === 'string' && typeName(schema.ui_type)) {
+    return typeSentenceForm(schema.ui_type);
+  }
+  return typeof schema?.type === 'string' && typeName(schema.type, baseType) ?
+      typeSentenceForm(schema.type, baseType)
+    : undefined;
 };

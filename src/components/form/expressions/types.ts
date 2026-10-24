@@ -43,6 +43,11 @@ export interface IExpressionSchemaArg {
   desc?: string;
   /** The operand field type (UI superset of TQorusType). */
   ui_type: string;
+  /**
+   * The base data type of `ui_type` (Qorus gives it with every argument): what a type the type catalogue does not
+   * list is named and converted as (`qorusTypeEntry`).
+   */
+  base_type?: string;
   signature_type_code?: string;
   required?: boolean;
   default_value?: any;

@@ -594,7 +594,9 @@ export const filterTemplatesByType = (
   templates: IReqoreFormTemplates = {},
   fieldType = 'string',
   hasArgSchema?: boolean,
-  types: IQorusTypeObject[] = getQorusTypes()
+  types: IQorusTypeObject[] = getQorusTypes(),
+  // the field's base data type: what a field type the catalogue does not list takes (`qorusTypeEntry`)
+  baseType?: string
 ): IReqoreFormTemplates => {
   if ((fieldType === 'hash' || fieldType === 'list') && hasArgSchema) {
     return templates;
@@ -605,7 +607,12 @@ export const filterTemplatesByType = (
   const filterItems = (items: TReqoreDropdownItems = []): TReqoreDropdownItems => {
     return items?.reduce((newItems: TReqoreDropdownItem[], subItem): TReqoreDropdownItem[] => {
       const newSubItem = cloneDeep(subItem);
-      const isCompatible = areQorusTypesCompatible(fieldType, subItem.badge as string, types);
+      const isCompatible = areQorusTypesCompatible(
+        fieldType,
+        subItem.badge as string,
+        types,
+        baseType
+      );
 
       if (subItem.items) {
         newSubItem.items = filterItems(subItem.items);

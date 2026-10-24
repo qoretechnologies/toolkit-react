@@ -12,7 +12,7 @@ import {
 } from '../components/form/expressions/types';
 import { getCachedExpressionType } from '../components/form/expressions/useExpressionType';
 import { getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
-import { catalogueTypeName, qorusTypeSentenceForm } from './qorusTypeCatalogue';
+import { catalogueTypeName, qorusTypeEntry, qorusTypeSentenceForm } from './qorusTypeCatalogue';
 
 /**
  * The UI type of an argument: a value's own type, or, for an expression, the
@@ -39,7 +39,8 @@ export const argumentMatchesType = (
   schema: IExpressionSchemaArg,
   types: IQorusTypeObject[] = getQorusTypes()
 ) => {
-  const acceptedTypes = types.find((type) => type.name === schema.ui_type);
+  // a type the catalogue does not list is its base type (`qorusTypeEntry`)
+  const acceptedTypes = qorusTypeEntry(types, schema.ui_type, schema.base_type);
   const argType = getArgumentType(expressions, arg, schema);
 
   if (!acceptedTypes) {
@@ -79,14 +80,18 @@ const normalizeAnyLikeTypeName = (name: string): string =>
 export const areQorusTypesCompatible = (
   mainType: string | string[],
   checkType: string | string[],
-  types: IQorusTypeObject[] = getQorusTypes()
+  types: IQorusTypeObject[] = getQorusTypes(),
+  mainBaseType?: string
 ): boolean => {
   const mainTypes = (isArray(mainType) ? mainType : [mainType]).map(normalizeAnyLikeTypeName);
-  const checkTypes = (isArray(checkType) ? checkType : [checkType]).map(normalizeAnyLikeTypeName);
+  // a value's type by the name the catalogue lists it under (`*int`, `softint`: `int`)
+  const checkTypes = (isArray(checkType) ? checkType : [checkType]).map(
+    (check) => qorusTypeEntry(types, check)?.name ?? normalizeAnyLikeTypeName(check)
+  );
   // Get each of the main types from the types list
   for (const main of mainTypes) {
-    // Get the type object from the types
-    const mainTypeObject = types.find((type) => type.name === main);
+    // its entry: by its own name, an optional, soft or complex form of one, else its base type (`qorusTypeEntry`)
+    const mainTypeObject = qorusTypeEntry(types, main, mainBaseType);
     // If the main object does not exist
     if (!mainTypeObject) {
       return false;

@@ -261,9 +261,11 @@ export const Expression = ({
   // the type(s) this place takes, named inside a sentence: their sentence forms; none where no type is known
   // (qorus#646)
   const expectedReturnTypeText =
-    compact((isArray(returnType) ? returnType : [returnType]).map(types.getTypeSentenceForm)).join(
-      ' or '
-    ) || undefined;
+    compact(
+      (isArray(returnType) ? returnType : [returnType]).map((type) =>
+        types.getTypeSentenceForm(type)
+      )
+    ).join(' or ') || undefined;
 
   // Server Handler expressions is either defined by the option
   // then it's always the first level

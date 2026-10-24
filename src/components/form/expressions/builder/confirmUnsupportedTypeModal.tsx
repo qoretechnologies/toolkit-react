@@ -49,10 +49,7 @@ export const ConfirmUnsupportedTypeModal = memo(
             </ReqoreP>
             <ReqoreTagGroup size='small' align='center'>
               {acceptedTypes?.map((t) => (
-                <ReqoreTag
-                  key={t}
-                  label={types.value?.find((type) => type.name === t)?.display_name || t}
-                />
+                <ReqoreTag key={t} label={types.getTypeDisplayName(t)} />
               ))}
             </ReqoreTagGroup>
             <ReqoreP style={{ textAlign: 'center' }}>

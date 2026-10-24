@@ -113,13 +113,14 @@ export const ExpressionBuilderArgumentLabel = ({
         }}
       >
         {'['}
-        {types.getTypeDisplayName(schema.ui_type)}
+        {types.getTypeDisplayName(schema.ui_type, schema.base_type)}
       </ReqoreSpan>
       {!matchesType ? (
         <ReqoreIcon icon='ErrorWarningLine' color={warningMark} size='10px' margin='both' />
       ) : null}
       {(argumentType || (arg?.is_expression && arg.value?.exp)) &&
-      types.getTypeDisplayName(argumentType) !== types.getTypeDisplayName(schema.ui_type) &&
+      types.getTypeDisplayName(argumentType) !==
+        types.getTypeDisplayName(schema.ui_type, schema.base_type) &&
       !matchesTypeExactly ? (
         <>
           {matchesType ? (

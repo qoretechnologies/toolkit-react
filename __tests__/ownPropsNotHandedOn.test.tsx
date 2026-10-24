@@ -32,7 +32,12 @@ vi.mock('@qoretechnologies/reqore', async (importOriginal) => {
 });
 
 vi.mock('../src/hooks/useQorusTypes', () => ({
-  useQorusTypes: () => ({ value: [], loading: false, getExactMatches: () => [] }),
+  useQorusTypes: () => ({
+    value: [],
+    loading: false,
+    getExactMatches: () => [],
+    getTypeDisplayName: (name: string) => name,
+  }),
 }));
 
 import { FormEngine } from '../src/components/form/engine/FormEngine';

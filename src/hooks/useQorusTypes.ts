@@ -6,6 +6,7 @@ import {
   IQorusTypeObject,
   offeredQorusTypes,
   qorusTypeDisplayName,
+  qorusTypeEntry,
   qorusTypeSentenceForm,
   setServerQorusTypes,
 } from '../helpers/qorusTypeCatalogue';
@@ -28,12 +29,13 @@ export interface IUseTypes {
   retry: () => void;
   value?: IQorusTypeObject[];
   compactValue?: IQorusTypeObject[];
-  getAcceptedTypes: (typeName: string) => string[];
-  getExactMatches: (typeName: string) => string[];
+  /** What a place of the type takes; a type the catalogue does not list, by its `baseType` (`qorusTypeEntry`). */
+  getAcceptedTypes: (typeName: string, baseType?: string) => string[];
+  getExactMatches: (typeName: string, baseType?: string) => string[];
   /** The type's name as a label; see `qorusTypeDisplayName`. `undefined` for no type. */
-  getTypeDisplayName: (typeName: string | undefined) => string | undefined;
+  getTypeDisplayName: (typeName: string | undefined, baseType?: string) => string | undefined;
   /** The type's name inside a sentence; see `qorusTypeSentenceForm`. `undefined` for no type. */
-  getTypeSentenceForm: (typeName: string | undefined) => string | undefined;
+  getTypeSentenceForm: (typeName: string | undefined, baseType?: string) => string | undefined;
   /** What a picker that lists every type offers, with the type a value already has; see `offeredQorusTypes`. */
   getOfferedTypes: (held?: string | string[]) => IQorusTypeObject[];
 }
@@ -55,28 +57,26 @@ export const useQorusTypes = (): IUseTypes => {
   }, [answered]);
 
   const getAcceptedTypes = useCallback(
-    (typeName: string): string[] => {
-      const type = value?.find((t) => t.name === typeName);
-      return type ? (type.types_accepted as string[]) : [];
-    },
+    (typeName: string, baseType?: string): string[] =>
+      (qorusTypeEntry(value, typeName, baseType)?.types_accepted as string[]) ?? [],
     [value]
   );
 
   const getExactMatches = useCallback(
-    (typeName: string): string[] => {
-      const type = value?.find((t) => t.name === typeName);
-      return type && type.exact_match ? (type.exact_match as string[]) : [];
-    },
+    (typeName: string, baseType?: string): string[] =>
+      (qorusTypeEntry(value, typeName, baseType)?.exact_match as string[]) ?? [],
     [value]
   );
 
   const getTypeDisplayName = useCallback(
-    (typeName: string | undefined): string | undefined => qorusTypeDisplayName(value, typeName),
+    (typeName: string | undefined, baseType?: string): string | undefined =>
+      qorusTypeDisplayName(value, typeName, baseType),
     [value]
   );
 
   const getTypeSentenceForm = useCallback(
-    (typeName: string | undefined): string | undefined => qorusTypeSentenceForm(value, typeName),
+    (typeName: string | undefined, baseType?: string): string | undefined =>
+      qorusTypeSentenceForm(value, typeName, baseType),
     [value]
   );
 

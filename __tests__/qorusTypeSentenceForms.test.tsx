@@ -60,9 +60,12 @@ describe("a type's sentence form", () => {
     expect(qorusTypeSentenceForm(OLDER_SERVER, 'boolean')).toBe('a value of type True or false');
   });
 
-  it('is worded with no article from the name of a type no catalogue lists', () => {
+  it('is worded with no article for a type no catalogue lists, and without its code', () => {
     expect(qorusTypeSentenceForm(defaultQorusTypes, 'order-status')).toBe(
-      'a value of type order-status'
+      'a value of an unknown type'
+    );
+    expect(qorusTypeSentenceForm(defaultQorusTypes, 'qoretechnologies/order')).toBe(
+      'a value of type qoretechnologies/order'
     );
   });
 });

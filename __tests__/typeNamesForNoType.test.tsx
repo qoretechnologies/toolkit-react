@@ -40,9 +40,9 @@ describe('no type', () => {
     expect(qorusTypeSentenceForm(defaultQorusTypes, 'int')).toBe('a whole number');
     expect(qorusTypeDisplayName(defaultQorusTypes, 'int')).toBe('Whole number');
     expect(qorusTypeSentenceForm(defaultQorusTypes, 'order-status')).toBe(
-      'a value of type order-status'
+      'a value of an unknown type'
     );
-    expect(qorusTypeDisplayName(defaultQorusTypes, 'order-status')).toBe('order-status');
+    expect(qorusTypeDisplayName(defaultQorusTypes, 'order-status')).toBe('Unknown type');
   });
 
   it('has no names from the hook', async () => {
