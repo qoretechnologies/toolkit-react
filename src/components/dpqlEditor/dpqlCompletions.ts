@@ -3,6 +3,7 @@
 // completion at the caret, with the field's templates merged in where a value can be written - opened by a click,
 // a tap or Tab as by typing - and the server's diagnostics in the words the editor owes the author.
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
+import { TTypeLabel } from '../../helpers/qorusTypeCatalogue';
 import { ILspCompletionItem, ILspDiagnostic } from '../../utils/lspClient.types';
 import { EXPRESSION_HOLE } from '../form/expressions/renderExpressionToText';
 import { templateCompletionItems } from '../smartEditor/templateCompletions';
@@ -56,7 +57,7 @@ const asksForAField = (textBefore: string): boolean => {
  * (`$data:`) is not offered (`BARE_CONTEXT`).
  */
 export const dpqlCompletionsWith =
-  (templates?: IReqoreFormTemplates) =>
+  (templates?: IReqoreFormTemplates, typeLabel?: TTypeLabel) =>
   ({ plainText, offset, serverItems }: ICompletionContext): ILspCompletionItem[] => {
     const server = (serverItems ?? []).filter(
       (item) => !BARE_CONTEXT.test(item.insertText ?? item.label)
@@ -66,7 +67,7 @@ export const dpqlCompletionsWith =
       serverItems?.length ?
         serverItems.some((item) => !NO_VALUE_KINDS.has(item.kind ?? 0))
       : dpqlExpectsValue(before);
-    const offered = valueHere ? templateCompletionItems(templates) : [];
+    const offered = valueHere ? templateCompletionItems(templates, typeLabel) : [];
     const ours =
       asksForAField(before) ?
         offered.filter((item) => RECORD_FIELD.test(item.insertText ?? ''))

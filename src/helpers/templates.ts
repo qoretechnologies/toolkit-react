@@ -18,6 +18,9 @@ import {
 import { NO_VALUE_DESCRIPTION } from './noDescription';
 import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
+import { templateBaseType, templateType } from './templateType';
+
+export { templateBaseType, templateType } from './templateType';
 import {
   builtInTypeSentenceForm,
   getQorusTypes,
@@ -532,9 +535,10 @@ export const templateTooltip = (
   host?: { label?: string; description?: string; noDescription?: string }
 ): TReqoreTooltipProp => {
   const { label, item } = describeTemplateReference(templates, value);
-  const { description, badge } = (item ?? {}) as { description?: unknown; badge?: unknown };
-  // the catalogue gives a template's type as its badge (`buildTemplates`)
-  const type = typeof badge === 'string' && badge ? typeSentenceForm(badge) : undefined;
+  const { description } = (item ?? {}) as { description?: unknown };
+  // the template's type (`templateType`), by its base type where the catalogue lists it under no name
+  const templateTypeName = templateType(item);
+  const type = templateTypeName ? typeSentenceForm(templateTypeName, templateBaseType(item)) : undefined;
   /* What it is, and where nothing says so, why: a hover with no description said only the name, and a reader
      could not tell an undescribed value from a broken hover (qorus#646, David). */
   const given = [description, host?.description].find(
@@ -610,10 +614,10 @@ export const filterTemplatesByType = (
       // a template of a type the catalogue does not list fits as its base type, as a field of one takes
       const isCompatible = areQorusTypesCompatible(
         fieldType,
-        subItem.badge as string,
+        templateType(subItem) as string,
         types,
         baseType,
-        subItem.metadata?.baseType
+        templateBaseType(subItem)
       );
 
       if (subItem.items) {
@@ -763,6 +767,8 @@ export const buildTemplates = (
             app,
             action,
             dataRole: itemDataRole || dataRole,
+            // the template's type, a typed member: the badge is a list's to name (`templateType`)
+            ...(type ? { type } : {}),
             ...(base_type ? { baseType: base_type } : {}),
           },
           value,

@@ -120,10 +120,11 @@ describe('what the one completion list offers', () => {
   });
 
   it('lists a template as its catalogue names it, its group and type on its detail line', () => {
+    // the type by its name, never its code (templateTypeBadge)
     expect(complete('|', [])[0]).toMatchObject({
       label: 'pos',
       kind: 5,
-      detail: 'Fields of the row · int',
+      detail: 'Fields of the row · Whole number',
     });
   });
 

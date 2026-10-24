@@ -14,7 +14,7 @@ import { ReactEditor } from 'slate-react';
 import { useEmittedValues } from '../emittedValues';
 import { usePendingEdit } from '../pendingEdit';
 import { descriptionTooltip, useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
-import { useTypeSentenceForm } from '../../typeSentenceForm';
+import { useTypeLabel, useTypeSentenceForm } from '../../typeSentenceForm';
 import {
   choiceChipAtCursor,
   choiceForValue,
@@ -594,9 +594,11 @@ export const RichTextFormField = memo(({
      view does. */
   const tags = useTemplateTags(templates, allowTemplates);
   const completionMenuId = useMemo(() => `completion-menu-text-${++textCompletionMenuCounter}`, []);
+  // a template's type named in its row by the catalogue the surrounding form has, never its code
+  const typeLabel = useTypeLabel();
   const templateItems = useMemo(
-    () => (allowTemplates ? templateCompletionItems(templates) : []),
-    [allowTemplates, templates]
+    () => (allowTemplates ? templateCompletionItems(templates, typeLabel) : []),
+    [allowTemplates, templates, typeLabel]
   );
   const offerTemplates = useCallback(async () => templateItems, [templateItems]);
   const autocomplete = useLspAutocomplete({

@@ -94,6 +94,10 @@ export {
   useQorusTypes,
 } from './hooks/useQorusTypes';
 export type { IQorusTypeObject, IUseTypes } from './hooks/useQorusTypes';
+// A template's type and base type, as a typed member of its row (`metadata.type`, `metadata.baseType`), else the
+// row's badge where a host keeps it there: a list of templates names the type in the badge it draws (qorus#646).
+export { templateBaseType, templateType } from './helpers/templateType';
+export type { ITemplateTypeRow } from './helpers/templateType';
 
 // First-party tracking, consent and A/B testing (design/TRACKING.md). Also importable
 // on its own, without the rest of Reqraft: `@qoretechnologies/reqraft/dist/tracking`

@@ -3,6 +3,8 @@ import { ReqoreFonts } from '@qoretechnologies/reqore';
 import { IReqoreCustomTheme } from '@qoretechnologies/reqore/dist/constants/theme';
 import { TReqoreDropdownItem } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import type React from 'react';
+import { builtInTypeLabel, TTypeLabel } from '../../helpers/qorusTypeCatalogue';
+import { templateBaseType, templateType } from '../../helpers/templateType';
 import { mapCompletionKindToIcon } from './helpers';
 import { COMPLETION_KIND_INTENTS } from './styling';
 import { COMPLETION_KIND_CHIPS } from './useLspAutocomplete';
@@ -40,32 +42,45 @@ export const templateKind = (value: unknown) =>
   typeof value === 'string' && value.startsWith('$record:') ? FIELD_KIND : TEMPLATE_KIND;
 
 /**
- * A catalogue's rows drawn as the completion list draws its own: the kind's icon, the row's type as its
- * badge, its text monospace, compact and borderless. A group (a row with members and no value of its
- * own) keeps its icon and gets no chip. Members, the "+" that takes a record whole and the "?" that opens an
- * example are kept as they are.
+ * A catalogue's rows drawn as the completion list draws its own: the kind's icon, the name of the row's type as
+ * its badge (`typeLabel`, the built-in catalogue's unless the list is given the server's), its text monospace,
+ * compact and borderless. A group (a row with members and no value of its own) keeps its icon and gets no chip.
+ * Members, the "+" that takes a record whole and the "?" that opens an example are kept as they are.
  */
-export const styleTemplateItems = <T extends TReqoreDropdownItem>(items?: T[]): T[] | undefined =>
+export const styleTemplateItems = <T extends TReqoreDropdownItem>(
+  items?: T[],
+  typeLabel: TTypeLabel = builtInTypeLabel
+): T[] | undefined =>
   items?.map((item) => {
     const entry = item as T & {
       value?: unknown;
       badge?: unknown;
       items?: T[];
       style?: React.CSSProperties;
+      metadata?: Record<string, unknown>;
     };
     const isGroup =
       Array.isArray(entry.items) && entry.items.length > 0 && entry.value === undefined;
     const kind = isGroup ? undefined : templateKind(entry.value);
+    /* The row's type, named (qorusTypeDisplayName): Reqore draws a badge as it is, and the badge said the type's
+       code - "int", "qoretechnologies/money". The type stays the template's, a typed member the field reads
+       (`templateType`), also where a host's row kept it only in its badge (qorus#646). */
+    const type = isGroup ? undefined : templateType(entry);
     return {
       ...entry,
-      // the kind's icon, as the completion list draws it; the row's type stays its `badge`, which the field
-      // reads as the type of the template chosen
+      ...(type ?
+        {
+          badge: typeLabel(type, templateBaseType(entry)),
+          metadata: { ...entry.metadata, type },
+        }
+      : {}),
+      // the kind's icon, as the completion list draws it
       icon: kind !== undefined ? mapCompletionKindToIcon(kind) : (entry as { icon?: unknown }).icon,
       style: { ...COMPLETION_ITEM_STYLE, ...entry.style },
       compact: true,
       minimal: true,
       flat: true,
       // only a row with members carries `items`: Reqore draws a row whose `items` is empty as disabled
-      ...(Array.isArray(entry.items) ? { items: styleTemplateItems(entry.items) } : {}),
+      ...(Array.isArray(entry.items) ? { items: styleTemplateItems(entry.items, typeLabel) } : {}),
     } as T;
   });

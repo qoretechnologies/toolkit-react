@@ -2,6 +2,8 @@
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { Editor, Transforms } from 'slate';
 import { ReactEditor } from 'slate-react';
+import { builtInTypeLabel, TTypeLabel } from '../../helpers/qorusTypeCatalogue';
+import { templateBaseType, templateType } from '../../helpers/templateType';
 import { ILspCompletionItem } from '../../utils/lspClient.types';
 import { TCompletionInserter } from './types';
 
@@ -13,6 +15,8 @@ type TTemplateItem = {
   label?: unknown;
   value?: unknown;
   badge?: unknown;
+  /** The template's type and base type (`templateType`). */
+  metadata?: Record<string, unknown>;
   description?: unknown;
   /** Where it comes from, as the host says (`withTemplateSources`): the first thing its row's detail says. */
   source?: unknown;
@@ -48,10 +52,13 @@ export const withTemplateSources = <T extends { items?: unknown[] } | undefined>
  * be written, wherever it sits in the catalogue - found by what is typed after the `$`, in the one completion
  * list typing opens (`CompletionMenu`). Browsing the catalogue as a tree is the browse list's
  * (`TemplateBrowser`). A record's field (`$record:{name}`) is a Field, anything else a Variable; the groups it
- * is in and its type are its detail (after where it comes from, when the host says), its description its
- * documentation.
+ * is in and its type's name (`typeLabel`) are its detail (after where it comes from, when the host says), its
+ * description its documentation.
  */
-export const templateCompletionItems = (templates?: IReqoreFormTemplates): ILspCompletionItem[] => {
+export const templateCompletionItems = (
+  templates?: IReqoreFormTemplates,
+  typeLabel: TTypeLabel = builtInTypeLabel
+): ILspCompletionItem[] => {
   const items: ILspCompletionItem[] = [];
   const seen = new Set<string>();
   const walk = (list: TTemplateItem[] | undefined, trail: string[]) => {
@@ -60,7 +67,10 @@ export const templateCompletionItems = (templates?: IReqoreFormTemplates): ILspC
       if (typeof item.value === 'string' && item.value && !seen.has(item.value)) {
         seen.add(item.value);
         const where = trail.join(' › ');
-        const type = typeof item.badge === 'string' ? item.badge : undefined;
+        // the template's type, named: never its code (qorus#646)
+        const templateTypeName = templateType(item);
+        const type =
+          templateTypeName ? typeLabel(templateTypeName, templateBaseType(item)) : undefined;
         const source = typeof item.source === 'string' ? item.source : undefined;
         items.push({
           label: label ?? item.value,

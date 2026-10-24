@@ -27,7 +27,7 @@ import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
 import { useTemplateTags } from '../form/fields/rich-text/useTemplateTags';
 import { useDescriptionTooltips } from '../../helpers/descriptionTooltip';
-import { useTypeSentenceForm } from '../form/typeSentenceForm';
+import { useTypeLabel, useTypeSentenceForm } from '../form/typeSentenceForm';
 
 export type { IDpqlEditorProps, IDpqlEditorRef };
 
@@ -186,7 +186,12 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
     /* The field's templates: listed in the one completion list where a value can be written (`dpqlCompletionsWith`)
        - or, where the editor does not complete on a click, in the list its text is browsed in (`tags`). */
     const templateTags = useTemplateTags(templates, !readOnly && !completeOnClick);
-    const completionsWith = useMemo(() => dpqlCompletionsWith(templates), [templates]);
+    // a template's type named in its row by the catalogue the surrounding form has, never its code
+    const typeLabel = useTypeLabel();
+    const completionsWith = useMemo(
+      () => dpqlCompletionsWith(templates, typeLabel),
+      [templates, typeLabel]
+    );
 
     const descriptions = useDescriptionTooltips();
     // a chip's hover says its type in the server's words for it

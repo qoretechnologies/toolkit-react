@@ -1837,3 +1837,95 @@ export const ATemplateOfAnUnlistedTypeFitsAsItsBaseTypeOnAPhone: StoryObj<typeof
     },
   },
 };
+
+/**
+ * Templates of every kind of type a template can have: types the catalogue lists (a whole number, text), a user type
+ * with its base type (qoretechnologies/money, a number), a user type with none (qoretechnologies/status) and a type
+ * named by nothing (legacy-code).
+ */
+const TYPED_TEMPLATES = buildTemplates({
+  order: {
+    display_name: 'Order',
+    items: [
+      { display_name: 'Count', value: '$local:count', type: 'int', example_value: 3 },
+      { display_name: 'Note', value: '$local:note', type: 'string', example_value: 'rush' },
+      {
+        display_name: 'Total',
+        value: '$local:total',
+        type: 'qoretechnologies/money',
+        base_type: 'number',
+        example_value: 120.5,
+      },
+      {
+        display_name: 'Status',
+        value: '$local:status',
+        type: 'qoretechnologies/status',
+        example_value: 'open',
+      },
+      { display_name: 'Legacy', value: '$local:legacy', type: 'legacy-code', example_value: 'A7' },
+    ],
+  },
+});
+
+/** What each template's row of the open list says of its type, by the template's name. */
+const TYPE_NAMES = {
+  Count: 'Whole number',
+  Note: 'Text',
+  Total: 'Exact number',
+  Status: 'qoretechnologies/status',
+  Legacy: 'Unknown type',
+};
+
+export const ATemplatesTypeIsNamedInTheList: StoryObj<typeof meta> = {
+  args: {
+    component: string,
+    type: 'string',
+    value: '$local:note',
+    allowTemplates: true,
+    templates: TYPED_TEMPLATES,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders TemplateField for text holding the template Note, and opens its list of templates: each row names its template\'s type - Whole number, Text; Exact number for qoretechnologies/money, a user type whose values are numbers by its base type; qoretechnologies/status, a user type with no base type, by its path; Unknown type for legacy-code - where it said int, string, qoretechnologies/money and legacy-code.',
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    const selector = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('.template-selector.reqore-control');
+      expect(el, 'the template the field holds').toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(selector);
+    const row = (name: string) =>
+      [...document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')].find(
+        (item) => item.textContent?.startsWith(name)
+      );
+    await waitFor(() => expect(row('Legacy')).toBeTruthy(), { timeout: 10000 });
+    for (const [name, typeName] of Object.entries(TYPE_NAMES)) {
+      expect(row(name)?.textContent, name).toContain(typeName);
+    }
+    // never the type's code
+    expect(row('Count')?.textContent).not.toMatch(/\bint\b/);
+    expect(row('Note')?.textContent).not.toMatch(/\bstring\b/);
+    expect(row('Total')?.textContent).not.toContain('qoretechnologies/money');
+    expect(row('Legacy')?.textContent).not.toContain('legacy-code');
+  },
+};
+
+export const ATemplatesTypeIsNamedInTheListOnAPhone: StoryObj<typeof meta> = {
+  ...ATemplatesTypeIsNamedInTheList,
+  globals: onAPhone.globals,
+  parameters: {
+    ...onAPhone.parameters,
+    docs: {
+      description: {
+        story:
+          "The same list at phone width (390 px): each row names its template's type, never its code.",
+      },
+    },
+  },
+};

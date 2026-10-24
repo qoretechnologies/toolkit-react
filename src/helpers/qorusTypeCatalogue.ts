@@ -502,6 +502,16 @@ export const builtInTypeName: TTypeName = (typeName, baseType) =>
   qorusTypeKnownName(defaultQorusTypes, typeName, baseType);
 
 /**
+ * A type's name as a label that is never its code (`qorusTypeDisplayName`): what a list of templates badges a
+ * template with - a user type with no base type by its path, any other unknown type "Unknown type".
+ */
+export type TTypeLabel = (typeName: string | undefined, baseType?: string) => string | undefined;
+
+/** The built-in catalogue's label for a type, for a list no form has given the server's catalogue to. */
+export const builtInTypeLabel: TTypeLabel = (typeName, baseType) =>
+  qorusTypeDisplayName(defaultQorusTypes, typeName, baseType);
+
+/**
  * What kind of value an option takes, in words: its kind of control's name where the catalogue names it (a
  * color), else its type's ("Whole number"), with what a list holds after it ("List (Text)"). Undefined where the
  * catalogue names neither: nothing is said rather than the type's code.

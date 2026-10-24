@@ -8,6 +8,7 @@ import {
   templateItemsToShow,
 } from '../../../../helpers/templateItems';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
+import { useTypeLabel } from '../../typeSentenceForm';
 import { COMPLETION_LIST_THEME, styleTemplateItems } from '../../../smartEditor/completionStyle';
 
 /**
@@ -52,6 +53,8 @@ export const useTemplateTags = (
   allowTemplates = true
 ): IReqoreRichTextEditorProps['tags'] => {
   const renderMarkdown = useMarkdownRenderer();
+  // a template's type named by the catalogue the surrounding form has, never its code
+  const typeLabel = useTypeLabel();
   return useMemo<IReqoreRichTextEditorProps['tags']>((): IReqoreRichTextEditorProps['tags'] => {
     const tags: IReqoreRichTextEditorProps['tags'] = {};
 
@@ -73,11 +76,12 @@ export const useTemplateTags = (
           renderTemplateItemDescriptions(
             withSourceDescribed(templateItemsToShow(templates?.items)),
             renderMarkdown
-          )
+          ),
+          typeLabel
         ),
       };
     }
 
     return tags;
-  }, [allowTemplates, templates, renderMarkdown]);
+  }, [allowTemplates, templates, renderMarkdown, typeLabel]);
 };

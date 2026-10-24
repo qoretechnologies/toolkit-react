@@ -9,6 +9,7 @@ import {
 } from '../../../../helpers/templateItems';
 import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
 import { styleTemplateItems } from '../../../smartEditor/completionStyle';
+import { useTypeLabel } from '../../typeSentenceForm';
 import { TEMPLATE_BROWSE_LIST_PROPS } from '../rich-text/useTemplateTags';
 
 export interface ITemplateBrowserProps extends Omit<IReqoreDropdownProps, 'items'> {
@@ -37,14 +38,17 @@ export const TemplateBrowser = ({
   ...rest
 }: ITemplateBrowserProps & Record<string, unknown>) => {
   const renderMarkdown = useMarkdownRenderer();
+  // a template's type named by the catalogue the surrounding form has, never its code
+  const typeLabel = useTypeLabel();
   /* Drawn here, at the hand-off to Reqore: a description is markdown, and the list is a `JSON.stringify` memo
      key further up (see `renderTemplateItemDescriptions`). */
   const items = useMemo(
     () =>
       styleTemplateItems(
-        renderTemplateItemDescriptions(templateItemsToShow(templates?.items), renderMarkdown)
+        renderTemplateItemDescriptions(templateItemsToShow(templates?.items), renderMarkdown),
+        typeLabel
       ),
-    [templates, renderMarkdown]
+    [templates, renderMarkdown, typeLabel]
   );
   return (
     <ReqoreDropdown

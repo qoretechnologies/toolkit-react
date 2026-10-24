@@ -57,9 +57,10 @@ describe('a catalogue marked with where its templates come from', () => {
   it('says it first in the row of the list a $ opens', () => {
     const items = templateCompletionItems(withTemplateSources(ROW_FIELDS, rowField) as never);
     expect(items.map((item) => [item.label, item.detail])).toEqual([
-      ['pos', 'Row field · Fields of the row · int'],
-      ['bezeichnung', 'Row field · Fields of the row · string'],
-      ['Order id', 'int'],
+      // its type by its name (templateTypeBadge)
+      ['pos', 'Row field · Fields of the row · Whole number'],
+      ['bezeichnung', 'Row field · Fields of the row · Text'],
+      ['Order id', 'Whole number'],
     ]);
   });
 

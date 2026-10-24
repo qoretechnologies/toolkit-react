@@ -39,6 +39,7 @@ import {
   isCompleteTemplateToken,
   describeTemplateReference,
   isValueTemplate,
+  templateType,
 } from '../../../../helpers/templates';
 import { classifyTypedText, mightBeDpqlExpression } from '../../../../helpers/dpqlDetection';
 import { templateItemsToShow } from '../../../../helpers/templateItems';
@@ -1199,8 +1200,9 @@ const TemplateFieldImpl = memo(
       // If the field has allowed values and supports templates, we do not want to overwrite the field type with the template type
       (item) => {
         // If the template type is richtext, we need to wrap the template value in the richtext template format
+        // the template's type (`templateType`): a list's badge is its type's name
         const value =
-          item.badge === 'richtext' ?
+          templateType(item) === 'richtext' ?
             ([
               {
                 type: 'paragraph',
@@ -1230,7 +1232,7 @@ const TemplateFieldImpl = memo(
         onChange(
           name,
           value,
-          hasOnlyAllowedValues ? (type as TQorusType) : (item.badge as TQorusType)
+          hasOnlyAllowedValues ? (type as TQorusType) : (templateType(item) as TQorusType)
         );
       },
       [name, onChange]
@@ -2176,7 +2178,7 @@ const TemplateFieldImpl = memo(
         typeof value === 'string' && isCompleteTemplateToken(value) ? value : expressionTemplate;
       const loneTemplateType =
         loneTemplate && !typeIsAnyLike ?
-          findTemplate(templates ?? {}, loneTemplate)?.badge
+          templateType(findTemplate(templates ?? {}, loneTemplate))
         : undefined;
       // the types inside the sentence; with either one not known there is nothing to say converts to what
       const conversionFrom =

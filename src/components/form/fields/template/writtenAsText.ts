@@ -24,6 +24,7 @@ import {
   isCompleteTemplateToken,
   isValueTemplate,
   splitAtTemplateTokens,
+  templateType,
 } from '../../../../helpers/templates';
 
 /** Scalar types whose value can be written as text: whole numbers, numbers, yes/no. Not a date, which has
@@ -183,8 +184,9 @@ export const templateTextValue = (
   const trimmed = text.trim();
   if (isCompleteTemplateToken(trimmed)) {
     if (isUntypedOptionType(type)) {
-      const badge = templates ? findTemplate(templates, trimmed)?.badge : undefined;
-      return { value: trimmed, type: typeof badge === 'string' && badge ? badge : type };
+      // the template's own type (`templateType`): its row's badge is its type's name in a list
+      const templateTypeName = templates ? templateType(findTemplate(templates, trimmed)) : undefined;
+      return { value: trimmed, type: templateTypeName ?? type };
     }
     return { value: trimmed, type };
   }
