@@ -12907,6 +12907,90 @@ export const AFieldOfAnUnlistedTypeIsNamedByItsBaseTypeOnAPhone: Story = {
   },
 };
 
+/** Options of types the form has no editor of: a string format type and a user type, each with its base type. */
+const BASE_TYPE_EDITED_OPTIONS = {
+  contact: {
+    type: 'email',
+    base_type: 'string',
+    display_name: 'Contact',
+    short_desc: 'Who hears about the payment.',
+  },
+  order_ref: {
+    type: 'qoretechnologies/order-ref',
+    base_type: 'string',
+    display_name: 'Order reference',
+    short_desc: 'The order the payment is for.',
+  },
+} as never;
+
+export const AFieldOfATypeWithNoEditorIsEditedAsItsBaseType: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a form whose Contact is an email address - a string format type, which the type catalog lists but no field draws - and whose Order reference is a user type, qoretechnologies/order-ref; both are text by their base type. With all field information shown Contact says Email address beside its name, and each opens on a text field holding its value, where it said "Unknown type!" and could not be set.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    value: {
+      contact: { type: 'email', value: 'ops@example.com' },
+      order_ref: { type: 'qoretechnologies/order-ref', value: 'SO-1042' },
+    },
+    options: BASE_TYPE_EDITED_OPTIONS,
+  },
+  play: async ({ parameters }) => {
+    await atTheCaptureSize(parameters);
+    await waitFor(() => expect(optionRow('contact')).toBeTruthy(), { timeout: 10000 });
+    // named by the catalogue
+    await userEvent.click(document.querySelector('.options-readfirst-descriptions') as HTMLElement);
+    await waitFor(() =>
+      expect(optionRow('contact')?.querySelector('.options-readfirst-type')?.textContent).toBe(
+        'Email address'
+      )
+    );
+    // edited as text, its base type
+    for (const [field, value] of [
+      ['order_ref', 'SO-1042'],
+      ['contact', 'ops@example.com'],
+    ]) {
+      const row = await editOption(field);
+      await waitFor(() =>
+        expect(
+          [...row.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea')].map(
+            (input) => input.value
+          )
+        ).toContain(value)
+      );
+      expect(row.textContent).not.toContain('Unknown type');
+    }
+  },
+};
+
+export const AFieldOfATypeWithNoEditorIsEditedAsItsBaseTypeOnAPhone: Story = {
+  ...AFieldOfATypeWithNoEditorIsEditedAsItsBaseType,
+  globals: { viewport: { value: 'phone' } },
+  parameters: {
+    viewport: {
+      options: {
+        phone: {
+          name: 'Phone',
+          styles: { width: `${PHONE_VIEWPORT.width}px`, height: `${PHONE_VIEWPORT.height}px` },
+        },
+      },
+    },
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The same form at phone width (390 px): Contact says Email address, and each field opens on a text field holding its value.',
+      },
+    },
+  },
+};
+
 export const ALoneFieldReadsAsTheFieldInEveryView: Story = {
   parameters: {
     docs: {

@@ -79,6 +79,11 @@ export interface IAutoFieldProps
   default_value?: any;
   type?: IQorusType;
   /**
+   * The base data type of the field's values, which Qorus gives with every field (`string` for an email address,
+   * `int` for a timeout): a field of a type this field has no editor of is edited as its base type.
+   */
+  base_type?: string;
+  /**
    * The value changed. The fourth argument says whether it is an expression, as every field's `onChange` does
    * (TemplateField, the form engine and the expression builder read it so): a value this field edits itself is not
    * one; a host editor (`componentOverrides`) says for its own.
@@ -217,6 +222,8 @@ function AutoField<T = any>({
   defaultInternalType,
   requestFieldData,
   type,
+  // read by the editor choice alone; destructured so it does not land on the editors' DOM through `...rest`
+  base_type,
   // Inert (deprecated); destructured so it does not land in `...rest`.
   noSoft, // eslint-disable-line @typescript-eslint/no-unused-vars
   path,
@@ -1099,8 +1106,17 @@ function AutoField<T = any>({
         case 'any':
         case 'auto':
           return renderTextEditor('string');
-        default:
+        default: {
+          /* A type with no editor here - a string format type such as an email address, a user type, a
+             type a newer server adds - is edited as its base type (`base_type`), as the type catalogue
+             names it by its base type (`qorusTypeEntry`); it showed "Unknown type!", and a form could not
+             set it (qorus#646). Only a type with no base type that has an editor is unknown. */
+          const baseType = editorTypeOf(base_type) as IQorusType | undefined;
+          if (baseType && baseType !== currentType) {
+            return renderField(baseType);
+          }
           return <ReqoreTag intent='danger' icon='SpamLine' label='Unknown type!' />;
+        }
       }
     };
 
