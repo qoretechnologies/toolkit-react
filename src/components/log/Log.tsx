@@ -165,6 +165,10 @@ export const ReqraftLog = ({
       size={size}
       flat
       getContentRef={setContentRef}
+      /* The filter, Pause and Clear stay in the title bar at every width. Responsive, the bar folded
+         whatever did not fit into a menu: on a phone that was the filter, which no one would look for
+         behind a menu button. Unfolded, the title is what gives way. */
+      responsiveActions={false}
       {...panelProps}
       icon='CheckboxBlankCircleFill'
       iconColor={statusColor}
