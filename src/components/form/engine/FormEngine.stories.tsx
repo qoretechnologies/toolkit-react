@@ -11763,7 +11763,7 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     docs: {
       description: {
         story:
-          "Renders a whole number with nothing in it and opens its Expression tab. A click in the empty text lists the row's fields in the one completion list (David's decision: opened by a click, a tap or Tab as by typing) - and no template context alone ($data:), which is no value - and so does Tab into it; pos picked from it is the text. A click after pos lists what can follow a value, operators, and no template (`pos pos` is refused); the templates beside the text cannot be used there, saying why. == picked from it goes after pos, which stays (David's review: an operator took pos's place). A click lists the fields again, and bezeichnung makes pos == bezeichnung. A click on pos lists what can stand in its place, and bezeichnung picked takes it (David's review: a click on pos listed nothing); the capture leaves that list open.",
+          "Renders a whole number with nothing in it and opens its Expression tab. A click in the empty text lists the row's fields in the one completion list (David's decision: opened by a click, a tap or Tab as by typing) - and no template context alone ($data:), which is no value - and so does Tab into it; pos picked from it is the text. A click after pos lists what can follow a value, operators, and no template (`pos pos` is refused); the templates beside the text cannot be used there, saying why. == picked from it goes after pos, which stays (David's review: an operator took pos's place). A click lists the fields again, and bezeichnung makes pos == bezeichnung. A click on pos lists what can stand in its place, and bezeichnung picked takes it (David's review: a click on pos listed nothing). Once the field holds bezeichnung == bezeichnung it says the expression gives true or false, and draws no Preview, which would only repeat the text - never an earlier expression's; the capture leaves the list a click on a chip opens open.",
       },
     },
   },
@@ -11832,6 +11832,18 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     );
     await userEvent.click(await completionRow('bezeichnung'));
     await waitFor(() => expect(expressionTextOf('count')).toBe('bezeichnung == bezeichnung'));
+    /* the field holds it and has its rendering: the Preview, which would only repeat the text, is not drawn, and
+       what is said of its fit is said of it - never of an earlier expression (qorus#646: r15's capture drew the
+       Preview of pos, "record: pos", under this text) */
+    await waitFor(
+      () =>
+        expect(
+          optionRow('count').querySelector('.expression-field')?.getAttribute('data-preview')
+        ).toBe('repeats'),
+      { timeout: 10000 }
+    );
+    expect(optionRow('count').querySelector('[data-testid="expression-preview"]')).toBeNull();
+    expect(optionRow('count').textContent).toContain('The expression gives true or false');
 
     // the list a click on a chip opens, left open for the capture
     await userEvent.click(nameOf(chips()[0]));

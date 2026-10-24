@@ -51,6 +51,10 @@ const PARSE_DEBOUNCE_MS = 300;
  */
 const PREVIEW_DEBOUNCE_MS = 400;
 
+/** What a rendering of the Preview is the rendering of: the AST, as its content (a new object of the same content is
+ *  the same expression). */
+const astKeyOf = (ast: unknown): string => JSON.stringify(ast ?? {});
+
 /**
  * A control in the field's column at its own width: the column stretches what it holds across it. The Text /
  * Visual toggle is as wide as what the two say, not across the form: a control is its own width on any screen
@@ -343,9 +347,12 @@ export const ExpressionField = memo(
     useEffect(() => {
       onModeChangeRef.current?.(mode);
     }, [mode]);
-    /* The server's rendering of the current AST; empty until it has one. There is
-       no client-side stand-in — see `useRenderExpression`. */
-    const [preview, setPreview] = useState('');
+    /* The server's rendering of an AST, with the AST it renders (`key`, see `astKeyOf`); none until it has one.
+       There is no client-side stand-in — see `useRenderExpression`. */
+    const [preview, setPreview] = useState<{ key: string; text: string } | null>(null);
+    /* The AST whose rendering was asked for last, or none: an answer for any other AST - one arriving late, or
+       out of order - is dropped, whenever it comes. */
+    const previewAskedFor = useRef<string | null>(null);
 
     // Text mode state. `text` is the DPQL string the editor shows; the AST
     // (`value`) stays the source of truth, kept in sync via parse-on-edit.
@@ -444,6 +451,8 @@ export const ExpressionField = memo(
     const pendingParse = useRef<string | null>(null);
 
     const ast = useMemo<IExpressionValue | undefined>(() => value?.value, [value]);
+    // what a rendering of the Preview must be of to be drawn (`astKeyOf`)
+    const astKey = useMemo(() => astKeyOf(ast), [ast]);
     // a lone template, as the server parses one written alone, is the lone value it is (`asLoneValue`)
     const builderValue = useMemo(
       () => (value?.value ? { ...value, value: asLoneValue(value.value) } : value),
@@ -583,18 +592,23 @@ export const ExpressionField = memo(
     // Debounced: it follows the AST, which follows the text, so rendering it
     // eagerly put a box under the cursor that appeared, changed and vanished
     // while the author was still typing.
+    //
+    // A rendering is kept with the AST it renders, and drawn only for that AST (`previewState`): after an edit,
+    // for the pause and the server's answer, the previous expression's rendering was drawn under the new text
+    // (qorus#646: "record: pos" under `bezeichnung == bezeichnung`).
     useEffect(() => {
-      let live = true;
+      const key = astKey;
+      previewAskedFor.current = key;
       const timer = setTimeout(() => {
         renderRich(ast ?? {}).then((r) => {
-          if (live) setPreview(r?.text ?? '');
+          if (previewAskedFor.current === key) setPreview({ key, text: r?.text ?? '' });
         });
       }, PREVIEW_DEBOUNCE_MS);
       return () => {
-        live = false;
+        previewAskedFor.current = null;
         clearTimeout(timer);
       };
-    }, [renderRich, ast]);
+    }, [renderRich, ast, astKey]);
 
     // Tracks whether the user has typed since entering Text mode, so a
     // slow seed response can't clobber their input.
@@ -876,13 +890,16 @@ export const ExpressionField = memo(
       []
     );
 
-    /* What the Preview has to add: `none` until the server's rendering of the
-       text now showing exists, `repeats` when it reads exactly as that text does
-       (so it is not drawn — see below), `shown` otherwise. Exposed on the field,
-       because a Preview correctly left out leaves nothing else to observe. */
+    /* What the Preview has to add: `none` while the text showing is not the expression's, or the rendering says
+       nothing; `pending` until the server's rendering of the expression now held arrives (nothing is drawn);
+       `repeats` when it reads exactly as the text does (so it is not drawn — see below), `shown` otherwise.
+       Exposed on the field, because a Preview correctly left out leaves nothing else to observe. */
     const previewState =
-      !preview || astText.trim() !== text.trim() ? 'none'
-      : dpqlDisplayedText(preview).trim() === dpqlDisplayedText(text).trim() ? 'repeats'
+      astText.trim() !== text.trim() ? 'none'
+        // asked for, not answered yet: nothing is drawn, least of all an earlier expression's rendering
+      : preview?.key !== astKey ? 'pending'
+      : !preview.text ? 'none'
+      : dpqlDisplayedText(preview.text).trim() === dpqlDisplayedText(text).trim() ? 'repeats'
       : 'shown';
 
     return (
@@ -1035,7 +1052,7 @@ export const ExpressionField = memo(
                 once there is a result rather than holding a placeholder. */}
             {previewState === 'shown' ?
               <ReqoreMessage intent='info' size='small' title='Preview' flat opaque={false}>
-                <DpqlRendering text={preview} data-testid='expression-preview' />
+                <DpqlRendering text={preview?.text} data-testid='expression-preview' />
               </ReqoreMessage>
             : null}
           </>
