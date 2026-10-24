@@ -13,6 +13,10 @@ import { Meta, StoryObj } from '@storybook/react-vite';
 import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 import { buildTemplates } from '../../../../helpers/templates';
+import { defaultQorusTypes, IQorusTypeObject } from '../../../../hooks/useQorusTypes';
+import { atTheCaptureSize } from '../../../../stories/mouse';
+import { storyApiUrl } from '../../../../stories/storyNetwork';
+import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { mockExpressions } from '../../expressions/mockExpressions';
 import { IExpressionSchema } from '../../expressions/types';
 import { AutoFormField as auto } from '../auto/AutoFormField';
@@ -1621,5 +1625,134 @@ export const WrittenAsTextNumberPicksATemplate: StoryObj<typeof meta> = {
     await sleep(500);
     // nothing took it away again
     expect(held(canvasElement)).toEqual({ value: '$record:{pos}', type: 'int' });
+  },
+};
+
+/**
+ * A type the server's type catalogue lists and reqraft's built-in copy does not: an order reference, which takes
+ * text. A field of it was offered no templates: the template list was filtered by the built-in copy, never by the
+ * server's answer (qorus#646).
+ */
+const ORDER_REFERENCE_TYPE: IQorusTypeObject = {
+  name: 'order-ref',
+  display_name: 'Order reference',
+  sentence_form: 'an order reference',
+  short_desc: 'A reference to an order',
+  desc: 'A reference to an order',
+  types_accepted: ['order-ref', 'string', 'richtext'],
+  exact_match: ['order-ref', 'string', 'richtext'],
+};
+
+/** The names of the templates the open template list offers, in its order. */
+const offeredTemplateNames = (): string[] => {
+  const names = templates._context.items.map((item) => item.display_name);
+  return [...document.querySelectorAll('.reqore-popover-content .reqore-menu-item')].map(
+    (item) => names.find((name) => item.textContent?.includes(name)) ?? item.textContent ?? ''
+  );
+};
+
+/** A click on the template the field holds, and the templates the list it opens offers. */
+const expectOfferedTemplates = async (canvasElement: HTMLElement, expected: string[]) => {
+  const selector = await waitFor(() => {
+    const el = canvasElement.querySelector<HTMLElement>('.template-selector.reqore-control');
+    expect(el, 'the template the field holds').toBeTruthy();
+    return el as HTMLElement;
+  });
+  await userEvent.click(selector);
+  await waitFor(() => expect(offeredTemplateNames()).toEqual(expected), { timeout: 10000 });
+};
+
+/** A story at phone width (390 px), in Storybook's UI and in qlip's capture. */
+const onAPhone = {
+  globals: { viewport: { value: 'phone' } },
+  parameters: {
+    viewport: {
+      options: {
+        phone: {
+          name: 'Phone',
+          styles: { width: `${PHONE_VIEWPORT.width}px`, height: `${PHONE_VIEWPORT.height}px` },
+        },
+      },
+    },
+    qlip: { viewport: PHONE_VIEWPORT },
+  },
+};
+
+export const ATypeOnlyTheServerListsIsOfferedItsTemplates: StoryObj<typeof meta> = {
+  args: { component: string, type: 'order-ref', value: '$local:name', allowTemplates: true },
+  parameters: {
+    mockData: [
+      {
+        url: storyApiUrl('system/qorus-type-info'),
+        method: 'GET',
+        status: 200,
+        response: [...defaultQorusTypes, ORDER_REFERENCE_TYPE],
+      },
+    ],
+    docs: {
+      description: {
+        story:
+          "Renders TemplateField for an order reference, a type the server's type catalog lists and reqraft's built-in copy does not, holding the template Interface Name, and opens its list of templates: the list offers the templates an order reference takes by the server's catalog - Interface Name, Interface Type and Interface Version, the text ones - where it offered none.",
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    await expectOfferedTemplates(canvasElement, [
+      'Interface Name',
+      'Interface Type',
+      'Interface Version',
+    ]);
+  },
+};
+
+export const ATypeOnlyTheServerListsIsOfferedItsTemplatesOnAPhone: StoryObj<typeof meta> = {
+  ...ATypeOnlyTheServerListsIsOfferedItsTemplates,
+  globals: onAPhone.globals,
+  parameters: {
+    ...ATypeOnlyTheServerListsIsOfferedItsTemplates.parameters,
+    ...onAPhone.parameters,
+    docs: {
+      description: {
+        story:
+          "The same field at phone width (390 px): the list offers the text templates, by the server's catalog.",
+      },
+    },
+  },
+};
+
+export const AnUnlistedTypeIsOfferedItsBaseTypesTemplates: StoryObj<typeof meta> = {
+  args: {
+    component: Number,
+    type: 'qoretechnologies/order-id',
+    base_type: 'int',
+    value: '$local:id',
+    allowTemplates: true,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders TemplateField for qoretechnologies/order-id, a user type no type catalog lists, whose base type is a whole number, holding the template Interface ID, and opens its list of templates: the list offers its base type's templates - Epoch Seconds and Interface ID, the whole-number ones - where it offered none.",
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    await expectOfferedTemplates(canvasElement, ['Epoch Seconds', 'Interface ID']);
+  },
+};
+
+export const AnUnlistedTypeIsOfferedItsBaseTypesTemplatesOnAPhone: StoryObj<typeof meta> = {
+  ...AnUnlistedTypeIsOfferedItsBaseTypesTemplates,
+  globals: onAPhone.globals,
+  parameters: {
+    ...onAPhone.parameters,
+    docs: {
+      description: {
+        story:
+          "The same field at phone width (390 px): the list offers its base type's templates, the whole-number ones.",
+      },
+    },
   },
 };
