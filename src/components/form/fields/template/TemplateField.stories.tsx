@@ -1929,3 +1929,73 @@ export const ATemplatesTypeIsNamedInTheListOnAPhone: StoryObj<typeof meta> = {
     },
   },
 };
+
+/** A field of a user type with its base type, holding concat(...), which gives text. */
+const concatIn = (type: string, base_type: string): Record<string, unknown> => ({
+  allowFunctions: true,
+  isFunction: true,
+  value: {
+    exp: 'concat',
+    args: [
+      { type: 'string', value: 'SO-' },
+      { type: 'string', value: '$local:name' },
+    ],
+  },
+  type,
+  defaultType: type,
+  base_type,
+  component: auto,
+  fixed: true,
+  fluid: false,
+  expressions: storyExpressions,
+  templates: buildTemplates(templates as never),
+  onChange: fn(),
+});
+
+/** The expression's type mismatch, as a field's builder says it. */
+const MISMATCH = /This expression gives .*(but this field takes|which this field does not take)/;
+
+export const AnExpressionFitsAFieldOfAnUnlistedTypeByItsBaseType: StoryObj<typeof meta> = {
+  render: () => (
+    <div style={{ display: 'flex', flexFlow: 'column', gap: 10 }}>
+      <div className='order-ref-place'>
+        <TemplateField {...(concatIn('qoretechnologies/order-ref', 'string') as any)} />
+      </div>
+      <div className='due-place'>
+        <TemplateField {...(concatIn('qoretechnologies/due', 'date') as any)} />
+      </div>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders two fields holding concat(...), an expression that gives text: one of qoretechnologies/order-ref, a user type no type catalog lists whose base type is text, and one of qoretechnologies/due, whose base type is a date. The first takes it - it said "This expression gives text, which this field does not take" - and the second does not, and says it takes a date and time.',
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    const place = (name: string) => canvasElement.querySelector(`.${name}`)?.textContent ?? '';
+    // the server has said what the expression gives: the date field refuses it
+    await waitFor(() => expect(place('due-place')).toMatch(MISMATCH), { timeout: 10000 });
+    // the text field takes it, by its base type
+    expect(place('order-ref-place')).not.toMatch(MISMATCH);
+    // and the date field is said to take a date, by its base type
+    expect(place('due-place')).toContain('a date');
+  },
+};
+
+export const AnExpressionFitsAFieldOfAnUnlistedTypeByItsBaseTypeOnAPhone: StoryObj<typeof meta> = {
+  ...AnExpressionFitsAFieldOfAnUnlistedTypeByItsBaseType,
+  globals: onAPhone.globals,
+  parameters: {
+    ...onAPhone.parameters,
+    docs: {
+      description: {
+        story:
+          'The same two fields at phone width (390 px): the text field of a user type takes the expression, the date one does not.',
+      },
+    },
+  },
+};

@@ -83,6 +83,8 @@ export interface IExpressionFieldProps {
   /** The field's declared type — the expression's expected return type. */
   type?: string;
   returnType?: string | string[];
+  /** The base data type of the field's type (`base_type`): what a field of an unlisted type takes. */
+  returnBaseType?: string;
   readOnly?: boolean;
   /** Catalogue override (stories / tests); otherwise fetched from the server. */
   expressions?: IExpressionSchema[];
@@ -299,6 +301,7 @@ export const ExpressionField = memo(
     onChange,
     type,
     returnType,
+    returnBaseType,
     readOnly,
     expressions: expressionsOverride,
     expressionsUrl,
@@ -1068,6 +1071,7 @@ export const ExpressionField = memo(
               // valid expression renders `muted` rather than `danger` (the
               // builder's intent requires a truthy returnType).
               returnType={(returnType ?? type ?? 'auto') as any}
+              returnBaseType={returnBaseType}
               readOnly={readOnly}
               localTemplates={localTemplates ?? { items: [] }}
               serverHandled={serverHandled}

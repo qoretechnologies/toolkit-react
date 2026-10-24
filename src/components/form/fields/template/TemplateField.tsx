@@ -2310,6 +2310,8 @@ const TemplateFieldImpl = memo(
               localTemplates={listedCatalogue}
               type={type as string}
               returnType={(returnType || expressionDataType) as any}
+              // a field of a type the catalogue does not list takes what its base type takes
+              returnBaseType={returnType ? undefined : rest.base_type}
               onChange={handleExpressionChange}
               readOnly={rest.readOnly || rest.disabled}
               expressions={rest.expressions}
@@ -2458,6 +2460,8 @@ const TemplateFieldImpl = memo(
                 localTemplates={listedCatalogue}
                 type={type as string}
                 returnType={(returnType || expressionDataType) as any}
+                // a field of a type the catalogue does not list takes what its base type takes
+                returnBaseType={returnType ? undefined : rest.base_type}
                 onChange={handleExpressionChange}
                 readOnly={rest.readOnly || rest.disabled}
                 expressions={rest.expressions}
@@ -2517,6 +2521,8 @@ const TemplateFieldImpl = memo(
               level={level}
               type={type as string}
               returnType={(returnType || expressionDataType) as any}
+              // a field of a type the catalogue does not list takes what its base type takes
+              returnBaseType={returnType ? undefined : rest.base_type}
               onChange={handleExpressionChange}
               readOnly={rest.readOnly || rest.disabled}
               expressions={rest.expressions}

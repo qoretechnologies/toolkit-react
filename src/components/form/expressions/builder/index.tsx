@@ -91,6 +91,11 @@ export interface IExpressionBuilderProps {
   path?: string;
   index?: number;
   returnType?: TQorusType | TQorusType[];
+  /**
+   * The base data type of the place's type, which Qorus gives with every field (`base_type`): what a place of a
+   * type the type catalogue does not list takes (`qorusTypeEntry`).
+   */
+  returnBaseType?: string;
   group?: '&&' | '||';
   onChange?: (value: IExpression, remove?: boolean) => void;
   onValueChange?: (value: IExpression, path: string, remove?: boolean) => void;
@@ -182,6 +187,7 @@ export const Expression = ({
   onValueChange,
   group,
   returnType,
+  returnBaseType,
   readOnly,
   id,
   expressionsUrl,
@@ -263,7 +269,7 @@ export const Expression = ({
   const expectedReturnTypeText =
     compact(
       (isArray(returnType) ? returnType : [returnType]).map((type) =>
-        types.getTypeSentenceForm(type)
+        types.getTypeSentenceForm(type, returnBaseType)
       )
     ).join(' or ') || undefined;
 
@@ -667,12 +673,13 @@ export const Expression = ({
     (typeNotKnownYet ||
       expressionReturnType === 'any' ||
       (isArray(returnType)
-        ? areQorusTypesCompatible(returnType, expressionReturnType, types.value)
+        ? areQorusTypesCompatible(returnType, expressionReturnType, types.value, returnBaseType)
         : returnType === 'auto' ||
           returnType === 'any' ||
           returnType === 'context' ||
           expressionReturnType === 'any' ||
-          areQorusTypesCompatible(returnType, expressionReturnType, types.value) ||
+          // a place of a type the catalogue does not list takes what its base type takes
+          areQorusTypesCompatible(returnType, expressionReturnType, types.value, returnBaseType) ||
           returnType === expressionReturnType ||
           !returnType) ||
         // a condition is decided by any result but text, a date or a time
@@ -1203,7 +1210,10 @@ export const Expression = ({
                   ? firstArgument?.type.base_type
                   : firstParamType
               }
-              returnType={types.getAcceptedTypes(firstArgSchema?.ui_type) as any}
+              // an argument of a type the catalogue does not list takes what its base type takes
+              returnType={
+                types.getAcceptedTypes(firstArgSchema?.ui_type, firstArgSchema?.base_type) as any
+              }
               value={firstArgument?.value}
               isFunction={firstArgument?.is_expression}
               onChange={handleFirstParamChange as any}
@@ -1320,7 +1330,8 @@ export const Expression = ({
                           ? arg.ui_type
                           : (rest[index]?.type ?? arg.ui_type)
                       }
-                      returnType={types.getAcceptedTypes(arg.ui_type) as any}
+                      // an argument of a type the catalogue does not list takes what its base type takes
+                      returnType={types.getAcceptedTypes(arg.ui_type, arg.base_type) as any}
                       canBeNull={false}
                       value={rest[index]?.value}
                       templates={localTemplates}
@@ -1495,6 +1506,7 @@ export const ExpressionBuilder = ({
   path,
   type,
   returnType,
+  returnBaseType,
   group,
   onChange,
   onValueChange,
@@ -1731,6 +1743,7 @@ export const ExpressionBuilder = ({
         isChild={isChild}
         type={type}
         returnType={returnType}
+        returnBaseType={returnBaseType}
         level={level}
         path={path}
         index={index}
