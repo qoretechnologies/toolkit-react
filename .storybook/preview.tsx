@@ -6,6 +6,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { initializeReqraft, ReqraftQueryClient } from '../src';
 import { startDpqlMockLsp } from '../src/components/form/expressions/dpqlMockLsp';
+import { _resetServerQorusTypesForTests } from '../src/helpers/qorusTypeCatalogue';
 import { _resetExpressionTypeTransportForTests } from '../src/components/form/expressions/useExpressionType';
 import { _resetRenderExpressionTransportForTests } from '../src/components/form/expressions/useRenderExpression';
 import { IStoryClockParameters, startStoryClock } from '../src/stories/storyClock';
@@ -73,6 +74,8 @@ export const parameters = {
 // story left in flight is cancelled with nothing left waiting for it.
 export const beforeEach = ({ parameters }: { parameters?: IStoryClockParameters }) => {
   ReqraftQueryClient.clear();
+  // and without the type catalogue an earlier story's server answered with (`getQorusTypes`)
+  _resetServerQorusTypesForTests();
   const restoreClock = startStoryClock(parameters);
   try {
     _resetRenderExpressionTransportForTests();

@@ -50,7 +50,7 @@ export const ExpressionBuilderArgumentLabel = ({
     );
   }
 
-  const matchesType = argumentMatchesType(expressions, arg, schema);
+  const matchesType = argumentMatchesType(expressions, arg, schema, types.value);
 
   const argumentType = getArgumentType(expressions, arg, schema);
   const matchesTypeExactly =

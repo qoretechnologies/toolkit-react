@@ -18,7 +18,12 @@ import {
 import { NO_VALUE_DESCRIPTION } from './noDescription';
 import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
-import { builtInTypeSentenceForm, TTypeSentenceForm } from './qorusTypeCatalogue';
+import {
+  builtInTypeSentenceForm,
+  getQorusTypes,
+  IQorusTypeObject,
+  TTypeSentenceForm,
+} from './qorusTypeCatalogue';
 
 /**
  * The DOM ceiling for a serialized example value in a picker item — a
@@ -588,7 +593,8 @@ export const describedWithType = (
 export const filterTemplatesByType = (
   templates: IReqoreFormTemplates = {},
   fieldType = 'string',
-  hasArgSchema?: boolean
+  hasArgSchema?: boolean,
+  types: IQorusTypeObject[] = getQorusTypes()
 ): IReqoreFormTemplates => {
   if ((fieldType === 'hash' || fieldType === 'list') && hasArgSchema) {
     return templates;
@@ -599,7 +605,7 @@ export const filterTemplatesByType = (
   const filterItems = (items: TReqoreDropdownItems = []): TReqoreDropdownItems => {
     return items?.reduce((newItems: TReqoreDropdownItem[], subItem): TReqoreDropdownItem[] => {
       const newSubItem = cloneDeep(subItem);
-      const isCompatible = areQorusTypesCompatible(fieldType, subItem.badge as string);
+      const isCompatible = areQorusTypesCompatible(fieldType, subItem.badge as string, types);
 
       if (subItem.items) {
         newSubItem.items = filterItems(subItem.items);

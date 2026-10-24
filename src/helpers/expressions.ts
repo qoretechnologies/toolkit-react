@@ -11,7 +11,7 @@ import {
   IExpressionValue,
 } from '../components/form/expressions/types';
 import { getCachedExpressionType } from '../components/form/expressions/useExpressionType';
-import { defaultQorusTypes, getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
+import { getQorusTypes, IQorusTypeObject } from '../hooks/useQorusTypes';
 import { catalogueTypeName, qorusTypeSentenceForm } from './qorusTypeCatalogue';
 
 /**
@@ -36,9 +36,9 @@ export const getArgumentType = (
 export const argumentMatchesType = (
   expressions: IExpressionSchema[],
   arg: IExpression | undefined,
-  schema: IExpressionSchemaArg
+  schema: IExpressionSchemaArg,
+  types: IQorusTypeObject[] = getQorusTypes()
 ) => {
-  const types = getQorusTypes();
   const acceptedTypes = types.find((type) => type.name === schema.ui_type);
   const argType = getArgumentType(expressions, arg, schema);
 
@@ -72,12 +72,15 @@ export const argumentMatchesType = (
 const normalizeAnyLikeTypeName = (name: string): string =>
   name === 'auto' ? 'any' : catalogueTypeName(name);
 
+/**
+ * Whether a value of `checkType` fits a place of `mainType`, by the type catalogue `types`: the server's answer
+ * (`useQorusTypes().value`, or `getQorusTypes()` outside a component), reqraft's copy until it answers.
+ */
 export const areQorusTypesCompatible = (
   mainType: string | string[],
   checkType: string | string[],
-  fallbackTypes?: IQorusTypeObject[]
+  types: IQorusTypeObject[] = getQorusTypes()
 ): boolean => {
-  const types = getQorusTypes() || fallbackTypes || defaultQorusTypes;
   const mainTypes = (isArray(mainType) ? mainType : [mainType]).map(normalizeAnyLikeTypeName);
   const checkTypes = (isArray(checkType) ? checkType : [checkType]).map(normalizeAnyLikeTypeName);
   // Get each of the main types from the types list

@@ -1,11 +1,12 @@
 import { size } from 'lodash';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import {
   compactTypesList,
   defaultQorusTypes,
   IQorusTypeObject,
   qorusTypeDisplayName,
   qorusTypeSentenceForm,
+  setServerQorusTypes,
 } from '../helpers/qorusTypeCatalogue';
 import { useFetch } from './useFetch/useFetch';
 
@@ -41,6 +42,13 @@ export const useQorusTypes = (): IUseTypes => {
   });
 
   const value = size(data) ? data : defaultQorusTypes;
+  // the server's answer, once there is one: what `getQorusTypes` gives code outside a component from then on
+  const answered = value === defaultQorusTypes ? undefined : value;
+  useEffect(() => {
+    if (answered) {
+      setServerQorusTypes(answered);
+    }
+  }, [answered]);
 
   const getAcceptedTypes = useCallback(
     (typeName: string): string[] => {

@@ -665,12 +665,12 @@ export const Expression = ({
     (typeNotKnownYet ||
       expressionReturnType === 'any' ||
       (isArray(returnType)
-        ? areQorusTypesCompatible(returnType, expressionReturnType)
+        ? areQorusTypesCompatible(returnType, expressionReturnType, types.value)
         : returnType === 'auto' ||
           returnType === 'any' ||
           returnType === 'context' ||
           expressionReturnType === 'any' ||
-          areQorusTypesCompatible(returnType, expressionReturnType) ||
+          areQorusTypesCompatible(returnType, expressionReturnType, types.value) ||
           returnType === expressionReturnType ||
           !returnType) ||
         // a condition is decided by any result but text, a date or a time
@@ -1048,7 +1048,7 @@ export const Expression = ({
              takes any value, qorus#646) */
           show:
             !!selectedExpression &&
-            (!!group || areQorusTypesCompatible('bool', returnType)) &&
+            (!!group || areQorusTypesCompatible('bool', returnType, types.value)) &&
             !readOnly,
           group: [
             {

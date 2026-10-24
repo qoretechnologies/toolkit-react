@@ -220,7 +220,24 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
   },
 ];
 
-export const getQorusTypes = (): IQorusTypeObject[] => defaultQorusTypes;
+/* The catalogue the server answered GET /system/qorus-type-info with, once a `useQorusTypes` has it. */
+let serverQorusTypes: IQorusTypeObject[] | undefined;
+
+/**
+ * The type catalogue for code outside a component: the server's answer once a `useQorusTypes` has it, reqraft's
+ * copy (`defaultQorusTypes`) until then. It gave reqraft's copy always, so a type or a conversion only the server
+ * knows was never seen by the checks that decide which values and templates fit a field (qorus#646). A component
+ * gives the checks `useQorusTypes().value` instead, so that it draws again when the answer comes.
+ */
+export const getQorusTypes = (): IQorusTypeObject[] => serverQorusTypes ?? defaultQorusTypes;
+
+/** Keeps the server's answer for `getQorusTypes`; `useQorusTypes` gives it each answer it has. */
+export const setServerQorusTypes = (types: IQorusTypeObject[] | undefined): void => {
+  serverQorusTypes = types?.length ? types : undefined;
+};
+
+/** Forgets the server's answer, so that a test or a story starts without one. */
+export const _resetServerQorusTypesForTests = (): void => setServerQorusTypes(undefined);
 
 /** Qore's other names for a type the catalogue lists under its own (qorus#646). */
 const QORE_TYPE_ALIASES: Record<string, string> = { boolean: 'bool', integer: 'int' };
