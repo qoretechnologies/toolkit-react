@@ -261,11 +261,12 @@ yarn build:test         # Type-check without emit
   - `parameters.mockdate` stops the clock at an instant, for a story whose every reading
     must be the same (log lines stamped to the millisecond). `parameters.live` stories keep
     the real clock.
-  - The clock goes back to `STORY_NOW` at every story, so anything a page keeps from story
-    to story with a timestamp must not outlive its freshness: when a story ends, the
-    preview drops the `ReqraftQueryClient` answers already stale for the request that
-    fetched them, or the next story would read them as fetched in the future and be served
-    them instead of its own mocks. Any other such store needs the same treatment.
+  - Every story also starts with an empty `ReqraftQueryClient`, as every unit test does: a
+    story must pass when it is opened on its own, not only after an earlier story fetched
+    what it needs. With the clock it is required too: an answer carries the time it was
+    fetched, and the clock takes each story back to `STORY_NOW`, so the previous story's
+    answers would read as fetched in the future and be served instead of its own mocks.
+    Anything else a page keeps from story to story with a timestamp needs the same reset.
   - The capture browser runs in UTC and US English (`vitest.config.ts`), as CI does, so a
     date written in the viewer's zone or language captures the same on every machine.
 - **Visual regression via Qlip** (not Chromatic): the story run captures snapshots through the `qlip` Vitest plugin. Upload is gated on `QLIP_UPLOAD_TOKEN` (`vitest.config.ts`), so **local runs capture but never upload** — PNGs land in `qlip/screenshots/<ts>/stories/auto/<StoryId>.png` (gitignored); read the PNG to verify a visual change. CI (`.github/workflows/tests.yml`) sets the token and uploads a build for dashboard review. The full visual-change flow + the `qlip` MCP review skill live in the imported `stacks/frontend/FRONTEND.md`.

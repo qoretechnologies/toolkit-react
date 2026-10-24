@@ -4,7 +4,6 @@ import {
   ReqoreModalsWrapper,
   ReqoreUIProvider,
 } from '@qoretechnologies/reqore';
-import type { FetchQueryOptions } from '@tanstack/react-query';
 import { initializeReqraft, ReqraftQueryClient } from '../src';
 import { startDpqlMockLsp } from '../src/components/form/expressions/dpqlMockLsp';
 import { _resetExpressionTypeTransportForTests } from '../src/components/form/expressions/useExpressionType';
@@ -62,30 +61,18 @@ export const parameters = {
 // src/stories/storyClock.ts; `parameters.mockdate` stops the clock, a `live`
 // story keeps the real one).
 //
-// ...and what one story fetched does not outlive its freshness in the next. The
-// query cache lives as long as the page and stamps every answer with the time it
-// was fetched, and the next story's clock starts back at `STORY_NOW`: an answer
-// fetched a few seconds into this story would read as fetched in the future -
-// fresh even to a request that never caches - and be served in place of the next
-// story's own mocks (useStorage's stored value, useFetch's 409). So when a story
-// ends, while its clock still reads, the answers already stale for the request
-// that fetched them are dropped. The ones kept (the type and expression
-// catalogues) are the ones the next story would have been served on a real clock.
-// A request still in flight is left alone: removing it would cancel it under
-// whatever is still waiting for it, and its answer is stamped by the clock it
-// lands in.
-const dropStaleAnswers = () => {
-  for (const cached of ReqraftQueryClient.getQueryCache().getAll()) {
-    if (
-      cached.state.fetchStatus === 'idle' &&
-      cached.isStaleByTime((cached.options as FetchQueryOptions).staleTime)
-    ) {
-      ReqraftQueryClient.removeQueries({ queryKey: cached.queryKey, exact: true });
-    }
-  }
-};
-
+// ...and with an empty query cache, as every unit test does. The cache lives as
+// long as the page, so a story was served whatever an earlier one had fetched:
+// four FormEngine plays only passed after an earlier story had loaded the type
+// catalogue, and failed when the story was opened on its own. The clock makes it
+// worse: an answer carries the time it was fetched, and the clock takes every
+// story back to `STORY_NOW`, so an answer fetched a few seconds into the previous
+// story would read as fetched in the future, fresh even to a request that never
+// caches, and be served in place of this story's own mocks (useStorage's stored
+// value, useFetch's 409). Emptied before anything mounts: a request the previous
+// story left in flight is cancelled with nothing left waiting for it.
 export const beforeEach = ({ parameters }: { parameters?: IStoryClockParameters }) => {
+  ReqraftQueryClient.clear();
   const restoreClock = startStoryClock(parameters);
   try {
     _resetRenderExpressionTransportForTests();
@@ -97,11 +84,7 @@ export const beforeEach = ({ parameters }: { parameters?: IStoryClockParameters 
       try {
         stopLsp?.();
       } finally {
-        try {
-          dropStaleAnswers();
-        } finally {
-          restoreClock();
-        }
+        restoreClock();
       }
     };
   } catch (error) {

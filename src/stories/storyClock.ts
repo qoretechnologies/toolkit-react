@@ -22,9 +22,9 @@
 //   real server and is dated by it.
 //
 // Time goes back to `STORY_NOW` at every story, so whatever a page keeps from one
-// story to the next with a timestamp must not outlive its freshness: the preview
-// drops the query cache's stale answers when a story ends, or the next story would
-// read them as fetched in the future.
+// story to the next with a timestamp must be reset with it: the preview empties the
+// shared query cache before every story, or the next story would read the previous
+// one's answers as fetched in the future.
 //
 // Only stories change the clock. Components read the platform's `Date` as they
 // always do, and in an application that is the real one.
