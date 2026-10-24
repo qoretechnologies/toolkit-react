@@ -133,6 +133,26 @@ describe("a template's type", () => {
     });
   });
 
+  it("is no group's: a group keeps its badge, which names its app", () => {
+    // a group of the catalogue (`buildTemplates`) is badged with the app it comes from, and has no value
+    const groups = buildTemplates({
+      _context: {
+        display_name: 'Context Data',
+        app: 'Qorus',
+        items: [{ display_name: 'Count', value: '$local:count', type: 'int' }],
+      },
+    });
+    const [group] = styleTemplateItems(groups?.items as never) as TRow[];
+    expect(group.badge).toBe('Qorus');
+    expect(templateType(group as never)).toBeUndefined();
+    // also when none of its templates fit a field, and it is drawn with no members
+    const [emptied] = styleTemplateItems(
+      filterTemplatesByType(groups, 'bool', false, defaultQorusTypes).items as never
+    ) as TRow[];
+    expect(emptied.label).toBe('Context Data');
+    expect(emptied.badge).toBe('Qorus');
+  });
+
   it('decides which templates fit a field, from a list drawn with the names', () => {
     const drawn = { items: styleTemplateItems(ORDER?.items as never) };
     const offered = filterTemplatesByType(drawn as never, 'number', false, defaultQorusTypes)

@@ -11,6 +11,8 @@
 
 /** A row of a list of templates, as far as its type goes. */
 export interface ITemplateTypeRow {
+  /** What a template is written as; a group of templates has none. */
+  value?: unknown;
   badge?: unknown;
   metadata?: { type?: unknown; baseType?: unknown } | Record<string, unknown>;
 }
@@ -20,10 +22,12 @@ const text = (value: unknown): string | undefined =>
 
 /**
  * A template's type: its typed member (`metadata.type`), else its badge, where a host builds its own rows and keeps
- * the type there.
+ * the type there. A group of templates has no type: its badge names the app it comes from (`buildTemplates`), and
+ * read as a type it was named "Unknown type".
  */
 export const templateType = (row: ITemplateTypeRow | undefined): string | undefined =>
-  text((row?.metadata as { type?: unknown } | undefined)?.type) ?? text(row?.badge);
+  text((row?.metadata as { type?: unknown } | undefined)?.type) ??
+  (row?.value !== undefined ? text(row?.badge) : undefined);
 
 /** The base type of a template's values (`metadata.baseType`), which Qorus gives with every template. */
 export const templateBaseType = (row: ITemplateTypeRow | undefined): string | undefined =>

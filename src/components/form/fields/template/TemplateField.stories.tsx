@@ -583,6 +583,11 @@ export const ShowsTemplatesListForBoolean: StoryObj<typeof meta> = {
   play: async () => {
     await _testsSetTemplate();
     await _testsOpenTemplates();
+    // a group is badged with the app it comes from, not named as a type
+    const list = document.querySelector('.reqore-popover-content');
+    await waitFor(() => expect(list?.textContent).toContain('Context Data'));
+    expect(list?.textContent).toContain('Qorus');
+    expect(list?.textContent).not.toContain('Unknown type');
   },
 };
 
