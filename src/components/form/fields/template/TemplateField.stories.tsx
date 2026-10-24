@@ -1756,3 +1756,84 @@ export const AnUnlistedTypeIsOfferedItsBaseTypesTemplatesOnAPhone: StoryObj<type
     },
   },
 };
+
+/**
+ * Templates of the order's data, as the server names them: a total of qoretechnologies/money and a due date of
+ * qoretechnologies/due, user types no type catalogue lists, each with the base type of its values (`base_type`), and
+ * a count, a whole number.
+ */
+const ORDER_TEMPLATES = buildTemplates({
+  order: {
+    display_name: 'Order',
+    items: [
+      {
+        display_name: 'Total',
+        value: '$local:total',
+        type: 'qoretechnologies/money',
+        base_type: 'number',
+        example_value: 120.5,
+      },
+      {
+        display_name: 'Due',
+        value: '$local:due',
+        type: 'qoretechnologies/due',
+        base_type: 'date',
+        example_value: '2026-07-01T00:00:00Z',
+      },
+      { display_name: 'Count', value: '$local:count', type: 'int', example_value: 3 },
+    ],
+  },
+});
+
+/** The names of the templates of `ORDER_TEMPLATES` the open list offers, in its (alphabetical) order. */
+const offeredOrderTemplates = (): string[] =>
+  [...document.querySelectorAll('.reqore-popover-content .reqore-menu-item')].map(
+    (item) =>
+      ['Total', 'Due', 'Count'].find((name) => item.textContent?.includes(name)) ??
+      item.textContent ??
+      ''
+  );
+
+export const ATemplateOfAnUnlistedTypeFitsAsItsBaseType: StoryObj<typeof meta> = {
+  args: {
+    component: Number,
+    type: 'number',
+    value: '$local:count',
+    allowTemplates: true,
+    templates: ORDER_TEMPLATES,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders TemplateField for a number holding the template Count, and opens its list of templates: it offers Count and Total, a template of qoretechnologies/money - a user type no type catalog lists, whose values are numbers by its base type; not Due, whose base type is a date. Total was not offered.",
+      },
+    },
+  },
+  async play({ canvasElement, parameters }) {
+    await atTheCaptureSize(parameters);
+    const selector = await waitFor(() => {
+      const el = canvasElement.querySelector<HTMLElement>('.template-selector.reqore-control');
+      expect(el, 'the template the field holds').toBeTruthy();
+      return el as HTMLElement;
+    });
+    await userEvent.click(selector);
+    await waitFor(() => expect(offeredOrderTemplates()).toEqual(['Count', 'Total']), {
+      timeout: 10000,
+    });
+  },
+};
+
+export const ATemplateOfAnUnlistedTypeFitsAsItsBaseTypeOnAPhone: StoryObj<typeof meta> = {
+  ...ATemplateOfAnUnlistedTypeFitsAsItsBaseType,
+  globals: onAPhone.globals,
+  parameters: {
+    ...onAPhone.parameters,
+    docs: {
+      description: {
+        story:
+          'The same field at phone width (390 px): the list offers Count, and Total by its base type.',
+      },
+    },
+  },
+};

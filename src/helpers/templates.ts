@@ -607,11 +607,13 @@ export const filterTemplatesByType = (
   const filterItems = (items: TReqoreDropdownItems = []): TReqoreDropdownItems => {
     return items?.reduce((newItems: TReqoreDropdownItem[], subItem): TReqoreDropdownItem[] => {
       const newSubItem = cloneDeep(subItem);
+      // a template of a type the catalogue does not list fits as its base type, as a field of one takes
       const isCompatible = areQorusTypesCompatible(
         fieldType,
         subItem.badge as string,
         types,
-        baseType
+        baseType,
+        subItem.metadata?.baseType
       );
 
       if (subItem.items) {
@@ -678,6 +680,11 @@ interface ITemplateItemPayload {
   value?: string;
   example_value?: unknown;
   type?: string;
+  /**
+   * The base data type of its values, which Qorus gives with every template (`string` for an email address): what
+   * a template of a type the catalogue does not list fits as (`filterTemplatesByType`).
+   */
+  base_type?: string;
   items?: ITemplateItemPayload[];
   data_role?: string;
   /** The values it is one of, written as a field's are; its hover lists them (`templateTooltip`). */
@@ -722,6 +729,7 @@ export const buildTemplates = (
         value,
         example_value,
         type,
+        base_type,
         items: childItems,
         data_role: itemDataRole,
         allowed_values,
@@ -755,6 +763,7 @@ export const buildTemplates = (
             app,
             action,
             dataRole: itemDataRole || dataRole,
+            ...(base_type ? { baseType: base_type } : {}),
           },
           value,
           flat: false,

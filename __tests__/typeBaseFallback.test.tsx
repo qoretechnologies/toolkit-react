@@ -20,7 +20,7 @@ import {
   useTypeName,
   useTypeSentenceForm,
 } from '../src/components/form/typeSentenceForm';
-import { filterTemplatesByType } from '../src/helpers/templates';
+import { buildTemplates, filterTemplatesByType } from '../src/helpers/templates';
 import {
   defaultQorusTypes,
   qorusTypeDisplayName,
@@ -91,6 +91,41 @@ describe('a type the catalogue does not list', () => {
     };
     const offered = filterTemplatesByType(templates, ORDER, false, defaultQorusTypes, 'hash');
     expect(offered.items?.[0]?.items?.map((item) => item.label)).toEqual(['Details']);
+  });
+
+  it('fits a field as its base type when a template is of it', () => {
+    // Qorus names the base type of every template's values (`base_type`), as it does a field's
+    const templates = buildTemplates({
+      order: {
+        display_name: 'Order',
+        items: [
+          {
+            display_name: 'Total',
+            value: '$local:total',
+            type: 'qoretechnologies/money',
+            base_type: 'number',
+          },
+          { display_name: 'Due', value: '$local:due', type: 'qoretechnologies/due', base_type: 'date' },
+          { display_name: 'Legacy', value: '$local:legacy', type: 'legacy-code' },
+        ],
+      },
+    });
+    const offered = (fieldType: string) =>
+      filterTemplatesByType(templates, fieldType, false, defaultQorusTypes).items?.[0]?.items?.map(
+        (item) => item.label
+      );
+    expect(offered('number')).toEqual(['Total']);
+    expect(offered('date')).toEqual(['Due']);
+    // a template of a type named by nothing fits only a field that takes anything
+    expect(offered('any')?.sort()).toEqual(['Due', 'Legacy', 'Total']);
+    expect(areQorusTypesCompatible('number', 'qoretechnologies/money', defaultQorusTypes)).toBe(false);
+    expect(
+      areQorusTypesCompatible('number', 'qoretechnologies/money', defaultQorusTypes, undefined, 'number')
+    ).toBe(true);
+    // a template of a type the catalogue lists is that type, whatever its base type
+    expect(areQorusTypesCompatible('number', 'string', defaultQorusTypes, undefined, 'number')).toBe(
+      false
+    );
   });
 
   it("is said in an option's words by its base type", () => {

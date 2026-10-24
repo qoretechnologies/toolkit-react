@@ -75,18 +75,22 @@ const normalizeAnyLikeTypeName = (name: string): string =>
 
 /**
  * Whether a value of `checkType` fits a place of `mainType`, by the type catalogue `types`: the server's answer
- * (`useQorusTypes().value`, or `getQorusTypes()` outside a component), reqraft's copy until it answers.
+ * (`useQorusTypes().value`, or `getQorusTypes()` outside a component), reqraft's copy until it answers. A type the
+ * catalogue does not list is its base type, `mainBaseType` for the place's and `checkBaseType` for the value's
+ * (`qorusTypeEntry`).
  */
 export const areQorusTypesCompatible = (
   mainType: string | string[],
   checkType: string | string[],
   types: IQorusTypeObject[] = getQorusTypes(),
-  mainBaseType?: string
+  mainBaseType?: string,
+  checkBaseType?: string
 ): boolean => {
   const mainTypes = (isArray(mainType) ? mainType : [mainType]).map(normalizeAnyLikeTypeName);
-  // a value's type by the name the catalogue lists it under (`*int`, `softint`: `int`)
+  // a value's type by the name the catalogue lists it under (`*int`, `softint`: `int`), else by its base type's
   const checkTypes = (isArray(checkType) ? checkType : [checkType]).map(
-    (check) => qorusTypeEntry(types, check)?.name ?? normalizeAnyLikeTypeName(check)
+    (check) =>
+      qorusTypeEntry(types, check, checkBaseType)?.name ?? normalizeAnyLikeTypeName(check)
   );
   // Get each of the main types from the types list
   for (const main of mainTypes) {
