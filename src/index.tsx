@@ -80,6 +80,21 @@ export * from './components/ticketReferences';
 export * from './components/searchFilterBar';
 export * from './components/codeSize';
 export * from './components/colorValue';
+// The Qorus type catalogue: the built-in copy of GET /system/qorus-type-info, what a type is called and takes
+// (`qorusTypeEntry`: by its name, an optional, soft or complex form of one, or its base type), and what a picker
+// that lists every type offers (qorus#646).
+export {
+  defaultQorusTypes,
+  getQorusTypes,
+  offeredQorusTypes,
+  qorusTypeDisplayName,
+  qorusTypeEntry,
+  qorusTypeSentenceForm,
+  UNKNOWN_TYPE_NAME,
+  useQorusTypes,
+} from './hooks/useQorusTypes';
+export type { IQorusTypeObject, IUseTypes } from './hooks/useQorusTypes';
+
 // First-party tracking, consent and A/B testing (design/TRACKING.md). Also importable
 // on its own, without the rest of Reqraft: `@qoretechnologies/reqraft/dist/tracking`
 // (the engine, React only) and `@qoretechnologies/reqraft/dist/tracking/ui` (the A/B test UI).
