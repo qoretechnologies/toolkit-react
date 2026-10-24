@@ -131,6 +131,19 @@ describe('a type the catalogue does not list', () => {
   it("is said in an option's words by its base type", () => {
     const option = { type: ORDER, base_type: 'hash' };
     expect(optionTypeWords(option, builtInTypeName)).toBe('Key-value pairs (hash)');
+    // a list's elements by theirs
+    expect(
+      optionTypeWords(
+        { type: 'list', ui_element_type: 'email', element_base_type: 'string' },
+        builtInTypeName
+      )
+    ).toBe('List (Email address)');
+    expect(
+      optionTypeWords(
+        { type: 'list', ui_element_type: 'qoretechnologies/order-ref', element_base_type: 'string' },
+        builtInTypeName
+      )
+    ).toBe('List (Text)');
     expect(optionTypeSentence(option, builtInTypeName, builtInTypeSentenceForm)).toBe(
       'key-value pairs (a hash)'
     );

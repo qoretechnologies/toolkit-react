@@ -21,11 +21,16 @@ vi.mock('../src/components/form/fields/long-string/LongString', () => ({
 }));
 
 import { AutoFormField, IAutoFieldProps } from '../src/components/form/fields/auto/AutoFormField';
+import { FetchContext } from '../src/contexts/FetchContext';
+import { emptyFetchContext } from './support/fetchContext';
 
+// a list's elements are template fields, which fetch the type catalogue
 const field = (props: Partial<IAutoFieldProps>) =>
   render(
     <ReqoreUIProvider>
-      <AutoFormField name='field' onChange={vi.fn()} {...props} />
+      <FetchContext.Provider value={emptyFetchContext()}>
+        <AutoFormField name='field' onChange={vi.fn()} {...props} />
+      </FetchContext.Provider>
     </ReqoreUIProvider>
   );
 
@@ -80,6 +85,32 @@ describe('a field of a type the auto field has no editor of', () => {
     });
 
     expect(screen.getByText('Unknown type!')).toBeTruthy();
+  });
+
+  it("edits a list's elements as their base type: a list of email addresses", () => {
+    field({
+      type: 'list',
+      defaultType: 'list',
+      ui_element_type: 'email' as never,
+      element_base_type: 'string',
+      value: ['ops@example.com', 'billing@example.com'],
+    });
+
+    expect(screen.queryByText('Unknown type!')).toBeNull();
+    expect(drawn.longString.map((props) => props.value)).toEqual(
+      expect.arrayContaining(['ops@example.com', 'billing@example.com'])
+    );
+  });
+
+  it("is unknown in a list whose elements' type has no base type", () => {
+    field({
+      type: 'list',
+      defaultType: 'list',
+      ui_element_type: 'legacy-code' as never,
+      value: ['A7'],
+    });
+
+    expect(screen.getAllByText('Unknown type!').length).toBeGreaterThan(0);
   });
 
   it('keeps the editor of a type it has one of, whatever its base type', () => {

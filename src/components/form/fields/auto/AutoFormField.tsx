@@ -84,6 +84,11 @@ export interface IAutoFieldProps
    */
   base_type?: string;
   /**
+   * The base data type of a list's elements, which Qorus gives with every list field (`string` for a list of email
+   * addresses): an element of a type this field has no editor of is edited as its base type.
+   */
+  element_base_type?: string;
+  /**
    * The value changed. The fourth argument says whether it is an expression, as every field's `onChange` does
    * (TemplateField, the form engine and the expression builder read it so): a value this field edits itself is not
    * one; a host editor (`componentOverrides`) says for its own.
@@ -224,6 +229,8 @@ function AutoField<T = any>({
   type,
   // read by the editor choice alone; destructured so it does not land on the editors' DOM through `...rest`
   base_type,
+  // a list's elements' base type, handed to each element's field as its `base_type`
+  element_base_type,
   // Inert (deprecated); destructured so it does not land in `...rest`.
   noSoft, // eslint-disable-line @typescript-eslint/no-unused-vars
   path,
@@ -926,6 +933,8 @@ function AutoField<T = any>({
                 allowed_values={rest.element_allowed_values}
                 allowed_values_creatable={rest.element_allowed_values_creatable}
                 type={effectiveElementType}
+                // each element of a type with no editor is edited as its base type (qorus#646)
+                base_type={element_base_type}
                 // Propagate compact into every row, exactly as the `hash` case
                 // above does for a single sub-form. `compact` is destructured
                 // out of `rest`, so without this each row's AutoFormField saw

@@ -518,16 +518,24 @@ export const builtInTypeLabel: TTypeLabel = (typeName, baseType) =>
  */
 export const optionTypeWords = (
   schema:
-    | { type?: unknown; ui_type?: unknown; ui_element_type?: unknown; base_type?: unknown }
+    | {
+        type?: unknown;
+        ui_type?: unknown;
+        ui_element_type?: unknown;
+        base_type?: unknown;
+        element_base_type?: unknown;
+      }
     | undefined,
   typeName: TTypeName
 ): string | undefined => {
   const baseType = typeof schema?.base_type === 'string' ? schema.base_type : undefined;
+  const elementBaseType =
+    typeof schema?.element_base_type === 'string' ? schema.element_base_type : undefined;
   const named = (type: unknown, base?: string) =>
     typeof type === 'string' ? typeName(type, base) : undefined;
-  // a type no catalogue entry names is the kind of value its base type is
+  // a type no catalogue entry names is the kind of value its base type is; a list's elements, theirs
   const kind = named(schema?.ui_type) ?? named(schema?.type, baseType);
-  const element = named(schema?.ui_element_type);
+  const element = named(schema?.ui_element_type, elementBaseType);
   return kind && element ? `${kind} (${element})` : kind;
 };
 

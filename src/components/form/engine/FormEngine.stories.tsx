@@ -12991,6 +12991,105 @@ export const AFieldOfATypeWithNoEditorIsEditedAsItsBaseTypeOnAPhone: Story = {
   },
 };
 
+/** Lists of types the form has no editor of, email addresses and order references, with their elements' base type. */
+const ELEMENT_BASE_TYPE_OPTIONS = {
+  recipients: {
+    type: 'list',
+    ui_element_type: 'email',
+    element_base_type: 'string',
+    display_name: 'Recipients',
+    short_desc: 'Who hears about the payment.',
+  },
+  order_refs: {
+    type: 'list',
+    ui_element_type: 'qoretechnologies/order-ref',
+    element_base_type: 'string',
+    display_name: 'Order references',
+    short_desc: 'The orders the payment is for.',
+  },
+} as never;
+
+export const AListOfATypeWithNoEditorIsEditedAsItsElementsBaseType: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Renders a form whose Recipients is a list of email addresses and whose Order references is a list of qoretechnologies/order-ref, a user type; the elements of both are text by their base type. With all field information shown they say List (Email address) and List (Text), and each opens on a text field for every element, holding its value, where every element said \"Unknown type!\".",
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    value: {
+      recipients: {
+        type: 'list',
+        value: [
+          { type: 'email', value: 'ops@example.com' },
+          { type: 'email', value: 'billing@example.com' },
+        ],
+      },
+      order_refs: {
+        type: 'list',
+        value: [{ type: 'qoretechnologies/order-ref', value: 'SO-1042' }],
+      },
+    },
+    options: ELEMENT_BASE_TYPE_OPTIONS,
+  },
+  play: async ({ parameters }) => {
+    await atTheCaptureSize(parameters);
+    await waitFor(() => expect(optionRow('recipients')).toBeTruthy(), { timeout: 10000 });
+    // named by the catalogue, a list's elements by their base type
+    await userEvent.click(document.querySelector('.options-readfirst-descriptions') as HTMLElement);
+    await waitFor(() =>
+      expect(optionRow('recipients')?.querySelector('.options-readfirst-type')?.textContent).toBe(
+        'List (Email address)'
+      )
+    );
+    expect(optionRow('order_refs')?.querySelector('.options-readfirst-type')?.textContent).toBe(
+      'List (Text)'
+    );
+    // each element edited as text, its base type: an element's text field takes templates, so it is the editor
+    // that writes them as chips
+    for (const [field, values] of [
+      ['order_refs', ['SO-1042']],
+      ['recipients', ['ops@example.com', 'billing@example.com']],
+    ] as const) {
+      const row = await editOption(field);
+      await waitFor(() =>
+        expect(
+          [...row.querySelectorAll<HTMLElement>('[data-slate-editor]')].map((editor) =>
+            editor.textContent?.trim()
+          )
+        ).toEqual(expect.arrayContaining([...values]))
+      );
+      expect(row.textContent).not.toContain('Unknown type');
+    }
+  },
+};
+
+export const AListOfATypeWithNoEditorIsEditedAsItsElementsBaseTypeOnAPhone: Story = {
+  ...AListOfATypeWithNoEditorIsEditedAsItsElementsBaseType,
+  globals: { viewport: { value: 'phone' } },
+  parameters: {
+    viewport: {
+      options: {
+        phone: {
+          name: 'Phone',
+          styles: { width: `${PHONE_VIEWPORT.width}px`, height: `${PHONE_VIEWPORT.height}px` },
+        },
+      },
+    },
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'The same form at phone width (390 px): the lists say List (Email address) and List (Text), and each element opens on a text field holding its value.',
+      },
+    },
+  },
+};
+
 export const ALoneFieldReadsAsTheFieldInEveryView: Story = {
   parameters: {
     docs: {
