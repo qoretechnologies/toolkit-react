@@ -193,6 +193,12 @@ const isErrorDiagnostic = (diagnostic: { severity?: number | string }): boolean 
 /** What the server says of a condition as a condition: drawn by the builder, on the cards it is about. */
 const CONDITION_DIAGNOSTIC_CODES = ['NOT_A_CONDITION', 'CONDITION_BY_TRUTHINESS'];
 
+/** Writes an expression as DPQL text (`dpql/serialize`) through the session given. */
+type TWriteExpression = (
+  expression: IExpressionValue,
+  write: (expression: IExpressionValue) => Promise<string>
+) => Promise<string>;
+
 /**
  * What the server says of an expression built in the Visual view: its errors, in its words, at the danger
  * intent. It writes the expression as DPQL (`dpql/serialize`) and reads it back (`dpql/parse`) on a document
@@ -211,8 +217,11 @@ const ExpressionServerErrors = memo(
     recordType,
     condition,
     onConditionParts,
+    writeExpression,
   }: {
     expression: IExpressionValue;
+    /** The field's writing of an expression as text, which the Text view shares (`ExpressionField`). */
+    writeExpression: TWriteExpression;
     fields?: TDpqlFields;
     provider?: string;
     recordType?: string;
@@ -241,7 +250,7 @@ const ExpressionServerErrors = memo(
         let parts: IDpqlParseResult['parts'];
         let whole: string | undefined;
         try {
-          const text = await serialize(JSON.parse(expressionKey));
+          const text = await writeExpression(JSON.parse(expressionKey), serialize);
           if (text) {
             const result = await parse(
               text,
@@ -277,7 +286,7 @@ const ExpressionServerErrors = memo(
       return () => {
         cancelled = true;
       };
-    }, [ready, expressionKey, serialize, parse, condition, onConditionParts]);
+    }, [ready, expressionKey, serialize, parse, condition, onConditionParts, writeExpression]);
 
     if (!errors.length) return null;
     return (
@@ -446,6 +455,39 @@ export const ExpressionField = memo(
       message?: string;
     } | null>(null);
     const dpqlRef = useRef<IDpqlEditorRef>(null);
+    /*
+     * The field's writing of its latest expression as text, shared by its two views: the Visual view has the server
+     * write what it builds to check it, and the Text view opens on the same writing rather than asking the server
+     * for it again. Entering the Text view while the Visual view's check was on its way asked twice
+     * (qorus#646). An answer with no text (no session yet) or a refusal is not kept: the next asks again.
+     */
+    const writtenRef = useRef<{ key: string; text: Promise<string> }>();
+    const writeExpression = useCallback<TWriteExpression>((expression, write) => {
+      const key = JSON.stringify(expression);
+      const written = writtenRef.current;
+      if (written?.key === key) {
+        return written.text;
+      }
+      const forget = () => {
+        if (writtenRef.current?.key === key) {
+          writtenRef.current = undefined;
+        }
+      };
+      const text = write(expression).then(
+        (result) => {
+          if (!result) {
+            forget();
+          }
+          return result;
+        },
+        (error: unknown) => {
+          forget();
+          throw error;
+        }
+      );
+      writtenRef.current = { key, text };
+      return text;
+    }, []);
     const parseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     /** The text typed whose parse is still waiting on the debounce, or null. */
     const pendingParse = useRef<string | null>(null);
@@ -786,7 +828,11 @@ export const ExpressionField = memo(
       const seed = async (): Promise<void> => {
         let t: string | undefined;
         try {
-          t = await dpqlRef.current?.serialize?.(seedAst);
+          const editor = dpqlRef.current;
+          t =
+            editor?.serialize ?
+              await writeExpression(seedAst, (expression) => editor.serialize!(expression))
+            : undefined;
         } catch (error) {
           if (cancelled || userTypedRef.current) return;
           setTextRefused(String((error as { message?: unknown })?.message ?? error));
@@ -814,7 +860,17 @@ export const ExpressionField = memo(
       return () => {
         cancelled = true;
       };
-    }, [mode, ast, expressions, targetType, parseOptions, condition, readTypeCheck, sessionReady]);
+    }, [
+      mode,
+      ast,
+      expressions,
+      targetType,
+      parseOptions,
+      condition,
+      readTypeCheck,
+      sessionReady,
+      writeExpression,
+    ]);
 
     /** The field's templates, its catalogue's entries, for the Text view's picker. */
     const templateItems = useMemo(
@@ -1110,6 +1166,7 @@ export const ExpressionField = memo(
                 recordType={recordType}
                 condition={condition}
                 onConditionParts={condition ? onConditionParts : undefined}
+                writeExpression={writeExpression}
               />
             : null}
           </>
