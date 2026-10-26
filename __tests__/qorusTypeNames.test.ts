@@ -12,7 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import { getImmediateValueTypes } from '../src/components/form/fields/auto/AutoFormField';
 import { conditionErrorText } from '../src/helpers/expressions';
-import { defaultQorusTypes } from '../src/hooks/useQorusTypes';
+import { compactQorusTypes, defaultQorusTypes } from '../src/hooks/useQorusTypes';
 import recorded from './fixtures/qorusTypeInfo.json';
 
 /** The server catalogue's names for each type: its display name (a label) and its sentence form. */
@@ -101,6 +101,25 @@ describe('the words that name a type before the server answers', () => {
     const name = defaultQorusTypes.find((type) => type.name === 'string')!.sentence_form!;
     expect(conditionErrorText(name, 'string')).toMatch(
       /^The condition evaluates to text, but it must evaluate to true or false\./
+    );
+  });
+});
+
+describe("a value's own type menu", () => {
+  // the server's catalogue lists richtext after the Qorus object types: the menu keeps text first all the same
+  it('lists text first, then the other types in its own order, whatever order the server lists them in', () => {
+    const menu = compactQorusTypes(recorded as any).map((type) => [type.name, type.display_name]);
+    expect(menu).toEqual([
+      ['richtext', 'Text'],
+      ['float', 'Number'],
+      ['bool', 'True or false'],
+      ['date', 'Date'],
+      ['binary', serverName.binary],
+      ['hash', serverName.hash],
+      ['list', serverName.list],
+    ]);
+    expect(compactQorusTypes([...defaultQorusTypes].reverse()).map((type) => type.name)).toEqual(
+      menu.map(([name]) => name)
     );
   });
 });

@@ -1,7 +1,7 @@
 import { size } from 'lodash';
 import { useCallback, useEffect, useMemo } from 'react';
 import {
-  compactTypesList,
+  compactQorusTypes,
   defaultQorusTypes,
   IQorusTypeObject,
   offeredQorusTypes,
@@ -14,6 +14,7 @@ import { useFetch } from './useFetch/useFetch';
 
 // the catalogue and its names are the hook's public API as they always were
 export {
+  compactQorusTypes,
   compactTypesList,
   defaultQorusTypes,
   getQorusTypes,
@@ -93,7 +94,7 @@ export const useQorusTypes = (): IUseTypes => {
       error,
       retry: load,
       value,
-      compactValue: value?.filter((t) => compactTypesList.includes(t.name as string)),
+      compactValue: compactQorusTypes(value),
       getAcceptedTypes,
       getExactMatches,
       getTypeDisplayName,

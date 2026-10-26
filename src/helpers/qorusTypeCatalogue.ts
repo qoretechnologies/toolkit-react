@@ -27,7 +27,16 @@ export interface IQorusTypeObject {
   offered?: boolean;
 }
 
-export const compactTypesList = ['richtext', 'float', 'hash', 'list', 'bool', 'date', 'binary'];
+/**
+ * The types a value's own type menu offers ("Set Custom Value"), in the order it lists them: text first. The menu
+ * follows this order, not the catalogue's, so the server moving a type in its catalogue does not move it in the menu
+ * (richtext, which follows the Qorus object types in the catalogue since qorus ed0f9ba62).
+ */
+export const compactTypesList = ['richtext', 'float', 'bool', 'date', 'binary', 'hash', 'list'];
+
+/** The types `compactTypesList` names, in its order, as the catalogue describes them; one it lacks is left out. */
+export const compactQorusTypes = (types: IQorusTypeObject[] | undefined): IQorusTypeObject[] =>
+  compactTypesList.flatMap((name) => types?.find((type) => type.name === name) ?? []);
 
 /**
  * reqraft's copy of the server's type catalogue (GET /system/qorus-type-info), used until the server answers: the
