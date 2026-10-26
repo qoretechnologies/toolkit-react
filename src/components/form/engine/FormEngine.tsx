@@ -4224,6 +4224,17 @@ const FormEngineImpl = ({
                       const orderedRows: TRowEntry[] = groupsInBox.flatMap(
                         (groupName) => buckets[box.key][groupName] || []
                       );
+                      // The number in the box's header counts the rows whose value
+                      // belongs in it NOW. A field being edited keeps its box until it
+                      // is left (so it does not jump away under the caret), and it used
+                      // to keep its count too: a box read "To fill in 1" while its last
+                      // field already had a value and the host's submit read ready.
+                      const headerCount =
+                        readOnly ? count : (
+                          orderedRows.filter(
+                            (entry) => getOptionBucket(entry.name, entry.hidden) === box.key
+                          ).length
+                        );
                       // Optional's own rule first: a box opened solely to reveal
                       // preselected rows offers those, not an arbitrary first-N.
                       const candidateRows =
@@ -4347,25 +4358,29 @@ const FormEngineImpl = ({
                                 <ReqoreP effect={{ weight: 'bold' }} size='normal'>
                                   {box.label}
                                 </ReqoreP>
-                                <ReqoreSpan
-                                  className='options-readfirst-group-count'
-                                  size='small'
-                                  effect={{ opacity: 0.65 }}
-                                >
-                                  {count}
-                                </ReqoreSpan>
+                                {headerCount ?
+                                  <ReqoreSpan
+                                    className='options-readfirst-group-count'
+                                    size='small'
+                                    effect={{ opacity: 0.65 }}
+                                  >
+                                    {headerCount}
+                                  </ReqoreSpan>
+                                : null}
                               </StyledGroupHeader>
                             : <StyledGroupHeader>
                                 <ReqoreP effect={{ weight: 'bold' }} size='normal'>
                                   {box.label}
                                 </ReqoreP>
-                                <ReqoreTag
-                                  size='small'
-                                  minimal
-                                  compact
-                                  intent={box.intent}
-                                  label={String(count)}
-                                />
+                                {headerCount ?
+                                  <ReqoreTag
+                                    size='small'
+                                    minimal
+                                    compact
+                                    intent={box.intent}
+                                    label={String(headerCount)}
+                                  />
+                                : null}
                               </StyledGroupHeader>
                           }
                           icon={calm ? undefined : box.icon}

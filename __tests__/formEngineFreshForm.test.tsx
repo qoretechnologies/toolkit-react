@@ -179,6 +179,63 @@ describe('a new form', () => {
     expect(document.activeElement).toBe(input);
   });
 
+  /* A field being typed in keeps its box until it is left, so it does not jump away
+     under the caret. Its box's count follows its value, though: the box read "To fill
+     in 1" while its last field already had a value and the host's submit read ready. */
+  it('counts a box by what its fields hold now, also while one is being typed in', async () => {
+    const user = userEvent.setup();
+    const onAttentionChange = vi.fn();
+    const ONE_REQUIRED = {
+      title: { type: 'string', ui_type: 'string', display_name: 'Title', required: true },
+    } as never;
+    const Controlled = () => {
+      const [value, setValue] = useState<Record<string, unknown>>({});
+      return (
+        <ReqoreUIProvider>
+          <FetchContext.Provider value={fetchContext}>
+            <FormEngine
+              compact
+              name='iface'
+              value={value as never}
+              options={ONE_REQUIRED}
+              expandFirstRequired={false}
+              initialExpandedOptions={['title']}
+              onAttentionChange={onAttentionChange}
+              onChange={(_name, next) => setValue((next ?? {}) as Record<string, unknown>)}
+            />
+          </FetchContext.Provider>
+        </ReqoreUIProvider>
+      );
+    };
+    render(<Controlled />);
+    const boxHeader = () =>
+      Array.from(document.querySelectorAll<HTMLElement>('.options-readfirst-group')).find((box) =>
+        box.textContent?.includes('To fill in')
+      );
+    await waitFor(() => expect(boxHeader()).toBeTruthy());
+    expect(boxHeader()!.textContent).toMatch(/To fill in\s*1/);
+    const input = await waitFor(() => {
+      const found = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        '[data-field="title"] input, [data-field="title"] textarea'
+      );
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await user.click(input);
+    await user.keyboard('Order sync');
+
+    // Still open, still in its box…
+    expect(input.isConnected).toBe(true);
+    expect(boxHeader()).toBeTruthy();
+    // …but the box no longer counts it, and agrees with what the host is told.
+    await waitFor(() =>
+      expect(onAttentionChange).toHaveBeenLastCalledWith({ count: 0, faults: 0 })
+    );
+    // The header is the box's name with no number after it (a tag, or a quiet count in
+    // the calm look).
+    expect(boxHeader()!.textContent).not.toMatch(/To fill in\s*\d/);
+  });
+
   /* "N to fill in →" shows only those fields: a toggle a keyboard reaches, which says
      whether it is on, so a host turning it on for a person never turns it off again. */
   it('offers "N to fill in →" as a toggle that says whether it is on', async () => {
