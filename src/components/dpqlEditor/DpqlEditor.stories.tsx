@@ -24,8 +24,37 @@ import {
 } from '../../stories/mouse';
 import { withTouchScreen } from '../../stories/touchScreen';
 import { PHONE_VIEWPORT } from '../../stories/tracking';
+import { buildTemplates, ITemplatesPayload } from '../../helpers/templates';
+import { templates as contextTemplates } from '../form/fields/template/__fixtures__/templateFixtures';
 
 let lsp: IMockLspServer;
+
+/**
+ * The data the bound Qog's states give, as the server computes it when a Qog is bound (`dpql/setFsmContext`,
+ * `FsmsRestClassV8::doComputeStateData`) and serves it at `fsms?action=getStateData`: keyed by state, each item
+ * with the template that gives it.
+ */
+const QOG_STATE_DATA: ITemplatesPayload = {
+  receive_order: {
+    display_name: 'Receive order',
+    short_desc: 'The order that started the Qog',
+    items: [
+      { display_name: 'Order ID', type: 'int', value: '$data:{receive_order.order_id}' },
+      { display_name: 'User name', type: 'string', value: '$data:{receive_order.user_name}' },
+      { display_name: 'Event type', type: 'string', value: '$data:{receive_order.event_type}' },
+    ],
+  },
+};
+
+/** A Qog state's data item's key, from the template that gives it: `order_id` of `$data:{receive_order.order_id}`. */
+const stateDataKey = (value?: string) => /\.([^.}]+)\}$/.exec(value ?? '')?.[1] ?? '';
+
+/**
+ * The templates a host gives a DPQL field in a Qog state, as a Qog state's other fields have them: its context data
+ * (`system?action=getContextData`) and the data of the Qog's states before it (`fsms?action=getStateData`), nested
+ * as their catalogue nests them.
+ */
+const QOG_FIELD_TEMPLATES = buildTemplates({ _context: contextTemplates._context, ...QOG_STATE_DATA });
 
 /** The record the stories' server describes (`dpql/setContext`): what a field's hover says of it. */
 const STORY_RECORD_FIELDS = {
@@ -82,10 +111,9 @@ const meta = {
     if (context.parameters?.live) {
       return undefined;
     }
-    // Captured from the most recent `dpql/setFsmContext`; surfaced inside
-    // a `$data:` template, mirroring the real server where `$data:{…}`
-    // resolves against the bound FSM state.
-    let fsmStateDataKeys: string[] = [];
+    // The bound Qog's state data, from the most recent `dpql/setFsmContext`: what `$data:` completes, as the real
+    // server completes it from the state data it computed when the Qog was bound.
+    let fsmStateData: ITemplatesPayload = {};
     lsp = createMockLspServer(MOCK_LSP_URL, {
       capabilities: {
         ...DEFAULT_LSP_CAPABILITIES,
@@ -120,7 +148,7 @@ const meta = {
           // `$data:` with a bound FSM context resolves against the FSM
           // state — surface its data keys.
           const inFsmDataTemplate =
-            sigilToken.startsWith('$data:') && fsmStateDataKeys.length > 0;
+            sigilToken.startsWith('$data:') && Object.keys(fsmStateData).length > 0;
 
           const FIELD_ITEMS = [
             {
@@ -237,18 +265,33 @@ const meta = {
             },
           ];
 
-          // FSM state-data keys from `dpql/setFsmContext`, surfaced inside
-          // `$data:` when a context is bound.
-          const FSM_DATA_KEY_ITEMS = fsmStateDataKeys.map((key) => ({
-            label: key,
-            insertText: key,
-            kind: 5, // Field
-            detail: 'Qog state data',
-            documentation: {
-              kind: 'plaintext',
-              value: `\`${key}\` — resolved from the bound Qog state.`,
-            },
-          }));
+          /* The bound Qog's state data inside `$data:`, as the real server lists it (Qorus
+             QorusClientServer::getTemplateValues, DataProvider getTemplateValueCompletions): the states first, then,
+             after `<state>.`, that state's data. Each is the whole reference it is written as - `$data:<state>` or
+             `$data:<state>.<key>` - so a pick is written as its chip; its label is its name, and a value's detail
+             its type. */
+          const afterData = sigilToken.slice('$data:'.length);
+          const dot = afterData.indexOf('.');
+          const FSM_DATA_KEY_ITEMS =
+            dot < 0 ?
+              Object.entries(fsmStateData).map(([state, info]) => ({
+                label: info.display_name ?? `$data:${state}`,
+                insertText: `$data:${state}`,
+                filterText: `$data:${state}`,
+                kind: 6, // a template, as the server's kind for one
+                documentation: { kind: 'plaintext', value: info.short_desc ?? info.display_name },
+              }))
+            : (fsmStateData[afterData.slice(0, dot)]?.items ?? []).map((item) => {
+                const raw = `$data:${afterData.slice(0, dot)}.${stateDataKey(item.value)}`;
+                return {
+                  label: item.display_name ?? raw,
+                  insertText: raw,
+                  filterText: raw,
+                  kind: 6,
+                  detail: item.type === 'int' ? 'Whole number' : 'Text',
+                  documentation: { kind: 'plaintext', value: `Qog state data: ${item.display_name}` },
+                };
+              });
 
           const items = inFsmDataTemplate
             ? FSM_DATA_KEY_ITEMS
@@ -305,14 +348,13 @@ const meta = {
               : msg.params?.fsmid
                 ? 'published'
                 : 'cleared';
-          const stateDataKeys = ['order_id', 'user_name', 'event_type'];
-          // Keep the keys while bound so completions can surface them in
-          // `$data:`; a cleared binding drops them.
-          fsmStateDataKeys = sourceType === 'cleared' ? [] : stateDataKeys;
+          // the state data of the bound Qog while it is bound; a cleared binding has none
+          fsmStateData = sourceType === 'cleared' ? {} : QOG_STATE_DATA;
           return {
             source_type: sourceType,
             current_state: msg.params?.current_state ?? null,
-            state_data_keys: stateDataKeys,
+            // the states that give data, as the real server answers
+            state_data_keys: Object.keys(fsmStateData),
           };
         },
 
@@ -1087,48 +1129,158 @@ export const WithFsmContext: Story = {
     provider: 'datasource:omq/table/orders',
     recordType: 'record',
     fsmContext: { fsmId: 42, currentState: 'process_order' },
+    // what a Qog host gives the field, as a Qog state's other fields have it
+    templates: QOG_FIELD_TEMPLATES,
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Composes provider context (`@field` completions) with Qog ' +
-          'context. Typing a `$data:` template surfaces the bound Qog ' +
-          "state's data keys (`order_id`, `user_name`, `event_type`), each " +
-          'described as "Qog state data" — ' +
-          'the distinctive payload of `fsmContext`. The mock answers ' +
-          '`dpql/setFsmContext` with `source_type: "published"` and that ' +
-          'key list, then returns the keys as completions inside `$data:`.',
+          'Renders a DPQL field in a Qog state: record fields (`@`), the bound Qog\'s state data and the field\'s ' +
+          'templates - its context data and the data of the state before it - with the picker beside the text that ' +
+          "browses them as they nest. Typing `$data:receive_order.` lists that state's data only: Order ID (a " +
+          'whole number), User name and Event type (text), each the whole reference it is written as.',
       },
     },
   },
-  // Open the `$data:` template so the snapshot shows the FSM-driven
-  // state-data keys — this is what makes the story self-explanatory in
-  // Chromatic and answers "which template is the FSM context": `$data:`.
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const editable = canvas.getByRole('textbox');
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.type(editable, '$data:receive_order.');
     await waitFor(
       () => {
-        expect(document.body.textContent).not.toContain('Connecting to language server');
-        expect(document.body.textContent).not.toContain('Loading schema');
+        const listed = completionListed().join(' | ');
+        expect(listed).toContain('Order ID');
+        expect(listed).toContain('User name');
+        expect(listed).toContain('Event type');
+        expect(listed).toContain('Whole number');
+        // a user reads Qog, never FSM
+        expect(listed).not.toMatch(/FSM/);
       },
       { timeout: 30000 }
     );
+    expect(canvasElement.querySelector('.dpql-template-browser'), 'the picker beside the text').toBeTruthy();
+  },
+};
+
+/** The rows of the completion list open at the editor's caret. */
+const completionListed = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu .reqore-menu-item')
+  ).map((row) => row.textContent?.trim() ?? '');
+
+/** The completion list's row that reads `label`. */
+const completionRow = (label: string) =>
+  waitFor(
+    () => {
+      const row = Array.from(
+        document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu .reqore-menu-item')
+      ).find((each) => each.textContent?.includes(label));
+      expect(row, `the row ${label}`).toBeTruthy();
+      return row!;
+    },
+    { timeout: 30000 }
+  );
+
+/**
+ * A Qog state's data picked from the list after `$data:` is written as its chip, the whole reference: it was
+ * written as its bare key (`order_id`), plain text the server cannot read (qorus#646, David's review).
+ */
+export const AStateDataPickIsWrittenAsItsChip: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a DPQL field in a Qog state, types `$data:receive_order.` and picks Order ID from the list, ' +
+          "which offers that state's data only: the text is the one chip for the whole reference " +
+          '($data:{receive_order.order_id}), and no plain text is left - not the bare key order_id.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
-    await userEvent.type(editable, '$data:');
+    await userEvent.type(editable, '$data:receive_order.');
+    // the list as it stays: the server's answer is in it (Event type, which no template is), not drawn again
+    await completionRow('Event type');
+    await userEvent.click(await completionRow('Order ID'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{?receive_order\.order_id\}?\s*$/)
+      )
+    );
+    await waitFor(() => expect(editable.querySelectorAll('.reqore-tag')).toHaveLength(1));
+    // nothing but the chip: no bare key written as text
+    const text = Array.from(editable.querySelectorAll<HTMLElement>('[data-slate-string]'))
+      .map((node) => node.textContent ?? '')
+      .join('')
+      .replace(/\uFEFF/g, '')
+      .trim();
+    expect(text).toBe('');
+  },
+};
+
+/**
+ * A click in the empty field lists its templates - its context data and the Qog state data - and the picker beside
+ * it browses them as their catalogue nests them, as a Qog field's are (qorus#646, David's review: a click offered
+ * nothing).
+ */
+export const AClickListsTheFieldsTemplates: Story = {
+  args: { ...WithFsmContext.args },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an empty DPQL field in a Qog state and clicks in it: the list offers its templates, each with ' +
+          'the group it is in - its context data and the data of the state Receive order (Order ID, User name, ' +
+          'Event type) - with the functions that can be written there.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
     await waitFor(
       () => {
-        const dropdown = document.querySelector('.reqore-menu');
-        expect(dropdown).not.toBeNull();
-        // FSM state-data keys (from the bound fsmContext), NOT the generic
-        // template namespaces — proves the FSM binding drives these completions.
-        expect(dropdown!.textContent).toContain('order_id');
-        expect(dropdown!.textContent).toContain('user_name');
-        expect(dropdown!.textContent).toContain('event_type');
-        // a user reads Qog, never FSM
-        expect(dropdown!.textContent).toContain('Qog state data');
-        expect(dropdown!.textContent).not.toMatch(/FSM/);
+        const listed = completionListed().join(' | ');
+        expect(listed).toContain('Order ID');
+        expect(listed).toContain('Receive order');
+        expect(listed).toContain('Context Data');
+      },
+      { timeout: 30000 }
+    );
+  },
+};
+
+/** The picker beside the text opens the field's templates as their catalogue nests them: its groups first. */
+export const ThePickerBrowsesTheFieldsTemplates: Story = {
+  args: { ...WithFsmContext.args },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders an empty DPQL field in a Qog state and opens the picker beside the text: it lists the ' +
+          'field\'s templates by their groups, Context Data and the state Receive order, as a Qog field\'s ' +
+          'template list does; a group opens into its members.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    await readyEditor(canvasElement);
+    const picker = await waitFor(() => {
+      const button = canvasElement.querySelector<HTMLElement>('.dpql-template-browser');
+      expect(button, 'the picker beside the text').toBeTruthy();
+      return button!;
+    });
+    await userEvent.click(picker);
+    await waitFor(
+      () => {
+        const rows = Array.from(
+          document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')
+        ).map((row) => row.textContent ?? '');
+        expect(rows.some((row) => row.includes('Context Data'))).toBe(true);
+        expect(rows.some((row) => row.includes('Receive order'))).toBe(true);
       },
       { timeout: 30000 }
     );

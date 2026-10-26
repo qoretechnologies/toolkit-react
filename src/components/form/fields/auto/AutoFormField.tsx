@@ -534,6 +534,10 @@ function AutoField<T = any>({
         value={typeof value === 'string' ? value : value == null ? '' : String(value)}
         onChange={(next) => handleChange(name, next, 'string')}
         readOnly={rest.readonly || rest.disabled}
+        /* the field's templates, as every other field of the form has them (its context data, a Qog state's
+           data): a click in the field lists them as their catalogue nests them, and names their chips. They
+           were left out, so a DPQL field offered no template until a `$` was typed (qorus#646, David's review) */
+        templates={rest.allowTemplates !== false && size(rest.templates?.items) ? rest.templates : undefined}
       />
     );
   }

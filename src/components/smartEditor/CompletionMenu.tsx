@@ -139,6 +139,10 @@ const CompletionMenuItem = memo(
         active={isFocused}
         minimal
         scrollIntoView={isFocused}
+        /* the press is not a move out of the text, as its ⓘ's is not: the editor, left, drew what was being typed
+           as a chip (`$data:receive_order.`), and the row picked had nothing left to take the place of
+           (qorus#646, David's review) */
+        onMouseDown={keepTheFocus}
         onClick={handleClick}
         rightAction={docsToggle as any}
         compact

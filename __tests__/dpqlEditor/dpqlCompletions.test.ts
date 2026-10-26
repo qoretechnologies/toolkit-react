@@ -13,6 +13,7 @@ import {
   dpqlExpectsValue,
   presentDpqlDiagnostics,
   UNFINISHED_PARTS_MESSAGE,
+  dpqlTextWithTemplateAtTheEnd,
 } from '../../src/components/dpqlEditor/dpqlCompletions';
 import { ILspCompletionItem, ILspDiagnostic } from '../../src/utils/lspClient.types';
 
@@ -212,5 +213,61 @@ describe('what the editor says of what the server refuses', () => {
     expect(
       presentDpqlDiagnostics([at(0, 1, CANNOT_BE_USED_HERE), other], '… +').map((d) => d.message)
     ).toEqual([UNFINISHED_PARTS_MESSAGE, "Something is missing at the end: a value after '+'."]);
+  });
+});
+
+describe('dpqlTextWithTemplateAtTheEnd', () => {
+  it('puts the template in an empty text, after an operator, and in place of a reference being written', () => {
+    expect(dpqlTextWithTemplateAtTheEnd('', '$local:id')).toBe('$local:id');
+    expect(dpqlTextWithTemplateAtTheEnd('   ', '$local:id')).toBe('$local:id');
+    expect(dpqlTextWithTemplateAtTheEnd('@pos +', '$local:id')).toBe('@pos + $local:id');
+    expect(dpqlTextWithTemplateAtTheEnd('@pos + 1 + $po', '$pos')).toBe('@pos + 1 + $pos');
+  });
+
+  it('writes nothing where no value can follow, or for no template', () => {
+    expect(dpqlTextWithTemplateAtTheEnd('12', '$local:id')).toBeUndefined();
+    expect(dpqlTextWithTemplateAtTheEnd('@pos +', '')).toBeUndefined();
+  });
+});
+
+describe('a template being typed', () => {
+  // a Qog state's data, as a host gives it (fsms?action=getStateData), and a context data item
+  const QOG_TEMPLATES = {
+    items: [
+      { label: 'Context Data', items: [{ label: 'Interface ID', value: '$local:id', badge: 'int' }] },
+      {
+        label: 'Receive order',
+        items: [
+          { label: 'Order ID', value: '$data:{receive_order.order_id}', badge: 'int' },
+          { label: 'User name', value: '$data:{receive_order.user_name}', badge: 'string' },
+        ],
+      },
+    ],
+  } as IReqoreFormTemplates;
+  // what the server offers after `$data:receive_order.`: the state's data, each the whole reference
+  const STATE_DATA: ILspCompletionItem[] = [
+    { label: 'Order ID', kind: 6, insertText: '$data:receive_order.order_id' },
+    { label: 'User name', kind: 6, insertText: '$data:receive_order.user_name' },
+    { label: 'Event type', kind: 6, insertText: '$data:receive_order.event_type' },
+  ];
+  const completeQog = (text: string, serverItems?: ILspCompletionItem[]) =>
+    dpqlCompletionsWith(QOG_TEMPLATES)({ plainText: text, offset: text.length, serverItems });
+
+  it('is gone on with only by the templates it starts, braces or not', () => {
+    expect(listed(completeQog('$data:receive_order.', STATE_DATA))).toEqual([
+      '$data:{receive_order.order_id}',
+      '$data:{receive_order.user_name}',
+      // the server's reference no template is
+      '$data:receive_order.event_type',
+    ]);
+    expect(listed(completeQog('$loc'))).toEqual(['$local:id']);
+  });
+
+  it('lists every template while only its `$` is typed', () => {
+    expect(listed(completeQog('$'))).toEqual([
+      '$local:id',
+      '$data:{receive_order.order_id}',
+      '$data:{receive_order.user_name}',
+    ]);
   });
 });

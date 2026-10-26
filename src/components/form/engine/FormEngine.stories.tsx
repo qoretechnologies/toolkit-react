@@ -11437,7 +11437,7 @@ export const ValueToExpressionAndVisual: Story = {
     await waitFor(() =>
       expect(field.querySelector('[data-slate-editor]')?.textContent?.replace(/\uFEFF/g, '').trim()).toBe('12')
     );
-    const picker = field.querySelector<HTMLElement>('.expression-text-template-picker');
+    const picker = field.querySelector<HTMLElement>('.dpql-template-browser');
     expect(picker, 'the templates offered').toBeTruthy();
     // beside the text, as tall as it: the controls of a row are as tall as each other
     const text = field.querySelector<HTMLElement>('[data-slate-editor]') as HTMLElement;
@@ -11640,7 +11640,7 @@ export const TemplatePickedAfterADollarInAnExpression: Story = {
     await askForATemplate('again');
     await userEvent.click(
       optionRow('computed').querySelector<HTMLElement>(
-        '.expression-text-template-picker'
+        '.dpql-template-browser'
       ) as HTMLElement
     );
     const besidePos = await waitFor(() => {
@@ -11780,7 +11780,7 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     });
     const picker = () =>
       optionRow('count').querySelector<HTMLElement>(
-        '.expression-text-template-picker'
+        '.dpql-template-browser'
       ) as HTMLElement;
 
     // a click in the empty text lists the fields, and no template context alone, which is no value

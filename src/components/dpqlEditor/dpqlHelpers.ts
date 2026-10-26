@@ -53,7 +53,9 @@ const TEMPLATE_HEAD = /\$\w+:/y;
 // A template's value without braces is word characters and dots, not quotes, parens, etc. A dot that starts a
 // method call ends the value: the server's readable rendering writes `ends-with` as
 // `$local:str.endsWith($local:p, true)`, and a path that took every dot turned `str.endsWith` into one reference.
-const TEMPLATE_BARE_VALUE = /(?:\w|\.(?!\w+\())+/y;
+// A dot goes on to a sub-field: a path that ends with one is not written yet (`$data:receive_order.`), and was read
+// as whole, drawn as a chip mid-path (qorus#646, David's review).
+const TEMPLATE_BARE_VALUE = /\w+(?:\.(?!\w+\()\w+)*/y;
 /** A character a field cannot start after: one that would make the `@` part of a word (`user@host`) or a path. */
 const BEFORE_NO_FIELD = /^[.\p{L}\p{M}\p{N}_]$/u;
 

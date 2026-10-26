@@ -9,10 +9,12 @@
 // Templates and fields are BOTH served by the LSP server through the
 // completion stream: typing `$` opens templates, `@` opens field
 // references (the server's `dpql-get-completions` is position-aware).
-// There is intentionally no client-side "Templates" button — it would
-// duplicate what the server already returns on `$`.
+// Given templates, it lists them in that one list on a click as well, and
+// a picker beside the text browses them as their catalogue nests them
+// (`TemplateBrowser`), as a Qog field's are.
 
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { ReqoreControlGroup } from '@qoretechnologies/reqore';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { SmartEditor } from '../smartEditor/SmartEditor';
 import { ISlateConverter, ISlateElement } from '../smartEditor/types';
 import { dpqlSlateConverter, richtextResponseToSlate } from './dpqlHelpers';
@@ -21,8 +23,12 @@ import { makeDpqlTagRenderer } from './dpqlTags';
 import {
   dpqlCompletionsWith,
   dpqlEmptyCompletionMessage,
+  dpqlExpectsValue,
+  dpqlTextWithTemplateAtTheEnd,
+  NO_VALUE_AT_THE_END,
   presentDpqlDiagnostics,
 } from './dpqlCompletions';
+import { TemplateBrowser } from '../form/fields/template/TemplateBrowser';
 import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
 import { useTemplateTags } from '../form/fields/rich-text/useTemplateTags';
@@ -63,6 +69,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       onUnavailable,
       onReady,
       completeOnClick = !!templates,
+      browseTemplates = true,
     },
     ref
   ) => {
@@ -223,7 +230,24 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       [dpql, value, onChange]
     );
 
-    return (
+    /* The picker beside the text: the field's templates, browsed as their catalogue nests them, as a Qog field's
+       are. Only where there are templates and the text can be edited. */
+    const browsable = browseTemplates && !readOnly && !!templates?.items?.length;
+    const valueCanEnd = dpqlExpectsValue(value ?? '');
+    const insertTemplate = useCallback(
+      (item: { value?: unknown }) => {
+        const next =
+          typeof item?.value === 'string' ?
+            dpqlTextWithTemplateAtTheEnd(value ?? '', item.value)
+          : undefined;
+        if (next !== undefined) {
+          onChange(next);
+        }
+      },
+      [value, onChange]
+    );
+
+    const editor = (
       <SmartEditor
         session={dpql.session}
         value={value}
@@ -249,6 +273,25 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         loadingIndicator={loadingIndicator}
       />
     );
+
+    return browsable ?
+        <ReqoreControlGroup gapSize='small' fluid verticalAlign='flex-start'>
+          {editor}
+          <TemplateBrowser
+            className='dpql-template-browser'
+            icon='MoneyDollarCircleLine'
+            aria-label='Insert a template'
+            disabled={!valueCanEnd}
+            tooltip={valueCanEnd ? 'Insert a template' : NO_VALUE_AT_THE_END}
+            // the size of the text it inserts into, so the two are as tall as each other
+            size={size ?? 'normal'}
+            fixed
+            templates={templates}
+            focusFilter
+            onItemSelect={insertTemplate}
+          />
+        </ReqoreControlGroup>
+      : editor;
   }
 );
 

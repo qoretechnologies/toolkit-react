@@ -24,6 +24,30 @@ const FIELD_BEING_ASKED = /@[\p{L}\p{M}\p{N}_.]*$/u;
  */
 const BARE_CONTEXT = /^\$[\w-]+:$/;
 
+/** Why the templates beside the text cannot be used: a value at its end would follow another (qorus#646). */
+export const NO_VALUE_AT_THE_END =
+  'A template goes where a value can: after an operator, an opening bracket or a comma, or in an empty expression.';
+
+/**
+ * The text with `template` put in at its end, where a template chosen from the picker beside the text goes - the
+ * editor keeps no caret its host can reach - in place of a reference being written there (a `$` typed to ask for
+ * one), as a template picked in the text goes (qorus#646, David's review: `pos + 1 + $pos`). Undefined where no
+ * value can be written at the end (`dpqlExpectsValue`): after `12`, one would be refused.
+ */
+export const dpqlTextWithTemplateAtTheEnd = (text: string, template: string): string | undefined => {
+  if (!template || !dpqlExpectsValue(text)) {
+    return undefined;
+  }
+  const current = text.trimEnd();
+  const written = dpqlReferenceBeingWritten(current);
+  const before = current.slice(0, current.length - written);
+  return (
+    !before.trim() ? template
+    : written ? `${before}${template}`
+    : `${before} ${template}`
+  );
+};
+
 /** What a value cannot follow - so it can be written next: an operator, an opening bracket, a comma. */
 const BEFORE_A_VALUE = /[-+*/%<>=!&|,([?:]$/;
 
@@ -38,6 +62,24 @@ export const dpqlExpectsValue = (textBefore: string): boolean => {
   }
   const written = textBefore.trimEnd();
   return !written || BEFORE_A_VALUE.test(written);
+};
+
+/** A `$` and the template typed after it, at the end of a text: `$data:receive_order.`. */
+const TEMPLATE_BEING_TYPED = /\$[\p{L}\p{M}\p{N}_.:{}[\]*-]*$/u;
+
+/** A reference as it reads without its braces: `$data:{a.b}` and `$data:a.b` are one reference. */
+const unbraced = (reference: string): string => reference.replace(/[{}]/g, '');
+
+/**
+ * The template typed at the end of `textBefore`, beyond its `$` (`$data:receive_order.`), without its braces; ''
+ * where none is, where only the `$` is typed, or where it is in a string.
+ */
+const templateTyped = (textBefore: string): string => {
+  const match = TEMPLATE_BEING_TYPED.exec(textBefore);
+  if (!match || match[0].length < 2 || stringOpenAt(textBefore.slice(0, match.index))) {
+    return '';
+  }
+  return unbraced(match[0]);
 };
 
 /** Whether an `@` asks for a field at the end of `textBefore`: typed as written, not in a string. */
@@ -68,17 +110,27 @@ export const dpqlCompletionsWith =
         serverItems.some((item) => !NO_VALUE_KINDS.has(item.kind ?? 0))
       : dpqlExpectsValue(before);
     const offered = valueHere ? templateCompletionItems(templates, typeLabel) : [];
+    /* A template being typed (`$data:receive_order.`) is gone on with only by the templates it starts: the list's
+       own filter reads only the word after the last `.` or `:`, none there, and every template was listed above
+       the state's data the server offers (qorus#646, David's review). */
+    const typed = templateTyped(before);
     const ours =
-      asksForAField(before) ?
-        offered.filter((item) => RECORD_FIELD.test(item.insertText ?? ''))
+      asksForAField(before) ? offered.filter((item) => RECORD_FIELD.test(item.insertText ?? ''))
+      : typed ? offered.filter((item) => unbraced(item.insertText ?? '').startsWith(typed))
       : offered;
     if (!ours.length) {
       return server;
     }
     const named = new Set(ours.map((item) => RECORD_FIELD.exec(item.insertText ?? '')?.[1]));
+    // a reference the server offers that a template is already is listed once, as the template, with its group
+    const templateReferences = new Set(ours.map((item) => unbraced(item.insertText ?? '')));
     return [
       ...ours,
-      ...server.filter((item) => !(item.kind === 5 && named.has(item.label.replace(/^@/, '')))),
+      ...server.filter(
+        (item) =>
+          !(item.kind === 5 && named.has(item.label.replace(/^@/, ''))) &&
+          !templateReferences.has(unbraced(item.insertText ?? ''))
+      ),
     ];
   };
 

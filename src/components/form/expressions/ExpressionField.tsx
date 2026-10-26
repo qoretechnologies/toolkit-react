@@ -16,9 +16,7 @@ import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/T
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
 import { memo, MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DpqlEditor, IDpqlEditorRef, IDpqlParseResult, useDpqlSession } from '../../dpqlEditor';
-import { TemplateBrowser } from '../fields/template/TemplateBrowser';
-import { dpqlDisplayedText, dpqlReferenceBeingWritten } from '../../dpqlEditor/dpqlHelpers';
-import { dpqlExpectsValue } from '../../dpqlEditor/dpqlCompletions';
+import { dpqlDisplayedText } from '../../dpqlEditor/dpqlHelpers';
 import { asLoneValue } from './loneValue';
 import { TDpqlFields } from '../../dpqlEditor/types';
 import { ExpressionBuilder, IExpressionBuilderProps } from './builder';
@@ -182,9 +180,8 @@ export interface IExpressionFieldProps {
   reorder?: TExpressionReorder;
 }
 
-/** Why the templates beside the text cannot be used: a value at its end would follow another (qorus#646). */
-export const NO_VALUE_AT_THE_END =
-  'A template goes where a value can: after an operator, an opening bracket or a comma, or in an empty expression.';
+// why the templates beside the text cannot be used: the DPQL editor's picker says it, and the name stays here
+export { NO_VALUE_AT_THE_END } from '../../dpqlEditor/dpqlCompletions';
 
 /** A diagnostic that is an error: the server marks one severity 1, or `error`. */
 const isErrorDiagnostic = (diagnostic: { severity?: number | string }): boolean =>
@@ -872,31 +869,6 @@ export const ExpressionField = memo(
       writeExpression,
     ]);
 
-    /** The field's templates, its catalogue's entries, for the Text view's picker. */
-    const templateItems = useMemo(
-      () => (localTemplates?.items ?? []) as NonNullable<IReqoreFormTemplates['items']>,
-      [localTemplates]
-    );
-    /* A template chosen from the picker goes in after the text, as a chip, and is parsed as typed text is:
-       the editor keeps no caret the field can reach, so the end of the text is where it is put - in place of a
-       reference being written there (a `$` typed to ask for one), as a template picked in the text goes
-       (qorus#646, David's review: `pos + 1 + $pos`). */
-    // whether a value can be written at the end of the text, where the picker puts one
-    const valueCanEnd = dpqlExpectsValue(text);
-    const insertTemplate = useCallback(
-      (item: { value?: unknown }) => {
-        if (typeof item?.value !== 'string' || !item.value || !dpqlExpectsValue(text)) return;
-        const current = text.trimEnd();
-        const written = dpqlReferenceBeingWritten(current);
-        const before = current.slice(0, current.length - written);
-        handleDpqlChange(
-          !before.trim() ? item.value
-          : written ? `${before}${item.value}`
-          : `${before} ${item.value}`
-        );
-      },
-      [text, handleDpqlChange]
-    );
 
     // Switch to Text: the seeding effect above serializes the AST once
     // the editor's session is up.
@@ -1011,45 +983,28 @@ export const ExpressionField = memo(
                 is kept as you typed it; the Visual view builds the expression without the server.
               </ReqoreMessage>
             : null}
-            <ReqoreControlGroup gapSize='small' fluid verticalAlign='flex-start'>
-              <DpqlEditor
-                ref={dpqlRef}
-                value={text}
-                onChange={handleDpqlChange}
-                provider={provider}
-                recordType={recordType}
-                fields={fields}
-                // the field's own templates name the chips as its catalogue names them
-                templates={localTemplates}
-                readOnly={readOnly}
-                // the field's size, as its Value tab draws the same value: a reference is the same chip in both
-                size={size as TSizes | undefined}
-                // no floor of its own: one line as tall as the text it shows, growing with its lines - a
-                // 48px floor left an empty strip under the text, which the picker beside it could not match
-                onUnavailable={handleTextUnavailable}
-                onReady={handleTextReady}
-                // a click, a tap or Tab lists what can be written at the caret, the field's templates with it
-                completeOnClick
-              />
-              {/* The field's templates and fields, browsed as its catalogue nests them and put in at the end of
-                  the text - where a value can go there: after a value (`12`), one would be refused, and the
-                  picker says why it cannot be used (qorus#646, David's decision). */}
-              {templateItems.length && !readOnly ?
-                <TemplateBrowser
-                  className='expression-text-template-picker'
-                  icon='MoneyDollarCircleLine'
-                  aria-label='Insert a template'
-                  disabled={!valueCanEnd}
-                  tooltip={valueCanEnd ? 'Insert a template' : NO_VALUE_AT_THE_END}
-                  // the size of the text it inserts into, so the two are as tall as each other
-                  size={(size as TSizes | undefined) ?? 'normal'}
-                  fixed
-                  templates={localTemplates}
-                  focusFilter
-                  onItemSelect={insertTemplate}
-                />
-              : null}
-            </ReqoreControlGroup>
+            <DpqlEditor
+              ref={dpqlRef}
+              value={text}
+              onChange={handleDpqlChange}
+              provider={provider}
+              recordType={recordType}
+              fields={fields}
+              // the field's own templates name the chips as its catalogue names them
+              templates={localTemplates}
+              readOnly={readOnly}
+              // the field's size, as its Value tab draws the same value: a reference is the same chip in both
+              size={size as TSizes | undefined}
+              // no floor of its own: one line as tall as the text it shows, growing with its lines - a
+              // 48px floor left an empty strip under the text, which the picker beside it could not match
+              onUnavailable={handleTextUnavailable}
+              onReady={handleTextReady}
+              // a click, a tap or Tab lists what can be written at the caret, the field's templates with it
+              completeOnClick
+              /* the field's templates and fields, browsed as its catalogue nests them from the editor's picker
+                 and put in at the end of the text - where a value can go there: after a value (`12`), one would
+                 be refused, and the picker says why it cannot be used (qorus#646, David's decision) */
+            />
             {/* What the server said about the result's type, when the field
                 declares one to check against.
 

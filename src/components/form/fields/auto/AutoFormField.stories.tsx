@@ -926,3 +926,52 @@ export const HostEditorKeepsWhatIsTypedWhenItsReportComesBack: Story = {
     await expect(editor.value).toBe('1');
   },
 };
+
+/**
+ * A DPQL field is given its templates as every other field of the form is (its context data): a click lists them,
+ * and the picker beside the text browses them as their catalogue nests them. They were left out, so a DPQL field
+ * offered no template until a `$` was typed (qorus#646, David's review).
+ */
+export const DpqlFieldOffersItsTemplates: Story = {
+  args: {
+    name: 'match',
+    type: 'dpql' as any,
+    value: '',
+    templates: buildTemplates(templates),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a DPQL field given its context data as templates and clicks in it: the list offers them - ' +
+          'Interface Name and the other context data, each with its group - and the picker beside the text ' +
+          'browses them as they nest.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editable = await waitFor(
+      () => {
+        const text = canvasElement.querySelector<HTMLElement>('[data-slate-editor]');
+        expect(text, 'the DPQL text').toBeTruthy();
+        expect(canvasElement.textContent).not.toMatch(/Connecting to language server/);
+        return text!;
+      },
+      { timeout: 30000 }
+    );
+    expect(canvasElement.querySelector('.dpql-template-browser'), 'the picker beside the text').toBeTruthy();
+    await userEvent.click(editable);
+    await waitFor(
+      () => {
+        const listed = Array.from(
+          document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu .reqore-menu-item')
+        )
+          .map((row) => row.textContent ?? '')
+          .join(' | ');
+        expect(listed).toContain('Interface Name');
+        expect(listed).toContain('Context Data');
+      },
+      { timeout: 30000 }
+    );
+  },
+};

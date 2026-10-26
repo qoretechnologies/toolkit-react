@@ -254,10 +254,20 @@ and the pick replaces it. What a pick takes the place of is only what was
 typed in the text the caret is in, never across a chip, and an operator goes
 in apart from the value before it (`pos == `).
 
-The templates beside the text (`.expression-text-template-picker`) stay, to
-browse a catalogue as it nests. Their pick goes at the end of the text, so
-they cannot be used where a value cannot be written there, and say why
+The templates beside the text (`.dpql-template-browser`) stay, to browse a
+catalogue as it nests, as a Qog field's are. The DPQL editor draws them
+itself wherever it is given templates and can be edited (`browseTemplates`),
+so every DPQL field has them: an expression's Text view, a form's `dpql`
+field (`AutoFormField` passes the field's templates) and a host's own. Their
+pick goes at the end of the text (`dpqlTextWithTemplateAtTheEnd`), so they
+cannot be used where a value cannot be written there, and say why
 (`NO_VALUE_AT_THE_END`).
+
+While a template is typed (`$data:receive_order.`), the list offers only the
+templates it starts, braces or not, and a reference the server offers that a
+template is already is listed once, as the template. A path that ends with a
+`.` is not a whole template, and a press on a row of the list does not move
+out of the text: either drew what was being typed as a chip before the pick.
 
 A template picked takes the place of the reference being written where it
 goes: a `$` or `@` with no more than part of a name after it

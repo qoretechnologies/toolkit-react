@@ -143,6 +143,13 @@ export interface IDpqlEditorProps {
    * is labelled by its catalogue name. See `IDpqlTagRendererOptions.templates`.
    */
   templates?: IReqoreFormTemplates;
+  /**
+   * Whether the field's templates can be browsed as their catalogue nests them - their groups, a record's members -
+   * from a picker beside the text, as a Qog field's are (qorus#646, David's review: a DPQL field offered no
+   * hierarchy). A template chosen there is put in at the end of the text, where a value can go. On by default
+   * where the editor has templates and can be edited.
+   */
+  browseTemplates?: boolean;
   /** Called when the editor loses focus. */
   onBlur?: () => void;
   /**
