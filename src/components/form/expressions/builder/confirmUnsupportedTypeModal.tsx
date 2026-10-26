@@ -43,18 +43,15 @@ export const ConfirmUnsupportedTypeModal = memo(
         {children ? (
           children
         ) : (
-          <ReqoreControlGroup vertical fluid horizontalAlign='center' gapSize='big'>
-            <ReqoreP style={{ textAlign: 'center' }}>
-              This value needs one of these types:
-            </ReqoreP>
-            <ReqoreTagGroup size='small' align='center'>
+          // read from the left, as a dialog's text is (the mismatched-types dialog reads the same)
+          <ReqoreControlGroup vertical fluid gapSize='big'>
+            <ReqoreP>This value needs one of these types:</ReqoreP>
+            <ReqoreTagGroup size='small'>
               {acceptedTypes?.map((t) => (
                 <ReqoreTag key={t} label={types.getTypeDisplayName(t)} />
               ))}
             </ReqoreTagGroup>
-            <ReqoreP style={{ textAlign: 'center' }}>
-              Use this type anyway?
-            </ReqoreP>
+            <ReqoreP>Use this type anyway?</ReqoreP>
             <ReqoreCheckbox
               label="Don't show again"
               size='small'

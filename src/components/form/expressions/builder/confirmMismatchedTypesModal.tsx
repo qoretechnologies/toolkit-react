@@ -13,6 +13,10 @@ export interface IConfirmMismatchedTypesModalProps extends Omit<IReqoreModalProp
   onSubmit: (args: IExpression[]) => void;
 }
 
+/** How many arguments will be transformed, in words: "1 argument will be transformed." */
+export const transformedCountText = (count: number): string =>
+  `${count} ${count === 1 ? 'argument' : 'arguments'} will be transformed.`;
+
 export const ConfirmMismatchedTypesModal = memo(
   ({ args, expression, expressions, onSubmit, ...rest }: IConfirmMismatchedTypesModalProps) => {
     const types = useQorusTypes();
@@ -39,6 +43,8 @@ export const ConfirmMismatchedTypesModal = memo(
             position: 'left',
             label: 'Discard all',
             icon: 'CloseLine',
+            // it clears every argument's value: a discard (BRAND_DESIGN §7)
+            intent: 'danger',
             onClick: () => {
               onSubmit(args.map(() => ({})));
             },
@@ -74,14 +80,13 @@ export const ConfirmMismatchedTypesModal = memo(
           },
         ]}
       >
-        <ReqoreControlGroup vertical fluid horizontalAlign='center' gapSize='big'>
-          <ReqoreP style={{ textAlign: 'center' }}>
+        {/* read as a dialog's text is read: from the left, as the arguments listed under it are */}
+        <ReqoreControlGroup vertical fluid gapSize='big'>
+          <ReqoreP>
             These values have other types than expected. Qorus converts them when it runs.
           </ReqoreP>
-          <ReqoreP style={{ textAlign: 'center' }}>
-            Please deselect the arguments you do not wish to transform:
-          </ReqoreP>
-          <ReqoreControlGroup vertical fluid horizontalAlign='center'>
+          <ReqoreP>Please deselect the arguments you do not wish to transform:</ReqoreP>
+          <ReqoreControlGroup vertical fluid>
             {args.map((arg, index) => (
               <ReqoreButton
                 icon={
@@ -114,9 +119,8 @@ export const ConfirmMismatchedTypesModal = memo(
               </ReqoreButton>
             ))}
           </ReqoreControlGroup>
-          <ReqoreP style={{ textAlign: 'center' }} size='small' intent='muted'>
-            {size(fixedArgs.filter((a) => a.types_mismatch === false))} argument(s) will be
-            transformed.
+          <ReqoreP size='small' intent='muted'>
+            {transformedCountText(size(fixedArgs.filter((a) => a.types_mismatch === false)))}
           </ReqoreP>
         </ReqoreControlGroup>
       </ReqoreModal>

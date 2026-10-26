@@ -4824,7 +4824,7 @@ const FormEngineImpl = ({
               {unavailableOptionsCount.current ?
                 <>
                   <ReqoreMessage intent='warning' opaque={false} size='small' margin='bottom'>
-                    {`${unavailableOptionsCount.current} fields(s) hidden because they are not supported on the current instance`}
+                    {`${unavailableOptionsCount.current} ${unavailableOptionsCount.current === 1 ? 'field' : 'fields'} hidden because they are not supported on the current instance`}
                   </ReqoreMessage>
                   <ReqoreVerticalSpacer height={10} />
                 </>
