@@ -1,6 +1,6 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 /**
- * A type is called what the Qorus server calls it (qorus#646, David's names: Text, Rich text, Whole number, Number,
+ * A type is called what the Qorus server calls it (qorus#646, David's names: Text, Whole number, Number,
  * Exact number, True or false, Date).
  *
  * The server's type catalogue (QorusDataTypeCatalogue::Info, served at /system/qorus-type-info) is the one source
@@ -72,15 +72,18 @@ describe("reqraft's fallback type list", () => {
       )
     ).toEqual({
       string: 'Text',
-      richtext: 'Rich text',
+      // text that can hold templates is text to a user: the editor it is written in is not a kind of value
+      richtext: 'Text',
       int: 'Whole number',
       float: 'Number',
       number: 'Exact number',
       bool: 'True or false',
       date: 'Date',
     });
-    const names = defaultQorusTypes.map((type) => type.display_name);
+    // a picker lists the offered types: no two of those share a name (richtext is text, and not offered)
+    const names = defaultQorusTypes.filter((type) => type.offered !== false).map((type) => type.display_name);
     expect(new Set(names).size).toBe(names.length);
+    expect(defaultQorusTypes.find((type) => type.name === 'richtext')?.offered).toBe(false);
   });
 });
 

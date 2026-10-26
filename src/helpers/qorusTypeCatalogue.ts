@@ -66,16 +66,6 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
     offered: true,
   },
   {
-    name: 'richtext',
-    display_name: 'Rich text',
-    sentence_form: 'formatted text',
-    short_desc: 'Text with formatting',
-    desc: 'Text with formatting',
-    types_accepted: ['any'],
-    exact_match: ['string', 'richtext'],
-    offered: true,
-  },
-  {
     name: 'int',
     display_name: 'Whole number',
     sentence_form: 'a whole number',
@@ -262,6 +252,16 @@ export const defaultQorusTypes: IQorusTypeObject[] = [
   /* Not offered: a type the server gives a field or an option as its UI type, and so names and converts, but that a
      person choosing a type for a value does not choose - the DataProvider module's string format types, which are
      text, and its file type, which is a hash (qorus 974643455). */
+  {
+    name: 'richtext',
+    display_name: 'Text',
+    sentence_form: 'text',
+    short_desc: 'Text that can hold templates',
+    desc: 'Text that can hold templates',
+    types_accepted: ['any'],
+    exact_match: ['string', 'richtext'],
+    offered: false,
+  },
   {
     name: 'email',
     display_name: 'Email address',

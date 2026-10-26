@@ -43,21 +43,6 @@
     "offered": true
   },
   {
-    "name": "richtext",
-    "display_name": "Rich text",
-    "sentence_form": "formatted text",
-    "short_desc": "Text with formatting",
-    "desc": "Text with formatting",
-    "types_accepted": [
-      "any"
-    ],
-    "exact_match": [
-      "string",
-      "richtext"
-    ],
-    "offered": true
-  },
-  {
     "name": "int",
     "display_name": "Whole number",
     "sentence_form": "a whole number",
@@ -340,6 +325,21 @@
       "richtext"
     ],
     "offered": true
+  },
+  {
+    "name": "richtext",
+    "display_name": "Text",
+    "sentence_form": "text",
+    "short_desc": "Text that can hold templates",
+    "desc": "Text that can hold templates",
+    "types_accepted": [
+      "any"
+    ],
+    "exact_match": [
+      "string",
+      "richtext"
+    ],
+    "offered": false
   },
   {
     "name": "email",

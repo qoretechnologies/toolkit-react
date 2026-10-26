@@ -91,7 +91,7 @@ describe('a sentence about a type that is not known', () => {
   });
 
   it.each([
-    ['a date and time', 'formatted text', 'Converted from a date and time to formatted text'],
+    ['a date and time', 'text', 'Converted from a date and time to text'],
     [undefined, 'a whole number', 'Converted to a whole number'],
     ['text', undefined, 'Converted from text'],
     [undefined, undefined, 'Converted'],
