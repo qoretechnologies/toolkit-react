@@ -1368,15 +1368,16 @@ export const _validateField = (
       return validResult();
     }
     case 'fsm-list': {
+      // users call FSMs Qogs: this is said to them
       if (!isArray(value)) {
-        return invalidResult('FSM list must be an array');
+        return invalidResult('Qog list must be an array');
       }
 
       for (let i = 0; i < value.length; i++) {
         const itemResult = validateFieldWithResult('string', value[i]?.name);
 
         if (!itemResult.isValid) {
-          return withContext(itemResult, `FSM entry ${i} name is invalid`);
+          return withContext(itemResult, `Qog entry ${i} name is invalid`);
         }
       }
 

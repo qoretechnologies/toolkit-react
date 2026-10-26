@@ -168,7 +168,8 @@ const meta = {
               insertText: '$data:',
               kind: 1,
               detail: "needs a value after ':'",
-              documentation: { kind: 'plaintext', value: 'FSM state data.' },
+              // users call FSMs Qogs: the completion says what a user reads
+              documentation: { kind: 'plaintext', value: 'Qog state data.' },
             },
             {
               label: '$config:',
@@ -242,10 +243,10 @@ const meta = {
             label: key,
             insertText: key,
             kind: 5, // Field
-            detail: 'FSM state data',
+            detail: 'Qog state data',
             documentation: {
               kind: 'plaintext',
-              value: `\`${key}\` — resolved from the bound FSM state.`,
+              value: `\`${key}\` — resolved from the bound Qog state.`,
             },
           }));
 
@@ -1091,9 +1092,10 @@ export const WithFsmContext: Story = {
     docs: {
       description: {
         story:
-          'Composes provider context (`@field` completions) with FSM ' +
-          'context. Typing a `$data:` template surfaces the bound FSM ' +
-          "state's data keys (`order_id`, `user_name`, `event_type`) — " +
+          'Composes provider context (`@field` completions) with Qog ' +
+          'context. Typing a `$data:` template surfaces the bound Qog ' +
+          "state's data keys (`order_id`, `user_name`, `event_type`), each " +
+          'described as "Qog state data" — ' +
           'the distinctive payload of `fsmContext`. The mock answers ' +
           '`dpql/setFsmContext` with `source_type: "published"` and that ' +
           'key list, then returns the keys as completions inside `$data:`.',
@@ -1124,6 +1126,9 @@ export const WithFsmContext: Story = {
         expect(dropdown!.textContent).toContain('order_id');
         expect(dropdown!.textContent).toContain('user_name');
         expect(dropdown!.textContent).toContain('event_type');
+        // a user reads Qog, never FSM
+        expect(dropdown!.textContent).toContain('Qog state data');
+        expect(dropdown!.textContent).not.toMatch(/FSM/);
       },
       { timeout: 30000 }
     );
