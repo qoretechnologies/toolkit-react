@@ -28,13 +28,36 @@ export const SavedValuesContext = createContext<ISavedValues | undefined>(undefi
 
 const NO_SAVED_VALUES: ISavedValueChoice[] = [];
 
+/**
+ * The editors that all store text. A field's type names its EDITOR, so a rich-text
+ * field reports `richtext` while the value saved from it, or from a plain string
+ * field, is text all the same; matching the names exactly offered no saved text to
+ * the rich-text fields most text is written in.
+ */
+const TEXT_TYPES = new Set([
+  'string',
+  'richtext',
+  'long-string',
+  'email',
+  'uri',
+  'url',
+  'uuid',
+  'hostname',
+  'ipv4',
+  'ipv6',
+  'phone',
+]);
+
+const storedKind = (type?: string) => (type && TEXT_TYPES.has(type) ? 'string' : type);
+
 /** The saved values a field of `type` can choose from. */
 export const useSavedValueChoices = (type?: string): ISavedValueChoice[] => {
   const items = useContext(SavedValuesContext)?.items;
   return useMemo(
     () =>
       !items ? NO_SAVED_VALUES
-      : type ? items.filter((item) => !item.valueType || item.valueType === type)
+      : type ?
+        items.filter((item) => !item.valueType || storedKind(item.valueType) === storedKind(type))
       : items,
     [items, type]
   );

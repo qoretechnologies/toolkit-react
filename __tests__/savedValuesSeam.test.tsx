@@ -50,6 +50,24 @@ describe('the saved values a field offers', () => {
     expect(screen.queryAllByText('Saved & Suggested Values').length).toBeGreaterThan(0);
   });
 
+  it('are offered as text to every editor that stores text', () => {
+    render(
+      withSavedValues(
+        <FieldAllowedValues
+          items={[]}
+          value={undefined}
+          type={'richtext' as never}
+          name='message'
+          showSavedValues
+          onChange={vi.fn()}
+        />,
+        { items: SAVED }
+      )
+    );
+
+    expect(screen.queryAllByText('Saved & Suggested Values').length).toBeGreaterThan(0);
+  });
+
   it('are not offered without a host, by a read-only field, or of another type', () => {
     const { unmount } = render(
       withSavedValues(<FieldAllowedValues items={[]} value={undefined} type='string' name='url' showSavedValues onChange={vi.fn()} />)
