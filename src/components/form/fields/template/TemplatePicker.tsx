@@ -165,7 +165,11 @@ const ROW_WHAT_STYLE: React.CSSProperties = {
 
 /** The ids of the groups from the top to `node`, `node` included: the levels opened to show its members. */
 const levelsTo = (roots: ITemplateNode[], levelId?: string): string[] => {
-  const node = templateNodeById(roots, levelId);
+  /* A lone group that is a value of its own (a Qog state's data taken whole) is opened, as a lone group is
+     (`templateTree`): its members are what there is to choose from, and up from them is the group, to take whole. */
+  const node =
+    templateNodeById(roots, levelId) ??
+    (levelId === undefined && roots.length === 1 && isGroup(roots[0]) ? roots[0] : undefined);
   return node ? [...node.trailIds, node.id] : [];
 };
 

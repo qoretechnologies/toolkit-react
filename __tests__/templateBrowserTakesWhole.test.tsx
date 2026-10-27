@@ -16,12 +16,12 @@ const { TemplateBrowser } = await import('../src/components/form/fields/template
 const { QOG_FIELD_TEMPLATES } =
   await import('../src/components/form/fields/template/__fixtures__/qogTemplatePayloads');
 
-const renderBrowser = (wholeRecords: boolean) => {
+const renderBrowser = (wholeRecords: boolean, templates: unknown = QOG_FIELD_TEMPLATES) => {
   const onItemSelect = vi.fn();
   const { container } = render(
     <ReqoreUIProvider>
       <TemplateBrowser
-        templates={QOG_FIELD_TEMPLATES}
+        templates={templates as never}
         wholeRecords={wholeRecords}
         onItemSelect={onItemSelect}
       />
@@ -55,5 +55,23 @@ describe('a state taken whole from the template picker', () => {
     const { row, container } = renderBrowser(false);
     expect(row('Receive order'), 'the row Receive order').toBeTruthy();
     expect(container.querySelectorAll('.template-picker-use')).toHaveLength(0);
+  });
+
+  /* An expression's "Select Field" offers one action's record: it is opened, its fields what there is to choose
+     from (as before a record could be taken whole), and Back shows it, to take whole. */
+  it('opens a lone state at its data, and Back shows it with Use', () => {
+    const items = (QOG_FIELD_TEMPLATES as { items: Array<{ label?: string }> }).items.filter(
+      (item) => item.label === 'Receive order'
+    );
+    expect(items, 'the fixture state Receive order').toHaveLength(1);
+    const { row, container } = renderBrowser(true, { items });
+    expect(row('Customer'), 'its data, opened').toBeTruthy();
+    fireEvent.click(container.querySelector<HTMLElement>('.template-picker-back')!);
+    const state = row('Receive order');
+    expect(state, 'the state, up from its data').toBeTruthy();
+    expect(
+      state!.parentElement!.querySelector('.template-picker-use'),
+      'Use beside it'
+    ).toBeTruthy();
   });
 });
