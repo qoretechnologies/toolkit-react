@@ -201,7 +201,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
        text, the template button, a chip, a group's row) and reached by what is typed (`dpqlCompletionsWith`). */
     const templateRoots = useMemo(
       // an expression takes a record whole: a state's data or a record is offered whole as well as opened
-      () => templateTree(templates, { fields: dpql.fieldMeta, wholeRecords: true }),
+      // a lone group kept whole: the editor adds the language server's groups beside it (`openLoneGroup`)
+      () => templateTree(templates, { fields: dpql.fieldMeta, wholeRecords: true, keepLoneGroup: true }),
       [templates, dpql.fieldMeta]
     );
     /* A reference that names none of the field's templates says so where it is written, and stays the text it

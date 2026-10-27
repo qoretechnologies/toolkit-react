@@ -48,7 +48,7 @@ import { useLspSemanticTokens } from './useLspSemanticTokens';
 import { useLspSignatureHelp } from './useLspSignatureHelp';
 import { templateNodeFor } from '../../helpers/templateTree';
 import { useTabCameIn } from './useTabCameIn';
-import { withServerCompletions } from '../../helpers/templateTree';
+import { openLoneGroup, withServerCompletions } from '../../helpers/templateTree';
 import type { ILspCompletionItem } from '../../utils/lspClient.types';
 import { commitTypedReferences, drawRechipped } from './typedReferences';
 import { useEditingAids } from './useEditingAids';
@@ -411,7 +411,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lspReady, templateRoots]);
     const pickerRoots = useMemo(
-      () => (templateRoots ? withServerCompletions(templateRoots, serverValues) : []),
+      // a lone group of the field's opened only where nothing is added beside it
+      () => (templateRoots ? openLoneGroup(withServerCompletions(templateRoots, serverValues)) : []),
       [templateRoots, serverValues]
     );
 

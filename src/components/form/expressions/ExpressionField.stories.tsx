@@ -2524,7 +2524,8 @@ export const TheTextViewPickerOffersEveryCompletion: Story = {
       await userEvent.click(canvasElement.ownerDocument.body);
       await userEvent.click(editable);
       await waitFor(
-        () => expect(pickerGroups()).toEqual(expect.arrayContaining(['pos', 'bezeichnung', 'Template contexts'])),
+        // the row's fields kept whole under their group's name beside the server's groups
+        () => expect(pickerGroups()).toEqual(['Fields of the row', 'Template contexts']),
         { timeout: 20000 }
       );
       await userEvent.keyboard('{Escape}');

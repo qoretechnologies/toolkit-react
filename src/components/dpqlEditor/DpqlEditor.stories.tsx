@@ -2699,7 +2699,8 @@ export const ThePickerOffersEveryCompletionAfterClearing: Story = {
       description: {
         story:
           'Types `@` key by key: the record\'s fields are listed. The text cleared with Ctrl+A and Backspace and ' +
-          'the empty field clicked, the picker lists the given templates, Record fields (name, status, age), the ' +
+          'the empty field clicked, the picker lists the given templates under their group, Order data (order id, ' +
+          'customer), then Record fields (name, status, age), the ' +
           'template contexts, the functions and the values - what typing offers. Typed again (`@`) and cleared ' +
           'with Backspace, it lists them again; opened from the template button, the same.',
       },
@@ -2712,6 +2713,12 @@ export const ThePickerOffersEveryCompletionAfterClearing: Story = {
       await userEvent.click(canvasElement.ownerDocument.body);
       await userEvent.click(editable);
       await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(everySource)), { timeout: 30000 });
+      // the given templates kept whole under their group's name beside the others, not loose among them
+      expect(pickerLabels()[0]).toBe('Order data');
+      expect(pickerLabels()).not.toContain('order id');
+      await userEvent.click(await pickerRow('Order data'));
+      await waitFor(() => expect(pickerLabels()).toEqual(['order id', 'customer']));
+      await userEvent.keyboard('{Backspace}');
       await userEvent.click(await pickerRow('Record fields'));
       await waitFor(() => expect(pickerLabels()).toEqual(['name', 'status', 'age']));
       await userEvent.keyboard('{Escape}');

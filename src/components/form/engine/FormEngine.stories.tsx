@@ -11475,6 +11475,9 @@ export const ValueToExpressionAndVisual: Story = {
         document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu .reqore-menu-item')
       ).find((item) => item.textContent?.includes('Browse all templates')) as HTMLElement
     );
+    // the row's fields under their group, beside what the language server completes (qorus#646)
+    await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(['Fields of the row'])));
+    await userEvent.click(await pickerRow('Fields of the row'));
     await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(['pos', 'bezeichnung'])));
     await userEvent.keyboard('{Escape}');
     /* Listed on keyboard focus too, and put away by Escape alone, with reqore 0.78.5 (#708): checked where
@@ -11635,6 +11638,7 @@ export const TemplatePickedAfterADollarInAnExpression: Story = {
     await userEvent.click(
       optionRow('computed').querySelector<HTMLElement>('.smart-editor-template-button') as HTMLElement
     );
+    await userEvent.click(await pickerRow('Fields of the row'));
     const besidePos = await waitFor(() => {
       const row = rows().find((item) => item.textContent?.startsWith('pos'));
       expect(row, 'pos offered beside the text').toBeTruthy();
@@ -11790,7 +11794,8 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     /* a click in the empty text opens the template picker with the row's fields (David's decision: a click in an
        empty field shows its templates), the focus left in the text */
     await userEvent.click(text);
-    await pickerRow('bezeichnung');
+    // the row's fields under their group, beside what the language server completes (qorus#646)
+    await pickerRow('Fields of the row');
     expect(text.contains(document.activeElement), 'the focus stays in the text').toBe(true);
     expect(pickerLabels().filter((label) => label?.startsWith('$'))).toEqual([]);
     await userEvent.keyboard('{Escape}');
@@ -11801,6 +11806,7 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     await waitFor(() => expect(text.contains(document.activeElement)).toBe(false));
     await userEvent.tab();
     await waitFor(() => expect(text.contains(document.activeElement)).toBe(true));
+    await userEvent.click(await pickerRow('Fields of the row'));
     await userEvent.click(await pickerRow('pos'));
     await waitFor(() => expect(expressionTextOf('count')).toBe('pos'));
     await waitFor(() => expect(timesHeld(canvasElement, 'count', '$record:{pos}')).toBe(1));
@@ -11823,6 +11829,7 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     await userEvent.click(text);
     await userEvent.click(await completionRow('Browse all templates'));
     expect(completionRows().filter((row) => row.textContent?.startsWith('$'))).toEqual([]);
+    await userEvent.click(await pickerRow('Fields of the row'));
     await userEvent.click(await pickerRow('bezeichnung'));
     await waitFor(() => expect(expressionTextOf('count')).toBe('pos == bezeichnung'));
 

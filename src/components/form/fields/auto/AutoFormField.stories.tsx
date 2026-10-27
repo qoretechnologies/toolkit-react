@@ -10,7 +10,7 @@
 //    (InterfaceSelector) are not ported — IDE-only seams.
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
-import { pickerLabels } from '../../../../stories/templatePicker';
+import { pickerLabels, pickerRow } from '../../../../stories/templatePicker';
 import jsyaml from 'js-yaml';
 import { useEffect, useState } from 'react';
 
@@ -962,7 +962,13 @@ export const DpqlFieldOffersItsTemplates: Story = {
     );
     expect(canvasElement.querySelector('.smart-editor-template-button'), 'the template button').toBeTruthy();
     await userEvent.click(editable);
-    await waitFor(() => expect(pickerLabels()).toContain('Interface Name'), { timeout: 30000 });
+    // its templates under their group, beside what the language server completes (qorus#646)
+    await waitFor(
+      () => expect(pickerLabels()).toEqual(expect.arrayContaining(['Context Data', 'Template contexts'])),
+      { timeout: 30000 }
+    );
+    await userEvent.click(await pickerRow('Context Data'));
+    await waitFor(() => expect(pickerLabels()).toContain('Interface Name'));
     expect(pickerLabels()).toContain('Current Timestamp');
   },
 };

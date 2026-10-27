@@ -44,3 +44,29 @@ describe('the picker with the language server completions', () => {
     expect(withServerCompletions(own, undefined)).toBe(own);
   });
 });
+
+/* qorus#646, David's review: a lone group of the field's is opened only where it is truly alone; beside other
+   groups (the record's fields, the server's) it is kept whole, under its name. */
+describe('a lone group of templates', () => {
+  const lone = { items: [{ label: 'Order data', items: [{ label: 'order id', value: '$local:{order_id}' }] }] };
+
+  it('is opened where it is the only group', async () => {
+    const { openLoneGroup } = await import('../src/helpers/templateTree');
+    expect(templateTree(lone).map((node) => node.label)).toEqual(['order id']);
+    expect(openLoneGroup(templateTree(lone, { keepLoneGroup: true })).map((node) => node.label)).toEqual([
+      'order id',
+    ]);
+  });
+
+  it('is kept whole beside the groups a host adds', async () => {
+    const { openLoneGroup } = await import('../src/helpers/templateTree');
+    const kept = templateTree(lone, { keepLoneGroup: true });
+    expect(openLoneGroup(withServerCompletions(kept, SERVER)).map((node) => node.label)).toEqual([
+      'Order data',
+      'Record fields',
+      'Template contexts',
+      'Functions',
+      'Values and keywords',
+    ]);
+  });
+});

@@ -270,6 +270,8 @@ export interface ITemplateTreeOptions {
    * a record is offered whole where its catalogue keeps its "select whole", and a state is not.
    */
   wholeRecords?: boolean;
+  /** A lone group kept whole, for a host that adds groups of its own and opens it after (`openLoneGroup`). */
+  keepLoneGroup?: boolean;
 }
 
 /** The nodes of a record's fields, each a group of its own fields where it is a record (`@customer.name`). */
@@ -344,7 +346,7 @@ export const fieldReference = (key: string): string => {
  */
 export const templateTree = (
   templates?: IReqoreFormTemplates | { items?: unknown[] },
-  { fields, wholeRecords }: ITemplateTreeOptions = {}
+  { fields, wholeRecords, keepLoneGroup }: ITemplateTreeOptions = {}
 ): ITemplateNode[] => {
   const rows = (templates?.items ?? []) as ITemplateCatalogueRow[];
   const roots = rows
@@ -365,14 +367,19 @@ export const templateTree = (
       children: fieldNodes(fields, id, trail, '@'),
     });
   }
-  // a lone group is opened: its members are what there is to choose from
-  if (roots.length === 1 && roots[0].children?.length && !roots[0].value) {
-    return roots[0].children.map((child) => ({
-      ...lift(child, roots[0].id),
-    }));
-  }
-  return roots;
+  return keepLoneGroup ? roots : openLoneGroup(roots);
 };
+
+/**
+ * A lone group opened: where it is the only one, its members are what there is to choose from. Where there are
+ * others - the record's fields, what the language server completes - it is kept whole, under its name (qorus#646,
+ * David's review: "Order data"'s templates stood loose beside Record fields), so a host that adds groups opens it
+ * only once they are added (`keepLoneGroup`).
+ */
+export const openLoneGroup = (roots: ITemplateNode[]): ITemplateNode[] =>
+  roots.length === 1 && roots[0].children?.length && !roots[0].value ?
+    roots[0].children.map((child) => lift(child, roots[0].id))
+  : roots;
 
 /** A node with the group above it taken off its trail, as it is when that group is opened for the author. */
 const lift = (node: ITemplateNode, liftedId: string): ITemplateNode => {
