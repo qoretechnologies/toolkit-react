@@ -186,14 +186,14 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
     if (token.startsWith('@')) {
       return { isIncomplete: false, items: fieldItems };
     }
-    /* Elsewhere as the server answers, by where the caret is (professor's `/lsp`): nothing in an empty document,
-       values where one can be written (the record's fields and the template contexts), operators after a whole
+    /* Elsewhere as the server answers, by where the caret is: values where one can be written - an empty document
+       too (Qorus `QorusLspWebSocketHandler::handleCompletion`: "an empty document has a source: what can start an
+       expression completes it") - the record's fields and the template contexts; operators after a whole
        value - a reference (`$record:{pos}|`) or anything a space follows (`12 |`) - and nothing in a word or a
        number being typed (`12|`; the server's functions are not the stand-in's). */
     const written = head.trimEnd();
     const items =
-      !written ? []
-      : MOCK_BEFORE_A_VALUE.test(written) ?
+      !written || MOCK_BEFORE_A_VALUE.test(written) ?
         [...fieldItems, ...qorusTemplateCompletions('$', dpqlTemplateContext())]
       : MOCK_WHOLE_TEMPLATE.test(token) || written !== head ? DPQL_MOCK_AFTER_A_VALUE
       : [];

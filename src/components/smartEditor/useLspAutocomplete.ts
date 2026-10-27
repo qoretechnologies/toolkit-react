@@ -767,6 +767,13 @@ export function useLspAutocomplete(
       if (marks.continues || (!replacementPath && /^[$@][^\s]*[:.]$/.test(written))) {
         // the rows stay until the next level's come: a list left empty is put away, and its close drops the request
         setDocsFor(null);
+        // taken from the picker: what follows is listed as typing lists it, in a list of its own (`completeAtCaret`)
+        if (browseRef.current) {
+          browseRef.current = null;
+          setBrowse(null);
+          popoverKeyRef.current += 1;
+          setPopoverKey(popoverKeyRef.current);
+        }
         setFocusedIndex(0);
         replacingChipPathRef.current = null;
         anchoredChipPathRef.current = null;
@@ -1191,12 +1198,19 @@ export function useLspAutocomplete(
     (node: ITemplateNode, written?: string) => {
       const value = written ?? node.value;
       if (!value) return;
+      /* what it is, for the editor to write it as it is: a field or a template as its chip, a function, a value or
+         a keyword as text, a template context as text that is completed on (`continues`) */
+      const kind =
+        node.kind === 'field' ? 5
+        : node.kind === 'function' ? 3
+        : node.kind === 'keyword' ? 14
+        : 6;
       const [item] = toDropdownItems([
         {
           label: node.label,
           insertText: value,
-          kind: node.kind === 'field' ? 5 : 6,
-          data: { templateNodeId: node.id },
+          kind,
+          data: { templateNodeId: node.id, ...(node.continues ? { continues: true } : {}) },
         },
       ]);
       selectItem({ ...item, metadata: { ...item.metadata, retrigger: false } });

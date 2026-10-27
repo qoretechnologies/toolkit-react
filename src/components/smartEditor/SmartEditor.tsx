@@ -48,6 +48,8 @@ import { useLspSemanticTokens } from './useLspSemanticTokens';
 import { useLspSignatureHelp } from './useLspSignatureHelp';
 import { templateNodeFor } from '../../helpers/templateTree';
 import { useTabCameIn } from './useTabCameIn';
+import { withServerCompletions } from '../../helpers/templateTree';
+import type { ILspCompletionItem } from '../../utils/lspClient.types';
 import { commitTypedReferences, drawRechipped } from './typedReferences';
 import { useEditingAids } from './useEditingAids';
 
@@ -382,6 +384,37 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       [noServer, askServer, completionsWith]
     );
 
+    /* What the language server completes where a value can be written (the start of the text), for the template
+       picker to offer beside the field's own templates: the record's fields, the template contexts, the functions
+       and the values (qorus#646, David: "users should be supported with all available completions in the template
+       picker"). Asked once the server is ready, again as the field's templates change, and when the picker opens. */
+    const [serverValues, setServerValues] = useState<ILspCompletionItem[]>();
+    const askedValuesRef = useRef(0);
+    const askServerValues = useCallback(async () => {
+      // only an editor of templates has a template picker to offer them in (`templateRoots`)
+      if (noServer || !lspReady || !templateRoots) return;
+      const asked = ++askedValuesRef.current;
+      // at the start of the text: a value can always be written there
+      const items = await askServer('', 0);
+      // only the latest answer, and only while the editor is there
+      if (asked === askedValuesRef.current && mountedRef.current) setServerValues(items);
+    }, [noServer, lspReady, askServer, templateRoots]);
+    const mountedRef = useRef(true);
+    useEffect(
+      () => () => {
+        mountedRef.current = false;
+      },
+      []
+    );
+    useEffect(() => {
+      void askServerValues();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lspReady, templateRoots]);
+    const pickerRoots = useMemo(
+      () => (templateRoots ? withServerCompletions(templateRoots, serverValues) : []),
+      [templateRoots, serverValues]
+    );
+
     const autocomplete = useLspAutocomplete({
       getCompletions,
       isReady: lspReady || noServer,
@@ -398,6 +431,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           editor.selection?.anchor.path[0]
         ),
     });
+
+    // the picker opened: what the server completes asked again, for the record and the context bound now
+    const pickerOpen = !!autocomplete.browse;
+    useEffect(() => {
+      if (pickerOpen) void askServerValues();
+    }, [pickerOpen, askServerValues]);
 
     const hover = useLspHover(session, editorRef as React.RefObject<any>, converter, {
       enabled: enableHover,
@@ -842,7 +881,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
        its own, nor anything outside the text: the list's rows are drawn elsewhere, and their clicks reach this
        box through React. */
     const { openAtCaret, openBrowse } = autocomplete;
-    const browsesOnClick = !!templateRoots?.length;
+    const browsesOnClick = !!pickerRoots.length;
     // whether the Tab whose key comes up brought the focus into the editor (`onKeyUp` below)
     const tabCameIn = useTabCameIn(() => {
       const editor = editorRef.current;
@@ -1040,7 +1079,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               autocomplete={autocomplete}
               id={completionMenuId}
               onSelect={handleCompletionSelect}
-              templateRoots={templateRoots}
+              templateRoots={pickerRoots}
               pendingLabel={
                 !session.isReady ? 'Connecting to language server…'
                 : !session.isContextReady ? 'Loading schema…'
@@ -1093,7 +1132,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               />
             )}
           </StyledEditorBox>
-          {templateButton && templateRoots?.length && !readOnly ?
+          {templateButton && pickerRoots.length && !readOnly ?
             <TemplateButton
               size={size}
               insertable={insertableAtCaret}

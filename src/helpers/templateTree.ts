@@ -15,7 +15,7 @@ import { templateBaseType, templateType } from './templateType';
 
 /** What a node is, as its row says it: the badge a row carries and the icon it is drawn with. */
 export type TTemplateNodeKind =
-  'group' | 'state' | 'context' | 'config' | 'variable' | 'field' | 'template';
+  'group' | 'state' | 'context' | 'config' | 'variable' | 'field' | 'template' | 'function' | 'keyword';
 
 /** What a row says a node is, in words. A group says nothing: its members do. */
 export const TEMPLATE_NODE_KIND_LABELS: Record<TTemplateNodeKind, string | undefined> = {
@@ -26,6 +26,8 @@ export const TEMPLATE_NODE_KIND_LABELS: Record<TTemplateNodeKind, string | undef
   variable: 'Variable',
   field: 'Field',
   template: 'Template',
+  function: 'Function',
+  keyword: 'Keyword',
 };
 
 /** A catalogue row, as far as the tree reads it: a reqore dropdown item with a host's extras. */
@@ -67,6 +69,11 @@ export interface ITemplateNode {
   trail: string[];
   /** The ids of the groups it is in, outermost first. */
   trailIds: string[];
+  /**
+   * Taken, it is written as text and what is in it is completed next, as typing goes on into it: a template context
+   * the language server offers (`$timestamp:`), whose values only the server knows.
+   */
+  continues?: boolean;
   children?: ITemplateNode[];
   /** Its members, asked for when it is opened or searched into, where its host gives them only then. */
   loadChildren?: () => Promise<ITemplateNode[]>;
@@ -731,3 +738,103 @@ export const templateContextsOf = (roots: ITemplateNode[], partial = ''): ITempl
     };
   });
 };
+
+/** An LSP completion item, as far as the picker reads one. */
+interface IServerCompletion {
+  label: string;
+  kind?: number;
+  insertText?: string;
+  textEdit?: { newText?: string };
+  detail?: string;
+  documentation?: string | { value?: string };
+}
+
+const SERVER_GROUPS: Array<{ id: string; label: string; kind: TTemplateNodeKind; description: string }> = [
+  { id: 'contexts', label: 'Template contexts', kind: 'context', description: 'Write one and pick what is in it' },
+  { id: 'functions', label: 'Functions', kind: 'function', description: 'What the expression can call' },
+  { id: 'keywords', label: 'Values and keywords', kind: 'keyword', description: 'Literal values and operators' },
+];
+
+/**
+ * The template picker's roots: the field's own (`templateTree`) and what the language server completes where a
+ * value can be written (qorus#646, David: "users should be supported with all available completions in the
+ * template picker" - the picker and typing offer the same set). The record's fields the server knows join the
+ * field's Record fields group (once each); the server's template contexts (each written and gone on from), its
+ * functions and its values and keywords are groups of their own.
+ */
+export const withServerCompletions = (roots: ITemplateNode[], items: IServerCompletion[] | undefined): ITemplateNode[] => {
+  if (!items?.length) return roots;
+  const written = (item: IServerCompletion) => item.textEdit?.newText ?? item.insertText ?? item.label;
+  const describe = (item: IServerCompletion) =>
+    typeof item.documentation === 'string' ? item.documentation : (item.documentation?.value ?? item.detail);
+  const known = new Set(
+    allTemplateNodes(roots).flatMap((node) => [node.value, node.reference].filter(Boolean) as string[])
+  );
+  const fields = items.filter((item) => item.kind === 5 && /^@/.test(written(item)) && !known.has(written(item)));
+  const contexts = items.filter((item) => /^\$[\w-]+:$/.test(written(item)));
+  const functions = items.filter((item) => item.kind === 3 || item.kind === 2);
+  const keywords = items.filter(
+    (item) => (item.kind === 14 || item.kind === 12 || item.kind === 24) && !/^[$@]/.test(written(item))
+  );
+  let out = roots;
+  if (fields.length) {
+    const fieldGroup = roots.find((node) => node.label === RECORD_FIELDS_LABEL && node.kind === 'field');
+    const id = fieldGroup?.id ?? 'server.fields';
+    const trail = [RECORD_FIELDS_LABEL];
+    const extra: ITemplateNode[] = fields.map((item, index) => ({
+      id: `${id}.server.${index}`,
+      label: item.label.replace(/^@/, ''),
+      value: written(item),
+      reference: written(item),
+      kind: 'field',
+      type: item.detail,
+      description: describe(item),
+      trail,
+      trailIds: [id],
+    }));
+    out =
+      fieldGroup ?
+        out.map((node) => (node === fieldGroup ? { ...node, children: [...(node.children ?? []), ...extra] } : node))
+      : [
+          ...out,
+          {
+            id,
+            label: RECORD_FIELDS_LABEL,
+            kind: 'field',
+            description: 'The fields of the record the expression is about',
+            trail: [],
+            trailIds: [],
+            children: extra,
+          },
+        ];
+  }
+  const byGroup: Record<string, IServerCompletion[]> = { contexts, functions, keywords };
+  for (const group of SERVER_GROUPS) {
+    const members = byGroup[group.id];
+    if (!members.length) continue;
+    const id = `server.${group.id}`;
+    out = [
+      ...out,
+      {
+        id,
+        label: group.label,
+        kind: group.kind,
+        description: group.description,
+        trail: [],
+        trailIds: [],
+        children: members.map((item, index) => ({
+          id: `${id}.${index}`,
+          label: item.label,
+          value: written(item),
+          kind: group.kind,
+          description: describe(item),
+          trail: [group.label],
+          trailIds: [id],
+          ...(group.id === 'contexts' ? { continues: true, reference: written(item) } : {}),
+        })),
+      },
+    ];
+  }
+  return out;
+};
+

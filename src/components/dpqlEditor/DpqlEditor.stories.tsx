@@ -252,14 +252,27 @@ const meta = {
              `<state>.`, that state's data - each the whole reference it is written as (`mockDataTemplateValues`). */
           const FSM_DATA_KEY_ITEMS = mockDataTemplateValues(fsmStateData, sigilToken.slice('$data:'.length));
 
+          /* Where a value can be written and nothing is typed of it - an empty text, after an operator, a comma
+             or a bracket - what can start one, as Qorus answers there (Qore DpqlCompletionProvider, a value
+             position): the record's fields, the literal values, the functions, the template contexts and `!`. */
+          const atAValue = !wordTyped && (!chead.trim() || /[-+*/%<>=!&|,([]\s*$/.test(chead));
+          const VALUE_POSITION_ITEMS = [
+            ...(boundFields === STORY_RECORD_FIELDS ? FIELD_ITEMS : fieldItemsAt(boundFields, '@')),
+            ...['true', 'false', 'null'].map((label) => ({ label, kind: 12, insertText: label })),
+            ...FUNCTION_ITEMS,
+            ...qorusTemplateCompletions('$', dpqlTemplateContext()),
+            { label: '!', kind: 24, insertText: '!', documentation: 'Logical NOT' },
+          ];
           const items = inFsmDataTemplate
             ? FSM_DATA_KEY_ITEMS
             : sigil === '$'
               ? TEMPLATE_ITEMS
               : sigil === '@'
                 ? boundFields === STORY_RECORD_FIELDS ? FIELD_ITEMS : fieldItemsAt(boundFields, sigilToken)
-                : // no sigil → functions/keywords
-                  FUNCTION_ITEMS;
+                : atAValue
+                  ? VALUE_POSITION_ITEMS
+                  : // no sigil → functions/keywords
+                    FUNCTION_ITEMS;
 
           return { items };
         },
@@ -2672,3 +2685,56 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
   },
 };
 
+
+/**
+ * The template picker offers every completion the field has, in every state - on load, after the text is cleared,
+ * after it is typed again, opened from the template button - the same set typing offers (qorus#646, David: "if the
+ * textarea is cleared, then fields are not shown in the template picker"; "users should be supported with all
+ * available completions in the template picker"). The record's fields here are known only to the language server.
+ */
+export const ThePickerOffersEveryCompletionAfterClearing: Story = {
+  args: { ...WithTemplates.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `@` key by key: the record\'s fields are listed. The text cleared with Ctrl+A and Backspace and ' +
+          'the empty field clicked, the picker lists the given templates, Record fields (name, status, age), the ' +
+          'template contexts, the functions and the values - what typing offers. Typed again (`@`) and cleared ' +
+          'with Backspace, it lists them again; opened from the template button, the same.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    const everySource = ['Record fields', 'Template contexts', 'Functions', 'Values and keywords'];
+    const openEmpty = async () => {
+      await userEvent.click(canvasElement.ownerDocument.body);
+      await userEvent.click(editable);
+      await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(everySource)), { timeout: 30000 });
+      await userEvent.click(await pickerRow('Record fields'));
+      await waitFor(() => expect(pickerLabels()).toEqual(['name', 'status', 'age']));
+      await userEvent.keyboard('{Escape}');
+    };
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '@');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['@name'])), {
+      timeout: 30000,
+    });
+    // cleared with select-all and Backspace
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await waitFor(() => expect(plainTextOf(editable)).toBe(''));
+    await openEmpty();
+    // typed again, cleared with Backspace
+    await userEvent.click(editable);
+    await typeAsAPerson(userEvent, '@');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['@name'])));
+    await userEvent.keyboard('{Escape}{Backspace}');
+    await waitFor(() => expect(plainTextOf(editable)).toBe(''));
+    await openEmpty();
+    // opened from the template button: the same
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
+    await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(everySource)), { timeout: 30000 });
+  },
+};

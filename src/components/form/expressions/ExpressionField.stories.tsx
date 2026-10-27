@@ -624,7 +624,8 @@ const typedExpressionStory = (
        same race. */
     await waitForLspIdle(canvasElement);
     await userEvent.click(editable);
-    await userEvent.type(editable, text);
+    // typed as a person types it, key by key (the click opens the template picker; typing puts it away)
+    await typeAsAPerson(userEvent, text);
     await expectation(canvasElement);
     await waitForLspIdle(canvasElement);
   },
@@ -2482,5 +2483,57 @@ export const AContextPickedGoesOnToWhatIsInIt: Story = {
     await waitFor(() => expect(seenCompletionLabels()).toContain('pos'), { timeout: 20000 });
     await userEvent.keyboard('{Tab}');
     await waitFor(() => expect(editable.querySelectorAll('.reqore-tag')).toHaveLength(1));
+  },
+};
+
+/**
+ * The Text view's template picker offers what typing offers: the row's fields and the language server's template
+ * contexts, on an empty text and after it is cleared (qorus#646, David: "users should be supported with all
+ * available completions in the template picker").
+ */
+export const TheTextViewPickerOffersEveryCompletion: Story = {
+  args: {
+    value: { is_expression: true, value: { args: [] } },
+    defaultMode: 'text',
+    localTemplates: FIELD_TEMPLATES as never,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Clicks the empty Text view: the picker lists the row's fields and the template contexts the server " +
+          'offers. `$tr` typed and cleared with Ctrl+A and Backspace, a click lists them again.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editable = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>('[contenteditable="true"]');
+        if (!el) throw new Error('editor not ready');
+        return el;
+      },
+      { timeout: 10000 }
+    );
+    await waitForLspIdle(canvasElement);
+    const pickerGroups = () =>
+      Array.from(document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row')).map((row) =>
+        row.getAttribute('data-label')
+      );
+    const openEmpty = async () => {
+      await userEvent.click(canvasElement.ownerDocument.body);
+      await userEvent.click(editable);
+      await waitFor(
+        () => expect(pickerGroups()).toEqual(expect.arrayContaining(['pos', 'bezeichnung', 'Template contexts'])),
+        { timeout: 20000 }
+      );
+      await userEvent.keyboard('{Escape}');
+    };
+    await openEmpty();
+    await userEvent.click(editable);
+    await typeAsAPerson(userEvent, '$tr');
+    await waitFor(() => expect(seenCompletionLabels()).toContain('$transient:'), { timeout: 20000 });
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await openEmpty();
   },
 };
