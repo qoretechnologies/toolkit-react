@@ -69,8 +69,7 @@ import { TemplateBrowser } from './TemplateBrowser';
 import { richtextToString } from '../../../../helpers/common';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
-import { areQorusTypesCompatible } from '../../../../helpers/expressions';
-import { defaultQorusTypes } from '../../../../helpers/qorusTypeCatalogue';
+import { qorusTypeTakesRecords } from '../../../../helpers/qorusTypeCatalogue';
 import { isConditionOption } from '../../../../helpers/expressions';
 import { withTemplateSources } from '../../../smartEditor/templateCompletions';
 import {
@@ -854,12 +853,7 @@ const TemplateFieldImpl = memo(
        as opened (qorus#646, David's review); a scalar field's are only opened */
     const takesRecords =
       typeIsAnyLike ||
-      (!!type &&
-        areQorusTypesCompatible(
-          type,
-          'hash',
-          qorusTypes.value?.length ? qorusTypes.value : defaultQorusTypes
-        ));
+      qorusTypeTakesRecords(qorusTypes.value, type, rest.base_type as string | undefined);
     /* An EMPTY field, for the purpose of offering the template selector.
    
        `null` is deliberately not empty. It is the DPQL null literal — a value

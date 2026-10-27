@@ -92,6 +92,7 @@ export {
   qorusTypeDisplayName,
   qorusTypeEntry,
   qorusTypeSentenceForm,
+  qorusTypeTakesRecords,
   UNKNOWN_TYPE_NAME,
   useQorusTypes,
 } from './hooks/useQorusTypes';

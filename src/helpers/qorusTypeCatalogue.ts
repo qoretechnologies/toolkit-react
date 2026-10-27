@@ -394,7 +394,8 @@ const QORE_TYPE_ALIASES: Record<string, string> = { boolean: 'bool', integer: 'i
  * A type's name as the catalogue lists it: Qore's other name for a type (`integer`, `boolean`) is the type it names
  * (`int`, `bool`). The server's catalogue knows each type by one name only, and says which it converts by that name.
  */
-export const catalogueTypeName = (typeName: string): string => QORE_TYPE_ALIASES[typeName] ?? typeName;
+export const catalogueTypeName = (typeName: string): string =>
+  QORE_TYPE_ALIASES[typeName] ?? typeName;
 
 /**
  * The catalogue's entry for a type (the server's catalogue, or reqraft's copy until it answers).
@@ -564,4 +565,19 @@ export const optionTypeSentence = (
   return typeof schema?.type === 'string' && typeName(schema.type, baseType) ?
       typeSentenceForm(schema.type, baseType)
     : undefined;
+};
+
+/**
+ * Whether a place of type `typeName` (its base type `baseType`) takes a record whole - a hash, a Qog state's data:
+ * where the catalogue lists it as a hash, or as taking a hash in its own right (qorus#646, David's review: "Any or
+ * hash yes, scalar no"). Text, which converts any value, is not a place for a record; a place of any type is
+ * judged by its caller (`isUntypedOptionType`), as the catalogue names no such type.
+ */
+export const qorusTypeTakesRecords = (
+  types: IQorusTypeObject[] | undefined,
+  typeName: string | undefined,
+  baseType?: string
+): boolean => {
+  const entry = qorusTypeEntry(types?.length ? types : defaultQorusTypes, typeName, baseType);
+  return !!entry && (entry.exact_match?.includes('hash') || entry.types_accepted?.includes('hash'));
 };

@@ -22,6 +22,7 @@ export {
   qorusTypeDisplayName,
   qorusTypeEntry,
   qorusTypeSentenceForm,
+  qorusTypeTakesRecords,
   UNKNOWN_TYPE_NAME,
 } from '../helpers/qorusTypeCatalogue';
 export type { IQorusTypeObject } from '../helpers/qorusTypeCatalogue';

@@ -26,6 +26,7 @@ import { StringFormField } from '../string/String';
 import { LONG_EXAMPLE_VALUE } from './__fixtures__/longExampleValue';
 import { TemplateField } from './TemplateField';
 import { multiLevelTemplates, templates } from './__fixtures__/templateFixtures';
+import { QOG_FIELD_TEMPLATES } from './__fixtures__/qogTemplatePayloads';
 
 // --- IDE leaf story components (2-arg field API over reqraft leafs) ---------
 
@@ -2003,5 +2004,54 @@ export const AnExpressionFitsAFieldOfAnUnlistedTypeByItsBaseTypeOnAPhone: StoryO
           'The same two fields at phone width (390 px): the text field of a user type takes the expression, the date one does not.',
       },
     },
+  },
+};
+
+/**
+ * A field that takes a record (a hash) is given a Qog state's data whole as well as opened; a text field, though
+ * text takes any value, is not (qorus#646, David's review: "Any or hash yes, scalar no").
+ */
+export const AStateIsTakenWholeByARecordField: StoryObj<typeof meta> = {
+  args: { templates: QOG_FIELD_TEMPLATES as never, allowCustomValues: false, name: 'order' },
+  render: (args) => (
+    <>
+      <TemplateField {...args} type='hash' label='Whole order' />
+      <TemplateField {...args} type='string' name='note' label='Order note' />
+    </>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Opens a hash field's picker, Whole order: Receive order has Use, which sets the field to the state's " +
+          'whole data, $data:{receive_order}, of type hash. The picker of a text field, Order note, offers ' +
+          'Receive order to open only.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByText('Whole order'));
+    const state = await waitFor(
+      () => {
+        const row = document.querySelector<HTMLElement>('.template-picker-row[data-label="Receive order"]');
+        expect(row, 'the row Receive order').toBeTruthy();
+        return row!;
+      },
+      { timeout: 15000 }
+    );
+    await userEvent.click(state.parentElement!.querySelector<HTMLElement>('.template-picker-use')!);
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('order', '$data:{receive_order}', 'hash')
+    );
+    await waitFor(() => expect(document.querySelectorAll('.template-picker')).toHaveLength(0));
+    await userEvent.click(await canvas.findByText('Order note'));
+    await waitFor(() =>
+      expect(document.querySelector('.template-picker-row[data-label="Receive order"]')).toBeTruthy()
+    );
+    expect(
+      Array.from(document.querySelectorAll('.template-picker-use')).map((use) => use.getAttribute('aria-label')),
+      'no Use in a text field'
+    ).toEqual([]);
   },
 };
