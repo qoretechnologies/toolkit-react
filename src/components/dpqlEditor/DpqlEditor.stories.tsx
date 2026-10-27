@@ -34,7 +34,6 @@ import {
   saidOfTheText,
   seenCompletionLabels,
   typeAsAPerson,
-  pickerCrumbs,
   pickerFocused,
   pickerLabels,
   pickerRow,
@@ -59,6 +58,40 @@ const QOG_STATE_DATA: ITemplatesPayload = QOG_STATE_DATA_PAYLOAD;
 
 /** The record the stories' server describes (`dpql/setContext`): what a field's hover says of it. */
 const STORY_RECORD_FIELDS = RECORD_FIELDS;
+
+/** A customer record, as a server describes it: its contact a record of its own (`@contact.email`). */
+const CUSTOMER_RECORD_FIELDS = {
+  name: { display_name: 'Name', short_desc: "The customer's name", type: { name: 'string' } },
+  contact: {
+    display_name: 'Contact',
+    short_desc: 'How to reach the customer',
+    type: {
+      name: 'hash',
+      fields: {
+        email: { display_name: 'Email', short_desc: 'Their email address', type: { name: 'string' } },
+        phone: { display_name: 'Phone', short_desc: 'Their phone number', type: { name: 'string' } },
+      },
+    },
+  },
+};
+
+/** The fields the server offers after `@` and a record field's `.`: those at that path, each written whole. */
+const fieldItemsAt = (fields: Record<string, unknown>, token: string) => {
+  const path = token.slice(1).split('.');
+  const typed = path.pop() ?? '';
+  let level = fields as Record<string, { type?: { name?: string; fields?: Record<string, unknown> } }>;
+  for (const step of path) {
+    level = (level[step]?.type?.fields ?? {}) as typeof level;
+  }
+  return Object.entries(level)
+    .filter(([name]) => name.startsWith(typed))
+    .map(([name, field]) => ({
+      label: `@${[...path, name].join('.')}`,
+      insertText: `@${[...path, name].join('.')}`,
+      kind: 5,
+      detail: field.type?.name === 'hash' ? 'Key-value pairs (hash)' : 'Text',
+    }));
+};
 
 interface IDpqlEditorStoryArgs {
   value?: string;
@@ -111,6 +144,8 @@ const meta = {
     // The bound Qog's state data, from the most recent `dpql/setFsmContext`: what `$data:` completes, as the real
     // server completes it from the state data it computed when the Qog was bound.
     let fsmStateData: ITemplatesPayload = {};
+    // the record the document is bound to, by its provider: a customer record has a record of its own in it
+    let boundFields: Record<string, unknown> = STORY_RECORD_FIELDS;
     lsp = createMockLspServer(MOCK_LSP_URL, {
       capabilities: {
         ...DEFAULT_LSP_CAPABILITIES,
@@ -232,12 +267,33 @@ const meta = {
              `<state>.`, that state's data - each the whole reference it is written as (`mockDataTemplateValues`). */
           const FSM_DATA_KEY_ITEMS = mockDataTemplateValues(fsmStateData, sigilToken.slice('$data:'.length));
 
+          /* What is in a context, as the server lists it after `$<context>:` (Qore `getTemplateValueCompletions`:
+             the host's values for it, each written `$<context>:<name>`, named by its display name, its type its
+             detail): the interface's config items here. */
+          const valueTyped = /^\$([\w-]+):([\w.]*)$/.exec(sigilToken);
+          const CONFIG_VALUES = [
+            { name: 'rate', display_name: 'Rate', type: 'Number', description: 'The exchange rate to apply.' },
+            { name: 'region', display_name: 'Region', type: 'Text', description: 'Where the orders ship from.' },
+          ];
+          const VALUE_ITEMS =
+            valueTyped?.[1] === 'config' ?
+              CONFIG_VALUES.filter((value) => value.name.startsWith(valueTyped[2])).map((value) => ({
+                label: value.display_name,
+                kind: 6,
+                insertText: `$config:${value.name}`,
+                filterText: `$config:${value.name}`,
+                detail: value.type,
+                documentation: value.description,
+              }))
+            : [];
           const items = inFsmDataTemplate
             ? FSM_DATA_KEY_ITEMS
+            : valueTyped
+              ? VALUE_ITEMS
             : sigil === '$'
               ? TEMPLATE_ITEMS
               : sigil === '@'
-                ? FIELD_ITEMS
+                ? boundFields === STORY_RECORD_FIELDS ? FIELD_ITEMS : fieldItemsAt(boundFields, sigilToken)
                 : // no sigil → functions/keywords
                   FUNCTION_ITEMS;
 
@@ -246,11 +302,14 @@ const meta = {
 
         // `WithDelayedContext` slows this via `lsp.delays['dpql/setContext']`
         // to show the `isContextReady` overlay.
-        'dpql/setContext': (msg) => ({
-          provider: msg.params?.provider ?? null,
-          recordType: msg.params?.recordType ?? 'record',
-          fields: STORY_RECORD_FIELDS,
-        }),
+        'dpql/setContext': (msg) => {
+          boundFields = msg.params?.provider === 'crm/customers' ? CUSTOMER_RECORD_FIELDS : STORY_RECORD_FIELDS;
+          return {
+            provider: msg.params?.provider ?? null,
+            recordType: msg.params?.recordType ?? 'record',
+            fields: boundFields,
+          };
+        },
 
         /* The server publishes what it finds in the text on every open and change, as Qorus does (`dpql-parse`):
            `$data:receive_order:ev` is refused - "':' can't be used here" (DPQL-E001, the server's own words). */
@@ -1194,9 +1253,10 @@ export const APickedStateOpensItsDataAndThePickIsOneChip: Story = {
     docs: {
       description: {
         story:
-          'Types `$data:` and picks the state Receive order: the picker opens at its data, the way back above the ' +
-          'rows reading Templates › Receive order. Picking Event type there writes one chip, ' +
-          'Receive order › Event type, for $data:{receive_order.event_type}, and nothing else.',
+          'Types `$data:` and picks the state Receive order: its reference is written as text, ' +
+          '$data:receive_order., and its data is listed - Customer, Event type, Order ID, User name. Picking ' +
+          'Event type writes one chip, Receive order › Event type, for $data:{receive_order.event_type}, and ' +
+          'nothing else.',
       },
     },
   },
@@ -1205,11 +1265,14 @@ export const APickedStateOpensItsDataAndThePickIsOneChip: Story = {
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
     await typeAsAPerson(userEvent, '$data:');
+    /* a state taken is gone on into: its reference is written as text, and its data is listed next (qorus#646,
+       David: "accepting an intermediate level continues to the next level") */
     await userEvent.click(await completionRow('Receive order'));
+    await waitFor(() => expect(plainTextOf(editable)).toBe('$data:receive_order.'));
     await waitFor(() =>
-      expect(pickerCrumbs()).toContain('Receive order')
+      expect(seenCompletionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates'])
     );
-    await userEvent.click(await pickerRow('Event type'));
+    await userEvent.click(await completionRow('Event type'));
     await waitFor(() =>
       expect(args.onChange).toHaveBeenLastCalledWith(
         expect.stringMatching(/^\$data:\{?receive_order\.event_type\}?\s*$/)
@@ -1263,10 +1326,9 @@ export const TypingNarrowsToWhatItReaches: Story = {
     docs: {
       description: {
         story:
-          'Types `$d`: the list offers the two states, Look up customer and Receive order, the server\'s template ' +
-          'contexts $data: and $dynamic:, and Browse all templates - none of the context data. `$data` keeps ' +
-          "the states and $data:. " +
-          "`$data:` offers the states; then `receive_order.` the state's data, Customer, Event type, Order ID and " +
+          'Types key by key, and the list goes level by level: `$d` offers the template contexts it starts, ' +
+          '$data: and $dynamic:; `$data` the one; `$data:` the states, Look up customer and Receive order; ' +
+          "`$data:rec` Receive order; `$data:receive_order.` the state's data, Customer, Event type, Order ID and " +
           'User name. Every row fits the list: its name whole, its badges and its description inside it.',
       },
     },
@@ -1275,31 +1337,26 @@ export const TypingNarrowsToWhatItReaches: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    // the states, and the server's template context they are in, `$data:` (qorus#646, David: LSP completion too)
+    /* level by level, each filtered by what is typed of it (qorus#646, David): `$d` the contexts it starts, the
+       server's among them; `$data` the one; `$data:` its states; `$data:rec` the one */
     await typeAsAPerson(userEvent, '$d');
-    await waitFor(
-      () =>
-        expect(completionLabels()).toEqual([
-          'Look up customer',
-          'Receive order',
-          '$data:',
-          '$dynamic:',
-          'Browse all templates',
-        ]),
-      { timeout: 30000 }
-    );
+    await waitFor(() => expect(completionLabels()).toEqual(['$data:', '$dynamic:', 'Browse all templates']), {
+      timeout: 30000,
+    });
     await typeAsAPerson(userEvent, 'ata');
-    await waitFor(
-      () =>
-        expect(completionLabels()).toEqual(['Look up customer', 'Receive order', '$data:', 'Browse all templates']),
-      { timeout: 30000 }
-    );
+    await waitFor(() => expect(completionLabels()).toEqual(['$data:', 'Browse all templates']), {
+      timeout: 30000,
+    });
     await typeAsAPerson(userEvent, ':');
     await waitFor(
       () => expect(completionLabels()).toEqual(['Look up customer', 'Receive order', 'Browse all templates']),
       { timeout: 30000 }
     );
-    await typeAsAPerson(userEvent, 'receive_order.');
+    await typeAsAPerson(userEvent, 'rec');
+    await waitFor(() => expect(completionLabels()).toEqual(['Receive order', 'Browse all templates']), {
+      timeout: 30000,
+    });
+    await typeAsAPerson(userEvent, 'eive_order.');
     await waitFor(
       () =>
         expect(completionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates']),
@@ -1828,9 +1885,9 @@ export const WithTemplates: Story = {
     docs: {
       description: {
         story:
-          'Type `$` to list the templates the editor is given (order id, customer), each a whole value, and the ' +
-          "server's template contexts ($data:, $config:), which a pick writes and goes on from. Templates and " +
-          'fields share one completion list: `$` lists templates, `@` fields (@name, @status, @age).',
+          'Type `$` to list the template contexts: the given templates\' $static: and the server\'s ($data:, ' +
+          '$config:). `st` and Tab write $static: and list its templates, order id and customer. `@` lists the ' +
+          'fields (@name, @status, @age).',
       },
     },
   },
@@ -1840,24 +1897,23 @@ export const WithTemplates: Story = {
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
 
-    // `$` → the templates, as whole values
+    // `$` → the contexts: the templates' own ($static:) and the server's, and no field
     await typeAsAPerson(userEvent, '$');
     await waitFor(
       () => {
-        const dropdown = document.querySelector('.completion-menu');
-        expect(dropdown).not.toBeNull();
-        expect(dropdown!.textContent).toContain('order id');
-        expect(dropdown!.textContent).toContain('customer');
-        // the server's template contexts, which a pick goes on from, and no field
-        expect(dropdown!.textContent).toContain('$data:');
-        expect(dropdown!.textContent).toContain('$config:');
-        expect(dropdown!.textContent).not.toContain('@name');
+        expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$static:', '$data:', '$config:']));
+        expect(seenCompletionLabels()).not.toContain('@name');
       },
       { timeout: 30000 }
     );
+    // `$static:` (taken with Tab) → its templates, order id and customer
+    await typeAsAPerson(userEvent, 'st');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$static:'));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(['order id', 'customer', 'Browse all templates']));
 
     // Clear and switch to `@` → fields.
-    await userEvent.clear(editable);
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
     await typeAsAPerson(userEvent, '@');
     await waitFor(
       () => {
@@ -2542,3 +2598,75 @@ export const AColonBetweenAReferencesPartsIsRefused: Story = {
   },
 };
 
+
+/**
+ * A reference typed key by key is completed at every level, by the language server and the field's templates
+ * (qorus#646, David: "as a user types a template or field reference character by character, they must get
+ * completion at every step"): Tab takes the row the keyboard is on; a context, a state or a record taken is written
+ * as text and what is in it listed next; a whole reference taken is its chip.
+ */
+export const TypingCompletesEachLevel: Story = {
+  args: { ...WithFsmContext.args, provider: 'crm/customers', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types key by key, Tab at each level: `$da` → $data:, then its states; `rec` → $data:receive_order., ' +
+          'then its data; `cu` → $data:receive_order.customer., then the customer\'s; `na` → the chip for ' +
+          '$data:{receive_order.customer.name}. ` + $con` → $config:, then the config items the server lists; ' +
+          '`ra` → the chip Rate. ` + @co` → @contact., then its fields; `em` → the chip for @contact.email.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    const step = async (typed: string, highlighted: string, then?: string[]) => {
+      await typeAsAPerson(userEvent, typed);
+      await waitFor(() => expect(highlightedCompletionLabel()).toBe(highlighted), { timeout: 30000 });
+      await userEvent.keyboard('{Tab}');
+      if (then) {
+        await waitFor(() => expect(seenCompletionLabels()).toEqual([...then, 'Browse all templates']), {
+          timeout: 30000,
+        });
+      }
+    };
+    await typeAsAPerson(userEvent, '$');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$data:', '$config:'])), {
+      timeout: 30000,
+    });
+    await step('da', '$data:', ['Look up customer', 'Receive order']);
+    expect(plainTextOf(editable)).toBe('$data:');
+    await step('rec', 'Receive order', ['Customer', 'Event type', 'Order ID', 'User name']);
+    expect(plainTextOf(editable)).toBe('$data:receive_order.');
+    await step('cu', 'Customer', ['Address', 'Name']);
+    expect(plainTextOf(editable)).toBe('$data:receive_order.customer.');
+    await step('na', 'Name');
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{receive_order\.customer\.name\}\s*$/)
+      )
+    );
+    expect(chipsOf(editable)).toHaveLength(1);
+    await typeAsAPerson(userEvent, ' + $con');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$config:'), { timeout: 30000 });
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(['Rate', 'Region', 'Browse all templates']), {
+      timeout: 30000,
+    });
+    await step('ra', 'Rate');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringContaining('$config:rate')));
+    expect(chipsOf(editable)).toHaveLength(2);
+    await typeAsAPerson(userEvent, ' + @co');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('contact'), { timeout: 30000 });
+    await userEvent.keyboard('{Tab}');
+    await waitFor(
+      () => expect(seenCompletionLabels()).toEqual(['@contact.email', '@contact.phone', 'Browse all templates']),
+      { timeout: 30000 }
+    );
+    await step('em', '@contact.email');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/@contact\.email\s*$/)));
+    expect(chipsOf(editable)).toHaveLength(3);
+  },
+};

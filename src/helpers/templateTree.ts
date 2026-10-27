@@ -246,7 +246,9 @@ export interface ITemplateTreeField {
   display_name?: string;
   short_desc?: string;
   desc?: string;
-  type?: { name?: string } | string | string[];
+  type?: { name?: string; fields?: Record<string, ITemplateTreeField> } | string | string[];
+  /** The fields of a field that is a record of its own (`@customer.name`), as its type's or its own. */
+  fields?: Record<string, ITemplateTreeField>;
 }
 
 /** The name of the group a DPQL field's record fields are listed under. */
@@ -262,6 +264,41 @@ export interface ITemplateTreeOptions {
    */
   wholeRecords?: boolean;
 }
+
+/** The nodes of a record's fields, each a group of its own fields where it is a record (`@customer.name`). */
+const fieldNodes = (
+  fields: Record<string, ITemplateTreeField>,
+  parentId: string,
+  trail: string[],
+  prefix: string
+): ITemplateNode[] =>
+  Object.keys(fields).map((name, index) => {
+    const field = fields[name];
+    const value = prefix === '@' ? fieldReference(name) : `${prefix}.${name}`;
+    /* named by its key, as it is written (`@name`) and as its chip names it ("record: name"); its display name
+       and description say what it is */
+    const said = [
+      field?.display_name && field.display_name !== name ? field.display_name : undefined,
+      field?.short_desc ?? field?.desc,
+    ].filter(Boolean);
+    const id = `${parentId}.${index}`;
+    const members =
+      field?.fields ?? (typeof field?.type === 'object' && !Array.isArray(field.type) ? field.type.fields : undefined);
+    return {
+      id,
+      label: name,
+      value,
+      reference: value,
+      kind: 'field' as const,
+      type: fieldTypeName(field?.type),
+      description: said.length ? said.join(': ') : undefined,
+      trail,
+      trailIds: [...trail.map((_, at) => parentId.split('.').slice(0, at + 1).join('.'))],
+      ...(members && Object.keys(members).length ?
+        { children: fieldNodes(members, id, [...trail, name], value), takesWhole: true }
+      : {}),
+    };
+  });
 
 const fieldTypeName = (type: ITemplateTreeField['type']): string | undefined =>
   typeof type === 'string' ? type
@@ -318,27 +355,7 @@ export const templateTree = (
       description: 'The fields of the record the expression is about',
       trail: [],
       trailIds: [],
-      children: fieldNames.map((name, index) => {
-        const field = fields[name];
-        const value = fieldReference(name);
-        /* named by its key, as it is written (`@name`) and as its chip names it ("record: name"); its display name
-           and description say what it is */
-        const said = [
-          field?.display_name && field.display_name !== name ? field.display_name : undefined,
-          field?.short_desc ?? field?.desc,
-        ].filter(Boolean);
-        return {
-          id: `${id}.${index}`,
-          label: name,
-          value,
-          reference: value,
-          kind: 'field' as const,
-          type: fieldTypeName(field?.type),
-          description: said.length ? said.join(': ') : undefined,
-          trail,
-          trailIds: [id],
-        };
-      }),
+      children: fieldNodes(fields, id, trail, '@'),
     });
   }
   // a lone group is opened: its members are what there is to choose from
@@ -652,7 +669,8 @@ export const referenceNamesNothing = (roots: ITemplateNode[], written: string): 
   const nodes = allTemplateNodes(roots);
   const inContext = nodes.filter(
     (node) =>
-      node.reference?.startsWith(context) || (typeof node.value === 'string' && node.value.startsWith(context))
+      node.reference?.startsWith(context) ||
+      (typeof node.value === 'string' && node.value.startsWith(context))
   );
   if (!inContext.length || inContext.some((node) => node.writesKey)) {
     return false;
@@ -673,3 +691,43 @@ export const referenceNamesNothing = (roots: ITemplateNode[], written: string): 
 /** What a diagnostic says of a reference that names nothing here. */
 export const referenceNamesNothingMessage = (written: string): string =>
   `No template here is called \`${written}\`: pick one from the list, or remove it.`;
+
+/** The context a reference is in, with its `$` and `:` (`$data:` of `$data:receive_order.event_type`). */
+export const templateContextOf = (reference: string | undefined): string | undefined =>
+  reference ? /^(\$[\w-]+:)/.exec(unbracedReference(reference))?.[1] : undefined;
+
+/**
+ * The template contexts of the tree a `$` and what follows it start (qorus#646, David: "`$` → contexts"): each
+ * context its nodes are in (`$data:`, `$local:`, ...), as a node of its own whose members are its first nodes, in
+ * the order the tree lists them. Taking one writes it and goes on to what is in it.
+ */
+export const templateContextsOf = (roots: ITemplateNode[], partial = ''): ITemplateNode[] => {
+  const wanted = partial.toLowerCase();
+  const contexts = new Map<string, ITemplateNode[]>();
+  const nodes = allTemplateNodes(roots);
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  for (const node of nodes) {
+    const context = templateContextOf(node.reference);
+    if (!context || context === '$record:' || !context.slice(1).toLowerCase().startsWith(wanted))
+      continue;
+    const members = contexts.get(context) ?? [];
+    // its first nodes: none whose group is in the same context already
+    const group =
+      node.trailIds.length ? byId.get(node.trailIds[node.trailIds.length - 1]) : undefined;
+    if (!group || templateContextOf(group.reference) !== context) members.push(node);
+    contexts.set(context, members);
+  }
+  return Array.from(contexts.entries()).map(([context, members]) => {
+    const groups = Array.from(new Set(members.map((member) => member.trail[0] ?? member.label)));
+    return {
+      id: `context:${context}`,
+      label: context,
+      reference: context,
+      kind: 'context' as const,
+      description: groups.join(' · '),
+      trail: [],
+      trailIds: [],
+      children: members,
+    };
+  });
+};

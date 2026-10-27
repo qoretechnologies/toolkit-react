@@ -8,6 +8,8 @@ import {
   ITemplateNode,
   RECORD_FIELDS_LABEL,
   searchTemplateReferences,
+  allTemplateNodes,
+  templateContextsOf,
   TEMPLATE_NODE_KIND_LABELS,
   templateNodeIntent,
   TTemplateIntent,
@@ -112,6 +114,38 @@ const TEMPLATE_SIGILS = new Set(['$', '@']);
  * or `@` that opened the list and the word after it. The `@` stayed in front of the chip (qorus#646, David's
  * review): only a `$` was taken away.
  */
+/**
+ * Writes a completion as text in the place of what is typed of it (or of the chip it replaces): the reference of
+ * a context, a state or a record taken to go on into (`$data:`, `$data:receive_order.`), which is completed on.
+ */
+export const templateTextInserter: TCompletionInserter = (item, editor, ctx) => {
+  const value = item.insertText ?? item.label;
+  if (ctx.replacementPath) {
+    Editor.withoutNormalizing(editor, () => {
+      Transforms.removeNodes(editor, { at: ctx.replacementPath });
+      Transforms.insertNodes(editor, { text: value } as any, {
+        at: ctx.replacementPath,
+        select: true,
+      });
+    });
+    focusEditor(editor);
+    return;
+  }
+  if (editor.selection) {
+    const typed = typedInTheText(editor);
+    const written = /[$@][\w.:{}[\]*-]*$/.exec(typed)?.[0] ?? '';
+    const extended = chipExtendedBy(editor, typed, value);
+    for (let left = extended ? typed.length : written.length; left > 0; left--) {
+      Editor.deleteBackward(editor, { unit: 'character' });
+    }
+    if (extended) {
+      Transforms.removeNodes(editor, { at: extended });
+    }
+  }
+  Transforms.insertText(editor, value);
+  focusEditor(editor);
+};
+
 export const templateChipInserter: TCompletionInserter = (item, editor, ctx) => {
   const value = item.insertText ?? item.label;
   if (ctx.replacementPath) {
@@ -219,8 +253,15 @@ export const chipExtendedBy = (
 export interface ITemplateRowData {
   /** The node it is (`ITemplateNode.id`). */
   templateNodeId?: string;
-  /** Taking it opens the picker at its members rather than writing it: a group. */
+  /** Taking it opens the picker at its members rather than writing it: a group no reference names. */
   opens?: boolean;
+  /**
+   * Taking it writes its reference as text and lists what is in it, as typing goes on into it: a context
+   * (`$data:`), a state or a record (`$data:receive_order.`). Never a chip: a chip is a whole reference.
+   */
+  continues?: boolean;
+  /** What "Use" writes for a group taken whole: its value (`$data:{receive_order}`). */
+  wholeValue?: string;
   /** A group that can also be taken whole (a record, a Qog state's data): its row's "Use" writes it. */
   takesWhole?: boolean;
   /** The row that opens the picker at the top of the field's templates. */
@@ -246,36 +287,78 @@ export const templateSearchItems = (
   roots: ITemplateNode[],
   typed: string,
   typeLabel: TTypeLabel = builtInTypeLabel
-): ILspCompletionItem[] =>
-  searchTemplateReferences(roots, typed).map((node) => {
-    const opens = !!node.children?.length || !!node.loadChildren;
-    const kindLabel = TEMPLATE_NODE_KIND_LABELS[node.kind];
-    const type = node.type ? typeLabel(node.type, node.baseType) : undefined;
-    const where = node.trail.length ? `in ${node.trail.join(' › ')}` : undefined;
-    const data: ITemplateRowData = {
-      templateNodeId: node.id,
-      opens,
-      takesWhole: opens && !!node.takesWhole,
-      section: node.kind === 'field' ? RECORD_FIELDS_LABEL : 'Templates',
-      kindLabel,
-      kindIntent: templateNodeIntent(node),
-      typeLabel: type,
-    };
-    /* Under its name: where it is, what it is and where it comes from - in the row, never a hover over its edge
-       (qorus#646, David's review). */
-    const said = [where, node.description, node.source ? `from ${node.source}` : undefined].filter(
-      Boolean
-    );
-    return {
-      label: node.label,
-      kind: node.kind === 'field' ? FIELD_KIND : TEMPLATE_KIND,
-      detail: said.length ? said.join(' · ') : undefined,
-      insertText: node.value ?? node.reference ?? node.label,
-      // narrowed as it is typed by its reference: `$data:receive_order.ev` keeps Event type
-      filterText: node.reference ?? node.label,
-      data: data as Record<string, unknown>,
-    };
-  });
+): ILspCompletionItem[] => {
+  /* A `$` and a context's name being written: the contexts it starts, each written and gone on from - then, from
+     two letters on, the templates named so (qorus#646, David: "`$` → contexts", each level filtered by what is
+     typed of it). */
+  const context = /^\$([\w-]*)$/.exec(typed);
+  if (context) {
+    const partial = context[1];
+    const wanted = partial.toLowerCase();
+    const named =
+      partial.length >= 2 ?
+        allTemplateNodes(roots).filter(
+          (node) =>
+            !!node.value &&
+            !node.children?.length &&
+            node.label
+              .toLowerCase()
+              .split(/[^\p{L}\p{N}]+/u)
+              .some((word) => word.startsWith(wanted))
+        )
+      : [];
+    return [
+      ...templateContextsOf(roots, partial).map((node) => templateRow(node, typeLabel)),
+      ...named.map((node) => templateRow(node, typeLabel)),
+    ];
+  }
+  /* A context of free keys (`$dynamic:*`) is completed by writing its key: no row stands for it once its context
+     is written - the list says to write the key (`unlistedContextMessage`). */
+  return searchTemplateReferences(roots, typed)
+    .filter((node) => !node.writesKey)
+    .map((node) => templateRow(node, typeLabel));
+};
+
+/** A node's row in the completion list. */
+const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletionItem => {
+  const group = !!node.children?.length || !!node.loadChildren;
+  const isContext = node.id.startsWith('context:');
+  /* A group that a reference names - a context, a state, a record - is gone on into as it is typed: taken, its
+     reference is written and what is in it is listed (qorus#646, David: "accepting an intermediate level continues
+     to the next level"). A group no reference names (Context Data) opens the picker at its members. */
+  const continuation =
+    isContext ? node.reference
+    : group && node.reference && /^(?:\$[^:]*:.|@.)/.test(node.reference) ? `${node.reference}.`
+    : undefined;
+  const kindLabel = isContext ? 'Template context' : TEMPLATE_NODE_KIND_LABELS[node.kind];
+  const type = node.type ? typeLabel(node.type, node.baseType) : undefined;
+  const where = node.trail.length ? `in ${node.trail.join(' › ')}` : undefined;
+  const data: ITemplateRowData = {
+    templateNodeId: node.id,
+    opens: group && !continuation,
+    continues: !!continuation,
+    takesWhole: group && !!node.takesWhole,
+    wholeValue: group && node.takesWhole ? node.value : undefined,
+    section: node.kind === 'field' ? RECORD_FIELDS_LABEL : 'Templates',
+    kindLabel,
+    kindIntent: templateNodeIntent(node),
+    typeLabel: type,
+  };
+  /* Under its name: where it is, what it is and where it comes from - in the row, never a hover over its edge
+     (qorus#646, David's review). */
+  const said = [where, node.description, node.source ? `from ${node.source}` : undefined].filter(
+    Boolean
+  );
+  return {
+    label: node.label,
+    kind: node.kind === 'field' ? FIELD_KIND : TEMPLATE_KIND,
+    detail: said.length ? said.join(' · ') : undefined,
+    insertText: continuation ?? node.value ?? node.reference ?? node.label,
+    // narrowed as it is typed by its reference: `$data:receive_order.ev` keeps Event type
+    filterText: node.reference ?? node.label,
+    data: data as Record<string, unknown>,
+  };
+};
 
 /** The row that opens the picker at the top of the field's templates: every template, browsed as they nest. */
 export const browseAllTemplatesItem = (): ILspCompletionItem => ({
@@ -289,3 +372,14 @@ export const browseAllTemplatesItem = (): ILspCompletionItem => ({
   },
   data: { browseAll: true, section: '' } as Record<string, unknown>,
 });
+
+/**
+ * What the list says where a template context is written and nothing is listed in it (qorus#646, David's review:
+ * a context picked was left as an unfinished template, the list gone): what to write next, the list held open.
+ */
+export const unlistedContextMessage = (before: string): string | undefined => {
+  const context = /(\$[\w-]+:)[\w.]*$/.exec(before)?.[1];
+  return context ?
+      `Nothing is listed in ${context} here: write what it refers to after the ':'`
+    : undefined;
+};

@@ -84,8 +84,9 @@ describe('what the one completion list offers', () => {
       },
     ];
     // no record field after a `$`: a field is written with an `@` (qorus#646, David's review)
+    // the contexts of the field's templates and the server's, each once: `$` lists contexts (David: "`$` → contexts")
     expect(listed(complete('1 + $|', contexts))).toEqual([
-      '$config:rate',
+      '$config:',
       '$data:',
       '$qore-expr:',
       BROWSE_ALL_TEMPLATES,
@@ -289,20 +290,26 @@ describe('a template being typed', () => {
       '$data:receive_order.event_type',
       BROWSE_ALL_TEMPLATES,
     ]);
-    expect(listed(completeQog('$loc'))).toEqual(['$local:id', BROWSE_ALL_TEMPLATES]);
+    // a context's name being written: the context, written and gone on from
+    expect(listed(completeQog('$loc'))).toEqual(['$local:', BROWSE_ALL_TEMPLATES]);
+    expect(listed(completeQog('$local:'))).toEqual(['$local:id', BROWSE_ALL_TEMPLATES]);
   });
 
-  /* qorus#646, David's review: `$data` offered what an empty text did, and `$data:` added the state */
-  it('offers the same for `$d`, `$data` and `$data:`: the state, a row that opens it, listed once', () => {
-    for (const typed of ['$d', '$data', '$data:']) {
-      const offered = completeQog(typed, typed === '$data:' ? STATES : []);
-      expect(listed(offered), typed).toEqual(['$data:receive_order', BROWSE_ALL_TEMPLATES]);
-      expect(offered[0]).toMatchObject({ label: 'Receive order', data: expect.objectContaining({ opens: true }) });
+  /* qorus#646, David's review (round 3): typing goes on level by level - `$d` and `$data` the context, `$data:` its
+     states, each taken writes its reference as text and lists what is in it; a chip is a whole reference */
+  it('offers the context for `$d` and `$data`, and its states for `$data:`, each gone on into', () => {
+    for (const typed of ['$d', '$data']) {
+      const offered = completeQog(typed);
+      expect(listed(offered), typed).toEqual(['$data:', BROWSE_ALL_TEMPLATES]);
+      expect(offered[0]).toMatchObject({ label: '$data:', data: expect.objectContaining({ continues: true }) });
     }
+    const states = completeQog('$data:', STATES);
+    expect(listed(states)).toEqual(['$data:receive_order.', BROWSE_ALL_TEMPLATES]);
+    expect(states[0]).toMatchObject({ label: 'Receive order', data: expect.objectContaining({ continues: true }) });
   });
 
-  it('offers the loose templates and the states while only its `$` is typed', () => {
-    expect(listed(completeQog('$'))).toEqual(['$local:id', '$data:receive_order', BROWSE_ALL_TEMPLATES]);
+  it('offers the contexts while only its `$` is typed', () => {
+    expect(listed(completeQog('$'))).toEqual(['$local:', '$data:', BROWSE_ALL_TEMPLATES]);
   });
 
   /* qorus#646, David's review: each state's data said "Receive order" under its name, as if that were what it is */

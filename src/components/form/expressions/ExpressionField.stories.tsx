@@ -2427,3 +2427,56 @@ export const VisualOperandsTheOperatorCannotCombineOnAPhone: Story = {
     });
   },
 };
+
+/**
+ * A template context picked in the Text view is written as text and goes on to what is in it, never an unfinished
+ * template (qorus#646, David: "selecting them resulted in an invalid template being added and an error generated").
+ * Where nothing is listed in it, the list says what to write, and nothing is said of the text while it is open.
+ */
+export const AContextPickedGoesOnToWhatIsInIt: Story = {
+  args: {
+    value: { is_expression: true, value: { args: [] } },
+    defaultMode: 'text',
+    localTemplates: FIELD_TEMPLATES as never,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$st` key by key and takes $static: with Tab: it is written as text, no chip, and the list says ' +
+          '"Nothing is listed in $static: here: write what it refers to after the \':\'" - nothing is said of ' +
+          'the text while it is open. Then `@po` and Tab: the chip for the row\'s field pos.',
+      },
+    },
+  },
+  async play({ canvasElement }) {
+    const editable = await waitFor(
+      () => {
+        const el = canvasElement.querySelector<HTMLElement>('[contenteditable="true"]');
+        if (!el) throw new Error('editor not ready');
+        return el;
+      },
+      { timeout: 10000 }
+    );
+    await waitForLspIdle(canvasElement);
+    await userEvent.click(editable);
+    await typeAsAPerson(userEvent, '$st');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(['$static:', 'Browse all templates']), {
+      timeout: 20000,
+    });
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() =>
+      expect(document.querySelector('.reqore-popover-content .completion-menu')?.textContent).toContain(
+        "Nothing is listed in $static: here: write what it refers to after the ':'"
+      )
+    );
+    expect(editable.querySelectorAll('.reqore-tag')).toHaveLength(0);
+    expect(editable.textContent).toContain('$static:');
+    expect(saidUnderTheText(canvasElement)).toEqual([]);
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await typeAsAPerson(userEvent, '@po');
+    await waitFor(() => expect(seenCompletionLabels()).toContain('pos'), { timeout: 20000 });
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(editable.querySelectorAll('.reqore-tag')).toHaveLength(1));
+  },
+};

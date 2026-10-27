@@ -6,7 +6,11 @@ import { TTypeLabel } from '../../helpers/qorusTypeCatalogue';
 import { ITemplateNode, unbracedReference } from '../../helpers/templateTree';
 import { ILspCompletionItem, ILspDiagnostic } from '../../utils/lspClient.types';
 import { EXPRESSION_HOLE } from '../form/expressions/renderExpressionToText';
-import { browseAllTemplatesItem, templateSearchItems } from '../smartEditor/templateCompletions';
+import {
+  browseAllTemplatesItem,
+  templateSearchItems,
+  unlistedContextMessage,
+} from '../smartEditor/templateCompletions';
 import { ICompletionContext } from '../smartEditor/types';
 import { dpqlReferenceBeingWritten, stringOpenAt } from './dpqlHelpers';
 
@@ -161,12 +165,29 @@ export const dpqlCompletionsWith =
     );
     const browse = valueHere && roots.length ? [browseAllTemplatesItem()] : [];
     if (!ours.length) {
+      // a context written that nothing is listed in: the list says what to write next (`unlistedContextMessage`)
+      if (!server.length && unlistedContextMessage(typed || written)) {
+        return [];
+      }
       return [...server, ...browse];
     }
-    // a template the server offers that the field's own list has is listed once, as the field's own
-    const ownReferences = new Set(ours.map((item) => unbracedReference(item.insertText ?? '')));
+    /* a template context the server offers is listed as the server offers it, with its words; a template the
+       server offers that the field's own list has is listed once, as the field's own */
+    const serverWritten = new Set(server.map((item) => item.textEdit?.newText ?? item.insertText ?? item.label));
+    const oursListed = ours.filter(
+      (item) =>
+        !((item.data as { kindLabel?: string } | undefined)?.kindLabel === 'Template context' &&
+          serverWritten.has(item.insertText ?? ''))
+    );
+    // by the reference each stands for: a state gone on into writes `$data:receive_order.`, the server's is the state
+    const ownReferences = new Set(
+      oursListed.flatMap((item) => [
+        unbracedReference(item.insertText ?? ''),
+        unbracedReference(item.filterText ?? ''),
+      ])
+    );
     return [
-      ...ours,
+      ...oursListed,
       ...server.filter(
         (item) =>
           !ownReferences.has(unbracedReference(item.textEdit?.newText ?? item.insertText ?? item.label))
@@ -179,6 +200,8 @@ export const dpqlCompletionsWith =
  * What the list says where it offers nothing at the caret (qorus#646): after an `@`, that there is no record; after
  * a `$`, that there are no templates here.
  */
+export { unlistedContextMessage };
+
 export const dpqlEmptyCompletionMessage = (
   plainText: string,
   offset: number
@@ -187,9 +210,15 @@ export const dpqlEmptyCompletionMessage = (
   if (asksForAField(before)) {
     return 'No record fields here';
   }
+  // a context written: what to write in it; a `$` alone or a context's name being written: that there is none
+  const inContext = unlistedContextMessage(before);
+  if (inContext) {
+    return inContext;
+  }
   const written = dpqlReferenceBeingWritten(before);
   return written && before[before.length - written] === '$' ? 'No templates here' : undefined;
 };
+
 
 /** What is said of the placeholders an unfinished expression is written with, for each part not chosen yet. */
 export const UNFINISHED_PARTS_MESSAGE = `Fill in each ${EXPRESSION_HOLE} (the parts not chosen yet).`;

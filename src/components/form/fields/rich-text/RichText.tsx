@@ -53,13 +53,23 @@ import {
   browseAllTemplatesItem,
   templateChipInserter,
   templateSearchItems,
+  unlistedContextMessage,
 } from '../../../smartEditor/templateCompletions';
 import { templateNodeFor, templateTree } from '../../../../helpers/templateTree';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { useLspAutocomplete } from '../../../smartEditor/useLspAutocomplete';
+import { useTabCameIn } from '../../../smartEditor/useTabCameIn';
+
 
 /** What opens the field's template list as it is typed: a template begins with `$`. */
-const TEMPLATE_TRIGGERS = new Set(['$']);
+/* A `$` asks for templates; a `:` or `.` in a reference being written goes on to what is in its context, state or
+   record (qorus#646): asked anywhere else, nothing is offered (`offerTemplates`). */
+const TEMPLATE_TRIGGERS = new Set(['$', ':', '.']);
+
+/* What the list says where a context is written that nothing is listed in. One function for the editor's life:
+   the completion request is remade when it changes, and a remade request drops the one waiting to be sent. */
+const unlistedContextMessageAt = (plainText: string, offset: number) =>
+  unlistedContextMessage(plainText.slice(0, offset));
 /**
  * A reference being typed at the end of a text: a `$` and the template after it (`$data:receive_order.`), or an
  * `@` and the record field after it (`@po`) - an `@` that starts a word, not one in an email address.
@@ -484,7 +494,10 @@ export const RichTextFormField = memo(({
       // what is typed in the text the caret is in: a chip before it is a value, not a reference being typed
       const typed = REFERENCE_BEING_TYPED.exec(typedInText ?? plainText.slice(0, offset))?.[1];
       if (!typed) return [];
-      return [...templateSearchItems(templateRoots, typed, typeLabel), browseAllTemplatesItem()];
+      const rows = templateSearchItems(templateRoots, typed, typeLabel);
+      // a context written that nothing is listed in: the list says what to write next (`emptyMessage`)
+      if (!rows.length && unlistedContextMessage(typed)) return [];
+      return [...rows, browseAllTemplatesItem()];
     },
     [templateRoots, typeLabel]
   );
@@ -494,6 +507,8 @@ export const RichTextFormField = memo(({
     triggerCharacters: TEMPLATE_TRIGGERS,
     converter: defaultSlateConverter,
     inserter: templateChipInserter,
+    // a context written that nothing is listed in: what to write next, the list held open
+    emptyMessage: unlistedContextMessageAt,
   });
   const { openBrowse } = autocomplete;
   const coarse = useCoarsePointer();
@@ -502,6 +517,10 @@ export const RichTextFormField = memo(({
 
   /* A click, a tap or Tab into the text opens the picker at the caret the page put there: not on a chip, which is
      a control of its own, nor outside the text. */
+  const tabCameIn = useTabCameIn(() => {
+    const editor = editorRef.current;
+    return editor ? ReactEditor.toDOMNode(editor, editor) : null;
+  });
   const browseAtPageCaret = useCallback(
     (target: EventTarget | null) => {
       const editor = editorRef.current;
@@ -728,7 +747,8 @@ export const RichTextFormField = memo(({
       onClick={(event: React.MouseEvent) => browseAtPageCaret(event.target)}
       // Tab's key comes up in the editor it moved the focus into
       onKeyUp={(event: React.KeyboardEvent) => {
-        if (event.key === 'Tab') browseAtPageCaret(event.target);
+        // only a Tab that brought the focus in: one that took a completion here asks nothing more
+        if (event.key === 'Tab' && tabCameIn()) browseAtPageCaret(event.target);
       }}
       value={formattedValue}
       onChange={(val: any) => {

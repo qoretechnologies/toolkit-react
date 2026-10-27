@@ -182,9 +182,17 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
           .map(dpqlMockTypeName)
           .join(' or ') || undefined,
     }));
-    // a template being written: its contexts
+    /* a template being written, as the server answers it (Qore `getTemplateCompletions`): its context's name, the
+       contexts it starts; after its `:`, what the host lists in the context - none here, with no Qog bound */
     if (token.startsWith('$') && !MOCK_WHOLE_TEMPLATE.test(token)) {
-      return { isIncomplete: false, items: DPQL_MOCK_TEMPLATE_ITEMS };
+      const typed = token.slice(1);
+      return {
+        isIncomplete: false,
+        items:
+          typed.includes(':') ?
+            []
+          : DPQL_MOCK_TEMPLATE_ITEMS.filter((item) => item.label.slice(1).startsWith(typed)),
+      };
     }
     if (token.startsWith('@')) {
       return { isIncomplete: false, items: fieldItems };

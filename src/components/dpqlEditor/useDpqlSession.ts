@@ -14,8 +14,35 @@ export interface IDpqlFieldMeta {
   display_name?: string;
   short_desc?: string;
   desc?: string;
-  type?: { name?: string };
+  /** Its type's name, and the fields of a field that is a record of its own (`@contact.email`). */
+  type?: { name?: string; fields?: Record<string, IDpqlFieldMeta> };
 }
+
+/** A field as the server describes it (`AbstractDataField::getInfo`), as the editor keeps it: its record's too. */
+const fieldMetaOf = (field: any): IDpqlFieldMeta => {
+  const members = field?.type?.fields ?? field?.fields;
+  return {
+    display_name: field?.display_name,
+    short_desc: field?.short_desc,
+    desc: field?.desc,
+    type:
+      field?.type ?
+        {
+          name: field.type.name ?? (typeof field.type === 'string' ? field.type : undefined),
+          ...(members && typeof members === 'object' ?
+            {
+              fields: Object.fromEntries(
+                Object.entries(members as Record<string, unknown>).map(([name, member]) => [
+                  name,
+                  fieldMetaOf(member),
+                ])
+              ),
+            }
+          : {}),
+        }
+      : undefined,
+  };
+};
 
 export interface IUseDpqlSessionOptions {
   /** Provider spec — `@<app>/<action>`, `datasource:name`, `connection:name`, or factory string. */
@@ -172,12 +199,7 @@ export function useDpqlSession(
           for (const [name, field] of Object.entries(
             result.fields as Record<string, any>
           )) {
-            meta[name] = {
-              display_name: field.display_name,
-              short_desc: field.short_desc,
-              desc: field.desc,
-              type: field.type ? { name: field.type.name } : undefined,
-            };
+            meta[name] = fieldMetaOf(field);
           }
           setFieldMeta(meta);
         }

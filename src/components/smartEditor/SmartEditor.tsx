@@ -47,6 +47,7 @@ import { useCoarsePointer } from '../../hooks/useCoarsePointer';
 import { useLspSemanticTokens } from './useLspSemanticTokens';
 import { useLspSignatureHelp } from './useLspSignatureHelp';
 import { templateNodeFor } from '../../helpers/templateTree';
+import { useTabCameIn } from './useTabCameIn';
 import { useEditingAids } from './useEditingAids';
 
 // One-Dark-ish palette keyed off the LSP semantic-token legend; absent
@@ -857,6 +858,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
        box through React. */
     const { openAtCaret, openBrowse } = autocomplete;
     const browsesOnClick = !!templateRoots?.length;
+    // whether the Tab whose key comes up brought the focus into the editor (`onKeyUp` below)
+    const tabCameIn = useTabCameIn(() => {
+      const editor = editorRef.current;
+      return editor ? ReactEditor.toDOMNode(editor, editor) : null;
+    });
     const completeAtPageCaret = useCallback(
       (target: EventTarget | null) => {
         const editor = editorRef.current;
@@ -969,9 +975,11 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             $lineNumbers={lineNumbers}
             className='smart-editor-box'
             onClick={(event) => completeAtPageCaret(event.target)}
-            // Tab's key comes up in the editor it moved the focus into
+            /* Tab's key comes up in the editor it moved the focus into. One that went down in the editor - a Tab
+               that took a completion, or moved the focus on - asks nothing: its key coming up here reopened the
+               list just taken from (qorus#646). */
             onKeyUp={(event) => {
-              if (event.key === 'Tab') completeAtPageCaret(event.target);
+              if (event.key === 'Tab' && tabCameIn()) completeAtPageCaret(event.target);
             }}
           >
             <ReqoreRichTextEditor

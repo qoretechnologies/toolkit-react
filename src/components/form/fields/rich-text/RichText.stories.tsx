@@ -27,6 +27,8 @@ import {
   pickerRow,
   pickerSearch,
   typeAsAPerson,
+  highlightedCompletionLabel,
+  seenCompletionLabels,
 } from '../../../../stories/templatePicker';
 import { withTouchScreen } from '../../../../stories/touchScreen';
 
@@ -641,5 +643,57 @@ export const AScalarValueTakesNoRecordWhole: Story = {
     await pickerRow('Customer');
     expect(document.querySelectorAll('.template-picker-use')).toHaveLength(0);
     expectRowsFit(Array.from(document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row')));
+  },
+};
+
+/**
+ * A reference typed key by key in a rich-text value is completed at every level from the field's templates, as the
+ * DPQL editor completes it with its language server (qorus#646, David: completion at every step, in every field
+ * that takes templates): Tab takes the row the keyboard is on; a context, a state or a record goes on; a whole
+ * reference is its chip.
+ */
+export const TypingCompletesEachLevel: Story = {
+  args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types key by key, Tab at each level: `$` lists the contexts; `da` → $data:, then the states; `rec` → ' +
+          '$data:receive_order., then its data; `cu` → $data:receive_order.customer., then the customer\'s ' +
+          'Address and Name; `na` → the chip Receive order › Customer › Name. Then ` and $loc` → $local:, then ' +
+          'its templates; `id` → the chip Interface ID.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    const tabTo = async (typed: string, highlighted: string, then?: string[]) => {
+      await typeAsAPerson(userEvent, typed);
+      await waitFor(() => expect(highlightedCompletionLabel()).toBe(highlighted));
+      await userEvent.keyboard('{Tab}');
+      if (then) {
+        await waitFor(() => expect(seenCompletionLabels()).toEqual([...then, 'Browse all templates']));
+      }
+    };
+    await typeAsAPerson(userEvent, '$');
+    await waitFor(() =>
+      expect(seenCompletionLabels()).toEqual(['$local:', '$timestamp:', '$test:', '$data:', 'Browse all templates'])
+    );
+    await tabTo('da', '$data:', ['Look up customer', 'Receive order']);
+    await tabTo('rec', 'Receive order', ['Customer', 'Event type', 'Order ID', 'User name']);
+    await tabTo('cu', 'Customer', ['Address', 'Name']);
+    await tabTo('na', 'Name');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$data:{receive_order.customer.name}'));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Customer › Name']));
+    await typeAsAPerson(userEvent, ' and $loc');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$local:'));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(seenCompletionLabels()).toContain('Interface ID'));
+    await tabTo('id', 'Interface ID');
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('$data:{receive_order.customer.name} and $local:id')
+    );
   },
 };

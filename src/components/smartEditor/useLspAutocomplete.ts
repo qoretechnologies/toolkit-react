@@ -9,11 +9,13 @@ import { ILspCompletionItem } from '../../utils/lspClient.types';
 import { mapCompletionKindToIcon } from './helpers';
 import { ISlateConverter, ISlateElement, TCompletionInserter } from './types';
 import type { ITemplateNode } from '../../helpers/templateTree';
+import { templateTextInserter } from './templateCompletions';
 
 /** What a template row carries (`templateSearchItems`), as far as the list reads it. */
 interface ITemplateRowMarks {
   templateNodeId?: string;
   opens?: boolean;
+  continues?: boolean;
   browseAll?: boolean;
   section?: string;
   kindLabel?: string;
@@ -559,8 +561,16 @@ export function useLspAutocomplete(
     [getCompletions, isReady, emptyMessageAt]
   );
 
+  /* One debounced request for the editor's life, sending with the latest `performCompletionRequest`: remade when
+     that changed (a host's new catalogue or callback on a re-render), the request waiting to be sent was dropped,
+     and what had just been written asked nothing - a context picked listed nothing in it (qorus#646). */
+  const performRef = useRef(performCompletionRequest);
+  performRef.current = performCompletionRequest;
   const requestCompletions = useMemo(() => {
-    const debounced = debounce(performCompletionRequest, DEBOUNCE_MS);
+    const debounced = debounce(
+      (...args: Parameters<typeof performCompletionRequest>) => performRef.current(...args),
+      DEBOUNCE_MS
+    );
     // asked for: pending from now, not only once the debounce runs out
     const request = ((...args: Parameters<typeof performCompletionRequest>) => {
       pendingRequestRef.current = true;
@@ -570,7 +580,7 @@ export function useLspAutocomplete(
     request.cancel = debounced.cancel;
     request.flush = debounced.flush;
     return request;
-  }, [performCompletionRequest]);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -675,6 +685,11 @@ export function useLspAutocomplete(
     (editor: BaseEditor & ReactEditor & HistoryEditor, nodes: ISlateElement[]) => void
   >(() => undefined);
 
+  // `completeAtCaret`, defined below, for a pick that goes on to ask again
+  const completeAtCaretRef = useRef<
+    (editor: BaseEditor & ReactEditor & HistoryEditor, nodes: ISlateElement[]) => void
+  >(() => undefined);
+
   const selectItem = useCallback(
     (item: ICompletionDropdownItem) => {
       const editor = editorRef.current;
@@ -713,11 +728,27 @@ export function useLspAutocomplete(
       } catch {
         // the editor is not in the document: the pick is written all the same
       }
-      inserter(item.raw, editor, {
+      /* A context, a state or a record taken is written as the text of its reference, and what is in it is
+         listed next, as the text is completed on (the edit asks again: it ends with a `:` or a `.`); only a
+         whole reference is a chip (qorus#646, David's review: a context picked was an unfinished template). */
+      (marks.continues ? templateTextInserter : inserter)(item.raw, editor, {
         plainText,
         cursorOffset,
         replacementPath: replacementPath ?? undefined,
       });
+      /* What is written goes on (a context, `$data:`, or a path, `$data:receive_order.`): the list stays open
+         and is asked again where the text now ends, so what is in it is listed next. Put away and opened again,
+         its popover's close came after the new request and dropped it. */
+      const written = item.raw.textEdit?.newText ?? item.raw.insertText ?? item.raw.label;
+      if (marks.continues || (!replacementPath && /^[$@][^\s]*[:.]$/.test(written))) {
+        // the rows stay until the next level's come: a list left empty is put away, and its close drops the request
+        setDocsFor(null);
+        setFocusedIndex(0);
+        replacingChipPathRef.current = null;
+        anchoredChipPathRef.current = null;
+        completeAtCaretRef.current(editor, editor.children as ISlateElement[]);
+        return;
+      }
       close();
       // Re-trigger completions for partial items (e.g. `$timestamp:` shows
       // sub-completions for the value).
@@ -869,6 +900,7 @@ export function useLspAutocomplete(
     },
     [isOpen, close, findTokenStart, positionTrigger, requestCompletions, triggerCharacters, converter]
   );
+  completeAtCaretRef.current = completeAtCaret;
 
   /* An edit made before the session is ready - typing `$` or `@` while the connection is still being
      made, or its context bound - would otherwise be dropped: the list is closed and nothing asks again,

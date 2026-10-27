@@ -147,8 +147,10 @@ const CompletionMenuItem = memo(
     const badge = useMemo(() => buildKindBadge(item), [item]);
     const marks = (item.raw?.data ?? {}) as {
       opens?: boolean;
+      continues?: boolean;
       browseAll?: boolean;
       takesWhole?: boolean;
+      wholeValue?: string;
       templateNodeId?: string;
     };
     /* A template's row says what it is under its name, with where it is: no hover over the row's edge, no ⓘ
@@ -165,9 +167,13 @@ const CompletionMenuItem = memo(
       () =>
         onSelect({
           ...item,
-          raw: { ...item.raw, data: { ...(item.raw?.data ?? {}), opens: false } },
+          raw: {
+            ...item.raw,
+            insertText: marks.wholeValue ?? item.raw?.insertText,
+            data: { ...(item.raw?.data ?? {}), opens: false, continues: false },
+          },
         }),
-      [onSelect, item]
+      [onSelect, item, marks.wholeValue]
     );
     const hasDocs = !isTemplate && !!docOf(item);
     /* The ⓘ that shows the documentation under the row: on the row the keyboard is on, and on every row with
@@ -215,13 +221,17 @@ const CompletionMenuItem = memo(
         data-label={item.label}
         className={
           marks.browseAll ? 'completion-browse-all'
-          : marks.opens ?
+          : marks.opens || marks.continues ?
             'completion-opens'
           : undefined
         }
-        icon={(marks.browseAll || marks.opens ? 'FolderOpenLine' : item.icon) as any}
-        // a group opens the picker at its members
-        rightIcon={marks.opens || marks.browseAll ? 'ArrowRightSLine' : undefined}
+        icon={
+          (marks.browseAll || marks.opens || marks.continues ? 'FolderOpenLine' : item.icon) as any
+        }
+        // a group opens the picker at its members, or is gone on into: what is in it is listed next
+        rightIcon={
+          marks.opens || marks.continues || marks.browseAll ? 'ArrowRightSLine' : undefined
+        }
         label={item.label}
         description={
           item.description ?
