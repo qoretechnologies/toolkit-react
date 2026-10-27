@@ -276,6 +276,22 @@ const meta = {
             { name: 'rate', display_name: 'Rate', type: 'Number', description: 'The exchange rate to apply.' },
             { name: 'region', display_name: 'Region', type: 'Text', description: 'Where the orders ship from.' },
           ];
+          /* The values Qorus lists of its own (`QorusClientServer::listTemplateValues`): the timestamps, and a
+             loop's; a context of free keys - `$static:`, `$dynamic:`, `$local:` - lists none (its keys are known
+             only when it runs) */
+          const QORUS_VALUES: Record<string, Array<{ name: string; description: string }>> = {
+            timestamp: [
+              { name: 'now', description: 'Current date/time with microseconds' },
+              { name: 'timegm', description: 'Current time as seconds since epoch (GMT)' },
+              { name: 'last_midnight', description: 'Last midnight (start of today)' },
+              { name: 'next_midnight', description: 'Next midnight (start of tomorrow)' },
+            ],
+            foreach: [
+              { name: 'value', description: 'Current iteration value' },
+              { name: 'index', description: 'Current iteration index (0-based)' },
+              { name: 'size', description: 'Total number of iterations' },
+            ],
+          };
           const VALUE_ITEMS =
             valueTyped?.[1] === 'config' ?
               CONFIG_VALUES.filter((value) => value.name.startsWith(valueTyped[2])).map((value) => ({
@@ -286,6 +302,16 @@ const meta = {
                 detail: value.type,
                 documentation: value.description,
               }))
+            : valueTyped && QORUS_VALUES[valueTyped[1]] ?
+              QORUS_VALUES[valueTyped[1]]
+                .filter((value) => value.name.startsWith(valueTyped[2]))
+                .map((value) => ({
+                  label: `$${valueTyped[1]}:${value.name}`,
+                  kind: 6,
+                  insertText: `$${valueTyped[1]}:${value.name}`,
+                  filterText: `$${valueTyped[1]}:${value.name}`,
+                  documentation: value.description,
+                }))
             : [];
           const items = inFsmDataTemplate
             ? FSM_DATA_KEY_ITEMS

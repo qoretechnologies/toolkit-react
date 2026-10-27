@@ -75,6 +75,11 @@ const DPQL_MOCK_TEMPLATE_ITEMS = [
   { label: '$timestamp:', insertText: '$timestamp:', kind: 6, detail: NEEDS_A_VALUE },
 ];
 
+/** The values Qorus lists in a context of its own (`QorusClientServer::listTemplateValues`). */
+const DPQL_MOCK_TEMPLATE_VALUES: Record<string, string[]> = {
+  timestamp: ['now', 'timegm', 'last_midnight', 'next_midnight'],
+};
+
 /** What the server offers after a whole value: operators (Keywords), never a value. */
 const DPQL_MOCK_AFTER_A_VALUE = ['==', '!=', '<', '>', '&&', '||'].map((label) => ({
   label,
@@ -186,11 +191,20 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
        contexts it starts; after its `:`, what the host lists in the context - none here, with no Qog bound */
     if (token.startsWith('$') && !MOCK_WHOLE_TEMPLATE.test(token)) {
       const typed = token.slice(1);
+      const [context, valueTyped = ''] = typed.split(':');
       return {
         isIncomplete: false,
         items:
           typed.includes(':') ?
-            []
+            // the values Qorus lists of its own (`listTemplateValues`): the timestamps; free keys none
+            (DPQL_MOCK_TEMPLATE_VALUES[context] ?? [])
+              .filter((name) => name.startsWith(valueTyped))
+              .map((name) => ({
+                label: `$${context}:${name}`,
+                insertText: `$${context}:${name}`,
+                filterText: `$${context}:${name}`,
+                kind: 6,
+              }))
           : DPQL_MOCK_TEMPLATE_ITEMS.filter((item) => item.label.slice(1).startsWith(typed)),
       };
     }
