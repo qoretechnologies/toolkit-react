@@ -77,6 +77,14 @@ export const rendersCreatableValueSelect = (
 ): boolean =>
   !!allowCreation && (type === 'string' || type === 'select-string') && count(items) > 0;
 
+/**
+ * Field types whose own editor draws their choices: an enum's radio group, and the
+ * multi-select a list of choices is picked with. For these the single-choice picker
+ * below is not the editor — drawn in its place, a field holding SEVERAL choices
+ * (a key's permissions) could be given only one.
+ */
+export const DRAWS_OWN_CHOICES_TYPES: readonly string[] = ['enum', 'select-array', 'multi-select'];
+
 export const FieldAllowedValuesCheckGroup = memo(
   ({
     items,
@@ -234,7 +242,11 @@ export const FieldAllowedValues = memo(
 
     const style = useMemo(() => ({ width: '100%' }), []);
 
-    if (!count(fullItems) || type === 'enum' || (!count(items) && !offersSavedValues)) {
+    if (
+      !count(fullItems) ||
+      DRAWS_OWN_CHOICES_TYPES.includes(type as string) ||
+      (!count(items) && !offersSavedValues)
+    ) {
       return null;
     }
 

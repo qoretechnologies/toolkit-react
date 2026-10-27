@@ -30,6 +30,7 @@ import { isQueryCancelled, query } from '../../../../utils/fetch';
 import { DpqlEditor } from '../../../dpqlEditor';
 import { FormEngine, IOptionsSchema } from '../../engine/FormEngine';
 import {
+  DRAWS_OWN_CHOICES_TYPES,
   FieldAllowedValues,
   FieldAllowedValuesCheckGroup,
   rendersCreatableValueSelect,
@@ -641,11 +642,16 @@ function AutoField<T = any>({
 
     // Non-creatable allowed_values render through FieldAllowedValues
     // (`renderAllowedValues` below) — a radio CheckGroup for ≤3 simple values, a
-    // Select otherwise — matching the IDE (which returns null here). `enum` is the
-    // exception: FieldAllowedValues skips it (it has its own `case 'enum'` radio
-    // renderer), so let enum fall through. f5f2e11 had returned a second RadioGroup
-    // here, which duplicated FieldAllowedValues for string allowed-value fields.
-    if (rest.allowed_values && !rest.allowed_values_creatable && currentType !== 'enum') {
+    // Select otherwise — matching the IDE (which returns null here). The exceptions
+    // are the editors that draw their own choices (`DRAWS_OWN_CHOICES_TYPES`: the
+    // enum radio group and the multi-select), which FieldAllowedValues skips, so they
+    // fall through. f5f2e11 had returned a second RadioGroup here, which duplicated
+    // FieldAllowedValues for string allowed-value fields.
+    if (
+      rest.allowed_values &&
+      !rest.allowed_values_creatable &&
+      !DRAWS_OWN_CHOICES_TYPES.includes(currentType as string)
+    ) {
       return null;
     }
 
