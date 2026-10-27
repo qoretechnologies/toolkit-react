@@ -40,12 +40,12 @@ import {
   pickerSearch,
   plainTextOf,
 } from '../../stories/templatePicker';
-import { buildTemplates, ITemplatesPayload } from '../../helpers/templates';
+import { ITemplatesPayload } from '../../helpers/templates';
+import { dpqlTemplateContext, qorusTemplateCompletions } from '../../stories/qorusTemplateContexts';
 import {
   QOG_FIELD_TEMPLATES,
   QOG_STATE_DATA_PAYLOAD,
   RECORD_FIELDS,
-  WORKFLOW_CONTEXT_DATA_PAYLOAD,
 } from '../form/fields/template/__fixtures__/qogTemplatePayloads';
 import { mockDataTemplateValues } from './__fixtures__/dpqlMockTemplateValues';
 
@@ -221,28 +221,12 @@ const meta = {
             },
           ];
 
-          /* The template contexts `$` completes, as the real server lists them (`QorusClientServer::listTemplateContexts`,
-             `DpqlCompletionProvider::getTemplateContextCompletions`): each `$<name>:`, filtered by the name typed
-             after the `$`, "needs a value after ':'", its description its documentation. */
-          const CONTEXTS: Array<[string, string]> = [
-            ['config', 'Interface configuration item values'],
-            ['data', 'Qog state data'],
-            ['dynamic', 'Workflow dynamic data'],
-            ['local', 'Local context data passed to the current operation'],
-            ['static', 'Workflow static data'],
-            ['timestamp', 'Timestamp values'],
-          ];
-          const contextTyped = sigilToken.startsWith('$') ? sigilToken.slice(1).toLowerCase() : '';
-          const TEMPLATE_ITEMS = CONTEXTS.filter(([name]) => name.startsWith(contextTyped)).map(
-            ([name, description]) => ({
-              label: `$${name}:`,
-              insertText: `$${name}:`,
-              filterText: `$${name}:`,
-              kind: 6,
-              detail: "needs a value after ':'",
-              documentation: description,
-            })
-          );
+          /* A template being written, answered as Qorus answers a DPQL document (`qorusTemplateCompletions`): the
+             contexts of a Qog's record expression - no workflow-only ones (`$static:`, `$dynamic:`) - and after a
+             context's `:`, the values Qorus knows in it (the timestamps, a loop's); `$data:` with a Qog bound is
+             answered below. */
+          const TEMPLATE_ITEMS =
+            sigil === '$' ? qorusTemplateCompletions(sigilToken, dpqlTemplateContext()) : [];
 
           /* The functions a bare word completes, as the real server lists them (`getFunctionCompletions`): those
              whose name starts with the word, each written with its bracket, what it gives its detail. */
@@ -268,55 +252,8 @@ const meta = {
              `<state>.`, that state's data - each the whole reference it is written as (`mockDataTemplateValues`). */
           const FSM_DATA_KEY_ITEMS = mockDataTemplateValues(fsmStateData, sigilToken.slice('$data:'.length));
 
-          /* What is in a context, as the server lists it after `$<context>:` (Qore `getTemplateValueCompletions`:
-             the host's values for it, each written `$<context>:<name>`, named by its display name, its type its
-             detail): the interface's config items here. */
-          const valueTyped = /^\$([\w-]+):([\w.]*)$/.exec(sigilToken);
-          const CONFIG_VALUES = [
-            { name: 'rate', display_name: 'Rate', type: 'Number', description: 'The exchange rate to apply.' },
-            { name: 'region', display_name: 'Region', type: 'Text', description: 'Where the orders ship from.' },
-          ];
-          /* The values Qorus lists of its own (`QorusClientServer::listTemplateValues`): the timestamps, and a
-             loop's; a context of free keys - `$static:`, `$dynamic:`, `$local:` - lists none (its keys are known
-             only when it runs) */
-          const QORUS_VALUES: Record<string, Array<{ name: string; description: string }>> = {
-            timestamp: [
-              { name: 'now', description: 'Current date/time with microseconds' },
-              { name: 'timegm', description: 'Current time as seconds since epoch (GMT)' },
-              { name: 'last_midnight', description: 'Last midnight (start of today)' },
-              { name: 'next_midnight', description: 'Next midnight (start of tomorrow)' },
-            ],
-            foreach: [
-              { name: 'value', description: 'Current iteration value' },
-              { name: 'index', description: 'Current iteration index (0-based)' },
-              { name: 'size', description: 'Total number of iterations' },
-            ],
-          };
-          const VALUE_ITEMS =
-            valueTyped?.[1] === 'config' ?
-              CONFIG_VALUES.filter((value) => value.name.startsWith(valueTyped[2])).map((value) => ({
-                label: value.display_name,
-                kind: 6,
-                insertText: `$config:${value.name}`,
-                filterText: `$config:${value.name}`,
-                detail: value.type,
-                documentation: value.description,
-              }))
-            : valueTyped && QORUS_VALUES[valueTyped[1]] ?
-              QORUS_VALUES[valueTyped[1]]
-                .filter((value) => value.name.startsWith(valueTyped[2]))
-                .map((value) => ({
-                  label: `$${valueTyped[1]}:${value.name}`,
-                  kind: 6,
-                  insertText: `$${valueTyped[1]}:${value.name}`,
-                  filterText: `$${valueTyped[1]}:${value.name}`,
-                  documentation: value.description,
-                }))
-            : [];
           const items = inFsmDataTemplate
             ? FSM_DATA_KEY_ITEMS
-            : valueTyped
-              ? VALUE_ITEMS
             : sigil === '$'
               ? TEMPLATE_ITEMS
               : sigil === '@'
@@ -1353,8 +1290,8 @@ export const TypingNarrowsToWhatItReaches: Story = {
     docs: {
       description: {
         story:
-          'Types key by key, and the list goes level by level: `$d` offers the template contexts it starts, ' +
-          '$data: and $dynamic:; `$data` the one; `$data:` the states, Look up customer and Receive order; ' +
+          'Types key by key, and the list goes level by level: `$d` offers the template context it starts in a ' +
+          'Qog, $data:; `$data` the one; `$data:` the states, Look up customer and Receive order; ' +
           "`$data:rec` Receive order; `$data:receive_order.` the state's data, Customer, Event type, Order ID and " +
           'User name. Every row fits the list: its name whole, its badges and its description inside it.',
       },
@@ -1366,8 +1303,9 @@ export const TypingNarrowsToWhatItReaches: Story = {
     await userEvent.keyboard('{Escape}');
     /* level by level, each filtered by what is typed of it (qorus#646, David): `$d` the contexts it starts, the
        server's among them; `$data` the one; `$data:` its states; `$data:rec` the one */
+    // a Qog's field: no workflow-only $dynamic: (Qorus `listTemplateContexts`, a DPQL document is a Qog's)
     await typeAsAPerson(userEvent, '$d');
-    await waitFor(() => expect(completionLabels()).toEqual(['$data:', '$dynamic:', 'Browse all templates']), {
+    await waitFor(() => expect(completionLabels()).toEqual(['$data:', 'Browse all templates']), {
       timeout: 30000,
     });
     await typeAsAPerson(userEvent, 'ata');
@@ -1901,8 +1839,8 @@ export const WithTemplates: Story = {
         {
           label: 'Order data',
           items: [
-            { label: 'order id', value: '$static:{order_id}', badge: 'int' },
-            { label: 'customer', value: '$static:{customer}', badge: 'string' },
+            { label: 'order id', value: '$local:{order_id}', badge: 'int' },
+            { label: 'customer', value: '$local:{customer}', badge: 'string' },
           ],
         },
       ],
@@ -1912,8 +1850,8 @@ export const WithTemplates: Story = {
     docs: {
       description: {
         story:
-          'Type `$` to list the template contexts: the given templates\' $static: and the server\'s ($data:, ' +
-          '$config:). `st` and Tab write $static: and list its templates, order id and customer. `@` lists the ' +
+          'Type `$` to list the template contexts Qorus offers a Qog\'s field ($autovar:, $config:, $data:, ...). ' +
+          '`loc` and Tab write $local: and list the templates given in it, order id and customer. `@` lists the ' +
           'fields (@name, @status, @age).',
       },
     },
@@ -1924,18 +1862,18 @@ export const WithTemplates: Story = {
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
 
-    // `$` → the contexts: the templates' own ($static:) and the server's, and no field
+    // `$` → the contexts Qorus offers a Qog's field, and no field
     await typeAsAPerson(userEvent, '$');
     await waitFor(
       () => {
-        expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$static:', '$data:', '$config:']));
+        expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$autovar:', '$config:', '$data:']));
         expect(seenCompletionLabels()).not.toContain('@name');
       },
       { timeout: 30000 }
     );
-    // `$static:` (taken with Tab) → its templates, order id and customer
-    await typeAsAPerson(userEvent, 'st');
-    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$static:'));
+    // `$local:` (taken with Tab) → the templates given in it, order id and customer
+    await typeAsAPerson(userEvent, 'loc');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$local:'));
     await userEvent.keyboard('{Tab}');
     await waitFor(() => expect(seenCompletionLabels()).toEqual(['order id', 'customer', 'Browse all templates']));
 
@@ -2640,8 +2578,8 @@ export const TypingCompletesEachLevel: Story = {
         story:
           'Types key by key, Tab at each level: `$da` → $data:, then its states; `rec` → $data:receive_order., ' +
           'then its data; `cu` → $data:receive_order.customer., then the customer\'s; `na` → the chip for ' +
-          '$data:{receive_order.customer.name}. ` + $con` → $config:, then the config items the server lists; ' +
-          '`ra` → the chip Rate. ` + @co` → @contact., then its fields; `em` → the chip for @contact.email.',
+          '$data:{receive_order.customer.name}. ` + $time` → $timestamp:, then the timestamps; `tim` → the chip ' +
+          'Epoch Seconds. ` + @co` → @contact., then its fields; `em` → the chip for @contact.email.',
       },
     },
   },
@@ -2676,14 +2614,14 @@ export const TypingCompletesEachLevel: Story = {
       )
     );
     expect(chipsOf(editable)).toHaveLength(1);
-    await typeAsAPerson(userEvent, ' + $con');
-    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$config:'), { timeout: 30000 });
+    await typeAsAPerson(userEvent, ' + $time');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$timestamp:'), { timeout: 30000 });
     await userEvent.keyboard('{Tab}');
-    await waitFor(() => expect(seenCompletionLabels()).toEqual(['Rate', 'Region', 'Browse all templates']), {
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['Epoch Seconds'])), {
       timeout: 30000,
     });
-    await step('ra', 'Rate');
-    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringContaining('$config:rate')));
+    await step('tim', 'Epoch Seconds');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringContaining('$timestamp:timegm')));
     expect(chipsOf(editable)).toHaveLength(2);
     await typeAsAPerson(userEvent, ' + @co');
     await waitFor(() => expect(highlightedCompletionLabel()).toBe('contact'), { timeout: 30000 });
@@ -2699,17 +2637,17 @@ export const TypingCompletesEachLevel: Story = {
 };
 
 /**
- * A context of free keys and its key, typed out (`$dynamic:order.id`), is a whole reference: drawn as its chip when
+ * A context of free keys and its key, typed out (`$transient:order.id`), is a whole reference: drawn as its chip when
  * Enter takes it, or the editor is left (qorus#646, David's review).
  */
 export const AFreeKeyReferenceTypedOutIsAChip: Story = {
-  args: { value: '', onChange: fn(), templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD) as never },
+  args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
     docs: {
       description: {
         story:
-          'Types `$dynamic:order.id` key by key: nothing is listed in $dynamic:, and the list says to write ' +
-          'its key. Enter takes what is written: the chip for $dynamic:order.id. Then ` == $dynamic:batch` typed ' +
+          'Types `$transient:order.id` key by key in a Qog\'s field: nothing is listed in $transient:, and the list says to write ' +
+          'its key. Enter takes what is written: the chip for $transient:order.id. Then ` == $transient:batch` typed ' +
           'and the editor left: that too is a chip.',
       },
     },
@@ -2718,19 +2656,19 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await typeAsAPerson(userEvent, '$dynamic:order.id');
+    await typeAsAPerson(userEvent, '$transient:order.id');
     await waitFor(() =>
       expect(document.querySelector('.reqore-popover-content .completion-menu')?.textContent).toContain(
-        "Nothing is listed in $dynamic: here: write what it refers to after the ':'"
+        "Nothing is listed in $transient: here: write what it refers to after the ':'"
       )
     );
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id']));
-    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$dynamic:order\.id\s*$/)));
-    await typeAsAPerson(userEvent, ' == $dynamic:batch');
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['transient: order.id']));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$transient:order\.id\s*$/)));
+    await typeAsAPerson(userEvent, ' == $transient:batch');
     await userEvent.keyboard('{Escape}');
     await userEvent.click(canvasElement.ownerDocument.body);
-    await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id', 'dynamic: batch']));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['transient: order.id', 'transient: batch']));
   },
 };
 

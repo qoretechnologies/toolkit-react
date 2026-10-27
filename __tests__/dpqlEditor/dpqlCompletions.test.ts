@@ -309,7 +309,8 @@ describe('a template being typed', () => {
   });
 
   it('offers the contexts while only its `$` is typed', () => {
-    expect(listed(completeQog('$'))).toEqual(['$local:', '$data:', BROWSE_ALL_TEMPLATES]);
+    // by name, as Qorus lists them
+    expect(listed(completeQog('$'))).toEqual(['$data:', '$local:', BROWSE_ALL_TEMPLATES]);
   });
 
   /* qorus#646, David's review: each state's data said "Receive order" under its name, as if that were what it is */

@@ -7,6 +7,10 @@
 // components make on their own. A story that needs different handlers starts
 // its own server on the URL and replaces this one (see `createMockLspServer`).
 // The answers come from `dpqlMockLanguage`, which follows the real server.
+import {
+  dpqlTemplateContext,
+  qorusTemplateCompletions,
+} from '../../../stories/qorusTemplateContexts';
 import { mockHoverDpql } from '../../dpqlEditor/__fixtures__/dpqlMockHover';
 import {
   createMockLspServer,
@@ -46,9 +50,8 @@ export interface IDpqlMockParseCall {
 }
 export const dpqlMockParseCalls: IDpqlMockParseCall[] = [];
 
-/* A completion's detail in the server's plain words (Qore DpqlCompletionProvider, batch 6): a template context that
-   needs a value says so, and a type is named as Qore's DataTypeCatalogue names it. */
-const NEEDS_A_VALUE = "needs a value after ':'";
+/* A completion's detail in the server's plain words (Qore DpqlCompletionProvider, batch 6): a type is named as Qore's
+   DataTypeCatalogue names it (a template context's, `qorusTemplateCompletions`). */
 const DPQL_MOCK_TYPE_NAMES: Record<string, string> = {
   any: 'Any',
   string: 'Text',
@@ -66,19 +69,6 @@ const DPQL_MOCK_TYPE_NAMES: Record<string, string> = {
 /** A type as the catalogue names it: an optional or soft form, or a complex one, by its base; else its own name. */
 export const dpqlMockTypeName = (type: string): string =>
   DPQL_MOCK_TYPE_NAMES[type.replace(/^\*/, '').replace(/^soft/, '').replace(/<.*>$/, '')] ?? type;
-
-/** The template namespaces the server offers after a `$`, and where a value can be written: Variables. */
-const DPQL_MOCK_TEMPLATE_ITEMS = [
-  { label: '$data:', insertText: '$data:', kind: 6, detail: NEEDS_A_VALUE },
-  { label: '$config:', insertText: '$config:', kind: 6, detail: NEEDS_A_VALUE },
-  { label: '$static:', insertText: '$static:', kind: 6, detail: NEEDS_A_VALUE },
-  { label: '$timestamp:', insertText: '$timestamp:', kind: 6, detail: NEEDS_A_VALUE },
-];
-
-/** The values Qorus lists in a context of its own (`QorusClientServer::listTemplateValues`). */
-const DPQL_MOCK_TEMPLATE_VALUES: Record<string, string[]> = {
-  timestamp: ['now', 'timegm', 'last_midnight', 'next_midnight'],
-};
 
 /** What the server offers after a whole value: operators (Keywords), never a value. */
 const DPQL_MOCK_AFTER_A_VALUE = ['==', '!=', '<', '>', '&&', '||'].map((label) => ({
@@ -187,26 +177,11 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
           .map(dpqlMockTypeName)
           .join(' or ') || undefined,
     }));
-    /* a template being written, as the server answers it (Qore `getTemplateCompletions`): its context's name, the
-       contexts it starts; after its `:`, what the host lists in the context - none here, with no Qog bound */
+    /* a template being written, as Qorus answers a DPQL document (`qorusTemplateCompletions`): the contexts of a
+       Qog's record expression that its name starts; after the `:`, the values Qorus knows in the context - none of
+       a context of free keys, none of `$data:` with no Qog bound */
     if (token.startsWith('$') && !MOCK_WHOLE_TEMPLATE.test(token)) {
-      const typed = token.slice(1);
-      const [context, valueTyped = ''] = typed.split(':');
-      return {
-        isIncomplete: false,
-        items:
-          typed.includes(':') ?
-            // the values Qorus lists of its own (`listTemplateValues`): the timestamps; free keys none
-            (DPQL_MOCK_TEMPLATE_VALUES[context] ?? [])
-              .filter((name) => name.startsWith(valueTyped))
-              .map((name) => ({
-                label: `$${context}:${name}`,
-                insertText: `$${context}:${name}`,
-                filterText: `$${context}:${name}`,
-                kind: 6,
-              }))
-          : DPQL_MOCK_TEMPLATE_ITEMS.filter((item) => item.label.slice(1).startsWith(typed)),
-      };
+      return { isIncomplete: false, items: qorusTemplateCompletions(token, dpqlTemplateContext()) };
     }
     if (token.startsWith('@')) {
       return { isIncomplete: false, items: fieldItems };
@@ -218,7 +193,8 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
     const written = head.trimEnd();
     const items =
       !written ? []
-      : MOCK_BEFORE_A_VALUE.test(written) ? [...fieldItems, ...DPQL_MOCK_TEMPLATE_ITEMS]
+      : MOCK_BEFORE_A_VALUE.test(written) ?
+        [...fieldItems, ...qorusTemplateCompletions('$', dpqlTemplateContext())]
       : MOCK_WHOLE_TEMPLATE.test(token) || written !== head ? DPQL_MOCK_AFTER_A_VALUE
       : [];
     return { isIncomplete: false, items };

@@ -1841,7 +1841,7 @@ export const TextModeOffersTemplateCompletions: Story = {
     docs: {
       description: {
         story:
-          "Types `$` into the Text view of an expression whose field offers the row's fields: after the `$` the completion list offers what can follow it, the server's template contexts ($data:, $config:, $static:, $timestamp:), as the language server offers them - not the row's fields pos and bezeichnung, which follow an `@` (David's review). While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
+          "Types `$` into the Text view of an expression whose field offers the row's fields: after the `$` the completion list offers what can follow it, the template contexts Qorus offers a DPQL expression ($config:, $data:, $local:, $timestamp:, $transient: and the rest - no workflow-only $static: or $dynamic:), as the language server offers them - not the row's fields pos and bezeichnung, which follow an `@` (David's review). While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
       },
     },
   },
@@ -1865,14 +1865,18 @@ export const TextModeOffersTemplateCompletions: Story = {
        the row's fields, which are written with an `@` (qorus#646, David: "after '$', fields are shown first,
        although only templates are possible"). */
     await waitFor(
-      () =>
-        expect(seenCompletionLabels()).toEqual([
-          '$data:',
-          '$config:',
-          '$static:',
-          '$timestamp:',
-          'Browse all templates',
-        ]),
+      () => {
+        // the contexts Qorus offers a DPQL expression (a Qog's record expression) - no workflow-only ones
+        expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$autovar:', '$config:', '$data:']));
+        // every row of the list, those scrolled out of sight too
+        const listed = Array.from(
+          document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')
+        ).map((row) => row.getAttribute('data-label'));
+        expect(listed).toEqual(expect.arrayContaining(['$local:', '$timestamp:', '$transient:']));
+        expect(listed).not.toContain('$static:');
+        expect(listed).not.toContain('$dynamic:');
+        expect(listed).not.toContain('pos');
+      },
       { timeout: 20000 }
     );
     // nothing is said of the `$` while its list is open
@@ -2443,8 +2447,8 @@ export const AContextPickedGoesOnToWhatIsInIt: Story = {
     docs: {
       description: {
         story:
-          'Types `$st` key by key and takes $static: with Tab: it is written as text, no chip, and the list says ' +
-          '"Nothing is listed in $static: here: write what it refers to after the \':\'" - nothing is said of ' +
+          'Types `$tr` key by key and takes $transient: with Tab: it is written as text, no chip, and the list ' +
+          'says "Nothing is listed in $transient: here: write what it refers to after the \':\'" - nothing is said of ' +
           'the text while it is open. Then `@po` and Tab: the chip for the row\'s field pos.',
       },
     },
@@ -2460,18 +2464,18 @@ export const AContextPickedGoesOnToWhatIsInIt: Story = {
     );
     await waitForLspIdle(canvasElement);
     await userEvent.click(editable);
-    await typeAsAPerson(userEvent, '$st');
-    await waitFor(() => expect(seenCompletionLabels()).toEqual(['$static:', 'Browse all templates']), {
+    await typeAsAPerson(userEvent, '$tr');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(['$transient:', 'Browse all templates']), {
       timeout: 20000,
     });
     await userEvent.keyboard('{Tab}');
     await waitFor(() =>
       expect(document.querySelector('.reqore-popover-content .completion-menu')?.textContent).toContain(
-        "Nothing is listed in $static: here: write what it refers to after the ':'"
+        "Nothing is listed in $transient: here: write what it refers to after the ':'"
       )
     );
     expect(editable.querySelectorAll('.reqore-tag')).toHaveLength(0);
-    expect(editable.textContent).toContain('$static:');
+    expect(editable.textContent).toContain('$transient:');
     expect(saidUnderTheText(canvasElement)).toEqual([]);
     await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
     await typeAsAPerson(userEvent, '@po');

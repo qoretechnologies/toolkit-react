@@ -186,12 +186,19 @@ export const dpqlCompletionsWith =
         unbracedReference(item.filterText ?? ''),
       ])
     );
-    return [
+    const rest = [
       ...oursListed,
       ...server.filter(
         (item) =>
           !ownReferences.has(unbracedReference(item.textEdit?.newText ?? item.insertText ?? item.label))
       ),
+    ];
+    /* the contexts first, by name as Qorus lists them, the field's own and the server's alike, then what is named
+       so: `$time` lists $timestamp: before Current Timestamp */
+    const isContext = (item: ILspCompletionItem) => /^\$[\w-]+:$/.test(item.insertText ?? '');
+    return [
+      ...rest.filter(isContext).sort((a, b) => (a.insertText ?? '').localeCompare(b.insertText ?? '')),
+      ...rest.filter((item) => !isContext(item)),
       ...browse,
     ];
   };
