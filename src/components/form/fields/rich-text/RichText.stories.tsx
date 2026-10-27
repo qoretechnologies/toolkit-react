@@ -728,12 +728,13 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
     );
     await typeAsAPerson(userEvent, 'order.id');
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+    // the whole reference, its key's dots and all: not "dynamic: order" and the text ".id"
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id']));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:order.id'));
     await typeAsAPerson(userEvent, ' $dynamic:batch');
     await userEvent.keyboard('{Escape}');
     await userEvent.click(canvasElement.ownerDocument.body);
-    await waitFor(() => expect(chipsOf(editable)).toHaveLength(2));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id', 'dynamic: batch']));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:order.id $dynamic:batch'));
   },
 };

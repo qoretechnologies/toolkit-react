@@ -2699,12 +2699,12 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
       )
     );
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id']));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$dynamic:order\.id\s*$/)));
     await typeAsAPerson(userEvent, ' == $dynamic:batch');
     await userEvent.keyboard('{Escape}');
     await userEvent.click(canvasElement.ownerDocument.body);
-    await waitFor(() => expect(chipsOf(editable)).toHaveLength(2));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id', 'dynamic: batch']));
   },
 };
 
