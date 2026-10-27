@@ -38,8 +38,8 @@ import { defaultSlateConverter, expandSnippet, lspPositionToOffset } from './hel
 import { TEMPLATE_BROWSE_LIST_PROPS } from '../form/fields/rich-text/useTemplateTags';
 import { CompletionMenu } from './CompletionMenu';
 import { MarkdownDoc } from './MarkdownDoc';
-import { ISlateElement, ISmartEditorProps, TCompletionInserter, TSlateNode } from './types';
-import { IRechippedParagraph, rechipTypedReferences } from './typedReferences';
+import { ISlateElement, ISmartEditorProps, TCompletionInserter } from './types';
+import { rechipTypedReferences } from './typedReferences';
 import { ICompletionDropdownItem, useLspAutocomplete } from './useLspAutocomplete';
 import { severityToIntent, useLspDiagnosticDecorations } from './useLspDiagnosticDecorations';
 import { useLspHover } from './useLspHover';
@@ -48,6 +48,7 @@ import { useLspSemanticTokens } from './useLspSemanticTokens';
 import { useLspSignatureHelp } from './useLspSignatureHelp';
 import { templateNodeFor } from '../../helpers/templateTree';
 import { useTabCameIn } from './useTabCameIn';
+import { commitTypedReferences, drawRechipped } from './typedReferences';
 import { useEditingAids } from './useEditingAids';
 
 // One-Dark-ish palette keyed off the LSP semantic-token legend; absent
@@ -388,6 +389,14 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       converter,
       inserter: completionInserter,
       emptyMessage: emptyCompletionMessage,
+      // Enter or Tab where nothing more is listed: what is written at the caret, a whole reference, is its chip
+      commitTyped: (editor) =>
+        commitTypedReferences(
+          editor as unknown as Editor,
+          converter,
+          referenceNamesNothing,
+          editor.selection?.anchor.path[0]
+        ),
     });
 
     const hover = useLspHover(session, editorRef as React.RefObject<any>, converter, {
@@ -648,37 +657,13 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     /* A reference typed out in full is drawn as its chip, as one picked from the completion list is: the
        paragraph is redrawn from its text, which the converter reads it in (`rechipTypedReferences`). The text is
        the same, so nothing is reported for it. */
-    const drawTypedReferences = (editor: Editor, index: number, rechipped: IRechippedParagraph) => {
-      Editor.withoutNormalizing(editor, () => {
-        const paragraph = editor.children[index] as unknown as ISlateElement;
-        for (let child = paragraph.children.length - 1; child >= 0; child -= 1) {
-          Transforms.removeNodes(editor, { at: [index, child] });
-        }
-        Transforms.insertNodes(editor, rechipped.children as TSlateNode[] as never[], {
-          at: [index, 0],
-        });
-      });
-      if (rechipped.caret) {
-        Transforms.select(editor, rechipped.caret);
-      }
-    };
+    const drawTypedReferences = drawRechipped;
 
     // the editor has been left: every reference typed in it is drawn as its chip
     const handleBlur = useCallback(() => {
       const editor = editorRef.current as unknown as Editor | null;
       if (editor && !readOnly) {
-        (editor.children as unknown as ISlateElement[]).forEach((paragraph, index) => {
-          const rechipped = rechipTypedReferences(
-            converter,
-            paragraph,
-            index,
-            undefined,
-            referenceNamesNothing
-          );
-          if (rechipped) {
-            drawTypedReferences(editor, index, rechipped);
-          }
-        });
+        commitTypedReferences(editor, converter, referenceNamesNothing);
       }
       onBlur?.();
     }, [converter, readOnly, onBlur, referenceNamesNothing]);

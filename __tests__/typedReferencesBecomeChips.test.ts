@@ -89,3 +89,35 @@ describe('a reference typed out that names nothing', () => {
     expect((rechipped?.children[0] as { text?: string }).text).toBe('$data:receive_order.ev == ');
   });
 });
+
+/* qorus#646, David's review: a context of free keys and its key, typed out, is a whole reference - drawn as its
+   chip when Enter takes it, the caret after it; one naming nothing stays text. */
+describe('references typed out, taken at once', () => {
+  it('draws the caret paragraph\'s, keeps the one naming nothing as text, and puts the caret at its end', async () => {
+    const { createEditor } = await import('slate');
+    const { commitTypedReferences } = await import('../src/components/smartEditor/typedReferences');
+    const editor = createEditor();
+    // a chip is an inline void, as the editors declare it
+    editor.isInline = (element) => (element as ISlateElement).type === 'tag';
+    editor.isVoid = (element) => (element as ISlateElement).type === 'tag';
+    editor.children = [typed('$dynamic:order.id == $data:nothing.here')] as never;
+    editor.selection = { anchor: { path: [0, 0], offset: 3 }, focus: { path: [0, 0], offset: 3 } };
+    const drawn = commitTypedReferences(
+      editor,
+      dpqlSlateConverter,
+      (reference) => reference === '$data:nothing.here',
+      0
+    );
+    expect(drawn).toBe(true);
+    expect(chipsOf((editor.children[0] as ISlateElement).children)).toEqual(['$dynamic:order.id']);
+    expect(editor.selection?.anchor).toEqual({ path: [0, 2], offset: ' == $data:nothing.here'.length });
+  });
+
+  it('draws nothing where nothing is typed out', async () => {
+    const { createEditor } = await import('slate');
+    const { commitTypedReferences } = await import('../src/components/smartEditor/typedReferences');
+    const editor = createEditor();
+    editor.children = [typed('1 + 2')] as never;
+    expect(commitTypedReferences(editor, dpqlSlateConverter, undefined, 0)).toBe(false);
+  });
+});

@@ -127,6 +127,11 @@ export interface IUseLspAutocompleteOptions {
    * list there: "No record fields here" for an `@` where there is no record (qorus#646).
    */
   emptyMessage?: (plainText: string, offset: number) => string | undefined;
+  /**
+   * Takes what is written at the caret as a whole reference - its chip - where the list has nothing more to offer
+   * and Enter or Tab is pressed (`commitTypedReferences`); whether anything was taken.
+   */
+  commitTyped?: (editor: BaseEditor & ReactEditor & HistoryEditor) => boolean;
 }
 
 export interface IUseLspAutocompleteResult {
@@ -360,7 +365,10 @@ export function useLspAutocomplete(
     converter,
     inserter,
     emptyMessage: emptyMessageAt,
+    commitTyped,
   } = opts;
+  const commitTypedRef = useRef(commitTyped);
+  commitTypedRef.current = commitTyped;
 
   const [items, setItems] = useState<ICompletionDropdownItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -623,8 +631,24 @@ export function useLspAutocomplete(
   useEffect(() => {
     if (showsRows) return undefined;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || !(pendingRequestRef.current || showsMessage)) return;
       const editor = editorRef.current;
+      /* Enter or Tab where the list has nothing more to offer - a context of free keys and its key written,
+         `$static:order.id` - takes what is written: a whole reference, drawn as its chip (`commitTyped`), as a row
+         taken is (qorus#646, David's review). */
+      if ((event.key === 'Enter' || event.key === 'Tab') && showsMessage && editor && commitTypedRef.current) {
+        try {
+          if (!ReactEditor.toDOMNode(editor, editor).contains(event.target as Node)) return;
+        } catch {
+          return;
+        }
+        if (commitTypedRef.current(editor)) {
+          event.preventDefault();
+          event.stopPropagation();
+          close();
+        }
+        return;
+      }
+      if (event.key !== 'Escape' || !(pendingRequestRef.current || showsMessage)) return;
       try {
         if (!editor || !ReactEditor.toDOMNode(editor, editor).contains(event.target as Node)) return;
       } catch {

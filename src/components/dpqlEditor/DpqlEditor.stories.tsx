@@ -40,11 +40,12 @@ import {
   pickerSearch,
   plainTextOf,
 } from '../../stories/templatePicker';
-import { ITemplatesPayload } from '../../helpers/templates';
+import { buildTemplates, ITemplatesPayload } from '../../helpers/templates';
 import {
   QOG_FIELD_TEMPLATES,
   QOG_STATE_DATA_PAYLOAD,
   RECORD_FIELDS,
+  WORKFLOW_CONTEXT_DATA_PAYLOAD,
 } from '../form/fields/template/__fixtures__/qogTemplatePayloads';
 import { mockDataTemplateValues } from './__fixtures__/dpqlMockTemplateValues';
 
@@ -2670,3 +2671,40 @@ export const TypingCompletesEachLevel: Story = {
     expect(chipsOf(editable)).toHaveLength(3);
   },
 };
+
+/**
+ * A context of free keys and its key, typed out (`$dynamic:order.id`), is a whole reference: drawn as its chip when
+ * Enter takes it, or the editor is left (qorus#646, David's review).
+ */
+export const AFreeKeyReferenceTypedOutIsAChip: Story = {
+  args: { value: '', onChange: fn(), templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD) as never },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$dynamic:order.id` key by key: nothing is listed in $dynamic:, and the list says to write ' +
+          'its key. Enter takes what is written: the chip for $dynamic:order.id. Then ` == $dynamic:batch` typed ' +
+          'and the editor left: that too is a chip.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$dynamic:order.id');
+    await waitFor(() =>
+      expect(document.querySelector('.reqore-popover-content .completion-menu')?.textContent).toContain(
+        "Nothing is listed in $dynamic: here: write what it refers to after the ':'"
+      )
+    );
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$dynamic:order\.id\s*$/)));
+    await typeAsAPerson(userEvent, ' == $dynamic:batch');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(2));
+  },
+};
+

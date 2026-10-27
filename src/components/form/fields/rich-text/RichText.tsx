@@ -9,7 +9,7 @@ import { IQorusAllowedValue } from '@qoretechnologies/ts-toolkit';
 import { isEqual } from 'lodash';
 import { FocusEvent, KeyboardEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'react-use';
-import { Path } from 'slate';
+import { Editor, Path } from 'slate';
 import { ReactEditor } from 'slate-react';
 import { useEmittedValues } from '../emittedValues';
 import { usePendingEdit } from '../pendingEdit';
@@ -55,7 +55,9 @@ import {
   templateSearchItems,
   unlistedContextMessage,
 } from '../../../smartEditor/templateCompletions';
-import { templateNodeFor, templateTree } from '../../../../helpers/templateTree';
+import { referenceNamesNothing, templateNodeFor, templateTree } from '../../../../helpers/templateTree';
+import { commitTypedReferences } from '../../../smartEditor/typedReferences';
+import { ISlateConverter, ISlateElement } from '../../../smartEditor/types';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { useLspAutocomplete } from '../../../smartEditor/useLspAutocomplete';
 import { useTabCameIn } from '../../../smartEditor/useTabCameIn';
@@ -489,6 +491,21 @@ export const RichTextFormField = memo(({
   const completionMenuId = useMemo(() => `completion-menu-text-${++textCompletionMenuCounter}`, []);
   // a template's type named in its row by the catalogue the surrounding form has, never its code
   const typeLabel = useTypeLabel();
+  /* The text as the field reads it: its whole references chips (`templateTextToNodes`), for a reference typed out
+     to be drawn as its chip when the field is left, or Enter or Tab takes it - as a picked one is, and as the DPQL
+     editor draws one (qorus#646, David: `$static:order.id` stayed text). One that names nothing the field is given
+     stays text. */
+  const typedConverter = useMemo<ISlateConverter>(
+    () => ({
+      ...defaultSlateConverter,
+      toSlateNodes: (text: string) => templateTextToNodes(text, naming, templateToken) as ISlateElement[],
+    }),
+    [naming, templateToken]
+  );
+  const namesNothing = useCallback(
+    (reference: string) => referenceNamesNothing(templateRoots, reference),
+    [templateRoots]
+  );
   const offerTemplates = useCallback(
     async (plainText: string, offset: number, typedInText?: string) => {
       // what is typed in the text the caret is in: a chip before it is a value, not a reference being typed
@@ -509,6 +526,14 @@ export const RichTextFormField = memo(({
     inserter: templateChipInserter,
     // a context written that nothing is listed in: what to write next, the list held open
     emptyMessage: unlistedContextMessageAt,
+    // Enter or Tab where nothing more is listed: what is written at the caret, a whole reference, is its chip
+    commitTyped: (editor) =>
+      commitTypedReferences(
+        editor as unknown as Editor,
+        typedConverter,
+        namesNothing,
+        editor.selection?.anchor.path[0]
+      ),
   });
   const { openBrowse } = autocomplete;
   const coarse = useCoarsePointer();
@@ -694,10 +719,13 @@ export const RichTextFormField = memo(({
 
       if (choiceForValue(shown, allowed_values)) {
         setLocalValue(toLocal(shown));
+      } else if (isText && editorRef.current && !readOnly) {
+        // every reference typed out in full is drawn as its chip
+        commitTypedReferences(editorRef.current as unknown as Editor, typedConverter, namesNothing);
       }
       (rest as { onBlur?: (event: FocusEvent<HTMLTextAreaElement>) => void }).onBlur?.(event);
     },
-    [isText, localValue, choiceKey, (rest as { onBlur?: unknown }).onBlur]
+    [isText, localValue, choiceKey, (rest as { onBlur?: unknown }).onBlur, typedConverter, namesNothing, readOnly]
   );
 
   const handleKeyDown = useCallback(

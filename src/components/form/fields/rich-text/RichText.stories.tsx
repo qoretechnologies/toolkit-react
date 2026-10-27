@@ -697,3 +697,43 @@ export const TypingCompletesEachLevel: Story = {
     );
   },
 };
+
+/**
+ * A context of free keys and its key, typed out (`$dynamic:order.id`), is a whole reference: drawn as its chip when
+ * Enter or Tab takes it, or the field is left, as a picked one is (qorus#646, David: it stayed text).
+ */
+export const AFreeKeyReferenceTypedOutIsAChip: Story = {
+  args: { value: '', valueFormat: 'text', templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD) },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$dyn` key by key and takes $dynamic: with Tab: the list says to write its key. `order.id` ' +
+          'typed and Enter pressed, $dynamic:order.id is a chip, and the value holds it. Then ` $dynamic:batch` ' +
+          'typed and the field left: that too is a chip.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$dyn');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$dynamic:'));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() =>
+      expect(document.querySelector('.reqore-popover-content .completion-menu')?.textContent).toContain(
+        "Nothing is listed in $dynamic: here: write what it refers to after the ':'"
+      )
+    );
+    await typeAsAPerson(userEvent, 'order.id');
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:order.id'));
+    await typeAsAPerson(userEvent, ' $dynamic:batch');
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(2));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:order.id $dynamic:batch'));
+  },
+};

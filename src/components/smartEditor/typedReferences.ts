@@ -1,6 +1,7 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 // A reference typed out in full is drawn as its chip once it has been typed, as one picked from the completion
 // list is (qorus#646).
+import { Editor, Transforms } from 'slate';
 import { ISlateConverter, ISlateElement, ISlateText, TSlateNode } from './types';
 
 const isTag = (node: TSlateNode): node is ISlateElement => (node as ISlateElement).type === 'tag';
@@ -131,4 +132,50 @@ export const rechipTypedReferences = (
     children: rebuilt.children,
     caret: caret === undefined ? undefined : pointAt(converter, rebuilt, index, caret),
   };
+};
+
+/**
+ * Draws the paragraph at `index` as `rechipped` has it: its typed references as chips, the text the same, the caret
+ * where `rechipped` puts it.
+ */
+export const drawRechipped = (editor: Editor, index: number, rechipped: IRechippedParagraph) => {
+  Editor.withoutNormalizing(editor, () => {
+    const paragraph = editor.children[index] as unknown as ISlateElement;
+    for (let child = paragraph.children.length - 1; child >= 0; child -= 1) {
+      Transforms.removeNodes(editor, { at: [index, child] });
+    }
+    Transforms.insertNodes(editor, rechipped.children as TSlateNode[] as never[], {
+      at: [index, 0],
+    });
+  });
+  if (rechipped.caret) {
+    Transforms.select(editor, rechipped.caret);
+  }
+};
+
+/**
+ * Draws every reference typed out in full in the editor as its chip - those that name nothing the field is given
+ * stay text (`keepAsText`) - as leaving the field does, and as Enter or Tab does where the list has nothing more to
+ * offer (a context of free keys and its key, `$static:order.id`: qorus#646). With `caretParagraph`, only that
+ * paragraph, the caret put at its end. Whether anything was drawn.
+ */
+export const commitTypedReferences = (
+  editor: Editor,
+  converter: ISlateConverter,
+  keepAsText?: (reference: string) => boolean,
+  caretParagraph?: number
+): boolean => {
+  let drawn = false;
+  (editor.children as unknown as ISlateElement[]).forEach((paragraph, index) => {
+    if (caretParagraph !== undefined && index !== caretParagraph) return;
+    const rechipped = rechipTypedReferences(converter, paragraph, index, undefined, keepAsText);
+    if (rechipped) {
+      drawRechipped(editor, index, rechipped);
+      drawn = true;
+    }
+  });
+  if (drawn && caretParagraph !== undefined) {
+    Transforms.select(editor, Editor.end(editor, [caretParagraph]));
+  }
+  return drawn;
 };
