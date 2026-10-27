@@ -659,9 +659,21 @@ function AutoField<T = any>({
            Without the type the field cannot tell them apart and treats them all
            as documents, so an interface's Internal Name — which becomes a YAML
            key — accepted Enter. Only text takes references; `data` and
-           `binary` are encoded content, where a chip would stand for nothing. */
+           `binary` are encoded content, where a chip would stand for nothing.
+
+           The semantic string formats (`email` … `phone`) are one line of text
+           whose identity the validator checks. They are in the option vocabulary
+           (`optionUiTypes`) and the single-line list, but had no case here, so a
+           field of one drew "Unknown type!" in every form. */
         case 'string':
         case 'long-string':
+        case 'email':
+        case 'uri':
+        case 'uuid':
+        case 'hostname':
+        case 'ipv4':
+        case 'ipv6':
+        case 'phone':
           return renderTextEditor(currentType);
         case 'data':
         case 'binary':
