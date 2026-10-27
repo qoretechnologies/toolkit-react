@@ -80,6 +80,25 @@ export const findAllowedValueOption = (
 };
 
 /**
+ * The value a choice stands for, whichever of the three ways its entry is
+ * written (see `findAllowedValueOption`): the envelope's `value`, a bare
+ * `value`, or the entry's `name`.
+ *
+ * The row that names a stored choice and the validator that accepts it have
+ * always read all three. The pickers that WRITE a choice read only the
+ * envelope, so a list written bare showed nothing selected for the stored value
+ * and stored `undefined` when a choice was clicked: picking a pipeline
+ * processor's class cleared the field instead of setting it.
+ */
+export const allowedValueOf = (option: any): unknown => {
+  const value = option?.value;
+  if (value && typeof value === 'object' && !Array.isArray(value) && 'value' in value) {
+    return value.value;
+  }
+  return value !== undefined ? value : option?.name;
+};
+
+/**
  * A Slate rich-text document: a non-empty array of element nodes, each with
  * `children`. Told apart from a LIST value, which is an array of elements.
  */

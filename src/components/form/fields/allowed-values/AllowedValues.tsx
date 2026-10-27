@@ -22,6 +22,7 @@ import { ISelectFormFieldItem, SelectFormField as Select } from '../select/Selec
 import { useAllowedValueAvailability } from '../../engine/OptionFieldMessages';
 import { ChoiceGroupHeading, useSelectedChoiceIntent } from '../ChoiceGroupHeading';
 import type { IReqraftAllowedValue } from '../Field';
+import { allowedValueOf } from '../../../../helpers/allowedValues';
 
 export interface IFieldAllowedValuesProps extends Pick<
   IReqoreButtonProps,
@@ -205,7 +206,7 @@ export const FieldAllowedValues = memo(
           const resolved = availability[index];
 
           return {
-            value: value?.value,
+            value: allowedValueOf({ value, name: rest.name }),
             ...rest,
             disabled: rest.disabled || resolved?.available === false,
             unavailable:

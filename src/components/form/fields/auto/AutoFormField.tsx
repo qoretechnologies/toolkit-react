@@ -17,6 +17,7 @@ import React, { memo, useCallback, useEffect, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import useMount from 'react-use/lib/useMount';
 import { typedToYaml, yamlToTyped } from '../../../../helpers/common';
+import { allowedValueOf } from '../../../../helpers/allowedValues';
 import { getListElementValue } from '../../../../helpers/options';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import {
@@ -974,8 +975,8 @@ function AutoField<T = any>({
           // previously only `allowed_values` was read, leaving `items` empty.
           const enumItems = (rest.allowed_values as any[] | undefined)?.length
             ? (rest.allowed_values as any[]).map((av) => ({
-                label: av.display_name ?? String(av.value?.value ?? av.value),
-                value: av.value?.value ?? av.value,
+                label: av.display_name ?? String(allowedValueOf(av)),
+                value: allowedValueOf(av),
                 image: av.image,
                 icon: av.icon,
               }))
@@ -1008,7 +1009,7 @@ function AutoField<T = any>({
             <SelectFormField
               items={(rest.allowed_values || []).map((av) => ({
                 ...av,
-                value: av.value?.value,
+                value: allowedValueOf(av),
               }))}
               value={value}
               onChange={(val) => handleChange(name, val)}

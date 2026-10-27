@@ -46,6 +46,7 @@ import { IDataSchemaDefinition } from './schema-definition/types';
 // because modules are all loaded before any component renders
 import { FormEngine } from '../engine/FormEngine';
 import { FormFieldsSkeleton } from '../engine/FormFieldsSkeleton';
+import { allowedValueOf } from '../../../helpers/allowedValues';
 
 /** Soft Qore types (softint, softstring, …) render as their concrete base —
  * the soft/hard distinction is value-level, not UI. */
@@ -416,7 +417,7 @@ export const FormField = <T extends TFormFieldType>({
         if (size(element_allowed_values) && !element_allowed_values_creatable) {
           const formatToServer = (vals: unknown[]) =>
             (vals || []).map((v) => {
-              const match = element_allowed_values.find((ev) => isEqual(ev.value?.value, v));
+              const match = element_allowed_values.find((ev) => isEqual(allowedValueOf(ev), v));
               return { value: v, type: match?.value?.type ?? effectiveElementType };
             });
           const formatFromServer = (vals: unknown[]) =>
@@ -427,7 +428,7 @@ export const FormField = <T extends TFormFieldType>({
             return (
               <ReqoreControlGroup vertical size='tiny'>
                 {element_allowed_values.map((item, index) => {
-                  const itemValue = item.value?.value;
+                  const itemValue = allowedValueOf(item);
                   const checked = serverValue.some((v) => isEqual(v, itemValue));
                   return (
                     <ReqoreCheckbox
@@ -591,7 +592,7 @@ export const FormField = <T extends TFormFieldType>({
         resolved && !resolved.available ?
           { title: resolved.title, content: resolved.reason as string, intent: resolved.intent }
         : undefined,
-      value: item.value?.value,
+      value: allowedValueOf(item),
     };
   };
 
@@ -660,7 +661,7 @@ export const FormField = <T extends TFormFieldType>({
             {display_name ? `${display_name}:` : 'Select one:'}
           </ChoiceGroupHeading>
           {allowed_values.map((item, index) => {
-            const itemValue = item.value?.value;
+            const itemValue = allowedValueOf(item);
             const checked = isEqual(value, itemValue);
             const mapped = mapAllowedValue(item, index);
             const unavailable = getSelectItemUnavailability(mapped);

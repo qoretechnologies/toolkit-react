@@ -53,6 +53,7 @@ import size from 'lodash/size';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
 import styled, { css } from 'styled-components';
+import { allowedValueOf } from '../../../helpers/allowedValues';
 import {
   fixOperatorValue,
   getDefaultValue,
@@ -2351,7 +2352,7 @@ const FormEngineImpl = ({
     forEach(options || {}, (optionSchema, name) => {
       forEach(optionSchema?.allowed_values || [], (allowedValue) => {
         if (!getAllowedValueAvailability(allowedValue, availableOptions, options || {}).available) {
-          locked.push(`${name}\u0000${JSON.stringify(allowedValue?.value?.value)}`);
+          locked.push(`${name}\u0000${JSON.stringify(allowedValueOf(allowedValue))}`);
         }
       });
     });

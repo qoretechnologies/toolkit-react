@@ -7,6 +7,7 @@ import {
   getSelectItemUnavailability,
   UNAVAILABLE_ITEM_CLASS,
 } from '../select/SelectCollection';
+import { allowedValueOf } from '../../../../helpers/allowedValues';
 
 export interface IMultiSelectFormFieldProps {
   /** Currently selected values (plain scalars) */
@@ -55,7 +56,7 @@ export const MultiSelectFormField = memo(
                   messages: item.messages,
                 })
             )
-            .map((item) => String(item.value?.value ?? ''))
+            .map((item) => String(allowedValueOf(item) ?? ''))
         ),
       [JSON.stringify(items)]
     );
@@ -75,8 +76,8 @@ export const MultiSelectFormField = memo(
           });
 
           return {
-            value: item.value?.value as string,
-            label: item.display_name ?? String(item.value?.value ?? ''),
+            value: allowedValueOf(item) as string,
+            label: item.display_name ?? String(allowedValueOf(item) ?? ''),
             description:
               unavailable ?
                 [unavailable.title, unavailable.content, description].filter(Boolean).join(' — ')
@@ -91,7 +92,7 @@ export const MultiSelectFormField = memo(
                That one stays reqore's `disabled` — the wildcard is a state of
                the SELECTION rather than a refusal of the value, and it has no
                reason of its own to protect. */
-            disabled: selectedValues.includes('*') && item.value?.value !== '*',
+            disabled: selectedValues.includes('*') && allowedValueOf(item) !== '*',
           };
         }
       );
