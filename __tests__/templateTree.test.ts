@@ -325,3 +325,45 @@ describe('allTemplateNodes', () => {
     expect(allTemplateNodes(tree()).some((node) => node.label === 'ZIP code')).toBe(true);
   });
 });
+
+describe('taking a record whole (qorus#646, David: "if a user wants to choose the entire Receive order")', () => {
+  const stateOf = (roots: ReturnType<typeof templateTree>) =>
+    roots.find((node) => node.label === 'Receive order')!;
+
+  it("offers a Qog state's data whole, as `$data:{state}`, where the field takes a record", () => {
+    const state = stateOf(templateTree(QOG_TEMPLATES, { wholeRecords: true }));
+    expect(state).toMatchObject({ takesWhole: true, value: '$data:{receive_order}', type: 'hash' });
+    expect(
+      templateNodeFor(
+        templateTree(QOG_TEMPLATES, { wholeRecords: true }),
+        '$data:{receive_order.customer}'
+      )?.takesWhole
+    ).toBe(true);
+  });
+
+  it('offers neither a state nor a record whole where the field takes no record (a scalar field)', () => {
+    const roots = templateTree(QOG_TEMPLATES, { wholeRecords: false });
+    expect(stateOf(roots).takesWhole).toBeFalsy();
+    expect(templateNodeFor(roots, '$data:{receive_order.customer}')?.takesWhole).toBe(false);
+  });
+
+  it('offers a record whole where its catalogue keeps its select-whole, and no state, when nothing is said', () => {
+    const roots = templateTree(QOG_TEMPLATES);
+    expect(stateOf(roots).takesWhole).toBeFalsy();
+    expect(templateNodeFor(roots, '$data:{receive_order.customer}')?.takesWhole).toBe(true);
+  });
+
+  it('offers no record whole whose select-whole a type filter took away', () => {
+    const roots = templateTree({
+      items: [
+        {
+          label: 'R',
+          value: '$data:{s.r}',
+          leftAction: undefined,
+          items: [{ label: 'x', value: '$data:{s.r.x}' }],
+        },
+      ],
+    } as never);
+    expect(roots[0].takesWhole).toBe(false);
+  });
+});

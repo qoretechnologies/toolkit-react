@@ -195,7 +195,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
        the record's fields as a group of their own - one tree, browsed in the template picker (a click in the empty
        text, the template button, a chip, a group's row) and reached by what is typed (`dpqlCompletionsWith`). */
     const templateRoots = useMemo(
-      () => templateTree(templates, { fields: dpql.fieldMeta }),
+      // an expression takes a record whole: a state's data or a record is offered whole as well as opened
+      () => templateTree(templates, { fields: dpql.fieldMeta, wholeRecords: true }),
       [templates, dpql.fieldMeta]
     );
     // a template's type named in its row by the catalogue the surrounding form has, never its code

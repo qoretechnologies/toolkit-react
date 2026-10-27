@@ -136,6 +136,11 @@ export interface IRichTextFormFieldProps extends Omit<
    * Reqore's editor, which has no such prop.
    */
   templateToken?: RegExp | string;
+  /**
+   * Whether the value takes a record whole (a field of any type, a hash): a record and a Qog state's data are then
+   * offered whole ("Use") as well as opened in the template picker. See `ITemplateTreeOptions.wholeRecords`.
+   */
+  wholeRecords?: boolean;
 }
 
 /**
@@ -201,6 +206,7 @@ export const RichTextFormField = memo(({
   templateToken,
   allowed_values,
   choiceChip,
+  wholeRecords,
   ...rest
 }: IRichTextFormFieldProps) => {
   const isText = valueFormat === 'text';
@@ -467,8 +473,8 @@ export const RichTextFormField = memo(({
      reached by what is typed after a `$`, in the rows the same popover shows then (a group's row opens the picker
      at its members). */
   const templateRoots = useMemo(
-    () => (allowTemplates !== false && !readOnly ? templateTree(templates) : []),
-    [allowTemplates, readOnly, templates]
+    () => (allowTemplates !== false && !readOnly ? templateTree(templates, { wholeRecords }) : []),
+    [allowTemplates, readOnly, templates, wholeRecords]
   );
   const completionMenuId = useMemo(() => `completion-menu-text-${++textCompletionMenuCounter}`, []);
   // a template's type named in its row by the catalogue the surrounding form has, never its code

@@ -10,6 +10,7 @@ import {
 } from '../../../../helpers/templateTree';
 import { withCoarsePointer } from '../../../../stories/coarsePointer';
 import {
+  expectRowsFit,
   pickerCrumbs,
   pickerFocused,
   pickerLabels,
@@ -89,6 +90,12 @@ export const QogTemplates: Story = {
       ])
     );
     expect((await pickerRow('Receive order')).textContent).toContain('State data');
+    await userEvent.click(await pickerRow('Receive order'));
+    await pickerRow('Customer');
+    // every row fits the picker: its name whole, its badges and description inside it (qorus#646, David's review)
+    expectRowsFit(
+      Array.from(document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row'))
+    );
   },
 };
 

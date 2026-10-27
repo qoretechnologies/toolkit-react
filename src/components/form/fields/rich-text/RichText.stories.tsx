@@ -20,6 +20,7 @@ import {
 import {
   chipsOf,
   completionLabels,
+  expectRowsFit,
   pickerCrumbs,
   pickerFocused,
   pickerLabels,
@@ -590,5 +591,54 @@ export const ThePickerOnAPhone: Story = {
       }
       expect((await pickerRow('Event type')).getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
     });
+  },
+};
+
+/**
+ * Where the value takes a record (a field of any type, a hash), a Qog state's data and a record are taken whole from
+ * the picker as well as opened (qorus#646, David's review).
+ */
+export const AStateIsTakenWholeWhereTheValueTakesRecords: Story = {
+  args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES, wholeRecords: true },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A value that takes a record: the picker\'s Receive order has Use beside it, which writes the state\'s ' +
+          'whole data, $data:{receive_order}, as the chip Receive order; a click on the row opens its data instead.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    const state = await pickerRow('Receive order');
+    await userEvent.click(state.parentElement!.querySelector<HTMLElement>('.template-picker-use')!);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$data:{receive_order}'));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order']));
+  },
+};
+
+/** Where the value takes no record (a scalar field), neither a state nor a record is offered whole: only opened. */
+export const AScalarValueTakesNoRecordWhole: Story = {
+  args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES, wholeRecords: false },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A value that takes no record (text, a number): Receive order and its record Customer have no Use - ' +
+          'they open into their data - and every row fits the picker.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await pickerRow('Receive order');
+    expect(document.querySelectorAll('.template-picker-use')).toHaveLength(0);
+    await userEvent.click(await pickerRow('Receive order'));
+    await pickerRow('Customer');
+    expect(document.querySelectorAll('.template-picker-use')).toHaveLength(0);
+    expectRowsFit(Array.from(document.querySelectorAll<HTMLElement>('.template-picker .template-picker-row')));
   },
 };

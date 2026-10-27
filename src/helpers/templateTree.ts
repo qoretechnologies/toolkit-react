@@ -75,6 +75,12 @@ export interface ITemplateNode {
    * key is written for it (`$dynamic:order.id`) rather than chosen.
    */
   writesKey?: boolean;
+  /**
+   * A group that is a value of its own - a record, a Qog state's data - and can be taken whole where the field it is
+   * picked for takes one (a field of any type, a hash): its "Use". Never a scalar field's: its catalogue marks the
+   * groups whose value does not fit it (`filterTemplatesByType` takes their "select whole" away).
+   */
+  takesWhole?: boolean;
   disabled?: boolean;
   /** The catalogue row it was read from, for a host that needs its own metadata back. */
   row?: ITemplateCatalogueRow;
@@ -162,7 +168,8 @@ const nodeOf = (
   row: ITemplateCatalogueRow,
   id: string,
   trail: string[],
-  trailIds: string[]
+  trailIds: string[],
+  wholeRecords?: boolean
 ): ITemplateNode => {
   const value = text(row.value);
   const label = text(row.label) ?? value ?? '';
@@ -170,7 +177,9 @@ const nodeOf = (
   const childTrailIds = [...trailIds, id];
   const children =
     Array.isArray(row.items) ?
-      row.items.map((child, index) => nodeOf(child, `${id}.${index}`, childTrail, childTrailIds))
+      row.items.map((child, index) =>
+        nodeOf(child, `${id}.${index}`, childTrail, childTrailIds, wholeRecords)
+      )
     : undefined;
   const memberReferences = (children ?? [])
     .map((child) => child.reference)
@@ -206,7 +215,7 @@ const nodeOf = (
     const load = row.loadItems;
     node.loadChildren = async () =>
       (await load()).map((child, index) =>
-        nodeOf(child, `${id}.${index}`, childTrail, childTrailIds)
+        nodeOf(child, `${id}.${index}`, childTrail, childTrailIds, wholeRecords)
       );
   }
   // a group of one context's data says it is that context's: a Qog state's members are its data
@@ -214,6 +223,19 @@ const nodeOf = (
     const membersKind = templateNodeKindOf(reference);
     if (membersKind !== 'template') {
       node.kind = membersKind;
+    }
+  }
+  /* Taken whole: a record that is a value of its own, where its catalogue keeps its "select whole" (a type filter
+     takes it away where the record's value does not fit the field) and the field takes records at all; a Qog
+     state's data, written `$data:{state}`, where the field takes records (`wholeRecords`). */
+  if (isGroup) {
+    const keepsWhole = !('leftAction' in row) || !!(row as { leftAction?: unknown }).leftAction;
+    if (value) {
+      node.takesWhole = wholeRecords !== false && keepsWhole;
+    } else if (wholeRecords && reference && /^\$data:[^.{}]+$/.test(reference)) {
+      node.value = `$data:{${reference.slice('$data:'.length)}}`;
+      node.type = 'hash';
+      node.takesWhole = true;
     }
   }
   return node;
@@ -233,6 +255,12 @@ export const RECORD_FIELDS_LABEL = 'Record fields';
 export interface ITemplateTreeOptions {
   /** The record's fields, written as `@<name>`: listed as a group of their own, beside the templates. */
   fields?: Record<string, ITemplateTreeField>;
+  /**
+   * Whether the field takes a record whole (a field of any type, a hash, an expression): a record and a Qog state's
+   * data are offered whole ("Use") as well as opened. `false` for a scalar field: they are only opened. Not given:
+   * a record is offered whole where its catalogue keeps its "select whole", and a state is not.
+   */
+  wholeRecords?: boolean;
 }
 
 const fieldTypeName = (type: ITemplateTreeField['type']): string | undefined =>
@@ -272,12 +300,12 @@ export const fieldReference = (key: string): string => {
  */
 export const templateTree = (
   templates?: IReqoreFormTemplates | { items?: unknown[] },
-  { fields }: ITemplateTreeOptions = {}
+  { fields, wholeRecords }: ITemplateTreeOptions = {}
 ): ITemplateNode[] => {
   const rows = (templates?.items ?? []) as ITemplateCatalogueRow[];
   const roots = rows
     .filter((row) => !(row as { divider?: boolean }).divider)
-    .map((row, index) => nodeOf(row, String(index), [], []));
+    .map((row, index) => nodeOf(row, String(index), [], [], wholeRecords));
   const fieldNames = Object.keys(fields ?? {});
   if (fieldNames.length) {
     const id = String(roots.length);
@@ -549,4 +577,62 @@ export const catalogueRowTrail = (
     data: ancestors.filter((ancestor) => !!ancestor.reference).map((ancestor) => ancestor.label),
     all: node.trail,
   };
+};
+
+/** What a template's color says (`getTemplateTagStyle`), the same on its chip, its row's badge and its hover. */
+export type TTemplateIntent = 'success' | 'custom1' | 'info';
+
+/**
+ * What each color a template is drawn in means, as its hover says it (qorus#646, David: "what is the significance
+ * of the colors?"): green is the data of the event that starts the Qog, purple a value Qorus gives, blue any other
+ * template (which its hover does not need to say).
+ */
+export const TEMPLATE_INTENT_MEANINGS: Record<TTemplateIntent, string> = {
+  success: 'From the event that starts the Qog.',
+  custom1: 'A value Qorus gives.',
+  info: 'Any other data this value can use.',
+};
+
+/** The color a catalogue row's template is drawn in: its own metadata's, else its first member's. */
+export const templateRowIntent = (
+  metadata: Record<string, unknown> | undefined
+): TTemplateIntent =>
+  metadata?.isEventTrigger ? 'success'
+  : metadata?.builtIn ? 'custom1'
+  : 'info';
+
+/** The color a node is drawn in: its row's, or for a group, that of the first of its members that has one. */
+export const templateNodeIntent = (node: ITemplateNode): TTemplateIntent => {
+  const metadata = node.row?.metadata;
+  if (metadata && (metadata.isEventTrigger || metadata.builtIn || node.value)) {
+    return templateRowIntent(metadata);
+  }
+  const member = node.children?.find((child) => child.row?.metadata);
+  return member ? templateNodeIntent(member) : templateRowIntent(metadata);
+};
+
+/* A catalogue's tree with each Qog state's data a value of its own (`$data:{state}`), kept for as long as the
+   catalogue, for the name of a state taken whole. */
+const WHOLE_STATE_TREES = new WeakMap<object, ITemplateNode[]>();
+
+/**
+ * The group a reference stands for whole, where no row of the catalogue is it: a Qog state's data taken whole
+ * (`$data:{receive_order}`) is named by its state ("Receive order"), its whole path its hover's.
+ */
+export const catalogueGroupFor = (
+  templates: IReqoreFormTemplates | { items?: unknown[] } | undefined,
+  written: string
+): { label: string; path: string; row?: ITemplateCatalogueRow } | undefined => {
+  if (!templates) {
+    return undefined;
+  }
+  let roots = WHOLE_STATE_TREES.get(templates);
+  if (!roots) {
+    roots = templateTree(templates, { wholeRecords: true });
+    WHOLE_STATE_TREES.set(templates, roots);
+  }
+  const node = templateNodeFor(roots, written);
+  return node && (node.children?.length || node.loadChildren) ?
+      { label: node.label, path: [...node.trail, node.label].join(' › '), row: node.row }
+    : undefined;
 };

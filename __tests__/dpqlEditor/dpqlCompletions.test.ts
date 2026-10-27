@@ -65,14 +65,15 @@ describe('what the one completion list offers', () => {
     expect(listed(complete('$record:{pos} + |', AFTER_AN_OPERATOR))).toEqual([
       'pos',
       'bezeichnung',
+      '$config:',
       '!',
       BROWSE_ALL_TEMPLATES,
     ]);
   });
 
-  /* qorus#646, David's review: picking `$data:` made text the server refuses (DPQL-E033, "This template isn't
-     finished"), and it offers nothing more after it (professor's `/lsp`, 0 items) */
-  it("does not offer a template's context alone, which is no value", () => {
+  /* qorus#646, David's review of the picker: typing `$dat` offered no language-server completion. A template's
+     context is offered as the server offers it: written as text, the list goes on from it (its `:` asks again). */
+  it("offers the server's template contexts with the field's templates, which a pick goes on from", () => {
     const contexts: ILspCompletionItem[] = [
       { label: '$data:', insertText: '$data:', kind: 6, detail: "needs a value after ':'" },
       {
@@ -86,9 +87,14 @@ describe('what the one completion list offers', () => {
       '$record:{pos}',
       '$record:{bezeichnung}',
       '$config:rate',
+      '$data:',
+      '$qore-expr:',
       BROWSE_ALL_TEMPLATES,
     ]);
-    expect(dpqlCompletionsWith([])({ plainText: '1 + $', offset: 5, serverItems: contexts })).toEqual([]);
+    // with no templates, the server's answer alone
+    expect(
+      listed(dpqlCompletionsWith([])({ plainText: '1 + $', offset: 5, serverItems: contexts }))
+    ).toEqual(['$data:', '$qore-expr:']);
     // what the server offers after a context is a whole value: kept
     const after: ILspCompletionItem[] = [
       { label: '$timestamp:now', insertText: '$timestamp:now', kind: 6 },
@@ -96,6 +102,19 @@ describe('what the one completion list offers', () => {
     expect(
       listed(dpqlCompletionsWith([])({ plainText: '$timestamp:', offset: 11, serverItems: after }))
     ).toEqual(['$timestamp:now']);
+  });
+
+  it('ranks the best fits of the word typed first: a name it starts, then a word in it starts', () => {
+    const functions: ILspCompletionItem[] = [
+      { label: 'resize', kind: 3 },
+      { label: 'list_size', kind: 3 },
+      { label: 'size', kind: 3 },
+    ];
+    expect(listed(dpqlCompletionsWith([])({ plainText: 'siz', offset: 3, serverItems: functions }))).toEqual([
+      'size',
+      'list_size',
+      'resize',
+    ]);
   });
 
   it('offers no template after a whole value, where the server offers operators (no `12 pos`)', () => {
@@ -144,7 +163,7 @@ describe('what the one completion list offers', () => {
         offset: 4,
         serverItems: AFTER_AN_OPERATOR,
       })
-    ).toEqual(AFTER_AN_OPERATOR.filter((item) => item.label !== '$config:'));
+    ).toEqual(AFTER_AN_OPERATOR);
   });
 });
 

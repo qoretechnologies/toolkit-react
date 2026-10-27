@@ -13,7 +13,7 @@ import {
   IUseLspAutocompleteResult,
 } from './useLspAutocomplete';
 import type { ITemplateNode } from '../../helpers/templateTree';
-import { TemplatePicker } from '../form/fields/template/TemplatePicker';
+import { TEMPLATE_PICKER_WIDTH, TemplatePicker } from '../form/fields/template/TemplatePicker';
 
 /*
  * The one list an editor offers what can be written at its caret in (qorus#646, David: "use the same
@@ -114,6 +114,16 @@ interface ICompletionMenuItemProps {
   docsId: string;
 }
 
+/** A row's description: up to three lines, wrapped, never past the row (the reqraft row rule). */
+const ROW_DESCRIPTION_STYLE: React.CSSProperties = {
+  display: '-webkit-box',
+  WebkitLineClamp: 3,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
+};
+
 /* The ⓘ's press is not the editor's: the focus, and the caret with it, stay in the text. */
 const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
 
@@ -130,10 +140,31 @@ const CompletionMenuItem = memo(
     docsId,
   }: ICompletionMenuItemProps) => {
     const badge = useMemo(() => buildKindBadge(item), [item]);
+    const marks = (item.raw?.data ?? {}) as {
+      opens?: boolean;
+      browseAll?: boolean;
+      takesWhole?: boolean;
+      templateNodeId?: string;
+    };
+    /* A template's row says what it is under its name, with where it is: no hover over the row's edge, no ⓘ
+       (qorus#646, David's review: the description floated over the row). */
+    const isTemplate = marks.templateNodeId !== undefined;
     // a hover where a pointer can hover; a finger has the ⓘ
-    const tooltip = useMemo(() => (coarse ? undefined : buildDocTooltip(item)), [item, coarse]);
+    const tooltip = useMemo(
+      () => (coarse || isTemplate ? undefined : buildDocTooltip(item)),
+      [item, coarse, isTemplate]
+    );
     const handleClick = useCallback(() => onSelect(item), [onSelect, item]);
-    const hasDocs = !!docOf(item);
+    // a group taken whole: written as the template it is, not opened
+    const takeWhole = useCallback(
+      () =>
+        onSelect({
+          ...item,
+          raw: { ...item.raw, data: { ...(item.raw?.data ?? {}), opens: false } },
+        }),
+      [onSelect, item]
+    );
+    const hasDocs = !isTemplate && !!docOf(item);
     /* The ⓘ that shows the documentation under the row: on the row the keyboard is on, and on every row with
      documentation where the pointer is a finger, which cannot move the keyboard's row. Its press neither
      selects the row nor takes the focus from the text. */
@@ -154,7 +185,21 @@ const CompletionMenuItem = memo(
       [hasDocs, onToggleDocs, isFocused, coarse, docsShown, docsId, item.label, item.value]
     );
 
-    const marks = (item.raw?.data ?? {}) as { opens?: boolean; browseAll?: boolean };
+    const useWhole = useMemo(
+      () =>
+        marks.takesWhole ?
+          {
+            label: 'Use',
+            className: 'completion-use',
+            'aria-label': `Use ${item.label}`,
+            compact: true,
+            onMouseDown: keepTheFocus,
+            onClick: takeWhole,
+            ...(coarse ? { style: { minWidth: 44, minHeight: 44 } } : {}),
+          }
+        : undefined,
+      [marks.takesWhole, item.label, takeWhole, coarse]
+    );
     return (
       <ReqoreMenuItem
         // one option of the list the editor controls (`aria-controls`), selected as the keyboard moves
@@ -172,8 +217,16 @@ const CompletionMenuItem = memo(
         // a group opens the picker at its members
         rightIcon={marks.opens || marks.browseAll ? 'ArrowRightSLine' : undefined}
         label={item.label}
-        description={item.description}
+        description={
+          item.description ?
+            <span className='completion-row-description' style={ROW_DESCRIPTION_STYLE}>
+              {item.description}
+            </span>
+          : undefined
+        }
         badge={badge as any}
+        // its name, badges and description wrap inside the row: none is cut off or drawn over its edge
+        wrap
         tooltip={tooltip as any}
         selected={isFocused}
         active={isFocused}
@@ -184,7 +237,7 @@ const CompletionMenuItem = memo(
            (qorus#646, David's review) */
         onMouseDown={keepTheFocus}
         onClick={handleClick}
-        rightAction={docsToggle as any}
+        rightAction={(useWhole ?? docsToggle) as any}
         compact
         style={COMPLETION_ITEM_STYLE}
       />
@@ -262,7 +315,7 @@ export const CompletionList = memo(
         rounded
         flat
         maxHeight='300px'
-        width='300px'
+        width={TEMPLATE_PICKER_WIDTH}
         effect={SMART_EDITOR_OVERLAY_EFFECT}
         customTheme={COMPLETION_LIST_THEME}
       >

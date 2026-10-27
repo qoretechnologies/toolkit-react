@@ -378,7 +378,8 @@ export function slateSelectionToOffset(
 
 /** Should a completion be inserted as a Slate tag element vs plain text? */
 export function isTagCompletion(insertText: string): boolean {
-  return insertText.startsWith('@') || insertText.startsWith('$');
+  // a template's context alone (`$data:`) is no value: it is written as text, and the list goes on from it
+  return (insertText.startsWith('@') || insertText.startsWith('$')) && !/^\$[\w-]+:$/.test(insertText);
 }
 
 /**

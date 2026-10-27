@@ -73,3 +73,48 @@ export const chipsOf = (editable: HTMLElement) =>
   Array.from(editable.querySelectorAll<HTMLElement>('.reqore-tag')).map((chip) =>
     (chip.textContent ?? '').replace(/﻿/g, '').trim()
   );
+
+/**
+ * Every row of a list fits it (qorus#646, David's review: a row's name was cut to one letter, its type label cut
+ * mid-word and its description drawn over its edge): each row's name, badges, description and actions are inside
+ * the row, the name and each badge are not cut off, and no row is wider than its list.
+ */
+export const expectRowsFit = (rows: HTMLElement[]) => {
+  expect(rows.length, 'rows to check').toBeGreaterThan(0);
+  for (const row of rows) {
+    const box = row.getBoundingClientRect();
+    const name = row.getAttribute('data-label') ?? row.textContent;
+    const list = row.closest('[role="listbox"]')?.getBoundingClientRect();
+    if (list) {
+      expect(box.right, `the row ${name} inside its list`).toBeLessThanOrEqual(list.right + 1);
+    }
+    for (const part of Array.from(row.querySelectorAll<HTMLElement>('*'))) {
+      const rect = part.getBoundingClientRect();
+      if (!rect.width || !rect.height) continue;
+      expect(rect.left, `${name}: ${part.className} inside the row`).toBeGreaterThanOrEqual(
+        box.left - 1
+      );
+      expect(rect.right, `${name}: ${part.className} inside the row`).toBeLessThanOrEqual(
+        box.right + 1
+      );
+      expect(rect.bottom, `${name}: ${part.className} inside the row`).toBeLessThanOrEqual(
+        box.bottom + 1
+      );
+    }
+    for (const text of Array.from(
+      row.querySelectorAll<HTMLElement>(
+        '.reqore-button-text-content:not(.reqore-invisible), .reqore-tag-content'
+      )
+    )) {
+      expect(text.scrollWidth, `${name}: "${text.textContent}" not cut off`).toBeLessThanOrEqual(
+        text.clientWidth + 1
+      );
+    }
+  }
+};
+
+/** The rows of the completion list open at an editor's caret. */
+export const completionRows = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu [data-label]')
+  );

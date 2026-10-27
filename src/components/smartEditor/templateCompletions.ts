@@ -9,6 +9,8 @@ import {
   RECORD_FIELDS_LABEL,
   searchTemplateReferences,
   TEMPLATE_NODE_KIND_LABELS,
+  templateNodeIntent,
+  TTemplateIntent,
   unbracedReference,
 } from '../../helpers/templateTree';
 import { ILspCompletionItem } from '../../utils/lspClient.types';
@@ -219,12 +221,15 @@ export interface ITemplateRowData {
   templateNodeId?: string;
   /** Taking it opens the picker at its members rather than writing it: a group. */
   opens?: boolean;
+  /** A group that can also be taken whole (a record, a Qog state's data): its row's "Use" writes it. */
+  takesWhole?: boolean;
   /** The row that opens the picker at the top of the field's templates. */
   browseAll?: boolean;
   /** The section of the list it is listed in. */
   section?: string;
-  /** What it is (State data, Context...) and its type, named: its badges. */
+  /** What it is (State data, Context...) and its type, named: its badges; its kind's badge in its chip's color. */
   kindLabel?: string;
+  kindIntent?: TTemplateIntent;
   typeLabel?: string;
 }
 
@@ -250,18 +255,21 @@ export const templateSearchItems = (
     const data: ITemplateRowData = {
       templateNodeId: node.id,
       opens,
+      takesWhole: opens && !!node.takesWhole,
       section: node.kind === 'field' ? RECORD_FIELDS_LABEL : 'Templates',
       kindLabel,
+      kindIntent: templateNodeIntent(node),
       typeLabel: type,
     };
-    const documentation = [node.description, node.source ? `From ${node.source}.` : undefined]
-      .filter(Boolean)
-      .join('\n\n');
+    /* Under its name: where it is, what it is and where it comes from - in the row, never a hover over its edge
+       (qorus#646, David's review). */
+    const said = [where, node.description, node.source ? `from ${node.source}` : undefined].filter(
+      Boolean
+    );
     return {
       label: node.label,
       kind: node.kind === 'field' ? FIELD_KIND : TEMPLATE_KIND,
-      detail: where,
-      documentation: documentation ? { kind: 'markdown', value: documentation } : undefined,
+      detail: said.length ? said.join(' · ') : undefined,
       insertText: node.value ?? node.reference ?? node.label,
       // narrowed as it is typed by its reference: `$data:receive_order.ev` keeps Event type
       filterText: node.reference ?? node.label,

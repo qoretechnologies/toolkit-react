@@ -1840,7 +1840,7 @@ export const TextModeOffersTemplateCompletions: Story = {
     docs: {
       description: {
         story:
-          "Types `$` into the Text view of an expression whose field offers the row's fields: the completion list offers them, pos and bezeichnung - not the server's template contexts alone ($data:, $config:, …), which are no value: picked, one is refused (David's review). While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
+          "Types `$` into the Text view of an expression whose field offers the row's fields: the completion list offers them, pos and bezeichnung, and the server's template contexts ($data:, $config:, …), which a pick writes and goes on from, listing what is in it (David's review: typing offers the language server's completions too). While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
       },
     },
   },
@@ -1869,8 +1869,9 @@ export const TextModeOffersTemplateCompletions: Story = {
       },
       { timeout: 20000 }
     );
-    // no template context alone, which is no value
-    expect(completionListed().filter((row) => row.startsWith('$'))).toEqual([]);
+    /* and the server's template contexts, which a pick writes and goes on from (qorus#646, David: typing offers
+       the language server's completions too) */
+    expect(completionListed().some((row) => row.startsWith('$'))).toBe(true);
     // nothing is said of the `$` while its list is open
     expect(saidUnderTheText(canvasElement)).toEqual([]);
     // the list put away, the server's words are said

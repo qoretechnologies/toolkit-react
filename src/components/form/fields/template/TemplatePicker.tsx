@@ -19,6 +19,7 @@ import {
   searchTemplateTree,
   TEMPLATE_NODE_KIND_LABELS,
   templateNodeById,
+  templateNodeIntent,
   templateNodeFor,
   unbracedReference,
 } from '../../../../helpers/templateTree';
@@ -98,11 +99,12 @@ const keepTheFocus = (event: React.MouseEvent) => event.preventDefault();
 const rowBadges = (node: ITemplateNode, typeLabel: TTypeLabel): TReqoreBadge[] => {
   const kind = TEMPLATE_NODE_KIND_LABELS[node.kind];
   const type = node.type ? typeLabel(node.type, node.baseType) : undefined;
-  const app = !node.value && typeof node.row?.badge === 'string' ? node.row.badge : undefined;
+  const app = !node.row?.value && typeof node.row?.badge === 'string' ? node.row.badge : undefined;
   return [
     ...(app ? [{ label: app, minimal: true, size: 'small' as const }] : []),
     ...(kind ?
-      [{ label: kind, minimal: true, size: 'small' as const, intent: 'info' as const }]
+      // what it is, in its chip's color (`TEMPLATE_INTENT_MEANINGS`)
+      [{ label: kind, minimal: true, size: 'small' as const, intent: templateNodeIntent(node) }]
     : []),
     ...(type ? [{ label: type, minimal: true, size: 'small' as const }] : []),
   ] as TReqoreBadge[];
@@ -135,7 +137,7 @@ const RowDescription = ({
         </span>
       : null}
       {node.description ?
-        <span className='template-picker-row-what' style={{ display: 'block' }}>
+        <span className='template-picker-row-what' style={ROW_WHAT_STYLE}>
           {/* prose, written in markdown: drawn by the host's renderer, as a row is a compact container; else its words */}
           {renderMarkdown ?
             renderMarkdown({ value: node.description, compact: true })
@@ -149,6 +151,16 @@ const RowDescription = ({
       : null}
     </span>
   );
+};
+
+/** What a row says it is: up to three lines, wrapped, never past the row (the reqraft row rule). */
+const ROW_WHAT_STYLE: React.CSSProperties = {
+  display: '-webkit-box',
+  WebkitLineClamp: 3,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+  whiteSpace: 'normal',
+  overflowWrap: 'anywhere',
 };
 
 /** The ids of the groups from the top to `node`, `node` included: the levels opened to show its members. */
@@ -626,7 +638,7 @@ export const TemplatePicker = memo(
                 onMouseDown={keysFromPage ? keepTheFocus : undefined}
                 onClick={() => take(node)}
                 rightAction={
-                  group && node.value ?
+                  group && node.takesWhole ?
                     ({
                       label: 'Use',
                       className: 'template-picker-use',

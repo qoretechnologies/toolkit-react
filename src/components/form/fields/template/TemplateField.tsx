@@ -69,6 +69,8 @@ import { TemplateBrowser } from './TemplateBrowser';
 import { richtextToString } from '../../../../helpers/common';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
+import { areQorusTypesCompatible } from '../../../../helpers/expressions';
+import { defaultQorusTypes } from '../../../../helpers/qorusTypeCatalogue';
 import { isConditionOption } from '../../../../helpers/expressions';
 import { withTemplateSources } from '../../../smartEditor/templateCompletions';
 import {
@@ -411,6 +413,8 @@ export interface ITemplateDropdownSelectorProps extends IReqoreDropdownProps {
   templates?: IReqoreFormTemplates;
   value?: string;
   size?: IReqoreButtonProps['size'];
+  /** Whether the field takes a record whole (`ITemplateTreeOptions.wholeRecords`). */
+  wholeRecords?: boolean;
 }
 
 export type TCustomTemplateItems = (
@@ -598,6 +602,7 @@ export const TemplateDropdownSelector = memo(
     value,
     size,
     templateBadge,
+    wholeRecords,
     ...rest
   }: ITemplateDropdownSelectorProps) => {
     /* The catalogue browsed: `TemplateBrowser` draws its descriptions at the hand-off to Reqore. */
@@ -637,6 +642,7 @@ export const TemplateDropdownSelector = memo(
             compact
             onItemSelect={onItemSelect}
             templates={browsed}
+            wholeRecords={wholeRecords}
             focusFilter
             label={label}
             leftIconProps={leftIconProps}
@@ -844,6 +850,16 @@ const TemplateFieldImpl = memo(
     // picker and stayed there. A pick-only field (no custom values) is in
     // template mode regardless, by the `!allowCustomValues` term.
     const typeIsAnyLike = isUntypedOptionType(type);
+    /* a field of any type or a hash takes a record whole: a record and a Qog state's data are offered whole as well
+       as opened (qorus#646, David's review); a scalar field's are only opened */
+    const takesRecords =
+      typeIsAnyLike ||
+      (!!type &&
+        areQorusTypesCompatible(
+          type,
+          'hash',
+          qorusTypes.value?.length ? qorusTypes.value : defaultQorusTypes
+        ));
     /* An EMPTY field, for the purpose of offering the template selector.
    
        `null` is deliberately not empty. It is the DPQL null literal — a value
@@ -2215,6 +2231,7 @@ const TemplateFieldImpl = memo(
         if (valueTabIsText) {
           const valueText = (
             <RichTextFormField
+                wholeRecords={takesRecords}
                 className='template-selector value-tab-text'
                 valueFormat='text'
                 /* A whole number or a number is typed on a numeric keyboard where the device has one, as its own
@@ -2354,6 +2371,7 @@ const TemplateFieldImpl = memo(
       );
       const templateBody = () => (
         <TemplateDropdownSelector
+          wholeRecords={takesRecords}
           allowCustomValues={false}
           templates={templates}
           value={typeof value === 'string' && isValueTemplate(value) ? value : null}
@@ -2610,6 +2628,7 @@ const TemplateFieldImpl = memo(
             builder's operands, in every string field that takes templates. */}
         {isTemplate && templateSupportsCustomValues ?
           <RichTextFormField
+            wholeRecords={takesRecords}
             className='template-selector'
             valueFormat='text'
             singleLine={isSingleLineStringType('string')}
@@ -2651,6 +2670,7 @@ const TemplateFieldImpl = memo(
 
         {showTemplatesDropdown ?
           <TemplateDropdownSelector
+            wholeRecords={takesRecords}
             allowCustomValues={allowCustomValues}
             templates={templates}
             value={templateValue}

@@ -18,6 +18,8 @@ export interface ITemplateBrowserProps extends Omit<IReqoreDropdownProps, 'items
    * Enter and Escape are heard from there.
    */
   focusFilter?: boolean;
+  /** Whether the field takes a record whole (`ITemplateTreeOptions.wholeRecords`). */
+  wholeRecords?: boolean;
 }
 
 /**
@@ -31,9 +33,10 @@ export const TemplateBrowser = ({
   templates,
   focusFilter,
   onItemSelect,
+  wholeRecords,
   ...rest
 }: ITemplateBrowserProps & Record<string, unknown>) => {
-  const roots = useMemo(() => templateTree(templates), [templates]);
+  const roots = useMemo(() => templateTree(templates, { wholeRecords }), [templates, wholeRecords]);
   const id = useMemo(() => `template-browser-${++templateBrowserCounter}`, []);
   // the popover's own controls: a pick puts it away
   const popover = useRef<{ close?: () => void } | null>(null);

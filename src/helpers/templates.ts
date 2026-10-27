@@ -19,7 +19,13 @@ import { NO_VALUE_DESCRIPTION } from './noDescription';
 import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
 import { templateBaseType, templateType } from './templateType';
-import { catalogueRowTrail, chipPathLabel } from './templateTree';
+import {
+  catalogueGroupFor,
+  catalogueRowTrail,
+  chipPathLabel,
+  TEMPLATE_INTENT_MEANINGS,
+  templateRowIntent,
+} from './templateTree';
 
 export { templateBaseType, templateType } from './templateType';
 import {
@@ -467,7 +473,11 @@ export const resolveTemplateLabel = (
   const extended = exact ? undefined : findTemplateByPath(templates, value);
   const item = exact ?? extended?.item;
   if (!item) {
-    return { label: value };
+    // a Qog state's data taken whole, which no row is: named by its state (qorus#646, David's review)
+    const group = catalogueGroupFor(templates, value);
+    return group ?
+        { label: group.label, item: group.row as TReqoreDropdownItem, path: group.path }
+      : { label: value };
   }
   const own = (item.label as string) || value;
   const name = extended ? composeExtendedLabel(own, extended.remainder) : own;
@@ -564,7 +574,17 @@ export const templateTooltip = (
   const given = [description, host?.description].find(
     (text): text is string => typeof text === 'string' && !!text.trim()
   );
-  const body = describedWithType(given ?? (host?.noDescription || NO_VALUE_DESCRIPTION), type);
+  /* what its color means (`TEMPLATE_INTENT_MEANINGS`), where the catalogue lists it: the same on its chip and
+     its row (qorus#646, David: "what is the significance of the colors?") */
+  const intent = item ? templateRowIntent(item.metadata as Record<string, unknown>) : 'info';
+  // blue is any other data: only green and purple say something of their own
+  const meaning = intent === 'info' ? undefined : TEMPLATE_INTENT_MEANINGS[intent];
+  const body = [
+    describedWithType(given ?? (host?.noDescription || NO_VALUE_DESCRIPTION), type),
+    meaning,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
   // the catalogue's name where it lists the reference, else the host's
   // its whole path where the catalogue lists it: the chip says only the start and the end of a long one
   const title = (item ? (path ?? label) : host?.label) || label || value;

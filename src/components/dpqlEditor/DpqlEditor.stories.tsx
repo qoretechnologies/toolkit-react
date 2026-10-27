@@ -28,6 +28,8 @@ import {
   chipsOf,
   completionLabels,
   completionRow,
+  completionRows,
+  expectRowsFit,
   pickerCrumbs,
   pickerFocused,
   pickerLabels,
@@ -179,82 +181,47 @@ const meta = {
             },
           ];
 
-          // Template namespaces — the real server's `$`-context
-          // completions (QorusExpressionMap).
-          const TEMPLATE_ITEMS = [
-            {
-              label: '$data:',
-              insertText: '$data:',
-              kind: 1,
-              detail: "needs a value after ':'",
-              // users call FSMs Qogs: the completion says what a user reads
-              documentation: { kind: 'plaintext', value: 'Qog state data.' },
-            },
-            {
-              label: '$config:',
-              insertText: '$config:',
-              kind: 1,
-              detail: "needs a value after ':'",
-              documentation: {
-                kind: 'plaintext',
-                value: 'Interface configuration item.',
-              },
-            },
-            {
-              label: '$static:',
-              insertText: '$static:',
-              kind: 1,
-              detail: "needs a value after ':'",
-              documentation: {
-                kind: 'plaintext',
-                value: 'Static workflow data.',
-              },
-            },
-            {
-              label: '$timestamp:',
-              insertText: '$timestamp:',
-              kind: 1,
-              detail: "needs a value after ':'",
-              documentation: {
-                kind: 'plaintext',
-                value: 'Timestamp value (e.g. `now`).',
-              },
-            },
+          /* The template contexts `$` completes, as the real server lists them (`QorusClientServer::listTemplateContexts`,
+             `DpqlCompletionProvider::getTemplateContextCompletions`): each `$<name>:`, filtered by the name typed
+             after the `$`, "needs a value after ':'", its description its documentation. */
+          const CONTEXTS: Array<[string, string]> = [
+            ['config', 'Interface configuration item values'],
+            ['data', 'Qog state data'],
+            ['dynamic', 'Workflow dynamic data'],
+            ['local', 'Local context data passed to the current operation'],
+            ['static', 'Workflow static data'],
+            ['timestamp', 'Timestamp values'],
           ];
+          const contextTyped = sigilToken.startsWith('$') ? sigilToken.slice(1).toLowerCase() : '';
+          const TEMPLATE_ITEMS = CONTEXTS.filter(([name]) => name.startsWith(contextTyped)).map(
+            ([name, description]) => ({
+              label: `$${name}:`,
+              insertText: `$${name}:`,
+              filterText: `$${name}:`,
+              kind: 6,
+              detail: "needs a value after ':'",
+              documentation: description,
+            })
+          );
 
-          // No sigil → functions/keywords (what autosuggest surfaces).
-          const FUNCTION_ITEMS = [
-            {
-              label: 'substr',
-              insertText: 'substr',
-              kind: 3,
-              detail: 'gives text',
-              documentation: {
-                kind: 'markdown',
-                value: 'Extract a substring.',
-              },
-            },
-            {
-              label: 'coalesce',
-              insertText: 'coalesce',
-              kind: 3,
-              detail: 'gives any value',
-              documentation: {
-                kind: 'markdown',
-                value: 'First non-null value.',
-              },
-            },
-            {
-              label: 'round',
-              insertText: 'round',
-              kind: 3,
-              detail: 'gives any value',
-              documentation: {
-                kind: 'markdown',
-                value: 'Round a number.',
-              },
-            },
+          /* The functions a bare word completes, as the real server lists them (`getFunctionCompletions`): those
+             whose name starts with the word, each written with its bracket, what it gives its detail. */
+          const wordTyped = (/[A-Za-z_]\w*$/.exec(chead)?.[0] ?? '').toLowerCase();
+          const FUNCTIONS: Array<[string, string, string]> = [
+            ['coalesce', 'gives any value', 'First non-null value.'],
+            ['round', 'gives a number', 'Round a number.'],
+            ['size', 'gives a whole number', 'The number of elements of a list or hash, or characters of text.'],
+            ['substr', 'gives text', 'Extract a substring.'],
           ];
+          const FUNCTION_ITEMS = FUNCTIONS.filter(([name]) => name.startsWith(wordTyped)).map(
+            ([name, detail, value]) => ({
+              label: name,
+              insertText: `${name}(`,
+              kind: 3,
+              detail,
+              documentation: { kind: 'markdown', value },
+            })
+          );
 
           /* The bound Qog's state data inside `$data:`, as the real server lists it
              (`QorusClientServer::listTemplateValues`, `getTemplateValueCompletions`): the states first, then, after
@@ -1280,9 +1247,11 @@ export const TypingNarrowsToWhatItReaches: Story = {
     docs: {
       description: {
         story:
-          'Types `$d`, then `$data`, then `$data:`: each time the list offers the two states, Look up customer and ' +
-          "Receive order, and Browse all templates - none of the context data. Then `receive_order.`: the state's " +
-          'data, Customer, Event type, Order ID and User name.',
+          'Types `$d`: the list offers the two states, Look up customer and Receive order, the server\'s template ' +
+          'contexts $data: and $dynamic:, and Browse all templates - none of the context data. `$data` keeps ' +
+          "the states and $data:. " +
+          "`$data:` offers the states; then `receive_order.` the state's data, Customer, Event type, Order ID and " +
+          'User name. Every row fits the list: its name whole, its badges and its description inside it.',
       },
     },
   },
@@ -1290,19 +1259,39 @@ export const TypingNarrowsToWhatItReaches: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    const STATES = ['Look up customer', 'Receive order', 'Browse all templates'];
+    // the states, and the server's template context they are in, `$data:` (qorus#646, David: LSP completion too)
     await userEvent.type(editable, '$d');
-    await waitFor(() => expect(completionLabels()).toEqual(STATES), { timeout: 30000 });
+    await waitFor(
+      () =>
+        expect(completionLabels()).toEqual([
+          'Look up customer',
+          'Receive order',
+          '$data:',
+          '$dynamic:',
+          'Browse all templates',
+        ]),
+      { timeout: 30000 }
+    );
     await userEvent.type(editable, 'ata');
-    await waitFor(() => expect(completionLabels()).toEqual(STATES), { timeout: 30000 });
+    await waitFor(
+      () =>
+        expect(completionLabels()).toEqual(['Look up customer', 'Receive order', '$data:', 'Browse all templates']),
+      { timeout: 30000 }
+    );
     await userEvent.type(editable, ':');
-    await waitFor(() => expect(completionLabels()).toEqual(STATES), { timeout: 30000 });
+    await waitFor(
+      () => expect(completionLabels()).toEqual(['Look up customer', 'Receive order', 'Browse all templates']),
+      { timeout: 30000 }
+    );
     await userEvent.type(editable, 'receive_order.');
     await waitFor(
       () =>
         expect(completionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates']),
       { timeout: 30000 }
     );
+    /* every row fits its list: its name whole, its type label not cut mid-word, its description inside it
+       (qorus#646, David's review: Customer read as "t", its description over the row's edge) */
+    expectRowsFit(completionRows());
   },
 };
 
@@ -1317,9 +1306,9 @@ export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
     docs: {
       description: {
         story:
-          "Types `$data:receive_order.`: the row Event type says it is in Receive order, is State data of type " +
-          'Text, and - its documentation opened with Ctrl+Space - that it is what happened to the order. No row is ' +
-          'called a Variable.',
+          "Types `$data:receive_order.e`: the row Event type says it is in Receive order, is State data (green, " +
+          "the color of the data of the event that starts the Qog) of type Text, and, under its name, what it " +
+          'is: what happened to the order. No row is called a Variable.',
       },
     },
   },
@@ -1333,10 +1322,8 @@ export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
     expect(row.textContent).toContain('State data');
     expect(row.textContent).toContain('Text');
     expect(completionListed().join(' | ')).not.toContain('Variable');
-    await userEvent.keyboard('{Control>} {/Control}');
-    await waitFor(() =>
-      expect(document.querySelector('.completion-docs')?.textContent).toContain('What happened to the order')
-    );
+    // what it is, in the row under its name - no hover over the row's edge (qorus#646, David's review)
+    expect(row.textContent).toContain('What happened to the order');
   },
 };
 
@@ -1819,8 +1806,8 @@ export const WithTemplates: Story = {
     docs: {
       description: {
         story:
-          'Type `$` to list the templates the editor is given (order id, customer), each a whole value - not the ' +
-          "server's template contexts ($data:, $config:), which need a name typed after them. Templates and " +
+          'Type `$` to list the templates the editor is given (order id, customer), each a whole value, and the ' +
+          "server's template contexts ($data:, $config:), which a pick writes and goes on from. Templates and " +
           'fields share one completion list: `$` lists templates, `@` fields (@name, @status, @age).',
       },
     },
@@ -1839,9 +1826,9 @@ export const WithTemplates: Story = {
         expect(dropdown).not.toBeNull();
         expect(dropdown!.textContent).toContain('order id');
         expect(dropdown!.textContent).toContain('customer');
-        // no context that needs a name typed after it, and no field
-        expect(dropdown!.textContent).not.toContain('$data:');
-        expect(dropdown!.textContent).not.toContain('$config:');
+        // the server's template contexts, which a pick goes on from, and no field
+        expect(dropdown!.textContent).toContain('$data:');
+        expect(dropdown!.textContent).toContain('$config:');
         expect(dropdown!.textContent).not.toContain('@name');
       },
       { timeout: 30000 }
@@ -1866,16 +1853,15 @@ export const WithTemplates: Story = {
  * `$` in an editor given no templates: the list says there are none. It listed the server's template contexts, and
  * a pick of one left the text invalid (qorus#646).
  */
-export const ADollarWithNoTemplatesSaysThereAreNone: Story = {
+export const ADollarWithNoTemplatesListsTheServersContexts: Story = {
   args: { value: '', onChange: fn() },
   parameters: {
     docs: {
       description: {
         story:
-          'Type `$` in an editor given no templates: the list says "No templates here" - not the server\'s ' +
-          'template contexts ($data:, $config:), each of which needs a name typed after it, so a pick of one left ' +
-          'the text invalid (David: "clicking a variable immediately results in errors"). A context can still be ' +
-          'typed by hand.',
+          'Type `$` in an editor given no templates: the list offers the server\'s template contexts ($config:, ' +
+          '$data:, ...), each of which a pick writes and goes on from, listing what is in it (qorus#646, David: ' +
+          'typing should offer the language server\'s completions).',
       },
     },
   },
@@ -1887,8 +1873,8 @@ export const ADollarWithNoTemplatesSaysThereAreNone: Story = {
       () => {
         const dropdown = document.querySelector('.completion-menu');
         expect(dropdown).not.toBeNull();
-        expect(dropdown!.textContent).toContain('No templates here');
-        expect(dropdown!.textContent).not.toContain('$data:');
+        expect(dropdown!.textContent).toContain('$data:');
+        expect(dropdown!.textContent).toContain('$config:');
       },
       { timeout: 30000 }
     );
@@ -2314,6 +2300,107 @@ export const LongLinesDoNotWrap: Story = {
     });
     const box = canvasElement.querySelector<HTMLElement>('.smart-editor-box')!;
     expect(editable.getBoundingClientRect().right).toBeLessThanOrEqual(box.getBoundingClientRect().right + 1);
+  },
+};
+
+/**
+ * A Qog state's data and a record are taken whole as well as opened (qorus#646, David: "if a user wants to choose
+ * the entire Receive order or record hash, is this possible? If not, it should be."): the row's Use.
+ */
+export const AStateOrARecordIsTakenWhole: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$data:`: the state Receive order has Use beside it, which writes the state\'s whole data as one ' +
+          'chip, Receive order ($data:{receive_order}); a click on the row instead opens its data. Then ' +
+          '`$data:receive_order.`: the record Customer has Use too ($data:{receive_order.customer}).',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await userEvent.type(editable, '$data:');
+    const state = await completionRow('Receive order');
+    await userEvent.click(state.parentElement!.querySelector<HTMLElement>('.completion-use')!);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$data:\{receive_order\}\s*$/)));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order']));
+    expect(plainTextOf(editable)).toBe('');
+    await userEvent.type(editable, ' == $data:receive_order.');
+    const customer = await completionRow('Customer');
+    expect(customer.parentElement!.querySelector('.completion-use'), 'Use beside Customer').toBeTruthy();
+  },
+};
+
+/**
+ * A template's color means one thing everywhere, and its hover says what (qorus#646, David: "what is the
+ * significance of the colors?"): green is the data of the event that starts the Qog, purple a value Qorus gives,
+ * blue any other data.
+ */
+export const AChipSaysWhatItsColorMeans: Story = {
+  args: { ...WithFsmContext.args, value: '$data:{receive_order.event_type} == $timestamp:now' },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Event type, data of the event that starts the Qog, is a green chip; Current Timestamp, a value Qorus ' +
+          'gives, a purple one. Hovered, each says what it is and what its color means: "From the event that ' +
+          'starts the Qog." and "A value Qorus gives."',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    const eventType = await chipFor(editable, 'Receive order › Event type');
+    await userEvent.hover(labelOf(eventType));
+    await waitFor(() => expect(document.body.textContent).toContain('From the event that starts the Qog.'));
+    await userEvent.unhover(labelOf(eventType));
+    const now = await chipFor(editable, 'Current Timestamp');
+    await userEvent.hover(labelOf(now));
+    await waitFor(() => expect(document.body.textContent).toContain('A value Qorus gives.'));
+  },
+};
+
+/**
+ * What is typed is completed by the language server as well as from the field's templates, in the same list,
+ * ranked by how well it fits (qorus#646, David: "typing '$dat' or '@nam' does not result in any LSP completion
+ * support, but it should"): a template context, a function, a record field.
+ */
+export const TypingOffersTheServersCompletionsToo: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$dat`: with the states, the server\'s template context $data:, which picked is written and lists ' +
+          'the states. `siz` lists the function size first, saying it gives a whole number; `@nam` the record\'s ' +
+          'field name.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await userEvent.type(editable, '$dat');
+    await userEvent.click(await completionRow('$data:'));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$data:'));
+    // written as text, and the list goes on from it: the states
+    await waitFor(() => expect(completionLabels()).toEqual(expect.arrayContaining(['Receive order'])), {
+      timeout: 30000,
+    });
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(''));
+    await userEvent.type(editable, 'siz');
+    await waitFor(() => expect(completionLabels()[0]).toBe('size'), { timeout: 30000 });
+    expect((await completionRow('size')).textContent).toContain('gives a whole number');
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(''));
+    await userEvent.type(editable, '@nam');
+    await completionRow('@name');
   },
 };
 

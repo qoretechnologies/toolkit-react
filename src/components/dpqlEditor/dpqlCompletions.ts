@@ -10,6 +10,28 @@ import { browseAllTemplatesItem, templateSearchItems } from '../smartEditor/temp
 import { ICompletionContext } from '../smartEditor/types';
 import { dpqlReferenceBeingWritten, stringOpenAt } from './dpqlHelpers';
 
+/** The word typed before the caret: what follows the last sigil, `.` or `:` (`siz`, `dat`, `nam`, `ev`). */
+const wordTyped = (textBefore: string): string =>
+  (/[\p{L}\p{M}\p{N}_]*$/u.exec(textBefore)?.[0] ?? '').toLowerCase();
+
+/** How well a completion fits the word typed: 0 its name starts with it, 1 a word in it does, 2 otherwise. */
+const fitOf = (item: ILspCompletionItem, word: string): number => {
+  if (!word) return 0;
+  const names = [item.label, item.filterText, item.insertText]
+    .filter((name): name is string => typeof name === 'string')
+    .map((name) => name.toLowerCase().replace(/^[@$]+/, ''));
+  if (names.some((name) => name.startsWith(word))) return 0;
+  if (names.some((name) => name.split(/[^\p{L}\p{M}\p{N}]+/u).some((part) => part.startsWith(word)))) return 1;
+  return 2;
+};
+
+/** The completions, the best fits of the word typed first, in the order they came otherwise. */
+export const rankByFit = (items: ILspCompletionItem[], word: string): ILspCompletionItem[] =>
+  items
+    .map((item, index) => ({ item, index, fit: fitOf(item, word) }))
+    .sort((a, b) => a.fit - b.fit || a.index - b.index)
+    .map(({ item }) => item);
+
 /** A reference as one record field is written however it is spelled: `$record:{pos}` is `@pos`. */
 const fieldAsWritten = (reference: string): string => {
   const bare = unbracedReference(reference);
@@ -22,13 +44,6 @@ const FIELD_KIND = 5;
 const NO_VALUE_KINDS = new Set([14, 24]);
 /** An `@` and the field name typed after it, at the end of a text. */
 const FIELD_BEING_ASKED = /@[\p{L}\p{M}\p{N}_.]*$/u;
-/**
- * A template's context alone (`$data:`, `$qore-expr:`): the server offers each where a value can go, "needs a
- * value after ':'", and picked it is no value - nothing more is offered after it, and the server refuses it
- * (DPQL-E033, "This template isn't finished"). Not offered: a pick makes a value, and an author works with the
- * field's templates and fields, not with how they are written (qorus#646, David's review).
- */
-const BARE_CONTEXT = /^\$[\w-]+:$/;
 
 /** Why the templates beside the text cannot be used: a value at its end would follow another (qorus#646). */
 export const NO_VALUE_AT_THE_END =
@@ -106,9 +121,9 @@ const asksForAField = (textBefore: string): boolean => !!fieldTyped(textBefore);
 export const dpqlCompletionsWith =
   (roots: ITemplateNode[] = [], typeLabel?: TTypeLabel) =>
   ({ plainText, offset, serverItems, typedInText }: ICompletionContext): ILspCompletionItem[] => {
-    const server = (serverItems ?? []).filter(
-      (item) => !BARE_CONTEXT.test(item.insertText ?? item.label)
-    );
+    /* The server's completions are offered as it offers them - a template's context (`$data:`) among them, which a
+       pick writes and goes on from, listing what is in it (qorus#646, David: "typing '$dat' or '@nam' does not
+       result in any LSP completion support, but it should") - ranked by how well they fit what is typed. */
     const before = plainText.slice(0, offset);
     /* What is typed, where a value can be written: the server says so by offering values (a whole reference before
        the caret - a chip - is a value already, and the server offers operators after it), or, where it offers
@@ -118,6 +133,7 @@ export const dpqlCompletionsWith =
     /* a `.` or `[` typed straight after a chip goes on from the chip's reference (`$data:receive_order` and `.`):
        read with it */
     const written = typedInText !== undefined && !/^[.[]/.test(typedInText) ? typedInText : before;
+    const server = rankByFit(serverItems ?? [], wordTyped(written));
     const typed = templateTyped(written) || fieldTyped(written);
     const valueHere =
       serverItems?.length ? serverItems.some((item) => !NO_VALUE_KINDS.has(item.kind ?? 0))
@@ -128,7 +144,10 @@ export const dpqlCompletionsWith =
     );
     /* A record field the server offers is listed as the server lists it - it knows the record - and once: a field
        of the field's own list it offers too is left out of that list. */
-    const ours = (typed && valueHere && roots.length ? templateSearchItems(roots, typed, typeLabel) : []).filter(
+    const ours = rankByFit(
+      typed && valueHere && roots.length ? templateSearchItems(roots, typed, typeLabel) : [],
+      wordTyped(written)
+    ).filter(
       (item) => !(item.kind === FIELD_KIND && serverReferences.has(fieldAsWritten(item.insertText ?? '')))
     );
     const browse = valueHere && roots.length ? [browseAllTemplatesItem()] : [];
