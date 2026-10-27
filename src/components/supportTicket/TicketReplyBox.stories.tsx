@@ -137,8 +137,7 @@ export const RichHelpdeskReply: Story = {
       },
     },
   },
-  // Rendered under the Qorus theme (as in qorus-ide / admin-portal) so the
-  // `custom1` accent shows as the Qorus purple — a bare reqore theme greys it out.
+  // Rendered under the Qorus theme, as in qorus-ide / admin-portal.
   decorators: [
     (Story) => (
       <ReqoreUIProvider theme={{ main: '#121212', intents: { custom1: '#762f7e' } }}>
@@ -156,23 +155,15 @@ export const RichHelpdeskReply: Story = {
       { label: 'Take screenshot', icon: 'CameraAiLine', onClick: fn() },
       { label: 'Capture area', icon: 'CropLine', onClick: fn() },
     ],
-    // the reference toggle, styled to the same custom1 accent as the send
+    // the reference toggle: a quiet icon button, like the attach button beside it
     footerActions: (
-      <ReqoreButton
-        icon='LinksLine'
-        minimal
-        flat
-        badge={1}
-        customTheme={{ main: 'custom1' }}
-        tooltip='Reference interfaces'
-      />
+      <ReqoreButton icon='LinksLine' minimal flat badge={1} tooltip='Reference interfaces' />
     ),
-    // references on top of the editor (inside the bar), tinted to the accent — no
-    // "References" label, the chips read as the referenced interfaces on their own
+    // references on top of the editor (inside the bar), as quiet tags with the kind's
+    // icon — no "References" label, the chips read as the referenced interfaces on their own
     aboveInput: (
       <InterfaceReferenceTags
         references={[{ interface_kind: 'connection', interface_name: 'sftp-partner' }]}
-        customTheme={{ main: 'custom1' }}
       />
     ),
   },
@@ -191,7 +182,7 @@ export const RichHelpdeskReply: Story = {
 
 /**
  * Every referenceable interface kind on one message, so the per-kind icons +
- * accent chip styling can be reviewed together: workflow, service, job, fsm,
+ * chip styling can be reviewed together: workflow, service, job, fsm,
  * connection, mapper, class, value-map, qog, ai-collection, ai-endpoint,
  * ai-guardrail. (`qog` has no built-in icon → the generic fallback.)
  */
@@ -200,7 +191,7 @@ export const AllReferenceTypes: Story = {
     docs: {
       description: {
         story:
-          'Renders a reply carrying every referenceable interface kind at once, so the per-kind icons and accent chip styling can be reviewed together (qog falls back to the generic glyph).',
+          'Renders a reply carrying every referenceable interface kind at once, so the per-kind icons and chip styling can be reviewed together (qog falls back to the generic glyph).',
       },
     },
   },
@@ -217,7 +208,6 @@ export const AllReferenceTypes: Story = {
     defaultText: 'This one references every interface kind.',
     aboveInput: (
       <InterfaceReferenceTags
-        customTheme={{ main: 'custom1' }}
         references={[
           { interface_kind: 'workflow', interface_name: 'order-sync:1.2' },
           { interface_kind: 'service', interface_name: 'notifier' },
@@ -282,7 +272,6 @@ export const QogTriggerAppLogo: Story = {
     defaultText: 'These qogs are referenced by their trigger apps.',
     aboveInput: (
       <InterfaceReferenceTags
-        customTheme={{ main: 'custom1' }}
         references={[
           // resolved live from trigger_app (the customer/IDE path)
           { interface_kind: 'qog', interface_name: 'telegram-intake', trigger_app: 'Telegram' },
@@ -352,7 +341,6 @@ export const WithScreenshotAndReferences: Story = {
     defaultFiles: [screenshotFile()],
     aboveInput: (
       <InterfaceReferenceTags
-        customTheme={{ main: 'custom1' }}
         references={[
           { interface_kind: 'connection', interface_name: 'sftp-partner' },
           { interface_kind: 'qog', interface_name: 'telegram-intake', logo: appLogo('#2AABEE', 'T') },
