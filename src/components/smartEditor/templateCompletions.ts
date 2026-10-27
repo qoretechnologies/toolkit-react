@@ -301,6 +301,8 @@ export const templateSearchItems = (
           (node) =>
             !!node.value &&
             !node.children?.length &&
+            // a context of free keys is its context's row, above
+            !node.writesKey &&
             node.label
               .toLowerCase()
               .split(/[^\p{L}\p{N}]+/u)

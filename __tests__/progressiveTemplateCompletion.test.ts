@@ -96,6 +96,8 @@ describe('a template reference typed level by level', () => {
     const workflow = templateTree(buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD as never));
     const contexts = offered('$', workflow).map(([written]) => written);
     expect(contexts).toContain('$dynamic:');
+    // listed once: as its context, not again as a template named so
+    expect(offered('$dyn', workflow).map(([written]) => written)).toEqual(['$dynamic:']);
     expect(offered('$dynamic:', workflow)).toEqual([]);
     expect(unlistedContextMessage('$dynamic:')).toBe(
       "Nothing is listed in $dynamic: here: write what it refers to after the ':'"
