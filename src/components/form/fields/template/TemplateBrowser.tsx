@@ -43,7 +43,16 @@ export const TemplateBrowser = ({
   const handOn = useCallback(
     (node: ITemplateNode, written?: string) => {
       const row = (node.row ?? { label: node.label, value: node.value }) as Record<string, unknown>;
-      onItemSelect?.({ ...row, value: written ?? node.value } as any, undefined as any);
+      /* A group taken whole (a Qog state's data, a record) is a value of its type, which a host reads from the
+         item's type or badge as it does a leaf's: a group's own badge is what it is grouped by (its app). */
+      const taken =
+        node.takesWhole && (node.children?.length || node.loadChildren) ?
+          {
+            badge: node.type ?? 'hash',
+            metadata: { ...(row.metadata as object | undefined), type: node.type ?? 'hash' },
+          }
+        : {};
+      onItemSelect?.({ ...row, ...taken, value: written ?? node.value } as any, undefined as any);
       popover.current?.close?.();
     },
     [onItemSelect]
