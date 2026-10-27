@@ -25,6 +25,9 @@ export interface INumberFormFieldProps extends Omit<IReqoreInputProps, 'value' |
    */
   min_value?: number;
   max_value?: number;
+  /** How long a typed number waits after the last key before it is passed on (ms); `0`
+   *  passes every change on at once, for a form submitted by Enter. */
+  debounceMs?: number;
 }
 
 /** A whole number as typed: an optional sign and digits. */
@@ -51,6 +54,7 @@ export const NumberFormField = ({
   templates,
   min_value,
   max_value,
+  debounceMs = 100,
   ...rest
 }: INumberFormFieldProps) => {
   // What is shown is what was typed; what the form gets is the number it writes, or the text when it writes
@@ -77,13 +81,24 @@ export const NumberFormField = ({
         onChange?.(localValue);
       }
     },
-    100,
+    debounceMs,
     [localValue, onChange]
   );
 
-  const handleChange = useCallback((rawValue: number | string): void => {
-    setText(String(rawValue));
-  }, []);
+  const handleChange = useCallback(
+    (rawValue: number | string): void => {
+      const nextText = String(rawValue);
+      setText(nextText);
+      if (debounceMs === 0) {
+        const next = nextText === '' ? '' : typedNumber(nextText, type);
+        if (next !== value) {
+          emitted.record(next);
+          onChange?.(next);
+        }
+      }
+    },
+    [debounceMs, type, value, onChange]
+  );
 
   const handleInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>): void => {
