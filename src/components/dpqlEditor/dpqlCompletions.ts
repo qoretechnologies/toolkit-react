@@ -2,18 +2,24 @@
 // What a DPQL editor's one completion list offers, and what it says (qorus#646, David's decision): the server's
 // completion at the caret, with the field's templates merged in where a value can be written - opened by a click,
 // a tap or Tab as by typing - and the server's diagnostics in the words the editor owes the author.
-import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TTypeLabel } from '../../helpers/qorusTypeCatalogue';
+import { ITemplateNode, unbracedReference } from '../../helpers/templateTree';
 import { ILspCompletionItem, ILspDiagnostic } from '../../utils/lspClient.types';
 import { EXPRESSION_HOLE } from '../form/expressions/renderExpressionToText';
-import { templateCompletionItems } from '../smartEditor/templateCompletions';
+import { browseAllTemplatesItem, templateSearchItems } from '../smartEditor/templateCompletions';
 import { ICompletionContext } from '../smartEditor/types';
 import { dpqlReferenceBeingWritten, stringOpenAt } from './dpqlHelpers';
 
+/** A reference as one record field is written however it is spelled: `$record:{pos}` is `@pos`. */
+const fieldAsWritten = (reference: string): string => {
+  const bare = unbracedReference(reference);
+  return bare.startsWith('$record:') ? `@${bare.slice('$record:'.length)}` : bare;
+};
+
+/** The LSP completion kind a record's field is offered as. */
+const FIELD_KIND = 5;
 /** LSP completion kinds that write no value: a keyword and an operator (what the server offers after a value). */
 const NO_VALUE_KINDS = new Set([14, 24]);
-/** A record's field as a template: `$record:{name}`. */
-const RECORD_FIELD = /^\$record:\{(.+)\}$/;
 /** An `@` and the field name typed after it, at the end of a text. */
 const FIELD_BEING_ASKED = /@[\p{L}\p{M}\p{N}_.]*$/u;
 /**
@@ -67,70 +73,77 @@ export const dpqlExpectsValue = (textBefore: string): boolean => {
 /** A `$` and the template typed after it, at the end of a text: `$data:receive_order.`. */
 const TEMPLATE_BEING_TYPED = /\$[\p{L}\p{M}\p{N}_.:{}[\]*-]*$/u;
 
-/** A reference as it reads without its braces: `$data:{a.b}` and `$data:a.b` are one reference. */
-const unbraced = (reference: string): string => reference.replace(/[{}]/g, '');
-
 /**
- * The template typed at the end of `textBefore`, beyond its `$` (`$data:receive_order.`), without its braces; ''
- * where none is, where only the `$` is typed, or where it is in a string.
+ * The template typed at the end of `textBefore` (`$`, `$data:receive_order.`); '' where none is, or where it is in
+ * a string.
  */
 const templateTyped = (textBefore: string): string => {
   const match = TEMPLATE_BEING_TYPED.exec(textBefore);
-  if (!match || match[0].length < 2 || stringOpenAt(textBefore.slice(0, match.index))) {
-    return '';
-  }
-  return unbraced(match[0]);
+  return match && !stringOpenAt(textBefore.slice(0, match.index)) ? match[0] : '';
+};
+
+/** The field asked for at the end of `textBefore` (`@`, `@na`), typed as written, not in a string; or ''. */
+const fieldTyped = (textBefore: string): string => {
+  const match = FIELD_BEING_ASKED.exec(textBefore);
+  return match && !stringOpenAt(textBefore.slice(0, match.index)) ? match[0] : '';
 };
 
 /** Whether an `@` asks for a field at the end of `textBefore`: typed as written, not in a string. */
-const asksForAField = (textBefore: string): boolean => {
-  const match = FIELD_BEING_ASKED.exec(textBefore);
-  return !!match && !stringOpenAt(textBefore.slice(0, match.index));
-};
+const asksForAField = (textBefore: string): boolean => !!fieldTyped(textBefore);
 
 /**
- * What the list offers at the caret: the server's answer, and the field's templates where a value can be written
- * there - where the server offers values (anything but keywords and operators), or, where it offers nothing or
- * cannot be asked, where the text says one can go (`dpqlExpectsValue`). A pick is then always a value where one
- * can stand: after `12` the server offers operators, and no template is offered (`12 pos` is refused).
+ * What the list offers at the caret: the server's answer, and the field's templates and fields that what is typed
+ * reaches (qorus#646, David's review): after `$d` or `$data` the states, after `$data:` the states, after
+ * `$data:receive_order.` that state's data, after `@` the record's fields - a group a row that opens the picker at
+ * its members. Nothing that does not go on from what is typed: a template list of everything, under whatever was
+ * typed, read as if all of it fitted. Where a value can be written and nothing is typed, the field's templates are
+ * a row that opens the picker at their top ("Browse all templates"), with the server's answer. A pick is always a
+ * value where one can stand: after `12` the server offers operators, and no template is offered.
  *
- * After an `@`, only the templates that are the record's fields. A field the server offers that a template names
- * already is listed once, as the template, with its group and type in its detail line. A template's context alone
- * (`$data:`) is not offered (`BARE_CONTEXT`).
+ * A field or a template the server offers that the field's own list has is listed once, as the field's own, with
+ * where it is. A template's context alone (`$data:`) is not offered (`BARE_CONTEXT`).
  */
 export const dpqlCompletionsWith =
-  (templates?: IReqoreFormTemplates, typeLabel?: TTypeLabel) =>
-  ({ plainText, offset, serverItems }: ICompletionContext): ILspCompletionItem[] => {
+  (roots: ITemplateNode[] = [], typeLabel?: TTypeLabel) =>
+  ({ plainText, offset, serverItems, typedInText }: ICompletionContext): ILspCompletionItem[] => {
     const server = (serverItems ?? []).filter(
       (item) => !BARE_CONTEXT.test(item.insertText ?? item.label)
     );
     const before = plainText.slice(0, offset);
+    /* What is typed, where a value can be written: the server says so by offering values (a whole reference before
+       the caret - a chip - is a value already, and the server offers operators after it), or, where it offers
+       nothing or cannot be asked, the text does. */
+    /* What is typed of a reference: read from the text the caret is in where the editor says what that is - a
+       chip before it is a value already, not a reference being typed - else from the plain text. */
+    /* a `.` or `[` typed straight after a chip goes on from the chip's reference (`$data:receive_order` and `.`):
+       read with it */
+    const written = typedInText !== undefined && !/^[.[]/.test(typedInText) ? typedInText : before;
+    const typed = templateTyped(written) || fieldTyped(written);
     const valueHere =
-      serverItems?.length ?
-        serverItems.some((item) => !NO_VALUE_KINDS.has(item.kind ?? 0))
+      serverItems?.length ? serverItems.some((item) => !NO_VALUE_KINDS.has(item.kind ?? 0))
+      : typed ? dpqlExpectsValue(before.slice(0, before.length - typed.length))
       : dpqlExpectsValue(before);
-    const offered = valueHere ? templateCompletionItems(templates, typeLabel) : [];
-    /* A template being typed (`$data:receive_order.`) is gone on with only by the templates it starts: the list's
-       own filter reads only the word after the last `.` or `:`, none there, and every template was listed above
-       the state's data the server offers (qorus#646, David's review). */
-    const typed = templateTyped(before);
-    const ours =
-      asksForAField(before) ? offered.filter((item) => RECORD_FIELD.test(item.insertText ?? ''))
-      : typed ? offered.filter((item) => unbraced(item.insertText ?? '').startsWith(typed))
-      : offered;
+    const serverReferences = new Set(
+      server.map((item) => fieldAsWritten(item.textEdit?.newText ?? item.insertText ?? item.label))
+    );
+    /* A record field the server offers is listed as the server lists it - it knows the record - and once: a field
+       of the field's own list it offers too is left out of that list. */
+    const ours = (typed && valueHere && roots.length ? templateSearchItems(roots, typed, typeLabel) : []).filter(
+      (item) => !(item.kind === FIELD_KIND && serverReferences.has(fieldAsWritten(item.insertText ?? '')))
+    );
+    const browse = valueHere && roots.length ? [browseAllTemplatesItem()] : [];
     if (!ours.length) {
-      return server;
+      return [...server, ...browse];
     }
-    const named = new Set(ours.map((item) => RECORD_FIELD.exec(item.insertText ?? '')?.[1]));
-    // a reference the server offers that a template is already is listed once, as the template, with its group
-    const templateReferences = new Set(ours.map((item) => unbraced(item.insertText ?? '')));
+    // a template the server offers that the field's own list has is listed once, as the field's own
+    const ownReferences = new Set(ours.map((item) => unbracedReference(item.insertText ?? '')));
     return [
       ...ours,
       ...server.filter(
         (item) =>
-          !(item.kind === 5 && named.has(item.label.replace(/^@/, ''))) &&
-          !templateReferences.has(unbraced(item.insertText ?? ''))
+          !ownReferences.has(unbracedReference(item.textEdit?.newText ?? item.insertText ?? item.label))
       ),
+      ...browse,
     ];
   };
 

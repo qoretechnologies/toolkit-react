@@ -879,7 +879,8 @@ export const TemplateWithItemsCanBeSelected: StoryObj<typeof meta> = {
   },
   play: async (args) => {
     await TemplatesWithMultipleLevelsAndHashField.play(args);
-    await _testsClickButton({ selector: '.reqore-menu-item-left-action' });
+    // a record that is a value of its own is taken whole: its row's Use
+    await _testsClickButton({ selector: '.template-picker-use' });
     await _testsWaitForText('Testing Hash');
   },
 };

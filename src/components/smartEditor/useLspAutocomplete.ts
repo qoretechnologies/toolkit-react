@@ -2,12 +2,39 @@
 
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BaseEditor, BasePoint, Point, Range, Transforms } from 'slate';
+import { BaseEditor, BasePoint, Editor, Point, Range, Transforms } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { ReactEditor } from 'slate-react';
 import { ILspCompletionItem } from '../../utils/lspClient.types';
 import { mapCompletionKindToIcon } from './helpers';
 import { ISlateConverter, ISlateElement, TCompletionInserter } from './types';
+import type { ITemplateNode } from '../../helpers/templateTree';
+
+/** What a template row carries (`templateSearchItems`), as far as the list reads it. */
+interface ITemplateRowMarks {
+  templateNodeId?: string;
+  opens?: boolean;
+  browseAll?: boolean;
+  section?: string;
+  kindLabel?: string;
+}
+
+/** What is typed before the editor's caret in the text it is in: never anything across a chip. */
+const typedInTextOf = (editor: BaseEditor | null): string | undefined => {
+  const at = editor?.selection?.anchor;
+  if (!editor || !at) return undefined;
+  // the leaf at the caret, read along its path: a paragraph's child
+  let node: unknown = editor;
+  for (const index of at.path) {
+    node = (node as { children?: unknown[] } | undefined)?.children?.[index];
+  }
+  return typeof (node as { text?: unknown } | undefined)?.text === 'string' ?
+      (node as { text: string }).text.slice(0, at.offset)
+    : undefined;
+};
+
+const templateRowMarks = (item: { raw?: ILspCompletionItem } | ILspCompletionItem): ITemplateRowMarks =>
+  ((('raw' in item ? item.raw : item) as ILspCompletionItem | undefined)?.data ?? {}) as ITemplateRowMarks;
 
 const DEFAULT_TRIGGER_CHARS = new Set(['.', ':', ' ']);
 const DEBOUNCE_MS = 150;
@@ -76,7 +103,12 @@ export interface ICompletionGroup {
 
 export interface IUseLspAutocompleteOptions {
   /** Function that requests completions at a plain-text offset. */
-  getCompletions: (plainText: string, offset: number) => Promise<ILspCompletionItem[]>;
+  getCompletions: (
+    plainText: string,
+    offset: number,
+    /** What is typed before the caret in the text it is in - never a chip's text before it. */
+    typedInText?: string
+  ) => Promise<ILspCompletionItem[]>;
   /** Whether the LSP session is ready to serve requests. */
   isReady: boolean;
   /** Characters that open the dropdown. Defaults to `{., :, space}`. */
@@ -159,6 +191,35 @@ export interface IUseLspAutocompleteResult {
   /** Show the documentation of the row with `value`, or put it away when it is shown; the keyboard's row when
    *  no value is given. */
   toggleDocs: (value?: string) => void;
+  /**
+   * The list is the template picker (`TemplatePicker`), browsing the field's templates as they nest, rather than
+   * rows: opened at a group (`levelId`), with what it searches for (`query`) and the value it replaces
+   * (`selectedValue`, a chip's); null for the rows.
+   */
+  browse: ITemplateBrowse | null;
+  /**
+   * Opens the template picker at `rect`, for a pick at `caret` (the editor's selection when not given, else its
+   * end) or in the place of the chip at `replacementPath`: a click in an empty field, the template button, a chip.
+   */
+  openBrowse: (
+    editor: BaseEditor & ReactEditor & HistoryEditor,
+    options: {
+      rect: { left: number; bottom: number };
+      caret?: BasePoint;
+      replacementPath?: number[];
+    } & ITemplateBrowse
+  ) => void;
+  /** A node chosen in the template picker, written as a pick from the rows is (`written`: a key written for it). */
+  pickTemplate: (node: ITemplateNode, written?: string) => void;
+}
+
+/** Where the template picker is open (`IUseLspAutocompleteResult.browse`). */
+export interface ITemplateBrowse {
+  levelId?: string;
+  query?: string;
+  selectedValue?: string;
+  /** The text is empty: the arrows and Backspace move through the picker (`TemplatePicker.arrowsFromPage`). */
+  arrows?: boolean;
 }
 
 /**
@@ -179,7 +240,10 @@ export const groupCompletionItems = (items: ICompletionDropdownItem[]): IComplet
   const groupMap = new Map<string, ICompletionDropdownItem[]>();
   for (const item of items) {
     const kind = item.metadata?.kind;
-    const groupLabel = (kind && COMPLETION_KIND_LABELS[kind]) || 'Other';
+    // a template row says its own section: the field's templates, its record fields, or none (Browse all)
+    const section = templateRowMarks(item).section;
+    const groupLabel =
+      section !== undefined ? section : (kind && COMPLETION_KIND_LABELS[kind]) || 'Other';
     if (!groupMap.has(groupLabel)) {
       groupMap.set(groupLabel, []);
     }
@@ -204,10 +268,12 @@ export const toDropdownItems = (lspItems: ILspCompletionItem[]): ICompletionDrop
       icon: mapCompletionKindToIcon(item.kind),
       description: item.detail,
       documentation: item.documentation,
+      // a template says what it is (State data, Context...), not the LSP kind it is sent as (Variable)
       kindLabel:
-        item.kind !== undefined
-          ? COMPLETION_KIND_CHIPS[item.kind]
-          : undefined,
+        templateRowMarks(item).kindLabel ??
+        (item.kind !== undefined && !templateRowMarks(item).browseAll ?
+          COMPLETION_KIND_CHIPS[item.kind]
+        : undefined),
       warning: item.warning,
       raw: item,
       metadata: {
@@ -328,6 +394,13 @@ export function useLspAutocomplete(
   const [popoverKey, setPopoverKey] = useState(0);
   const popoverKeyRef = useRef(0);
   const [docsFor, setDocsFor] = useState<string | null>(null);
+  // the template picker in place of the rows, and where it is open
+  const [browse, setBrowseState] = useState<ITemplateBrowse | null>(null);
+  const browseRef = useRef<ITemplateBrowse | null>(null);
+  const setBrowse = useCallback((next: ITemplateBrowse | null) => {
+    browseRef.current = next;
+    setBrowseState(next);
+  }, []);
   /* Which request is the one the list is waiting for. A newer request, or the list put away (`close`),
      makes an answer still on its way stale, and a stale answer is dropped: it used to open the list after
      the author had dismissed it - typed, pressed Escape before the list came, and the list came anyway,
@@ -361,6 +434,8 @@ export function useLspAutocomplete(
     const needle = segment.toLowerCase();
     if (!needle) return items;
     return items.filter((item) => {
+      // the row that opens the picker is there whatever is typed
+      if (templateRowMarks(item).browseAll) return true;
       const haystack = (item.raw.filterText ?? item.label)
         .toLowerCase()
         .replace(/^[@$/-]+/, '');
@@ -430,7 +505,7 @@ export function useLspAutocomplete(
         }, LOADER_DELAY_MS);
       }
       try {
-        const lspItems = await getCompletions(plainText, offset);
+        const lspItems = await getCompletions(plainText, offset, typedInTextOf(editorRef.current));
         if (!current()) return;
         if (lspItems.length === 0) {
           setItems([]);
@@ -502,6 +577,7 @@ export function useLspAutocomplete(
 
   const close = useCallback(() => {
     setDocsFor(null);
+    setBrowse(null);
     setIsOpen(false);
     setItems([]);
     setEmptyMessage(undefined);
@@ -601,6 +677,17 @@ export function useLspAutocomplete(
       const editor = editorRef.current;
       if (!editor) return;
       const replacementPath = replacingChipPathRef.current;
+      /* A group, or Browse all: the picker opens there, in the list's place, for the pick to go where the row's
+         would have gone - in the place of what is typed, or of the chip being replaced. */
+      const marks = templateRowMarks(item);
+      if (marks.opens || marks.browseAll) {
+        setDocsFor(null);
+        setBrowse({ levelId: marks.opens ? marks.templateNodeId : undefined });
+        setIsOpen(true);
+        popoverKeyRef.current += 1;
+        setPopoverKey(popoverKeyRef.current);
+        return;
+      }
       // The typing path needs a live selection so the inserter knows how
       // much partial token to delete; replace mode works off a path.
       if (!editor.selection && !replacementPath) return;
@@ -644,7 +731,8 @@ export function useLspAutocomplete(
   toggleDocsRef.current = toggleDocs;
 
   useCompletionKeys({
-    isOpen: isOpen && filteredItems.length > 0,
+    // the picker hears its own keys (`TemplatePicker`)
+    isOpen: isOpen && !browse && filteredItems.length > 0,
     count: filteredItems.length,
     setFocusedIndex,
     onAccept: () => {
@@ -688,6 +776,14 @@ export function useLspAutocomplete(
       if (!editor.selection) {
         close();
         return;
+      }
+      /* Typing puts the picker away: what is typed is completed in the rows, or nothing is. Under a key of its own:
+         the picker's popover says it closed as it goes, and that is not the list put away. */
+      if (browseRef.current) {
+        browseRef.current = null;
+        setBrowse(null);
+        popoverKeyRef.current += 1;
+        setPopoverKey(popoverKeyRef.current);
       }
       const { anchor } = editor.selection;
       const plainText = converter.fromSlateNodes(nodes);
@@ -991,6 +1087,56 @@ export function useLspAutocomplete(
     }
   }, [isReady, performCompletionRequest]);
 
+  const openBrowse = useCallback<IUseLspAutocompleteResult['openBrowse']>(
+    (editor, { rect, caret, replacementPath, levelId, query, selectedValue, arrows }) => {
+      editorRef.current = editor;
+      requestCompletions.cancel();
+      requestGenerationRef.current++;
+      pendingRequestRef.current = false;
+      replacingChipPathRef.current = replacementPath ?? null;
+      anchoredChipPathRef.current = replacementPath ?? null;
+      setIsReplaceMode(!!replacementPath);
+      if (!replacementPath) {
+        // the pick goes at the caret given, the editor's own, or its end
+        try {
+          const at = caret ?? editor.selection?.anchor ?? Editor.end(editor as unknown as Editor, []);
+          askedAtRef.current = at;
+          Transforms.select(editor, at);
+        } catch {
+          // a point the editor no longer has: the pick goes where the editor puts it
+          askedAtRef.current = null;
+        }
+      }
+      setItems([]);
+      setEmptyMessage(undefined);
+      setFilterPrefix('');
+      setDocsFor(null);
+      setPosition({ left: rect.left, top: rect.bottom });
+      setBrowse({ levelId, query, selectedValue, arrows });
+      setIsOpen(true);
+      popoverKeyRef.current += 1;
+      setPopoverKey(popoverKeyRef.current);
+    },
+    [requestCompletions]
+  );
+
+  const pickTemplate = useCallback(
+    (node: ITemplateNode, written?: string) => {
+      const value = written ?? node.value;
+      if (!value) return;
+      const [item] = toDropdownItems([
+        {
+          label: node.label,
+          insertText: value,
+          kind: node.kind === 'field' ? 5 : 6,
+          data: { templateNodeId: node.id },
+        },
+      ]);
+      selectItem({ ...item, metadata: { ...item.metadata, retrigger: false } });
+    },
+    [selectItem]
+  );
+
   return {
     // Expose the post-filter list as `items`; `groups` is filter-derived too.
     items: filteredItems,
@@ -1011,5 +1157,8 @@ export function useLspAutocomplete(
     position,
     docsFor,
     toggleDocs,
+    browse: isOpen ? browse : null,
+    openBrowse,
+    pickTemplate,
   };
 }

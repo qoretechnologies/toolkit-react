@@ -2,22 +2,18 @@ import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { MarkdownRendererContext } from '../src/components/Description/markdownRendererContext';
 
-/* The list is captured where it is HANDED OVER rather than read out of an open
-   popover: Reqore positions its dropdown through a portal that never opens in
-   jsdom, so a test that clicked to open it would assert nothing at all. What
-   matters here is which list crosses the boundary. */
-let seen: any;
+/* The picker is drawn where the dropdown would draw it, not read out of an open popover: Reqore positions its
+   dropdown through a portal that never opens in jsdom, so a test that clicked to open it would assert nothing at
+   all. The dropdown's popover is the template picker (`TemplateBrowser`): what matters is what its rows say. */
 vi.mock('@qoretechnologies/reqore', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    ReqoreDropdown: (props: any) => {
-      seen = props;
-      return <div data-testid='dropdown' />;
-    },
+    ReqoreDropdown: (props: any) => <div data-testid='dropdown'>{props.customElements}</div>,
   };
 });
 
+const { ReqoreUIProvider } = await import('@qoretechnologies/reqore');
 const { TemplateDropdownSelector } = await import(
   '../src/components/form/fields/template/TemplateField'
 );
@@ -44,7 +40,6 @@ const drawn = ({ value, compact }: { value: string; compact?: boolean }) => (
 );
 
 const renderSelector = (renderer?: typeof drawn) => {
-  seen = undefined;
   const ui = (
     <TemplateDropdownSelector
       items={ITEMS as never}
@@ -55,41 +50,43 @@ const renderSelector = (renderer?: typeof drawn) => {
     />
   );
 
-  render(
-    renderer ?
-      <MarkdownRendererContext.Provider value={renderer}>{ui}</MarkdownRendererContext.Provider>
-    : ui
+  const { container } = render(
+    <ReqoreUIProvider>
+      {renderer ?
+        <MarkdownRendererContext.Provider value={renderer}>{ui}</MarkdownRendererContext.Provider>
+      : ui}
+    </ReqoreUIProvider>
   );
+  return container;
 };
 
-describe('the list the template picker is given', () => {
-  it('carries the description drawn by the host renderer', () => {
-    renderSelector(drawn);
+/** What the picker's row says it is. */
+const what = (container: HTMLElement) =>
+  container.querySelector<HTMLElement>('.template-picker-row .template-picker-row-what');
 
-    const row = seen.items[0];
-    expect(typeof row.description).not.toBe('string');
-    expect(row.description.props.children).toBe(
+describe('the rows the template picker draws', () => {
+  it('carries the description drawn by the host renderer', () => {
+    const container = renderSelector(drawn);
+    expect(what(container)?.textContent).toBe(
       'drawn:What the target returned. Set **Fixture Output** to declare it.'
     );
   });
 
   it('asks for the compact container a row is', () => {
-    renderSelector(drawn);
-
-    expect(seen.items[0].description.props['data-compact']).toBe('true');
+    const container = renderSelector(drawn);
+    expect(what(container)?.querySelector('[data-compact]')?.getAttribute('data-compact')).toBe('true');
   });
 
   it('keeps the rest of the row intact', () => {
-    renderSelector(drawn);
-
-    expect(seen.items[0].value).toBe('$.result');
-    expect(seen.items[0].label).toBe('result');
+    const container = renderSelector(drawn);
+    const row = container.querySelector<HTMLElement>('.template-picker-row');
+    expect(row?.getAttribute('data-value')).toBe('$.result');
+    expect(row?.textContent).toContain('result');
   });
 
   it('says a description without its marks for a host with no renderer', () => {
     // No dialect the host never chose, and no `**` either: the words, as plain text.
-    renderSelector(undefined);
-
-    expect(seen.items[0].description).toBe('What the target returned. Set Fixture Output to declare it.');
+    const container = renderSelector(undefined);
+    expect(what(container)?.textContent).toBe('What the target returned. Set Fixture Output to declare it.');
   });
 });

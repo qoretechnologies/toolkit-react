@@ -13,6 +13,7 @@ import { IQorusFormSchema } from '@qoretechnologies/ts-toolkit';
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from 'storybook/test';
+import { pickerFocused, pickerLabels, pickerRow } from '../../../stories/templatePicker';
 import { validateField } from '../../../helpers/validations';
 import { storedColorProblem } from '../../colorValue/colorValue';
 import { CodeEditorStandin, CodeEditorStandinNoSyntax } from '../../../stories/CodeEditorStandin';
@@ -11421,7 +11422,7 @@ export const ValueToExpressionAndVisual: Story = {
     docs: {
       description: {
         story:
-          "Renders the form and opens Quantity (12) on the Expression tab: the value written as expression text (12), with the form's templates offered beside it ($); the form still holds 12. A click in the text lists what can be written at the caret, in the one completion list: after 12 only an operator can, so no template is listed, and the templates beside the text cannot be used, saying why. With ` + ` typed, a click lists the row's fields (David's decision: no `12 pos`). Visual shows the expression built from it - 12 its first operand.",
+          "Renders the form and opens Quantity (12) on the Expression tab: the value written as expression text (12), with the form's templates offered beside it ($); the form still holds 12. A click in the text lists what can be written at the caret, in the one completion list: after 12 only an operator can, so no template is listed, and the templates beside the text cannot be used, saying why. With ` + ` typed, a click offers Browse all templates, which opens the picker with the row's fields (David's decision: no `12 pos`). Visual shows the expression built from it - 12 its first operand.",
       },
     },
   },
@@ -11437,7 +11438,7 @@ export const ValueToExpressionAndVisual: Story = {
     await waitFor(() =>
       expect(field.querySelector('[data-slate-editor]')?.textContent?.replace(/\uFEFF/g, '').trim()).toBe('12')
     );
-    const picker = field.querySelector<HTMLElement>('.dpql-template-browser');
+    const picker = field.querySelector<HTMLElement>('.smart-editor-template-button');
     expect(picker, 'the templates offered').toBeTruthy();
     // beside the text, as tall as it: the controls of a row are as tall as each other
     const text = field.querySelector<HTMLElement>('[data-slate-editor]') as HTMLElement;
@@ -11465,13 +11466,16 @@ export const ValueToExpressionAndVisual: Story = {
     await completionSettled(text);
     expect(listed()).toEqual([]);
     expect(isDisabled(picker as HTMLElement), 'the templates beside the text, after 12').toBe(true);
-    // where a value can be written, a click lists the row's fields
+    // where a value can be written, a click offers the row that opens the templates, the row's fields among them
     await userEvent.keyboard(' + ');
     await userEvent.click(text);
-    await waitFor(() => {
-      expect(listed().some((item) => item.includes('pos'))).toBe(true);
-      expect(listed().some((item) => item.includes('bezeichnung'))).toBe(true);
-    });
+    await waitFor(() => expect(listed().some((item) => item.includes('Browse all templates'))).toBe(true));
+    await userEvent.click(
+      Array.from(
+        document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu .reqore-menu-item')
+      ).find((item) => item.textContent?.includes('Browse all templates')) as HTMLElement
+    );
+    await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(['pos', 'bezeichnung'])));
     await userEvent.keyboard('{Escape}');
     /* Listed on keyboard focus too, and put away by Escape alone, with reqore 0.78.5 (#708): checked where
        that reqore is used, in its own tests and the Qorus IDE's review stories. */
@@ -11640,7 +11644,7 @@ export const TemplatePickedAfterADollarInAnExpression: Story = {
     await askForATemplate('again');
     await userEvent.click(
       optionRow('computed').querySelector<HTMLElement>(
-        '.dpql-template-browser'
+        '.smart-editor-template-button'
       ) as HTMLElement
     );
     const besidePos = await waitFor(() => {
@@ -11763,7 +11767,7 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     docs: {
       description: {
         story:
-          "Renders a whole number with nothing in it and opens its Expression tab. A click in the empty text lists the row's fields in the one completion list (David's decision: opened by a click, a tap or Tab as by typing) - and no template context alone ($data:), which is no value - and so does Tab into it; pos picked from it is the text. A click after pos lists what can follow a value, operators, and no template (`pos pos` is refused); the templates beside the text cannot be used there, saying why. == picked from it goes after pos, which stays (David's review: an operator took pos's place). A click lists the fields again, and bezeichnung makes pos == bezeichnung. A click on pos lists what can stand in its place, and bezeichnung picked takes it (David's review: a click on pos listed nothing). Once the field holds bezeichnung == bezeichnung it says the expression gives true or false, and draws no Preview, which would only repeat the text - never an earlier expression's; the capture leaves the list a click on a chip opens open.",
+          "Renders a whole number with nothing in it and opens its Expression tab. A click in the empty text opens the template picker with the row's fields (David's decision: a click in an empty field shows its templates) - and no template context alone ($data:), which is no value - and so does Tab into it; pos picked from it is the text. A click after pos lists what can follow a value, operators, and no template (`pos pos` is refused); the templates beside the text cannot be used there, saying why. == picked from it goes after pos, which stays (David's review: an operator took pos's place). A click offers Browse all templates, and bezeichnung picked in the picker it opens makes pos == bezeichnung. A click on pos opens the picker at its group with pos chosen, and bezeichnung picked takes its place (David's review: a click on pos listed nothing). Once the field holds bezeichnung == bezeichnung it says the expression gives true or false, and draws no Preview, which would only repeat the text - never an earlier expression's; the capture leaves the picker a click on a chip opens open.",
       },
     },
   },
@@ -11780,23 +11784,24 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     });
     const picker = () =>
       optionRow('count').querySelector<HTMLElement>(
-        '.dpql-template-browser'
+        '.smart-editor-template-button'
       ) as HTMLElement;
 
-    // a click in the empty text lists the fields, and no template context alone, which is no value
+    /* a click in the empty text opens the template picker with the row's fields (David's decision: a click in an
+       empty field shows its templates), the focus left in the text */
     await userEvent.click(text);
-    await completionRow('bezeichnung');
+    await pickerRow('bezeichnung');
     expect(text.contains(document.activeElement), 'the focus stays in the text').toBe(true);
-    expect(completionRows().filter((row) => row.textContent?.startsWith('$'))).toEqual([]);
+    expect(pickerLabels().filter((label) => label?.startsWith('$'))).toEqual([]);
     await userEvent.keyboard('{Escape}');
-    await waitFor(() => expect(completionRows()).toEqual([]));
+    await waitFor(() => expect(document.querySelector('.template-picker')).toBeNull());
 
     // and so does Tab into it
     await userEvent.tab({ shift: true });
     await waitFor(() => expect(text.contains(document.activeElement)).toBe(false));
     await userEvent.tab();
     await waitFor(() => expect(text.contains(document.activeElement)).toBe(true));
-    await userEvent.click(await completionRow('pos'));
+    await userEvent.click(await pickerRow('pos'));
     await waitFor(() => expect(expressionTextOf('count')).toBe('pos'));
     await waitFor(() => expect(timesHeld(canvasElement, 'count', '$record:{pos}')).toBe(1));
 
@@ -11813,14 +11818,15 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     await waitFor(() => expect(expressionTextOf('count')).toBe('pos =='));
     await waitFor(() => expect(isDisabled(picker())).toBe(false));
 
-    // where a value can be written, the fields again - and no template context alone, which is no value
+    /* where a value can be written, the row that opens every template - and no template context alone, which is
+       no value; bezeichnung is picked from the picker it opens */
     await userEvent.click(text);
-    const bezeichnung = await completionRow('bezeichnung');
+    await userEvent.click(await completionRow('Browse all templates'));
     expect(completionRows().filter((row) => row.textContent?.startsWith('$'))).toEqual([]);
-    await userEvent.click(bezeichnung);
+    await userEvent.click(await pickerRow('bezeichnung'));
     await waitFor(() => expect(expressionTextOf('count')).toBe('pos == bezeichnung'));
 
-    // a click on a chip lists what can stand in its place, and the pick takes it
+    // a click on a chip opens the picker at its group, the chip's row chosen, and the pick takes its place
     const chips = () =>
       Array.from(
         optionRow('count').querySelectorAll<HTMLElement>(
@@ -11830,7 +11836,8 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     await userEvent.click(
       nameOf(chips().find((chip) => chip.textContent?.includes('pos')) as HTMLElement)
     );
-    await userEvent.click(await completionRow('bezeichnung'));
+    await waitFor(() => expect(pickerFocused()).toBe('pos'));
+    await userEvent.click(await pickerRow('bezeichnung'));
     await waitFor(() => expect(expressionTextOf('count')).toBe('bezeichnung == bezeichnung'));
     /* the field holds it and has its rendering: the Preview, which would only repeat the text, is not drawn, and
        what is said of its fit is said of it - never of an earlier expression (qorus#646: r15's capture drew the
@@ -11845,9 +11852,9 @@ export const TheTextListsWhatCanBeWrittenAtTheCaret: Story = {
     expect(optionRow('count').querySelector('[data-testid="expression-preview"]')).toBeNull();
     expect(optionRow('count').textContent).toContain('The expression gives true or false');
 
-    // the list a click on a chip opens, left open for the capture
+    // the picker a click on a chip opens, left open for the capture
     await userEvent.click(nameOf(chips()[0]));
-    await completionRow('pos');
+    await pickerRow('pos');
   },
 };
 

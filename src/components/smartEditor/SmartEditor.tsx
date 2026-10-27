@@ -29,6 +29,7 @@ import React, {
   useState,
 } from 'react';
 import { useMeasure } from 'react-use';
+import styled from 'styled-components';
 import { Editor, NodeEntry, Range, Transforms } from 'slate';
 import { ReactEditor, RenderLeafProps } from 'slate-react';
 import { ILspSignatureHelp } from '../../utils/lspClient.types';
@@ -45,6 +46,8 @@ import { useLspHover } from './useLspHover';
 import { useCoarsePointer } from '../../hooks/useCoarsePointer';
 import { useLspSemanticTokens } from './useLspSemanticTokens';
 import { useLspSignatureHelp } from './useLspSignatureHelp';
+import { templateNodeFor } from '../../helpers/templateTree';
+import { useEditingAids } from './useEditingAids';
 
 // One-Dark-ish palette keyed off the LSP semantic-token legend; absent
 // types fall through to Slate's default text color.
@@ -224,10 +227,76 @@ let completionMenuCounter = 0;
 /** The width of the editor's row (Reqore's phone width) at or below which its Details button is its icon alone. */
 const DETAILS_WORD_MIN_ROW_WIDTH = 480;
 
+/**
+ * The box the text is drawn in, as a code editor draws it where asked: lines that do not wrap (`wordWrap: off`),
+ * scrolled inside the box, no wider than it; a height the text scrolls within (`maxHeight`); each line's number
+ * before it (`lineNumbers`), counted by its paragraph.
+ */
+const StyledEditorBox = styled.div<{ $wordWrap: 'on' | 'off'; $maxHeight?: string; $lineNumbers: boolean }>`
+  [data-slate-editor] {
+    ${({ $wordWrap }) =>
+      $wordWrap === 'off' ? 'white-space: pre !important; overflow-wrap: normal !important; overflow-x: auto;' : ''}
+    ${({ $maxHeight }) => ($maxHeight ? `max-height: ${$maxHeight}; overflow-y: auto;` : '')}
+    ${({ $lineNumbers }) => ($lineNumbers ? 'counter-reset: smart-editor-line; padding-left: 3em !important;' : '')}
+  }
+  ${({ $lineNumbers }) =>
+    $lineNumbers ?
+      `[data-slate-editor] > [data-slate-node='element'] {
+        position: relative;
+        counter-increment: smart-editor-line;
+      }
+      [data-slate-editor] > [data-slate-node='element']::before {
+        content: counter(smart-editor-line);
+        position: absolute;
+        left: -3em;
+        width: 2.2em;
+        text-align: right;
+        opacity: 0.45;
+        user-select: none;
+        pointer-events: none;
+      }`
+    : ''}
+`;
+
 const EDITOR_BOX_STYLE: React.CSSProperties = {
   position: 'relative',
   flex: '1 1 auto',
   minWidth: 0,
+};
+
+/**
+ * The button beside the text that opens the template picker for a pick at the caret (qorus#646): where a value
+ * cannot be written after the text before the caret (`insertableAt`), it says why and cannot be pressed. Its press
+ * keeps the focus, and the caret the pick goes at, in the text.
+ */
+const TemplateButton = ({
+  size,
+  insertable,
+  notInsertable,
+  open,
+}: {
+  size?: ISmartEditorProps['size'];
+  /** A value can be written at the caret: the button can be pressed. */
+  insertable: boolean;
+  notInsertable?: string;
+  open: (rect: { left: number; bottom: number }) => void;
+}) => {
+  return (
+    <ReqoreButton
+      className='smart-editor-template-button'
+      icon='MoneyDollarCircleLine'
+      fixed
+      size={size ?? 'normal'}
+      aria-label='Insert a template'
+      tooltip={insertable ? 'Insert a template' : notInsertable}
+      disabled={!insertable}
+      onMouseDown={(event: React.MouseEvent) => event.preventDefault()}
+      onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+        const { left, bottom } = event.currentTarget.getBoundingClientRect();
+        open({ left, bottom });
+      }}
+    />
+  );
 };
 
 export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProps>(
@@ -259,6 +328,13 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       completionsWith,
       emptyCompletionMessage,
       presentDiagnostics,
+      templateRoots,
+      templateButton,
+      editingLanguage,
+      formatDocument,
+      wordWrap = 'on',
+      maxHeight,
+      lineNumbers = false,
     },
     ref
   ) => {
@@ -294,10 +370,10 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     const noServer = session.isUnavailable && !!completionsWith;
     const { getCompletions: askServer } = session;
     const getCompletions = useCallback(
-      async (plainText: string, offset: number) => {
+      async (plainText: string, offset: number, typedInText?: string) => {
         const serverItems = noServer ? undefined : await askServer(plainText, offset);
         return completionsWith ?
-            completionsWith({ plainText, offset, serverItems })
+            completionsWith({ plainText, offset, serverItems, typedInText })
           : (serverItems ?? []);
       },
       [noServer, askServer, completionsWith]
@@ -433,15 +509,43 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       { enabled: enableSignatureHelp }
     );
 
+    /* What a code editor does for what is typed (`useEditingAids`): pairs closed, a selection wrapped, the
+       bracket at the caret matched, the search (Ctrl+F) and its replace, lines moved and copied, the document
+       formatted (Shift+Alt+F), completion asked for (Ctrl+Space). */
+    // the editing aids follow every change of the editor, its caret's included (the bracket match)
+    const aidsChangeRef = useRef<() => void>(() => undefined);
+    const aids = useEditingAids({
+      editorRef,
+      converter,
+      nodes: slateValue,
+      language: editingLanguage,
+      readOnly,
+      onFormat: formatDocument,
+      onComplete: () => {
+        const editor = editorRef.current;
+        const at = editor?.selection;
+        if (!editor || !at) return;
+        try {
+          const rect = ReactEditor.toDOMRange(editor, at).getBoundingClientRect();
+          autocomplete.openAtCaret(editor as any, at.anchor, { left: rect.left, bottom: rect.bottom });
+        } catch {
+          // the caret is not drawn: nothing is asked
+        }
+      },
+    });
+
+    aidsChangeRef.current = aids.onEditorChange;
+
     const composedDecorate = useCallback(
       (entry: NodeEntry): Range[] => {
         const userRanges = decorate?.(entry) ?? [];
         const semanticRanges = semanticDecorate(entry);
+        const aidRanges = aids.decorate(entry);
         const diagRanges = showDiagnostics ? diagnosticDecorate(entry) : [];
         // Diagnostics last so the wavy underline isn't overdrawn.
-        return [...userRanges, ...semanticRanges, ...diagRanges];
+        return [...userRanges, ...semanticRanges, ...aidRanges, ...diagRanges];
       },
-      [decorate, semanticDecorate, diagnosticDecorate, showDiagnostics]
+      [decorate, semanticDecorate, diagnosticDecorate, showDiagnostics, aids.decorate]
     );
 
     // Paints semantic-token colors and diagnostic underlines, falling
@@ -454,6 +558,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           severity?: number;
           tokenType?: string;
           tokenModifiers?: string[];
+          bracketMatch?: true;
+          findMatch?: true;
+          findCurrent?: true;
         };
 
         let child =
@@ -479,6 +586,29 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               </span>
             );
           }
+        }
+
+        // the bracket matching the one at the caret, and the search's matches (the current one stronger)
+        if (leaf.bracketMatch || leaf.findMatch) {
+          child = (
+            <span
+              className={
+                leaf.findCurrent ? 'smart-editor-find-current'
+                : leaf.findMatch ? 'smart-editor-find-match'
+                : 'smart-editor-bracket-match'
+              }
+              style={{
+                borderRadius: 2,
+                background:
+                  leaf.findCurrent ? 'rgba(255, 200, 0, 0.55)'
+                  : leaf.findMatch ? 'rgba(255, 200, 0, 0.25)'
+                  : 'rgba(255, 255, 255, 0.12)',
+                outline: leaf.bracketMatch ? '1px solid rgba(255, 255, 255, 0.45)' : undefined,
+              }}
+            >
+              {child}
+            </span>
+          );
         }
 
         // Underline outermost so it overlays the syntax color; hex
@@ -584,6 +714,28 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       };
     }, [converter, referenceBeingWritten]);
 
+    /* Whether a template can be written at the caret, for the template button: asked again at every change of the
+       editor, a move of its caret included, so the button is never left as it was for a caret that has moved. */
+    const [insertableAtCaret, setInsertableAtCaret] = useState(true);
+    const insertableAt = templateButton?.insertableAt;
+    const askInsertable = useCallback(() => {
+      const editor = editorRef.current;
+      if (!editor || !insertableAt) return;
+      try {
+        const nodes = editor.children as unknown as ISlateElement[];
+        const plainText = converter.fromSlateNodes(nodes);
+        const at = editor.selection?.anchor;
+        const offset = at ? converter.selectionToOffset(nodes, at.path as number[], at.offset) : plainText.length;
+        setInsertableAtCaret(insertableAt(plainText.slice(0, offset)));
+      } catch {
+        // a selection the editor no longer has: the end of the text is asked about
+        setInsertableAtCaret(insertableAt(converter.fromSlateNodes(editor.children as unknown as ISlateElement[])));
+      }
+    }, [insertableAt, converter]);
+    useEffect(askInsertable, [askInsertable, value]);
+    const askInsertableRef = useRef(askInsertable);
+    askInsertableRef.current = askInsertable;
+
     const handleSlateChange = useCallback(
       (newNodes: ISlateElement[]) => {
         const plainText = converter.fromSlateNodes(newNodes);
@@ -629,6 +781,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
         if (editorRef.current && !readOnly) {
           autocomplete.onSlateChange(editorRef.current as any, newNodes);
         }
+        aidsChangeRef.current();
+        askInsertableRef.current();
       },
       [onChange, session, readOnly, autocomplete, converter, emitted]
     );
@@ -649,6 +803,25 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           const tagPath = ReactEditor.findPath(editor, tag as any);
           const domNode = ReactEditor.toDOMNode(editor, tag as any);
           const rect = (domNode as HTMLElement).getBoundingClientRect();
+          /* A chip the field's templates or fields list opens the picker where it is - its group, its row the
+             keyboard's - and the pick takes its place (qorus#646). A second click on it puts the picker away. */
+          const listed =
+            templateRoots?.length && typeof tag.value === 'string' ?
+              templateNodeFor(templateRoots, tag.value)
+            : undefined;
+          if (listed) {
+            if (autocomplete.browse && autocomplete.isReplaceMode) {
+              autocomplete.close();
+              return;
+            }
+            autocomplete.openBrowse(editor as any, {
+              rect: { left: rect.left, bottom: rect.bottom },
+              replacementPath: tagPath,
+              levelId: listed.trailIds[listed.trailIds.length - 1],
+              selectedValue: tag.value as string,
+            });
+            return;
+          }
           /* An editor that completes on a click lists what can stand in the chip's place - the fields and
              templates the chip is one of - and the pick replaces it (qorus#646, David: a click on pos listed
              nothing). */
@@ -662,18 +835,19 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           // Tag may have been removed mid-render — ignore.
         }
       },
-      [readOnly, autocomplete, hasBrowseList, completeOnClick]
+      [readOnly, autocomplete, hasBrowseList, completeOnClick, templateRoots]
     );
 
     /* A click, a tap or Tab into the text asks what can be written at the caret (`completeOnClick`): the caret the
        page put there, which Slate's selection follows only later. Not a click on a chip, which is a control of
        its own, nor anything outside the text: the list's rows are drawn elsewhere, and their clicks reach this
        box through React. */
-    const { openAtCaret } = autocomplete;
+    const { openAtCaret, openBrowse } = autocomplete;
+    const browsesOnClick = !!templateRoots?.length;
     const completeAtPageCaret = useCallback(
       (target: EventTarget | null) => {
         const editor = editorRef.current;
-        if (!completeOnClick || readOnly || !editor) return;
+        if ((!completeOnClick && !browsesOnClick) || readOnly || !editor) return;
         try {
           const root = ReactEditor.toDOMNode(editor, editor);
           if (!(target instanceof Node) || !root.contains(target)) return;
@@ -688,12 +862,23 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           const box = page.getRangeAt(0).getBoundingClientRect();
           // a caret in an empty line has no box of its own: the text's
           const at = box.width || box.height ? box : root.getBoundingClientRect();
+          /* An empty text offers its templates and fields: the picker, at its top (qorus#646, David: a click in an
+             empty field shows the templates, the record's fields among them). */
+          const empty = !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim();
+          if (browsesOnClick && (empty || !completeOnClick)) {
+            openBrowse(editor as any, {
+              rect: { left: at.left, bottom: at.bottom },
+              caret: caret.anchor,
+              arrows: empty,
+            });
+            return;
+          }
           openAtCaret(editor, caret.anchor, { left: at.left, bottom: at.bottom });
         } catch {
           // the editor is not drawn, or the page's caret is not in it: nothing is asked
         }
       },
-      [completeOnClick, readOnly, openAtCaret]
+      [completeOnClick, browsesOnClick, readOnly, openAtCaret, openBrowse, converter]
     );
 
     const resolvedTagClick = onTagClick ?? handleTagClickDefault;
@@ -746,6 +931,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
     return (
       <ReqoreControlGroup vertical fluid>
         {topActions}
+        {aids.findBar}
         {/* The text and, on a touch screen, its Details button beside it, in one row: under the text the button
             was far from it, and what it showed was drawn over the text (Foxhoundn, qlip #361). Always the row,
             so the text is not remounted when the button appears. */}
@@ -763,8 +949,12 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
             : 'idle'
           }
         >
-          <div
+          <StyledEditorBox
             style={EDITOR_BOX_STYLE}
+            $wordWrap={wordWrap}
+            $maxHeight={maxHeight}
+            $lineNumbers={lineNumbers}
+            className='smart-editor-box'
             onClick={(event) => completeAtPageCaret(event.target)}
             // Tab's key comes up in the editor it moved the focus into
             onKeyUp={(event) => {
@@ -782,6 +972,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               onTagClick={stableOnTagClick}
               size={size}
               onBlur={handleBlur}
+              onKeyDown={(event: React.KeyboardEvent) => {
+                aids.onKeyDown(event);
+              }}
               // the field's templates, browsed when the text is clicked, tapped or tabbed into: the browse list,
               // drawn as the completion list is
               tags={tags}
@@ -841,6 +1034,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
               autocomplete={autocomplete}
               id={completionMenuId}
               onSelect={handleCompletionSelect}
+              templateRoots={templateRoots}
               pendingLabel={
                 !session.isReady ? 'Connecting to language server…'
                 : !session.isContextReady ? 'Loading schema…'
@@ -892,7 +1086,26 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 position={signatureHelp.position}
               />
             )}
-          </div>
+          </StyledEditorBox>
+          {templateButton && templateRoots?.length && !readOnly ?
+            <TemplateButton
+              size={size}
+              insertable={insertableAtCaret}
+              notInsertable={templateButton.notInsertable}
+              open={(rect) => {
+                const editor = editorRef.current;
+                if (!editor) return;
+                if (autocomplete.browse && !autocomplete.isReplaceMode) {
+                  autocomplete.close();
+                  return;
+                }
+                openBrowse(editor as any, {
+                  rect,
+                  arrows: !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim(),
+                });
+              }}
+            />
+          : null}
           {showDetailsButton && (
             <ReqoreButton
               className='smart-editor-details'

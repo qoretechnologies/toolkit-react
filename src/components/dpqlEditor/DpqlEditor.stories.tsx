@@ -12,7 +12,7 @@ import {
 import { mockTokenizeDpql } from '../form/expressions/dpqlMockLanguage';
 import { mockHoverDpql } from './__fixtures__/dpqlMockHover';
 import { DpqlEditor } from './DpqlEditor';
-import { TDpqlFsmContext } from './types';
+import { IDpqlEditorProps, TDpqlFsmContext } from './types';
 import { expectChipFits } from '../../stories/chips';
 import { withCoarsePointer } from '../../stories/coarsePointer';
 import {
@@ -24,48 +24,35 @@ import {
 } from '../../stories/mouse';
 import { withTouchScreen } from '../../stories/touchScreen';
 import { PHONE_VIEWPORT } from '../../stories/tracking';
-import { buildTemplates, ITemplatesPayload } from '../../helpers/templates';
-import { templates as contextTemplates } from '../form/fields/template/__fixtures__/templateFixtures';
+import {
+  chipsOf,
+  completionLabels,
+  completionRow,
+  pickerCrumbs,
+  pickerFocused,
+  pickerLabels,
+  pickerRow,
+  pickerSearch,
+  plainTextOf,
+} from '../../stories/templatePicker';
+import { ITemplatesPayload } from '../../helpers/templates';
+import {
+  QOG_FIELD_TEMPLATES,
+  QOG_STATE_DATA_PAYLOAD,
+  RECORD_FIELDS,
+} from '../form/fields/template/__fixtures__/qogTemplatePayloads';
+import { mockDataTemplateValues } from './__fixtures__/dpqlMockTemplateValues';
 
 let lsp: IMockLspServer;
 
 /**
  * The data the bound Qog's states give, as the server computes it when a Qog is bound (`dpql/setFsmContext`,
- * `FsmsRestClassV8::doComputeStateData`) and serves it at `fsms?action=getStateData`: keyed by state, each item
- * with the template that gives it.
+ * `FsmsRestClassV8::doComputeStateData`) and serves it at `fsms?action=getStateData`.
  */
-const QOG_STATE_DATA: ITemplatesPayload = {
-  receive_order: {
-    display_name: 'Receive order',
-    short_desc: 'The order that started the Qog',
-    items: [
-      { display_name: 'Order ID', type: 'int', value: '$data:{receive_order.order_id}' },
-      { display_name: 'User name', type: 'string', value: '$data:{receive_order.user_name}' },
-      { display_name: 'Event type', type: 'string', value: '$data:{receive_order.event_type}' },
-    ],
-  },
-};
-
-/** A Qog state's data item's key, from the template that gives it: `order_id` of `$data:{receive_order.order_id}`. */
-const stateDataKey = (value?: string) => /\.([^.}]+)\}$/.exec(value ?? '')?.[1] ?? '';
-
-/**
- * The templates a host gives a DPQL field in a Qog state, as a Qog state's other fields have them: its context data
- * (`system?action=getContextData`) and the data of the Qog's states before it (`fsms?action=getStateData`), nested
- * as their catalogue nests them.
- */
-const QOG_FIELD_TEMPLATES = buildTemplates({ _context: contextTemplates._context, ...QOG_STATE_DATA });
+const QOG_STATE_DATA: ITemplatesPayload = QOG_STATE_DATA_PAYLOAD;
 
 /** The record the stories' server describes (`dpql/setContext`): what a field's hover says of it. */
-const STORY_RECORD_FIELDS = {
-  name: {
-    display_name: 'Name',
-    short_desc: "The customer's full name, as they gave it",
-    type: { name: 'string' },
-  },
-  status: { display_name: 'Status', type: { name: 'string' } },
-  age: { display_name: 'Age', type: { name: 'int' } },
-};
+const STORY_RECORD_FIELDS = RECORD_FIELDS;
 
 interface IDpqlEditorStoryArgs {
   value?: string;
@@ -76,6 +63,10 @@ interface IDpqlEditorStoryArgs {
   useServerParse?: boolean;
   alertPayloadContext?: boolean;
   fsmContext?: TDpqlFsmContext;
+  templates?: IDpqlEditorProps['templates'];
+  wordWrap?: 'on' | 'off';
+  maxHeight?: string;
+  lineNumbers?: boolean;
 }
 
 const DpqlEditorWithState = (props: IDpqlEditorStoryArgs) => {
@@ -265,33 +256,10 @@ const meta = {
             },
           ];
 
-          /* The bound Qog's state data inside `$data:`, as the real server lists it (Qorus
-             QorusClientServer::getTemplateValues, DataProvider getTemplateValueCompletions): the states first, then,
-             after `<state>.`, that state's data. Each is the whole reference it is written as - `$data:<state>` or
-             `$data:<state>.<key>` - so a pick is written as its chip; its label is its name, and a value's detail
-             its type. */
-          const afterData = sigilToken.slice('$data:'.length);
-          const dot = afterData.indexOf('.');
-          const FSM_DATA_KEY_ITEMS =
-            dot < 0 ?
-              Object.entries(fsmStateData).map(([state, info]) => ({
-                label: info.display_name ?? `$data:${state}`,
-                insertText: `$data:${state}`,
-                filterText: `$data:${state}`,
-                kind: 6, // a template, as the server's kind for one
-                documentation: { kind: 'plaintext', value: info.short_desc ?? info.display_name },
-              }))
-            : (fsmStateData[afterData.slice(0, dot)]?.items ?? []).map((item) => {
-                const raw = `$data:${afterData.slice(0, dot)}.${stateDataKey(item.value)}`;
-                return {
-                  label: item.display_name ?? raw,
-                  insertText: raw,
-                  filterText: raw,
-                  kind: 6,
-                  detail: item.type === 'int' ? 'Whole number' : 'Text',
-                  documentation: { kind: 'plaintext', value: `Qog state data: ${item.display_name}` },
-                };
-              });
+          /* The bound Qog's state data inside `$data:`, as the real server lists it
+             (`QorusClientServer::listTemplateValues`, `getTemplateValueCompletions`): the states first, then, after
+             `<state>.`, that state's data - each the whole reference it is written as (`mockDataTemplateValues`). */
+          const FSM_DATA_KEY_ITEMS = mockDataTemplateValues(fsmStateData, sigilToken.slice('$data:'.length));
 
           const items = inFsmDataTemplate
             ? FSM_DATA_KEY_ITEMS
@@ -389,8 +357,14 @@ const meta = {
           };
         },
 
-        // Empty edit list — the editor treats this as "no change".
-        'textDocument/formatting': () => [],
+        /* The text as the real server formats it, for the story that formats `1+2`: its operators spaced; any other
+           text is left as it is (no edit). */
+        'textDocument/formatting': (msg, server) => {
+          const text = server.textOf(msg.params?.textDocument?.uri);
+          return text === '1+2' ?
+              [{ range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } }, newText: '1 + 2' }]
+            : [];
+        },
 
         // Synthetic `substr(...)` signature; the real server returns the
         // active call's signature via `dpql-get-signature-help`.
@@ -1129,37 +1103,33 @@ export const WithFsmContext: Story = {
     provider: 'datasource:omq/table/orders',
     recordType: 'record',
     fsmContext: { fsmId: 42, currentState: 'process_order' },
-    // what a Qog host gives the field, as a Qog state's other fields have it
+    // what a Qog host gives the field, as a Qog state's other fields have it (getContextData, getStateData)
     templates: QOG_FIELD_TEMPLATES,
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Renders a DPQL field in a Qog state: record fields (`@`), the bound Qog\'s state data and the field\'s ' +
-          'templates - its context data and the data of the state before it - with the picker beside the text that ' +
-          "browses them as they nest. Typing `$data:receive_order.` lists that state's data only: Order ID (a " +
-          'whole number), User name and Event type (text), each the whole reference it is written as.',
+          "Renders a DPQL field in a Qog state: the record's fields (`@`), the bound Qog's state data and the " +
+          "field's context data, with the template button beside the text. Typing `$data:receive_order.` lists " +
+          "that state's data only - Customer, Event type, Order ID and User name - each said to be in Receive " +
+          'order, as State data, with its type; and the row that opens every template.',
       },
     },
   },
   play: async ({ canvasElement }) => {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
     await userEvent.type(editable, '$data:receive_order.');
     await waitFor(
-      () => {
-        const listed = completionListed().join(' | ');
-        expect(listed).toContain('Order ID');
-        expect(listed).toContain('User name');
-        expect(listed).toContain('Event type');
-        expect(listed).toContain('Whole number');
-        // a user reads Qog, never FSM
-        expect(listed).not.toMatch(/FSM/);
-      },
+      () =>
+        expect(completionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates']),
       { timeout: 30000 }
     );
-    expect(canvasElement.querySelector('.dpql-template-browser'), 'the picker beside the text').toBeTruthy();
+    // a user reads Qog, never FSM
+    expect(completionListed().join(' | ')).not.toMatch(/FSM/);
+    expect(canvasElement.querySelector('.smart-editor-template-button'), 'the template button').toBeTruthy();
   },
 };
 
@@ -1169,22 +1139,38 @@ const completionListed = () =>
     document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu .reqore-menu-item')
   ).map((row) => row.textContent?.trim() ?? '');
 
-/** The completion list's row that reads `label`. */
-const completionRow = (label: string) =>
-  waitFor(
-    () => {
-      const row = Array.from(
-        document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu .reqore-menu-item')
-      ).find((each) => each.textContent?.includes(label));
-      expect(row, `the row ${label}`).toBeTruthy();
-      return row!;
-    },
-    { timeout: 30000 }
-  );
+/**
+ * Puts the caret `offset` characters into the editor's text that is not a chip, or after its last chip when the
+ * text is only chips (`offset` -1), and has the editor take it: a character typed and taken back there, which the
+ * editor reads its selection at (navigation keys are not typed into a page by the test's keyboard).
+ */
+const caretAt = async (editable: HTMLElement, offset: number) => {
+  const spots = Array.from(editable.querySelectorAll<HTMLElement>('[data-slate-string], [data-slate-zero-width]'));
+  let at: { node: Text; offset: number } | undefined;
+  if (offset < 0) {
+    const last = spots[spots.length - 1];
+    const node = document.createTreeWalker(last, NodeFilter.SHOW_TEXT).nextNode() as Text;
+    at = { node, offset: node.length };
+  } else {
+    let left = offset;
+    for (const spot of spots.filter((each) => each.hasAttribute('data-slate-string'))) {
+      const node = document.createTreeWalker(spot, NodeFilter.SHOW_TEXT).nextNode() as Text;
+      if (left <= node.length) {
+        at = { node, offset: left };
+        break;
+      }
+      left -= node.length;
+    }
+  }
+  await userEvent.click(at!.node.parentElement!);
+  editable.focus();
+  window.getSelection()?.collapse(at!.node, at!.offset);
+  await userEvent.keyboard('x{Backspace}');
+};
 
 /**
- * A Qog state's data picked from the list after `$data:` is written as its chip, the whole reference: it was
- * written as its bare key (`order_id`), plain text the server cannot read (qorus#646, David's review).
+ * A Qog state's data picked from the list after `$data:receive_order.` is written as its chip, the whole reference:
+ * it was written as its bare key (`order_id`), plain text the server cannot read (qorus#646, David's review).
  */
 export const AStateDataPickIsWrittenAsItsChip: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
@@ -1194,96 +1180,337 @@ export const AStateDataPickIsWrittenAsItsChip: Story = {
         story:
           'Renders a DPQL field in a Qog state, types `$data:receive_order.` and picks Order ID from the list, ' +
           "which offers that state's data only: the text is the one chip for the whole reference " +
-          '($data:{receive_order.order_id}), and no plain text is left - not the bare key order_id.',
+          '($data:{receive_order.order_id}), named Receive order › Order ID, and no plain text is left.',
       },
     },
   },
   play: async ({ canvasElement, args }) => {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
     await userEvent.type(editable, '$data:receive_order.');
-    // the list as it stays: the server's answer is in it (Event type, which no template is), not drawn again
-    await completionRow('Event type');
     await userEvent.click(await completionRow('Order ID'));
     await waitFor(() =>
       expect(args.onChange).toHaveBeenLastCalledWith(
         expect.stringMatching(/^\$data:\{?receive_order\.order_id\}?\s*$/)
       )
     );
-    await waitFor(() => expect(editable.querySelectorAll('.reqore-tag')).toHaveLength(1));
-    // nothing but the chip: no bare key written as text
-    const text = Array.from(editable.querySelectorAll<HTMLElement>('[data-slate-string]'))
-      .map((node) => node.textContent ?? '')
-      .join('')
-      .replace(/\uFEFF/g, '')
-      .trim();
-    expect(text).toBe('');
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Order ID']));
+    expect(plainTextOf(editable)).toBe('');
   },
 };
 
 /**
- * A click in the empty field lists its templates - its context data and the Qog state data - and the picker beside
- * it browses them as their catalogue nests them, as a Qog field's are (qorus#646, David's review: a click offered
- * nothing).
+ * A state picked from the list after `$data:` opens the picker at its data, and the data picked there is the one
+ * chip of the whole reference (qorus#646, David's review of With Fsm Context: picking a state wrote its chip, a `.`
+ * typed after it was lost when Event type was picked, and the text read `$data:receive_order$data:{…}`).
  */
-export const AClickListsTheFieldsTemplates: Story = {
+export const APickedStateOpensItsDataAndThePickIsOneChip: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$data:` and picks the state Receive order: the picker opens at its data, the way back above the ' +
+          'rows reading Templates › Receive order. Picking Event type there writes one chip, ' +
+          'Receive order › Event type, for $data:{receive_order.event_type}, and nothing else.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await userEvent.type(editable, '$data:');
+    await userEvent.click(await completionRow('Receive order'));
+    await waitFor(() =>
+      expect(pickerCrumbs()).toContain('Receive order')
+    );
+    await userEvent.click(await pickerRow('Event type'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{?receive_order\.event_type\}?\s*$/)
+      )
+    );
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Event type']));
+    expect(plainTextOf(editable)).toBe('');
+  },
+};
+
+/**
+ * A `.` typed after a state's chip goes on from it: a pick of the state's data takes the chip's place as well as
+ * the `.` - one reference, one chip (qorus#646, David's review).
+ */
+export const AStateChipAndADotGoOnToOneChip: Story = {
+  args: { ...WithFsmContext.args, value: '$data:receive_order', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Starts with the chip of the state Receive order, types `.` after it and picks Event type from the ' +
+          "list of the state's data: the text is the one chip Receive order › Event type " +
+          '($data:{receive_order.event_type}), not the state chip and a second chip after it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+    await caretAt(editable, -1);
+    await userEvent.keyboard('{Escape}.');
+    await userEvent.click(await completionRow('Event type'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{?receive_order\.event_type\}?\s*$/)
+      )
+    );
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Event type']));
+    expect(plainTextOf(editable)).toBe('');
+  },
+};
+
+/**
+ * What typing a reference offers is only what it reaches (qorus#646, David's review: `$data` showed what the empty
+ * field did, `$data:` added the state, and every template was listed under whatever was typed): `$d`, `$data` and
+ * `$data:` offer the states; `$data:receive_order.` that state's data. The row that opens every template is last.
+ */
+export const TypingNarrowsToWhatItReaches: Story = {
   args: { ...WithFsmContext.args },
   parameters: {
     docs: {
       description: {
         story:
-          'Renders an empty DPQL field in a Qog state and clicks in it: the list offers its templates, each with ' +
-          'the group it is in - its context data and the data of the state Receive order (Order ID, User name, ' +
-          'Event type) - with the functions that can be written there.',
+          'Types `$d`, then `$data`, then `$data:`: each time the list offers the two states, Look up customer and ' +
+          "Receive order, and Browse all templates - none of the context data. Then `receive_order.`: the state's " +
+          'data, Customer, Event type, Order ID and User name.',
       },
     },
   },
   play: async ({ canvasElement }) => {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    const STATES = ['Look up customer', 'Receive order', 'Browse all templates'];
+    await userEvent.type(editable, '$d');
+    await waitFor(() => expect(completionLabels()).toEqual(STATES), { timeout: 30000 });
+    await userEvent.type(editable, 'ata');
+    await waitFor(() => expect(completionLabels()).toEqual(STATES), { timeout: 30000 });
+    await userEvent.type(editable, ':');
+    await waitFor(() => expect(completionLabels()).toEqual(STATES), { timeout: 30000 });
+    await userEvent.type(editable, 'receive_order.');
     await waitFor(
-      () => {
-        const listed = completionListed().join(' | ');
-        expect(listed).toContain('Order ID');
-        expect(listed).toContain('Receive order');
-        expect(listed).toContain('Context Data');
-      },
+      () =>
+        expect(completionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates']),
       { timeout: 30000 }
     );
   },
 };
 
-/** The picker beside the text opens the field's templates as their catalogue nests them: its groups first. */
-export const ThePickerBrowsesTheFieldsTemplates: Story = {
+/**
+ * A row says where it is apart from what it is (qorus#646, David's review: each state's data said "Receive order"
+ * under its name, and was called a Variable): "in Receive order" on its line, State data and its type as its
+ * badges, what it is in its documentation.
+ */
+export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
   args: { ...WithFsmContext.args },
   parameters: {
     docs: {
       description: {
         story:
-          'Renders an empty DPQL field in a Qog state and opens the picker beside the text: it lists the ' +
-          'field\'s templates by their groups, Context Data and the state Receive order, as a Qog field\'s ' +
-          'template list does; a group opens into its members.',
+          "Types `$data:receive_order.`: the row Event type says it is in Receive order, is State data of type " +
+          'Text, and - its documentation opened with Ctrl+Space - that it is what happened to the order. No row is ' +
+          'called a Variable.',
       },
     },
   },
   play: async ({ canvasElement }) => {
-    await readyEditor(canvasElement);
-    const picker = await waitFor(() => {
-      const button = canvasElement.querySelector<HTMLElement>('.dpql-template-browser');
-      expect(button, 'the picker beside the text').toBeTruthy();
-      return button!;
-    });
-    await userEvent.click(picker);
-    await waitFor(
-      () => {
-        const rows = Array.from(
-          document.querySelectorAll<HTMLElement>('.reqore-popover-content .reqore-menu-item')
-        ).map((row) => row.textContent ?? '');
-        expect(rows.some((row) => row.includes('Context Data'))).toBe(true);
-        expect(rows.some((row) => row.includes('Receive order'))).toBe(true);
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await userEvent.type(editable, '$data:receive_order.e');
+    const row = await completionRow('Event type');
+    expect(row.textContent).toContain('in Receive order');
+    expect(row.textContent).toContain('State data');
+    expect(row.textContent).toContain('Text');
+    expect(completionListed().join(' | ')).not.toContain('Variable');
+    await userEvent.keyboard('{Control>} {/Control}');
+    await waitFor(() =>
+      expect(document.querySelector('.completion-docs')?.textContent).toContain('What happened to the order')
+    );
+  },
+};
+
+/**
+ * A click in the empty field opens the template picker at the top of what the field can refer to: its context
+ * data, each Qog state, and the record's fields as a group of their own (qorus#646, David's review: the fields `@`
+ * offers were not among the templates an empty field showed).
+ */
+export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicks in the empty DPQL field: the template picker opens at the top - Context Data, Look up customer, ' +
+          'Receive order and Record fields. Record fields opens into name, status and age, each described by its ' +
+          'display name; status picked is written as its chip, @status.',
       },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await waitFor(
+      () => expect(pickerLabels()).toEqual(['Context Data', 'Look up customer', 'Receive order', 'Record fields']),
       { timeout: 30000 }
     );
+    await userEvent.click(await pickerRow('Record fields'));
+    await waitFor(() => expect(pickerLabels()).toEqual(['name', 'status', 'age']));
+    await userEvent.click(await pickerRow('status'));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^@status\s*$/)));
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+  },
+};
+
+/** The keyboard browses the picker an empty field opens: the arrows, Enter to open and pick, ← to go back. */
+export const TheKeyboardBrowsesThePicker: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicks in the empty field and uses only the keyboard: ↓ ↓ and Enter open Receive order, ← goes back to ' +
+          'the top, Enter opens it again, ↓ and Enter pick Event type (the second row), written as its chip.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await waitFor(() => expect(pickerLabels()).toContain('Receive order'), { timeout: 30000 });
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    await waitFor(() => expect(pickerLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name']));
+    await userEvent.keyboard('{ArrowLeft}');
+    await waitFor(() => expect(pickerLabels()).toContain('Receive order'));
+    await waitFor(() =>
+      expect(pickerFocused()).toBe('Context Data')
+    );
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}{ArrowDown}{Enter}');
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{?receive_order\.event_type\}?\s*$/)
+      )
+    );
+  },
+};
+
+/**
+ * The template button puts the template at the caret, not at the end of the text (qorus#646): its search finds a
+ * template at any depth by its name, and says where it is.
+ */
+export const TheTemplateButtonInsertsAtTheCaret: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `concat(` - closed as it is typed, the caret between the brackets - and opens the template button: ' +
+          'searching "city" finds City, in Receive order › Customer › Address. Picked, it is written at the caret - ' +
+          'concat($data:{receive_order.customer.address.city}) - and its chip says the start and the end of its ' +
+          'path: Receive order › … › Address › City.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await userEvent.type(editable, 'concat(');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat()'));
+    await userEvent.keyboard('{Escape}');
+    // a value can be written after `concat(`: the button can be pressed
+    const button = canvasElement.querySelector<HTMLButtonElement>('.smart-editor-template-button')!;
+    await waitFor(() => expect(button).not.toBeDisabled());
+    await userEvent.click(button);
+    const search = await pickerSearch();
+    await userEvent.click(search);
+    await userEvent.type(search, 'city');
+    const city = await pickerRow('City');
+    expect(city.textContent).toContain('in Receive order › Customer › Address');
+    await userEvent.click(city);
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('concat($data:{receive_order.customer.address.city})')
+    );
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › … › Address › City']));
+  },
+};
+
+/**
+ * A click on a chip opens the picker at the chip's group, its row the keyboard's, and the pick takes its place
+ * (qorus#646).
+ */
+export const AChipIsReplacedFromItsGroup: Story = {
+  args: { ...WithFsmContext.args, value: '$data:{receive_order.order_id} > 10', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicks the chip Receive order › Order ID: the picker opens at Receive order with Order ID chosen. ' +
+          'User name picked there takes its place: $data:{receive_order.user_name} > 10.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    const chip = await waitFor(() => {
+      const found = editable.querySelector<HTMLElement>('.reqore-tag');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    // a click on a chip is on its label, where the mouse is: the label takes the chip's click
+    await userEvent.click(labelOf(chip));
+    await waitFor(() =>
+      expect(pickerFocused()).toBe('Order ID')
+    );
+    await userEvent.click(await pickerRow('User name'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('$data:{receive_order.user_name} > 10')
+    );
+  },
+};
+
+/** The picker on a phone: as wide as the screen less its margins, nothing wider than the screen. */
+export const ThePickerOnAPhone: Story = {
+  args: { ...WithFsmContext.args },
+  tags: ['touch'],
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'On a phone, taps the empty field: the template picker fits the screen with a margin on each side, its ' +
+          'rows wrap, and nothing scrolls sideways.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await withTouchScreen(async (touch) => {
+      await touch.tap(editable);
+      await waitFor(() => expect(document.querySelector('.template-picker')).toBeTruthy());
+      if (touch.narrowed) {
+        await waitFor(() => {
+          const { left, right } = document.querySelector<HTMLElement>('.template-picker')!.getBoundingClientRect();
+          expect(left).toBeGreaterThanOrEqual(0);
+          expect(right).toBeLessThanOrEqual(window.innerWidth);
+          expect(right - left).toBeLessThanOrEqual(window.innerWidth - 32 + 1);
+          expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+        });
+      }
+      // a finger's row: as tall as a finger needs
+      expect((await pickerRow('Receive order')).getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    });
   },
 };
 
@@ -1916,3 +2143,177 @@ export const TwoEditorsOneConnection: Story = {
     await waitFor(() => expect(lsp.getOpenConnectionCount()).toBe(1), { timeout: 10000 });
   },
 };
+
+/**
+ * A bracket typed is closed, a closing one typed before it steps over it, Backspace between an empty pair takes
+ * both - as the Monaco editor the DPQL field had did (qorus#646, David: the editor that replaces it loses nothing).
+ */
+export const BracketsAndQuotesAreClosed: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `concat(`: the bracket is closed, `concat()`, the caret inside it. `"a` adds a closed string, ' +
+          '`concat("a")`; `"` and `)` typed before the same ones step over them. `(` then Backspace takes the empty ' +
+          'pair back whole.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await userEvent.type(editable, 'concat(');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat()'));
+    await userEvent.keyboard('"a');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("a")'));
+    await userEvent.keyboard('")');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("a")'));
+    await userEvent.keyboard(' + (');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("a") + ()'));
+    await userEvent.keyboard('{Backspace}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("a") + '));
+  },
+};
+
+/** The bracket matching the one at the caret is marked, past a chip and on another line. */
+export const TheMatchingBracketIsMarked: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `f((1), 2`: each bracket is closed as it is typed, and with the caret before the last `)`, it and ' +
+          'the `(` it closes are marked - not the brackets of (1).',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await userEvent.type(editable, 'f((1), 2');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('f((1), 2)'));
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => {
+      const marked = Array.from(editable.querySelectorAll('.smart-editor-bracket-match'));
+      expect(marked.map((each) => each.textContent)).toEqual(['(', ')']);
+    });
+  },
+};
+
+/** The search (Ctrl+F) finds every place a text is written, and its replace replaces one or all. */
+export const FindAndReplace: Story = {
+  args: { value: 'concat("old", " and ", "old")', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Ctrl+F opens the search over the text: "old" is found twice, "1 of 2", both marked. Its replace, with ' +
+          '"new", replaces all: concat("new", " and ", "new"). Escape closes it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}{Control>}f{/Control}');
+    const find = await waitFor(() => {
+      const input = canvasElement.querySelector<HTMLInputElement>('.smart-editor-find input');
+      expect(input).toBeTruthy();
+      return input!;
+    });
+    await userEvent.type(find, 'old');
+    await waitFor(() =>
+      expect(canvasElement.querySelector('.smart-editor-find-count')?.textContent).toContain('1 of 2')
+    );
+    expect(editable.querySelectorAll('.smart-editor-find-match, .smart-editor-find-current')).toHaveLength(2);
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-find-toggle-replace')!);
+    const replace = canvasElement.querySelector<HTMLInputElement>('.smart-editor-replace input')!;
+    await userEvent.type(replace, 'new');
+    await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-replace-all')!);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("new", " and ", "new")'));
+    await userEvent.type(find, '{Escape}');
+    await waitFor(() => expect(canvasElement.querySelector('.smart-editor-find')).toBeNull());
+  },
+};
+
+/** Alt+↓ moves a line down, Shift+Alt+↓ copies it; Shift+Alt+F formats the text as the server does. */
+export const LinesMovedAndCopied: Story = {
+  args: { value: '', onChange: fn(), lineNumbers: true },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types two lines, `1 > 0` and `2 > 0`, each numbered. On the second, Alt+↑ moves it above the first; ' +
+          'Shift+Alt+↓ copies it below itself.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await userEvent.type(editable, '1 > 0');
+    await userEvent.keyboard('{Escape}{Enter}');
+    await userEvent.type(editable, '2 > 0');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('1 > 0\n2 > 0'));
+    await userEvent.keyboard('{Escape}{Alt>}{ArrowUp}{/Alt}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('2 > 0\n1 > 0'));
+    await userEvent.keyboard('{Shift>}{Alt>}{ArrowDown}{/Alt}{/Shift}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('2 > 0\n2 > 0\n1 > 0'));
+  },
+};
+
+/** Shift+Alt+F formats the text as the language server formats it. */
+export const FormattedByTheServer: Story = {
+  args: { value: '1+2', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story: 'Shift+Alt+F in "1+2" formats it as the server does (textDocument/formatting): "1 + 2".',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}{Shift>}{Alt>}f{/Alt}{/Shift}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('1 + 2'));
+  },
+};
+
+/** Lines that do not wrap scroll inside the box; a box with a height scrolls its text within it. */
+export const LongLinesDoNotWrap: Story = {
+  args: {
+    value:
+      '@name == "a very long value that runs well past the width of the field, on and on, past any screen it is ' +
+      'drawn on, a desktop one included" || @status == "another long value, as long as the first one, or longer"\n' +
+      Array.from({ length: 12 }, (_, index) => `|| @age == ${index}`).join('\n'),
+    wordWrap: 'off',
+    maxHeight: '160px',
+    lineNumbers: true,
+    onChange: fn(),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Word wrap off, a 160px box and line numbers: the long first line scrolls sideways inside the box, the 13 ' +
+          'lines scroll up and down within it, each numbered; nothing is wider than the box.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await waitFor(() => {
+      expect(editable.scrollWidth).toBeGreaterThan(editable.clientWidth);
+      expect(editable.getBoundingClientRect().height).toBeLessThanOrEqual(161);
+      expect(editable.scrollHeight).toBeGreaterThan(editable.clientHeight);
+    });
+    const box = canvasElement.querySelector<HTMLElement>('.smart-editor-box')!;
+    expect(editable.getBoundingClientRect().right).toBeLessThanOrEqual(box.getBoundingClientRect().right + 1);
+  },
+};
+

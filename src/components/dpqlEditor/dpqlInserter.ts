@@ -9,6 +9,7 @@ import { ReactEditor } from 'slate-react';
 import { expandSnippet, lspPositionToOffset } from '../smartEditor/helpers';
 import { ISlateElement, TCompletionInserter } from '../smartEditor/types';
 import { getTagLabel, isTagCompletion } from './dpqlHelpers';
+import { chipExtendedBy } from '../smartEditor/templateCompletions';
 
 /** The word typed before the caret: a sigil (`@`, `$`) and what a name or a template goes on with after it. */
 const TYPED_WORD = /[@$]?[\w.:{}-]*$/;
@@ -103,11 +104,18 @@ export const dpqlCompletionInserter: TCompletionInserter = (item, editor, ctx) =
       Math.max(0, ctx.cursorOffset - lspPositionToOffset(ctx.plainText, item.textEdit.range.start))
     : (TYPED_WORD.exec(typed)?.[0].length ?? 0)
   );
-  if (charsToDelete > 0) {
+  /* A reference picked after a chip it goes on from (`$data:receive_order` and `.` typed after it) is the one
+     reference: it takes the chip's place as well as what was typed (`chipExtendedBy`). */
+  const extended = isTagCompletion(insertValue) ? chipExtendedBy(ed, typed, insertValue) : undefined;
+  const deleted = extended ? typed.length : charsToDelete;
+  if (deleted > 0) {
     const at = ed.selection.anchor;
     Transforms.delete(ed, {
-      at: { anchor: { path: at.path, offset: at.offset - charsToDelete }, focus: at },
+      at: { anchor: { path: at.path, offset: at.offset - deleted }, focus: at },
     });
+  }
+  if (extended) {
+    Transforms.removeNodes(ed, { at: extended });
   }
 
   if (isTagCompletion(insertValue)) {

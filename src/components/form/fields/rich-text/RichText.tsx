@@ -39,7 +39,7 @@ import {
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
-import { TEMPLATE_BROWSE_LIST_PROPS, useTemplateTags } from './useTemplateTags';
+import { TEMPLATE_BROWSE_LIST_PROPS } from './useTemplateTags';
 import { CompletionMenu } from '../../../smartEditor/CompletionMenu';
 import { defaultSlateConverter } from '../../../smartEditor/helpers';
 import { NO_VALUE_DESCRIPTION } from '../../../../helpers/noDescription';
@@ -49,11 +49,22 @@ import {
   unlistedReferenceChipProps,
   useTemplateReferenceNames,
 } from '../template/referenceNames';
-import { templateChipInserter, templateCompletionItems } from '../../../smartEditor/templateCompletions';
+import {
+  browseAllTemplatesItem,
+  templateChipInserter,
+  templateSearchItems,
+} from '../../../smartEditor/templateCompletions';
+import { templateNodeFor, templateTree } from '../../../../helpers/templateTree';
+import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { useLspAutocomplete } from '../../../smartEditor/useLspAutocomplete';
 
 /** What opens the field's template list as it is typed: a template begins with `$`. */
 const TEMPLATE_TRIGGERS = new Set(['$']);
+/**
+ * A reference being typed at the end of a text: a `$` and the template after it (`$data:receive_order.`), or an
+ * `@` and the record field after it (`@po`) - an `@` that starts a word, not one in an email address.
+ */
+const REFERENCE_BEING_TYPED = /(?:^|[^\p{L}\p{N}_.])([$@][\p{L}\p{M}\p{N}_.:{}[\]*-]*)$/u;
 /** Distinguishes the completion lists of the fields on a page, for each field's `aria-controls`. */
 let textCompletionMenuCounter = 0;
 
@@ -440,6 +451,110 @@ export const RichTextFormField = memo(({
     }
   }, [localValue]);
 
+  // Read-only: ReqoreRichTextEditor makes the Slate surface non-editable (and
+  // disables tag click/remove) when `readOnly` is set. Honour the field-level
+  // flags — the IDE Options model passes `readonly`, the compact form passes
+  // `readOnly` + `disabled` — so a read-only form renders the formatted content
+  // rather than an editable box.
+  const readOnly = !!(
+    (rest as { readOnly?: boolean }).readOnly ||
+    (rest as { readonly?: boolean }).readonly ||
+    (rest as { disabled?: boolean }).disabled
+  );
+
+  /* The field's templates, in one picker (qorus#646, David's decisions): browsed as they nest - a click, a tap or
+     Tab into the text opens it at the caret, a click on a chip opens it at the chip's group to replace it - and
+     reached by what is typed after a `$`, in the rows the same popover shows then (a group's row opens the picker
+     at its members). */
+  const templateRoots = useMemo(
+    () => (allowTemplates !== false && !readOnly ? templateTree(templates) : []),
+    [allowTemplates, readOnly, templates]
+  );
+  const completionMenuId = useMemo(() => `completion-menu-text-${++textCompletionMenuCounter}`, []);
+  // a template's type named in its row by the catalogue the surrounding form has, never its code
+  const typeLabel = useTypeLabel();
+  const offerTemplates = useCallback(
+    async (plainText: string, offset: number, typedInText?: string) => {
+      // what is typed in the text the caret is in: a chip before it is a value, not a reference being typed
+      const typed = REFERENCE_BEING_TYPED.exec(typedInText ?? plainText.slice(0, offset))?.[1];
+      if (!typed) return [];
+      return [...templateSearchItems(templateRoots, typed, typeLabel), browseAllTemplatesItem()];
+    },
+    [templateRoots, typeLabel]
+  );
+  const autocomplete = useLspAutocomplete({
+    getCompletions: offerTemplates,
+    isReady: !readOnly && templateRoots.length > 0,
+    triggerCharacters: TEMPLATE_TRIGGERS,
+    converter: defaultSlateConverter,
+    inserter: templateChipInserter,
+  });
+  const { openBrowse } = autocomplete;
+  const coarse = useCoarsePointer();
+  const autocompleteRef = useRef(autocomplete);
+  autocompleteRef.current = autocomplete;
+
+  /* A click, a tap or Tab into the text opens the picker at the caret the page put there: not on a chip, which is
+     a control of its own, nor outside the text. */
+  const browseAtPageCaret = useCallback(
+    (target: EventTarget | null) => {
+      const editor = editorRef.current;
+      if (!templateRoots.length || readOnly || !editor) return;
+      try {
+        const root = ReactEditor.toDOMNode(editor, editor);
+        if (!(target instanceof Node) || !root.contains(target)) return;
+        if (target instanceof Element && target.closest('[data-slate-void="true"]')) return;
+        const page = ReactEditor.getWindow(editor).getSelection();
+        if (!page || page.rangeCount === 0 || !page.isCollapsed) return;
+        const caret = ReactEditor.toSlateRange(editor, page, { exactMatch: false, suppressThrow: true });
+        if (!caret) return;
+        const box = page.getRangeAt(0).getBoundingClientRect();
+        // a caret in an empty line has no box of its own: the text's
+        const at = box.width || box.height ? box : root.getBoundingClientRect();
+        // in an empty text the arrows have nowhere else to go: they move through the picker
+        const empty = !defaultSlateConverter.fromSlateNodes(editor.children as any).trim();
+        openBrowse(editor as any, { rect: { left: at.left, bottom: at.bottom }, caret: caret.anchor, arrows: empty });
+      } catch {
+        // the editor is not drawn, or the page's caret is not in it: nothing opens
+      }
+    },
+    [templateRoots, readOnly, openBrowse]
+  );
+
+  /* A click on a template chip the catalogue lists opens the picker at the chip's group, its row the keyboard's,
+     and the pick takes its place; a second click puts it away. */
+  const templateChipClick = useCallback(
+    (tag: { value?: unknown }) => {
+      const listed =
+        templateRoots.length && typeof tag.value === 'string' ? templateNodeFor(templateRoots, tag.value) : undefined;
+      if (!listed) return {};
+      return {
+        /* A finger cannot hover: its tap opens the picker, whose row for the chip says what it is - its name, its
+           type and its description - so no card opens over it as well. */
+        ...(coarse ? { tooltip: undefined } : {}),
+        onClick: (event: React.MouseEvent<HTMLElement>) => {
+          const editor = editorRef.current;
+          const current = autocompleteRef.current;
+          if (!editor) return;
+          if (current.browse && current.isReplaceMode) {
+            current.close();
+            return;
+          }
+          const path = pathOfNode(editor, tag as any);
+          if (!path) return;
+          const rect = event.currentTarget.getBoundingClientRect();
+          current.openBrowse(editor as any, {
+            rect: { left: rect.left, bottom: rect.bottom },
+            replacementPath: path as number[],
+            levelId: listed.trailIds[listed.trailIds.length - 1],
+            selectedValue: tag.value as string,
+          });
+        },
+      };
+    },
+    [templateRoots, coarse]
+  );
+
   const handleGetTagProps = useCallback(
     (tag: any): IReqoreTagProps => {
       const tagValue = tag.value?.toString();
@@ -491,16 +606,22 @@ export const RichTextFormField = memo(({
             ...REFERENCE_CHIP_PROPS,
             ...getTemplateTagStyle(metadata),
             ...(unlisted ? { intent: unlisted.intent, className: unlisted.className } : {}),
+            // a click opens the picker at its group, to replace it
+            ...templateChipClick(tag),
           };
         }
 
       if (tagValue.startsWith('$')) {
+        // named as every view names it: where it is, then its name ("Receive order › Event type")
+        const listed = describeTemplateReference(naming, tagValue).item;
         return {
           icon: 'ExchangeDollarLine',
           leftIconProps: {
             image: tag.metadata?.image,
           },
-          labelKey: tag.metadata?.displayName,
+          ...(listed ?
+            { label: templateChipLabel(naming, tagValue) }
+          : { labelKey: tag.metadata?.displayName }),
           /* Hovering a chip says what the value IS, not how it is spelled.
              Reqore otherwise falls back to the tag's own value, so a chip
              reading "result" reported `$.result` on hover — the reference the
@@ -510,13 +631,16 @@ export const RichTextFormField = memo(({
           /* Drawn, as the picker row draws the same string (`descriptionTooltip`):
              left raw, it printed the punctuation the row does not. */
             // what the value is, or why nothing says so (qorus#646)
-            tooltip: descriptionTooltip(
-              descriptionByValue[tagValue] || NO_VALUE_DESCRIPTION,
-              descriptions
-            ),
+            tooltip:
+              listed ?
+                // its whole path heads the card, as every view's hover of a listed template says it
+                templateTooltip(naming, tagValue, descriptions, getTypeSentenceForm)
+              : descriptionTooltip(descriptionByValue[tagValue] || NO_VALUE_DESCRIPTION, descriptions),
             // The same chip the read summary and the read-only tag draw.
             ...REFERENCE_CHIP_PROPS,
             ...getTemplateTagStyle(tag.metadata),
+            // a click opens the picker at its group, to replace it
+            ...templateChipClick(tag),
           };
         }
 
@@ -531,6 +655,7 @@ export const RichTextFormField = memo(({
         referenceNames,
         chipBehavior.click,
         openChoiceChip,
+        templateChipClick,
       ]
     );
 
@@ -577,38 +702,6 @@ export const RichTextFormField = memo(({
     ]
   );
 
-  // Read-only: ReqoreRichTextEditor makes the Slate surface non-editable (and
-  // disables tag click/remove) when `readOnly` is set. Honour the field-level
-  // flags — the IDE Options model passes `readonly`, the compact form passes
-  // `readOnly` + `disabled` — so a read-only form renders the formatted content
-  // rather than an editable box.
-  const readOnly = !!(
-    (rest as { readOnly?: boolean }).readOnly ||
-    (rest as { readonly?: boolean }).readonly ||
-    (rest as { disabled?: boolean }).disabled
-  );
-
-  /* The field's templates, two ways (qorus#646): browsed, in the hierarchical list a click, a tap or the
-     keyboard coming in opens (`tags`, the editor's own - see `useTemplateTags`); and found by what is typed
-     after a `$`, in the completion list typing opens everywhere (`CompletionMenu`), as an expression's Text
-     view does. */
-  const tags = useTemplateTags(templates, allowTemplates);
-  const completionMenuId = useMemo(() => `completion-menu-text-${++textCompletionMenuCounter}`, []);
-  // a template's type named in its row by the catalogue the surrounding form has, never its code
-  const typeLabel = useTypeLabel();
-  const templateItems = useMemo(
-    () => (allowTemplates ? templateCompletionItems(templates, typeLabel) : []),
-    [allowTemplates, templates, typeLabel]
-  );
-  const offerTemplates = useCallback(async () => templateItems, [templateItems]);
-  const autocomplete = useLspAutocomplete({
-    getCompletions: offerTemplates,
-    isReady: !readOnly && templateItems.length > 0,
-    triggerCharacters: TEMPLATE_TRIGGERS,
-    converter: defaultSlateConverter,
-    inserter: templateChipInserter,
-  });
-
   const formattedValue: IReqoreRichTextEditorProps['value'] =
     typeof localValue !== 'object' ? [{ type: 'paragraph', children: [{ text: String(localValue ?? '') }] }]
     : localValue === null ? undefined
@@ -625,6 +718,12 @@ export const RichTextFormField = memo(({
     <>
     <ReqoreRichTextEditor
       ref={editorRef}
+      // a click, a tap or Tab into the text opens the template picker at the caret (`browseAtPageCaret`)
+      onClick={(event: React.MouseEvent) => browseAtPageCaret(event.target)}
+      // Tab's key comes up in the editor it moved the focus into
+      onKeyUp={(event: React.KeyboardEvent) => {
+        if (event.key === 'Tab') browseAtPageCaret(event.target);
+      }}
       value={formattedValue}
       onChange={(val: any) => {
         handleChange(val);
@@ -638,14 +737,13 @@ export const RichTextFormField = memo(({
          list, which two call sites had each patched with `omit(rest, 'tags')`.
          The three props below already fold in whatever `rest` carried for
          them. */
-      {...editorProps}
+      {...(editorProps as Omit<typeof editorProps, 'tags'>)}
       tagsListProps={{
         useTargetWidth: true,
         ...TEMPLATE_BROWSE_LIST_PROPS,
         ...(rest.tagsListProps || {}),
       }}
       getTagProps={handleGetTagProps}
-      tags={tags}
       // what is typed after a `$` is completed in the list at the caret: a screen reader is told it completes
       aria-autocomplete='list'
       aria-expanded={autocomplete.isOpen}
@@ -664,6 +762,7 @@ export const RichTextFormField = memo(({
     <CompletionMenu
       autocomplete={autocomplete}
       id={completionMenuId}
+      templateRoots={templateRoots}
       onSelect={(item) => editorRef.current && autocomplete.onItemSelect(item, editorRef.current as any)}
     />
     </>

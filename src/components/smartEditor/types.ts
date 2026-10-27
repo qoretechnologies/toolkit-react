@@ -111,6 +111,9 @@ import { ILspCompletionItem, ILspDiagnostic } from '../../utils/lspClient.types'
 
 export type { ILspCompletionItem };
 
+import type { ITemplateNode } from '../../helpers/templateTree';
+import type { IEditingLanguage } from './editingAids';
+
 export interface ISmartEditorProps {
   /**
    * LSP session. Created by the consumer via `useLspSession({ languageId,
@@ -271,6 +274,38 @@ export interface ISmartEditorProps {
    * wrote itself (an unfinished expression's placeholders), say.
    */
   presentDiagnostics?: (diagnostics: ILspDiagnostic[], plainText: string) => ILspDiagnostic[];
+
+  /**
+   * The field's templates and fields (`templateTree`): what the template picker browses (qorus#646, David's
+   * decisions) - a click in the empty text, the template button and a click on a chip open it, and a row of the
+   * completion list that is a group opens it at its members.
+   */
+  templateRoots?: ITemplateNode[];
+
+  /**
+   * A button beside the text that opens the template picker for a pick at the caret: shown where the editor has
+   * templates and can be edited. `insertableAt` says whether a value can be written after the text before the
+   * caret; where it cannot, the button says why and cannot be pressed.
+   */
+  templateButton?: { insertableAt?: (textBefore: string) => boolean; notInsertable?: string };
+
+  /**
+   * How the editor's language writes its brackets and strings: pairs are closed as they are typed, a selection
+   * typed over with one is wrapped, the bracket matching the one at the caret is marked (`useEditingAids`).
+   */
+  editingLanguage?: IEditingLanguage;
+
+  /** Shift+Alt+F: the document formatted (the host asks its language server). */
+  formatDocument?: () => void;
+
+  /** `off`: a line does not wrap; the box scrolls sideways inside its border. Default `on`. */
+  wordWrap?: 'on' | 'off';
+
+  /** The tallest the text's box grows: the text scrolls within it past that. Unlimited when not given. */
+  maxHeight?: string;
+
+  /** Each line's number before it. Default off. */
+  lineNumbers?: boolean;
 }
 
 /** Where the completion list is asked for: the text, the caret's offset in it, and what the server offered. */
@@ -279,4 +314,9 @@ export interface ICompletionContext {
   offset: number;
   /** What the server offered at the caret; undefined where no server can be asked. */
   serverItems?: ILspCompletionItem[];
+  /**
+   * What is typed before the caret in the text it is in, where the editor can say: never a chip's text, which is
+   * in `plainText` before the caret but is a value already.
+   */
+  typedInText?: string;
 }

@@ -2,66 +2,76 @@
 import { ReqoreDropdown } from '@qoretechnologies/reqore';
 import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { useMemo } from 'react';
-import {
-  renderTemplateItemDescriptions,
-  templateItemsToShow,
-} from '../../../../helpers/templateItems';
-import { useMarkdownRenderer } from '../../../Description/markdownRendererContext';
-import { styleTemplateItems } from '../../../smartEditor/completionStyle';
-import { useTypeLabel } from '../../typeSentenceForm';
+import { useCallback, useMemo, useRef } from 'react';
+import { ITemplateNode, templateTree } from '../../../../helpers/templateTree';
 import { TEMPLATE_BROWSE_LIST_PROPS } from '../rich-text/useTemplateTags';
+import { TemplatePicker } from './TemplatePicker';
+
+let templateBrowserCounter = 0;
 
 export interface ITemplateBrowserProps extends Omit<IReqoreDropdownProps, 'items'> {
   /** The catalogue browsed: its groups, records and members, as they nest. */
   templates?: IReqoreFormTemplates;
   /**
-   * Whether the list takes the keyboard for its filter when it opens - from a button, where typing has nowhere
-   * else to go. Left off where the list opens from a control that is typed into (an input), which keeps it.
+   * Whether the picker's search box takes the keyboard when it opens - from a button, where typing has nowhere
+   * else to go. Left off where it opens from a control that is typed into (an input), which keeps it: the arrows,
+   * Enter and Escape are heard from there.
    */
   focusFilter?: boolean;
 }
 
 /**
- * The list a field's templates are browsed in, opened from a control - a picker button, a number's input, a
- * template-only value (qorus#646). Kept apart from the completion list typing opens (`CompletionList`) by
- * David's decision: a large catalogue needs its hierarchy - groups to drill into, a record's "+" to take it
- * whole, an example's "?" - which a completion list has no place for. Drawn as the completion list is (its
- * color, its rows' kinds and font: `completionStyle`), with the same keys: the arrows move, Enter takes a row,
- * → opens a group and ← leaves it, Escape puts the list away and nothing else. Every Reqore dropdown that lists
- * templates in this package is this one (`oneCompletionList.test`).
+ * The control a field's templates are chosen from - a picker button, a number's input, a template-only value
+ * (qorus#646): the template picker (`TemplatePicker`), the same one an editor opens at its caret, in the control's
+ * popover. A catalogue is browsed as it nests, searched at any depth, and a record taken whole or opened. The pick
+ * is handed on as the catalogue row it is (`onItemSelect`), a template of any keys with the key written as its
+ * value.
  */
 export const TemplateBrowser = ({
   templates,
   focusFilter,
-  inputProps,
+  onItemSelect,
   ...rest
 }: ITemplateBrowserProps & Record<string, unknown>) => {
-  const renderMarkdown = useMarkdownRenderer();
-  // a template's type named by the catalogue the surrounding form has, never its code
-  const typeLabel = useTypeLabel();
-  /* Drawn here, at the hand-off to Reqore: a description is markdown, and the list is a `JSON.stringify` memo
-     key further up (see `renderTemplateItemDescriptions`). */
-  const items = useMemo(
-    () =>
-      styleTemplateItems(
-        renderTemplateItemDescriptions(templateItemsToShow(templates?.items), renderMarkdown),
-        typeLabel
-      ),
-    [templates, renderMarkdown, typeLabel]
+  const roots = useMemo(() => templateTree(templates), [templates]);
+  const id = useMemo(() => `template-browser-${++templateBrowserCounter}`, []);
+  // the popover's own controls: a pick puts it away
+  const popover = useRef<{ close?: () => void } | null>(null);
+  const handOn = useCallback(
+    (node: ITemplateNode, written?: string) => {
+      const row = (node.row ?? { label: node.label, value: node.value }) as Record<string, unknown>;
+      onItemSelect?.({ ...row, value: written ?? node.value } as any, undefined as any);
+      popover.current?.close?.();
+    },
+    [onItemSelect]
   );
   return (
     <ReqoreDropdown
-      filterable
-      keyboardNavigation
       {...TEMPLATE_BROWSE_LIST_PROPS}
       {...(rest as IReqoreDropdownProps)}
-      inputProps={
-        focusFilter ?
-          { focusRules: { type: 'auto' }, ...(inputProps as object) }
-        : (inputProps as any)
+      // the picker draws its own rows and keys: the dropdown is its popover
+      filterable={false}
+      keyboardNavigation={false}
+      items={[]}
+      passPopoverData={(controls: { close?: () => void }) => {
+        popover.current = controls;
+        (rest as IReqoreDropdownProps).passPopoverData?.(controls as any);
+      }}
+      customElements={
+        roots.length ?
+          [
+            <TemplatePicker
+              key={id}
+              id={id}
+              roots={roots}
+              focusFilter={focusFilter}
+              keysFromPage={!focusFilter}
+              onPick={handOn}
+              onClose={() => popover.current?.close?.()}
+            />,
+          ]
+        : undefined
       }
-      items={items}
     />
   );
 };

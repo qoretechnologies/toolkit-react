@@ -19,6 +19,7 @@ import { NO_VALUE_DESCRIPTION } from './noDescription';
 import { AllowedValuesHelp } from '../components/Description/AllowedValuesHelp';
 import { areQorusTypesCompatible } from './expressions';
 import { templateBaseType, templateType } from './templateType';
+import { catalogueRowTrail, chipPathLabel } from './templateTree';
 
 export { templateBaseType, templateType } from './templateType';
 import {
@@ -299,9 +300,20 @@ export const isBracedTemplateToken = (value?: unknown): value is string =>
  * side — a picked value must keep storing exactly what the catalogue says.
  * Consuming it is therefore purely a display concern.
  */
+/**
+ * Whether two keyed references are one, braces or not: `$data:{a.b}` (how a catalogue spells it) is
+ * `$data:a.b` (how the language server completes it, and how it may be typed) - qorus#646.
+ */
+const sameKeyedReference = (a: unknown, b: string): boolean =>
+  typeof a === 'string' &&
+  /^\$[\w-]+:/.test(a) &&
+  /^\$[\w-]+:/.test(b) &&
+  a.replace(/[{}]/g, '') === b.replace(/[{}]/g, '');
+
 const matchesTemplateValue = (item: TReqoreDropdownItem, value: string): boolean =>
   item.value === value ||
-  !!(item.metadata as { aliasValues?: string[] } | undefined)?.aliasValues?.includes(value);
+  !!(item.metadata as { aliasValues?: string[] } | undefined)?.aliasValues?.includes(value) ||
+  sameKeyedReference(item.value, value);
 
 /** Splits `$data:{a.b.c}` into its key (`$data`) and inner path (`a.b.c`). */
 const TEMPLATE_TOKEN_PATH = /^(\$[A-Za-z_][\w-]*):\{(.*)\}$/;
@@ -446,25 +458,29 @@ const composeExtendedLabel = (label: string, remainder: string): string =>
 export const resolveTemplateLabel = (
   templates: IReqoreFormTemplates | undefined,
   value: string
-): { label: string; item?: TReqoreDropdownItem } => {
+): { label: string; item?: TReqoreDropdownItem; path?: string } => {
   if (!templates || !value) {
     return { label: value };
   }
 
   const exact = findTemplate(templates, value);
-  if (exact) {
-    return { label: (exact.label as string) || value, item: exact };
+  const extended = exact ? undefined : findTemplateByPath(templates, value);
+  const item = exact ?? extended?.item;
+  if (!item) {
+    return { label: value };
   }
-
-  const extended = findTemplateByPath(templates, value);
-  if (extended) {
-    return {
-      label: composeExtendedLabel(extended.item.label as string, extended.remainder),
-      item: extended.item,
-    };
-  }
-
-  return { label: value };
+  const own = (item.label as string) || value;
+  const name = extended ? composeExtendedLabel(own, extended.remainder) : own;
+  /* Named with where it is (qorus#646, David's decision): the data it is part of before its name - a Qog state, a
+     record - "Receive order › … › Address › City", up to three steps whole; its whole path, with the groups that only
+     gather templates (Context Data), is its hover's title. Two states both have an "ID". */
+  const trail = catalogueRowTrail(templates, item);
+  const steps = name.split(' › ');
+  return {
+    label: chipPathLabel([...trail.data, ...steps.slice(0, -1)], steps[steps.length - 1]),
+    item,
+    path: [...trail.all, ...steps].join(' › '),
+  };
 };
 
 /**
@@ -496,7 +512,7 @@ export const getTemplateReferencePath = (value: string): string =>
 export const describeTemplateReference = (
   templates: IReqoreFormTemplates | undefined,
   value: string
-): { label: string; item?: TReqoreDropdownItem } => {
+): { label: string; item?: TReqoreDropdownItem; path?: string } => {
   const resolved = resolveTemplateLabel(templates, value);
   return resolved.item ? resolved : { label: getTemplateReferencePath(value) };
 };
@@ -534,8 +550,12 @@ export const templateTooltip = (
   /** What the host says of a reference it knows and does not list (`ITemplateReferenceNames`). */
   host?: { label?: string; description?: string; noDescription?: string }
 ): TReqoreTooltipProp => {
-  const { label, item } = describeTemplateReference(templates, value);
-  const { description } = (item ?? {}) as { description?: unknown };
+  const { label, item, path } = describeTemplateReference(templates, value);
+  /* what it is, in its own words where its row has them (`metadata.description`), else what its row says under its
+     name */
+  const description =
+    (item?.metadata as { description?: unknown } | undefined)?.description ??
+    (item as { description?: unknown } | undefined)?.description;
   // the template's type (`templateType`), by its base type where the catalogue lists it under no name
   const templateTypeName = templateType(item);
   const type = templateTypeName ? typeSentenceForm(templateTypeName, templateBaseType(item)) : undefined;
@@ -546,7 +566,8 @@ export const templateTooltip = (
   );
   const body = describedWithType(given ?? (host?.noDescription || NO_VALUE_DESCRIPTION), type);
   // the catalogue's name where it lists the reference, else the host's
-  const title = (item ? label : host?.label) || label || value;
+  // its whole path where the catalogue lists it: the chip says only the start and the end of a long one
+  const title = (item ? (path ?? label) : host?.label) || label || value;
   const allowed = templateAllowedValues(item);
   if (!allowed.length) {
     return descriptionTooltip(body, descriptions, title) ?? value;
@@ -680,7 +701,12 @@ export const filterTemplatesByType = (
 // (FSM validity) parameter is dropped — without it every group is valid.
 
 interface ITemplateItemPayload {
+  /** Its key, as Qorus names it (`customer.address.city` for a record's field). */
+  name?: string;
   display_name?: string;
+  /** What it is, in a line, and in full (markdown): what a list of templates says of it. */
+  short_desc?: string;
+  desc?: string;
   value?: string;
   example_value?: unknown;
   type?: string;
@@ -737,6 +763,7 @@ export const buildTemplates = (
         items: childItems,
         data_role: itemDataRole,
         allowed_values,
+        short_desc: itemShortDesc,
       }): TReqoreDropdownItem => {
         const serializedExample =
           example_value !== undefined ? JSON.stringify(example_value) : undefined;
@@ -767,6 +794,8 @@ export const buildTemplates = (
             app,
             action,
             dataRole: itemDataRole || dataRole,
+            // what it is, as Qorus says it: a list says it of the template, its example aside ("no description" is none)
+            ...(itemShortDesc && itemShortDesc !== 'no description' ? { description: itemShortDesc } : {}),
             // the template's type, a typed member: the badge is a list's to name (`templateType`)
             ...(type ? { type } : {}),
             ...(base_type ? { baseType: base_type } : {}),

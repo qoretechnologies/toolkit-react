@@ -13,7 +13,6 @@
 // a picker beside the text browses them as their catalogue nests them
 // (`TemplateBrowser`), as a Qog field's are.
 
-import { ReqoreControlGroup } from '@qoretechnologies/reqore';
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { SmartEditor } from '../smartEditor/SmartEditor';
 import { ISlateConverter, ISlateElement } from '../smartEditor/types';
@@ -24,14 +23,13 @@ import {
   dpqlCompletionsWith,
   dpqlEmptyCompletionMessage,
   dpqlExpectsValue,
-  dpqlTextWithTemplateAtTheEnd,
   NO_VALUE_AT_THE_END,
   presentDpqlDiagnostics,
 } from './dpqlCompletions';
-import { TemplateBrowser } from '../form/fields/template/TemplateBrowser';
 import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
-import { useTemplateTags } from '../form/fields/rich-text/useTemplateTags';
+import { templateTree } from '../../helpers/templateTree';
+import { DPQL_EDITING_LANGUAGE } from '../smartEditor/editingAids';
 import { useDescriptionTooltips } from '../../helpers/descriptionTooltip';
 import { useTypeLabel, useTypeSentenceForm } from '../form/typeSentenceForm';
 
@@ -56,6 +54,9 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       height,
       size,
       readOnly = false,
+      wordWrap,
+      maxHeight,
+      lineNumbers,
       showDiagnostics = true,
       enableHover = true,
       templateTagsUseIntent = true,
@@ -190,14 +191,18 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       if (ready) onReady?.();
     }, [ready]);
 
-    /* The field's templates: listed in the one completion list where a value can be written (`dpqlCompletionsWith`)
-       - or, where the editor does not complete on a click, in the list its text is browsed in (`tags`). */
-    const templateTags = useTemplateTags(templates, !readOnly && !completeOnClick);
+    /* What the field can refer to (qorus#646, David's decisions): its templates as their catalogue nests them, and
+       the record's fields as a group of their own - one tree, browsed in the template picker (a click in the empty
+       text, the template button, a chip, a group's row) and reached by what is typed (`dpqlCompletionsWith`). */
+    const templateRoots = useMemo(
+      () => templateTree(templates, { fields: dpql.fieldMeta }),
+      [templates, dpql.fieldMeta]
+    );
     // a template's type named in its row by the catalogue the surrounding form has, never its code
     const typeLabel = useTypeLabel();
     const completionsWith = useMemo(
-      () => dpqlCompletionsWith(templates, typeLabel),
-      [templates, typeLabel]
+      () => dpqlCompletionsWith(templateRoots, typeLabel),
+      [templateRoots, typeLabel]
     );
 
     const descriptions = useDescriptionTooltips();
@@ -230,21 +235,27 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       [dpql, value, onChange]
     );
 
-    /* The picker beside the text: the field's templates, browsed as their catalogue nests them, as a Qog field's
-       are. Only where there are templates and the text can be edited. */
-    const browsable = browseTemplates && !readOnly && !!templates?.items?.length;
-    const valueCanEnd = dpqlExpectsValue(value ?? '');
-    const insertTemplate = useCallback(
-      (item: { value?: unknown }) => {
-        const next =
-          typeof item?.value === 'string' ?
-            dpqlTextWithTemplateAtTheEnd(value ?? '', item.value)
-          : undefined;
-        if (next !== undefined) {
-          onChange(next);
-        }
-      },
-      [value, onChange]
+    // Shift+Alt+F: the text as the language server formats it
+    const formatDocument = useCallback(() => {
+      dpql.session
+        .format()
+        .then((formatted) => {
+          if (formatted !== null && formatted !== value) {
+            onChange(formatted);
+          }
+        })
+        .catch(() => {
+          // the server could not format it: the text stays as it is
+        });
+    }, [dpql.session, value, onChange]);
+
+    // the button beside the text that opens the picker for a pick at the caret, where a value can be written there
+    const templateButton = useMemo(
+      () =>
+        browseTemplates && !readOnly && templates?.items?.length ?
+          { insertableAt: dpqlExpectsValue, notInsertable: NO_VALUE_AT_THE_END }
+        : undefined,
+      [browseTemplates, readOnly, templates]
     );
 
     const editor = (
@@ -262,8 +273,14 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         showDiagnostics={showDiagnostics}
         enableHover={enableHover}
         onBlur={onBlur}
-        // the templates it labels chips with are the ones it lists when clicked or tabbed into (qorus#646)
-        tags={templateTags}
+        templateRoots={readOnly ? undefined : templateRoots}
+        // DPQL's brackets and strings, as a code editor closes, wraps and matches them
+        editingLanguage={DPQL_EDITING_LANGUAGE}
+        formatDocument={formatDocument}
+        wordWrap={wordWrap}
+        maxHeight={maxHeight}
+        lineNumbers={lineNumbers}
+        templateButton={templateButton}
         completeOnClick={completeOnClick}
         completionsWith={completionsWith}
         // "No record fields here" is the server's to say: with none, there may be a record it would know
@@ -274,24 +291,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       />
     );
 
-    return browsable ?
-        <ReqoreControlGroup gapSize='small' fluid verticalAlign='flex-start'>
-          {editor}
-          <TemplateBrowser
-            className='dpql-template-browser'
-            icon='MoneyDollarCircleLine'
-            aria-label='Insert a template'
-            disabled={!valueCanEnd}
-            tooltip={valueCanEnd ? 'Insert a template' : NO_VALUE_AT_THE_END}
-            // the size of the text it inserts into, so the two are as tall as each other
-            size={size ?? 'normal'}
-            fixed
-            templates={templates}
-            focusFilter
-            onItemSelect={insertTemplate}
-          />
-        </ReqoreControlGroup>
-      : editor;
+    return editor;
   }
 );
 

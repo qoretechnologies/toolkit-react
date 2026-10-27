@@ -15,6 +15,8 @@ import {
   UNFINISHED_PARTS_MESSAGE,
   dpqlTextWithTemplateAtTheEnd,
 } from '../../src/components/dpqlEditor/dpqlCompletions';
+import { BROWSE_ALL_TEMPLATES } from '../../src/components/smartEditor/templateCompletions';
+import { templateTree } from '../../src/helpers/templateTree';
 import { ILspCompletionItem, ILspDiagnostic } from '../../src/utils/lspClient.types';
 
 const TEMPLATES = {
@@ -43,10 +45,13 @@ const AFTER_A_VALUE: ILspCompletionItem[] = [
   { label: '||', kind: 14 },
 ];
 
-const listed = (items: ILspCompletionItem[]) => items.map((item) => item.insertText ?? item.label);
+/** What a list offers, as written: the row that opens the picker by its label. */
+const listed = (items: ILspCompletionItem[]) =>
+  items.map((item) => (item.data?.browseAll ? BROWSE_ALL_TEMPLATES : (item.insertText ?? item.label)));
+const ROOTS = templateTree(TEMPLATES);
 const complete = (text: string, serverItems?: ILspCompletionItem[]) => {
   const caret = text.indexOf('|');
-  return dpqlCompletionsWith(TEMPLATES)({
+  return dpqlCompletionsWith(ROOTS)({
     plainText: text.replace('|', ''),
     offset: caret,
     serverItems,
@@ -54,12 +59,14 @@ const complete = (text: string, serverItems?: ILspCompletionItem[]) => {
 };
 
 describe('what the one completion list offers', () => {
-  it("offers the field's templates where the server offers values, each field once", () => {
+  /* qorus#646, David's review: the list offered every template under whatever was typed, and read as if all of
+     them fitted. Where nothing is typed, the templates are one row that opens the picker. */
+  it("offers the server's answer and a row that opens the picker where a value can go and nothing is typed", () => {
     expect(listed(complete('$record:{pos} + |', AFTER_AN_OPERATOR))).toEqual([
-      '$record:{pos}',
-      '$record:{bezeichnung}',
-      '$config:rate',
+      'pos',
+      'bezeichnung',
       '!',
+      BROWSE_ALL_TEMPLATES,
     ]);
   });
 
@@ -79,18 +86,15 @@ describe('what the one completion list offers', () => {
       '$record:{pos}',
       '$record:{bezeichnung}',
       '$config:rate',
+      BROWSE_ALL_TEMPLATES,
     ]);
-    expect(
-      dpqlCompletionsWith(undefined)({ plainText: '1 + $', offset: 5, serverItems: contexts })
-    ).toEqual([]);
+    expect(dpqlCompletionsWith([])({ plainText: '1 + $', offset: 5, serverItems: contexts })).toEqual([]);
     // what the server offers after a context is a whole value: kept
     const after: ILspCompletionItem[] = [
       { label: '$timestamp:now', insertText: '$timestamp:now', kind: 6 },
     ];
     expect(
-      listed(
-        dpqlCompletionsWith(undefined)({ plainText: '$timestamp:', offset: 11, serverItems: after })
-      )
+      listed(dpqlCompletionsWith([])({ plainText: '$timestamp:', offset: 11, serverItems: after }))
     ).toEqual(['$timestamp:now']);
   });
 
@@ -99,39 +103,43 @@ describe('what the one completion list offers', () => {
     expect(complete('12|', [])).toEqual([]);
   });
 
-  it('offers the templates in an empty text, which the server answers nothing for', () => {
-    expect(listed(complete('|', []))).toEqual([
-      '$record:{pos}',
-      '$record:{bezeichnung}',
-      '$config:rate',
-    ]);
+  it('offers the row that opens the picker in an empty text, which the server answers nothing for', () => {
+    expect(listed(complete('|', []))).toEqual([BROWSE_ALL_TEMPLATES]);
   });
 
-  it('offers them where the text says a value can go when there is no server, and nothing where not', () => {
-    expect(listed(complete('1 + |'))).toHaveLength(3);
-    expect(listed(complete('concat(|'))).toHaveLength(3);
+  it('offers it where the text says a value can go when there is no server, and nothing where not', () => {
+    expect(listed(complete('1 + |'))).toEqual([BROWSE_ALL_TEMPLATES]);
+    expect(listed(complete('concat(|'))).toEqual([BROWSE_ALL_TEMPLATES]);
     expect(complete('1 + 2|')).toEqual([]);
   });
 
-  it('offers only the fields of the record after an @', () => {
-    expect(listed(complete('1 + @|', [{ label: 'pos', kind: 5 }]))).toEqual([
-      '$record:{pos}',
+  it("offers the record's fields after an @, each once, as the server lists it where it does", () => {
+    const roots = templateTree(TEMPLATES, { fields: { pos: { type: { name: 'int' } }, qty: { type: 'int' } } });
+    const server: ILspCompletionItem[] = [
+      { label: 'pos', kind: 5, detail: 'Whole number', textEdit: { range: { start: { line: 0, character: 4 }, end: { line: 0, character: 5 } }, newText: '@pos' } },
+    ];
+    const offered = dpqlCompletionsWith(roots)({ plainText: '1 + @', offset: 5, serverItems: server });
+    // the catalogue's field bezeichnung, the field's own list's qty, and pos once, as the server lists it
+    expect(listed(offered)).toEqual([
       '$record:{bezeichnung}',
+      '@qty',
+      'pos',
+      BROWSE_ALL_TEMPLATES,
     ]);
   });
 
-  it('lists a template as its catalogue names it, its group and type on its detail line', () => {
-    // the type by its name, never its code (templateTypeBadge)
-    expect(complete('|', [])[0]).toMatchObject({
+  it('lists a template by its name, where it is on its detail line, and what it is and its type as its badges', () => {
+    expect(complete('$|', [])[0]).toMatchObject({
       label: 'pos',
       kind: 5,
-      detail: 'Fields of the row · Whole number',
+      detail: 'in Fields of the row',
+      data: expect.objectContaining({ kindLabel: 'Field', typeLabel: 'Whole number', section: 'Record fields' }),
     });
   });
 
   it('offers the server answer alone where the field has no templates', () => {
     expect(
-      dpqlCompletionsWith(undefined)({
+      dpqlCompletionsWith([])({
         plainText: '1 + ',
         offset: 4,
         serverItems: AFTER_AN_OPERATOR,
@@ -250,24 +258,59 @@ describe('a template being typed', () => {
     { label: 'User name', kind: 6, insertText: '$data:receive_order.user_name' },
     { label: 'Event type', kind: 6, insertText: '$data:receive_order.event_type' },
   ];
+  // what it offers after `$data:`: the states, each the whole reference
+  const STATES: ILspCompletionItem[] = [{ label: 'Receive order', kind: 6, insertText: '$data:receive_order' }];
   const completeQog = (text: string, serverItems?: ILspCompletionItem[]) =>
-    dpqlCompletionsWith(QOG_TEMPLATES)({ plainText: text, offset: text.length, serverItems });
+    dpqlCompletionsWith(templateTree(QOG_TEMPLATES))({ plainText: text, offset: text.length, serverItems });
 
-  it('is gone on with only by the templates it starts, braces or not', () => {
+  it("is gone on with only by the templates it starts, braces or not, and the server's others", () => {
     expect(listed(completeQog('$data:receive_order.', STATE_DATA))).toEqual([
       '$data:{receive_order.order_id}',
       '$data:{receive_order.user_name}',
       // the server's reference no template is
       '$data:receive_order.event_type',
+      BROWSE_ALL_TEMPLATES,
     ]);
-    expect(listed(completeQog('$loc'))).toEqual(['$local:id']);
+    expect(listed(completeQog('$loc'))).toEqual(['$local:id', BROWSE_ALL_TEMPLATES]);
   });
 
-  it('lists every template while only its `$` is typed', () => {
-    expect(listed(completeQog('$'))).toEqual([
-      '$local:id',
-      '$data:{receive_order.order_id}',
-      '$data:{receive_order.user_name}',
-    ]);
+  /* qorus#646, David's review: `$data` offered what an empty text did, and `$data:` added the state */
+  it('offers the same for `$d`, `$data` and `$data:`: the state, a row that opens it, listed once', () => {
+    for (const typed of ['$d', '$data', '$data:']) {
+      const offered = completeQog(typed, typed === '$data:' ? STATES : []);
+      expect(listed(offered), typed).toEqual(['$data:receive_order', BROWSE_ALL_TEMPLATES]);
+      expect(offered[0]).toMatchObject({ label: 'Receive order', data: expect.objectContaining({ opens: true }) });
+    }
+  });
+
+  it('offers the loose templates and the states while only its `$` is typed', () => {
+    expect(listed(completeQog('$'))).toEqual(['$local:id', '$data:receive_order', BROWSE_ALL_TEMPLATES]);
+  });
+
+  /* qorus#646, David's review: each state's data said "Receive order" under its name, as if that were what it is */
+  it('says where a template is apart from what it is, and calls state data state data, not a Variable', () => {
+    const [orderId] = completeQog('$data:receive_order.o');
+    expect(orderId).toMatchObject({
+      label: 'Order ID',
+      detail: 'in Receive order',
+      data: expect.objectContaining({ kindLabel: 'State data' }),
+    });
+  });
+});
+
+describe('after a whole reference', () => {
+  /* qorus#646: a chip's text is in the plain text before the caret; it is a value already, and the server offers
+     operators after it - no template is offered there (`pos pos` is refused) */
+  it('offers what the server offers after a value, and no template', () => {
+    const roots = templateTree(TEMPLATES);
+    expect(
+      listed(
+        dpqlCompletionsWith(roots)({ plainText: '$record:{pos}', offset: 13, serverItems: AFTER_A_VALUE })
+      )
+    ).toEqual(['&&', '||']);
+    // with no server: the editor says nothing is typed in the text after the chip
+    expect(
+      dpqlCompletionsWith(roots)({ plainText: '$record:{pos}', offset: 13, serverItems: [], typedInText: '' })
+    ).toEqual([]);
   });
 });

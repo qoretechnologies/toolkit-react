@@ -12,6 +12,8 @@ import {
   ICompletionGroup,
   IUseLspAutocompleteResult,
 } from './useLspAutocomplete';
+import type { ITemplateNode } from '../../helpers/templateTree';
+import { TemplatePicker } from '../form/fields/template/TemplatePicker';
 
 /*
  * The one list an editor offers what can be written at its caret in (qorus#646, David: "use the same
@@ -26,6 +28,33 @@ import {
 function buildKindBadge(
   item: ICompletionDropdownItem
 ): Record<string, unknown> | Array<Record<string, unknown>> | undefined {
+  /* A template row says what it is (State data, Context, Field) and its type, named: not the LSP kind it is sent
+     as, which called every template a Variable (qorus#646, David's review). */
+  const marks = (item.raw?.data ?? {}) as {
+    kindLabel?: string;
+    typeLabel?: string;
+    browseAll?: boolean;
+  };
+  if (marks.kindLabel || marks.typeLabel) {
+    return [
+      ...(marks.kindLabel ?
+        [
+          {
+            label: marks.kindLabel,
+            minimal: true as const,
+            size: 'small' as const,
+            intent: 'info' as const,
+          },
+        ]
+      : []),
+      ...(marks.typeLabel ?
+        [{ label: marks.typeLabel, minimal: true as const, size: 'small' as const }]
+      : []),
+    ];
+  }
+  if (marks.browseAll) {
+    return undefined;
+  }
   const kindChip = item.kindLabel ? kindBadge(item.metadata?.kind) : undefined;
   const kindBadgeProps =
     kindChip ??
@@ -125,12 +154,23 @@ const CompletionMenuItem = memo(
       [hasDocs, onToggleDocs, isFocused, coarse, docsShown, docsId, item.label, item.value]
     );
 
+    const marks = (item.raw?.data ?? {}) as { opens?: boolean; browseAll?: boolean };
     return (
       <ReqoreMenuItem
         // one option of the list the editor controls (`aria-controls`), selected as the keyboard moves
         role='option'
         aria-selected={isFocused}
-        icon={item.icon as any}
+        // what it is called, for a host or a test to find it by
+        data-label={item.label}
+        className={
+          marks.browseAll ? 'completion-browse-all'
+          : marks.opens ?
+            'completion-opens'
+          : undefined
+        }
+        icon={(marks.browseAll || marks.opens ? 'FolderOpenLine' : item.icon) as any}
+        // a group opens the picker at its members
+        rightIcon={marks.opens || marks.browseAll ? 'ArrowRightSLine' : undefined}
         label={item.label}
         description={item.description}
         badge={badge as any}
@@ -290,13 +330,51 @@ export interface ICompletionMenuProps {
   onSelect: (item: ICompletionDropdownItem) => void;
   /** Said while nothing can be listed yet (the session connecting); otherwise "Loading" or "No alternatives". */
   pendingLabel?: string;
+  /** The field's templates and fields, for the picker the list becomes where they are browsed (`browse`). */
+  templateRoots?: ITemplateNode[];
 }
 
-/** The completion list at an editor's caret. */
+/** The completion list at an editor's caret, or the template picker in its place. */
 export const CompletionMenu = memo(
-  ({ autocomplete, id, onSelect, pendingLabel }: ICompletionMenuProps) => (
+  ({ autocomplete, id, onSelect, pendingLabel, templateRoots }: ICompletionMenuProps) => (
     <>
+      {autocomplete.isOpen && autocomplete.browse && templateRoots?.length ?
+        <ReqorePopover
+          key={`browse-${autocomplete.popoverKey}`}
+          component='span'
+          wrapperStyle={{
+            position: 'fixed',
+            top: autocomplete.position.top,
+            left: autocomplete.position.left,
+            width: '1px',
+            height: '1px',
+            pointerEvents: 'none',
+          }}
+          content={
+            <TemplatePicker
+              id={id}
+              roots={templateRoots}
+              levelId={autocomplete.browse.levelId}
+              initialQuery={autocomplete.browse.query}
+              selectedValue={autocomplete.browse.selectedValue}
+              keysFromPage
+              arrowsFromPage={autocomplete.browse.arrows}
+              onPick={autocomplete.pickTemplate}
+              onClose={autocomplete.close}
+            />
+          }
+          openOnMount
+          handler='click'
+          closeOnOutsideClick
+          {...COMPLETION_POPOVER_PROPS}
+          minWidth={undefined}
+          onToggleChange={(open: boolean) =>
+            autocomplete.handleExternalClose(open, autocomplete.popoverKey)
+          }
+        />
+      : null}
       {autocomplete.isOpen &&
+        !autocomplete.browse &&
         (autocomplete.items.length > 0 ||
           autocomplete.isReplaceMode ||
           autocomplete.isFetching ||

@@ -6,13 +6,27 @@ import {
   MARKDOWN_TEMPLATE_VALUE,
   MARKDOWN_TEMPLATES,
   playHoverIsDrawn,
-  playTapIsDrawnOnAPhone,
   withHostMarkdown,
 } from '../../../../stories/templateHover';
 import { withCoarsePointer } from '../../../../stories/coarsePointer';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
 import { StoryMeta } from '../../../../types';
 import { RichTextFormField } from './RichText';
+import { buildTemplates } from '../../../../helpers/templates';
+import {
+  QOG_FIELD_TEMPLATES,
+  WORKFLOW_CONTEXT_DATA_PAYLOAD,
+} from '../template/__fixtures__/qogTemplatePayloads';
+import {
+  chipsOf,
+  completionLabels,
+  pickerCrumbs,
+  pickerFocused,
+  pickerLabels,
+  pickerRow,
+  pickerSearch,
+} from '../../../../stories/templatePicker';
+import { withTouchScreen } from '../../../../stories/touchScreen';
 
 const meta = {
   component: RichTextFormField,
@@ -358,9 +372,221 @@ export const TemplateTappedOnAPhone: Story = {
     docs: {
       description: {
         story:
-          'Renders the same text field on a phone (390 px, touch). Tapped by a finger, the chip\'s card opens with the description drawn (bold and code, no markdown marks) and stays inside the screen.',
+          'Renders the same text field on a phone (390 px, touch). Tapped by a finger, the chip opens the template ' +
+          'picker with its own row chosen, which says what it is - its description drawn (bold and code, no ' +
+          'markdown marks) - inside the screen; a finger has no hover, so no card opens over it as well, and the ' +
+          'row picked takes the chip\'s place.',
       },
     },
   },
-  play: playTapIsDrawnOnAPhone,
+  play: async ({ canvasElement }) => {
+    const chip = await waitFor(() => {
+      const found = canvasElement.querySelector<HTMLElement>('.reqore-tag .reqore-tag-content');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await withTouchScreen(async (touch) => {
+      await touch.tap(chip);
+      await waitFor(() => expect(pickerFocused()).toBe('Customer name'));
+      const what = document.querySelector<HTMLElement>(
+        '.template-picker-row[aria-selected="true"] .template-picker-row-what'
+      )!;
+      expect(what.querySelector('strong')?.textContent).toBe('customer’s');
+      expect(what.querySelector('code')?.textContent).toBe('customer.name');
+      expect(what.textContent).not.toMatch(/[`*]/);
+      if (touch.narrowed) {
+        const { left, right } = document.querySelector<HTMLElement>('.template-picker')!.getBoundingClientRect();
+        expect(left).toBeGreaterThanOrEqual(0);
+        expect(right).toBeLessThanOrEqual(window.innerWidth);
+      }
+      // one popover: the picker, and no card over it
+      expect(document.querySelectorAll('.reqore-popover-content')).toHaveLength(1);
+    });
+  },
+};
+
+/**
+ * A click in an empty rich-text field opens the template picker at the top of its templates, browsed as they nest -
+ * a Qog state, a record in it, a record in that (qorus#646, David: templates in a rich-text field are offered as a
+ * hierarchy, and every value is reached).
+ */
+export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
+  args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicks in the empty field: the template picker opens at the top - Context Data, Look up customer and ' +
+          'Receive order. Receive order, then Customer, then Address open level by level, the way back above the ' +
+          'rows reading Templates › Receive order › Customer › Address; City picked there is written as one chip, ' +
+          'Receive order › … › Address › City, and the value is $data:{receive_order.customer.address.city}.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await waitFor(() => expect(pickerLabels()).toEqual(['Context Data', 'Look up customer', 'Receive order']));
+    await userEvent.click(await pickerRow('Receive order'));
+    await userEvent.click(await pickerRow('Customer'));
+    await userEvent.click(await pickerRow('Address'));
+    await waitFor(() => expect(pickerCrumbs()).toBe('Templates› Receive order› Customer› Address'));
+    await userEvent.click(await pickerRow('City'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('$data:{receive_order.customer.address.city}')
+    );
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › … › Address › City']));
+  },
+};
+
+/** A record that is a value of its own is taken whole from the picker ("Use"), or opened for its fields. */
+export const ARecordIsTakenWhole: Story = {
+  args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opens Receive order in the picker and presses Use on Customer, a record: it is written whole, as the chip ' +
+          'Receive order › Customer for $data:{receive_order.customer}.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.click(await pickerRow('Receive order'));
+    const customer = await pickerRow('Customer');
+    await userEvent.click(customer.parentElement!.querySelector<HTMLElement>('.template-picker-use')!);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$data:{receive_order.customer}'));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Customer']));
+  },
+};
+
+/**
+ * Typing a `$` reference narrows the rows to what it reaches, in the same popover (qorus#646, David's review): the
+ * states for `$data:`, a state's data after `$data:receive_order.`; a state's row opens the picker at its data.
+ */
+export const TypingAReferenceNarrowsTheRows: Story = {
+  args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types "Order $data:": the rows are the two states and Browse all templates. Going on with ' +
+          '"receive_order.", they are its data - Customer, Event type, Order ID, User name. Order ID picked takes ' +
+          'the place of the typed reference: "Order $data:{receive_order.order_id}".',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await userEvent.type(editable, 'Order $data:');
+    await waitFor(() =>
+      expect(completionLabels()).toEqual(['Look up customer', 'Receive order', 'Browse all templates'])
+    );
+    await userEvent.type(editable, 'receive_order.');
+    await waitFor(() =>
+      expect(completionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates'])
+    );
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}');
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('Order $data:{receive_order.order_id}')
+    );
+  },
+};
+
+/** A click on a chip opens the picker at its group, its row the keyboard's; the pick takes its place. */
+export const AChipIsReplacedFromItsGroup: Story = {
+  args: { value: 'Hello $data:{receive_order.user_name}!', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicks the chip Receive order › User name: the picker opens at Receive order with User name chosen; ' +
+          'Order ID picked takes its place: "Hello $data:{receive_order.order_id}!".',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    const chip = await waitFor(() => {
+      const found = editable.querySelector<HTMLElement>('.reqore-tag .reqore-tag-content');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    await userEvent.click(chip);
+    await waitFor(() => expect(pickerFocused()).toBe('User name'));
+    await userEvent.click(await pickerRow('Order ID'));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith('Hello $data:{receive_order.order_id}!')
+    );
+  },
+};
+
+/**
+ * A template of any keys - a workflow's dynamic data - has its key written in the picker: what it holds is known
+ * only when the workflow runs.
+ */
+export const AKeyIsWrittenForDataOfAnyKeys: Story = {
+  args: { value: '', valueFormat: 'text', templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD) },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Searches the picker for "dynamic" and picks Workflow Dynamic Data: it asks for the key to use; ' +
+          '"order.id" written there is the chip for $dynamic:order.id.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    const search = await pickerSearch();
+    await userEvent.click(search);
+    await userEvent.type(search, 'dynamic');
+    await userEvent.click(await pickerRow('Workflow Dynamic Data'));
+    const key = await waitFor(() => {
+      const input = document.querySelector<HTMLInputElement>('.template-picker-key input');
+      expect(input).toBeTruthy();
+      return input!;
+    });
+    await userEvent.type(key, 'order.id{Enter}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:order.id'));
+  },
+};
+
+/** The picker on a phone: it fits the screen with its margins, and is browsed by taps. */
+export const ThePickerOnAPhone: Story = {
+  tags: ['touch'],
+  args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
+  decorators: [withCoarsePointer],
+  parameters: {
+    qlip: { viewport: PHONE_VIEWPORT },
+    docs: {
+      description: {
+        story:
+          'On a phone, taps the empty field and then Receive order: the picker fits the screen with a margin on ' +
+          'each side, its rows are tall enough for a finger, and nothing scrolls sideways.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await withTouchScreen(async (touch) => {
+      await touch.tap(editable);
+      await touch.tap(await pickerRow('Receive order'));
+      await waitFor(() => expect(pickerLabels()).toContain('Event type'));
+      if (touch.narrowed) {
+        await waitFor(() => {
+          const { left, right } = document.querySelector<HTMLElement>('.template-picker')!.getBoundingClientRect();
+          expect(left).toBeGreaterThanOrEqual(0);
+          expect(right).toBeLessThanOrEqual(window.innerWidth);
+          expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+        });
+      }
+      expect((await pickerRow('Event type')).getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    });
+  },
 };

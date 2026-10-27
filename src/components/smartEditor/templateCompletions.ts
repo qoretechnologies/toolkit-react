@@ -1,9 +1,16 @@
 // Copyright 2026 Qore Technologies, s.r.o.
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { Editor, Transforms } from 'slate';
+import { BaseEditor, Editor, Path, Transforms } from 'slate';
 import { ReactEditor } from 'slate-react';
 import { builtInTypeLabel, TTypeLabel } from '../../helpers/qorusTypeCatalogue';
 import { templateBaseType, templateType } from '../../helpers/templateType';
+import {
+  ITemplateNode,
+  RECORD_FIELDS_LABEL,
+  searchTemplateReferences,
+  TEMPLATE_NODE_KIND_LABELS,
+  unbracedReference,
+} from '../../helpers/templateTree';
 import { ILspCompletionItem } from '../../utils/lspClient.types';
 import { TCompletionInserter } from './types';
 
@@ -105,12 +112,35 @@ const TEMPLATE_SIGILS = new Set(['$', '@']);
  */
 export const templateChipInserter: TCompletionInserter = (item, editor, ctx) => {
   const value = item.insertText ?? item.label;
+  if (ctx.replacementPath) {
+    // a chip clicked and replaced: the pick takes its place
+    Editor.withoutNormalizing(editor, () => {
+      Transforms.removeNodes(editor, { at: ctx.replacementPath });
+      Transforms.insertNodes(
+        editor,
+        { type: 'tag', value, label: item.label, children: [{ text: '' }] } as any,
+        { at: ctx.replacementPath, select: true }
+      );
+    });
+    Transforms.move(editor);
+    focusEditor(editor);
+    return;
+  }
   if (editor.selection) {
     let start = ctx.cursorOffset - 1;
     while (start >= 0 && /[\w.:{}-]/.test(ctx.plainText[start])) start--;
     if (!(start >= 0 && TEMPLATE_SIGILS.has(ctx.plainText[start]))) start++;
-    for (let left = ctx.cursorOffset - start; left > 0; left--) {
+    const typed = typedInTheText(editor);
+    const extended = chipExtendedBy(editor, typed, value);
+    for (
+      let left = Math.min(ctx.cursorOffset - start, extended ? typed.length : Infinity);
+      left > 0;
+      left--
+    ) {
       Editor.deleteBackward(editor, { unit: 'character' });
+    }
+    if (extended) {
+      Transforms.removeNodes(editor, { at: extended });
     }
   }
   Transforms.insertNodes(editor, {
@@ -120,9 +150,134 @@ export const templateChipInserter: TCompletionInserter = (item, editor, ctx) => 
     children: [{ text: '' }],
   } as any);
   Transforms.move(editor);
+  focusEditor(editor);
+};
+
+const focusEditor = (editor: BaseEditor) => {
   try {
-    ReactEditor.focus(editor);
+    ReactEditor.focus(editor as ReactEditor);
   } catch {
     // the editor is not in the document
   }
 };
+
+/** What is typed before the caret in the text it is in: never anything across a chip. */
+export const typedInTheText = (editor: BaseEditor): string => {
+  const at = editor.selection?.anchor;
+  if (!at) {
+    return '';
+  }
+  try {
+    const [node] = Editor.node(editor as unknown as Editor, at.path);
+    return typeof (node as { text?: unknown }).text === 'string' ?
+        (node as { text: string }).text.slice(0, at.offset)
+      : '';
+  } catch {
+    // a path the editor no longer has: nothing was typed there
+    return '';
+  }
+};
+
+/**
+ * The chip a pick goes on from, where what is typed after it continues its reference (qorus#646, David's review):
+ * a state's chip (`$data:receive_order`) and `.` typed after it, then Event type picked, is the one reference
+ * `$data:{receive_order.event_type}` - the pick takes the chip's place as well as the `.`. It was put in after the
+ * chip, and the text read `$data:receive_order$data:{receive_order.event_type}`. Undefined where nothing but a
+ * `.` or `[` and a name is typed straight after a chip whose reference the pick's starts with.
+ */
+export const chipExtendedBy = (
+  editor: BaseEditor,
+  typedBefore: string,
+  value: string
+): Path | undefined => {
+  const at = editor.selection?.anchor;
+  const continuation = /^[.[][^\s]*$/.exec(typedBefore)?.[0];
+  if (!at || !continuation || at.path.length < 2 || at.path[at.path.length - 1] === 0) {
+    return undefined;
+  }
+  const chipPath = [...at.path.slice(0, -1), at.path[at.path.length - 1] - 1];
+  try {
+    const [chip] = Editor.node(editor as unknown as Editor, chipPath);
+    const chipValue =
+      (chip as { type?: string; value?: unknown }).type === 'tag' ?
+        (chip as { value?: unknown }).value
+      : undefined;
+    if (typeof chipValue !== 'string') {
+      return undefined;
+    }
+    const goesOn = unbracedReference(`${chipValue}${continuation}`).toLowerCase();
+    return unbracedReference(value).toLowerCase().startsWith(goesOn) ? chipPath : undefined;
+  } catch {
+    // no node before the text: nothing is gone on from
+    return undefined;
+  }
+};
+
+/** What a template row carries for the list (`ILspCompletionItem.data`): the node it is and how it is drawn. */
+export interface ITemplateRowData {
+  /** The node it is (`ITemplateNode.id`). */
+  templateNodeId?: string;
+  /** Taking it opens the picker at its members rather than writing it: a group. */
+  opens?: boolean;
+  /** The row that opens the picker at the top of the field's templates. */
+  browseAll?: boolean;
+  /** The section of the list it is listed in. */
+  section?: string;
+  /** What it is (State data, Context...) and its type, named: its badges. */
+  kindLabel?: string;
+  typeLabel?: string;
+}
+
+/** The label of the row that opens the picker at the top of the field's templates. */
+export const BROWSE_ALL_TEMPLATES = 'Browse all templates';
+
+/**
+ * The rows typing a reference offers (`$`, `$data:`, `$data:receive_order.`, `@na`): the nodes of the field's
+ * templates and fields it reaches (`searchTemplateReferences`) - a group is a row that opens the picker at its
+ * members - each saying where it is ("in Receive order"), not what group it is in as if that were what it is.
+ * Nothing that does not go on from what is typed is listed (qorus#646, David's review).
+ */
+export const templateSearchItems = (
+  roots: ITemplateNode[],
+  typed: string,
+  typeLabel: TTypeLabel = builtInTypeLabel
+): ILspCompletionItem[] =>
+  searchTemplateReferences(roots, typed).map((node) => {
+    const opens = !!node.children?.length || !!node.loadChildren;
+    const kindLabel = TEMPLATE_NODE_KIND_LABELS[node.kind];
+    const type = node.type ? typeLabel(node.type, node.baseType) : undefined;
+    const where = node.trail.length ? `in ${node.trail.join(' › ')}` : undefined;
+    const data: ITemplateRowData = {
+      templateNodeId: node.id,
+      opens,
+      section: node.kind === 'field' ? RECORD_FIELDS_LABEL : 'Templates',
+      kindLabel,
+      typeLabel: type,
+    };
+    const documentation = [node.description, node.source ? `From ${node.source}.` : undefined]
+      .filter(Boolean)
+      .join('\n\n');
+    return {
+      label: node.label,
+      kind: node.kind === 'field' ? FIELD_KIND : TEMPLATE_KIND,
+      detail: where,
+      documentation: documentation ? { kind: 'markdown', value: documentation } : undefined,
+      insertText: node.value ?? node.reference ?? node.label,
+      // narrowed as it is typed by its reference: `$data:receive_order.ev` keeps Event type
+      filterText: node.reference ?? node.label,
+      data: data as Record<string, unknown>,
+    };
+  });
+
+/** The row that opens the picker at the top of the field's templates: every template, browsed as they nest. */
+export const browseAllTemplatesItem = (): ILspCompletionItem => ({
+  label: BROWSE_ALL_TEMPLATES,
+  kind: 19,
+  insertText: '',
+  filterText: '',
+  documentation: {
+    kind: 'markdown',
+    value: 'Every template and field this value can use, by group.',
+  },
+  data: { browseAll: true, section: '' } as Record<string, unknown>,
+});

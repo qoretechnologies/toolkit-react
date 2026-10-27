@@ -117,6 +117,12 @@ export interface IDpqlEditorProps {
   size?: TSizes;
   /** Read-only mode. */
   readOnly?: boolean;
+  /** `off`: a line does not wrap; the text scrolls sideways inside its box. Default `on`. */
+  wordWrap?: 'on' | 'off';
+  /** The tallest the text's box grows; the text scrolls within it past that. Unlimited when not given. */
+  maxHeight?: string;
+  /** Each line's number before it, as a code editor shows them. Default off. */
+  lineNumbers?: boolean;
   /**
    * Whether to render diagnostic underlines. Default `true`. Set `false`
    * for display-only surfaces whose text is not valid DPQL — e.g. the
@@ -145,9 +151,10 @@ export interface IDpqlEditorProps {
   templates?: IReqoreFormTemplates;
   /**
    * Whether the field's templates can be browsed as their catalogue nests them - their groups, a record's members -
-   * from a picker beside the text, as a Qog field's are (qorus#646, David's review: a DPQL field offered no
-   * hierarchy). A template chosen there is put in at the end of the text, where a value can go. On by default
-   * where the editor has templates and can be edited.
+   * in the template picker, from a button beside the text (qorus#646, David's review: a DPQL field offered no
+   * hierarchy). A template chosen there is put in at the caret, where a value can go. On by default where the
+   * editor has templates and can be edited. A click in the empty text, a click on a chip and a group's row in the
+   * completion list open the same picker.
    */
   browseTemplates?: boolean;
   /** Called when the editor loses focus. */

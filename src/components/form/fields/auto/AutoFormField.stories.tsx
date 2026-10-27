@@ -10,6 +10,7 @@
 //    (InterfaceSelector) are not ported — IDE-only seams.
 import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
+import { pickerLabels } from '../../../../stories/templatePicker';
 import jsyaml from 'js-yaml';
 import { useEffect, useState } from 'react';
 
@@ -928,9 +929,9 @@ export const HostEditorKeepsWhatIsTypedWhenItsReportComesBack: Story = {
 };
 
 /**
- * A DPQL field is given its templates as every other field of the form is (its context data): a click lists them,
- * and the picker beside the text browses them as their catalogue nests them. They were left out, so a DPQL field
- * offered no template until a `$` was typed (qorus#646, David's review).
+ * A DPQL field is given its templates as every other field of the form is (its context data): a click in its empty
+ * text opens the template picker with them, and the template button beside the text opens it too. They were left
+ * out, so a DPQL field offered no template until a `$` was typed (qorus#646, David's review).
  */
 export const DpqlFieldOffersItsTemplates: Story = {
   args: {
@@ -943,9 +944,9 @@ export const DpqlFieldOffersItsTemplates: Story = {
     docs: {
       description: {
         story:
-          'Renders a DPQL field given its context data as templates and clicks in it: the list offers them - ' +
-          'Interface Name and the other context data, each with its group - and the picker beside the text ' +
-          'browses them as they nest.',
+          'Renders a DPQL field given its context data as templates and clicks in its empty text: the template ' +
+          'picker opens with them - Interface Name and the other context data, the one group opened - and the ' +
+          'template button beside the text opens the same picker.',
       },
     },
   },
@@ -959,19 +960,9 @@ export const DpqlFieldOffersItsTemplates: Story = {
       },
       { timeout: 30000 }
     );
-    expect(canvasElement.querySelector('.dpql-template-browser'), 'the picker beside the text').toBeTruthy();
+    expect(canvasElement.querySelector('.smart-editor-template-button'), 'the template button').toBeTruthy();
     await userEvent.click(editable);
-    await waitFor(
-      () => {
-        const listed = Array.from(
-          document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu .reqore-menu-item')
-        )
-          .map((row) => row.textContent ?? '')
-          .join(' | ');
-        expect(listed).toContain('Interface Name');
-        expect(listed).toContain('Context Data');
-      },
-      { timeout: 30000 }
-    );
+    await waitFor(() => expect(pickerLabels()).toContain('Interface Name'), { timeout: 30000 });
+    expect(pickerLabels()).toContain('Current Timestamp');
   },
 };
