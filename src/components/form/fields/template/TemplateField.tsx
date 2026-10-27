@@ -1202,7 +1202,7 @@ const TemplateFieldImpl = memo(
 
     const publishedItems = useMemo(
       () => [
-        ...(canOfferExpression && !functions.loading
+        ...(canOfferExpression && !hasOnlyExpressions && !functions.loading
           ? [
               {
                 label: 'Use Expression',
@@ -1270,6 +1270,7 @@ const TemplateFieldImpl = memo(
         savedValues,
         value,
         type,
+        hasOnlyExpressions,
       ]
     );
 
@@ -1277,7 +1278,7 @@ const TemplateFieldImpl = memo(
        handlers, so they are a new array every render and a row comparing them
        by value would loop. */
     const publishedKey = [
-      canOfferExpression && !functions.loading ? 'expression' : '',
+      canOfferExpression && !hasOnlyExpressions && !functions.loading ? 'expression' : '',
       canOfferTemplate ? 'template' : '',
       canOfferCustomValue ? 'custom-value' : '',
       canSaveValue ? 'save-value' : '',
@@ -1312,17 +1313,9 @@ const TemplateFieldImpl = memo(
           size(menuItems) > 0,
         ].filter(Boolean).length === 1;
 
-      /* ONE menu per control. Where this field sits in a form ROW, the row
-         already renders a ⋮ of its own, and drawing a second one beside it
-         put two menus of slightly different widths on the same control —
-         with the type choices an `any` field offers hidden in the narrower
-         one. The items are published to the row instead (see
-         `rowMenuContext`); outside a row there is nothing to publish into,
-         so the field goes on drawing its own. */
-      if (rowMenu) {
-        return null;
-      }
-
+      /* A field that takes nothing BUT an expression has one way in, and it is
+         its editor, not a menu item — so it is drawn in a form row too. Behind
+         the row's ⋮ the field read as having nowhere to write anything. */
       if (hasOnlyExpressions) {
         return (
           showFunctionsDropdown ?
@@ -1350,6 +1343,17 @@ const TemplateFieldImpl = memo(
               />
           : null
         );
+      }
+
+      /* ONE menu per control. Where this field sits in a form ROW, the row
+         already renders a ⋮ of its own, and drawing a second one beside it
+         put two menus of slightly different widths on the same control —
+         with the type choices an `any` field offers hidden in the narrower
+         one. The items are published to the row instead (see
+         `rowMenuContext`); outside a row there is nothing to publish into,
+         so the field goes on drawing its own. */
+      if (rowMenu) {
+        return null;
       }
 
       if (hasValueRows || size(menuActions?.items) > 0 || size(menuTrailingItems) > 0) {
