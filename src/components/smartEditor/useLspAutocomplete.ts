@@ -329,8 +329,11 @@ export const useCompletionKeys = ({
           handlers.current.onAccept();
           break;
         case 'Tab':
-          // leaves the list, as it leaves the browse list: the focus moves on, nothing is chosen
-          handlers.current.onClose();
+          /* takes the row the keyboard is on, as Enter does (a code editor's key), and the text keeps the focus:
+             leaving the list instead left a half-typed reference standing as if it were one (qorus#646, David's
+             review) */
+          take();
+          handlers.current.onAccept();
           break;
         case 'Escape':
           take();

@@ -595,3 +595,20 @@ export function richtextResponseToSlate(
   }
   return paragraphs;
 }
+
+/** Every template reference in DPQL text, where it is written: its line, its columns and its reference. */
+export const dpqlReferencesIn = (
+  text: string
+): Array<{ line: number; start: number; end: number; value: string }> => {
+  let quote: string | undefined;
+  return text.split('\n').flatMap((line, index) => {
+    const read = readReferences(line, quote);
+    quote = read.quote;
+    return read.references.map(({ start, end, tag }) => ({
+      line: index,
+      start,
+      end,
+      value: String(tag.value ?? ''),
+    }));
+  });
+};

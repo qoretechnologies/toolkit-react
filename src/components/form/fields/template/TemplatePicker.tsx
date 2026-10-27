@@ -76,6 +76,11 @@ export interface ITemplatePickerProps {
    * Backspace go back a level, → opens a group, as they do in the picker's own search box.
    */
   arrowsFromPage?: boolean;
+  /**
+   * Fills the surface it is drawn in (a dropdown's popover, as wide as its field within the popover's bounds)
+   * instead of keeping its own width, which left the popover's far side empty (qorus#646, David's review).
+   */
+  fill?: boolean;
   /** The listbox's id, for the control that drives it (`aria-controls`). */
   id: string;
   /** How a type is named; the surrounding form's catalogue's when not given. */
@@ -153,6 +158,18 @@ const RowDescription = ({
   );
 };
 
+/**
+ * "Use" beside a group's ">" (qorus#646, David's review): set apart from the ">" that opens the group by a divider,
+ * and saying on hover that it takes the group whole.
+ */
+export const USE_WHOLE_STYLE: React.CSSProperties = {
+  borderLeft: '1px solid color-mix(in srgb, currentColor 35%, transparent)',
+  marginLeft: 4,
+};
+
+/** What "Use" beside a group says on hover. */
+export const useWholeSays = (label: string) => `Use the whole record: all of ${label} as one value`;
+
 /** What a row says it is: up to three lines, wrapped, never past the row (the reqraft row rule). */
 const ROW_WHAT_STYLE: React.CSSProperties = {
   display: '-webkit-box',
@@ -184,6 +201,7 @@ export const TemplatePicker = memo(
     focusFilter,
     keysFromPage,
     arrowsFromPage,
+    fill,
     id,
     typeLabel: givenTypeLabel,
   }: ITemplatePickerProps) => {
@@ -368,10 +386,20 @@ export const TemplatePicker = memo(
             }
             onClose?.();
             return true;
-          case 'Tab':
-            // the focus moves on, and nothing is chosen
+          case 'Tab': {
+            /* From the text it was opened in, Tab takes the row the keyboard is on, as Enter does (a code editor's
+               key): the text keeps the focus (qorus#646, David's review: Tab left the half-typed reference as it
+               was). From its own search box the focus moves on, and nothing is chosen. */
+            if (fromText && !keyFor) {
+              const node = visible[focused];
+              if (node) {
+                take(node);
+                return true;
+              }
+            }
             onClose?.();
             return false;
+          }
           default:
             return false;
         }
@@ -426,7 +454,7 @@ export const TemplatePicker = memo(
       <div
         ref={rootRef}
         className='template-picker'
-        style={{ width: TEMPLATE_PICKER_WIDTH, maxWidth: '100%' }}
+        style={{ width: fill ? '100%' : TEMPLATE_PICKER_WIDTH, maxWidth: '100%' }}
         onKeyDown={(event) => {
           if (keyFor && (event.target as HTMLElement)?.tagName === 'INPUT') return;
           if (handleKey(event, false)) {
@@ -647,10 +675,14 @@ export const TemplatePicker = memo(
                       label: 'Use',
                       className: 'template-picker-use',
                       'aria-label': `Use ${node.label}`,
+                      tooltip: coarse ? undefined : useWholeSays(node.label),
                       compact: true,
                       onMouseDown: keysFromPage ? keepTheFocus : undefined,
                       onClick: () => pick(node),
-                      ...(coarse ? { style: { minWidth: 44, minHeight: 44 } } : {}),
+                      style: {
+                        ...USE_WHOLE_STYLE,
+                        ...(coarse ? { minWidth: 44, minHeight: 44 } : {}),
+                      },
                     } as any)
                   : undefined
                 }

@@ -77,6 +77,7 @@ export const TemplateBrowser = ({
               id={id}
               roots={roots}
               focusFilter={focusFilter}
+              fill
               keysFromPage={!focusFilter}
               onPick={handOn}
               onClose={() => popover.current?.close?.()}

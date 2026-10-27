@@ -17,6 +17,8 @@ import {
   fieldReference,
   loadTemplateChildren,
   RECORD_FIELDS_LABEL,
+  referenceNamesNothing,
+  referenceNamesNothingMessage,
   referenceSteps,
   searchTemplateReferences,
   searchTemplateTree,
@@ -365,5 +367,34 @@ describe('taking a record whole (qorus#646, David: "if a user wants to choose th
       ],
     } as never);
     expect(roots[0].takesWhole).toBe(false);
+  });
+});
+
+/* qorus#646, David's review: a reference that names none of the field's templates is said to, where the catalogue
+   lists every template of its context. */
+describe('referenceNamesNothing', () => {
+  const roots = templateTree(QOG_TEMPLATES, { wholeRecords: true });
+
+  it('a key of a Qog state that it does not have', () => {
+    expect(referenceNamesNothing(roots, '$data:receive_order.ev')).toBe(true);
+    expect(referenceNamesNothing(roots, '$data:{receive_order.ev}')).toBe(true);
+  });
+
+  it('not a key it has, in either spelling, nor a state taken whole', () => {
+    expect(referenceNamesNothing(roots, '$data:receive_order.event_type')).toBe(false);
+    expect(referenceNamesNothing(roots, '$data:{receive_order.event_type}')).toBe(false);
+    expect(referenceNamesNothing(roots, '$data:receive_order')).toBe(false);
+  });
+
+  it('nothing of a context the catalogue does not list, of free keys, or of a record field', () => {
+    expect(referenceNamesNothing(roots, '$config:rate')).toBe(false);
+    expect(referenceNamesNothing(roots, '$record:{pos}')).toBe(false);
+    expect(referenceNamesNothing(templateTree({ items: [] }), '$data:x')).toBe(false);
+  });
+
+  it('says so in words', () => {
+    expect(referenceNamesNothingMessage('$data:receive_order.ev')).toBe(
+      'No template here is called `$data:receive_order.ev`: pick one from the list, or remove it.'
+    );
   });
 });

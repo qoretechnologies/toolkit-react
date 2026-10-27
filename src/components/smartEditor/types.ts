@@ -276,6 +276,12 @@ export interface ISmartEditorProps {
   presentDiagnostics?: (diagnostics: ILspDiagnostic[], plainText: string) => ILspDiagnostic[];
 
   /**
+   * Whether a reference typed in the text names nothing the field is given: it stays the text it was typed as,
+   * not drawn as a chip, which would read as a reference that stands for something (qorus#646).
+   */
+  referenceNamesNothing?: (reference: string) => boolean;
+
+  /**
    * The field's templates and fields (`templateTree`): what the template picker browses (qorus#646, David's
    * decisions) - a click in the empty text, the template button and a click on a chip open it, and a row of the
    * completion list that is a group opens it at its members.

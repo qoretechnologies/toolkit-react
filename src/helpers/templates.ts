@@ -32,6 +32,7 @@ import {
   builtInTypeSentenceForm,
   getQorusTypes,
   IQorusTypeObject,
+  qorusTypeTakesRecords,
   TTypeSentenceForm,
 } from './qorusTypeCatalogue';
 
@@ -635,6 +636,15 @@ export const describedWithType = (
 // batch) — the previous reqraft version used naive badge equality; the IDE
 // routes compatibility through `areQorusTypesCompatible` (int↔string coercion
 // etc.) and keeps top-level groups with their (possibly emptied) sub-items.
+/** The Qog state a group's members are the data of (`$data:{state.key}`, each the same state), if they are. */
+const stateOfGroup = (items: TReqoreDropdownItems = []): string | undefined => {
+  const states = new Set(
+    items.map((item) => /^\$data:\{?([^.{}]+)\./.exec(String((item as { value?: unknown }).value ?? ''))?.[1])
+  );
+  const [state] = Array.from(states);
+  return states.size === 1 && state ? state : undefined;
+};
+
 export const filterTemplatesByType = (
   templates: IReqoreFormTemplates = {},
   fieldType = 'string',
@@ -648,6 +658,9 @@ export const filterTemplatesByType = (
   }
 
   const newTemplates = cloneDeep(templates);
+  const takesRecords =
+    ['any', 'auto'].includes(String(fieldType).replace(/^\*/, '')) ||
+    qorusTypeTakesRecords(types, fieldType, baseType);
 
   const filterItems = (items: TReqoreDropdownItems = []): TReqoreDropdownItems => {
     return items?.reduce((newItems: TReqoreDropdownItem[], subItem): TReqoreDropdownItem[] => {
@@ -663,6 +676,13 @@ export const filterTemplatesByType = (
 
       if (subItem.items) {
         newSubItem.items = filterItems(subItem.items);
+
+        /* A Qog state's data is a hash, taken whole where the field takes a record, though none of what it holds
+           fits the field (qorus#646, David's review: Look up customer had no Use in a hash field): its members are
+           shown, and none of them can be picked. */
+        if (!size(newSubItem.items) && takesRecords && stateOfGroup(subItem.items)) {
+          newSubItem.items = subItem.items.map((member) => ({ ...member, disabled: true }));
+        }
 
         if (!size(newSubItem.items)) {
           delete newSubItem.items;
@@ -701,7 +721,12 @@ export const filterTemplatesByType = (
     if (item.divider) {
       return [...newItems, item];
     }
-    const subItems = filterItems(item.items);
+    const filtered = filterItems(item.items);
+    // a Qog state's data, taken whole where the field takes a record though nothing it holds fits (see above)
+    const subItems =
+      !size(filtered) && takesRecords && stateOfGroup(item.items) ?
+        (item.items ?? []).map((member) => ({ ...member, disabled: true }))
+      : filtered;
 
     return [
       ...newItems,

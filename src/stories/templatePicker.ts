@@ -118,3 +118,81 @@ export const completionRows = () =>
   Array.from(
     document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu [data-label]')
   );
+
+/**
+ * Types `text` as a person does: one key at a time, each one a key press the editor hears (key down, the text it
+ * inserts, key up), with nothing set in the editor any other way (qorus#646, David: the stories passed while
+ * completion did not work for a person).
+ */
+export const typeAsAPerson = async (
+  user: { keyboard: (keys: string) => Promise<unknown> },
+  text: string
+) => {
+  for (const char of text) {
+    // `{` and `[` start user-event's key names: doubled, they are the characters
+    await user.keyboard(
+      char === '{' ? '{{'
+      : char === '[' ? '[['
+      : char
+    );
+  }
+};
+
+/** Whether `element` is drawn where a person sees it: laid out, in the window, and not hidden. */
+const seen = (element: HTMLElement) => {
+  const box = element.getBoundingClientRect();
+  if (!box.width || !box.height) return false;
+  if (
+    box.bottom < 0 ||
+    box.right < 0 ||
+    box.top > window.innerHeight ||
+    box.left > window.innerWidth
+  )
+    return false;
+  for (let at: HTMLElement | null = element; at; at = at.parentElement) {
+    const style = getComputedStyle(at);
+    if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) === 0)
+      return false;
+    if (at.getAttribute('data-popper-reference-hidden') === 'true') return false;
+  }
+  return true;
+};
+
+/** The names of the completion rows a person sees at the caret, in order: those laid out in the window. */
+export const seenCompletionLabels = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>('.reqore-popover-content .completion-menu [data-label]')
+  )
+    .filter(seen)
+    .map((row) => row.getAttribute('data-label'));
+
+/** The completion row a person sees highlighted: the one the keyboard is on. */
+export const highlightedCompletionLabel = () =>
+  Array.from(
+    document.querySelectorAll<HTMLElement>(
+      '.reqore-popover-content .completion-menu [data-label][aria-selected="true"]'
+    )
+  )
+    .filter(seen)
+    .map((row) => row.getAttribute('data-label'))[0];
+
+/** What the editor says of its text under it: its diagnostics, as a person reads them. */
+export const saidOfTheText = (canvasElement: HTMLElement) =>
+  Array.from(canvasElement.querySelectorAll<HTMLElement>('[data-severity]'))
+    .map((item) => (item.textContent ?? '').trim())
+    .filter(Boolean);
+
+/**
+ * A template picker drawn in a dropdown's popover fills it (qorus#646, David's review: the popover spanned 950px
+ * around a 715px list, its far side empty): its edges are the popover's, less the popover's own padding.
+ */
+export const expectPickerFillsItsPopover = () => {
+  const picker = document.querySelector<HTMLElement>('.template-picker');
+  expect(picker, 'the template picker').toBeTruthy();
+  const popover = picker!.closest<HTMLElement>('.reqore-popover-content');
+  expect(popover, "the picker's popover").toBeTruthy();
+  const inner = picker!.getBoundingClientRect();
+  const outer = popover!.getBoundingClientRect();
+  expect(outer.right - inner.right, 'empty space right of the picker').toBeLessThanOrEqual(16);
+  expect(inner.left - outer.left, 'empty space left of the picker').toBeLessThanOrEqual(16);
+};

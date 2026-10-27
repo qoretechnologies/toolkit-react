@@ -83,9 +83,8 @@ describe('what the one completion list offers', () => {
         detail: "needs a value after ':'",
       },
     ];
+    // no record field after a `$`: a field is written with an `@` (qorus#646, David's review)
     expect(listed(complete('1 + $|', contexts))).toEqual([
-      '$record:{pos}',
-      '$record:{bezeichnung}',
       '$config:rate',
       '$data:',
       '$qore-expr:',
@@ -148,7 +147,7 @@ describe('what the one completion list offers', () => {
   });
 
   it('lists a template by its name, where it is on its detail line, and what it is and its type as its badges', () => {
-    expect(complete('$|', [])[0]).toMatchObject({
+    expect(complete('@|', [])[0]).toMatchObject({
       label: 'pos',
       kind: 5,
       detail: 'in Fields of the row',

@@ -27,6 +27,7 @@ import { LONG_EXAMPLE_VALUE } from './__fixtures__/longExampleValue';
 import { TemplateField } from './TemplateField';
 import { multiLevelTemplates, templates } from './__fixtures__/templateFixtures';
 import { QOG_FIELD_TEMPLATES } from './__fixtures__/qogTemplatePayloads';
+import { expectPickerFillsItsPopover } from '../../../../stories/templatePicker';
 
 // --- IDE leaf story components (2-arg field API over reqraft leafs) ---------
 
@@ -2007,51 +2008,87 @@ export const AnExpressionFitsAFieldOfAnUnlistedTypeByItsBaseTypeOnAPhone: StoryO
   },
 };
 
+/** A hash field and a text field, each holding what is picked in it. */
+const TwoRecordFields = (args: React.ComponentProps<typeof TemplateField>) => {
+  const [order, setOrder] = useState<unknown>();
+  const [note, setNote] = useState<unknown>();
+  return (
+    <>
+      <TemplateField
+        {...args}
+        type='hash'
+        label='Whole order'
+        value={order}
+        onChange={(name, value, type) => {
+          args.onChange?.(name, value, type);
+          setOrder(value);
+        }}
+      />
+      <TemplateField
+        {...args}
+        type='string'
+        name='note'
+        label='Order note'
+        value={note}
+        onChange={(name, value, type) => {
+          args.onChange?.(name, value, type);
+          setNote(value);
+        }}
+      />
+    </>
+  );
+};
+
 /**
  * A field that takes a record (a hash) is given a Qog state's data whole as well as opened; a text field, though
  * text takes any value, is not (qorus#646, David's review: "Any or hash yes, scalar no").
  */
 export const AStateIsTakenWholeByARecordField: StoryObj<typeof meta> = {
   args: { templates: QOG_FIELD_TEMPLATES as never, allowCustomValues: false, name: 'order' },
-  render: (args) => (
-    <>
-      <TemplateField {...args} type='hash' label='Whole order' />
-      <TemplateField {...args} type='string' name='note' label='Order note' />
-    </>
-  ),
+  render: (args) => <TwoRecordFields {...args} />,
   parameters: {
     docs: {
       description: {
         story:
-          "Opens a hash field's picker, Whole order: Receive order has Use, which sets the field to the state's " +
-          'whole data, $data:{receive_order}, of type hash. The picker of a text field, Order note, offers ' +
-          'Receive order to open only.',
+          'The picker of a text field, Order note, offers Receive order to open only. A hash field\'s picker, ' +
+          "Whole order, has Use beside each state; Use sets the field to the state's whole data, " +
+          '$data:{receive_order}, of type hash, and the picker opened again shows the states with Use. Each ' +
+          'picker fills its popover.',
       },
     },
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
+    const row = (label: string) =>
+      waitFor(
+        () => {
+          const found = document.querySelector<HTMLElement>(`.template-picker-row[data-label="${label}"]`);
+          expect(found, `the row ${label}`).toBeTruthy();
+          return found!;
+        },
+        { timeout: 15000 }
+      );
+    const uses = () =>
+      Array.from(document.querySelectorAll('.template-picker-use')).map((use) => use.getAttribute('aria-label'));
+    // a text field: Receive order opens only, and the picker fills its popover
+    await userEvent.click(await canvas.findByText('Order note'));
+    await row('Receive order');
+    expect(uses(), 'no Use in a text field').toEqual([]);
+    expectPickerFillsItsPopover();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelectorAll('.template-picker')).toHaveLength(0));
+    // a hash field: Use beside each state, which takes it whole
     await userEvent.click(await canvas.findByText('Whole order'));
-    const state = await waitFor(
-      () => {
-        const row = document.querySelector<HTMLElement>('.template-picker-row[data-label="Receive order"]');
-        expect(row, 'the row Receive order').toBeTruthy();
-        return row!;
-      },
-      { timeout: 15000 }
-    );
+    await waitFor(() => expect(uses()).toEqual(['Use Look up customer', 'Use Receive order']));
+    expectPickerFillsItsPopover();
+    const state = await row('Receive order');
     await userEvent.click(state.parentElement!.querySelector<HTMLElement>('.template-picker-use')!);
     await waitFor(() =>
       expect(args.onChange).toHaveBeenLastCalledWith('order', '$data:{receive_order}', 'hash')
     );
+    // opened again, as a person reads it: the states with Use
     await waitFor(() => expect(document.querySelectorAll('.template-picker')).toHaveLength(0));
-    await userEvent.click(await canvas.findByText('Order note'));
-    await waitFor(() =>
-      expect(document.querySelector('.template-picker-row[data-label="Receive order"]')).toBeTruthy()
-    );
-    expect(
-      Array.from(document.querySelectorAll('.template-picker-use')).map((use) => use.getAttribute('aria-label')),
-      'no Use in a text field'
-    ).toEqual([]);
+    await userEvent.click(await canvas.findByText('Receive order'));
+    await waitFor(() => expect(uses()).toEqual(['Use Look up customer', 'Use Receive order']));
   },
 };

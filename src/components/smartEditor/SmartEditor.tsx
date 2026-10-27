@@ -328,6 +328,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       completionsWith,
       emptyCompletionMessage,
       presentDiagnostics,
+      referenceNamesNothing,
       templateRoots,
       templateButton,
       editingLanguage,
@@ -486,12 +487,17 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       const written = converter.referenceBeingWritten(
         converter.fromSlateNodes([paragraph]).slice(0, end)
       );
-      return written > 0 ?
-          said.filter(
-            ({ range: { start } }) =>
-              !(start.line === index && start.character >= end - written && start.character < end)
+      /* what is said of the reference being written, which reaches the caret: from where it starts in what is
+         being written, or a whole reference that ends at the caret (`$data:receive_order.ev`, of which only `ev`
+         is being written) */
+      return said.filter(
+        ({ range: { start, end: to } }) =>
+          !(
+            start.line === index &&
+            ((written > 0 && start.character >= end - written && start.character < end) ||
+              (start.character < end && to.line === index && to.character === end))
           )
-        : said;
+      );
     }, [session.diagnostics, presentDiagnostics, converter, slateValue, listActive]);
 
     const diagnosticDecorate = useLspDiagnosticDecorations(shownDiagnostics, converter, slateValue);
@@ -661,14 +667,20 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       const editor = editorRef.current as unknown as Editor | null;
       if (editor && !readOnly) {
         (editor.children as unknown as ISlateElement[]).forEach((paragraph, index) => {
-          const rechipped = rechipTypedReferences(converter, paragraph, index);
+          const rechipped = rechipTypedReferences(
+            converter,
+            paragraph,
+            index,
+            undefined,
+            referenceNamesNothing
+          );
           if (rechipped) {
             drawTypedReferences(editor, index, rechipped);
           }
         });
       }
       onBlur?.();
-    }, [converter, readOnly, onBlur]);
+    }, [converter, readOnly, onBlur, referenceNamesNothing]);
 
     /* A chip put in at the caret takes the place of the reference being written there, wherever it is picked
        from (qorus#646, David's review). The completion list's inserter takes it away itself; the list the
@@ -770,7 +782,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 converter,
                 paragraph,
                 index,
-                converter.selectionToOffset([paragraph], [0, child], at.anchor.offset)
+                converter.selectionToOffset([paragraph], [0, child], at.anchor.offset),
+                referenceNamesNothing
               );
             if (rechipped) {
               drawTypedReferences(editor, index, rechipped);

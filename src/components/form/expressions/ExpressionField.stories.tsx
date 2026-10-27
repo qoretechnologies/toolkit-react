@@ -16,6 +16,7 @@ import { atTheCaptureSize, middleOf, mouseOffThePage, restMouseOn } from '../../
 import { ExpressionField } from './ExpressionField';
 import { mockExpressions } from './mockExpressions';
 import { IExpression } from './types';
+import { seenCompletionLabels, typeAsAPerson } from '../../../stories/templatePicker';
 
 /** The IDE's AI-assist button, as it renders on every expression card there
  *  (qorus-ide `src/components/AiButton` + `src/constants/effects.ts`
@@ -1840,7 +1841,7 @@ export const TextModeOffersTemplateCompletions: Story = {
     docs: {
       description: {
         story:
-          "Types `$` into the Text view of an expression whose field offers the row's fields: the completion list offers them, pos and bezeichnung, and the server's template contexts ($data:, $config:, …), which a pick writes and goes on from, listing what is in it (David's review: typing offers the language server's completions too). While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
+          "Types `$` into the Text view of an expression whose field offers the row's fields: after the `$` the completion list offers what can follow it, the server's template contexts ($data:, $config:, $static:, $timestamp:), as the language server offers them - not the row's fields pos and bezeichnung, which follow an `@` (David's review). While the list is open, nothing is said of the `$`: it asks for a template and is not a mistake yet. Escape puts the list away, and the server's words for a `$` alone are said; a click after the `$` opens the list again, and they are held again (David's decision).",
       },
     },
   },
@@ -1858,20 +1859,22 @@ export const TextModeOffersTemplateCompletions: Story = {
     // typed before the socket is up asks nothing at all.
     await waitForLspIdle(canvasElement);
     await userEvent.click(editable);
-    await userEvent.type(editable, '$');
+    await typeAsAPerson(userEvent, '$');
 
-    // The dropdown is portalled, so it is looked for in the document rather
-    // than in the canvas.
+    /* After a `$`, what can follow it: the server's template contexts, as the language server offers them - not
+       the row's fields, which are written with an `@` (qorus#646, David: "after '$', fields are shown first,
+       although only templates are possible"). */
     await waitFor(
-      () => {
-        expect(completionListed().some((row) => row.startsWith('pos'))).toBe(true);
-        expect(completionListed().some((row) => row.startsWith('bezeichnung'))).toBe(true);
-      },
+      () =>
+        expect(seenCompletionLabels()).toEqual([
+          '$data:',
+          '$config:',
+          '$static:',
+          '$timestamp:',
+          'Browse all templates',
+        ]),
       { timeout: 20000 }
     );
-    /* and the server's template contexts, which a pick writes and goes on from (qorus#646, David: typing offers
-       the language server's completions too) */
-    expect(completionListed().some((row) => row.startsWith('$'))).toBe(true);
     // nothing is said of the `$` while its list is open
     expect(saidUnderTheText(canvasElement)).toEqual([]);
     // the list put away, the server's words are said
@@ -1883,8 +1886,15 @@ export const TextModeOffersTemplateCompletions: Story = {
     );
     // and held again while a click after the `$` has the list open
     await userEvent.click(editable);
-    await waitFor(() => expect(completionListed().some((row) => row.startsWith('pos'))).toBe(true));
+    await waitFor(() => expect(seenCompletionLabels()).toContain('$data:'));
     expect(saidUnderTheText(canvasElement)).toEqual([]);
+    // the row's fields follow an `@`
+    await userEvent.keyboard('{Escape}{Backspace}');
+    await typeAsAPerson(userEvent, '@');
+    await waitFor(
+      () => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['pos', 'bezeichnung'])),
+      { timeout: 20000 }
+    );
   },
 };
 

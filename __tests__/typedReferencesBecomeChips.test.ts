@@ -59,3 +59,33 @@ describe('a reference typed out in full', () => {
     expect(rechipTypedReferences(dpqlSlateConverter, typed('1 + 2 '), 0, 6)).toBeUndefined();
   });
 });
+
+/* qorus#646, David's review: a half-typed reference, `$data:receive_order.ev`, was drawn as a chip when the editor
+   was left, and read as a reference that stood for something. One that names nothing stays the text it was. */
+describe('a reference typed out that names nothing', () => {
+  const namesNothing = (reference: string) => reference === '$data:receive_order.ev';
+
+  it('stays the text it was typed as when the editor is left', () => {
+    expect(
+      rechipTypedReferences(
+        dpqlSlateConverter,
+        typed('$data:receive_order.ev == "x"'),
+        0,
+        undefined,
+        namesNothing
+      )
+    ).toBeUndefined();
+  });
+
+  it('stays text beside one that names something, which is drawn as its chip', () => {
+    const rechipped = rechipTypedReferences(
+      dpqlSlateConverter,
+      typed('$data:receive_order.ev == $data:receive_order.event_type'),
+      0,
+      undefined,
+      namesNothing
+    );
+    expect(chipsOf(rechipped?.children)).toEqual(['$data:receive_order.event_type']);
+    expect((rechipped?.children[0] as { text?: string }).text).toBe('$data:receive_order.ev == ');
+  });
+});

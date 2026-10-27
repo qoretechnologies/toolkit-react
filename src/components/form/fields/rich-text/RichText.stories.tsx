@@ -26,6 +26,7 @@ import {
   pickerLabels,
   pickerRow,
   pickerSearch,
+  typeAsAPerson,
 } from '../../../../stories/templatePicker';
 import { withTouchScreen } from '../../../../stories/touchScreen';
 
@@ -483,11 +484,11 @@ export const TypingAReferenceNarrowsTheRows: Story = {
     const editable = within(canvasElement).getByRole('textbox');
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, 'Order $data:');
+    await typeAsAPerson(userEvent, 'Order $data:');
     await waitFor(() =>
       expect(completionLabels()).toEqual(['Look up customer', 'Receive order', 'Browse all templates'])
     );
-    await userEvent.type(editable, 'receive_order.');
+    await typeAsAPerson(userEvent, 'receive_order.');
     await waitFor(() =>
       expect(completionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates'])
     );

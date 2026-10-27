@@ -26,6 +26,40 @@ const chipRanges = (converter: ISlateConverter, paragraph: ISlateElement): [numb
   return ranges;
 };
 
+/** `paragraph` with each chip not in `had` that `keep` keeps as text written out as its text again. */
+const typedAsText = (
+  converter: ISlateConverter,
+  paragraph: ISlateElement,
+  had: [number, number][],
+  keep: (reference: string) => boolean
+): ISlateElement => {
+  const children: TSlateNode[] = [];
+  let at = 0;
+  for (const child of paragraph.children) {
+    const length = plainLength(converter, child);
+    const typed = isTag(child) && !had.some(([from, to]) => from === at && to === at + length);
+    const written =
+      typed && keep(String((child as ISlateElement & { value?: unknown }).value ?? '')) ?
+        converter.fromSlateNodes([
+          { type: 'paragraph', children: [{ text: '' }, child, { text: '' }] },
+        ])
+      : undefined;
+    const last = children[children.length - 1] as ISlateText | undefined;
+    if (written !== undefined || !isTag(child)) {
+      const piece = written ?? (child as ISlateText).text;
+      if (last && !isTag(last as TSlateNode)) {
+        children[children.length - 1] = { ...last, text: last.text + piece };
+      } else {
+        children.push({ text: piece });
+      }
+    } else {
+      children.push(child);
+    }
+    at += length;
+  }
+  return { ...paragraph, children };
+};
+
 /** The Slate point at plain-text `offset` in `paragraph` (at index `index`): in a text node, never in a chip. */
 const pointAt = (
   converter: ISlateConverter,
@@ -66,14 +100,18 @@ export const rechipTypedReferences = (
   converter: ISlateConverter,
   paragraph: ISlateElement,
   index: number,
-  caret?: number
+  caret?: number,
+  keepAsText?: (reference: string) => boolean
 ): IRechippedParagraph | undefined => {
   const text = converter.fromSlateNodes([paragraph]);
-  const [rebuilt] = converter.toSlateNodes(text);
-  if (!rebuilt) {
+  const [read] = converter.toSlateNodes(text);
+  if (!read) {
     return undefined;
   }
   const had = chipRanges(converter, paragraph);
+  /* A reference that names nothing the field is given stays the text it was typed as (`keepAsText`): drawn as a
+     chip, it would read as a reference that stands for something (qorus#646, David's review). */
+  const rebuilt = keepAsText ? typedAsText(converter, read, had, keepAsText) : read;
   const typed = chipRanges(converter, rebuilt).filter(
     ([start, end]) => !had.some(([from, to]) => from === start && to === end)
   );

@@ -11586,7 +11586,7 @@ export const TemplatePickedAfterADollarInAnExpression: Story = {
     docs: {
       description: {
         story:
-          "Renders the form and opens Computed (pos + 1) on its Text view. ` + $` typed there does not parse, and the editor says what the server says of it: an incomplete template reference. Escape puts the completion list away; a click after the `$` lists the row's fields, and pos picked from them takes the `$`'s place: the text is pos + 1 + pos, which the server reads, and the form holds it. ` + $` again, and pos picked from the templates offered beside the text takes its place too (David's review: the `$` stayed in front of the chip, pos + 1 + $pos, and nothing said it was wrong).",
+          "Renders the form and opens Computed (pos + 1) on its Text view. ` + $` typed there does not parse, and the editor says what the server says of it: an incomplete template reference. Escape puts the completion list away; a click after the `$` lists what can follow a `$` - templates, not the row's field pos, which is written with an `@`. pos picked from the templates offered beside the text takes the `$`'s place: the text is pos + 1 + pos, which the server reads, and the form holds it (David's review: the `$` stayed in front of the chip, pos + 1 + $pos, and nothing said it was wrong). ` + @` lists the row's fields, and Tab takes pos: pos + 1 + pos + pos.",
       },
     },
   },
@@ -11626,26 +11626,14 @@ export const TemplatePickedAfterADollarInAnExpression: Story = {
     );
     expect(timesHeld(canvasElement, 'computed', '$record:{pos}')).toBe(1);
 
-    // a click after the `$` lists the row's fields, and the one picked takes the `$`'s place
+    /* After a `$` only a template can follow: the row's field is not listed there - it is written with an `@`
+       (qorus#646, David's review). Picked from the templates offered beside the text, it takes the `$`'s place. */
     await userEvent.click(text);
-    const pos = await waitFor(() => {
-      const row = rows().find((item) => item.textContent?.startsWith('pos'));
-      expect(row, 'pos in the list').toBeTruthy();
-      return row as HTMLElement;
-    });
-    await userEvent.click(pos);
-    await waitFor(() => expect(expressionTextOf('computed')).toBe('pos + 1 + pos'));
-    await waitFor(() => expect(timesHeld(canvasElement, 'computed', '$record:{pos}')).toBe(2));
-    await waitFor(() => expect(expressionErrorsOf('computed')).toEqual([]));
-    // the list is put away by the pick
-    await waitFor(() => expect(openList().menu).toBeFalsy());
-
-    // and so does one picked from the templates offered beside the text
-    await askForATemplate('again');
+    await waitFor(() => expect(openList().menu?.classList.contains('completion-menu')).toBe(true));
+    expect(rows().some((item) => item.textContent?.startsWith('pos'))).toBe(false);
+    await userEvent.keyboard('{Escape}');
     await userEvent.click(
-      optionRow('computed').querySelector<HTMLElement>(
-        '.smart-editor-template-button'
-      ) as HTMLElement
+      optionRow('computed').querySelector<HTMLElement>('.smart-editor-template-button') as HTMLElement
     );
     const besidePos = await waitFor(() => {
       const row = rows().find((item) => item.textContent?.startsWith('pos'));
@@ -11653,6 +11641,18 @@ export const TemplatePickedAfterADollarInAnExpression: Story = {
       return row as HTMLElement;
     });
     await userEvent.click(besidePos);
+    await waitFor(() => expect(expressionTextOf('computed')).toBe('pos + 1 + pos'));
+    await waitFor(() => expect(timesHeld(canvasElement, 'computed', '$record:{pos}')).toBe(2));
+    await waitFor(() => expect(expressionErrorsOf('computed')).toEqual([]));
+    await waitFor(() => expect(openList().menu).toBeFalsy());
+
+    // after an `@` the row's fields are listed, and the one taken with Tab is written
+    await userEvent.click(text);
+    await userEvent.keyboard(' + @');
+    await waitFor(() =>
+      expect(rows().some((item) => item.textContent?.startsWith('pos'))).toBe(true)
+    );
+    await userEvent.keyboard('{Tab}');
     await waitFor(() => expect(expressionTextOf('computed')).toBe('pos + 1 + pos + pos'));
     await waitFor(() => expect(timesHeld(canvasElement, 'computed', '$record:{pos}')).toBe(3));
     await waitFor(() => expect(expressionErrorsOf('computed')).toEqual([]));

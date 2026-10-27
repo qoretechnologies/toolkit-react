@@ -13,7 +13,12 @@ import {
   IUseLspAutocompleteResult,
 } from './useLspAutocomplete';
 import type { ITemplateNode } from '../../helpers/templateTree';
-import { TEMPLATE_PICKER_WIDTH, TemplatePicker } from '../form/fields/template/TemplatePicker';
+import {
+  TEMPLATE_PICKER_WIDTH,
+  TemplatePicker,
+  USE_WHOLE_STYLE,
+  useWholeSays,
+} from '../form/fields/template/TemplatePicker';
 
 /*
  * The one list an editor offers what can be written at its caret in (qorus#646, David: "use the same
@@ -192,10 +197,11 @@ const CompletionMenuItem = memo(
             label: 'Use',
             className: 'completion-use',
             'aria-label': `Use ${item.label}`,
+            tooltip: coarse ? undefined : useWholeSays(item.label),
             compact: true,
             onMouseDown: keepTheFocus,
             onClick: takeWhole,
-            ...(coarse ? { style: { minWidth: 44, minHeight: 44 } } : {}),
+            style: { ...USE_WHOLE_STYLE, ...(coarse ? { minWidth: 44, minHeight: 44 } : {}) },
           }
         : undefined,
       [marks.takesWhole, item.label, takeWhole, coarse]

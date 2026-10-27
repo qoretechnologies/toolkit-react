@@ -118,6 +118,12 @@ const asksForAField = (textBefore: string): boolean => !!fieldTyped(textBefore);
  * A field or a template the server offers that the field's own list has is listed once, as the field's own, with
  * where it is. A template's context alone (`$data:`) is not offered (`BARE_CONTEXT`).
  */
+/** Whether a completion row is a record field (`@pos`, its template `$record:{pos}`). */
+const isRecordField = (item: ILspCompletionItem): boolean => {
+  const written = item.textEdit?.newText ?? item.insertText ?? item.label;
+  return item.kind === FIELD_KIND || written.startsWith('@') || unbracedReference(written).startsWith('$record:');
+};
+
 export const dpqlCompletionsWith =
   (roots: ITemplateNode[] = [], typeLabel?: TTypeLabel) =>
   ({ plainText, offset, serverItems, typedInText }: ICompletionContext): ILspCompletionItem[] => {
@@ -148,7 +154,10 @@ export const dpqlCompletionsWith =
       typed && valueHere && roots.length ? templateSearchItems(roots, typed, typeLabel) : [],
       wordTyped(written)
     ).filter(
-      (item) => !(item.kind === FIELD_KIND && serverReferences.has(fieldAsWritten(item.insertText ?? '')))
+      (item) =>
+        !(item.kind === FIELD_KIND && serverReferences.has(fieldAsWritten(item.insertText ?? ''))) &&
+        // after a `$` only a template can follow: a record field is written with an `@` (qorus#646, David's review)
+        !(typed.startsWith('$') && isRecordField(item))
     );
     const browse = valueHere && roots.length ? [browseAllTemplatesItem()] : [];
     if (!ours.length) {

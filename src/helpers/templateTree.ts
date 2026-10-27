@@ -636,3 +636,40 @@ export const catalogueGroupFor = (
       { label: node.label, path: [...node.trail, node.label].join(' › '), row: node.row }
     : undefined;
 };
+
+/**
+ * Whether a reference names nothing the field is given (qorus#646, David's review: a half-typed reference was left
+ * standing as if it were one): a reference into a context whose templates the catalogue lists, every one, which
+ * none of them is. A context the catalogue lists nothing of, or one whose keys are written freely (`$dynamic:*`),
+ * or a part of the catalogue not loaded yet, says nothing either way.
+ */
+export const referenceNamesNothing = (roots: ITemplateNode[], written: string): boolean => {
+  const reference = unbracedReference(written);
+  const context = /^(\$[\w-]+:)./.exec(reference)?.[1];
+  if (!context || context === '$record:') {
+    return false;
+  }
+  const nodes = allTemplateNodes(roots);
+  const inContext = nodes.filter(
+    (node) =>
+      node.reference?.startsWith(context) || (typeof node.value === 'string' && node.value.startsWith(context))
+  );
+  if (!inContext.length || inContext.some((node) => node.writesKey)) {
+    return false;
+  }
+  if (templateNodeFor(roots, written)) {
+    return false;
+  }
+  // inside a group whose members are not loaded yet: not known to be nothing
+  return !inContext.some(
+    (node) =>
+      !!node.loadChildren &&
+      !node.children?.length &&
+      !!node.reference &&
+      reference.startsWith(`${unbracedReference(node.reference)}.`)
+  );
+};
+
+/** What a diagnostic says of a reference that names nothing here. */
+export const referenceNamesNothingMessage = (written: string): string =>
+  `No template here is called \`${written}\`: pick one from the list, or remove it.`;

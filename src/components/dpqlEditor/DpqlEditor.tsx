@@ -16,7 +16,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { SmartEditor } from '../smartEditor/SmartEditor';
 import { ISlateConverter, ISlateElement } from '../smartEditor/types';
-import { dpqlSlateConverter, richtextResponseToSlate } from './dpqlHelpers';
+import { dpqlReferencesIn, dpqlSlateConverter, richtextResponseToSlate } from './dpqlHelpers';
 import { dpqlCompletionInserter } from './dpqlInserter';
 import { makeDpqlTagRenderer } from './dpqlTags';
 import {
@@ -28,7 +28,12 @@ import {
 } from './dpqlCompletions';
 import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
-import { templateTree } from '../../helpers/templateTree';
+import {
+  referenceNamesNothing,
+  referenceNamesNothingMessage,
+  templateTree,
+} from '../../helpers/templateTree';
+import { ILspDiagnostic } from '../../utils/lspClient.types';
 import { DPQL_EDITING_LANGUAGE } from '../smartEditor/editingAids';
 import { useDescriptionTooltips } from '../../helpers/descriptionTooltip';
 import { useTypeLabel, useTypeSentenceForm } from '../form/typeSentenceForm';
@@ -199,6 +204,26 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       () => templateTree(templates, { fields: dpql.fieldMeta, wholeRecords: true }),
       [templates, dpql.fieldMeta]
     );
+    /* A reference that names none of the field's templates says so where it is written, and stays the text it
+       was typed as (qorus#646, David's review: a half-typed reference was taken as it was). */
+    const namesNothing = useCallback(
+      (reference: string) => referenceNamesNothing(templateRoots, reference),
+      [templateRoots]
+    );
+    const presentDiagnostics = useCallback(
+      (diagnostics: ILspDiagnostic[], plainText: string): ILspDiagnostic[] => [
+        ...presentDpqlDiagnostics(diagnostics, plainText),
+        ...dpqlReferencesIn(plainText)
+          .filter(({ value }) => namesNothing(value))
+          .map(({ line, start, end, value }) => ({
+            range: { start: { line, character: start }, end: { line, character: end } },
+            severity: 1 as const,
+            source: 'templates',
+            message: referenceNamesNothingMessage(value),
+          })),
+      ],
+      [namesNothing]
+    );
     // a template's type named in its row by the catalogue the surrounding form has, never its code
     const typeLabel = useTypeLabel();
     const completionsWith = useMemo(
@@ -286,7 +311,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         completionsWith={completionsWith}
         // "No record fields here" is the server's to say: with none, there may be a record it would know
         emptyCompletionMessage={dpql.session.isUnavailable ? undefined : dpqlEmptyCompletionMessage}
-        presentDiagnostics={presentDpqlDiagnostics}
+        presentDiagnostics={presentDiagnostics}
+        referenceNamesNothing={namesNothing}
         isLoading={isParsing}
         loadingIndicator={loadingIndicator}
       />

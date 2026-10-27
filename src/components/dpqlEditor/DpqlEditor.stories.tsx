@@ -9,7 +9,7 @@ import {
   IMockLspServer,
   MOCK_LSP_URL,
 } from '../smartEditor/__fixtures__/mockLspServer';
-import { mockTokenizeDpql } from '../form/expressions/dpqlMockLanguage';
+import { mockPublishedDiagnostics, mockTokenizeDpql } from '../form/expressions/dpqlMockLanguage';
 import { mockHoverDpql } from './__fixtures__/dpqlMockHover';
 import { DpqlEditor } from './DpqlEditor';
 import { IDpqlEditorProps, TDpqlFsmContext } from './types';
@@ -30,6 +30,10 @@ import {
   completionRow,
   completionRows,
   expectRowsFit,
+  highlightedCompletionLabel,
+  saidOfTheText,
+  seenCompletionLabels,
+  typeAsAPerson,
   pickerCrumbs,
   pickerFocused,
   pickerLabels,
@@ -247,6 +251,19 @@ const meta = {
           recordType: msg.params?.recordType ?? 'record',
           fields: STORY_RECORD_FIELDS,
         }),
+
+        /* The server publishes what it finds in the text on every open and change, as Qorus does (`dpql-parse`):
+           `$data:receive_order:ev` is refused - "':' can't be used here" (DPQL-E001, the server's own words). */
+        'textDocument/didOpen': (msg, server) =>
+          server.notify('textDocument/publishDiagnostics', {
+            uri: msg.params?.textDocument?.uri,
+            diagnostics: mockPublishedDiagnostics(server.textOf(msg.params?.textDocument?.uri)),
+          }),
+        'textDocument/didChange': (msg, server) =>
+          server.notify('textDocument/publishDiagnostics', {
+            uri: msg.params?.textDocument?.uri,
+            diagnostics: mockPublishedDiagnostics(server.textOf(msg.params?.textDocument?.uri)),
+          }),
 
         'dpql/validate': () => ({ diagnostics: [] }),
 
@@ -540,7 +557,7 @@ export const QuotedFieldTypedOutIsAChip: Story = {
     const editable = within(canvasElement).getByRole('textbox');
 
     await userEvent.click(editable);
-    await userEvent.type(editable, '@"create.order-id" == 1');
+    await typeAsAPerson(userEvent, '@"create.order-id" == 1');
 
     await waitFor(() => expect(chipLabels(editable)).toEqual(['record: create.order-id']));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('@"create.order-id" == 1'));
@@ -907,8 +924,7 @@ export const AccessorChainTypedOutIsAChip: Story = {
     const editable = within(canvasElement).getByRole('textbox');
 
     await userEvent.click(editable);
-    // `[` starts a key descriptor for userEvent; `[[` types one
-    await userEvent.type(editable, '@orders[[*].id == 1');
+    await typeAsAPerson(userEvent, '@orders[*].id == 1');
 
     await waitFor(() => expect(chipLabels(editable)).toEqual(['record: orders[*].id']));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('@orders[*].id == 1'));
@@ -1088,7 +1104,7 @@ export const WithFsmContext: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, '$data:receive_order.');
+    await typeAsAPerson(userEvent, '$data:receive_order.');
     await waitFor(
       () =>
         expect(completionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates']),
@@ -1155,7 +1171,7 @@ export const AStateDataPickIsWrittenAsItsChip: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, '$data:receive_order.');
+    await typeAsAPerson(userEvent, '$data:receive_order.');
     await userEvent.click(await completionRow('Order ID'));
     await waitFor(() =>
       expect(args.onChange).toHaveBeenLastCalledWith(
@@ -1188,7 +1204,7 @@ export const APickedStateOpensItsDataAndThePickIsOneChip: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, '$data:');
+    await typeAsAPerson(userEvent, '$data:');
     await userEvent.click(await completionRow('Receive order'));
     await waitFor(() =>
       expect(pickerCrumbs()).toContain('Receive order')
@@ -1260,7 +1276,7 @@ export const TypingNarrowsToWhatItReaches: Story = {
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
     // the states, and the server's template context they are in, `$data:` (qorus#646, David: LSP completion too)
-    await userEvent.type(editable, '$d');
+    await typeAsAPerson(userEvent, '$d');
     await waitFor(
       () =>
         expect(completionLabels()).toEqual([
@@ -1272,18 +1288,18 @@ export const TypingNarrowsToWhatItReaches: Story = {
         ]),
       { timeout: 30000 }
     );
-    await userEvent.type(editable, 'ata');
+    await typeAsAPerson(userEvent, 'ata');
     await waitFor(
       () =>
         expect(completionLabels()).toEqual(['Look up customer', 'Receive order', '$data:', 'Browse all templates']),
       { timeout: 30000 }
     );
-    await userEvent.type(editable, ':');
+    await typeAsAPerson(userEvent, ':');
     await waitFor(
       () => expect(completionLabels()).toEqual(['Look up customer', 'Receive order', 'Browse all templates']),
       { timeout: 30000 }
     );
-    await userEvent.type(editable, 'receive_order.');
+    await typeAsAPerson(userEvent, 'receive_order.');
     await waitFor(
       () =>
         expect(completionLabels()).toEqual(['Customer', 'Event type', 'Order ID', 'User name', 'Browse all templates']),
@@ -1308,7 +1324,8 @@ export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
         story:
           "Types `$data:receive_order.e`: the row Event type says it is in Receive order, is State data (green, " +
           "the color of the data of the event that starts the Qog) of type Text, and, under its name, what it " +
-          'is: what happened to the order. No row is called a Variable.',
+          'is: what happened to the order. No row is called a Variable. `v` typed, Tab takes Event type: the chip ' +
+          'Receive order › Event type.',
       },
     },
   },
@@ -1316,7 +1333,7 @@ export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, '$data:receive_order.e');
+    await typeAsAPerson(userEvent, '$data:receive_order.e');
     const row = await completionRow('Event type');
     expect(row.textContent).toContain('in Receive order');
     expect(row.textContent).toContain('State data');
@@ -1324,6 +1341,11 @@ export const ARowSaysWhereItIsApartFromWhatItIs: Story = {
     expect(completionListed().join(' | ')).not.toContain('Variable');
     // what it is, in the row under its name - no hover over the row's edge (qorus#646, David's review)
     expect(row.textContent).toContain('What happened to the order');
+    // typed on, key by key, the row stays; Tab takes it (qorus#646, David: Tab took the text as it was)
+    await typeAsAPerson(userEvent, 'v');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('Event type'));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Event type']));
   },
 };
 
@@ -1412,7 +1434,7 @@ export const TheTemplateButtonInsertsAtTheCaret: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, 'concat(');
+    await typeAsAPerson(userEvent, 'concat(');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat()'));
     await userEvent.keyboard('{Escape}');
     // a value can be written after `concat(`: the button can be pressed
@@ -1699,7 +1721,7 @@ export const LiveDpqlEditorWithAlertPayload: Story = {
     const editable = canvas.getByRole('textbox');
     await sleep(3000); // let the live LSP session connect before typing (real WS handshake)
     await userEvent.click(editable);
-    await userEvent.type(editable, '@');
+    await typeAsAPerson(userEvent, '@');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.reqore-menu');
@@ -1819,7 +1841,7 @@ export const WithTemplates: Story = {
     await userEvent.click(editable);
 
     // `$` → the templates, as whole values
-    await userEvent.type(editable, '$');
+    await typeAsAPerson(userEvent, '$');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.completion-menu');
@@ -1836,7 +1858,7 @@ export const WithTemplates: Story = {
 
     // Clear and switch to `@` → fields.
     await userEvent.clear(editable);
-    await userEvent.type(editable, '@');
+    await typeAsAPerson(userEvent, '@');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.completion-menu');
@@ -1868,7 +1890,7 @@ export const ADollarWithNoTemplatesListsTheServersContexts: Story = {
   play: async ({ canvasElement }) => {
     const editable = within(canvasElement).getByRole('textbox');
     await userEvent.click(editable);
-    await userEvent.type(editable, '$');
+    await typeAsAPerson(userEvent, '$');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.completion-menu');
@@ -1913,7 +1935,7 @@ export const WithAutosuggest: Story = {
     await userEvent.click(editable);
     // Bare identifier — no trigger char. Autosuggest should open the
     // dropdown and narrow to `substr`.
-    await userEvent.type(editable, 'sub');
+    await typeAsAPerson(userEvent, 'sub');
     await waitFor(
       () => {
         const dropdown = document.querySelector('.reqore-menu');
@@ -1949,7 +1971,7 @@ export const CanTypeText: Story = {
 
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
-    await userEvent.type(editable, 'hello');
+    await typeAsAPerson(userEvent, 'hello');
 
     await expect(args.onChange).toHaveBeenCalled();
   },
@@ -2054,7 +2076,7 @@ export const LspCompletionRoundtrip: Story = {
 
     const editable = canvas.getByRole('textbox');
     await userEvent.click(editable);
-    await userEvent.type(editable, '@');
+    await typeAsAPerson(userEvent, '@');
 
     // Poll until the server received the completion request (the
     // autocomplete debounce is 150ms; the round-trip + re-render follow).
@@ -2150,7 +2172,7 @@ export const BracketsAndQuotesAreClosed: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, 'concat(');
+    await typeAsAPerson(userEvent, 'concat(');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat()'));
     await userEvent.keyboard('"a');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('concat("a")'));
@@ -2179,7 +2201,7 @@ export const TheMatchingBracketIsMarked: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, 'f((1), 2');
+    await typeAsAPerson(userEvent, 'f((1), 2');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('f((1), 2)'));
     await userEvent.keyboard('{Escape}');
     await waitFor(() => {
@@ -2241,9 +2263,9 @@ export const LinesMovedAndCopied: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, '1 > 0');
+    await typeAsAPerson(userEvent, '1 > 0');
     await userEvent.keyboard('{Escape}{Enter}');
-    await userEvent.type(editable, '2 > 0');
+    await typeAsAPerson(userEvent, '2 > 0');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('1 > 0\n2 > 0'));
     await userEvent.keyboard('{Escape}{Alt>}{ArrowUp}{/Alt}');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('2 > 0\n1 > 0'));
@@ -2315,7 +2337,8 @@ export const AStateOrARecordIsTakenWhole: Story = {
         story:
           'Types `$data:`: the state Receive order has Use beside it, which writes the state\'s whole data as one ' +
           'chip, Receive order ($data:{receive_order}); a click on the row instead opens its data. Then ' +
-          '`$data:receive_order.`: the record Customer has Use too ($data:{receive_order.customer}).',
+          '`$data:receive_order.`: the record Customer has Use too ($data:{receive_order.customer}), set apart ' +
+          'from its row by a divider; hovered, it says "Use the whole record: all of Customer as one value".',
       },
     },
   },
@@ -2323,15 +2346,22 @@ export const AStateOrARecordIsTakenWhole: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, '$data:');
+    await typeAsAPerson(userEvent, '$data:');
     const state = await completionRow('Receive order');
     await userEvent.click(state.parentElement!.querySelector<HTMLElement>('.completion-use')!);
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$data:\{receive_order\}\s*$/)));
     await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order']));
     expect(plainTextOf(editable)).toBe('');
-    await userEvent.type(editable, ' == $data:receive_order.');
+    await typeAsAPerson(userEvent, ' == $data:receive_order.');
     const customer = await completionRow('Customer');
-    expect(customer.parentElement!.querySelector('.completion-use'), 'Use beside Customer').toBeTruthy();
+    const use = customer.parentElement!.querySelector<HTMLElement>('.completion-use');
+    expect(use, 'Use beside Customer').toBeTruthy();
+    // set apart from the row's ">" by a divider, and saying what it does on hover (qorus#646, David's review)
+    expect(getComputedStyle(use!).borderLeftStyle).toBe('solid');
+    await userEvent.hover(use!);
+    await waitFor(() =>
+      expect(document.body.textContent).toContain('Use the whole record: all of Customer as one value')
+    );
   },
 };
 
@@ -2385,7 +2415,7 @@ export const TypingOffersTheServersCompletionsToo: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await userEvent.type(editable, '$dat');
+    await typeAsAPerson(userEvent, '$dat');
     await userEvent.click(await completionRow('$data:'));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$data:'));
     // written as text, and the list goes on from it: the states
@@ -2394,13 +2424,121 @@ export const TypingOffersTheServersCompletionsToo: Story = {
     });
     await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(''));
-    await userEvent.type(editable, 'siz');
+    await typeAsAPerson(userEvent, 'siz');
     await waitFor(() => expect(completionLabels()[0]).toBe('size'), { timeout: 30000 });
     expect((await completionRow('size')).textContent).toContain('gives a whole number');
     await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(''));
-    await userEvent.type(editable, '@nam');
+    await typeAsAPerson(userEvent, '@nam');
     await completionRow('@name');
+  },
+};
+
+/**
+ * Tab takes the completion the keyboard is on, as a code editor's Tab does, and the text keeps the focus (qorus#646,
+ * David: "if I type $data:receive_order.ev and hit <tab> ... it accepts the value as it is"). Typed one key at a
+ * time, as a person types.
+ */
+export const TabTakesTheHighlightedCompletion: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$data:receive_order.ev` key by key: the list shows Event type, highlighted. Tab takes it: the ' +
+          'chip Receive order › Event type, the value $data:{receive_order.event_type}, and the caret stays in ' +
+          'the text.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:receive_order.ev');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(['Event type', 'Browse all templates']), {
+      timeout: 30000,
+    });
+    expect(highlightedCompletionLabel()).toBe('Event type');
+    // nothing is said of the reference while it is being written and its list is open
+    expect(saidOfTheText(canvasElement)).toEqual([]);
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Receive order › Event type']));
+    await waitFor(() =>
+      expect(args.onChange).toHaveBeenLastCalledWith(
+        expect.stringMatching(/^\$data:\{receive_order\.event_type\}\s*$/)
+      )
+    );
+    expect(plainTextOf(editable)).toBe('');
+    expect(editable.contains(document.activeElement) || document.activeElement === editable).toBe(true);
+  },
+};
+
+/**
+ * Space after a half-typed reference puts the list away and types a space; the reference is left as the text it
+ * was typed as, and the editor says it names nothing - never taken as a reference (qorus#646, David's review).
+ */
+export const SpaceLeavesAHalfReferenceAsAnError: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$data:receive_order.ev` key by key, then a space: the list goes away and the space is typed. ' +
+          '$data:receive_order.ev stays text - no chip - and the editor says "No template here is called ' +
+          '`$data:receive_order.ev`: pick one from the list, or remove it." It stays so when the editor is left.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:receive_order.ev');
+    await waitFor(() => expect(seenCompletionLabels()).toContain('Event type'), { timeout: 30000 });
+    await typeAsAPerson(userEvent, ' ');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual([]));
+    const NAMES_NOTHING =
+      'No template here is called `$data:receive_order.ev`: pick one from the list, or remove it.';
+    await waitFor(() => expect(saidOfTheText(canvasElement)).toContain(NAMES_NOTHING), { timeout: 30000 });
+    expect(chipsOf(editable)).toEqual([]);
+    expect(plainTextOf(editable).trim()).toBe('$data:receive_order.ev');
+    // left: still the text it was typed as, still said to name nothing
+    await userEvent.click(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(chipsOf(editable)).toEqual([]));
+    expect(saidOfTheText(canvasElement)).toContain(NAMES_NOTHING);
+  },
+};
+
+/**
+ * A `:` between a reference's parts (`$data:receive_order:ev`) is refused as the server refuses it: "':' can't be
+ * used here" (DPQL-E001) - not taken as written (qorus#646, David's review).
+ */
+export const AColonBetweenAReferencesPartsIsRefused: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Types `$data:receive_order:ev` key by key: the editor says what the server says of it, \"':' can't " +
+          'be used here: remove it, or put it in quotes to make it text." The parts of a reference are ' +
+          'separated by a dot: $data:receive_order.event_type.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$data:receive_order:ev');
+    await userEvent.keyboard('{Escape}');
+    await waitFor(
+      () =>
+        expect(saidOfTheText(canvasElement)).toContain(
+          "':' can't be used here: remove it, or put it in quotes to make it text."
+        ),
+      { timeout: 30000 }
+    );
   },
 };
 
