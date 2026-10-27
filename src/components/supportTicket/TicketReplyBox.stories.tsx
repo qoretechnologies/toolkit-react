@@ -17,6 +17,19 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
+ * The reply is sent with the white primary, never the Qonsole purple: a ticket reply is not a
+ * hand-off to Qonsole (instruction-files decision 002). Read from the drawn button, so a theme
+ * or a default that brings the purple back fails here.
+ */
+const expectWhiteSend = async (canvasElement: HTMLElement) => {
+  const send = within(canvasElement).getByText('Send reply').closest('button')!;
+  await waitFor(() => {
+    const [r, g, b] = getComputedStyle(send).backgroundColor.match(/\d+/g)!.map(Number);
+    expect(Math.min(r, g, b)).toBeGreaterThan(200);
+  });
+};
+
+/**
  * The customer composer, plain-editor variant (used here for a deterministic
  * type→send test): an attach button (no extra menu → a plain button, not a
  * dropdown) and Send. No internal-note toggle. Typing enables Send; clicking it
@@ -27,7 +40,7 @@ export const Default: Story = {
     docs: {
       description: {
         story:
-          "Renders the customer composer's plain-editor variant — an attach button and Send, no internal-note toggle; typing a reply enables Send, which calls onSend with the body and internal: false.",
+          "Renders the customer composer's plain-editor variant — an attach button and Send, no internal-note toggle; typing a reply enables Send — the white primary, not the Qonsole purple — which calls onSend with the body and internal: false.",
       },
     },
   },
@@ -39,6 +52,7 @@ export const Default: Story = {
     await expect(canvas.queryByText('Internal note')).not.toBeInTheDocument();
 
     await userEvent.type(textarea!, 'Here is my reply');
+    await expectWhiteSend(canvasElement);
     await userEvent.click(canvas.getByText('Send reply'));
     await waitFor(() =>
       expect(args.onSend).toHaveBeenCalledWith(
@@ -59,7 +73,7 @@ export const StaffWithInternalNote: Story = {
     docs: {
       description: {
         story:
-          "Renders the staff composer with a split send button — the primary action posts a public reply, while the caret opens 'Add internal note', which sends with internal: true.",
+          "Renders the staff composer with a split send button — the primary action (white, not the Qonsole purple) posts a public reply, while the caret opens 'Add internal note', which sends with internal: true.",
       },
     },
   },
@@ -72,6 +86,7 @@ export const StaffWithInternalNote: Story = {
 
     const textarea = canvasElement.querySelector('textarea');
     await userEvent.type(textarea!, 'internal context');
+    await expectWhiteSend(canvasElement);
 
     // "Add internal note" lives behind the split-send caret
     const caret = canvasElement.querySelector('.ticket-send-more');
