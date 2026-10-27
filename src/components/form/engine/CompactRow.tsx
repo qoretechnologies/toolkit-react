@@ -27,6 +27,7 @@ import { useContextSelector } from 'use-context-selector';
 import { hasAllDependenciesFullfilled, parseDependency } from '../../../helpers/validations';
 import { findTemplate, isValueTemplate } from '../../../helpers/templates';
 import { getDefaultValue, richtextToSegments, richtextToString } from '../../../helpers/common';
+import { fieldHasLongDescription } from '../../../helpers/fieldDescription';
 import { hasTemplateText, templateTextSegments } from '../../../helpers/templateText';
 import { ReadOnlyTemplateTag } from '../fields/template/ReadOnlyTemplateTag';
 import { TemplateText } from '../fields/template/TemplateText';
@@ -1345,7 +1346,7 @@ export const CompactRow = memo(
     // with no route to the field's description at all. Stops propagation because
     // both labels are click targets themselves (the row expands / collapses).
     const helpIcon =
-      schema?.desc ?
+      fieldHasLongDescription(schema) ?
         <ReqoreIcon
           icon='QuestionLine'
           size='12px'

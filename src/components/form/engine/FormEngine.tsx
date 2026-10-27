@@ -54,6 +54,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { useMeasure, useMount, useUpdateEffect } from 'react-use';
 import styled, { css } from 'styled-components';
 import { allowedValueOf } from '../../../helpers/allowedValues';
+import { fieldHasLongDescription } from '../../../helpers/fieldDescription';
 import {
   fixOperatorValue,
   getDefaultValue,
@@ -4651,14 +4652,16 @@ const FormEngineImpl = ({
                     }
                   : undefined,
                 onClick:
-                  options[optionName]?.desc ? () => handleOptionLabelClick(optionName) : undefined,
+                  fieldHasLongDescription(options[optionName]) ?
+                    () => handleOptionLabelClick(optionName)
+                  : undefined,
               },
               showLabelTooltip: !!options[optionName]?.short_desc,
               customLabelTooltip: {
                 delay: 300,
                 content: (
                   <Description
-                    longDescription={`${options[optionName]?.short_desc}${options[optionName]?.desc ? '. Click to learn more.' : ''}`}
+                    longDescription={`${options[optionName]?.short_desc}${fieldHasLongDescription(options[optionName]) ? '. Click to learn more.' : ''}`}
                     margin='none'
                   />
                 ),
@@ -4670,7 +4673,8 @@ const FormEngineImpl = ({
               descriptionEffect: {
                 textSize: '11px',
                 opacity: 0.3,
-                underline: options[optionName]?.desc ? 'underline dotted #878787' : undefined,
+                underline:
+                  fieldHasLongDescription(options[optionName]) ? 'underline dotted #878787' : undefined,
               },
               customTheme: {
                 main: 'main:darken:1',
