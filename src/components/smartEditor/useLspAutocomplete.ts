@@ -702,6 +702,14 @@ export function useLspAutocomplete(
           )
         : converter.selectionToOffset(nodes, replacementPath as number[], 0);
 
+      /* The text takes the focus back before the pick is written, where the pick was made elsewhere (the picker's
+         search box): focused after, with the edit not yet drawn, slate-react puts the focus off to a later timer,
+         and the editor's state changes there, outside the event that made the pick. */
+      try {
+        if (!ReactEditor.isFocused(editor)) ReactEditor.focus(editor);
+      } catch {
+        // the editor is not in the document: the pick is written all the same
+      }
       inserter(item.raw, editor, {
         plainText,
         cursorOffset,

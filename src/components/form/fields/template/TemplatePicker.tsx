@@ -10,6 +10,7 @@ import {
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import React, { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { TTypeLabel } from '../../../../helpers/qorusTypeCatalogue';
 import {
@@ -185,6 +186,8 @@ export const TemplatePicker = memo(
     const [focused, setFocused] = useState(0);
     const [keyFor, setKeyFor] = useState<ITemplateNode | null>(null);
     const [keyText, setKeyText] = useState('');
+    // the key's box, which takes the keyboard in the event that shows it (`pick`)
+    const keyBoxRef = useRef<HTMLDivElement>(null);
 
     // opened at another group (a chip of another state replaced): that group
     useEffect(() => {
@@ -274,8 +277,12 @@ export const TemplatePicker = memo(
       (node: ITemplateNode) => {
         if (node.disabled) return;
         if (node.writesKey) {
-          setKeyFor(node);
-          setKeyText('');
+          // drawn now, in the event that asked for it, so that its box takes the keyboard in it too
+          flushSync(() => {
+            setKeyFor(node);
+            setKeyText('');
+          });
+          keyBoxRef.current?.querySelector<HTMLInputElement>('input')?.focus();
           return;
         }
         onPick(node);
@@ -512,7 +519,13 @@ export const TemplatePicker = memo(
           : null}
         </ReqoreControlGroup>
         {keyFor ?
-          <ReqoreControlGroup vertical fluid size='small' className='template-picker-key'>
+          <ReqoreControlGroup
+            vertical
+            fluid
+            size='small'
+            className='template-picker-key'
+            ref={keyBoxRef}
+          >
             <ReqoreP size='small'>
               {`${keyFor.label} holds any keys: write the key to use (a path: order.id).`}
             </ReqoreP>
@@ -522,7 +535,6 @@ export const TemplatePicker = memo(
                 aria-label={`Key in ${keyFor.label}`}
                 placeholder='order.id'
                 value={keyText}
-                focusRules={{ type: 'auto' }}
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                   setKeyText(event.target.value)
                 }

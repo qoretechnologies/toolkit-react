@@ -552,7 +552,9 @@ export const AKeyIsWrittenForDataOfAnyKeys: Story = {
       expect(input).toBeTruthy();
       return input!;
     });
-    await userEvent.type(key, 'order.id{Enter}');
+    // the key's box has the keyboard: the key is typed straight in
+    await waitFor(() => expect(document.activeElement).toBe(key));
+    await userEvent.keyboard('order.id{Enter}');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:order.id'));
   },
 };
