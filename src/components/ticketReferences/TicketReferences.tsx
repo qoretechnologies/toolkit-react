@@ -27,7 +27,7 @@ import {
   TResolveInterfaceIcon,
   TTicketViewerRole,
 } from '../supportTicket/meta';
-import { useLoadedImages } from '../supportTicket/useLoadedImages';
+import { loadedImageUrl, useLoadedImages } from '../supportTicket/useLoadedImages';
 import type { ITicketThreadAttachment, ITicketThreadMessage } from '../ticketThread/TicketThread';
 
 /*
@@ -241,7 +241,13 @@ const useImageUrls = (
     }
     let active = true;
     const created: string[] = [];
-    Promise.allSettled(ids.map((id) => fetchAttachmentUrl(id).then((url) => ({ id, url })))).then(
+    Promise.allSettled(
+      ids.map((id) =>
+        fetchAttachmentUrl(id)
+          .then(loadedImageUrl)
+          .then((url) => ({ id, url }))
+      )
+    ).then(
       (results) => {
         if (!active) {
           return;
@@ -324,11 +330,13 @@ const Thumb = styled.button`
   justify-content: center;
   position: relative;
   transition: border-color 0.15s;
+  /* A screenshot is something to read, not a hand-off to Qonsole, so its hover and focus
+     brighten the tile's own edge instead of wearing the product's purple (decision 002). */
   &:hover {
-    border-color: rgba(169, 116, 255, 0.6);
+    border-color: rgba(255, 255, 255, 0.35);
   }
   &:focus-visible {
-    outline: 2px solid #a974ff;
+    outline: 2px solid rgba(255, 255, 255, 0.6);
     outline-offset: 2px;
   }
   img {

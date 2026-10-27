@@ -4,6 +4,7 @@ import styled from 'styled-components';
 
 import { thinScrollbar } from '../../helpers/scrollbar';
 import { StoryMeta } from '../../types';
+import { STORY_BROKEN_IMAGE } from '../supportTicket/__fixtures__/kindMarks';
 import type { IInterfaceReference, TTicketMessageAuthor } from '../supportTicket/meta';
 import { ITicketThreadMessage, TicketThread } from './TicketThread';
 
@@ -775,6 +776,45 @@ export const ImagePreview: Story = {
     // clicking a thumbnail opens the enlarge view
     await userEvent.click(thumb);
     await waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
+  },
+};
+
+/**
+ * An image attachment whose bytes are not a picture — the server answered with an error
+ * page or an empty body — is a download chip like any other file, never a broken image.
+ */
+export const ImageThatDoesNotLoad: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a message with two screenshots where one\'s bytes cannot be drawn: that one falls back to its download chip while the other stays a thumbnail.',
+      },
+    },
+  },
+  args: {
+    viewerRole: 'customer',
+    fetchAttachmentUrl: async (id: string) =>
+      id === 'img-1' ? STORY_BROKEN_IMAGE : screenshot('after', 205),
+    messages: [
+      {
+        message_id: 'img',
+        author_type: 'customer',
+        author_id: 'acme',
+        body: 'Here is the canvas before and after the upgrade:',
+        created: ago(6),
+        attachments: [
+          { attachment_id: 'img-1', filename: 'before.png', content_type: 'image/png', size_bytes: 512_000 },
+          { attachment_id: 'img-2', filename: 'after.png', content_type: 'image/png', size_bytes: 486_000 },
+        ],
+      },
+    ],
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvasElement.querySelector('img[alt="after.png"]')).not.toBeNull());
+    await waitFor(() => expect(canvas.getByRole('button', { name: /before\.png/ })).toBeInTheDocument());
+    await expect(canvasElement.querySelector('img[alt="before.png"]')).toBeNull();
   },
 };
 

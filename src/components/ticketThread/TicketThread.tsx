@@ -25,6 +25,7 @@ import {
   TTicketMessageAuthor,
   TTicketViewerRole,
 } from '../supportTicket';
+import { loadedImageUrl } from '../supportTicket/useLoadedImages';
 
 /*
  * Shared support-ticket conversation thread, used by every Qorus surface that
@@ -444,6 +445,7 @@ const ImageThumb = ({
   useEffect(() => {
     let alive = true;
     fetchAttachmentUrl(attachment.attachment_id)
+      .then(loadedImageUrl)
       .then((resolved) => alive && setUrl(resolved))
       .catch(() => alive && setFailed(true));
     return () => {
