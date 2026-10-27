@@ -29,7 +29,7 @@ import {
 } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { IQorusFormFieldSchemaBase, TQorusType } from '@qoretechnologies/ts-toolkit';
 import { size } from 'lodash';
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import {
   filterTemplatesByType as templatesFilterFunc,
@@ -73,6 +73,7 @@ import {
   useRowMenu,
   useRowMenuPublisher,
 } from '../../engine/rowMenuContext';
+import { SavedValuesContext } from '../allowed-values/savedValues';
 
 // Re-export template utilities for consumers
 export { getTemplateKey, getTemplateValue, isValueTemplate };
@@ -919,9 +920,22 @@ const TemplateFieldImpl = memo(
       [name, onChange]
     );
 
-    // SEAM (reqraft): the IDE computes `canSaveValue` here and renders a
-    // `SaveValueButton` in the controls menu — the saved-values storage is
-    // IDE-only, so the menu item is dropped (`allowSaving` is inert).
+    /* Saving a value for reuse goes to the HOST, which keeps saved values and
+       asks what to call this one (`SavedValuesContext`). Offered where a value
+       can be typed in — a field of fixed choices has nothing of its own to
+       save, and neither does a yes/no — and only once there is a value. */
+    const savedValues = useContext(SavedValuesContext);
+    const canSaveValue =
+      !!rest.allowSaving &&
+      !!savedValues?.saveValue &&
+      (!rest.allowed_values || !!rest.allowed_values_creatable) &&
+      type !== 'bool' &&
+      type !== 'boolean' &&
+      !rest.readonly &&
+      !rest.disabled &&
+      value !== undefined &&
+      value !== null &&
+      value !== '';
 
     const handleRemoveTemplateClick = useCallback(() => {
       /* This is the `×` ON the template control, and it means "I do not want a
@@ -1218,6 +1232,15 @@ const TemplateFieldImpl = memo(
               },
             ]
           : []),
+        ...(canSaveValue
+          ? [
+              {
+                label: savedValues?.saveLabel ?? 'Save value',
+                icon: 'SaveLine' as const,
+                onClick: () => savedValues?.saveValue?.({ value, type }),
+              },
+            ]
+          : []),
         /* The "set a value of this type" choices an untyped field offers.
            Dividers are dropped: they grouped items in a menu this field drew
            itself, and in the row's shared menu they would divide other
@@ -1243,6 +1266,10 @@ const TemplateFieldImpl = memo(
         handleSelectFunctionChange,
         handleTemplateToggleClick,
         handleUseCustomValueClick,
+        canSaveValue,
+        savedValues,
+        value,
+        type,
       ]
     );
 
@@ -1253,6 +1280,7 @@ const TemplateFieldImpl = memo(
       canOfferExpression && !functions.loading ? 'expression' : '',
       canOfferTemplate ? 'template' : '',
       canOfferCustomValue ? 'custom-value' : '',
+      canSaveValue ? 'save-value' : '',
       `custom:${((menuItems ?? []) as { label?: unknown }[]).map((item) => String(item.label ?? '')).join('|')}`,
     ].join(',');
 

@@ -2,8 +2,8 @@
 // (FIELD_STACK_REPORT batch). Markup, props and the debounced local-value
 // flow are preserved. Seams (IDE-only infrastructure, same classes as the
 // ExpressionBuilder port):
-// - `useSavedValues` — saved-values storage is IDE-only; `showSavedValues`
-//   stays in the interface but contributes no items.
+// - `useSavedValues` — saved-values storage is the host's; a field that shows
+//   saved values reads them from `SavedValuesContext` (see `savedValues.ts`).
 // - `useSubscriptionEvents` (CONNECTION_DELETED pruning) — dropped.
 // - `ConnectionManagement` per-item actions — dropped (actions omitted).
 // - `Select` → reqraft `SelectFormField` (`items` instead of `defaultItems`,
@@ -23,6 +23,7 @@ import { useAllowedValueAvailability } from '../../engine/OptionFieldMessages';
 import { ChoiceGroupHeading, useSelectedChoiceIntent } from '../ChoiceGroupHeading';
 import type { IReqraftAllowedValue } from '../Field';
 import { allowedValueOf } from '../../../../helpers/allowedValues';
+import { useSavedValueChoices } from './savedValues';
 
 export interface IFieldAllowedValuesProps extends Pick<
   IReqoreButtonProps,
@@ -198,6 +199,8 @@ export const FieldAllowedValues = memo(
        `depends_on`, and a refusal the server had already decided. Both end up
        as one state on the item: no click handler, and a reason to read. */
     const availability = useAllowedValueAvailability(items as IReqraftAllowedValue[]);
+    const savedValues = useSavedValueChoices(type);
+    const offersSavedValues = !!showSavedValues && !readOnly && !disabled && count(savedValues) > 0;
 
     const fullItems = useMemo(() => {
       const result = [
@@ -221,12 +224,17 @@ export const FieldAllowedValues = memo(
         }),
       ] as ISelectFormFieldItem[];
 
+      if (offersSavedValues) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        result.push(...savedValues.map(({ valueType, ...saved }) => saved));
+      }
+
       return result;
-    }, [JSON.stringify(items), availability, type, value, showSavedValues, disabled, readOnly]);
+    }, [JSON.stringify(items), availability, type, value, offersSavedValues, savedValues]);
 
     const style = useMemo(() => ({ width: '100%' }), []);
 
-    if (!count(fullItems) || type === 'enum' || (!count(items) && !showSavedValues)) {
+    if (!count(fullItems) || type === 'enum' || (!count(items) && !offersSavedValues)) {
       return null;
     }
 

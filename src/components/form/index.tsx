@@ -1,5 +1,6 @@
 export * from './fields/Field';
 export * from './fields/allowed-values/AllowedValues';
+export * from './fields/allowed-values/savedValues';
 export * from './fields/array/ArrayAuto';
 export * from './fields/array/ArrayAutoField';
 export * from './fields/auto/AutoFormField';
