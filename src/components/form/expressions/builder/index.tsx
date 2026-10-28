@@ -61,6 +61,7 @@ import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
 import { ExpressionBuilderArgumentWrapper } from './argumentWrapper';
 import { ConfirmMismatchedTypesModal } from './confirmMismatchedTypesModal';
 import { ConfirmUnsupportedTypeModal } from './confirmUnsupportedTypeModal';
+import { RowLabelledContext } from '../../engine/rowLabelled';
 import { ExpressionItem } from './item';
 import { ExpressionMoveToPositionStrip } from './moveToPositionStrip';
 import { ExpressionRenderTemplate } from './renderTemplate';
@@ -1325,7 +1326,7 @@ export const Expression = ({
   );
 };
 
-export const ExpressionBuilder = ({
+const ExpressionBuilderBody = ({
   localTemplates,
   value = ExpressionDefaultValue,
   isChild,
@@ -1545,3 +1546,14 @@ export const ExpressionBuilder = ({
     </ReqoreErrorBoundary>
   );
 };
+
+/**
+ * The builder, scoped as an editor of its own: what it draws (an operand's choices, headed by
+ * their own instruction) is not the form row's field, so the row's label does not name it
+ * (`RowLabelledContext`).
+ */
+export const ExpressionBuilder = (props: IExpressionBuilderProps) => (
+  <RowLabelledContext.Provider value={false}>
+    <ExpressionBuilderBody {...props} />
+  </RowLabelledContext.Provider>
+);

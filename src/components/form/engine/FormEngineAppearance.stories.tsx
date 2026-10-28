@@ -439,22 +439,22 @@ export const CalmNeedsAttention: Story = {
   },
 };
 
-export const CalmChoiceHeading: Story = {
+export const CalmChoiceUnderItsLabel: Story = {
   parameters: {
     docs: {
       description: {
         story:
-          'A choice field opened in the calm look: its three choices are headed by the field’s name as written (“Language:”), not an upper-case micro label.',
+          'A choice field opened in the calm look: its three choices sit straight under the row’s “Language” label, with no heading of their own — a “Language:” over them only repeated the label beside it.',
       },
     },
   },
   play: async () => {
     await _testsWaitForText('Supplier Payment Release');
     await _testsClickText('Qore');
-    await waitFor(() =>
-      expect(document.querySelector('.reqraft-choice-group-heading')).toBeTruthy()
-    );
-    expectNoUppercase('.reqraft-choice-group-heading');
+    // The choices are open…
+    await waitFor(() => expect(document.querySelectorAll('.reqore-checkbox').length).toBeGreaterThan(1));
+    // …and say nothing the row's label has not.
+    expect(document.querySelector('.reqraft-choice-group-heading')).toBeNull();
   },
 };
 

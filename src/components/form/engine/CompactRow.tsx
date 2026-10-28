@@ -62,6 +62,7 @@ import {
 } from './compactRowStyles';
 import { getShownSchemaMessages, getOptionFieldMessages } from './OptionFieldMessages';
 import { findRowFocusTarget, isClosedPickerTrigger } from './rowFocus';
+import { RowLabelledContext } from './rowLabelled';
 import { RowOpenPickerContext } from './rowOpenPicker';
 import { SchemaDataView, canRenderWithSchema } from './_structuredData/SchemaDataView';
 import { queryUnlessCancelled } from '../../../utils/queryUnlessCancelled';
@@ -1664,7 +1665,9 @@ export const CompactRow = memo(
                   are other fields, which this row did not open. */}
               <RowOpenPickerContext.Provider value={openThePicker}>
                 <RowMenuContext.Provider value={rowMenu}>
-                  {renderOption(optionName, optionField, 'small', true)}
+                  <RowLabelledContext.Provider value>
+                    {renderOption(optionName, optionField, 'small', true)}
+                  </RowLabelledContext.Provider>
                 </RowMenuContext.Provider>
               </RowOpenPickerContext.Provider>
             </div>
