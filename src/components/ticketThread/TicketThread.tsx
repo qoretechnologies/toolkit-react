@@ -13,7 +13,7 @@ import {
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { rgba } from 'polished';
-import { ComponentProps, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import styled from 'styled-components';
 import { formatBytes, isImage } from '../../helpers/common';
@@ -25,6 +25,7 @@ import {
   TTicketMessageAuthor,
   TTicketViewerRole,
 } from '../supportTicket';
+import { loadedImageUrl } from '../supportTicket/useLoadedImages';
 
 /*
  * Shared support-ticket conversation thread, used by every Qorus surface that
@@ -32,12 +33,11 @@ import {
  * the Qonsole `support-ticket` renderer. Presentational — data in, callbacks out
  * — so each consumer keeps its own fetch/websocket wiring.
  *
- * Rendered as a comment feed: an avatar beside a bordered, accent-tinted card per
+ * Rendered as a comment feed: an avatar beside a bordered, neutral card per
  * message, each hugging its own side. Built on Reqore's `ReqoreBubble` (which
- * supplies the avatar, the bold author label, the alignment and the tint), so the
- * accent follows whatever the host app themes `custom1` to rather than a colour
- * baked in here. Interface references render via the shared
- * `InterfaceReferenceTags`; the status/priority/category vocabularies live in
+ * supplies the avatar, the bold author label and the alignment). Interface
+ * references render via the shared `InterfaceReferenceTags`, as quiet tags with
+ * the kind's icon; the status/priority/category vocabularies live in
  * `../supportTicket/meta`.
  *
  * Runs of consecutive messages are wrapped in a `ReqoreBubbleGroup`, which prints
@@ -114,10 +114,11 @@ const AUTHOR_META: Record<TTicketMessageAuthor, IAuthorMeta> = {
   system: { icon: 'InformationLine' },
 };
 
-// Both sides share one accent: the side, the avatar and the author label already
-// carry who is speaking, which frees colour to mean "internal note" and nothing
-// else. `custom1` is a theme slot, so each host app supplies its own hue.
-const ACCENT: ComponentProps<typeof ReqoreBubble>['customTheme'] = { main: 'custom1' };
+// No side is tinted: the side, the avatar and the author label ("You", "Qorus
+// Support") already carry who is speaking, which leaves colour one job here —
+// amber for an internal note. Never the product's purple, which a support thread
+// does not wear (instruction-files decision 002: purple marks where you are, a
+// chart's accent, and Qonsole).
 
 /** Avatar glyph; an internal note carries the "not visible to the customer" eye. */
 const authorIcon = (message: ITicketThreadMessage): IReqoreIconName =>
@@ -444,6 +445,7 @@ const ImageThumb = ({
   useEffect(() => {
     let alive = true;
     fetchAttachmentUrl(attachment.attachment_id)
+      .then(loadedImageUrl)
       .then((resolved) => alive && setUrl(resolved))
       .catch(() => alive && setFailed(true));
     return () => {
@@ -666,23 +668,9 @@ export const TicketThread = ({
                 avatar={{ icon: authorIcon(message) }}
                 label={authorLabel(message, viewerRole)}
                 timestamp={message.created ? <ReqoreTimeAgo time={message.created} /> : undefined}
-                // Own messages read as info-blue, the other party's as the purple
-                // accent — so the two sides of the conversation are told apart by
-                // colour as well as by side, and "which of these did I write?" is
-                // answerable at a glance. Deliberately keyed off `viewerRole`, so it
-                // stays correct on the staff surface too (staff replies are the blue
-                // ones there). Internal notes keep their warning intent and are not
-                // re-tinted — they are neither side of the conversation.
-                intent={
-                  message.internal
-                    ? 'warning'
-                    : message.author_type === viewerRole
-                      ? 'info'
-                      : undefined
-                }
-                customTheme={
-                  message.internal || message.author_type === viewerRole ? undefined : ACCENT
-                }
+                // Both sides are neutral cards; an internal note is amber, so it can
+                // never be mistaken for a reply the customer sees.
+                intent={message.internal ? 'warning' : undefined}
                 flat={false}
                 minimal
               >
@@ -698,7 +686,6 @@ export const TicketThread = ({
                   <div style={{ marginTop: 8 }}>
                     <InterfaceReferenceTags
                       size='tiny'
-                      customTheme={ACCENT}
                       references={refsFor(message)}
                       resolveInterfaceIcon={resolveInterfaceIcon}
                       preferKindImage={preferKindImage}

@@ -17,6 +17,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { useContextSelector } from 'use-context-selector';
 import { CompactRowContext } from '../compactRowContext';
+import { useIsCalmForm } from '../formAppearance';
 import {
   MONO_FONT_STACK,
   StyledCodePreview,
@@ -216,12 +217,24 @@ const StyledItemFields = styled.div<{ $border: string; $rule: boolean }>`
  * case-sensitive — a service method is `onOrderStatus`, not `ONORDERSTATUS` —
  * and the item heading is a value.
  */
-const StyledFieldLabel = styled(StyledRowLabel)`
+const StyledFieldLabelBase = styled(StyledRowLabel)<{ $calm?: boolean }>`
   font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  opacity: 0.55;
+  /* Calm: the name as written. The calm look forces nothing into capitals, and
+     its detail pages no longer do either, so the vocabulary this label borrows
+     is sentence case there too. */
+  text-transform: ${({ $calm }) => ($calm ? 'none' : 'uppercase')};
+  letter-spacing: ${({ $calm }) => ($calm ? 'normal' : '0.06em')};
+  opacity: ${({ $calm }) => ($calm ? 0.7 : 0.55)};
 `;
+
+/** The record field label in the form's appearance — see `StyledFieldLabelBase`. */
+const StyledFieldLabel = (
+  props: Omit<React.ComponentProps<typeof StyledFieldLabelBase>, '$calm'>
+) => {
+  const calm = useIsCalmForm();
+
+  return <StyledFieldLabelBase {...props} $calm={calm} />;
+};
 
 const StyledFields = styled.div`
   /* The supporting fields step in under the heading, so the heading keeps the

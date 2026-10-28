@@ -2,7 +2,6 @@ import {
   IReqoreLabelProps,
   ReqoreCheckbox,
   ReqoreControlGroup,
-  ReqoreSpan,
 } from '@qoretechnologies/reqore';
 import { IWithReqoreSize } from '@qoretechnologies/reqore/dist/types/global';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
@@ -34,6 +33,7 @@ import {
   UNAVAILABLE_ITEM_CLASS,
 } from './select/SelectCollection';
 import { useAllowedValueAvailability } from '../engine/OptionFieldMessages';
+import { ChoiceGroupHeading, useSelectedChoiceIntent } from './ChoiceGroupHeading';
 import { StringFormField } from './string/String';
 import { ArrayAutoField } from './array/ArrayAutoField';
 import { AutoFormField } from './auto/AutoFormField';
@@ -46,6 +46,7 @@ import { IDataSchemaDefinition } from './schema-definition/types';
 // because modules are all loaded before any component renders
 import { FormEngine } from '../engine/FormEngine';
 import { FormFieldsSkeleton } from '../engine/FormFieldsSkeleton';
+import { allowedValueOf } from '../../../helpers/allowedValues';
 
 /** Soft Qore types (softint, softstring, …) render as their concrete base —
  * the soft/hard distinction is value-level, not UI. */
@@ -152,6 +153,7 @@ export const FormField = <T extends TFormFieldType>({
   ...rest
 }: IFormFieldProps<T>) => {
   const id = useId();
+  const selectedChoiceIntent = useSelectedChoiceIntent();
   const { schema: finalArgSchema, loading: argSchemaLoading } = useArgSchema(arg_schema);
 
   const handleChange = (value: TFormFieldValueType<T>, event?: unknown) => {
@@ -415,7 +417,7 @@ export const FormField = <T extends TFormFieldType>({
         if (size(element_allowed_values) && !element_allowed_values_creatable) {
           const formatToServer = (vals: unknown[]) =>
             (vals || []).map((v) => {
-              const match = element_allowed_values.find((ev) => isEqual(ev.value?.value, v));
+              const match = element_allowed_values.find((ev) => isEqual(allowedValueOf(ev), v));
               return { value: v, type: match?.value?.type ?? effectiveElementType };
             });
           const formatFromServer = (vals: unknown[]) =>
@@ -426,7 +428,7 @@ export const FormField = <T extends TFormFieldType>({
             return (
               <ReqoreControlGroup vertical size='tiny'>
                 {element_allowed_values.map((item, index) => {
-                  const itemValue = item.value?.value;
+                  const itemValue = allowedValueOf(item);
                   const checked = serverValue.some((v) => isEqual(v, itemValue));
                   return (
                     <ReqoreCheckbox
@@ -435,7 +437,7 @@ export const FormField = <T extends TFormFieldType>({
                       label={item.display_name ?? String(itemValue)}
                       tooltip={item.short_desc || item.desc}
                       checked={checked}
-                      intent={checked ? 'info' : undefined}
+                      intent={selectedChoiceIntent(checked)}
                       onClick={() => {
                         const next =
                           checked ?
@@ -590,7 +592,7 @@ export const FormField = <T extends TFormFieldType>({
         resolved && !resolved.available ?
           { title: resolved.title, content: resolved.reason as string, intent: resolved.intent }
         : undefined,
-      value: item.value?.value,
+      value: allowedValueOf(item),
     };
   };
 
@@ -653,13 +655,13 @@ export const FormField = <T extends TFormFieldType>({
     if (allowed_values.length <= 3) {
       return (
         <ReqoreControlGroup vertical size='tiny'>
-          <ReqoreSpan effect={{ opacity: 0.6, uppercase: true, weight: 'bold' }} size='tiny'>
+          <ChoiceGroupHeading>
             {/* Headed by the field's own name; "Select one:" only when it has
                 none. Same rule as FieldAllowedValuesCheckGroup. */}
             {display_name ? `${display_name}:` : 'Select one:'}
-          </ReqoreSpan>
+          </ChoiceGroupHeading>
           {allowed_values.map((item, index) => {
-            const itemValue = item.value?.value;
+            const itemValue = allowedValueOf(item);
             const checked = isEqual(value, itemValue);
             const mapped = mapAllowedValue(item, index);
             const unavailable = getSelectItemUnavailability(mapped);
@@ -695,7 +697,7 @@ export const FormField = <T extends TFormFieldType>({
                 readOnly={!!unavailable}
                 uncheckedIcon={unavailable ? 'LockLine' : undefined}
                 checked={checked}
-                intent={checked ? 'info' : undefined}
+                intent={selectedChoiceIntent(checked)}
                 onClick={
                   unavailable ? undefined : (
                     () => handleChange((checked ? undefined : itemValue) as TFormFieldValueType<T>)

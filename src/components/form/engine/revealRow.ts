@@ -97,6 +97,33 @@ export const isRowInView = (element: HTMLElement, clearance: number): boolean =>
   return rect.top >= viewTop + clearance && rect.bottom <= viewBottom;
 };
 
+/** How much of a control has to show for its caret to be seen: one line of text. */
+export const CARET_LINE_HEIGHT = 32;
+
+/**
+ * Whether the line a caret lands on — the top of `control`, one line of it — is on screen
+ * below the pinned chrome. That is what a row opened with the caret in it has to show.
+ *
+ * Not the whole row: a row is measured the moment its control appears, and an editor still
+ * laying out can be several times its final height for that moment. Judged on the whole row,
+ * the Name field of a new workflow (513-887px, then 432-559px) read as out of view, and the
+ * reveal scrolled a phone's editor 71px — taking the form's readiness line off the top, where
+ * a phone does not pin it.
+ */
+export const isCaretLineInView = (control: HTMLElement, clearance: number): boolean => {
+  const container = findScrollContainer(control);
+  const viewTop = container ? container.getBoundingClientRect().top + container.clientTop : 0;
+  const viewBottom =
+    container ?
+      viewTop + container.clientHeight
+    : window.innerHeight || document.documentElement.clientHeight;
+  const rect = control.getBoundingClientRect();
+  return (
+    rect.top >= viewTop + clearance &&
+    rect.top + Math.min(rect.height, CARET_LINE_HEIGHT) <= viewBottom
+  );
+};
+
 /**
  * Scroll `element` the least distance that shows it clear of the pinned chrome
  * above it — and not at all when it is already fully in view.

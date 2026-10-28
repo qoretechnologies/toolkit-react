@@ -118,3 +118,30 @@ export const Disabled: Story = {
     await expect(textarea).toHaveValue('Cannot edit this');
   },
 };
+
+/**
+ * `debounceMs={0}` passes every change on at once. A form submitted by Enter (a Qonsole
+ * question) reads the value the moment the key goes down; with the usual wait it would
+ * submit the text as it was before the last few keys.
+ */
+export const PassedOnAtOnce: Story = {
+  args: {
+    debounceMs: 0,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the LongString field with no wait before a change is passed on, so each key reaches the form immediately — what a form submitted by Enter needs.',
+      },
+    },
+  },
+  async play({ canvasElement, args }) {
+    const canvas = within(canvasElement);
+    const textarea = canvas.getByLabelText('LongString');
+
+    await userEvent.type(textarea, 'abc');
+    // no waitFor: the last key is already with the form
+    await expect(args.onChange).toHaveBeenLastCalledWith('abc');
+  },
+};

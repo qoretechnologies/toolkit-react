@@ -8,9 +8,11 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  CARET_LINE_HEIGHT,
   findScrollContainer,
   getPinnedChromeHeight,
   getRevealClearance,
+  isCaretLineInView,
   isRowInView,
   revealRow,
 } from '../src/components/form/engine/revealRow';
@@ -137,6 +139,25 @@ describe('revealRow', () => {
     expect(revealRow(row)).toBe(false);
     setRect(row, window.innerHeight + 10, 30);
     expect(revealRow(row)).toBe(true);
+  });
+
+  it('counts a caret as seen when the top line of its control is in view, however tall the row', () => {
+    const { row } = buildForm();
+    const control = document.createElement('textarea');
+    row.appendChild(control);
+    const clearance = getRevealClearance(control);
+    // The row while its editor is still laying out: taller than what is left of the
+    // scrollport (bottom at 600), so the row as a whole is "out of view"…
+    setRect(row, 300, 374);
+    setRect(control, 350, 300);
+    expect(isRowInView(row, clearance)).toBe(false);
+    // …but the line the caret lands on is plainly there, so nothing should scroll.
+    expect(isCaretLineInView(control, clearance)).toBe(true);
+    // One line below the scrollport, or under the pinned header, it is not.
+    setRect(control, 600 - CARET_LINE_HEIGHT + 1, 300);
+    expect(isCaretLineInView(control, clearance)).toBe(false);
+    setRect(control, 190, 300);
+    expect(isCaretLineInView(control, clearance)).toBe(false);
   });
 
   it('does nothing where scrollIntoView is not implemented', () => {

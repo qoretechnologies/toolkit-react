@@ -1,5 +1,6 @@
 export * from './fields/Field';
 export * from './fields/allowed-values/AllowedValues';
+export * from './fields/allowed-values/savedValues';
 export * from './fields/array/ArrayAuto';
 export * from './fields/array/ArrayAutoField';
 export * from './fields/auto/AutoFormField';
@@ -24,6 +25,7 @@ export * from './fields/string/String';
 export * from './fields/template/ExampleValueModal';
 export * from './fields/template/TemplateField';
 export * from './engine/FormEngine';
+export * from './engine/formAppearance';
 export * from './engine/FormFieldsSkeleton';
 export * from './engine/optionActions';
 export * from './engine/rendererTypes';

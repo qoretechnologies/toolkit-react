@@ -17,6 +17,7 @@ import React, { memo, useCallback, useEffect, useState } from 'react';
 import { useUpdateEffect } from 'react-use';
 import useMount from 'react-use/lib/useMount';
 import { typedToYaml, yamlToTyped } from '../../../../helpers/common';
+import { allowedValueOf } from '../../../../helpers/allowedValues';
 import { getListElementValue } from '../../../../helpers/options';
 import { isSingleLineStringType } from '../../../../helpers/singleLineString';
 import {
@@ -27,8 +28,9 @@ import {
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 import { isQueryCancelled, query } from '../../../../utils/fetch';
 import { DpqlEditor } from '../../../dpqlEditor';
-import { FormEngine, IOptionsSchema } from '../../engine/FormEngine';
+import { FormEngine, IFormAttention, IOptionsSchema } from '../../engine/FormEngine';
 import {
+  DRAWS_OWN_CHOICES_TYPES,
   FieldAllowedValues,
   FieldAllowedValuesCheckGroup,
   rendersCreatableValueSelect,
@@ -92,6 +94,10 @@ export interface IAutoFieldProps
    *  focus — see FormEngine's `expandFirstRequired`. Set by ArrayAuto on a
    *  just-added row so its required choice is visible without a second click. */
   expandFirstRequired?: boolean;
+  /** What the arg_schema sub-form still needs, as its form reports it (see
+   *  FormEngine's `onAttentionChange`). Set by ArrayAuto, whose item header says
+   *  it in the calm look, where the sub-form draws no readiness line of its own. */
+  onSubFormAttentionChange?: (attention: IFormAttention) => void;
   path?: string;
   column?: boolean;
   level?: number;
@@ -212,6 +218,8 @@ function AutoField<T = any>({
   // sub-form mount site consumes it, and leaving it in `...rest` would spread an
   // unknown attribute onto the primitive field renderers' DOM nodes.
   expandFirstRequired,
+  // Same reason again: only the nested sub-form consumes it.
+  onSubFormAttentionChange,
   ...rest
 }: IAutoFieldProps & T) {
   const [currentType, setType] = useState<IQorusType>(defaultInternalType || null);
@@ -640,11 +648,16 @@ function AutoField<T = any>({
 
     // Non-creatable allowed_values render through FieldAllowedValues
     // (`renderAllowedValues` below) — a radio CheckGroup for ≤3 simple values, a
-    // Select otherwise — matching the IDE (which returns null here). `enum` is the
-    // exception: FieldAllowedValues skips it (it has its own `case 'enum'` radio
-    // renderer), so let enum fall through. f5f2e11 had returned a second RadioGroup
-    // here, which duplicated FieldAllowedValues for string allowed-value fields.
-    if (rest.allowed_values && !rest.allowed_values_creatable && currentType !== 'enum') {
+    // Select otherwise — matching the IDE (which returns null here). The exceptions
+    // are the editors that draw their own choices (`DRAWS_OWN_CHOICES_TYPES`: the
+    // enum radio group and the multi-select), which FieldAllowedValues skips, so they
+    // fall through. f5f2e11 had returned a second RadioGroup here, which duplicated
+    // FieldAllowedValues for string allowed-value fields.
+    if (
+      rest.allowed_values &&
+      !rest.allowed_values_creatable &&
+      !DRAWS_OWN_CHOICES_TYPES.includes(currentType as string)
+    ) {
       return null;
     }
 
@@ -658,9 +671,21 @@ function AutoField<T = any>({
            Without the type the field cannot tell them apart and treats them all
            as documents, so an interface's Internal Name — which becomes a YAML
            key — accepted Enter. Only text takes references; `data` and
-           `binary` are encoded content, where a chip would stand for nothing. */
+           `binary` are encoded content, where a chip would stand for nothing.
+
+           The semantic string formats (`email` … `phone`) are one line of text
+           whose identity the validator checks. They are in the option vocabulary
+           (`optionUiTypes`) and the single-line list, but had no case here, so a
+           field of one drew "Unknown type!" in every form. */
         case 'string':
         case 'long-string':
+        case 'email':
+        case 'uri':
+        case 'uuid':
+        case 'hostname':
+        case 'ipv4':
+        case 'ipv6':
+        case 'phone':
           return renderTextEditor(currentType);
         case 'data':
         case 'binary':
@@ -749,6 +774,7 @@ function AutoField<T = any>({
                 // Embedded sub-form: no scroll context of its own, so its toolbar
                 // isn't sticky and its header stays transparent (no dark backdrop).
                 compactNested
+                onAttentionChange={onSubFormAttentionChange}
                 name={name}
                 uniqueName={uniqueName}
                 options={finalArgSchema}
@@ -974,8 +1000,8 @@ function AutoField<T = any>({
           // previously only `allowed_values` was read, leaving `items` empty.
           const enumItems = (rest.allowed_values as any[] | undefined)?.length
             ? (rest.allowed_values as any[]).map((av) => ({
-                label: av.display_name ?? String(av.value?.value ?? av.value),
-                value: av.value?.value ?? av.value,
+                label: av.display_name ?? String(allowedValueOf(av)),
+                value: allowedValueOf(av),
                 image: av.image,
                 icon: av.icon,
               }))
@@ -1008,7 +1034,7 @@ function AutoField<T = any>({
             <SelectFormField
               items={(rest.allowed_values || []).map((av) => ({
                 ...av,
-                value: av.value?.value,
+                value: allowedValueOf(av),
               }))}
               value={value}
               onChange={(val) => handleChange(name, val)}

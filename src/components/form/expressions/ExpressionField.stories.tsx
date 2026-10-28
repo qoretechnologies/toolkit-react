@@ -416,6 +416,13 @@ export const ViaFormEngineTextTyping: Story = {
       timeout: 10000,
     });
     await waitForLspIdle(canvasElement);
+    // A Preview only informs, so the calm look draws it in no colour: a grey box,
+    // not a blue one with code on blue.
+    const box = canvas.getByTestId('expression-preview').closest<HTMLElement>('.reqore-message')!;
+    const [r, g, b] = (getComputedStyle(box).backgroundColor.match(/[\d.]+/g) || []).map(Number);
+    expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThanOrEqual(8);
+    // A bare name is a valid expression: DPQL wraps it in `value`, which the catalogue has.
+    expect(canvasElement.textContent).not.toContain('not found');
   },
 };
 

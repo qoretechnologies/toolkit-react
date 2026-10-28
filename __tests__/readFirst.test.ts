@@ -717,6 +717,21 @@ describe('getReadFirstStatus', () => {
   it("marks an empty, non-required, non-warned field 'optional'", () => {
     expect(status({ empty: true })).toBe('optional');
   });
+
+  it("marks an empty required field nobody has been to 'pending', still in the first box", () => {
+    // A new form is not already wrong: the field is to fill in, not a fault.
+    expect(status({ empty: true, required: true, visited: false })).toBe('pending');
+    expect(getReadFirstBucket('pending')).toBe('attention');
+  });
+
+  it("keeps a warned or invalid field a fault, visited or not", () => {
+    expect(status({ empty: true, warned: true, visited: false })).toBe('todo');
+    expect(status({ empty: false, invalid: true, visited: false })).toBe('invalid');
+  });
+
+  it("marks an empty required field 'todo' once it has been visited", () => {
+    expect(status({ empty: true, required: true, visited: true })).toBe('todo');
+  });
 });
 
 describe('getReadFirstBucket', () => {

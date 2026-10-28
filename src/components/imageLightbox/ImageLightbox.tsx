@@ -7,6 +7,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { loadedImageUrl } from '../supportTicket/useLoadedImages';
 
 /*
  * The shared full-image viewer: a `ReqoreModal` holding one image at a time, with
@@ -121,6 +122,7 @@ export const ImageLightbox = ({
     }
     requested.current.add(id);
     fetchRef.current(id)
+      .then(loadedImageUrl)
       .then((resolved) => mounted.current && setUrls((current) => ({ ...current, [id]: resolved })))
       .catch(() => mounted.current && setUrls((current) => ({ ...current, [id]: null })));
     return undefined;

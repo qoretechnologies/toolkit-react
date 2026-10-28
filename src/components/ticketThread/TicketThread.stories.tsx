@@ -4,6 +4,7 @@ import styled from 'styled-components';
 
 import { thinScrollbar } from '../../helpers/scrollbar';
 import { StoryMeta } from '../../types';
+import { STORY_BROKEN_IMAGE } from '../supportTicket/__fixtures__/kindMarks';
 import type { IInterfaceReference, TTicketMessageAuthor } from '../supportTicket/meta';
 import { ITicketThreadMessage, TicketThread } from './TicketThread';
 
@@ -160,6 +161,30 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 /**
+ * How coloured a message's card is: the saturation (0–1) of its border, the one place
+ * ReqoreBubble draws its tint. A neutral card is near 0; amber or purple is well above.
+ */
+const cardSaturation = (messageId: string): number => {
+  const bubble = document.getElementById(`ticket-message-${messageId}`);
+  if (!bubble) throw new Error(`message ${messageId} not rendered`);
+  const bordered = [bubble, ...Array.from(bubble.querySelectorAll<HTMLElement>('*'))].find((el) => {
+    const style = getComputedStyle(el);
+    return parseFloat(style.borderTopWidth) > 0 && style.borderTopStyle !== 'none';
+  });
+  if (!bordered) throw new Error(`message ${messageId} has no card border`);
+  const [r, g, b] = getComputedStyle(bordered).borderTopColor.match(/[\d.]+/g)!.map(Number);
+  const max = Math.max(r, g, b);
+  return max === 0 ? 0 : (max - Math.min(r, g, b)) / max;
+};
+
+/** Neither side of a conversation is tinted (no purple, no blue); only an internal note is. */
+const expectNeutralCards = async (ids: string[]) => {
+  for (const id of ids) {
+    await expect(cardSaturation(id)).toBeLessThan(0.2);
+  }
+};
+
+/**
  * The customer viewpoint: the customer's own messages sit on the right under
  * "You", staff appear under a masked "Qorus Support" label, and internal notes
  * are never delivered to this surface (the server filters them). Clicking an
@@ -170,7 +195,7 @@ export const CustomerView: Story = {
     docs: {
       description: {
         story:
-          "Renders the thread from the customer's viewpoint: the customer's own messages sit on the right under 'You', staff appear under the masked 'Qorus Support' label, internal notes are filtered out, and clicking an attachment chip calls onDownloadAttachment with its id and filename.",
+          "Renders the thread from the customer's viewpoint: the customer's own messages sit on the right under 'You', staff appear under the masked 'Qorus Support' label, both as neutral cards (the side and the label say who spoke), internal notes are filtered out, and clicking an attachment chip calls onDownloadAttachment with its id and filename.",
       },
     },
   },
@@ -186,6 +211,8 @@ export const CustomerView: Story = {
     await expect(canvas.getByText('Qorus Support')).toBeInTheDocument();
     // internal notes are filtered out for the customer
     await expect(canvas.queryByText('Internal note')).not.toBeInTheDocument();
+    // the side, the avatar and the label say who spoke; no card is tinted for it
+    await expectNeutralCards(['m1', 'm2']);
 
     await userEvent.click(canvas.getAllByText('deploy-trace.log')[0]);
     await waitFor(() =>
@@ -306,7 +333,7 @@ export const StaffView: Story = {
     docs: {
       description: {
         story:
-          "Renders the thread from the staff viewpoint: staff messages sit on the right, the customer on the left, and staff-only internal notes render amber and bordered under an 'Internal note' label.",
+          "Renders the thread from the staff viewpoint: staff messages sit on the right, the customer on the left, both as neutral cards, and staff-only internal notes render amber and bordered under an 'Internal note' label.",
       },
     },
   },
@@ -320,6 +347,9 @@ export const StaffView: Story = {
     await expect(canvas.getByText('Internal note')).toBeInTheDocument();
     await expect(canvas.getByText(/Support · nick/)).toBeInTheDocument();
     await expect(canvas.getByText(/Customer · acme/)).toBeInTheDocument();
+    // both sides are neutral cards; the internal note alone is amber
+    await expectNeutralCards(['m1', 'm2']);
+    await expect(cardSaturation('m3')).toBeGreaterThan(0.3);
     // the reference chip renders with the built-in default icon (no resolver passed)
     await expect(canvas.getByText('nightly-deploy:1.2')).toBeInTheDocument();
   },
@@ -746,6 +776,45 @@ export const ImagePreview: Story = {
     // clicking a thumbnail opens the enlarge view
     await userEvent.click(thumb);
     await waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
+  },
+};
+
+/**
+ * An image attachment whose bytes are not a picture — the server answered with an error
+ * page or an empty body — is a download chip like any other file, never a broken image.
+ */
+export const ImageThatDoesNotLoad: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders a message with two screenshots where one\'s bytes cannot be drawn: that one falls back to its download chip while the other stays a thumbnail.',
+      },
+    },
+  },
+  args: {
+    viewerRole: 'customer',
+    fetchAttachmentUrl: async (id: string) =>
+      id === 'img-1' ? STORY_BROKEN_IMAGE : screenshot('after', 205),
+    messages: [
+      {
+        message_id: 'img',
+        author_type: 'customer',
+        author_id: 'acme',
+        body: 'Here is the canvas before and after the upgrade:',
+        created: ago(6),
+        attachments: [
+          { attachment_id: 'img-1', filename: 'before.png', content_type: 'image/png', size_bytes: 512_000 },
+          { attachment_id: 'img-2', filename: 'after.png', content_type: 'image/png', size_bytes: 486_000 },
+        ],
+      },
+    ],
+  },
+  async play({ canvasElement }) {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvasElement.querySelector('img[alt="after.png"]')).not.toBeNull());
+    await waitFor(() => expect(canvas.getByRole('button', { name: /before\.png/ })).toBeInTheDocument());
+    await expect(canvasElement.querySelector('img[alt="before.png"]')).toBeNull();
   },
 };
 

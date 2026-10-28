@@ -2,6 +2,7 @@ import { StoryObj } from '@storybook/react-vite';
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test';
 
 import { StoryMeta } from '../../types';
+import { STORY_BROKEN_IMAGE } from '../supportTicket/__fixtures__/kindMarks';
 import { IInterfaceReference } from '../supportTicket/meta';
 import { ITicketReferenceAttachment, TicketReferences } from './TicketReferences';
 
@@ -212,6 +213,31 @@ export const NoPreview: Story = {
     });
     await expect(tile.querySelector('img')).toBeNull();
     await expect(tile.textContent).not.toContain('…');
+  },
+};
+
+/** A fetch that answers with bytes that are not a picture reads like a failed fetch. */
+export const PreviewThatDoesNotLoad: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Renders the references view where one screenshot\'s bytes are not an image the browser can draw: that tile shows its file name, like a screenshot with no preview, while the others keep their thumbnails.',
+      },
+    },
+  },
+  args: {
+    fetchAttachmentUrl: (id: string) =>
+      Promise.resolve(id === 'img-1' ? STORY_BROKEN_IMAGE : IMG_URLS[id] ?? svgUrl(id, '#555555')),
+  },
+  play: async ({ canvasElement }) => {
+    const tile = (name: string) =>
+      canvasElement.querySelector<HTMLElement>(`button[title="${name}"]`);
+    // the screenshots that load are thumbnails …
+    await waitFor(() => expect(tile('pool-metrics.png')?.querySelector('img')).not.toBeNull());
+    // … and the one that does not is its file name, never a broken picture
+    await waitFor(() => expect(tile('error-screenshot.png')?.textContent).not.toContain('…'));
+    await expect(tile('error-screenshot.png')?.querySelector('img')).toBeNull();
   },
 };
 

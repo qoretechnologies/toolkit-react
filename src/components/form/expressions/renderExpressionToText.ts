@@ -4,6 +4,7 @@
 // can wait uses it: Explain and the Text view's Preview wait for the server's
 // `dpql/renderExpression` (see `useRenderExpression`). Pure: no
 // transport/socket import, so it stays out of the LSP/nanoid dependency graph.
+import { richtextToString } from '../../../helpers/common';
 import { IExpression, IExpressionSchema, IExpressionValue } from './types';
 
 /** A symbol made only of non-word characters renders infix (`a == b`). */
@@ -72,8 +73,22 @@ const readArgValue = (arg: unknown): unknown =>
     ? (arg as { value: unknown }).value
     : arg;
 
+/** A rich-text value: the editor's document, a list of element nodes with children. */
+const isRichTextDocument = (value: unknown): value is unknown[] =>
+  Array.isArray(value) &&
+  value.length > 0 &&
+  value.every(
+    (node) =>
+      !!node && typeof node === 'object' && Array.isArray((node as { children?: unknown }).children)
+  );
+
 const renderLiteral = (value: unknown): string => {
   if (value === undefined || value === null) return 'null';
+  /* Rich text is the string it reads as, its template references written out as `$…`.
+     Printed as an object it was the editor's node tree — `+([{"type":"paragraph",
+     "children":[…]}], …)` on a Qog's Message Content row — which is no value anyone
+     wrote, and not what the server renders either. */
+  if (isRichTextDocument(value)) return JSON.stringify(richtextToString(value as never));
   if (typeof value === 'string') return JSON.stringify(value);
   if (typeof value === 'object') return JSON.stringify(value);
   return String(value);

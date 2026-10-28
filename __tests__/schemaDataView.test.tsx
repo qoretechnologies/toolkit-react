@@ -5,6 +5,10 @@ import {
   SchemaDataView,
   canRenderWithSchema,
 } from '../src/components/form/engine/_structuredData/SchemaDataView';
+import {
+  FormAppearanceProvider,
+  TFormEngineAppearance,
+} from '../src/components/form/engine/formAppearance';
 
 /**
  * A described value is previewed through its description, not as data.
@@ -38,10 +42,17 @@ const SCHEME_SCHEMA = {
 
 const colors = { key: '#ffffff', muted: '#888888', border: '#333333', accent: '#3b8eea' };
 
-const renderView = (value: unknown, schema: never = SCHEME_SCHEMA, showTypes = false) =>
+const renderView = (
+  value: unknown,
+  schema: never = SCHEME_SCHEMA,
+  showTypes = false,
+  appearance?: TFormEngineAppearance
+) =>
   render(
     <ReqoreUIProvider>
-      <SchemaDataView value={value} schema={schema} colors={colors} showTypes={showTypes} />
+      <FormAppearanceProvider value={appearance}>
+        <SchemaDataView value={value} schema={schema} colors={colors} showTypes={showTypes} />
+      </FormAppearanceProvider>
     </ReqoreUIProvider>
   );
 
@@ -237,12 +248,25 @@ describe('the preview speaks the detail pages’ vocabulary', () => {
     description: { type: 'string', ui_type: 'string', display_name: 'Description' },
   } as never;
 
-  it('renders a field name as an uppercase eyebrow', () => {
+  it('renders a field name as written, never forced into capitals', () => {
     // Two fields, because the first declared one is promoted to the heading and
     // omitted from the rows — a single-field record leaves nothing to assert on.
     const { container } = renderView(
       [{ name: 'init', description: 'init method' }],
       TWO_FIELD_SCHEMA
+    );
+    const label = container.querySelector('.schema-view-fields > *');
+
+    // The calm look (the default) forces nothing into uppercase.
+    expect(label && getComputedStyle(label).textTransform).toBe('none');
+  });
+
+  it('renders a field name as an uppercase eyebrow in the classic look', () => {
+    const { container } = renderView(
+      [{ name: 'init', description: 'init method' }],
+      TWO_FIELD_SCHEMA,
+      false,
+      'classic'
     );
 
     // The label is furniture and the value is what the eye lands on — the same

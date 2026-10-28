@@ -4,8 +4,11 @@ import {
   ReqoreMenuItem,
   ReqoreModal,
   ReqoreSpinner,
+  useReqoreTheme,
 } from '@qoretechnologies/reqore';
 import { TReqoreBadge } from '@qoretechnologies/reqore/dist/components/Button';
+import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { rgba } from 'polished';
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { thinScrollbar } from '../../helpers/scrollbar';
@@ -128,21 +131,22 @@ const Panes = styled.div`
  * instead keeps a focus cue without the box. The selector is scoped under this wrapper,
  * so it outranks Reqore's without `!important`.
  *
- * `$active` (the field has a query) holds the underline at full accent, so a filtered
- * list is legible as filtered at a glance — the same signal `intent='info'` carries on
- * a plain filter control, spoken in this surface's own accent.
+ * The line is the theme's neutral hairline, a step brighter on focus. Only `$active` (the
+ * field has a query) colours it, in `$accent` — blue by default, the same signal
+ * `intent='info'` carries on a plain filter control: blue says a filter is narrowing the
+ * list, and nothing else (instruction-files decision 001). It is never the product's
+ * purple, which a support surface does not wear (decision 002).
  */
-const Search = styled.div<{ $accent: string; $active?: boolean }>`
+const Search = styled.div<{ $accent: string; $line: string; $focus: string; $active?: boolean }>`
   padding: 6px 4px 4px;
-  border-bottom: 1px solid
-    ${({ $accent, $active }) => ($active ? $accent : `${$accent}80`)};
+  border-bottom: 1px solid ${({ $accent, $line, $active }) => ($active ? $accent : $line)};
   transition: border-color 0.15s ease-out;
 
   .reqore-control-wrapper:focus-within {
     outline: none;
   }
   &:focus-within {
-    border-bottom-color: ${({ $accent }) => $accent};
+    border-bottom-color: ${({ $accent, $focus, $active }) => ($active ? $accent : $focus)};
   }
 `;
 
@@ -151,8 +155,6 @@ const Note = styled.div`
   padding: 8px 6px;
   font-size: 12px;
 `;
-
-const DEFAULT_ACCENT = '#762f7e';
 
 /*
  * How a picked row reads: `info`, tinted rather than filled.
@@ -241,7 +243,8 @@ export interface IReferencePickerProps {
    * vocabulary.
    */
   resolveKindLabel?: (kind: string) => string;
-  /** the underline / selected-kind colour. Defaults to the support surfaces' violet. */
+  /** the search underline's colour while the list is filtered. Defaults to the theme's
+   *  `info` blue — the colour that says a filter is narrowing a list. */
   accent?: string;
   /** shown above the panes — the composer's picked-reference chips, typically */
   header?: ReactNode;
@@ -303,13 +306,15 @@ export const ReferencePicker = ({
   disabled,
   resolveInterfaceIcon = defaultInterfaceIcon,
   resolveKindLabel = defaultInterfaceKindLabel,
-  accent = DEFAULT_ACCENT,
+  accent,
   header,
   onClose,
   title = 'Reference interfaces',
   layout = 'auto',
   presentation = 'auto',
 }: IReferencePickerProps) => {
+  const theme = useReqoreTheme();
+  const readable = getReadableColor(theme);
   const [query, setQuery] = useState<string>('');
   const needle = query.trim().toLowerCase();
 
@@ -510,7 +515,12 @@ export const ReferencePicker = ({
   const body = (
     <Frame ref={frameRef} $bare={asModal}>
       {header}
-      <Search $accent={accent} $active={!!needle}>
+      <Search
+        $accent={accent ?? theme.intents?.info ?? readable}
+        $line={rgba(readable, 0.2)}
+        $focus={rgba(readable, 0.5)}
+        $active={!!needle}
+      >
         <ReqoreInput
           value={query}
           onChange={(event) => setQuery((event.target as HTMLInputElement).value)}

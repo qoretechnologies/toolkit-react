@@ -31,8 +31,9 @@ export interface IInterfaceReferenceTagsProps {
    */
   onRemove?: (reference: IInterfaceReference) => void;
   size?: TSizes;
-  /** Chip styling — pass `intent`/`customTheme` (e.g. `{ main: 'custom1' }`) to tint
-   *  the reference chips to a surface's accent (the Qonsole/helpdesk composer does). */
+  /** Chip styling. Left out, a reference is a quiet tag with its kind's icon, as the
+   *  support surfaces draw it; tint it only where the colour has a job (Qonsole's purple
+   *  is Qonsole's alone — instruction-files decision 002). */
   intent?: ComponentProps<typeof ReqoreTag>['intent'];
   customTheme?: ComponentProps<typeof ReqoreTag>['customTheme'];
   /** Resolve a per-reference image — e.g. a qog's trigger-app logo, the way the

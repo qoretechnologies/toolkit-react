@@ -54,12 +54,14 @@ import {
   TExpressionReorder,
   TExpressionReorderSurface,
 } from '../types';
+import { calmNoteIntent, useIsCalmForm } from '../../engine/formAppearance';
 import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
 import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
 import { ExpressionBuilderArgumentWrapper } from './argumentWrapper';
 import { ConfirmMismatchedTypesModal } from './confirmMismatchedTypesModal';
 import { ConfirmUnsupportedTypeModal } from './confirmUnsupportedTypeModal';
+import { RowLabelledContext } from '../../engine/rowLabelled';
 import { ExpressionItem } from './item';
 import { ExpressionMoveToPositionStrip } from './moveToPositionStrip';
 import { ExpressionRenderTemplate } from './renderTemplate';
@@ -155,6 +157,7 @@ export const Expression = ({
   componentOverrides,
   ...props
 }: IExpressionProps) => {
+  const calm = useIsCalmForm();
   const coarsePointer = useCoarsePointer();
   const types = useQorusTypes();
   const [showSummary, setShowSummary] = useState(false);
@@ -1051,7 +1054,7 @@ export const Expression = ({
         <ExpressionRenderTemplate exp={value} expressions={expressions.value} templates={localTemplates} />
       )}
       {!selectedExpression && !serverExpression && !firstArgument?.value && level === 0 ? (
-        <ReqoreMessage size='small' opaque={false} intent='info'>
+        <ReqoreMessage size='small' opaque={false} intent={calmNoteIntent('info', calm)}>
           Select an operation to start building your expression
         </ReqoreMessage>
       ) : (
@@ -1323,7 +1326,7 @@ export const Expression = ({
   );
 };
 
-export const ExpressionBuilder = ({
+const ExpressionBuilderBody = ({
   localTemplates,
   value = ExpressionDefaultValue,
   isChild,
@@ -1543,3 +1546,14 @@ export const ExpressionBuilder = ({
     </ReqoreErrorBoundary>
   );
 };
+
+/**
+ * The builder, scoped as an editor of its own: what it draws (an operand's choices, headed by
+ * their own instruction) is not the form row's field, so the row's label does not name it
+ * (`RowLabelledContext`).
+ */
+export const ExpressionBuilder = (props: IExpressionBuilderProps) => (
+  <RowLabelledContext.Provider value={false}>
+    <ExpressionBuilderBody {...props} />
+  </RowLabelledContext.Provider>
+);

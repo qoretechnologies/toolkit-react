@@ -20,6 +20,12 @@ export interface ILongStringFormFieldProps extends Omit<IReqoreTextareaProps, 'o
    * names and URLs with a newline in them. See `helpers/singleLineString`.
    */
   type?: string;
+  /**
+   * How long the text waits after the last key before it is passed on (ms). `0` passes
+   * every change on at once: a form submitted by Enter — a Qonsole question — must see
+   * the last thing typed, not the text from 100 ms earlier.
+   */
+  debounceMs?: number;
 }
 
 export const LongStringFormField = ({
@@ -27,6 +33,7 @@ export const LongStringFormField = ({
   onChange,
   onClearClick,
   type,
+  debounceMs = 100,
   ...rest
 }: ILongStringFormFieldProps) => {
   const [localValue, setLocalValue] = useState<string>(value ?? '');
@@ -72,7 +79,7 @@ export const LongStringFormField = ({
         emit(localValue);
       }
     },
-    100,
+    debounceMs,
     [localValue, emit]
   );
 
@@ -84,9 +91,13 @@ export const LongStringFormField = ({
       // Flatten here rather than only blocking the Enter key: a line break also
       // arrives by paste, by drag-and-drop, from autofill and from an IME, and
       // a keydown guard catches none of those.
-      setLocalValue(singleLine && hasLineBreak(raw) ? flattenToSingleLine(raw) : raw);
+      const next = singleLine && hasLineBreak(raw) ? flattenToSingleLine(raw) : raw;
+      setLocalValue(next);
+      if (debounceMs === 0 && next !== lastEmittedRef.current) {
+        emit(next);
+      }
     },
-    [singleLine]
+    [singleLine, debounceMs, emit]
   );
 
   // Stop Enter before it inserts anything, so the caret does not jump to a

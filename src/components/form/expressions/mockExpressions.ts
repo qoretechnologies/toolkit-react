@@ -314,4 +314,22 @@ export const mockExpressions: IExpressionSchema[] = [
       { name: 'string', display_name: 'Format String', ui_type: 'richtext', required: true },
     ],
   },
+  // What DPQL wraps a bare literal or field reference in (`name` parses to
+  // `{exp: 'value', args: [...]}`). The live catalogue has it; without it every
+  // literal typed in a story was reported "Expression definition value not found".
+  {
+    name: 'value',
+    display_name: 'Value',
+    short_desc: 'Evaluates and returns a field reference value',
+    desc: 'Evaluates the given field reference and returns its value; this allows field references to be used as standalone expressions',
+    symbol: '',
+    type: 1,
+    subtype: 1,
+    role: 3,
+    return_type: 'auto',
+    ui_return_type: 'any',
+    varargs: false,
+    groups: ['Miscellaneous'],
+    args: [{ name: 'any', ui_type: 'any', required: true }],
+  },
 ];

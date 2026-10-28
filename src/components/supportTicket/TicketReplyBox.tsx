@@ -1,8 +1,28 @@
 import type { TReqoreDropdownItems } from '@qoretechnologies/reqore/dist/components/Dropdown/list';
 import { ReactNode } from 'react';
-import { Composer, IComposerSendAction, TComposerEditor } from '../composer/Composer';
+import {
+  Composer,
+  IComposerProps,
+  IComposerSendAction,
+  TComposerEditor,
+} from '../composer/Composer';
 import { fileToAttachment as defaultFileToAttachment } from './fileToAttachment';
 import { IAttachmentUpload } from './meta';
+
+/**
+ * A ticket reply is not a hand-off to Qonsole, so it does not wear Qonsole's look: no purple
+ * bar, no purple send (instruction-files decision 002 — a purple button means "this hands the
+ * work to Qonsole / AI" and nothing else). The bar keeps the composer's shape with the theme's
+ * own neutral edge (its `main`, a step lighter — how Reqore draws its dividers), and sending
+ * the reply is the surface's one primary action: white.
+ */
+const REPLY_BOX_EFFECT: IComposerProps['effect'] = {
+  gradient: { direction: 'to bottom right', colors: 'main:lighten:3' },
+};
+const REPLY_SEND_STYLE: Pick<IComposerSendAction, 'intent' | 'minimal'> = {
+  intent: 'white',
+  minimal: false,
+};
 
 /**
  * The `items` shape ReqoreDropdown accepts. Named, not derived: `ReqoreDropdown`
@@ -96,16 +116,15 @@ export const TicketReplyBox = ({
         : 'Send reply';
 
   // Staff surface splits the send button; customer surface is a single "Send reply".
-  // Both use the Qonsole-style minimal `custom1` accent (the Composer default); the
-  // internal note stays amber (`warning`) so it can't be mistaken for a public reply.
+  // Both send the reply as the white primary (`REPLY_SEND_STYLE`); the internal note
+  // stays amber (`warning`) so it can't be mistaken for a public reply.
   const sendActions: IComposerSendAction[] | undefined = allowInternalNote
     ? [
         {
           id: 'reply',
           label: labelFor(false),
           icon: 'SendPlane2Line',
-          minimal: true,
-          customTheme: { main: 'custom1' },
+          ...REPLY_SEND_STYLE,
         },
         {
           id: 'internal',
@@ -139,7 +158,10 @@ export const TicketReplyBox = ({
       disabledReason={disabledReason}
       onSend={handleSend}
       sendLabel={labelFor(false)}
+      sendIntent={REPLY_SEND_STYLE.intent}
+      sendMinimal={REPLY_SEND_STYLE.minimal}
       sendActions={sendActions}
+      effect={REPLY_BOX_EFFECT}
       sendMenuClassName='ticket-send-more'
       attachMenuItems={attachMenuItems}
       footerActions={footerActions}

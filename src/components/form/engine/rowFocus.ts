@@ -15,9 +15,11 @@
  * focusable element" would answer a text field with a button beside it.
  */
 
-/** Controls the reader types into. */
+/** Controls the reader types into. `role="textbox"` is how an editor that is neither
+ *  an input nor contenteditable says so: Monaco's edit area is a focusable div with that
+ *  role (its own `<textarea>` is an `aria-hidden` IME helper). */
 const TEXT_ENTRY_SELECTOR =
-  'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), [contenteditable="true"]';
+  'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), [contenteditable="true"], [role="textbox"]:not([aria-disabled="true"])';
 
 /**
  * Everything else a row can offer. `[tabindex]` is what carries reqore's own
@@ -58,17 +60,26 @@ const firstMatch = (container: HTMLElement, selector: string): HTMLElement | und
  * a read-only preview, or an editor that has not mounted yet (see the caller,
  * which watches for it to arrive).
  *
+ * `textEntryOnly` is for a field that opens as a CARD (a long text, a list, source
+ * code). A card is a form in its own right, so its first button is one of several —
+ * a toolbar's "fullscreen", a list's "add" — and nobody asked for it; a caret there
+ * turns the next space typed into a press. A card takes the caret only where text
+ * goes, and waits for it when its editor mounts late (a code editor does).
+ *
  * @param container the row's value cell
  */
 export const findRowFocusTarget = (
-  container: HTMLElement | null | undefined
+  container: HTMLElement | null | undefined,
+  { textEntryOnly = false }: { textEntryOnly?: boolean } = {}
 ): HTMLElement | undefined => {
   if (!container) {
     return undefined;
   }
-  return (
-    firstMatch(container, TEXT_ENTRY_SELECTOR) ?? firstMatch(container, OTHER_CONTROL_SELECTOR)
-  );
+  const textEntry = firstMatch(container, TEXT_ENTRY_SELECTOR);
+  if (textEntry || textEntryOnly) {
+    return textEntry;
+  }
+  return firstMatch(container, OTHER_CONTROL_SELECTOR);
 };
 
 /**
