@@ -1922,8 +1922,12 @@ export const WithTemplates: Story = {
     await typeAsAPerson(userEvent, '$');
     await waitFor(
       () => {
-        expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$config:', '$data:', '$env:']));
-        expect(seenCompletionLabels()).not.toContain('@name');
+        // every row of the list, those scrolled out of sight too (in the catalogue's order, `sort_priority`)
+        const listed = Array.from(
+          document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')
+        ).map((row) => row.getAttribute('data-label'));
+        expect(listed).toEqual(expect.arrayContaining(['$config:', '$data:', '$env:']));
+        expect(listed).not.toContain('@name');
       },
       { timeout: 30000 }
     );

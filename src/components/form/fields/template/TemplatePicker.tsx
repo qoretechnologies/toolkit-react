@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { rowTitle } from '../../../smartEditor/contextTitle';
 import {
   ReqoreButton,
   ReqoreControlGroup,
@@ -674,7 +675,8 @@ export const TemplatePicker = memo(
                     { image: node.row.metadata.image as string }
                   : undefined
                 }
-                label={node.label}
+                // a context that needs a value after it says so (`$foreach:…`)
+                label={(node.kind === 'context' ? rowTitle(node.label) : node.label) as string}
                 description={
                   <RowDescription
                     node={node}

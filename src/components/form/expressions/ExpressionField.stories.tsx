@@ -1871,11 +1871,11 @@ export const TextModeOffersTemplateCompletions: Story = {
     await waitFor(
       () => {
         // the contexts Qorus offers a DPQL expression (a Qog's record expression) - no workflow-only ones
-        expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$config:', '$data:', '$env:']));
-        // every row of the list, those scrolled out of sight too
+        // every row of the list, those scrolled out of sight too (in the catalogue's order, `sort_priority`)
         const listed = Array.from(
           document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')
         ).map((row) => row.getAttribute('data-label'));
+        expect(listed).toEqual(expect.arrayContaining(['$config:', '$data:', '$env:']));
         // the Qog declares a global variable: its context is offered (qorus#646 round 4, Qorus's catalogue)
         expect(listed).toEqual(expect.arrayContaining(['$local:', '$timestamp:', '$transient:']));
         // no workflow runs the Qog: no order data

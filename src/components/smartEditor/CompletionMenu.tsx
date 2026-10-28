@@ -1,4 +1,5 @@
 // Copyright 2026 Qore Technologies, s.r.o.
+import { rowTitle } from './contextTitle';
 import { ReqoreMenu, ReqoreMenuDivider, ReqoreMenuItem } from '@qoretechnologies/reqore';
 import { ReqorePopover } from '@qoretechnologies/reqore/dist/components/Popover';
 import { IReqoreTooltip } from '@qoretechnologies/reqore/dist/types/global';
@@ -232,7 +233,8 @@ const CompletionMenuItem = memo(
         rightIcon={
           marks.opens || marks.continues || marks.browseAll ? 'ArrowRightSLine' : undefined
         }
-        label={item.label}
+        // a context that needs a value after it says so (`$foreach:…`); its data-label and what it writes stay as they are
+        label={rowTitle(item.label) as string}
         description={
           item.description ?
             <span className='completion-row-description' style={ROW_DESCRIPTION_STYLE}>

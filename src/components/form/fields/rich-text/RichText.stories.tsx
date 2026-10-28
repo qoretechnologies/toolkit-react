@@ -836,6 +836,8 @@ export const EveryContainerIsUsedWhole: Story = {
     await userEvent.click(editable);
     await userEvent.click(await pickerRow('Template contexts'));
     await waitFor(() => expect(pickerLabels()).toContain('$info:'));
+    // in the picker too: `$info:…`, the whole of it its Use
+    expect((await pickerRow('$info:')).querySelector('.template-context-needs-value')?.textContent).toBe('…');
     expect(pickerLabels()).not.toContain('$transient:');
     for (const container of ['$local:', '$static:', '$dynamic:', '$temp:', '$info:', '$pstate:', '$env:']) {
       expect(usedWhole(container), `Use beside ${container}`).toBeTruthy();
@@ -864,7 +866,8 @@ export const AQogStatesVariablesAndLoops: Story = {
     docs: {
       description: {
         story:
-          'A field of a Qog state inside a for loop inside a foreach loop (Qorus\'s catalog): `$tr` and Tab list ' +
+          'A field of a Qog state inside a for loop inside a foreach loop (Qorus\'s catalog), each context read as ' +
+          'needing a value after it ($foreach:…): `$tr` and Tab list ' +
           '$transient:* and the global variable total; `$fo` lists $for: and $foreach:, $foreach: with Use and ' +
           '$for: without; Tab on $for: lists its value, and Tab takes it: the chip for $for:value.',
       },
@@ -892,6 +895,11 @@ export const AQogStatesVariablesAndLoops: Story = {
       expect(seenCompletionLabels()).toEqual(['$foreach:', '$for:', 'Browse all templates'])
     );
     const foreach = await completionRow('$foreach:');
+    // a context that needs a value after it reads so: `$foreach:` and an italic "…" (David's review), drawn only
+    const needsValue = foreach.querySelector<HTMLElement>('.template-context-needs-value');
+    expect(needsValue?.textContent, 'the "…" after $foreach:').toBe('…');
+    expect(getComputedStyle(needsValue!).fontStyle).toBe('italic');
+    expect(foreach.textContent).toContain('$foreach:…');
     expect(foreach.parentElement!.querySelector('.completion-use'), 'Use beside $foreach:').toBeTruthy();
     const loop = await completionRow('$for:');
     expect(loop.parentElement!.querySelector('.completion-use'), 'no Use beside $for:').toBeNull();
