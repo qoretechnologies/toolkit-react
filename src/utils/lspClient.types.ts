@@ -26,6 +26,8 @@ export interface ILspDiagnostic {
   severity?: number;
   code?: string | number;
   source?: string;
+  /** What the server says of it beyond its words (LSP `Diagnostic.data`): Qorus's facts of a warning, say. */
+  data?: unknown;
 }
 
 /**
