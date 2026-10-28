@@ -25,6 +25,9 @@ import { validateFieldWithResult } from '../../../../helpers/validations';
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 // Direct imports — the cycle (ArrayAuto → TemplateField/auto → ArrayAuto) is
 // safe the same way Field → AutoFormField → Field is.
+import type { IFormAttention } from '../../engine/FormEngine';
+import { useIsCalmForm } from '../../engine/formAppearance';
+import { ItemAttention } from '../../engine/ItemAttention';
 import { recordIdentity } from '../../engine/readFirst';
 import { AutoFormField } from '../auto/AutoFormField';
 import { TemplateField } from '../template/TemplateField';
@@ -72,6 +75,14 @@ export const ArrayAuto = ({
   // opening one of those on mount would be this component reopening a decision
   // the author already made.
   const [justAddedIndex, setJustAddedIndex] = useState<number | undefined>(undefined);
+  // What each item's sub-form still needs, as the sub-form reports it. The calm
+  // sub-form draws no readiness line of its own, so the item's header says it.
+  const calm = useIsCalmForm();
+  const [itemAttention, setItemAttention] = useState<Record<number, IFormAttention>>({});
+  const reportItemAttention = (idx: number) => (attention: IFormAttention) =>
+    setItemAttention((prev) =>
+      isEqual(prev[idx], attention) ? prev : { ...prev, [idx]: attention }
+    );
 
   useWhyDidYouUpdate(`Array Auto ${name}`, {
     name,
@@ -182,6 +193,11 @@ export const ArrayAuto = ({
           minimal
           actions={[
             {
+              as: ItemAttention,
+              props: itemAttention[Number(idx)],
+              show: calm && !!itemAttention[Number(idx)]?.count,
+            },
+            {
               show: size(localValue) !== 1 && !rest.disabled && !rest.readOnly,
               icon: 'DeleteBinLine',
               intent: 'danger',
@@ -210,6 +226,8 @@ export const ArrayAuto = ({
             // answer. Rides TemplateField's `rest` into the row's AutoFormField,
             // which hands it to the row's nested FormEngine (case 'hash').
             expandFirstRequired={Number(idx) === justAddedIndex}
+            // Per row for the same reason: each item reports its own sub-form.
+            onSubFormAttentionChange={reportItemAttention(Number(idx))}
             value={val}
             onChange={(_name, value) => handleChange(idx, value)}
           />

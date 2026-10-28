@@ -14,7 +14,7 @@ import React, { memo } from 'react';
 import styled, { css } from 'styled-components';
 import { useContext } from 'use-context-selector';
 import { CompactToolbarContext, TCompactSort } from './compactToolbarContext';
-import { useIsCalmForm } from './formAppearance';
+import { getCalmAttentionColours, useIsCalmForm } from './formAppearance';
 
 // Field sort modes, listed in the Fields menu's "Sort by" submenu. 'schema' is
 // the default (the schema's declared order); the rest reorder within each group.
@@ -177,13 +177,12 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     },
   };
   const cSuccess = intents.success || '#4a7110';
-  const cWarning = intents.warning || '#d17c29';
+  const { fault: cWarning, pending: cQuiet } = getCalmAttentionColours(theme);
   const cText = (theme.text?.color as string) || '#e8e8e8';
   const cTrack = `${cText}1f`;
   // Calm: what is done is grey — finished work needs nobody — and only the
   // outstanding part (the amber run, the "need attention" link) is coloured.
   const cDone = calm ? `${cText}8c` : cSuccess;
-  const cQuiet = `${cText}a6`;
   // The GREEN run is what is done, not merely what has a value: a field that is
   // set but flagged belongs to the amber run, and counting it twice pushed that
   // run off the end of the track.

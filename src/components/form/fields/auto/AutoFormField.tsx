@@ -28,7 +28,7 @@ import {
 import { useWhyDidYouUpdate } from '../../../../hooks/useWhyDidYouUpdate';
 import { isQueryCancelled, query } from '../../../../utils/fetch';
 import { DpqlEditor } from '../../../dpqlEditor';
-import { FormEngine, IOptionsSchema } from '../../engine/FormEngine';
+import { FormEngine, IFormAttention, IOptionsSchema } from '../../engine/FormEngine';
 import {
   DRAWS_OWN_CHOICES_TYPES,
   FieldAllowedValues,
@@ -94,6 +94,10 @@ export interface IAutoFieldProps
    *  focus — see FormEngine's `expandFirstRequired`. Set by ArrayAuto on a
    *  just-added row so its required choice is visible without a second click. */
   expandFirstRequired?: boolean;
+  /** What the arg_schema sub-form still needs, as its form reports it (see
+   *  FormEngine's `onAttentionChange`). Set by ArrayAuto, whose item header says
+   *  it in the calm look, where the sub-form draws no readiness line of its own. */
+  onSubFormAttentionChange?: (attention: IFormAttention) => void;
   path?: string;
   column?: boolean;
   level?: number;
@@ -214,6 +218,8 @@ function AutoField<T = any>({
   // sub-form mount site consumes it, and leaving it in `...rest` would spread an
   // unknown attribute onto the primitive field renderers' DOM nodes.
   expandFirstRequired,
+  // Same reason again: only the nested sub-form consumes it.
+  onSubFormAttentionChange,
   ...rest
 }: IAutoFieldProps & T) {
   const [currentType, setType] = useState<IQorusType>(defaultInternalType || null);
@@ -768,6 +774,7 @@ function AutoField<T = any>({
                 // Embedded sub-form: no scroll context of its own, so its toolbar
                 // isn't sticky and its header stays transparent (no dark backdrop).
                 compactNested
+                onAttentionChange={onSubFormAttentionChange}
                 name={name}
                 uniqueName={uniqueName}
                 options={finalArgSchema}

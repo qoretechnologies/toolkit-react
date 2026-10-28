@@ -70,6 +70,15 @@ export const getCalmPanelSurface = (theme: IReqoreTheme): string =>
 export const getCalmPanelHairline = (theme: IReqoreTheme): string =>
   getDeclaredPanelSurface(theme)?.border ?? changeLightness(getMainBackgroundColor(theme), 0.08);
 
+/** The readiness words' two colours: amber for a fault, and the quiet text
+ *  colour for what is only still to fill in (the next step, not a warning). */
+export const getCalmAttentionColours = (
+  theme: IReqoreTheme
+): { fault: string; pending: string } => ({
+  fault: theme.intents?.warning || '#d17c29',
+  pending: `${(theme.text?.color as string) || '#e8e8e8'}a6`,
+});
+
 /**
  * What a calm form writes in place of an empty required value. Editable: what
  * to do about it. Read-only: only what is the case, because the reader cannot

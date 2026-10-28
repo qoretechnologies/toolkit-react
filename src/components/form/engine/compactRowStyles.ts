@@ -1046,6 +1046,13 @@ export const StyledGroupBody = styled.div<{
         &&.readfirst-read-list > :first-child {
           border-top: 0;
         }
+        /* A sub-form nested in a row draws no section either — the item it sits
+           in is the card — so its first row has no line above it. It keeps the
+           rows' inset: these rows are controls, and a hover band or an open row
+           flush with the text would crowd it. */
+        &&.readfirst-nested-list > :first-child {
+          border-top: 0;
+        }
         &&.readfirst-read-list .readfirst-row,
         &&.readfirst-read-list .options-readfirst-group-label,
         &&.readfirst-read-list .options-readfirst-group-subtitle {

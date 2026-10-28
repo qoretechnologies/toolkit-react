@@ -3578,9 +3578,14 @@ const FormEngineImpl = ({
   // the toolbar itself has to re-default anything. `null` means no toolbar.
   const compactToolbarParts = useMemo(() => {
     if (compactToolbar === false) return null;
+    // A calm sub-form nested in a row (a list item, a hash field) draws only its
+    // fields. Its readiness is said once, by the item it sits in, and each row
+    // says what it lacks; a search over two to six fields helps nobody, and one
+    // per item stacked a second search box under the form's own for every item.
+    if (calm && compactNested) return null;
     const all = { completion: true, search: true, fields: true, help: true };
     return compactToolbar === true ? all : { ...all, ...compactToolbar };
-  }, [JSON.stringify(compactToolbar)]);
+  }, [JSON.stringify(compactToolbar), calm, compactNested]);
 
   const compactToolbarContextValue = useMemo<ICompactToolbarContext>(
     () => ({
@@ -4044,7 +4049,6 @@ const FormEngineImpl = ({
         can be split across the shown and folded halves of a capped box, and its
         label must appear above whichever half holds its first row. */
     const renderBoxGroup = (boxKey: TFormEngineBoxKey, groupName: string, only?: Set<string>) => {
-      const groupConfig = groups?.[groupName];
       const rows =
         only ?
           (buckets[boxKey][groupName] || []).filter((entry) => only.has(entry.name))
@@ -4052,8 +4056,14 @@ const FormEngineImpl = ({
       if (only && !rows.length) {
         return null;
       }
+      return renderGroupBlock(groupName, rows);
+    };
+    /** A group's sub-label, subtitle and rows. `key` tells two halves of one
+        group apart when both render in the same body. */
+    const renderGroupBlock = (groupName: string, rows: TRowEntry[], key: string = groupName) => {
+      const groupConfig = groups?.[groupName];
       return (
-        <React.Fragment key={groupName}>
+        <React.Fragment key={key}>
           {showGroupSubLabel(groupName) ?
             <StyledStatusBoxGroupLabel
               className='options-readfirst-group-label'
@@ -4086,6 +4096,100 @@ const FormEngineImpl = ({
           : null}
           {renderGroupRows(rows)}
         </React.Fragment>
+      );
+    };
+
+    /** The "N more fields" control: a quiet last row of the body it folds. */
+    const renderMoreRow = (boxKey: TFormEngineBoxKey, count: number, open: boolean) => (
+      <button
+        type='button'
+        className='readfirst-row readfirst-more-row options-readfirst-more'
+        aria-expanded={open}
+        onClick={() =>
+          setExpandedMoreBoxes((prev) =>
+            prev.includes(boxKey) ? prev.filter((k) => k !== boxKey) : [...prev, boxKey]
+          )
+        }
+      >
+        <ReqoreP size='small' effect={{ opacity: 0.8 }}>
+          {open ?
+            'Show fewer'
+          : `${count} more ${boxKey === 'optional' ? 'optional ' : ''}field${count === 1 ? '' : 's'}`
+          }
+        </ReqoreP>
+        <ReqoreIcon
+          icon='ArrowDownSLine'
+          size='small'
+          className='readfirst-more-chevron'
+          effect={{ opacity: 0.8 }}
+        />
+      </button>
+    );
+
+    const groupBodyProps = {
+      $calm: calm,
+      $hairline: cHairline,
+      $divider: cDivider,
+      $hover: cHover,
+      $focus: cWarning,
+      $success: cSuccess,
+      $rowBg: cRowBg,
+      $lineColor: cGroupLine,
+      $moreBorder: cMoreBorder,
+    };
+
+    /* Calm, nested in a row (a list item, a hash field's sub-form): the item is
+       already the card, so its fields sit in it directly instead of in status
+       boxes, which drew a card inside the card. In schema order, so a row does
+       not move to another box under the caret as it is filled; a row that lacks
+       a value still says so where the value would be. The fields nobody has
+       added fold behind one quiet last row, the same control a capped box ends
+       with — and when nothing else is listed they ARE the form, so they show. */
+    const renderNestedRows = () => {
+      // Fields with no named group are one list here. The engine files them under
+      // two synthetic keys (the required ones and the rest), which the boxes
+      // never showed; in one list that split put a set Description above an
+      // empty Method Name. Named groups keep their sub-labels and their order.
+      const UNLABELLED = '';
+      const keyOf = (groupName: string) => (showGroupSubLabel(groupName) ? groupName : UNLABELLED);
+      const nestedKeys = uniq(groupKeys.map(keyOf));
+      const listedByGroup: Record<string, TRowEntry[]> = {};
+      const addableByGroup: Record<string, TRowEntry[]> = {};
+      groupKeys.forEach((groupName) => {
+        grouped[groupName].forEach((entry) => {
+          const target = entry.hidden ? addableByGroup : listedByGroup;
+          (target[keyOf(groupName)] ||= []).push(entry);
+        });
+      });
+      // In the schema's order, not the order the values arrived in.
+      const schemaOrder = Object.keys(options || {});
+      const bySchema = (a: TRowEntry, b: TRowEntry) =>
+        schemaOrder.indexOf(a.name) - schemaOrder.indexOf(b.name);
+      forEach(listedByGroup, (rows) => rows.sort(bySchema));
+      forEach(addableByGroup, (rows) => rows.sort(bySchema));
+      const renderNestedGroup = (key: string, rows: TRowEntry[], half: string) =>
+        key === UNLABELLED ?
+          <React.Fragment key={`${half}-fields`}>{renderGroupRows(rows)}</React.Fragment>
+        : renderGroupBlock(key, rows, `${half}-${key}`);
+      const listedGroups = nestedKeys.filter((key) => listedByGroup[key]?.length);
+      const addableGroups = nestedKeys.filter((key) => addableByGroup[key]?.length);
+      const addableCount = addableGroups.reduce(
+        (total, key) => total + addableByGroup[key].length,
+        0
+      );
+      const folds = listedGroups.length > 0;
+      const addableOpen = !folds || expandedMoreBoxes.includes('optional');
+      return (
+        <StyledGroupBody
+          {...groupBodyProps}
+          className={`readfirst-nested-list${compactNarrow ? ' readfirst-narrow' : ''}`}
+        >
+          {listedGroups.map((key) => renderNestedGroup(key, listedByGroup[key], 'listed'))}
+          {folds && addableCount ? renderMoreRow('optional', addableCount, addableOpen) : null}
+          {addableOpen ?
+            addableGroups.map((key) => renderNestedGroup(key, addableByGroup[key], 'addable'))
+          : null}
+        </StyledGroupBody>
       );
     };
 
@@ -4225,21 +4329,14 @@ const FormEngineImpl = ({
                         style={{ padding: calm ? 0 : '4px 4px 6px' }}
                       >
                         <StyledGroupBody
-                          $calm={calm}
-                          $hairline={cHairline}
-                          $divider={cDivider}
-                          $hover={cHover}
-                          $focus={cWarning}
-                          $success={cSuccess}
-                          $rowBg={cRowBg}
-                          $lineColor={cGroupLine}
-                          $moreBorder={cMoreBorder}
+                          {...groupBodyProps}
                           className={`readfirst-read-list${compactNarrow ? ' readfirst-narrow' : ''}`}
                         >
                           {bucketGroups.set.map((groupName) => renderBoxGroup('set', groupName))}
                         </StyledGroupBody>
                       </div>
                     : null
+                  : calm && compactNested ? renderNestedRows()
                   : STATUS_BOXES.map((box) => {
                       const groupsInBox = bucketGroups[box.key];
                       const count = bucketCount(box.key);
@@ -4431,15 +4528,7 @@ const FormEngineImpl = ({
                             inter-field gap is identical everywhere — including
                             across schema-group boundaries. */}
                           <StyledGroupBody
-                            $calm={calm}
-                            $hairline={cHairline}
-                            $divider={cDivider}
-                            $hover={cHover}
-                            $focus={cWarning}
-                            $success={cSuccess}
-                            $rowBg={cRowBg}
-                            $lineColor={cGroupLine}
-                            $moreBorder={cMoreBorder}
+                            {...groupBodyProps}
                             className={compactNarrow ? 'readfirst-narrow' : undefined}
                           >
                             {shownGroups.map((groupName) =>
@@ -4450,33 +4539,7 @@ const FormEngineImpl = ({
                               hover and lines up with them. Outside it was a bare
                               line of text in the box's corner, which is what the
                               build #154 review rejected. */}
-                            {deferredCount ?
-                              <button
-                                type='button'
-                                className='readfirst-row readfirst-more-row options-readfirst-more'
-                                aria-expanded={moreOpen}
-                                onClick={() =>
-                                  setExpandedMoreBoxes((prev) =>
-                                    prev.includes(box.key) ?
-                                      prev.filter((k) => k !== box.key)
-                                    : [...prev, box.key]
-                                  )
-                                }
-                              >
-                                <ReqoreP size='small' effect={{ opacity: 0.8 }}>
-                                  {moreOpen ?
-                                    'Show fewer'
-                                  : `${deferredCount} more ${box.key === 'optional' ? 'optional ' : ''}field${deferredCount === 1 ? '' : 's'}`
-                                  }
-                                </ReqoreP>
-                                <ReqoreIcon
-                                  icon='ArrowDownSLine'
-                                  size='small'
-                                  className='readfirst-more-chevron'
-                                  effect={{ opacity: 0.8 }}
-                                />
-                              </button>
-                            : null}
+                            {deferredCount ? renderMoreRow(box.key, deferredCount, moreOpen) : null}
                             {/* A search forces the fold open for the same reason
                               the boxes open: an unmounted row cannot be found. */}
                             {deferredCount && moreOpen ?

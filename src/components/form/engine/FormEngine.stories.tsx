@@ -2028,6 +2028,88 @@ export const CompactNestedListRowsStayCompactMobile: Story = {
   },
 };
 
+/* A list item in the calm look is its fields: the item is already the card, so its
+   sub-form draws no readiness line, search or status boxes inside it. What the item
+   still needs is said once, by its header; the fields nobody has added wait behind
+   one quiet last row. */
+export const CompactNestedItemIsItsFields: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Opens a list of methods whose second item has no name. Each item shows its fields directly, as hairline-split rows with no readiness line, search or Set box inside it. The item without a name says "1 to fill in" in its header, and its Method Name row says "Required · add a value". The two optional fields nobody has added wait behind "2 more optional fields" in each item.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    minColumnWidth: '300px',
+    value: {
+      methods: {
+        type: 'list',
+        value: [
+          { type: 'hash', value: { name: 'init', desc: 'initialises the service' } },
+          { type: 'hash', value: { desc: 'does the work' } },
+        ],
+      },
+    },
+    options: {
+      methods: {
+        type: 'list',
+        ui_type: 'list',
+        element_type: 'hash',
+        display_name: 'Methods',
+        arg_schema: {
+          name: { type: 'string', ui_type: 'string', display_name: 'Method Name', required: true },
+          desc: { type: 'string', ui_type: 'string', display_name: 'Description' },
+          timeout: { type: 'int', ui_type: 'int', display_name: 'Timeout' },
+          lock: { type: 'string', ui_type: 'string', display_name: 'Lock' },
+        },
+      },
+    } as unknown as IOptionsSchema,
+  },
+  play: async ({ canvasElement }) => {
+    await _testsWaitForText('init');
+    await _testsClickText('Methods');
+    await waitFor(
+      () => expect(canvasElement.querySelectorAll('.array-auto-item')).toHaveLength(2),
+      { timeout: 5000 }
+    );
+    const items = () => [...canvasElement.querySelectorAll<HTMLElement>('.array-auto-item')];
+    await waitFor(() => expect(items()[1].querySelector('[data-field="name"]')).toBeTruthy());
+
+    for (const item of items()) {
+      // No readiness line, search or toolbar, and no status box: the rows sit in the item.
+      expect(item.querySelector('.options-readfirst-toolbar')).toBeNull();
+      expect(item.querySelector('.options-readfirst-group')).toBeNull();
+      expect(item.querySelector('.readfirst-nested-list')).toBeTruthy();
+      // The fields nobody added wait behind one quiet last row.
+      expect(item.querySelector('[data-field="timeout"]')).toBeNull();
+      expect(item.querySelector('.readfirst-more-row')?.textContent).toContain(
+        '2 more optional fields'
+      );
+    }
+
+    // The item that lacks its name says so in its header, and only that one does.
+    const [first, second] = items();
+    await waitFor(() =>
+      expect(second.querySelector('.array-auto-item-attention')?.textContent).toBe('1 to fill in')
+    );
+    expect(first.querySelector('.array-auto-item-attention')).toBeNull();
+    expect(second.querySelector('[data-field="name"]')?.textContent).toContain(CALM_REQUIRED_LABEL);
+    // In the schema's order, though the description was set and the name was not.
+    const order = [...second.querySelectorAll('.readfirst-nested-list [data-field]')].map((row) =>
+      row.getAttribute('data-field')
+    );
+    expect(order.slice(0, 2)).toEqual(['name', 'desc']);
+
+    // Asking for more shows them, in the item, as rows to add.
+    fireEvent.click(first.querySelector<HTMLElement>('.readfirst-more-row')!);
+    await waitFor(() => expect(first.querySelector('[data-field="timeout"]')).toBeTruthy());
+    expect(first.querySelector('[data-field="lock"]')).toBeTruthy();
+  },
+};
+
 export const DependantsResetWhenParentChanges: Story = {
   parameters: {
     docs: {
