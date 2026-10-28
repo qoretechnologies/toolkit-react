@@ -271,6 +271,18 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         ...presentDpqlDiagnostics(diagnostics, plainText),
         ...dpqlReferencesIn(plainText)
           .filter(({ value }) => namesNothing(value))
+          /* what the server says of a reference is said once: a variable the Qog does not declare is the server's
+             warning, with what to do about it (`qog_variable_undeclared`), not an error of the editor's too */
+          .filter(
+            ({ line, start }) =>
+              !diagnostics.some(
+                (diagnostic) =>
+                  diagnostic.code === 'qog_variable_undeclared' &&
+                  diagnostic.range.start.line === line &&
+                  diagnostic.range.start.character <= start &&
+                  diagnostic.range.end.character > start
+              )
+          )
           .map(({ line, start, end, value }) => ({
             range: { start: { line, character: start }, end: { line, character: end } },
             severity: 1 as const,

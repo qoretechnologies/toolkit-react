@@ -3062,6 +3062,9 @@ export const AnUndeclaredVariableCanBeDeclared: Story = {
       "The Qog does not declare the global variable retries, so it reads as nothing; declare it in the Qog's global variables."
     );
     expect(action.textContent).toBe('Declare it');
+    // said once, as the server's warning - not an error of the editor's beside it - and the button its words' width
+    expect(saidOfTheText(canvasElement)).toHaveLength(1);
+    expect(action.getBoundingClientRect().width).toBeLessThan(200);
     await userEvent.click(action);
     expect(declared).toEqual([{ scope: 'globalvar', name: 'retries' }]);
   },

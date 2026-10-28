@@ -1212,17 +1212,20 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 {(() => {
                   // what the host can do about it, beside what is said of it
                   const action = diagnosticAction?.(diag);
+                  // as wide as its words, under what is said: a message lays its children out at its width
                   return action ?
-                      <ReqoreButton
-                        size='small'
-                        compact
-                        className='smart-editor-diagnostic-action'
-                        intent={severityToIntent(diag.severity)}
-                        onClick={action.onClick}
-                        style={{ marginLeft: 8 }}
-                      >
-                        {action.label}
-                      </ReqoreButton>
+                      <ReqoreControlGroup size='small' fluid={false}>
+                        <ReqoreButton
+                          size='small'
+                          compact
+                          fixed
+                          className='smart-editor-diagnostic-action'
+                          intent={severityToIntent(diag.severity)}
+                          onClick={action.onClick}
+                        >
+                          {action.label}
+                        </ReqoreButton>
+                      </ReqoreControlGroup>
                     : null;
                 })()}
               </ReqoreMessage>
