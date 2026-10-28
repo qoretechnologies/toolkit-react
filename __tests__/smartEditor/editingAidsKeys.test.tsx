@@ -52,6 +52,15 @@ const press = (
     },
     stopPropagation: () => undefined,
   } as any);
+  /* as a browser goes on with a key its keydown did not take: the edit the key asks of the editor - where the
+     aids close, step over and take back pairs, at the caret the editor has then */
+  if (!prevented && !modifiers.altKey) {
+    if (key === 'Backspace') {
+      Editor.deleteBackward(editor);
+    } else if (key.length === 1) {
+      Editor.insertText(editor, key);
+    }
+  }
   return {
     taken,
     prevented,
@@ -62,28 +71,39 @@ const press = (
 const caret = (editor: Editor) => editor.selection?.anchor.offset;
 
 describe('pairs', () => {
+  it("are closed by the editor's own insertion, at the caret it has then, not in the keydown", () => {
+    /* qorus#646, PullRequestTests: an edit made in the keydown came before the editor read the page's caret, and
+       the next key went before the pair; the keydown leaves the key to the editor's insertion */
+    const editor = editorWith(['concat'], 6);
+    expect(press(editor, '(')).toMatchObject({ taken: false, prevented: false, text: 'concat()' });
+    // an insertion of the same character that no key asked for is just that character
+    const plain = editorWith(['concat'], 6);
+    Editor.insertText(plain, '(');
+    expect(dpqlSlateConverter.fromSlateNodes(plain.children as unknown as ISlateElement[])).toBe('concat(');
+  });
+
   it('closes a bracket typed before nothing, the caret inside it', () => {
     const editor = editorWith(['concat'], 6);
-    expect(press(editor, '(')).toMatchObject({ taken: true, text: 'concat()' });
+    expect(press(editor, '(')).toMatchObject({ text: 'concat()' });
     expect(caret(editor)).toBe(7);
   });
 
   it('does not close a bracket typed before a word', () => {
-    expect(press(editorWith(['a'], 0), '(')).toMatchObject({ taken: false });
+    expect(press(editorWith(['a'], 0), '(')).toMatchObject({ taken: false, text: '(a' });
   });
 
   it('steps over a closing bracket typed before the same one', () => {
     const editor = editorWith(['f()'], 2);
-    expect(press(editor, ')')).toMatchObject({ taken: true, text: 'f()' });
+    expect(press(editor, ')')).toMatchObject({ text: 'f()' });
     expect(caret(editor)).toBe(3);
   });
 
   it('closes a quote, and steps over the closing one in its string', () => {
     const editor = editorWith(['f()'], 2);
-    expect(press(editor, '"')).toMatchObject({ taken: true, text: 'f("")' });
+    expect(press(editor, '"')).toMatchObject({ text: 'f("")' });
     expect(caret(editor)).toBe(3);
     const closing = editorWith(['f("a")'], 4);
-    expect(press(closing, '"')).toMatchObject({ taken: true, text: 'f("a")' });
+    expect(press(closing, '"')).toMatchObject({ text: 'f("a")' });
     expect(caret(closing)).toBe(5);
   });
 
@@ -94,7 +114,11 @@ describe('pairs', () => {
 
   it('takes back an empty pair whole with Backspace', () => {
     const editor = editorWith(['f()'], 2);
-    expect(press(editor, 'Backspace')).toMatchObject({ taken: true, text: 'f' });
+    expect(press(editor, 'Backspace')).toMatchObject({ text: 'f' });
+    // only Backspace's own deletion: one deleted by the editor for itself takes no pair
+    const programmatic = editorWith(['f()'], 2);
+    Editor.deleteBackward(programmatic);
+    expect(dpqlSlateConverter.fromSlateNodes(programmatic.children as unknown as ISlateElement[])).toBe('f)');
   });
 
   it('wraps a selection typed over with a bracket or a quote, keeping it selected', () => {

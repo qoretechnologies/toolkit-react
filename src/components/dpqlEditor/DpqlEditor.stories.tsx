@@ -3099,3 +3099,47 @@ const declareIt = (data: unknown) => {
   declared.push({ scope: facts.declare.scope, name: facts.variable_name });
 };
 
+
+/**
+ * A key typed right after a pair the editor closed goes where the caret is, though the page has not drawn the pair
+ * yet (qorus#646: CI typed `"a" + 1` as `a" + 1""`). The editor closes the pair in its document and puts the caret
+ * between the quotes; the page draws it a moment later. A key typed in that moment, after a click whose caret the
+ * editor had not read yet, was put where the page's caret still was - before the quotes.
+ */
+export const AKeyRightAfterAClosedPairGoesBetweenItsQuotes: Story = {
+  args: { value: '', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Clicks the empty text and, in the same moment - before the page has drawn anything - types `"` and `1`: ' +
+          'the text is "1", the 1 between the quotes the editor closed, as a fast typist on a busy page types it.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    /* the page's caret moved by the click, its change not read by the editor yet: the editor reads such changes
+       a little later, at most so often, and a change that comes while it waits is read at the next input */
+    const doc = editable.ownerDocument;
+    doc.dispatchEvent(new Event('selectionchange'));
+    doc.dispatchEvent(new Event('selectionchange'));
+    // in one task, before the page draws the pair: the quote's key, then the next character's input
+    // as a browser does: a key's input follows its keydown unless the keydown was taken
+    const type = (key: string, code: string) => {
+      const proceed = editable.dispatchEvent(
+        new KeyboardEvent('keydown', { key, code, shiftKey: key === '"', bubbles: true, cancelable: true })
+      );
+      if (proceed) {
+        editable.dispatchEvent(
+          new InputEvent('beforeinput', { inputType: 'insertText', data: key, bubbles: true, cancelable: true })
+        );
+      }
+    };
+    type('"', 'Quote');
+    type('1', 'Digit1');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('"1"'));
+    expect(plainTextOf(editable)).toBe('"1"');
+  },
+};

@@ -43,6 +43,9 @@ export interface IUseEditingAidsOptions {
 
 const modKey = (event: React.KeyboardEvent) => event.metaKey || event.ctrlKey;
 
+/** The editors whose `insertText` and `deleteBackward` close, step over and take back pairs (`useEditingAids`). */
+const PAIRED_EDITORS = new WeakSet<object>();
+
 /**
  * The editing aids of a code editor (`editingAids`), for a Slate editor: the keys - pairs closed, a selection
  * wrapped, a closing bracket stepped over, an empty pair taken back whole, a line's indent kept on Enter, a line
@@ -60,6 +63,82 @@ export const useEditingAids = ({
   onComplete,
 }: IUseEditingAidsOptions) => {
   const editorOf = () => editorRef.current as TEditor | null;
+
+  /* A key whose pair is closed, stepped over or taken back whole is not done in its keydown: it is marked here and
+     done as the editor makes the edit the key asks for (its `insertText`, its `deleteBackward`), at the caret the
+     editor has then. An edit made in the keydown came before the editor read where the page's caret was: a click's
+     caret still to be read was read at the next key, after the pair, and put the caret back before the quotes, so
+     `"a" + 1` came out `a" + 1""` (qorus#646, PullRequestTests). */
+  const pendingKeyRef = useRef<string | null>(null);
+  const languageRef = useRef(language);
+  languageRef.current = language;
+  const converterRef = useRef(converter);
+  converterRef.current = converter;
+  useEffect(() => {
+    const editor = editorOf();
+    if (!editor || PAIRED_EDITORS.has(editor)) return;
+    PAIRED_EDITORS.add(editor);
+    const { insertText, deleteBackward } = editor;
+    // the text and the caret as the editor holds them now, chips masked
+    const live = () => {
+      const at = editor.selection;
+      if (!at || !Range.isCollapsed(at)) return null;
+      const nodes = editor.children as unknown as ISlateElement[];
+      const conv = converterRef.current;
+      try {
+        const masked = maskChips(conv.fromSlateNodes(nodes), textSegments(nodes, conv));
+        const offset = conv.selectionToOffset(nodes, at.anchor.path as number[], at.anchor.offset);
+        return { masked, offset, next: masked[offset] ?? '', before: masked[offset - 1] ?? '' };
+      } catch {
+        // a selection the editor no longer has
+        return null;
+      }
+    };
+    editor.insertText = (text, options) => {
+      const key = pendingKeyRef.current;
+      pendingKeyRef.current = null;
+      const lang = languageRef.current;
+      const at = key === text && lang && !options?.at ? live() : null;
+      if (lang && at) {
+        const { opens, closes } = autoClosingPairFor(lang, text);
+        const isQuote = !!opens && opens.open === opens.close;
+        /* A closing bracket typed before the same one steps over it; a quote does, where it closes the string the
+           caret is in. */
+        if (closes && at.next === text && (!isQuote || inString(at.masked, at.offset, lang.quotes))) {
+          Transforms.move(editor, { distance: 1, unit: 'character' });
+          return;
+        }
+        /* a pair opened is closed, where it is opened before nothing, a space or what closes - and a quote typed
+           after a word is an apostrophe */
+        if (
+          opens &&
+          closesBefore(lang, at.next) &&
+          !(opens.notInString && inString(at.masked, at.offset, lang.quotes)) &&
+          !(isQuote && /[\p{L}\p{N}_]/u.test(at.before))
+        ) {
+          insertText(opens.open + opens.close, options);
+          Transforms.move(editor, { distance: 1, unit: 'character', reverse: true });
+          return;
+        }
+      }
+      insertText(text, options);
+    };
+    editor.deleteBackward = (unit) => {
+      const key = pendingKeyRef.current;
+      pendingKeyRef.current = null;
+      const lang = languageRef.current;
+      const at = key === 'Backspace' && unit === 'character' && lang ? live() : null;
+      // Backspace between an empty pair takes both
+      if (
+        lang &&
+        at &&
+        lang.autoClosingPairs.some((pair) => pair.open === at.before && pair.close === at.next)
+      ) {
+        Transforms.delete(editor, { distance: 1, unit: 'character' });
+      }
+      deleteBackward(unit);
+    };
+  });
   // the caret the bracket match is drawn for: the selection, as the editor last reported it
   const [caret, setCaret] = useState<number | null>(null);
   const [find, setFind] = useState<{
@@ -241,6 +320,8 @@ export const useEditingAids = ({
     (event: React.KeyboardEvent): boolean => {
       const editor = editorOf();
       if (!editor) return false;
+      // a key marked before and never inserted (an input method took it) is no longer this key's
+      pendingKeyRef.current = null;
       const take = () => {
         event.preventDefault();
         event.stopPropagation();
@@ -286,9 +367,6 @@ export const useEditingAids = ({
       }
       if (!language) return false;
       const collapsed = Range.isCollapsed(at);
-      const offset = caretOffset();
-      const next = offset !== null ? (masked[offset] ?? '') : '';
-      const before = offset !== null ? (masked[offset - 1] ?? '') : '';
       // Enter keeps the line's indent
       if (
         event.key === 'Enter' &&
@@ -306,16 +384,9 @@ export const useEditingAids = ({
         Transforms.insertText(editor, indent);
         return take();
       }
-      // Backspace between an empty pair takes both
-      if (event.key === 'Backspace' && collapsed && before && next) {
-        const pair = language.autoClosingPairs.find(
-          (each) => each.open === before && each.close === next
-        );
-        if (pair) {
-          Transforms.delete(editor, { distance: 1, unit: 'character' });
-          Transforms.delete(editor, { distance: 1, unit: 'character', reverse: true });
-          return take();
-        }
+      // Backspace between an empty pair takes both: done as the editor deletes (`deleteBackward` above)
+      if (event.key === 'Backspace' && collapsed) {
+        pendingKeyRef.current = 'Backspace';
         return false;
       }
       if (event.key.length !== 1 || modKey(event) || event.altKey) return false;
@@ -335,29 +406,14 @@ export const useEditingAids = ({
         Transforms.select(editor, { anchor: startAfter, focus: endAfter });
         return take();
       }
-      if (!collapsed || offset === null) return false;
-      /* A closing bracket typed before the same one steps over it; a quote does, where it closes the string the
-         caret is in. */
-      const isQuote = !!opens && opens.open === opens.close;
-      if (closes && next === event.key && (!isQuote || inString(masked, offset, language.quotes))) {
-        Transforms.move(editor, { distance: 1, unit: 'character' });
-        return take();
-      }
-      // a pair opened is closed, where it is opened before nothing, a space or what closes
-      if (
-        opens &&
-        closesBefore(language, next) &&
-        !(opens.notInString && inString(masked, offset, language.quotes))
-      ) {
-        // a quote typed after a word is an apostrophe
-        if (opens.open === opens.close && /[\p{L}\p{N}_]/u.test(before)) return false;
-        Transforms.insertText(editor, opens.open + opens.close);
-        Transforms.move(editor, { distance: 1, unit: 'character', reverse: true });
-        return take();
+      /* a bracket or a quote typed at the caret: closed or stepped over as the editor inserts it (`insertText`
+         above), at the caret the editor has then */
+      if (collapsed && (opens || closes)) {
+        pendingKeyRef.current = event.key;
       }
       return false;
     },
-    [language, readOnly, onFormat, onComplete, caretOffset, masked, openFind]
+    [language, readOnly, onFormat, onComplete, openFind]
   );
 
   // a search open on a text that changes keeps its place among the matches
