@@ -97,6 +97,9 @@ export interface ITemplateCatalogue {
   contexts: ITemplateCatalogueContext[];
 }
 
+/** A type as a row names it: Qore's `auto` is any type (`any`), never an unknown one. */
+const typeOf = (type: string | undefined): string | undefined => (type === 'auto' ? 'any' : type);
+
 /** The id of the "Template contexts" group in a field's templates. */
 export const TEMPLATE_CONTEXTS_GROUP_ID = 'contexts';
 
@@ -122,7 +125,7 @@ const keyNode = (
     // what typing reaches it by: its reference without braces (`$static:order.customer-name`)
     reference: unbracedReference(key.template),
     kind: templateNodeKindOf(key.template),
-    type: key.type,
+    type: typeOf(key.type),
     baseType: key.base_type,
     description: key.description,
     source: key.source,
@@ -160,7 +163,7 @@ export const catalogueContextNode = (
     description: [context.display_name, context.description, context.arg_format]
       .filter(Boolean)
       .join(' · '),
-    type: context.type,
+    type: typeOf(context.type),
     trail,
     trailIds: [parentId],
     catalogue: context,

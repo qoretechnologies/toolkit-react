@@ -64,6 +64,11 @@ describe('a field with a template catalogue', () => {
     expect(start.children![1].children!.map((node) => node.value)).toEqual(['$data:s1.customer.name']);
   });
 
+  it("names Qore's `auto` as any type, never as an unknown one", () => {
+    expect(contextNamed('qog-loops', '$fsminput:')?.type).toBe('any');
+    expect(contextNamed('qog-loops', '$local:')!.children!.find((key) => key.label === 'input')?.type).toBe('any');
+  });
+
   it('goes on into a context of free keys, or of an argument of its own format, that lists no key', () => {
     expect(contextNamed('workflow-untyped-static', '$dynamic:')).toMatchObject({
       continues: true,
