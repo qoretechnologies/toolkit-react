@@ -132,7 +132,7 @@ const keyNode = (
       key.display_name ?
         [key.template, key.description].filter(Boolean).join(' · ')
       : key.description,
-    source: key.source,
+    // where Qorus knows it from (`declared`, `loop`) is the server's own: not said in the row
     trail,
     trailIds,
     ...(children?.length ?
