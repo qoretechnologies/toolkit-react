@@ -13,6 +13,18 @@ export interface IConfirmMismatchedTypesModalProps extends Omit<IReqoreModalProp
   onSubmit: (args: IExpression[]) => void;
 }
 
+/**
+ * How wide a type confirmation is: as wide as its title and its three buttons, not reqore's 80% of the screen, which
+ * stretched a few short lines across a wide one (Foxhoundn, qlip #400: "Please make the dialog narrower"). On a
+ * screen narrower than that, the screen's width.
+ */
+export const CONFIRM_DIALOG_WIDTH = 560;
+export const CONFIRM_DIALOG_WIDTH_CSS = `min(${CONFIRM_DIALOG_WIDTH}px, 100vw)`;
+
+/* Its three buttons are its answers: each is always there, by its name, never folded into a menu. The bar's two
+   responsive groups split its width in half, and in a dialog this narrow "Accept all" folded into the "...". */
+const ANSWER = { responsive: false } as const;
+
 /** How many arguments will be transformed, in words: "1 argument will be transformed." */
 export const transformedCountText = (count: number): string =>
   `${count} ${count === 1 ? 'argument' : 'arguments'} will be transformed.`;
@@ -36,11 +48,13 @@ export const ConfirmMismatchedTypesModal = memo(
         intent='warning'
         icon='ErrorWarningLine'
         label='Confirm type selection for mismatched arguments'
+        width={CONFIRM_DIALOG_WIDTH_CSS}
         {...rest}
         customZIndex={1000000}
         bottomActions={[
           {
             position: 'left',
+            ...ANSWER,
             label: 'Discard all',
             icon: 'CloseLine',
             // it clears every argument's value: a discard (BRAND_DESIGN §7)
@@ -51,6 +65,7 @@ export const ConfirmMismatchedTypesModal = memo(
           },
           {
             position: 'right',
+            ...ANSWER,
             label: 'Accept all',
             icon: 'CheckDoubleLine',
             onClick: () => {
@@ -62,6 +77,7 @@ export const ConfirmMismatchedTypesModal = memo(
           },
           {
             position: 'right',
+            ...ANSWER,
             label: 'Confirm selection',
             icon: 'CheckLine',
             onClick: () => {

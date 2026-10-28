@@ -5,7 +5,7 @@
 // helpers are inlined here with `@storybook/test` primitives. The count-based
 // assertions (`.expression`, `.expression-and`, `.expression-or`) are preserved.
 import { StoryObj } from '@storybook/react-vite';
-import { expect, fireEvent, fn, userEvent, waitFor, within } from 'storybook/test';
+import { expect, fireEvent, fn, screen, userEvent, waitFor, within } from 'storybook/test';
 import { useState } from 'react';
 import { sleep } from '../../../../../__tests__/utils';
 import { StoryMeta } from '../../../../types';
@@ -14,6 +14,7 @@ import { mockExpressions } from '../mockExpressions';
 import { COUNTED_WILDCARDS, PRICES, WILDCARD_EXPRESSIONS } from '../wildcardExpressions';
 import { IExpression, IExpressionSchema } from '../types';
 import { ExpressionBuilder } from './index';
+import { CONFIRM_DIALOG_WIDTH } from './confirmMismatchedTypesModal';
 import { withCoarsePointer } from '../../../../stories/coarsePointer';
 import { _testsWithViewport } from '../../../../stories/Tests/utils';
 import { PHONE_VIEWPORT } from '../../../../stories/tracking';
@@ -1773,6 +1774,20 @@ export const FunctionArgsArePassedToNewFunctionAndNeedConfirmation: Story = {
     await selectOperation('Format Date', 'Matches Regular Expression');
 
     await waitForText('Confirm type selection for mismatched arguments');
+    // the dialog is as wide as what it says (Foxhoundn, qlip #400: "Please make the dialog narrower"), never
+    // 80% of the screen, and everything in it fits: the title and the three buttons on its last line
+    const title = await screen.findByText('Confirm type selection for mismatched arguments');
+    const dialog = title.closest<HTMLElement>('.reqore-modal, [role="dialog"]')!;
+    await expect(dialog, 'the dialog').toBeTruthy();
+    await waitFor(() =>
+      expect(dialog.getBoundingClientRect().width).toBeLessThanOrEqual(CONFIRM_DIALOG_WIDTH + 1)
+    );
+    await expect(title.scrollWidth).toBeLessThanOrEqual(title.clientWidth + 1);
+    for (const answer of ['Discard all', 'Accept all', 'Confirm selection']) {
+      const button = within(dialog).getByText(answer).closest('button')!;
+      await expect(button, answer).toBeVisible();
+      await expect(button.getBoundingClientRect().right).toBeLessThanOrEqual(dialog.getBoundingClientRect().right);
+    }
   },
 };
 

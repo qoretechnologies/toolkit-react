@@ -454,6 +454,17 @@ export const StyledLabelName = styled.span<{ $fill?: boolean }>`
         .options-readfirst-help {
           justify-self: end;
         }
+        /* A stacked row's label is the row's whole width, with no column for the help to line up in: at its
+           right edge the help floated alone, away from the name it explains (Foxhoundn, qlip #400: "On mobile
+           the question mark should stay with the label"). It follows the name. */
+        .readfirst-narrow & {
+          grid-template-columns: minmax(0, max-content) auto;
+          justify-content: start;
+
+          .options-readfirst-help {
+            justify-self: start;
+          }
+        }
         /* what the option takes flows after the name, under it where both do not fit */
         .options-readfirst-type {
           display: inline-flex;

@@ -184,6 +184,10 @@ export const CustomerView: Story = {
     await expect(canvas.getByText('Qorus Support')).toBeInTheDocument();
     // internal notes are filtered out for the customer
     await expect(canvas.queryByText('Internal note')).not.toBeInTheDocument();
+    // its times are read against the story's clock (STORY_NOW), not the day the build ran: the opening message,
+    // three hours before it, reads "3 hours ago" in every build, so the frame never changes by itself (Foxhoundn,
+    // qlip #400: "Are these timestamp changes always now going to show up?")
+    await expect(canvas.getByText('3 hours ago')).toBeInTheDocument();
 
     await userEvent.click(canvas.getAllByText('deploy-trace.log')[0]);
     await waitFor(() =>

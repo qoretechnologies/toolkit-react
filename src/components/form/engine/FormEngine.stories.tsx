@@ -14201,6 +14201,18 @@ const expectNarrowRule = async (name: string, stacked: boolean) => {
   if (stacked) {
     await expect(value.top).toBeGreaterThanOrEqual(label.bottom - 1);
     await expect(Math.round(valueContent.left - label.left)).toBe(12);
+    // each name's (?) follows the name: a stacked label has no column for it to line up in, and at the row's
+    // right edge it floated alone (Foxhoundn, qlip #400: "On mobile the question mark should stay with the label")
+    for (const help of form.querySelectorAll<HTMLElement>('.readfirst-row .options-readfirst-help')) {
+      const text = help.parentElement!.querySelector('.options-readfirst-label-text')!;
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      const lines = [...range.getClientRects()];
+      const nameEnd = Math.max(
+        ...lines.filter((line) => line.top < lines[0].bottom).map((line) => line.right)
+      );
+      await expect(help.getBoundingClientRect().left - nameEnd, 'the (?) right after its name').toBeLessThan(8);
+    }
   } else {
     await expect(value.left).toBeGreaterThanOrEqual(label.right);
     await expect(value.width).toBeGreaterThanOrEqual(320);
