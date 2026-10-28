@@ -2484,7 +2484,7 @@ export const AContextPickedGoesOnToWhatIsInIt: Story = {
     await userEvent.keyboard('{Tab}');
     // written as text and what is in it listed: the whole of it, and the local context's keys Qorus knows
     await waitFor(() =>
-      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'id', 'name']))
+      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'Interface ID', 'Interface name']))
     );
     expect(editable.querySelectorAll('.reqore-tag')).toHaveLength(0);
     expect(editable.textContent).toContain('$local:');

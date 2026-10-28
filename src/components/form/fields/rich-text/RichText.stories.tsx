@@ -904,7 +904,7 @@ export const AQogStatesVariablesAndLoops: Story = {
     const loop = await completionRow('$for:');
     expect(loop.parentElement!.querySelector('.completion-use'), 'no Use beside $for:').toBeNull();
     await typeAsAPerson(userEvent, 'r:');
-    await waitFor(() => expect(seenCompletionLabels()).toEqual(['value', 'Browse all templates']));
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(['Value', 'Browse all templates']));
     await userEvent.keyboard('{Tab}');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$for:value'));
   },

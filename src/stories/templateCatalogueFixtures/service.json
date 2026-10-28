@@ -26,8 +26,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface type",
             "type": "string",
-            "description": "The interface type",
+            "description": "The type of the interface: workflow, service, job or Qog",
             "base_type": "string"
           },
           {
@@ -37,8 +38,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface name",
             "type": "string",
-            "description": "The interface name",
+            "description": "The name of the interface",
             "base_type": "string"
           },
           {
@@ -48,8 +50,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface ID",
             "type": "int",
-            "description": "The interface ID",
+            "description": "The ID of the interface",
             "base_type": "int"
           },
           {
@@ -59,8 +62,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface version",
             "type": "string",
-            "description": "The service version",
+            "description": "The version of the interface",
             "base_type": "string"
           },
           {
@@ -70,8 +74,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Service type",
             "type": "string",
-            "description": "The service type: \"user\" or \"system\"",
+            "description": "The service type: user or system",
             "base_type": "string"
           },
           {
@@ -81,8 +86,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Authentication enabled",
             "type": "bool",
-            "description": "If authentication is enabled",
+            "description": "Whether authentication is enabled in this Qorus instance",
             "base_type": "bool"
           },
           {
@@ -92,8 +98,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Current user",
             "type": "*string",
-            "description": "The current user, if any",
+            "description": "The user the interface runs for, if any",
             "base_type": "string"
           },
           {
@@ -103,8 +110,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Sandboxed",
             "type": "bool",
-            "description": "If the interface is sandboxed",
+            "description": "Whether the interface is sandboxed",
             "base_type": "bool"
           },
           {
@@ -114,8 +122,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Group namespace",
             "type": "*int",
-            "description": "The interface's group namespace, if any",
+            "description": "The group namespace of the interface, if any",
             "base_type": "int"
           }
         ],
@@ -178,8 +187,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Service type",
             "type": "string",
-            "description": "The service type: \"user\" or \"system\"",
+            "description": "The service type: user or system",
             "base_type": "string"
           },
           {
@@ -189,8 +199,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Service name",
             "type": "string",
-            "description": "The service name",
+            "description": "The name of the service",
             "base_type": "string"
           },
           {
@@ -200,8 +211,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Service version",
             "type": "string",
-            "description": "The service version",
+            "description": "The version of the service",
             "base_type": "string"
           },
           {
@@ -211,8 +223,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Description",
             "type": "*string",
-            "description": "The service description",
+            "description": "The description of the service",
             "base_type": "string"
           },
           {
@@ -222,8 +235,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Service ID",
             "type": "int",
-            "description": "The service ID",
+            "description": "The ID of the service",
             "base_type": "int"
           },
           {
@@ -233,8 +247,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Status",
             "type": "string",
-            "description": "The service status",
+            "description": "The status of the service",
             "base_type": "string"
           },
           {
@@ -244,6 +259,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Threads",
             "type": "int",
             "description": "The number of running service threads",
             "base_type": "int"
@@ -255,8 +271,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Autostart",
             "type": "bool",
-            "description": "If the service starts automatically",
+            "description": "Whether the service starts automatically",
             "base_type": "bool"
           },
           {
@@ -266,6 +283,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Loaded",
             "type": "date",
             "description": "When the service was loaded",
             "base_type": "date"
@@ -277,8 +295,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Methods",
             "type": "list<auto>",
-            "description": "The service's methods",
+            "description": "The methods of the service",
             "base_type": "list"
           },
           {
@@ -288,6 +307,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Method",
             "type": "*string",
             "description": "The service method being called",
             "base_type": "string"
@@ -299,8 +319,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Resources",
             "type": "*hash<auto>",
-            "description": "The service's resources",
+            "description": "The resources of the service",
             "base_type": "hash"
           },
           {
@@ -310,8 +331,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Groups",
             "type": "*list<auto>",
-            "description": "The service's interface groups",
+            "description": "The interface groups of the service",
             "base_type": "list"
           }
         ],
@@ -411,6 +433,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Now",
             "type": "date",
             "description": "The current date and time with microseconds",
             "base_type": "date"
@@ -422,6 +445,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Seconds since the epoch",
             "type": "int",
             "description": "The current time as seconds since the epoch (GMT)",
             "base_type": "int"
@@ -433,6 +457,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Last midnight",
             "type": "date",
             "description": "The last midnight (the start of today)",
             "base_type": "date"
@@ -444,6 +469,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Next midnight",
             "type": "date",
             "description": "The next midnight (the start of tomorrow)",
             "base_type": "date"

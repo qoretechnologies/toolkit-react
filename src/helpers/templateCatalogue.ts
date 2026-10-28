@@ -127,7 +127,11 @@ const keyNode = (
     kind: templateNodeKindOf(key.template),
     type: typeOf(key.type),
     baseType: key.base_type,
-    description: key.description,
+    // named by its display name, the key as it is written under it (`$local:type`), then what it is
+    description:
+      key.display_name ?
+        [key.template, key.description].filter(Boolean).join(' · ')
+      : key.description,
     source: key.source,
     trail,
     trailIds,

@@ -26,8 +26,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface type",
             "type": "string",
-            "description": "The interface type",
+            "description": "The type of the interface: workflow, service, job or Qog",
             "base_type": "string"
           },
           {
@@ -37,8 +38,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface name",
             "type": "string",
-            "description": "The interface name",
+            "description": "The name of the interface",
             "base_type": "string"
           },
           {
@@ -48,8 +50,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface ID",
             "type": "int",
-            "description": "The interface ID",
+            "description": "The ID of the interface",
             "base_type": "int"
           },
           {
@@ -59,8 +62,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface version",
             "type": "string",
-            "description": "The job version",
+            "description": "The version of the interface",
             "base_type": "string"
           },
           {
@@ -70,8 +74,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Job instance ID",
             "type": "int",
-            "description": "The current job instance ID",
+            "description": "The ID of the current job instance",
             "base_type": "int"
           },
           {
@@ -81,8 +86,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Job error ID",
             "type": "*int",
-            "description": "The job error ID while a job error is handled",
+            "description": "The ID of the job error being handled, while a job error is handled",
             "base_type": "int"
           },
           {
@@ -92,8 +98,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Authentication enabled",
             "type": "bool",
-            "description": "If authentication is enabled",
+            "description": "Whether authentication is enabled in this Qorus instance",
             "base_type": "bool"
           },
           {
@@ -103,8 +110,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Current user",
             "type": "*string",
-            "description": "The current user, if any",
+            "description": "The user the interface runs for, if any",
             "base_type": "string"
           },
           {
@@ -114,8 +122,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Sandboxed",
             "type": "bool",
-            "description": "If the interface is sandboxed",
+            "description": "Whether the interface is sandboxed",
             "base_type": "bool"
           },
           {
@@ -125,8 +134,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Group namespace",
             "type": "*int",
-            "description": "The interface's group namespace, if any",
+            "description": "The group namespace of the interface, if any",
             "base_type": "int"
           }
         ],
@@ -151,8 +161,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Job name",
             "type": "string",
-            "description": "The job name",
+            "description": "The name of the job",
             "base_type": "string"
           },
           {
@@ -162,8 +173,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Job version",
             "type": "string",
-            "description": "The job version",
+            "description": "The version of the job",
             "base_type": "string"
           },
           {
@@ -173,8 +185,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Job ID",
             "type": "int",
-            "description": "The job ID",
+            "description": "The ID of the job",
             "base_type": "int"
           },
           {
@@ -184,8 +197,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Description",
             "type": "*string",
-            "description": "The job description",
+            "description": "The description of the job",
             "base_type": "string"
           },
           {
@@ -195,8 +209,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Job instance ID",
             "type": "int",
-            "description": "The current job instance ID",
+            "description": "The ID of the current job instance",
             "base_type": "int"
           },
           {
@@ -206,6 +221,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Last run",
             "type": "*date",
             "description": "When the job last ran",
             "base_type": "date"
@@ -217,6 +233,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Last job instance ID",
             "type": "*int",
             "description": "The job instance ID of the job's last run",
             "base_type": "int"
@@ -228,6 +245,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Next run",
             "type": "*date",
             "description": "When the job runs next",
             "base_type": "date"
@@ -239,6 +257,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Started",
             "type": "date",
             "description": "When the job was started",
             "base_type": "date"
@@ -250,6 +269,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Schedule",
             "type": "string",
             "description": "The job's schedule",
             "base_type": "string"
@@ -261,8 +281,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Own process",
             "type": "bool",
-            "description": "If the job runs in its own process",
+            "description": "Whether the job runs in its own process",
             "base_type": "bool"
           }
         ],
@@ -352,6 +373,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Now",
             "type": "date",
             "description": "The current date and time with microseconds",
             "base_type": "date"
@@ -363,6 +385,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Seconds since the epoch",
             "type": "int",
             "description": "The current time as seconds since the epoch (GMT)",
             "base_type": "int"
@@ -374,6 +397,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Last midnight",
             "type": "date",
             "description": "The last midnight (the start of today)",
             "base_type": "date"
@@ -385,6 +409,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Next midnight",
             "type": "date",
             "description": "The next midnight (the start of tomorrow)",
             "base_type": "date"

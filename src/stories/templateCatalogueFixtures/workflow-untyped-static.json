@@ -26,8 +26,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface type",
             "type": "string",
-            "description": "The interface type",
+            "description": "The type of the interface: workflow, service, job or Qog",
             "base_type": "string"
           },
           {
@@ -37,8 +38,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface name",
             "type": "string",
-            "description": "The interface name",
+            "description": "The name of the interface",
             "base_type": "string"
           },
           {
@@ -48,8 +50,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface ID",
             "type": "int",
-            "description": "The interface ID",
+            "description": "The ID of the interface",
             "base_type": "int"
           },
           {
@@ -59,8 +62,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface version",
             "type": "string",
-            "description": "The workflow version",
+            "description": "The version of the interface",
             "base_type": "string"
           },
           {
@@ -70,8 +74,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Order ID",
             "type": "*int",
-            "description": "The current workflow order ID",
+            "description": "The ID of the current workflow order",
             "base_type": "int"
           },
           {
@@ -81,8 +86,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Workflow error ID",
             "type": "*int",
-            "description": "The workflow error ID while a workflow error is handled",
+            "description": "The ID of the workflow error being handled, while a workflow error is handled",
             "base_type": "int"
           },
           {
@@ -92,8 +98,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Execution ID",
             "type": "*int",
-            "description": "The workflow execution instance ID",
+            "description": "The ID of the workflow execution instance",
             "base_type": "int"
           },
           {
@@ -103,8 +110,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Authentication enabled",
             "type": "bool",
-            "description": "If authentication is enabled",
+            "description": "Whether authentication is enabled in this Qorus instance",
             "base_type": "bool"
           },
           {
@@ -114,8 +122,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Current user",
             "type": "*string",
-            "description": "The current user, if any",
+            "description": "The user the interface runs for, if any",
             "base_type": "string"
           },
           {
@@ -125,8 +134,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Sandboxed",
             "type": "bool",
-            "description": "If the interface is sandboxed",
+            "description": "Whether the interface is sandboxed",
             "base_type": "bool"
           },
           {
@@ -136,8 +146,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Group namespace",
             "type": "*int",
-            "description": "The interface's group namespace, if any",
+            "description": "The group namespace of the interface, if any",
             "base_type": "int"
           }
         ],
@@ -225,8 +236,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Workflow name",
             "type": "string",
-            "description": "The workflow name",
+            "description": "The name of the workflow",
             "base_type": "string"
           },
           {
@@ -236,8 +248,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Workflow version",
             "type": "string",
-            "description": "The workflow version",
+            "description": "The version of the workflow",
             "base_type": "string"
           },
           {
@@ -247,8 +260,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Workflow ID",
             "type": "int",
-            "description": "The workflow ID",
+            "description": "The ID of the workflow",
             "base_type": "int"
           },
           {
@@ -258,8 +272,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Order ID",
             "type": "int",
-            "description": "The workflow order ID",
+            "description": "The ID of the workflow order",
             "base_type": "int"
           },
           {
@@ -269,6 +284,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Execution mode",
             "type": "string",
             "description": "The workflow execution mode",
             "base_type": "string"
@@ -280,8 +296,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Own process",
             "type": "bool",
-            "description": "If the workflow runs in its own process",
+            "description": "Whether the workflow runs in its own process",
             "base_type": "bool"
           },
           {
@@ -291,6 +308,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Created",
             "type": "date",
             "description": "When the order was created",
             "base_type": "date"
@@ -302,8 +320,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Priority",
             "type": "int",
-            "description": "The order's priority",
+            "description": "The priority of the order",
             "base_type": "int"
           },
           {
@@ -313,8 +332,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "External order ID",
             "type": "*string",
-            "description": "The order's external ID",
+            "description": "The external ID of the order",
             "base_type": "string"
           },
           {
@@ -324,8 +344,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Initial status",
             "type": "string",
-            "description": "The order's status when it was loaded",
+            "description": "The status of the order when it was loaded",
             "base_type": "string"
           },
           {
@@ -335,8 +356,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Status",
             "type": "string",
-            "description": "The order's status",
+            "description": "The status of the order",
             "base_type": "string"
           },
           {
@@ -346,8 +368,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Database status",
             "type": "string",
-            "description": "The order's status in the database",
+            "description": "The status of the order in the database",
             "base_type": "string"
           },
           {
@@ -357,8 +380,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Parent order ID",
             "type": "*int",
-            "description": "The parent order ID, if any",
+            "description": "The ID of the parent order, if any",
             "base_type": "int"
           },
           {
@@ -368,8 +392,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Execution ID",
             "type": "int",
-            "description": "The workflow execution instance ID",
+            "description": "The ID of the workflow execution instance",
             "base_type": "int"
           },
           {
@@ -379,6 +404,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Execution start",
             "type": "date",
             "description": "When the workflow execution instance started",
             "base_type": "date"
@@ -390,6 +416,7 @@
             "use_whole": true,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Step",
             "type": "hash<auto>",
             "description": "The current step's information",
             "keys": [
@@ -400,8 +427,9 @@
                 "use_whole": false,
                 "free_form_keys": false,
                 "source": "context-info",
+                "display_name": "Step name",
                 "type": "string",
-                "description": "The step name",
+                "description": "The name of the step",
                 "base_type": "string"
               },
               {
@@ -411,8 +439,9 @@
                 "use_whole": false,
                 "free_form_keys": false,
                 "source": "context-info",
+                "display_name": "Step version",
                 "type": "string",
-                "description": "The step version",
+                "description": "The version of the step",
                 "base_type": "string"
               },
               {
@@ -422,8 +451,9 @@
                 "use_whole": false,
                 "free_form_keys": false,
                 "source": "context-info",
+                "display_name": "Step ID",
                 "type": "int",
-                "description": "The step ID",
+                "description": "The ID of the step",
                 "base_type": "int"
               },
               {
@@ -433,8 +463,9 @@
                 "use_whole": false,
                 "free_form_keys": false,
                 "source": "context-info",
+                "display_name": "Step index",
                 "type": "int",
-                "description": "The step index",
+                "description": "The index of the step",
                 "base_type": "int"
               },
               {
@@ -444,8 +475,9 @@
                 "use_whole": false,
                 "free_form_keys": false,
                 "source": "context-info",
+                "display_name": "Retries",
                 "type": "int",
-                "description": "The step's retries",
+                "description": "The number of retries of the step",
                 "base_type": "int"
               }
             ],
@@ -512,6 +544,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Now",
             "type": "date",
             "description": "The current date and time with microseconds",
             "base_type": "date"
@@ -523,6 +556,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Seconds since the epoch",
             "type": "int",
             "description": "The current time as seconds since the epoch (GMT)",
             "base_type": "int"
@@ -534,6 +568,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Last midnight",
             "type": "date",
             "description": "The last midnight (the start of today)",
             "base_type": "date"
@@ -545,6 +580,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Next midnight",
             "type": "date",
             "description": "The next midnight (the start of tomorrow)",
             "base_type": "date"

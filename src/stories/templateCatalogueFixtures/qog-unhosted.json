@@ -37,8 +37,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface type",
             "type": "string",
-            "description": "The interface type",
+            "description": "The type of the interface: workflow, service, job or Qog",
             "base_type": "string"
           },
           {
@@ -48,8 +49,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface name",
             "type": "string",
-            "description": "The interface name",
+            "description": "The name of the interface",
             "base_type": "string"
           },
           {
@@ -59,8 +61,9 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "Interface ID",
             "type": "int",
-            "description": "The interface ID",
+            "description": "The ID of the interface",
             "base_type": "int"
           },
           {
@@ -70,6 +73,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "context-info",
+            "display_name": "State input",
             "type": "auto",
             "description": "The input data of the current Qog state",
             "base_type": "any"
@@ -110,7 +114,6 @@
             "free_form_keys": false,
             "source": "declared",
             "type": "int",
-            "description": "Global variables \"total\"",
             "base_type": "int"
           }
         ],
@@ -136,7 +139,6 @@
             "free_form_keys": false,
             "source": "declared",
             "type": "int",
-            "description": "Local variables \"count\"",
             "base_type": "int"
           }
         ],
@@ -187,6 +189,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Now",
             "type": "date",
             "description": "The current date and time with microseconds",
             "base_type": "date"
@@ -198,6 +201,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Seconds since the epoch",
             "type": "int",
             "description": "The current time as seconds since the epoch (GMT)",
             "base_type": "int"
@@ -209,6 +213,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Last midnight",
             "type": "date",
             "description": "The last midnight (the start of today)",
             "base_type": "date"
@@ -220,6 +225,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Next midnight",
             "type": "date",
             "description": "The next midnight (the start of tomorrow)",
             "base_type": "date"

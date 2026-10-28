@@ -52,6 +52,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Now",
             "type": "date",
             "description": "The current date and time with microseconds",
             "base_type": "date"
@@ -63,6 +64,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Seconds since the epoch",
             "type": "int",
             "description": "The current time as seconds since the epoch (GMT)",
             "base_type": "int"
@@ -74,6 +76,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Last midnight",
             "type": "date",
             "description": "The last midnight (the start of today)",
             "base_type": "date"
@@ -85,6 +88,7 @@
             "use_whole": false,
             "free_form_keys": false,
             "source": "values",
+            "display_name": "Next midnight",
             "type": "date",
             "description": "The next midnight (the start of tomorrow)",
             "base_type": "date"

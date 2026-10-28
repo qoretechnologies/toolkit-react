@@ -1937,7 +1937,7 @@ export const WithTemplates: Story = {
     await userEvent.keyboard('{Tab}');
     // the whole of it, the templates given in it and the local context's keys the server lists
     await waitFor(() =>
-      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'order id', 'customer', 'id']))
+      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'order id', 'customer', 'Interface ID']))
     );
 
     // Clear and switch to `@` → fields.
@@ -3021,9 +3021,9 @@ export const ALoopsContextInsideTheLoop: Story = {
       () =>
         expect(seenCompletionLabels()).toEqual([
           '$foreach:*',
-          'value',
-          'index',
-          'size',
+          'Element',
+          'Index',
+          'Size',
           'Browse all templates',
         ]),
       { timeout: 30000 }
