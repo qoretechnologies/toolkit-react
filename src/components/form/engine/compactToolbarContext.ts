@@ -38,6 +38,11 @@ export interface ICompactToolbarContext {
   /** How many of `attentionCount` are faults (invalid, or a required field the person
    *  has been to and left empty). Zero on a fresh form: the rest are only to fill in. */
   attentionFaultCount: number;
+  /** Faults the host found outside the form's fields (`outsideAttention`): said on the
+   *  readiness line, not drawn on the meter, which measures the fields. */
+  outsideAttentionCount?: number;
+  /** Takes the reader to those, when no field needs anything. */
+  onRevealOutside?: () => void;
   completion: { set: number; done: number; total: number; pct: number };
   // Invalid-fields banner (pinned in the sticky header)
   showInvalidOnly: boolean;

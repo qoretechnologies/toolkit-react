@@ -132,8 +132,10 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     parts,
     readOnly,
     invalidCount,
-    attentionCount,
-    attentionFaultCount,
+    attentionCount: fieldAttentionCount,
+    attentionFaultCount: fieldAttentionFaultCount,
+    outsideAttentionCount = 0,
+    onRevealOutside,
     completion,
     showInvalidOnly,
     onToggleInvalidOnly,
@@ -156,6 +158,16 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     onRevertAll,
   } = useContext(CompactToolbarContext);
 
+  // The line counts what the host found outside the fields too (`outsideAttention`): a
+  // form is not "Ready" while the page around it says something is missing.
+  const attentionCount = fieldAttentionCount + outsideAttentionCount;
+  const attentionFaultCount = fieldAttentionFaultCount + outsideAttentionCount;
+  // With nothing to show among the fields, the link goes to where the problem is.
+  const handleAttentionClick =
+    !fieldAttentionCount && outsideAttentionCount && onRevealOutside ?
+      onRevealOutside
+    : onToggleInvalidOnly;
+
   const theme = useReqoreTheme();
   const calm = useIsCalmForm();
   const intents = (theme.intents || {}) as Record<string, string>;
@@ -168,11 +180,11 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
     role: 'button',
     tabIndex: 0,
     'aria-pressed': !!showInvalidOnly,
-    onClick: onToggleInvalidOnly,
+    onClick: handleAttentionClick,
     onKeyDown: (event: React.KeyboardEvent) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
-        onToggleInvalidOnly?.();
+        handleAttentionClick?.();
       }
     },
   };
@@ -189,7 +201,8 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
   const setPct = completion.total ? (completion.done / completion.total) * 100 : 0;
   // The amber run is what is WRONG. On a new form the required fields are only still
   // to fill in, so the track shows them as not done yet, without amber.
-  const attentionPct = completion.total ? (attentionFaultCount / completion.total) * 100 : 0;
+  const attentionPct =
+    completion.total ? (fieldAttentionFaultCount / completion.total) * 100 : 0;
 
   return (
     <ReqoreControlGroup

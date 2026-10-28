@@ -3143,6 +3143,43 @@ export const CompactWithPanelPropsNarrow: Story = {
   },
 };
 
+const revealOutside = fn();
+
+export const CompactOutsideAttention: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A compact form whose fields are all set, while its host has found one thing wrong outside them (an API operation whose path names a parameter the table under the form does not declare). The readiness line says "Incomplete · 1 need attention", not "Ready", and its link takes the reader to the problem, since no field of the form needs anything.',
+      },
+    },
+  },
+  args: {
+    compact: true,
+    options: {
+      operationId: { type: 'string', display_name: 'Operation id', required: true },
+      summary: { type: 'string', display_name: 'Summary', required: true },
+    },
+    value: {
+      operationId: { type: 'string', value: 'getOrder' },
+      summary: { type: 'string', value: 'Read one order' },
+    },
+    outsideAttention: { count: 1, onReveal: revealOutside },
+  },
+  play: async () => {
+    const status = await waitFor(() => {
+      const element = document.querySelector('.options-readfirst-status');
+      expect(element).toBeTruthy();
+      return element!;
+    });
+    await waitFor(() => expect(status.textContent).toBe('Incomplete'));
+    const link = document.querySelector<HTMLElement>('.options-readfirst-attention-link')!;
+    await expect(link.textContent).toContain('1 need attention');
+    await fireEvent.click(link);
+    await expect(revealOutside).toHaveBeenCalled();
+  },
+};
+
 export const CompactReadOnly: Story = {
   parameters: {
     docs: {

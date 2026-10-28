@@ -222,6 +222,16 @@ export interface IFormAttention {
 }
 
 /**
+ * What a host found wrong OUTSIDE the fields this form draws (`outsideAttention`).
+ */
+export interface IFormOutsideAttention {
+  /** How many things are wrong out there. */
+  count: number;
+  /** Takes the reader to them, from the readiness line's "need attention" link. */
+  onReveal?: () => void;
+}
+
+/**
  * Resolve a field's `inherit_props` map against the current available
  * options (plus any values inherited from an outer FormEngine scope),
  * producing a `{ propName: siblingValue }` hash suitable for spreading
@@ -994,6 +1004,14 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   onAttentionChange?: (attention: IFormAttention) => void;
   /**
+   * Problems the host found outside this form's fields — a table drawn under the form that
+   * the form cannot see (an API operation's path parameters). They count in the readiness
+   * line and in `onAttentionChange` as things that need attention, so the form never says
+   * "Ready" while the page around it says something is missing; with `onReveal`, the line's
+   * link takes the reader to them when no field of the form needs anything.
+   */
+  outsideAttention?: IFormOutsideAttention;
+  /**
    * Compact mode only: the three status-box headers stay pinned to the top of
    * whatever scrolls while their own box is in view. Default `true`.
    *
@@ -1316,6 +1334,7 @@ const FormEngineImpl = ({
   revealRequired = false,
   focusAttentionRequest,
   onAttentionChange,
+  outsideAttention,
   compactStickyBoxHeaders = true,
   compactStickyOffset = 0,
   compactToolbar = true,
@@ -2717,12 +2736,14 @@ const FormEngineImpl = ({
   // The same two numbers, to a host that draws its own submit control from them.
   const onAttentionChangeRef = useRef(onAttentionChange);
   onAttentionChangeRef.current = onAttentionChange;
+  // What the host found wrong outside the fields: in the line and in what the host is told.
+  const outsideAttentionCount = Math.max(0, outsideAttention?.count ?? 0);
   useEffect(() => {
     onAttentionChangeRef.current?.({
-      count: readFirstAttentionCount,
-      faults: readFirstAttentionFaultCount,
+      count: readFirstAttentionCount + outsideAttentionCount,
+      faults: readFirstAttentionFaultCount + outsideAttentionCount,
     });
-  }, [readFirstAttentionCount, readFirstAttentionFaultCount]);
+  }, [readFirstAttentionCount, readFirstAttentionFaultCount, outsideAttentionCount]);
 
   const getIntent = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -3598,6 +3619,8 @@ const FormEngineImpl = ({
       invalidCount: size(validityData.invalidFields),
       attentionCount: readFirstAttentionCount,
       attentionFaultCount: readFirstAttentionFaultCount,
+      outsideAttentionCount,
+      onRevealOutside: outsideAttention?.onReveal,
       completion: readFirstCompletion,
       showInvalidOnly: showInvalidOptionsOnly,
       onToggleInvalidOnly: handleToggleInvalidOnly,
