@@ -2,6 +2,7 @@
 // Public surface of the SmartEditor primitive.
 
 export { SmartEditor } from './SmartEditor';
+export type { ISmartEditorDiagnosticAction } from './types';
 export type {
   ICompletionDropdownItem,
   ICompletionGroup,
