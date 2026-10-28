@@ -1,3 +1,4 @@
+import { useReqoreTheme } from '@qoretechnologies/reqore';
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { expect, fn, waitFor } from 'storybook/test';
@@ -14,7 +15,11 @@ import {
   IOptions,
   IOptionsSchemaArg,
 } from './FormEngine';
-import { CALM_REQUIRED_LABEL, CALM_REQUIRED_READ_LABEL } from './formAppearance';
+import {
+  CALM_REQUIRED_LABEL,
+  CALM_REQUIRED_READ_LABEL,
+  getCalmPanelSurface,
+} from './formAppearance';
 
 /*
  * The calm appearance (the default) against the classic one, over the fields a workflow
@@ -242,6 +247,33 @@ const expectNoUppercase = (selector: string) => {
   }
 };
 
+/** The colour the form sits on: the first ancestor that paints a background. */
+const hostColour = (element: HTMLElement): number[] => {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const [r, g, b, alpha = 1] = (
+      getComputedStyle(node).backgroundColor.match(/[\d.]+/g) || []
+    ).map(Number);
+    if (alpha > 0) {
+      return [r, g, b];
+    }
+  }
+  return [];
+};
+
+/** The pinned toolbar is glass in its host's own colour, not nothing: rows and a
+ *  box header leaving its box scroll UNDER it rather than through the meter and the
+ *  search. Nearly opaque, and the host's colour, so at rest it draws no band. */
+const expectToolbarGlassOverHost = () => {
+  const toolbar = document
+    .querySelector('.options-readfirst-toolbar')!
+    .closest<HTMLElement>('.reqore-panel-title')!;
+  const glass = getComputedStyle(toolbar);
+  expect(glass.position).toBe('sticky');
+  const [r, g, b, alpha = 1] = (glass.backgroundColor.match(/[\d.]+/g) || []).map(Number);
+  expect(alpha).toBeGreaterThanOrEqual(0.85);
+  expect(hostColour(toolbar)).toEqual([r, g, b]);
+};
+
 /** No status dot on a row that is filled and fine. */
 const expectNoDot = (field: string) => {
   expect(row(field)).toBeTruthy();
@@ -345,6 +377,8 @@ export const Calm: Story = {
     expect(isGrey(getComputedStyle(bar, '::before').backgroundColor)).toBe(true);
     expect(bar.getBoundingClientRect().width).toBeLessThanOrEqual(361);
     expect(bar.getBoundingClientRect().height).toBe(4);
+
+    expectToolbarGlassOverHost();
   },
 };
 
@@ -529,5 +563,47 @@ export const CalmOnAPhone: Story = {
         expect(rect.right).toBeLessThanOrEqual(section.right + 1);
       }
     });
+  },
+};
+
+/** A host that paints the panel surface around the form, as an IDE drawer does. */
+const PanelSurfaceHost = ({ value, onChange, ...rest }: IFormEngineProps) => {
+  const theme = useReqoreTheme();
+  const [val, setValue] = useState(value);
+
+  return (
+    <div
+      className='panel-surface-host'
+      style={{ padding: '24px 16px', background: getCalmPanelSurface(theme), minHeight: '100vh' }}
+    >
+      <FormEngine
+        {...rest}
+        value={val}
+        onChange={(name, next, info) => {
+          setValue(next);
+          onChange?.(name, next, info);
+        }}
+      />
+    </div>
+  );
+};
+
+export const CalmOnAPanelSurface: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The calm form inside a host painted in the panel surface, as an IDE drawer is. The pinned toolbar’s glass takes the colour of whatever the form sits on, so it draws no band across the drawer at rest.',
+      },
+    },
+  },
+  render: (args) => <PanelSurfaceHost {...args} />,
+  play: async () => {
+    await _testsWaitForText('Supplier Payment Release');
+    const host = document.querySelector<HTMLElement>('.panel-surface-host')!;
+    // The host really is another colour than what is around it…
+    expect(hostColour(host)).not.toEqual(hostColour(host.firstElementChild as HTMLElement));
+    // …and the toolbar follows the host, not the page.
+    expectToolbarGlassOverHost();
   },
 };

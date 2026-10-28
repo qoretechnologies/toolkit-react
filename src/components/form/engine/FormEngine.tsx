@@ -1543,6 +1543,34 @@ const FormEngineImpl = ({
        the box headers below a toolbar that is no longer there. */
   }, [compact, compactNested, compactStickyBoxHeaders, compactNarrow, compactWrapNode, options]);
 
+  /* The colour a calm form sits on, for its pinned toolbar's glass.
+
+     A calm form has no surface of its own, so the toolbar has to paint one to
+     keep the rows that scroll under it from showing through the meter and the
+     search — and it has to be the host's colour, or it draws a band across the
+     form before anything has moved. The host is whatever paints first above the
+     form: the page, a drawer's panel surface, a card. Read once it mounts (and
+     when the theme changes), not assumed from the theme's main colour. */
+  const [compactHostColour, setCompactHostColour] = useState<number[]>();
+  useLayoutEffect(() => {
+    if (!calm || !compact || compactNested || !compactWrapNode) {
+      setCompactHostColour(undefined);
+      return;
+    }
+    for (let node = compactWrapNode.parentElement; node; node = node.parentElement) {
+      const [r, g, b, alpha = 1] = (getComputedStyle(node).backgroundColor.match(/[\d.]+/g) || [])
+        .slice(0, 4)
+        .map(Number);
+      if (alpha > 0 && b !== undefined) {
+        setCompactHostColour((prev) =>
+          prev?.[0] === r && prev?.[1] === g && prev?.[2] === b ? prev : [r, g, b]
+        );
+        return;
+      }
+    }
+    setCompactHostColour(undefined);
+  }, [calm, compact, compactNested, compactWrapNode, theme]);
+
   // Global label-column sizing: size the label column to the WIDEST field label
   // across the whole form, clamped to [MIN, MAX], and publish it as a CSS var on
   // the scroll wrap. Both the grid column and the value-surface offsets read the
@@ -3645,7 +3673,14 @@ const FormEngineImpl = ({
     [compactPanelProps?.actions, compactToolbarParts]
   );
   const renderCompact = () => {
-    const headerBg = `${changeDarkness(getMainBackgroundColor(theme), 0.02)}${percentToHexAlpha(88)}`;
+    // Calm: the host's own colour (see `compactHostColour`), so the pinned
+    // toolbar's glass is invisible until something scrolls under it.
+    const headerBg =
+      calm && compactHostColour ?
+        `rgba(${compactHostColour.join(', ')}, 0.88)`
+      : `${
+          calm ? getMainBackgroundColor(theme) : changeDarkness(getMainBackgroundColor(theme), 0.02)
+        }${percentToHexAlpha(88)}`;
     // Toolbar filters narrow the listed rows; the meter reflects the full set.
     const query = compactQuery.trim().toLowerCase();
     const matchesQuery = (optionName: string): boolean =>
@@ -4084,6 +4119,7 @@ const FormEngineImpl = ({
                   // transparent inside the parent's card.
                   $headerBg={compactNested ? 'transparent' : headerBg}
                   $nested={compactNested}
+                  $calm={calm}
                   // Keeps the wrapper from clipping, which is what a pinned box
                   // header inside it needs — see StyledCompactPanel.
                   $stickyBoxes={compactStickyBoxHeaders && !compactNested}

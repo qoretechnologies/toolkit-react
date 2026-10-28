@@ -81,6 +81,9 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
   /** True when a narrow form's header carries a consumer's label, icon or
    *  actions beside the toolbar, which then has to take a line of its own. */
   $stackHeader?: boolean;
+  /** Calm appearance: the panel is transparent, so the pinned toolbar paints
+   *  `$headerBg` itself (see below). */
+  $calm?: boolean;
 }>`
   /* The wrapper must not clip, or nothing INSIDE it can pin.
   
@@ -151,6 +154,12 @@ export const StyledCompactPanel = styled(ReqorePanel)<{
        meter. One step higher and it slides under the toolbar's blur
        instead. Nested sub-forms pin nothing, so they keep the default. */
     ${({ $nested }) => ($nested ? '' : 'z-index: 3;')}
+    /* The glass itself. A classic panel paints its own surface behind the
+       header; a calm one is transparent, so without this the pinned toolbar
+       had nothing behind it at all and the rows — and a box header leaving its
+       box — scrolled through the meter and the search in full contrast. */
+    ${({ $calm, $nested, $headerBg }) =>
+      $calm && !$nested ? `background-color: ${$headerBg};` : ''}
     padding-top: ${GAP_FROM_SIZE[HEADER_GAP]}px;
     /* A header with a SEARCH ROW keeps the \`big\` gap below it — a tall
        interactive control earns separation from the content it filters. A
