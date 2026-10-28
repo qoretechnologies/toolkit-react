@@ -2538,6 +2538,9 @@ export const DoesNotCauseInfiniteRerenders: Story = {
     await _testsWaitForText('Record-Based Data Provider');
     await _testsClickButton({ label: 'Add new item for "Records to Upsert"' });
     await _testsWaitForText('batch_id');
+    // A non-compact sub-form says what it still needs itself, so its item's header
+    // does not say it again (only a calm compact one hands that to the header).
+    expect(document.querySelector('.array-auto-item-attention')).toBeNull();
   },
 };
 

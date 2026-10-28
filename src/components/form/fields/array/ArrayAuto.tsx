@@ -75,9 +75,11 @@ export const ArrayAuto = ({
   // opening one of those on mount would be this component reopening a decision
   // the author already made.
   const [justAddedIndex, setJustAddedIndex] = useState<number | undefined>(undefined);
-  // What each item's sub-form still needs, as the sub-form reports it. The calm
-  // sub-form draws no readiness line of its own, so the item's header says it.
-  const calm = useIsCalmForm();
+  // What each item's sub-form still needs, as the sub-form reports it. A calm
+  // compact sub-form draws no readiness line of its own, so the item's header
+  // says it; a classic or non-compact one still says it itself, and saying it
+  // twice would be noise.
+  const saysItemAttention = useIsCalmForm() && !!rest.compact;
   const [itemAttention, setItemAttention] = useState<Record<number, IFormAttention>>({});
   const reportItemAttention = (idx: number) => (attention: IFormAttention) =>
     setItemAttention((prev) =>
@@ -195,7 +197,7 @@ export const ArrayAuto = ({
             {
               as: ItemAttention,
               props: itemAttention[Number(idx)],
-              show: calm && !!itemAttention[Number(idx)]?.count,
+              show: saysItemAttention && !!itemAttention[Number(idx)]?.count,
             },
             {
               show: size(localValue) !== 1 && !rest.disabled && !rest.readOnly,
