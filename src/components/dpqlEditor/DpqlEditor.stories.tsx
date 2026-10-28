@@ -2995,8 +2995,8 @@ export const ALoopsContextInsideTheLoop: Story = {
     docs: {
       description: {
         story:
-          'Inside a foreach loop: `$fore` lists $foreach:; Tab lists the whole of it and its values - value, ' +
-          'index, size.',
+          'Inside a foreach loop: `$fo` lists $foreach: then $for:, in the order Qorus gives them; `re` and Tab ' +
+          'list the whole of $foreach: and its values - value, index, size.',
       },
     },
   },
@@ -3004,7 +3004,13 @@ export const ALoopsContextInsideTheLoop: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await typeAsAPerson(userEvent, '$fore');
+    // the contexts in the catalogue's order, the server's (`sort_priority`), as a rich-text field lists them
+    await typeAsAPerson(userEvent, '$fo');
+    await waitFor(
+      () => expect(seenCompletionLabels()).toEqual(['$foreach:', '$for:', 'Browse all templates']),
+      { timeout: 30000 }
+    );
+    await typeAsAPerson(userEvent, 're');
     await waitFor(() => expect(highlightedCompletionLabel()).toBe('$foreach:'), { timeout: 30000 });
     await userEvent.keyboard('{Tab}');
     await waitFor(

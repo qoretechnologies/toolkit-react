@@ -5,6 +5,7 @@
 import { TTypeLabel } from '../../helpers/qorusTypeCatalogue';
 import {
   ITemplateNode,
+  templateContextsOf,
   unbracedReference,
   WHOLE_TEMPLATE_CONTEXTS,
   wholeContextValue,
@@ -253,8 +254,23 @@ export const dpqlCompletionsWith =
     /* the contexts first, by name as Qorus lists them, the field's own and the server's alike, then what is named
        so: `$time` lists $timestamp: before Current Timestamp */
     const isContext = isContextItem;
+    /* in the field's catalogue's order, the server's intended one (`sort_priority`), as a rich-text field lists
+       them; by name where the field has no catalogue */
+    const catalogueOrder = new Map(
+      templateContextsOf(roots)
+        .filter((node) => node.catalogue)
+        .map((node, index) => [node.reference ?? '', index])
+    );
+    const contextOrder = (a: ILspCompletionItem, b: ILspCompletionItem) => {
+      const [at, bt] = [a.insertText ?? '', b.insertText ?? ''];
+      const [ai, bi] = [catalogueOrder.get(at), catalogueOrder.get(bt)];
+      if (ai !== undefined || bi !== undefined) {
+        return (ai ?? Number.MAX_SAFE_INTEGER) - (bi ?? Number.MAX_SAFE_INTEGER) || at.localeCompare(bt);
+      }
+      return at.localeCompare(bt);
+    };
     return [
-      ...rest.filter(isContext).sort((a, b) => (a.insertText ?? '').localeCompare(b.insertText ?? '')),
+      ...rest.filter(isContext).sort(contextOrder),
       ...rest.filter((item) => !isContext(item)),
       ...browse,
     ];

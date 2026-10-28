@@ -881,6 +881,12 @@ export const AQogStatesVariablesAndLoops: Story = {
       expect(seenCompletionLabels()).toEqual(['$transient:*', 'total', 'Browse all templates'])
     );
     await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    // every context in the catalogue's order, the server's (`sort_priority`), as a DPQL field lists them
+    await typeAsAPerson(userEvent, '$');
+    await waitFor(() =>
+      expect(seenCompletionLabels().slice(0, 4)).toEqual(['$local:', '$fsminput:', '$data:', '$transient:'])
+    );
+    await userEvent.keyboard('{Backspace}');
     await typeAsAPerson(userEvent, '$fo');
     await waitFor(() =>
       expect(seenCompletionLabels()).toEqual(['$foreach:', '$for:', 'Browse all templates'])

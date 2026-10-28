@@ -195,7 +195,15 @@ export const withTemplateCatalogue = (
     description: 'Each context, to pick what is in it or to take it whole',
     trail: [],
     trailIds: [],
-    children: catalogue.contexts.map((context) => catalogueContextNode(context, wholeRecords)),
+    // in the order Qorus means them to be read (`sort_priority`), as it lists them where it gives none
+    children: catalogue.contexts
+      .map((context, index) => ({ context, index }))
+      .sort(
+        (a, b) =>
+          (a.context.sort_priority ?? Number.MAX_SAFE_INTEGER) -
+            (b.context.sort_priority ?? Number.MAX_SAFE_INTEGER) || a.index - b.index
+      )
+      .map(({ context }) => catalogueContextNode(context, wholeRecords)),
   };
   return [...roots.filter((node) => node.id !== TEMPLATE_CONTEXTS_GROUP_ID), group];
 };
