@@ -628,8 +628,22 @@ const typedExpressionStory = (
     await waitForLspIdle(canvasElement);
     await userEvent.click(editable);
     // typed as a person types it, key by key (the click opens the template picker; typing puts it away)
-    await typeAsAPerson(userEvent, text);
-    await expectation(canvasElement);
+    /* What the text and the page's caret were after each key, said if the expectation fails: CI once typed
+       `"a" + 1` as `a" + 1""` - the caret back at the start after the first key - and passes everywhere else; the
+       next time it happens, this says after which key and where the caret went. */
+    const afterEachKey: string[] = [];
+    for (const char of text) {
+      await typeAsAPerson(userEvent, char);
+      const page = editable.ownerDocument.getSelection();
+      afterEachKey.push(
+        `${JSON.stringify(char)}→${JSON.stringify(editable.textContent?.replace(/\uFEFF/g, ''))}@${page?.anchorOffset}`
+      );
+    }
+    try {
+      await expectation(canvasElement);
+    } catch (error) {
+      throw new Error(`${(error as Error).message}\nafter each key: ${afterEachKey.join(' ')}`);
+    }
     await waitForLspIdle(canvasElement);
   },
 });
