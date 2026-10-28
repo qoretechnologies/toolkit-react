@@ -604,6 +604,8 @@ export const WithQuotedFieldReferences: Story = {
     await expect(editable.textContent?.replace(/\uFEFF/g, '')).toContain('!= "@name"');
     // drawn, not rewritten
     await expect(args.onChange).not.toHaveBeenCalled();
+    // read as the server reads it: no error under it (qlip #421: the stand-in server refused the escaped braces)
+    await waitFor(() => expect(saidOfTheText(canvasElement)).toEqual([]));
   },
 };
 

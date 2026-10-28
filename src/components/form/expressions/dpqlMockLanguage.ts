@@ -224,7 +224,7 @@ type TToken =
 /* A template is braced wherever its path holds more than a name's characters (`$record:{orders[*].id}`), as the
    server reads it; `=~` and `!~` match a regular expression literal, read whole after them (`readRegex`). */
 const LEX_RE =
-  /\s*(?:("(?:\\.|[^"\\])*")|(\$[A-Za-z_-][\w-]*:(?:\{[^{}]*\}|[\w.]+))|(\d+(?:\.\d+)?)|([A-Za-z_]\w*)|(==|!=|=~|!~|<=|>=|&&|\|\||[-+*/<>!(),])|(@[A-Za-z_][\w]*))/y;
+  /\s*(?:("(?:\\.|[^"\\])*")|(\$[A-Za-z_-][\w-]*:(?:\{(?:\\.|[^{}\\])*\}|[\w.]+))|(\d+(?:\.\d+)?)|([A-Za-z_]\w*)|(==|!=|=~|!~|<=|>=|&&|\|\||[-+*/<>!(),])|(@[A-Za-z_][\w]*))/y;
 
 /** A regular expression literal at the start of `text` (`/^[a-z]+@example\.com$/i`), as the server reads one after
  *  `=~` or `!~`: what is in it is the pattern's, a `$` or an `@` in it included. */

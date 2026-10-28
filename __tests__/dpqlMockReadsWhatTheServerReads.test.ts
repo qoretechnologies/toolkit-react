@@ -15,8 +15,11 @@ describe("the stand-in server's diagnostics", () => {
     expect(said('$record:{email} !~ /^x$/')).toEqual([]);
   });
 
-  it('reads a record field with accessors, braced or with an @', () => {
+  it('reads a record field with accessors, braced or with an @, quoted, and a braced path with escaped braces', () => {
     expect(said('@orders[*].id == $record:{orders[*].id}')).toEqual([]);
+    expect(
+      said('@"create.Unit\\.Price" == $record:{create.a\\{b\\}} && @"create.order-id" != "@name"')
+    ).toEqual([]);
   });
 
   it('reads in (…) and between … and …', () => {
