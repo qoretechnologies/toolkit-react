@@ -39,6 +39,7 @@ import {
   IOptionsSchemaArg,
 } from './FormEngine';
 import { basicFormValue, getBasicFormOptions as getOptions } from './__fixtures__/basicFormOptions';
+import { CALM_REQUIRED_LABEL, CALM_REQUIRED_READ_LABEL } from './formAppearance';
 import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOptions';
 
 /** The first status box: "To fill in" while nothing in it is a fault (a new form),
@@ -631,7 +632,7 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
     await waitFor(() =>
       expect(
         [...document.querySelectorAll('.system-option')].some(
-          (row) => row.textContent?.includes('Required Option 6') && row.textContent?.includes('This field is required')
+          (row) => row.textContent?.includes('Required Option 6') && row.textContent?.includes(CALM_REQUIRED_LABEL)
         )
       ).toBe(true)
     );
@@ -2850,7 +2851,8 @@ export const Compact: Story = {
     await _testsWaitForText('order-fulfilment');
     await _testsWaitForText('orders, batch');
     await _testsWaitForText('Yes');
-    await _testsWaitForText('—');
+    // The empty required Description says so where its value would be.
+    await _testsWaitForText(CALM_REQUIRED_LABEL);
   },
 };
 
@@ -3172,7 +3174,7 @@ export const CompactEmpty: Story = {
     docs: {
       description: {
         story:
-          'Renders the Compact fixture with no value — all six empty fields render a dash placeholder and the four optional fields sit in the collapsed Optional box.',
+          'Renders the Compact fixture with no value — the two empty required fields say "Required · add a value" where the value would be, the four empty optional fields render a dash placeholder, and those four sit in the collapsed Optional box.',
       },
     },
   },
@@ -3187,9 +3189,9 @@ export const CompactEmpty: Story = {
     // The four empty OPTIONAL fields live in the (collapsed) Optional box — open
     // it so all six empty fields are on screen.
     await _expandOptionalBox();
-    // Both required fields read as unset; the four optional ones as "Not set".
-    // All six empty fields read as a calm dash (the red asterisk marks required).
-    await _testsWaitForTextsCount('—', undefined, 6);
+    // Both required fields say what they need; the four optional ones read as a dash.
+    await _testsWaitForTextsCount(CALM_REQUIRED_LABEL, undefined, 2);
+    await _testsWaitForTextsCount('—', undefined, 4);
   },
 };
 
@@ -3378,7 +3380,7 @@ export const CompactReadOnlyRichText: Story = {
     // A read view says what is wrong with the record, as an editable one does:
     // the fixture's invalid value and its empty required fields say so.
     await _testsWaitForText('Text value is empty');
-    await _testsWaitForText('This field is required');
+    await _testsWaitForText(CALM_REQUIRED_READ_LABEL);
 
     const row = (name: string) => document.querySelector(`.readfirst-row[data-field="${name}"]`);
     // Richtext: the text and its chip, no Slate.
@@ -3537,7 +3539,7 @@ export const CompactReadOnlyValues: Story = {
     docs: {
       description: {
         story:
-          'Read-only as a fact sheet, not a disabled editor: no completion meter, no Needs attention / Set / Optional boxes, no required asterisks; an optional field nobody set is not listed, a required one nobody set reads as unset without the amber and says "This field is required"; every value is drawn in full in its row — long text wrapped under a Show more cap, the whole code block, every field of the hash, the chosen option with its description — and no row is a control: nothing is a button, and a click opens nothing.',
+          'Read-only as a fact sheet, not a disabled editor: no completion meter, no Needs attention / Set / Optional boxes, no required asterisks; an optional field nobody set is not listed, a required one nobody set is listed and says "Required · not set"; every value is drawn in full in its row — long text wrapped under a Show more cap, the whole code block, every field of the hash, the chosen option with its description — and no row is a control: nothing is a button, and a click opens nothing.',
       },
     },
     chromatic: { disable: true },
@@ -3571,7 +3573,7 @@ export const CompactReadOnlyValues: Story = {
       )
     ).toBeNull();
     expect(document.querySelector('.readfirst-row[data-field="owner"]')?.textContent).toContain(
-      'This field is required'
+      CALM_REQUIRED_READ_LABEL
     );
 
     const row = (name: string) =>
@@ -4162,8 +4164,8 @@ export const CompactReadFirstEditing: Story = {
     // Booleans render as Yes/No, allowed_values as their display label.
     await _testsWaitForText('Yes');
     await _testsWaitForText('Python');
-    // The required-but-empty field shows its placeholder instead of an editor.
-    await _testsWaitForText('—');
+    // The required-but-empty field says so instead of showing an editor.
+    await _testsWaitForText(CALM_REQUIRED_LABEL);
     // No field editor (textarea) is mounted while everything is collapsed.
     await expect(document.querySelectorAll('.reqore-textarea')).toHaveLength(0);
 
@@ -8551,7 +8553,7 @@ export const CompactMaxFieldsShown: Story = {
     docs: {
       description: {
         story:
-          'Renders a compact form with `maxFieldsShown: 3`, so each status box shows three rows and folds the rest behind a dashed "N more fields" row. Clicking that row reveals the remainder and the label becomes "Show fewer".',
+          'Renders a compact form with `maxFieldsShown: 3`, so each status box shows three rows and folds the rest behind a quiet "N more fields" last row. Clicking that row reveals the remainder and the label becomes "Show fewer".',
       },
     },
   },
@@ -8583,13 +8585,12 @@ export const CompactMaxFieldsShown: Story = {
     expect(more.classList.contains('readfirst-row')).toBe(true);
     expect(more.getAttribute('aria-expanded')).toBe('false');
 
-    // The dashed edge is the thing that says "not a field". Asserting the
-    // COMPUTED style, because the first cut of this took its colour from the
-    // inter-row divider tint (~8% of the text colour) and rendered an invisible
-    // border — the rule was there, the affordance was not.
+    // A quiet last row: the same 1px hairline above it as between the fields, and
+    // no dashed box around it (the classic look draws one).
     const edge = getComputedStyle(more);
-    expect(edge.borderStyle).toBe('dashed');
+    expect(edge.borderTopStyle).toBe('solid');
     expect(edge.borderTopWidth).toBe('1px');
+    expect(edge.borderBottomStyle).toBe('none');
     // …and it inherits the rows' geometry rather than inventing its own
     expect(edge.paddingLeft).toBe(
       getComputedStyle(
@@ -9428,7 +9429,7 @@ export const ANewFormSaysWhatIsRequired: Story = {
     docs: {
       description: {
         story:
-          'A brand-new form with two empty required fields. Each says "This field is required" from the start, including the first one, which opens for editing, without waiting for the author to visit it. Saying what is required is not saying something is wrong: the first box reads "To fill in", in the quiet colour, until a field has been visited and left empty.',
+          'A brand-new form with two empty required fields. Each says "Required · add a value" from the start, including the first one, which opens for editing, without waiting for the author to visit it. Saying what is required is not saying something is wrong: the first box reads "To fill in", in the quiet colour, until a field has been visited and left empty.',
       },
     },
   },
@@ -9445,8 +9446,8 @@ export const ANewFormSaysWhatIsRequired: Story = {
     await waitFor(() => {
       const title = canvasElement.querySelector('[data-field="title"]');
       const owner = canvasElement.querySelector('[data-field="owner"]');
-      expect(title?.textContent).toContain('This field is required');
-      expect(owner?.textContent).toContain('This field is required');
+      expect(title?.textContent).toContain(CALM_REQUIRED_LABEL);
+      expect(owner?.textContent).toContain(CALM_REQUIRED_LABEL);
     });
   },
 };
@@ -9456,7 +9457,7 @@ export const AReadOnlyFormShowsWhatIsWrong: Story = {
     docs: {
       description: {
         story:
-          'A read-only form shows the same validation messages as an editable one: the empty required Title and Owner say "This field is required", and Kind says its stored value is not one of the choices. Each empty value slot keeps its plain "—", so each requirement is stated once.',
+          'A read-only form shows the same validation messages as an editable one: the empty required Title and Owner say "Required · not set" where the value would be, and Kind says its stored value is not one of the choices. Each requirement is stated once.',
       },
     },
   },
@@ -9471,11 +9472,12 @@ export const AReadOnlyFormShowsWhatIsWrong: Story = {
     await _testsWaitForText('"sideways" is not one of the choices');
     await waitFor(() => {
       const title = canvasElement.querySelector('[data-field="title"]');
-      expect(title?.textContent).toContain('This field is required');
-      expect(title?.textContent?.split('This field is required')).toHaveLength(2);
-      expect(title?.querySelector('.options-readfirst-valuetext')?.textContent).toBe('—');
+      expect(title?.textContent?.split(CALM_REQUIRED_READ_LABEL)).toHaveLength(2);
+      expect(title?.querySelector('.options-readfirst-valuetext')?.textContent).toBe(
+        CALM_REQUIRED_READ_LABEL
+      );
       expect(canvasElement.querySelector('[data-field="owner"]')?.textContent).toContain(
-        'This field is required'
+        CALM_REQUIRED_READ_LABEL
       );
     });
   },

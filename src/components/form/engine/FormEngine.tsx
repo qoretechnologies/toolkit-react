@@ -871,15 +871,15 @@ export interface IFormEngineProps extends Omit<IReqoreCollectionProps, 'onChange
    */
   compact?: boolean;
   /**
-   * How the form LOOKS — never what it does. `'default'` keeps the established
-   * look; `'calm'` draws the status boxes as plain panels on the theme's panel
-   * surface with label/value rows split by hairlines, grey labels, an amber
-   * "Required · add a value" in place of red asterisks and messages, quiet
-   * counts, no dot on a healthy row, Yes/No as words, and a readiness meter
-   * whose done part is grey. See {@link TFormEngineAppearance}.
+   * How the form LOOKS — never what it does. `'calm'`, the default, draws the
+   * status boxes as plain panels on the theme's panel surface with label/value
+   * rows split by hairlines, grey labels, an amber "Required · add a value" in
+   * place of red asterisks and messages, quiet counts, no dot on a healthy row,
+   * Yes/No as words, and a readiness meter whose done part is grey. `'classic'`
+   * is the earlier look (tinted boxes, a green meter, a dot on every row), for a
+   * host that asks for it. See {@link TFormEngineAppearance}.
    *
-   * Opt-in, so a consumer that does not pass it is unchanged. Inherited: a
-   * nested (`arg_schema`) sub-form and every field editor the form mounts
+   * Inherited: a nested (`arg_schema`) sub-form and every field editor the form mounts
    * follow the form's appearance, and a form with no `appearance` of its own
    * follows a `FormAppearanceProvider` above it. Applies to compact mode; the
    * classic collection layout only passes it on to its field editors.

@@ -17,7 +17,7 @@ import {
 import { CALM_REQUIRED_LABEL, CALM_REQUIRED_READ_LABEL } from './formAppearance';
 
 /*
- * The calm appearance against the default one, over the fields a workflow
+ * The calm appearance (the default) against the classic one, over the fields a workflow
  * creator actually serves (display names, groups and descriptions as the Qorus
  * server's workflow metadata gives them), so the comparison is about the look
  * and nothing else.
@@ -252,18 +252,21 @@ const expectNoDot = (field: string) => {
  * Stories
  * ------------------------------------------------------------------------ */
 
-export const DefaultLook: Story = {
+export const ClassicLook: Story = {
+  args: {
+    appearance: 'classic',
+  },
   parameters: {
     docs: {
       description: {
         story:
-          'The default appearance over a filled workflow form, for comparison with **Calm**: tinted Set box, a green Ready and meter, a green dot on every filled row, upper-case group labels and a red/green Yes/No chip.',
+          '`appearance="classic"` over a filled workflow form, for comparison with **Calm**: tinted Set box, a green Ready and meter, a green dot on every filled row, upper-case group labels and a red/green Yes/No chip. Only a form that asks for it looks like this.',
       },
     },
   },
   play: async () => {
     await _testsWaitForText('Supplier Payment Release');
-    // The default look is untouched: the tinted box and its count tag.
+    // The classic look is the one asked for: the tinted box and its count tag.
     await waitFor(() => expect(box('set')).toBeTruthy());
     expect(box('set')!.querySelector('.reqore-panel-title .reqore-tag')).toBeTruthy();
     expect(row('display_name')!.querySelector('.options-readfirst-status-dot')).toBeTruthy();
@@ -271,14 +274,11 @@ export const DefaultLook: Story = {
 };
 
 export const Calm: Story = {
-  args: {
-    appearance: 'calm',
-  },
   parameters: {
     docs: {
       description: {
         story:
-          '`appearance="calm"` over the same filled form: the sections are plain panels on the theme’s panel surface with label/value rows split by hairlines, labels grey, group headings in sentence case, the count a quiet number, no dot on a healthy row, No as a word, and a short meter whose done part is grey.',
+          'The default appearance (calm) over the same filled form, with no `appearance` passed: the sections are plain panels on the theme’s panel surface with label/value rows split by hairlines, labels grey, group headings in sentence case, the count a quiet number, no dot on a healthy row, No as a word, and a short meter whose done part is grey.',
       },
     },
   },
@@ -350,7 +350,6 @@ export const Calm: Story = {
 
 export const CalmNeedsAttention: Story = {
   args: {
-    appearance: 'calm',
     value: newFormValue,
     // After a submit attempt: every empty required field is now a fault. A form nobody
     // has been to yet reads "To fill in" instead (CalmNewForm).
@@ -403,9 +402,6 @@ export const CalmNeedsAttention: Story = {
 };
 
 export const CalmChoiceHeading: Story = {
-  args: {
-    appearance: 'calm',
-  },
   parameters: {
     docs: {
       description: {
@@ -426,7 +422,6 @@ export const CalmChoiceHeading: Story = {
 
 export const CalmReadOnly: Story = {
   args: {
-    appearance: 'calm',
     readOnly: true,
     value: { ...filledValue, version: { type: 'string', value: '' } },
   },
@@ -452,7 +447,6 @@ export const CalmReadOnly: Story = {
 
 export const CalmNewForm: Story = {
   args: {
-    appearance: 'calm',
     value: newFormValue,
   },
   parameters: {
@@ -505,7 +499,6 @@ export const CalmNewForm: Story = {
 
 export const CalmOnAPhone: Story = {
   args: {
-    appearance: 'calm',
     value: newFormValue,
   },
   parameters: {

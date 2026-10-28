@@ -10,16 +10,17 @@ import { createContext, useContext } from 'react';
  * How a form looks. The look only: which fields exist, how they bucket, what a
  * click does and what is validated are identical in every appearance.
  *
- * - `'default'` — the established read-first look: tinted status boxes, an
- *   intent-coloured completion meter, a status dot on every row.
- * - `'calm'` — colour only where something needs a person. The status boxes are
- *   plain panels on the theme's panel surface with label/value rows split by
- *   hairlines; labels are grey; a missing required value is an amber word
- *   instead of a red asterisk and message; counts are quiet numbers; a healthy
- *   row carries no dot; Yes/No are plain words; nothing is forced into
- *   uppercase. Opt-in, so an app that has not asked for it does not change.
+ * - `'calm'` (the default) — colour only where something needs a person. The
+ *   status boxes are plain panels on the theme's panel surface with label/value
+ *   rows split by hairlines; labels are grey; a missing required value is an
+ *   amber word instead of a red asterisk and message; counts are quiet numbers;
+ *   a healthy row carries no dot; Yes/No are plain words; nothing is forced
+ *   into uppercase.
+ * - `'classic'` — the earlier read-first look, for a host that asks for it:
+ *   tinted status boxes, an intent-coloured completion meter, a status dot on
+ *   every row.
  */
-export type TFormEngineAppearance = 'default' | 'calm';
+export type TFormEngineAppearance = 'calm' | 'classic';
 
 /**
  * The appearance in force for everything below it: the engine's own rows and
@@ -34,9 +35,9 @@ export const FormAppearanceContext = createContext<TFormEngineAppearance | undef
 
 export const FormAppearanceProvider = FormAppearanceContext.Provider;
 
-/** The appearance in force here; `'default'` when nothing set one. */
+/** The appearance in force here; `'calm'` when nothing set one. */
 export const useFormAppearance = (): TFormEngineAppearance =>
-  useContext(FormAppearanceContext) ?? 'default';
+  useContext(FormAppearanceContext) ?? 'calm';
 
 /** Shorthand for the one question most call sites ask. */
 export const useIsCalmForm = (): boolean => useFormAppearance() === 'calm';
