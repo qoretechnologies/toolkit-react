@@ -4,6 +4,9 @@
 // primitive's `types.ts` — re-export them here for backward compat.
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TSizes } from '@qoretechnologies/reqore/dist/constants/sizes';
+import type { ITemplateCatalogue, ITemplateFieldContext } from '../../helpers/templateCatalogue';
+import type { ILspDiagnostic } from '../../utils/lspClient.types';
+import type { ISmartEditorDiagnosticAction } from '../smartEditor/types';
 
 export type {
   ISlateElement,
@@ -149,6 +152,22 @@ export interface IDpqlEditorProps {
    * is labelled by its catalogue name. See `IDpqlTagRendererOptions.templates`.
    */
   templates?: IReqoreFormTemplates;
+  /**
+   * The field's template catalogue (qorus#646): the template contexts it can use, each with its keys and whether it
+   * can be used whole. Asked of the language server (`dpql/templateCatalogue`) when not given; a server that does
+   * not know the request leaves the field with its own templates.
+   */
+  templateCatalogue?: ITemplateCatalogue;
+  /**
+   * Where the field is (`field_context`): its interface, its Qog and state, its record. Sent with the document's
+   * context and its catalogue request, so the server offers only the templates valid there.
+   */
+  fieldContext?: ITemplateFieldContext;
+  /**
+   * What can be done about one of the server's diagnostics, where the host can do it: a button beside what is said
+   * of it (a Qog's "Declare it" for a variable it does not declare, `qog_variable_undeclared`).
+   */
+  diagnosticAction?: (diagnostic: ILspDiagnostic) => ISmartEditorDiagnosticAction | undefined;
   /**
    * Whether the field's templates can be browsed as their catalogue nests them - their groups, a record's members -
    * in the template picker, from a button beside the text (qorus#646, David's review: a DPQL field offered no

@@ -4,10 +4,18 @@
  * which parts are story config issues"): a story that shows what the product never does hides the product's real
  * behaviour. Context data is what `getContextData` serves (`GenericContextInfo`, every item with its base type), a
  * Qog's state data what `getStateData` serves (each item named by its path, with its own description), and what
- * the server completes inside `$data:` what `QorusClientServer::listTemplateValues()` lists.
+ * the server completes inside a template what Qorus's catalogue lists (`QorusTemplateCatalogue::listValues()`), from
+ * the catalogue Qorus gives the document (its fixtures, `templateCatalogueFixtures`).
  */
 import { describe, expect, it } from 'vitest';
-import { mockDataTemplateValues } from '../../src/components/dpqlEditor/__fixtures__/dpqlMockTemplateValues';
+import { dpqlMockTypeName } from '../../src/components/form/expressions/dpqlMockLsp';
+import {
+  catalogueCompletions,
+  storyDpqlCatalogue,
+  templateCatalogueFixture,
+  TEMPLATE_CATALOGUE_FIXTURES,
+  TStoryStateData,
+} from '../../src/stories/templateCatalogueMock';
 import {
   CONTEXT_DATA_PAYLOAD,
   QOG_FIELD_TEMPLATES,
@@ -93,31 +101,53 @@ describe("the stories' Qog state data", () => {
   });
 });
 
-describe("what the stories' server completes inside `$data:`", () => {
-  it('lists the states while no `.` is typed, each the whole reference, named and described by its name', () => {
-    expect(mockDataTemplateValues(QOG_STATE_DATA_PAYLOAD, '')).toEqual([
-      {
-        label: 'Receive order',
-        kind: 6,
-        insertText: '$data:receive_order',
-        filterText: '$data:receive_order',
-        documentation: 'Receive order',
-      },
-      {
-        label: 'Look up customer',
-        kind: 6,
-        insertText: '$data:lookup_customer',
-        filterText: '$data:lookup_customer',
-        documentation: 'Look up customer',
-      },
-    ]);
-    expect(
-      mockDataTemplateValues(QOG_STATE_DATA_PAYLOAD, 'look').map((item) => item.label)
-    ).toEqual(['Look up customer']);
+describe("what the stories' server completes inside a template", () => {
+  const qog = storyDpqlCatalogue({ stateData: QOG_STATE_DATA_PAYLOAD as TStoryStateData });
+  const complete = (written: string) => catalogueCompletions(qog, written, dpqlMockTypeName);
+
+  it("is Qorus's catalogue: each fixture as Qorus wrote it, a response with its contexts", () => {
+    for (const [name, fixture] of Object.entries(TEMPLATE_CATALOGUE_FIXTURES)) {
+      expect(fixture.response.contexts.length, name).toBeGreaterThan(0);
+      for (const context of fixture.response.contexts) {
+        expect(['container', 'values', 'formatted', 'expression'], `${name} ${context.name}`).toContain(
+          context.kind
+        );
+        // a context used whole says the template that reads all of it
+        expect(!!context.use_whole && !context.whole_template, `${name} ${context.name}`).toBe(false);
+      }
+    }
   });
 
-  it("lists a state's top-level data after `<state>.`, its type by its catalogue name", () => {
-    const listed = mockDataTemplateValues(QOG_STATE_DATA_PAYLOAD, 'receive_order.');
+  it('lists after `$` the contexts the document can use, as they are written', () => {
+    expect(complete('$').map((item) => item.label)).toEqual([
+      '$data:',
+      '$env:',
+      '$fsminput:',
+      '$local:',
+      '$parse-value:',
+      '$python-expr:',
+      '$qore-expr:',
+      // a DPQL document is an expression on a record: its fields written freely where none is bound
+      '$record:',
+      '$rest:',
+      '$timestamp:',
+      '$transient:',
+      '$var:',
+    ]);
+    expect(complete('$tr').map((item) => item.label)).toEqual(['$transient:']);
+  });
+
+  it('lists after `$data:` the whole of it first, then the states, each named and written whole', () => {
+    expect(complete('$data:').map((item) => [item.label, item.insertText])).toEqual([
+      ['$data:*', '$data:*'],
+      ['Receive order', '$data:receive_order'],
+      ['Look up customer', '$data:lookup_customer'],
+    ]);
+    expect(complete('$data:look').map((item) => item.label)).toEqual(['Look up customer']);
+  });
+
+  it("lists a state's data after `<state>.`, its type by its catalogue name, and a record's after its `.`", () => {
+    const listed = complete('$data:receive_order.');
     expect(listed.map((item) => [item.label, item.insertText, item.detail])).toEqual([
       ['Order ID', '$data:receive_order.order_id', 'Whole number'],
       ['User name', '$data:receive_order.user_name', 'Text'],
@@ -125,8 +155,37 @@ describe("what the stories' server completes inside `$data:`", () => {
       ['Customer', '$data:receive_order.customer', expect.any(String)],
     ]);
     expect(listed[2].documentation).toBe('What happened to the order');
-    expect(
-      mockDataTemplateValues(QOG_STATE_DATA_PAYLOAD, 'receive_order.e').map((item) => item.label)
-    ).toEqual(['Event type']);
+    expect(complete('$data:receive_order.e').map((item) => item.label)).toEqual(['Event type']);
+    expect(complete('$data:receive_order.customer.').map((item) => item.insertText)).toEqual([
+      '$data:receive_order.customer.name',
+      '$data:receive_order.customer.address',
+    ]);
+  });
+
+  it('gives a loop no `$for:*`, which Qorus cannot read, and `$foreach:*`, which it can', () => {
+    const loops = templateCatalogueFixture('qog-loops');
+    expect(catalogueCompletions(loops, '$for:').map((item) => item.insertText)).toEqual(['$for:value']);
+    expect(catalogueCompletions(loops, '$foreach:').map((item) => item.insertText)).toEqual([
+      '$foreach:*',
+      '$foreach:value',
+      '$foreach:index',
+      '$foreach:size',
+    ]);
+  });
+
+  it('reads an alias as its context, never offering it: `$globalvar:` gives `$transient:`s variables', () => {
+    expect(complete('$glob')).toEqual([]);
+    expect(complete('$globalvar:').map((item) => item.insertText)).toEqual([
+      '$globalvar:*',
+      '$globalvar:total',
+    ]);
+  });
+
+  it("is a record expression's with the record's fields where the document is bound to a record", () => {
+    const record = storyDpqlCatalogue({ fields: { pos: { type: 'int', display_name: 'Position' } } });
+    expect(catalogueCompletions(record, '$record:').map((item) => [item.label, item.insertText])).toEqual([
+      ['$record:*', '$record:*'],
+      ['Position', '$record:pos'],
+    ]);
   });
 });

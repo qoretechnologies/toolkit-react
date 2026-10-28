@@ -332,6 +332,7 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       completionsWith,
       emptyCompletionMessage,
       presentDiagnostics,
+      diagnosticAction,
       referenceNamesNothing,
       templateRoots,
       templateButton,
@@ -406,9 +407,9 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       },
       []
     );
+    // asked when the server is ready and as the field's templates change
     useEffect(() => {
       void askServerValues();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lspReady, templateRoots]);
     const pickerRoots = useMemo(
       // a lone group of the field's opened only where nothing is added beside it
@@ -1208,6 +1209,22 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
                 opaque={false}
               >
                 {diag.message}
+                {(() => {
+                  // what the host can do about it, beside what is said of it
+                  const action = diagnosticAction?.(diag);
+                  return action ?
+                      <ReqoreButton
+                        size='small'
+                        compact
+                        className='smart-editor-diagnostic-action'
+                        intent={severityToIntent(diag.severity)}
+                        onClick={action.onClick}
+                        style={{ marginLeft: 8 }}
+                      >
+                        {action.label}
+                      </ReqoreButton>
+                    : null;
+                })()}
               </ReqoreMessage>
             ))}
           </ReqoreControlGroup>

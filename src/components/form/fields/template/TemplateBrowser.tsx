@@ -9,6 +9,8 @@ import {
   templateTree,
   withTemplateContexts,
 } from '../../../../helpers/templateTree';
+import { withTemplateCatalogue } from '../../../../helpers/templateCatalogue';
+import { useTemplateCatalogue } from '../../../../helpers/templateCatalogueContext';
 import { TEMPLATE_BROWSE_LIST_PROPS } from '../rich-text/useTemplateTags';
 import { TemplatePicker } from './TemplatePicker';
 
@@ -34,6 +36,15 @@ export interface ITemplateBrowserProps extends Omit<IReqoreDropdownProps, 'items
  * is handed on as the catalogue row it is (`onItemSelect`), a template of any keys with the key written as its
  * value.
  */
+/* No text is typed on from a pick here: a context whose argument is written after its `:` (`$rest:`, `$dynamic:`)
+   is written in the picker's key box, never handed on unfinished. */
+const writtenHere = (roots: ITemplateNode[]): ITemplateNode[] =>
+  roots.map((node) => ({
+    ...node,
+    ...(node.continues && !node.children?.length ? { writesKey: true, continues: false } : {}),
+    ...(node.children ? { children: writtenHere(node.children) } : {}),
+  }));
+
 export const TemplateBrowser = ({
   templates,
   focusFilter,
@@ -42,15 +53,23 @@ export const TemplateBrowser = ({
   ...rest
 }: ITemplateBrowserProps & Record<string, unknown>) => {
   // the template contexts too, each taken whole or gone into, as typing offers them (qorus#646)
+  // with the catalogue of the fields here, where the host gave one (`TemplateCatalogueProvider`)
+  const catalogue = useTemplateCatalogue();
   const roots = useMemo(
     () =>
       openLoneGroup(
         withTemplateContexts(
-          templateTree(templates, { wholeRecords, keepLoneGroup: true }),
+          writtenHere(
+            withTemplateCatalogue(
+              templateTree(templates, { wholeRecords, keepLoneGroup: true }),
+              catalogue,
+              wholeRecords
+            )
+          ),
           wholeRecords
         )
       ),
-    [templates, wholeRecords]
+    [templates, catalogue, wholeRecords]
   );
   const id = useMemo(() => `template-browser-${++templateBrowserCounter}`, []);
   // the popover's own controls: a pick puts it away

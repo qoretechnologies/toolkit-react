@@ -34,6 +34,11 @@ import {
   templateTree,
 } from '../../helpers/templateTree';
 import { ILspDiagnostic } from '../../utils/lspClient.types';
+import { ITemplateCatalogue, withTemplateCatalogue } from '../../helpers/templateCatalogue';
+import {
+  useTemplateCatalogue,
+  useTemplateFieldContext,
+} from '../../helpers/templateCatalogueContext';
 import { DPQL_EDITING_LANGUAGE } from '../smartEditor/editingAids';
 import { useDescriptionTooltips } from '../../helpers/descriptionTooltip';
 import { useTypeLabel, useTypeSentenceForm } from '../form/typeSentenceForm';
@@ -76,9 +81,15 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       onReady,
       completeOnClick = !!templates,
       browseTemplates = true,
+      templateCatalogue,
+      fieldContext: ownFieldContext,
+      diagnosticAction,
     },
     ref
   ) => {
+    // where the field is: its own, or where the host says its fields are (`TemplateCatalogueProvider`)
+    const hostFieldContext = useTemplateFieldContext();
+    const fieldContext = ownFieldContext ?? hostFieldContext;
     const dpql = useDpqlSession({
       provider,
       recordType,
@@ -88,6 +99,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       initialText: value,
       alertPayloadContext,
       fsmContext,
+      fieldContext,
     });
 
     // Server-parse state: when `useServerParse` is true, we ask the
@@ -199,11 +211,54 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
     /* What the field can refer to (qorus#646, David's decisions): its templates as their catalogue nests them, and
        the record's fields as a group of their own - one tree, browsed in the template picker (a click in the empty
        text, the template button, a chip, a group's row) and reached by what is typed (`dpqlCompletionsWith`). */
+    /* The field's template catalogue (qorus#646): the contexts it can use where it is used, asked of the language
+       server once the document's context is bound, and again when that changes. A server that does not know the
+       request leaves the field with its own templates. */
+    const [askedCatalogue, setAskedCatalogue] = useState<ITemplateCatalogue>();
+    const catalogueClient = dpql.session.client;
+    const catalogueReady = dpql.session.isReady && dpql.session.isContextReady;
+    const fieldContextKey = fieldContext ? JSON.stringify(fieldContext) : '';
+    useEffect(() => {
+      if (templateCatalogue || readOnly || !catalogueClient || !catalogueReady) return undefined;
+      let current = true;
+      catalogueClient
+        .customRequest<ITemplateCatalogue>('dpql/templateCatalogue', {
+          uri: dpql.session.uri,
+          ...(fieldContextKey ? { field_context: JSON.parse(fieldContextKey) } : {}),
+        })
+        .then((catalogue) => {
+          if (current) setAskedCatalogue(catalogue?.contexts ? catalogue : undefined);
+        })
+        .catch(() => {
+          // a server without the catalogue: the field's own templates
+          if (current) setAskedCatalogue(undefined);
+        });
+      return () => {
+        current = false;
+      };
+      // asked again when the Qog the document is bound to changes (`fsmContext`): its state data are `$data:`'s keys
+    }, [
+      templateCatalogue,
+      readOnly,
+      catalogueClient,
+      catalogueReady,
+      fieldContextKey,
+      fsmContext,
+      dpql.session.uri,
+    ]);
+    // the field's own, its language server's, or that of the fields where it is (`TemplateCatalogueProvider`)
+    const hostCatalogue = useTemplateCatalogue();
+    const catalogue = templateCatalogue ?? askedCatalogue ?? hostCatalogue;
     const templateRoots = useMemo(
       // an expression takes a record whole: a state's data or a record is offered whole as well as opened
       // a lone group kept whole: the editor adds the language server's groups beside it (`openLoneGroup`)
-      () => templateTree(templates, { fields: dpql.fieldMeta, wholeRecords: true, keepLoneGroup: true }),
-      [templates, dpql.fieldMeta]
+      () =>
+        withTemplateCatalogue(
+          templateTree(templates, { fields: dpql.fieldMeta, wholeRecords: true, keepLoneGroup: true }),
+          catalogue,
+          true
+        ),
+      [templates, dpql.fieldMeta, catalogue]
     );
     /* A reference that names none of the field's templates says so where it is written, and stays the text it
        was typed as (qorus#646, David's review: a half-typed reference was taken as it was). */
@@ -313,6 +368,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         // "No record fields here" is the server's to say: with none, there may be a record it would know
         emptyCompletionMessage={dpql.session.isUnavailable ? undefined : dpqlEmptyCompletionMessage}
         presentDiagnostics={presentDiagnostics}
+        diagnosticAction={diagnosticAction}
         referenceNamesNothing={namesNothing}
         isLoading={isParsing}
         loadingIndicator={loadingIndicator}

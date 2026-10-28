@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ILspDiagnostic } from '../../utils/lspClient.types';
 import { useLspSession, IUseLspSessionResult } from '../smartEditor/useLspSession';
 import { IDpqlParseOptions, IDpqlParseResult, TDpqlFields, TDpqlFsmContext } from './types';
+import type { ITemplateFieldContext } from '../../helpers/templateCatalogue';
 
 export interface IDpqlFieldMeta {
   display_name?: string;
@@ -45,6 +46,8 @@ const fieldMetaOf = (field: any): IDpqlFieldMeta => {
 };
 
 export interface IUseDpqlSessionOptions {
+  /** Where the field is (`field_context`), sent with each context binding (qorus#646). */
+  fieldContext?: ITemplateFieldContext;
   /** Provider spec — `@<app>/<action>`, `datasource:name`, `connection:name`, or factory string. */
   provider?: string;
   /** Record type — `'record'` (default), `'create'`, or `'update'`. */
@@ -105,7 +108,15 @@ export function useDpqlSession(
     initialText = '',
     alertPayloadContext = false,
     fsmContext,
+    fieldContext,
   } = opts;
+  /* Where the field is, sent with each binding (qorus#646): the server offers the templates valid there. A binding is
+     redone when it changes, by its contents, not by an object recreated with each render. */
+  const fieldContextKey = fieldContext ? JSON.stringify(fieldContext) : undefined;
+  const withFieldContext = useMemo(
+    () => (fieldContextKey ? { field_context: JSON.parse(fieldContextKey) } : {}),
+    [fieldContextKey]
+  );
 
   // Provider/recordType context and alert-payload context are
   // server-side mutually exclusive — only one binds the URI at a time.
@@ -191,6 +202,7 @@ export function useDpqlSession(
         options: ctxOptions,
         action_code: actionCode,
         ...(hasFields ? { fields } : {}),
+        ...withFieldContext,
       })
       .then((result) => {
         if (cancelled) return;
@@ -227,6 +239,7 @@ export function useDpqlSession(
     ctxOptions,
     actionCode,
     fieldsKey,
+    withFieldContext,
   ]);
 
   // Alert-payload binding. On first mount it lands via
@@ -254,7 +267,7 @@ export function useDpqlSession(
     setAlertPayloadBound(false);
     let cancelled = false;
     session.client
-      .customRequest('dpql/setAlertPayloadContext', { uri: session.uri })
+      .customRequest('dpql/setAlertPayloadContext', { uri: session.uri, ...withFieldContext })
       .catch((err) => {
         // eslint-disable-next-line no-console
         console.error('[DPQL] setAlertPayloadContext failed:', err);
@@ -272,6 +285,7 @@ export function useDpqlSession(
     session.client,
     session.isReady,
     session.uri,
+    withFieldContext,
   ]);
 
   // FSM context binding. Always uses the explicit
@@ -303,7 +317,7 @@ export function useDpqlSession(
     }
     // Bind, update, or clear. Build params from the discriminated
     // union; passing no source key clears any existing FSM binding.
-    const params: Record<string, unknown> = { uri: session.uri };
+    const params: Record<string, unknown> = { uri: session.uri, ...withFieldContext };
     if (fsmContext) {
       if ('fsm' in fsmContext && fsmContext.fsm) {
         params.fsm = fsmContext.fsm;
@@ -336,6 +350,7 @@ export function useDpqlSession(
     session.isReady,
     session.uri,
     fsmContext,
+    withFieldContext,
   ]);
 
   // Wrap the underlying LSP session so consumers see the DPQL-aware

@@ -2,6 +2,7 @@ export * from './components/form';
 // the one model of what a field can refer to: its templates and record fields, as a tree (`TemplatePicker`)
 export * from './helpers/templateTree';
 export * from './components/log/Log';
+export * from './helpers/templateCatalogueContext';
 export {
   validateField,
   validateFieldWithResult,

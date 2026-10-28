@@ -42,16 +42,19 @@ import {
 } from '../../stories/templatePicker';
 import { ITemplatesPayload } from '../../helpers/templates';
 import {
-  dpqlTemplateContext,
-  IQorusTemplateContext,
-  qorusTemplateCompletions,
-} from '../../stories/qorusTemplateContexts';
+  catalogueCompletions,
+  storyDpqlCatalogue,
+  TStoryRecordFields,
+  TStoryStateData,
+  TTemplateCatalogueFixture,
+  undeclaredVariableDiagnostics,
+} from '../../stories/templateCatalogueMock';
+import { dpqlMockTypeName } from '../form/expressions/dpqlMockLsp';
 import {
   QOG_FIELD_TEMPLATES,
   QOG_STATE_DATA_PAYLOAD,
   RECORD_FIELDS,
 } from '../form/fields/template/__fixtures__/qogTemplatePayloads';
-import { mockDataTemplateValues } from './__fixtures__/dpqlMockTemplateValues';
 
 let lsp: IMockLspServer;
 
@@ -63,15 +66,6 @@ const QOG_STATE_DATA: ITemplatesPayload = QOG_STATE_DATA_PAYLOAD;
 
 /** The record the stories' server describes (`dpql/setContext`): what a field's hover says of it. */
 const STORY_RECORD_FIELDS = RECORD_FIELDS;
-
-/** The local context's keys (`UserApi::getUserContextInfo()`), as Qorus lists them after `$local:`. */
-const STORY_LOCAL_KEYS = [
-  { name: 'id', display_name: 'Interface ID' },
-  { name: 'name', display_name: 'Interface Name' },
-  { name: 'version', display_name: 'Interface Version' },
-  { name: 'type', display_name: 'Top-Level Interface Type' },
-  { name: 'input', display_name: 'Input Data' },
-];
 
 /** A customer record, as a server describes it: its contact a record of its own (`@contact.email`). */
 const CUSTOMER_RECORD_FIELDS = {
@@ -160,14 +154,21 @@ const meta = {
     let fsmStateData: ITemplatesPayload = {};
     // the record the document is bound to, by its provider: a customer record has a record of its own in it
     let boundFields: Record<string, unknown> = STORY_RECORD_FIELDS;
-    /* The field's template context, as Qorus completes a DPQL document with it (`buildDpqlTemplateContext`): a
-       Qog's record expression, the local context's keys, and what the story says is defined where the field is -
-       transient variables, a loop (the contract a Qorus agent is building: a context only where it is valid). */
-    const storyContext: IQorusTemplateContext = {
-      ...dpqlTemplateContext(),
-      local_keys: STORY_LOCAL_KEYS,
-      ...((context.parameters?.qorusTemplateContext as IQorusTemplateContext | undefined) ?? {}),
-    };
+    /* The document's template catalogue, as Qorus resolves it (`dpql/templateCatalogue`): the story's field's
+       (`templateCatalogue`: one of Qorus's fixtures), with the bound Qog's state data as `$data:` and the bound
+       record as `$record:`; a document with neither is a record expression with no context. */
+    /* What the server finds in the text: its errors, and in a Qog, each variable a template uses that the Qog does
+       not declare (`qog_variable_undeclared`, Qorus `getDpqlUndeclaredVariableDiagnostics()`). */
+    const storyDiagnostics = (text: string) => [
+      ...mockPublishedDiagnostics(text),
+      ...(Object.keys(fsmStateData).length ? undeclaredVariableDiagnostics(storyCatalogue(), text) : []),
+    ];
+    const storyCatalogue = () =>
+      storyDpqlCatalogue({
+        catalogue: context.parameters?.templateCatalogue as TTemplateCatalogueFixture | undefined,
+        stateData: Object.keys(fsmStateData).length ? (fsmStateData as TStoryStateData) : undefined,
+        fields: boundFields as TStoryRecordFields,
+      });
     lsp = createMockLspServer(MOCK_LSP_URL, {
       capabilities: {
         ...DEFAULT_LSP_CAPABILITIES,
@@ -199,10 +200,6 @@ const meta = {
           const sigilMatch = chead.match(/[@$][\w:.{}]*$/);
           const sigilToken = sigilMatch ? sigilMatch[0] : '';
           const sigil = sigilToken ? sigilToken[0] : '';
-          // `$data:` with a bound FSM context resolves against the FSM
-          // state — surface its data keys.
-          const inFsmDataTemplate =
-            sigilToken.startsWith('$data:') && Object.keys(fsmStateData).length > 0;
 
           const FIELD_ITEMS = [
             {
@@ -242,12 +239,11 @@ const meta = {
             },
           ];
 
-          /* A template being written, answered as Qorus answers a DPQL document (`qorusTemplateCompletions`): the
-             contexts of a Qog's record expression - no workflow-only ones (`$static:`, `$dynamic:`) - and after a
-             context's `:`, the values Qorus knows in it (the timestamps, a loop's); `$data:` with a Qog bound is
-             answered below. */
+          /* A template being written, answered as Qorus answers a DPQL document from its catalogue
+             (`catalogueCompletions`): the contexts it can use; after a context's `:`, `*` where it is used whole,
+             then its keys; after a key's `.`, the key's keys. */
           const TEMPLATE_ITEMS =
-            sigil === '$' ? qorusTemplateCompletions(sigilToken, storyContext) : [];
+            sigil === '$' ? catalogueCompletions(storyCatalogue(), sigilToken, dpqlMockTypeName) : [];
 
           /* The functions a bare word completes, as the real server lists them (`getFunctionCompletions`): those
              whose name starts with the word, each written with its bracket, what it gives its detail. */
@@ -268,11 +264,6 @@ const meta = {
             })
           );
 
-          /* The bound Qog's state data inside `$data:`, as the real server lists it
-             (`QorusClientServer::listTemplateValues`, `getTemplateValueCompletions`): the states first, then, after
-             `<state>.`, that state's data - each the whole reference it is written as (`mockDataTemplateValues`). */
-          const FSM_DATA_KEY_ITEMS = mockDataTemplateValues(fsmStateData, sigilToken.slice('$data:'.length));
-
           /* Where a value can be written and nothing is typed of it - an empty text, after an operator, a comma
              or a bracket - what can start one, as Qorus answers there (Qore DpqlCompletionProvider, a value
              position): the record's fields, the literal values, the functions, the template contexts and `!`. */
@@ -281,7 +272,7 @@ const meta = {
             ...(boundFields === STORY_RECORD_FIELDS ? FIELD_ITEMS : fieldItemsAt(boundFields, '@')),
             ...['true', 'false', 'null'].map((label) => ({ label, kind: 12, insertText: label })),
             ...FUNCTION_ITEMS,
-            ...qorusTemplateCompletions('$', storyContext),
+            ...catalogueCompletions(storyCatalogue(), '$', dpqlMockTypeName),
             { label: '!', kind: 24, insertText: '!', documentation: 'Logical NOT' },
           ];
           /* After a whole value - a template written whole, braced (`$data:{receive_order.event_type}`, as a chip
@@ -291,9 +282,7 @@ const meta = {
               items: ['==', '!=', '<', '>', '+', '&&', '||'].map((label) => ({ label, kind: 24, insertText: label })),
             };
           }
-          const items = inFsmDataTemplate
-            ? FSM_DATA_KEY_ITEMS
-            : sigil === '$'
+          const items = sigil === '$'
               ? TEMPLATE_ITEMS
               : sigil === '@'
                 ? boundFields === STORY_RECORD_FIELDS ? FIELD_ITEMS : fieldItemsAt(boundFields, sigilToken)
@@ -321,12 +310,12 @@ const meta = {
         'textDocument/didOpen': (msg, server) =>
           server.notify('textDocument/publishDiagnostics', {
             uri: msg.params?.textDocument?.uri,
-            diagnostics: mockPublishedDiagnostics(server.textOf(msg.params?.textDocument?.uri)),
+            diagnostics: storyDiagnostics(server.textOf(msg.params?.textDocument?.uri)),
           }),
         'textDocument/didChange': (msg, server) =>
           server.notify('textDocument/publishDiagnostics', {
             uri: msg.params?.textDocument?.uri,
-            diagnostics: mockPublishedDiagnostics(server.textOf(msg.params?.textDocument?.uri)),
+            diagnostics: storyDiagnostics(server.textOf(msg.params?.textDocument?.uri)),
           }),
 
         'dpql/validate': () => ({ diagnostics: [] }),
@@ -354,9 +343,12 @@ const meta = {
           },
         }),
 
+        // the document's catalogue (Qorus `handleDpqlTemplateCatalogue`)
+        'dpql/templateCatalogue': () => storyCatalogue(),
+
         // Echoes a synthetic state_data_keys list; mirrors the real
         // response shape (QorusLspWebSocketHandler.qc:8509).
-        'dpql/setFsmContext': (msg) => {
+        'dpql/setFsmContext': (msg, server) => {
           const sourceType = msg.params?.fsm
             ? 'inline'
             : msg.params?.draft_id
@@ -366,6 +358,14 @@ const meta = {
                 : 'cleared';
           // the state data of the bound Qog while it is bound; a cleared binding has none
           fsmStateData = sourceType === 'cleared' ? {} : QOG_STATE_DATA;
+          // the document's diagnostics again, with the Qog bound or cleared, as the server republishes them
+          const boundUri = msg.params?.uri as string | undefined;
+          if (boundUri) {
+            server.notify('textDocument/publishDiagnostics', {
+              uri: boundUri,
+              diagnostics: storyDiagnostics(server.textOf(boundUri)),
+            });
+          }
           return {
             source_type: sourceType,
             current_state: msg.params?.current_state ?? null,
@@ -1901,6 +1901,8 @@ export const WithTemplates: Story = {
     } as never,
   },
   parameters: {
+    // a Qog state's field, in a loop, with variables, configuration items and state data (Qorus's fixture)
+    templateCatalogue: 'qog-loops',
     docs: {
       description: {
         story:
@@ -1931,7 +1933,7 @@ export const WithTemplates: Story = {
     await userEvent.keyboard('{Tab}');
     // the whole of it, the templates given in it and the local context's keys the server lists
     await waitFor(() =>
-      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'order id', 'customer', 'Interface ID']))
+      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'order id', 'customer', 'id']))
     );
 
     // Clear and switch to `@` → fields.
@@ -1956,6 +1958,8 @@ export const WithTemplates: Story = {
 export const ADollarWithNoTemplatesListsTheServersContexts: Story = {
   args: { value: '', onChange: fn() },
   parameters: {
+    // a Qog state's field, in a loop, with variables, configuration items and state data (Qorus's fixture)
+    templateCatalogue: 'qog-loops',
     docs: {
       description: {
         story:
@@ -2630,6 +2634,8 @@ export const AColonBetweenAReferencesPartsIsRefused: Story = {
 export const TypingCompletesEachLevel: Story = {
   args: { ...WithFsmContext.args, provider: 'crm/customers', onChange: fn() },
   parameters: {
+    // a Qog state's field, in a loop, with variables, configuration items and state data (Qorus's fixture)
+    templateCatalogue: 'qog-loops',
     docs: {
       description: {
         story:
@@ -2738,18 +2744,20 @@ export const TypingCompletesEachFieldLevel: Story = {
 };
 
 /**
- * A context of free keys and its key, typed out (`$transient:order.id`), is a whole reference: drawn as its chip when
+ * A context of free keys and its key, typed out (`$dynamic:order.id`), is a whole reference: drawn as its chip when
  * Enter takes it, or the editor is left (qorus#646, David's review).
  */
 export const AFreeKeyReferenceTypedOutIsAChip: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // a Qog state that a workflow's step runs: the order's dynamic data, its keys written
+    templateCatalogue: 'qog-workflow-host',
     docs: {
       description: {
         story:
-          'Types `$transient:order.id` key by key in a Qog\'s field: nothing is listed in $transient:, and the list says to write ' +
-          'its key. Enter takes what is written: the chip for $transient:order.id. Then ` == $transient:batch` typed ' +
-          'and the editor left: that too is a chip.',
+          'Types `$dynamic:order.id` key by key in the field of a Qog a workflow runs: nothing is listed in ' +
+          '$dynamic: but the whole of it, and the list says to write its key. Enter takes what is written: the chip ' +
+          'for $dynamic:order.id. Then ` == $dynamic:batch` typed and the editor left: that too is a chip.',
       },
     },
   },
@@ -2757,19 +2765,19 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
-    await typeAsAPerson(userEvent, '$transient:order.id');
+    await typeAsAPerson(userEvent, '$dynamic:order.id');
     await waitFor(() =>
       expect(document.querySelector('.reqore-popover-content .completion-menu')?.textContent).toContain(
-        "Write what $transient: refers to after the ':', or pick from the list"
+        "Write what $dynamic: refers to after the ':', or pick from the list"
       )
     );
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => expect(chipsOf(editable)).toEqual(['transient: order.id']));
-    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$transient:order\.id\s*$/)));
-    await typeAsAPerson(userEvent, ' == $transient:batch');
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id']));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$dynamic:order\.id\s*$/)));
+    await typeAsAPerson(userEvent, ' == $dynamic:batch');
     await userEvent.keyboard('{Escape}');
     await userEvent.click(canvasElement.ownerDocument.body);
-    await waitFor(() => expect(chipsOf(editable)).toEqual(['transient: order.id', 'transient: batch']));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id', 'dynamic: batch']));
   },
 };
 
@@ -2912,13 +2920,13 @@ export const AClickAfterAChipListsWhatCanFollow: Story = {
 export const TransientVariablesDefinedAreListed: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
-    qorusTemplateContext: { transient_vars: ['order', 'retries'] },
+    templateCatalogue: 'qog-loops',
     docs: {
       description: {
         story:
-          'In a Qog that defines the transient variables order and retries: `$tr` lists $transient:, with Use; ' +
-          'Tab writes it and lists the whole of it, $transient:*, and the two variables; `ord` and Tab make the ' +
-          'chip for $transient:order.',
+          'In a Qog that declares the global variable total (Qorus\'s catalog of a Qog state in a loop): `$tr` ' +
+          'lists $transient:, with Use; Tab writes it and lists the whole of it, $transient:*, and the variable; ' +
+          '`tot` and Tab make the chip for $transient:total.',
       },
     },
   },
@@ -2932,30 +2940,31 @@ export const TransientVariablesDefinedAreListed: Story = {
     await userEvent.keyboard('{Tab}');
     await waitFor(
       () =>
-        expect(seenCompletionLabels()).toEqual([
-          '$transient:*',
-          '$transient:order',
-          '$transient:retries',
-          'Browse all templates',
-        ]),
+        expect(seenCompletionLabels()).toEqual(['$transient:*', 'total', 'Browse all templates']),
       { timeout: 30000 }
     );
-    await typeAsAPerson(userEvent, 'ord');
-    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$transient:order'));
+    await typeAsAPerson(userEvent, 'tot');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('total'));
     await userEvent.keyboard('{Tab}');
-    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$transient:order\s*$/)));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$transient:total\s*$/)));
   },
 };
 
-/** Where no transient variable is defined, `$transient:` is not offered at all; nor a loop's context outside one. */
+/**
+ * A context of variables the Qog does not declare where the field is, or a loop's outside one, is not offered: it
+ * would read nothing when the Qog runs (qorus#646, David: "if none are defined, don't offer $transient: at all").
+ */
 export const UndefinedVariablesAndLoopsAreNotOffered: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
+    // a Qog state that nothing runs but on demand: a global and a local variable, no automatic one, in no loop
+    templateCatalogue: 'qog-unhosted',
     docs: {
       description: {
         story:
-          'In a Qog that defines no transient variable and is in no loop: `$tr` lists no $transient:, `$fo` no ' +
-          '$foreach: or $for: - using them would fail when the Qog runs.',
+          'In a Qog state that declares a global and a local variable, no automatic variable, and is in no loop: ' +
+          '`$` lists $transient: and $var:, and no $autovar:, $foreach: or $for: - nor the aliases $globalvar: ' +
+          'and $localvar:, which work when written but are not offered.',
       },
     },
   },
@@ -2964,14 +2973,15 @@ export const UndefinedVariablesAndLoopsAreNotOffered: Story = {
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
     await typeAsAPerson(userEvent, '$');
-    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$data:'])), {
-      timeout: 30000,
-    });
+    // every row of the list, those scrolled out of sight too
     const listed = () =>
       Array.from(document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')).map((row) =>
         row.getAttribute('data-label')
       );
-    for (const context of ['$transient:', '$globalvar:', '$var:', '$foreach:', '$for:']) {
+    await waitFor(() => expect(listed()).toEqual(expect.arrayContaining(['$transient:', '$var:'])), {
+      timeout: 20000,
+    });
+    for (const context of ['$autovar:', '$globalvar:', '$localvar:', '$foreach:', '$for:']) {
       expect(listed(), context).not.toContain(context);
     }
   },
@@ -2981,7 +2991,7 @@ export const UndefinedVariablesAndLoopsAreNotOffered: Story = {
 export const ALoopsContextInsideTheLoop: Story = {
   args: { ...WithFsmContext.args, onChange: fn() },
   parameters: {
-    qorusTemplateContext: { loops: { foreach: true } },
+    templateCatalogue: 'qog-loops',
     docs: {
       description: {
         story:
@@ -3001,12 +3011,66 @@ export const ALoopsContextInsideTheLoop: Story = {
       () =>
         expect(seenCompletionLabels()).toEqual([
           '$foreach:*',
-          '$foreach:value',
-          '$foreach:index',
-          '$foreach:size',
+          'value',
+          'index',
+          'size',
           'Browse all templates',
         ]),
       { timeout: 30000 }
     );
   },
 };
+
+/**
+ * A variable a template uses that the Qog does not declare is a warning the server gives, and the host's action for
+ * it is beside it (qorus#646: Qorus's `qog_variable_undeclared`, with where to declare it): "Declare it".
+ */
+export const AnUndeclaredVariableCanBeDeclared: Story = {
+  args: {
+    ...WithFsmContext.args,
+    value: '$transient:retries > 3',
+    onChange: fn(),
+    diagnosticAction: (diagnostic: { code?: unknown; data?: unknown }) =>
+      diagnostic.code === 'qog_variable_undeclared' ?
+        { label: 'Declare it', onClick: declareIt.bind(null, diagnostic.data) }
+      : undefined,
+  } as never,
+  parameters: {
+    templateCatalogue: 'qog-loops',
+    docs: {
+      description: {
+        story:
+          "In a Qog that declares the global variable total, not retries: `$transient:retries > 3` is said to read " +
+          "nothing - \"The Qog does not declare the global variable retries, so it reads as nothing; declare it in " +
+          "the Qog's global variables.\" - with Declare it beside it, which the host declares it with (here: the " +
+          'Qog\'s global variables, `globalvar`).',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    declared.length = 0;
+    await readyEditor(canvasElement);
+    const action = await waitFor(
+      () => {
+        const button = canvasElement.querySelector<HTMLElement>('.smart-editor-diagnostic-action');
+        expect(button, 'Declare it').toBeTruthy();
+        return button!;
+      },
+      { timeout: 30000 }
+    );
+    expect(saidOfTheText(canvasElement).join(' ')).toContain(
+      "The Qog does not declare the global variable retries, so it reads as nothing; declare it in the Qog's global variables."
+    );
+    expect(action.textContent).toBe('Declare it');
+    await userEvent.click(action);
+    expect(declared).toEqual([{ scope: 'globalvar', name: 'retries' }]);
+  },
+};
+
+/** What the story's host was asked to declare. */
+const declared: Array<{ scope: string; name: string }> = [];
+const declareIt = (data: unknown) => {
+  const facts = data as { variable_name: string; declare: { scope: string } };
+  declared.push({ scope: facts.declare.scope, name: facts.variable_name });
+};
+

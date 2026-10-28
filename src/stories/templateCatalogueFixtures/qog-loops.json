@@ -1,0 +1,482 @@
+{
+  "description": "A Qog state inside a for loop inside a foreach loop, with global, block and loop variables and state data",
+  "response": {
+    "field_context": {
+      "interface_type": "qog",
+      "sandboxed": false,
+      "mode": "read",
+      "hosts": [],
+      "host_types": [],
+      "loop_scope": [
+        {
+          "block_type": "for",
+          "state_id": "inner",
+          "name": "Count"
+        },
+        {
+          "block_type": "foreach",
+          "state_id": "outer",
+          "name": "Each order"
+        }
+      ],
+      "current_state": "deep"
+    },
+    "contexts": [
+      {
+        "name": "local",
+        "display_name": "Local context",
+        "description": "The context of the current call: the interface and what the caller gives",
+        "kind": "container",
+        "sort_priority": 1,
+        "use_whole": true,
+        "free_form_keys": true,
+        "needs_arg": true,
+        "writable": false,
+        "type": "hash<auto>",
+        "keys": [
+          {
+            "name": "type",
+            "path": "type",
+            "template": "$local:type",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "type": "string",
+            "description": "The interface type",
+            "base_type": "string"
+          },
+          {
+            "name": "name",
+            "path": "name",
+            "template": "$local:name",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "type": "string",
+            "description": "The interface name",
+            "base_type": "string"
+          },
+          {
+            "name": "id",
+            "path": "id",
+            "template": "$local:id",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "type": "int",
+            "description": "The interface ID",
+            "base_type": "int"
+          },
+          {
+            "name": "input",
+            "path": "input",
+            "template": "$local:input",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "type": "auto",
+            "description": "The input data of the current Qog state",
+            "base_type": "any"
+          }
+        ],
+        "whole_template": "$local:*"
+      },
+      {
+        "name": "fsminput",
+        "display_name": "Qog state input",
+        "description": "The input data of the current Qog state",
+        "kind": "container",
+        "sort_priority": 2,
+        "use_whole": true,
+        "free_form_keys": true,
+        "needs_arg": true,
+        "writable": false,
+        "type": "auto",
+        "whole_template": "$fsminput:*"
+      },
+      {
+        "name": "data",
+        "display_name": "Qog state data",
+        "description": "The output data of the Qog states that run before this one",
+        "kind": "container",
+        "sort_priority": 3,
+        "use_whole": true,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "type": "hash<auto>",
+        "keys": [
+          {
+            "name": "s1",
+            "path": "s1",
+            "template": "$data:s1",
+            "use_whole": true,
+            "free_form_keys": false,
+            "source": "state-data",
+            "display_name": "Start",
+            "type": "hash<auto>",
+            "keys": [
+              {
+                "name": "id",
+                "path": "s1.id",
+                "template": "$data:s1.id",
+                "use_whole": false,
+                "free_form_keys": false,
+                "source": "state-data",
+                "display_name": "ID",
+                "type": "int",
+                "base_type": "int"
+              },
+              {
+                "name": "customer",
+                "path": "s1.customer",
+                "template": "$data:s1.customer",
+                "use_whole": true,
+                "free_form_keys": false,
+                "source": "state-data",
+                "display_name": "Customer",
+                "type": "hash<auto>",
+                "keys": [
+                  {
+                    "name": "name",
+                    "path": "s1.customer.name",
+                    "template": "$data:s1.customer.name",
+                    "use_whole": false,
+                    "free_form_keys": false,
+                    "source": "state-data",
+                    "display_name": "Name",
+                    "type": "string",
+                    "base_type": "string"
+                  }
+                ],
+                "base_type": "hash"
+              }
+            ],
+            "base_type": "hash"
+          }
+        ],
+        "whole_template": "$data:*"
+      },
+      {
+        "name": "transient",
+        "display_name": "Global variables",
+        "description": "The Qog's global variables",
+        "kind": "container",
+        "sort_priority": 4,
+        "use_whole": true,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": true,
+        "type": "hash<auto>",
+        "keys": [
+          {
+            "name": "total",
+            "path": "total",
+            "template": "$transient:total",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "declared",
+            "type": "int",
+            "description": "Global variables \"total\"",
+            "base_type": "int"
+          }
+        ],
+        "whole_template": "$transient:*"
+      },
+      {
+        "name": "var",
+        "display_name": "Local variables",
+        "description": "The Qog's local variables in scope here",
+        "kind": "container",
+        "sort_priority": 5,
+        "use_whole": true,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": true,
+        "type": "hash<auto>",
+        "keys": [
+          {
+            "name": "i",
+            "path": "i",
+            "template": "$var:i",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "declared",
+            "type": "auto",
+            "description": "The for loop's variable",
+            "scope_level": 0,
+            "scope_state_id": "inner",
+            "base_type": "any"
+          },
+          {
+            "name": "order",
+            "path": "order",
+            "template": "$var:order",
+            "use_whole": true,
+            "free_form_keys": true,
+            "source": "declared",
+            "type": "hash<auto>",
+            "description": "Local variables \"order\"",
+            "scope_level": 1,
+            "scope_state_id": "outer",
+            "base_type": "hash"
+          },
+          {
+            "name": "count",
+            "path": "count",
+            "template": "$var:count",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "declared",
+            "type": "int",
+            "description": "Local variables \"count\"",
+            "base_type": "int"
+          }
+        ],
+        "whole_template": "$var:*"
+      },
+      {
+        "name": "foreach",
+        "display_name": "Foreach loop",
+        "description": "The current element, index and size of the foreach loops around this state",
+        "kind": "values",
+        "sort_priority": 7,
+        "use_whole": true,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "type": "hash<auto>",
+        "keys": [
+          {
+            "name": "value",
+            "path": "value",
+            "template": "$foreach:value",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "loop",
+            "type": "auto",
+            "description": "The current element of \"Each order\"",
+            "scope_level": 0,
+            "scope_state_id": "outer",
+            "block_type": "foreach",
+            "base_type": "any"
+          },
+          {
+            "name": "index",
+            "path": "index",
+            "template": "$foreach:index",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "loop",
+            "type": "int",
+            "description": "The current index (0-based) of \"Each order\"",
+            "scope_level": 0,
+            "scope_state_id": "outer",
+            "block_type": "foreach",
+            "base_type": "int"
+          },
+          {
+            "name": "size",
+            "path": "size",
+            "template": "$foreach:size",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "loop",
+            "type": "int",
+            "description": "The number of elements of \"Each order\"",
+            "scope_level": 0,
+            "scope_state_id": "outer",
+            "block_type": "foreach",
+            "base_type": "int"
+          }
+        ],
+        "whole_template": "$foreach:*"
+      },
+      {
+        "name": "for",
+        "display_name": "For loop",
+        "description": "The value of the for loops around this state",
+        "kind": "values",
+        "sort_priority": 8,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "keys": [
+          {
+            "name": "value",
+            "path": "value",
+            "template": "$for:value",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "loop",
+            "type": "auto",
+            "description": "The loop's value of \"Count\"",
+            "scope_level": 0,
+            "scope_state_id": "inner",
+            "block_type": "for",
+            "base_type": "any"
+          }
+        ]
+      },
+      {
+        "name": "config",
+        "display_name": "Configuration items",
+        "description": "The values of the configuration items here",
+        "kind": "container",
+        "sort_priority": 10,
+        "use_whole": true,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "type": "hash<auto>",
+        "keys": [
+          {
+            "name": "limit",
+            "path": "limit",
+            "template": "$config:limit",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "config",
+            "display_name": "Limit",
+            "type": "int",
+            "base_type": "int"
+          }
+        ],
+        "whole_template": "$config:*"
+      },
+      {
+        "name": "env",
+        "display_name": "Environment variables",
+        "description": "The server's environment variables",
+        "kind": "container",
+        "sort_priority": 26,
+        "use_whole": true,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "type": "hash<string, string>",
+        "keys": [
+          {
+            "name": "HOME",
+            "path": "HOME",
+            "template": "$env:HOME",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "environment",
+            "type": "string",
+            "description": "Environment variable HOME",
+            "base_type": "string"
+          }
+        ],
+        "whole_template": "$env:*"
+      },
+      {
+        "name": "timestamp",
+        "display_name": "Timestamp",
+        "description": "The current time, midnight, or the current time in a date format",
+        "kind": "values",
+        "sort_priority": 27,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "now|timegm|last_midnight|next_midnight|<date format>",
+        "keys": [
+          {
+            "name": "now",
+            "path": "now",
+            "template": "$timestamp:now",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "type": "date",
+            "description": "The current date and time with microseconds",
+            "base_type": "date"
+          },
+          {
+            "name": "timegm",
+            "path": "timegm",
+            "template": "$timestamp:timegm",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "type": "int",
+            "description": "The current time as seconds since the epoch (GMT)",
+            "base_type": "int"
+          },
+          {
+            "name": "last_midnight",
+            "path": "last_midnight",
+            "template": "$timestamp:last_midnight",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "type": "date",
+            "description": "The last midnight (the start of today)",
+            "base_type": "date"
+          },
+          {
+            "name": "next_midnight",
+            "path": "next_midnight",
+            "template": "$timestamp:next_midnight",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "type": "date",
+            "description": "The next midnight (the start of tomorrow)",
+            "base_type": "date"
+          }
+        ]
+      },
+      {
+        "name": "rest",
+        "display_name": "REST API call",
+        "description": "The result of a GET request to the Qorus REST API",
+        "kind": "formatted",
+        "sort_priority": 28,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "<URI path>[.<key>...]"
+      },
+      {
+        "name": "qore-expr",
+        "display_name": "Qore expression",
+        "description": "The value of a Qore expression",
+        "kind": "expression",
+        "sort_priority": 29,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<expression>}"
+      },
+      {
+        "name": "python-expr",
+        "display_name": "Python expression",
+        "description": "The value of a Python expression",
+        "kind": "expression",
+        "sort_priority": 30,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<expression>}"
+      },
+      {
+        "name": "parse-value",
+        "display_name": "Parsed value",
+        "description": "A Qore value parsed from a string",
+        "kind": "expression",
+        "sort_priority": 31,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<value>}"
+      }
+    ]
+  }
+}

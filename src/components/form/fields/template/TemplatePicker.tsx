@@ -223,9 +223,25 @@ export const TemplatePicker = memo(
     // the key's box, which takes the keyboard in the event that shows it (`pick`)
     const keyBoxRef = useRef<HTMLDivElement>(null);
 
-    // opened at another group (a chip of another state replaced): that group
+    /* Opened at another group (a chip of another state replaced): that group. The same picker given more of the
+       field's templates as they come (its catalogue, its language server's completions) stays where it is browsed
+       to, the row it is on still the row it is on: put back at the top, the keys pressed while they came went to
+       other rows than the ones the user saw (qorus#646). */
+    const levelIdRef = useRef(levelId);
     useEffect(() => {
-      setLevels(levelsTo(roots, levelId));
+      setLevels((current) => {
+        const sameOpening = levelIdRef.current === levelId;
+        levelIdRef.current = levelId;
+        const opening = levelsTo(roots, levelId);
+        // the group it was opened at, come only now, is opened
+        return (
+            sameOpening &&
+              current.every((id) => !!templateNodeById(roots, id)) &&
+              (current.length > 0 || !opening.length)
+          ) ?
+            current
+          : opening;
+      });
     }, [roots, levelId]);
 
     const level = levels.length ? templateNodeById(roots, levels[levels.length - 1]) : undefined;
@@ -333,7 +349,8 @@ export const TemplatePicker = memo(
     const writeKey = useCallback(() => {
       const key = keyText.trim();
       if (!keyFor || !key) return;
-      onPick(keyFor, `${keyFor.value.replace(/\*$/, '')}${key}`);
+      // after the context's `:` (`$dynamic:*` → `$dynamic:order.id`; `$rest:` → `$rest:system/status`)
+      onPick(keyFor, `${keyFor.value?.replace(/\*$/, '') ?? keyFor.reference ?? ''}${key}`);
     }, [keyFor, keyText, onPick]);
 
     /** The keys the rows are moved through with, wherever they are heard. Returns whether the key was taken. */
@@ -571,13 +588,20 @@ export const TemplatePicker = memo(
             ref={keyBoxRef}
           >
             <ReqoreP size='small'>
-              {`${keyFor.label} holds any keys: write the key to use (a path: order.id).`}
+              {
+                // a context whose argument has a format of its own says it (`$rest:` <URI path>[.<key>...])
+                keyFor.catalogue?.arg_format && !keyFor.catalogue.free_form_keys ?
+                  `Write what ${keyFor.label} reads: ${keyFor.catalogue.arg_format}.`
+                : `${keyFor.label} holds any keys: write the key to use (a path: order.id).`
+              }
             </ReqoreP>
             <ReqoreControlGroup fluid size='small'>
               <ReqoreInput
                 className='template-picker-key-input'
                 aria-label={`Key in ${keyFor.label}`}
-                placeholder='order.id'
+                placeholder={
+                  keyFor.catalogue?.arg_format && !keyFor.catalogue.free_form_keys ? '' : 'order.id'
+                }
                 value={keyText}
                 onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
                   setKeyText(event.target.value)

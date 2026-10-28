@@ -7,11 +7,13 @@
 // components make on their own. A story that needs different handlers starts
 // its own server on the URL and replaces this one (see `createMockLspServer`).
 // The answers come from `dpqlMockLanguage`, which follows the real server.
+import type { ITemplateCatalogue } from '../../../helpers/templateCatalogue';
 import {
-  dpqlTemplateContext,
-  IQorusTemplateContext,
-  qorusTemplateCompletions,
-} from '../../../stories/qorusTemplateContexts';
+  catalogueCompletions,
+  storyDpqlCatalogue,
+  TStoryStateData,
+  TTemplateCatalogueFixture,
+} from '../../../stories/templateCatalogueMock';
 import { mockHoverDpql } from '../../dpqlEditor/__fixtures__/dpqlMockHover';
 import {
   createMockLspServer,
@@ -52,7 +54,7 @@ export interface IDpqlMockParseCall {
 export const dpqlMockParseCalls: IDpqlMockParseCall[] = [];
 
 /* A completion's detail in the server's plain words (Qore DpqlCompletionProvider, batch 6): a type is named as Qore's
-   DataTypeCatalogue names it (a template context's, `qorusTemplateCompletions`). */
+   DataTypeCatalogue names it (a template's, `catalogueCompletions`). */
 const DPQL_MOCK_TYPE_NAMES: Record<string, string> = {
   any: 'Any',
   string: 'Text',
@@ -71,15 +73,22 @@ const DPQL_MOCK_TYPE_NAMES: Record<string, string> = {
 export const dpqlMockTypeName = (type: string): string =>
   DPQL_MOCK_TYPE_NAMES[type.replace(/^\*/, '').replace(/^soft/, '').replace(/<.*>$/, '')] ?? type;
 
-/** The local context's keys (`UserApi::getUserContextInfo()`), as Qorus lists them after `$local:`. */
-const DPQL_MOCK_LOCAL_KEYS = [
-  { name: 'id', display_name: 'Interface ID' },
-  { name: 'name', display_name: 'Interface Name' },
-  { name: 'type', display_name: 'Top-Level Interface Type' },
-];
+/** The catalogue the story says its field has (`templateCatalogue`): a fixture of Qorus's, or one of its own. */
+let dpqlMockCatalogue: TTemplateCatalogueFixture | ITemplateCatalogue | undefined;
 
-/** The template context the stand-in completes with: a Qog's, with what the story says is defined there. */
-let dpqlMockTemplateContext: IQorusTemplateContext = dpqlTemplateContext();
+/** The Qog state data each document is bound to (`dpql/setFsmContext`), by its URI. */
+const dpqlMockDocumentStateData = new Map<string, TStoryStateData>();
+
+/** A document's catalogue, as Qorus resolves it: the story's, with the document's Qog and record. */
+const documentCatalogue = (uri: string): ITemplateCatalogue => {
+  const provider = dpqlMockDocumentProviders.get(uri);
+  const fields = (provider ? DPQL_MOCK_PROVIDERS[provider] : undefined) ?? dpqlMockDocumentFields.get(uri);
+  return storyDpqlCatalogue({
+    catalogue: dpqlMockCatalogue,
+    stateData: dpqlMockDocumentStateData.get(uri),
+    fields: fields as never,
+  });
+};
 
 /** What the server offers after a whole value: operators (Keywords), never a value. */
 const DPQL_MOCK_AFTER_A_VALUE = ['==', '!=', '<', '>', '&&', '||'].map((label) => ({
@@ -188,13 +197,13 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
           .map(dpqlMockTypeName)
           .join(' or ') || undefined,
     }));
-    /* a template being written, as Qorus answers a DPQL document (`qorusTemplateCompletions`): the contexts of a
-       Qog's record expression that its name starts; after the `:`, the values Qorus knows in the context - none of
-       a context of free keys, none of `$data:` with no Qog bound */
+    /* a template being written, as Qorus answers a DPQL document from its catalogue (`catalogueCompletions`): the
+       contexts the document can use that its name starts; after the `:`, `*` where the context is used whole,
+       then its keys; after a key and `.`, the key's keys */
     if (token.startsWith('$') && !MOCK_WHOLE_TEMPLATE.test(token)) {
       return {
         isIncomplete: false,
-        items: qorusTemplateCompletions(token, dpqlMockTemplateContext),
+        items: catalogueCompletions(documentCatalogue(uri), token, dpqlMockTypeName),
       };
     }
     if (token.startsWith('@')) {
@@ -208,7 +217,7 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
     const written = head.trimEnd();
     const items =
       !written || MOCK_BEFORE_A_VALUE.test(written) ?
-        [...fieldItems, ...qorusTemplateCompletions('$', dpqlMockTemplateContext)]
+        [...fieldItems, ...catalogueCompletions(documentCatalogue(uri), '$', dpqlMockTypeName)]
       : MOCK_WHOLE_TEMPLATE.test(token) || written !== head ? DPQL_MOCK_AFTER_A_VALUE
       : [];
     return { isIncomplete: false, items };
@@ -217,6 +226,18 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
   'textDocument/semanticTokens/full': (msg, server) => ({
     data: mockTokenizeDpql(server.textOf(msg.params?.textDocument?.uri)),
   }),
+
+  // the document's catalogue, as Qorus resolves it for the document's field (`dpql/templateCatalogue`)
+  'dpql/templateCatalogue': (msg) => documentCatalogue(String(msg.params?.uri)),
+
+  // the Qog a document is bound to: its state data is `$data:`'s keys
+  'dpql/setFsmContext': (msg) => {
+    const uri = String(msg.params?.uri);
+    const fsm = msg.params?.fsm as { state_data?: TStoryStateData } | undefined;
+    if (fsm?.state_data) dpqlMockDocumentStateData.set(uri, fsm.state_data);
+    else dpqlMockDocumentStateData.delete(uri);
+    return {};
+  },
 
   // the fields a document is bound to, kept as the server keeps them: they type its `@field` operands
   'dpql/setContext': (msg) => {
@@ -303,10 +324,10 @@ export interface IStartDpqlMockLspOptions {
   /** Handlers to use instead of, or beside, the default ones. */
   handlers?: Record<string, TMockLspHandler>;
   /**
-   * What the story says of where the field is - transient variables defined, a loop - for the server to offer the
-   * contexts valid there (the contract a Qorus agent is building).
+   * The catalogue of the story's field - one of Qorus's fixtures (`TEMPLATE_CATALOGUE_FIXTURES`) or one of its own -
+   * for the server to offer the contexts valid there; by default a record expression with no context.
    */
-  templateContext?: IQorusTemplateContext;
+  templateCatalogue?: TTemplateCatalogueFixture | ITemplateCatalogue;
   /** Per-method response delays in ms. */
   delays?: Record<string, number>;
 }
@@ -316,11 +337,8 @@ export const startDpqlMockLspServer = (
   options: IStartDpqlMockLspOptions = {}
 ): { lsp: IMockLspServer; stop: () => void } => {
   dpqlMockParseCalls.length = 0;
-  dpqlMockTemplateContext = {
-    ...dpqlTemplateContext(),
-    local_keys: DPQL_MOCK_LOCAL_KEYS,
-    ...options.templateContext,
-  };
+  dpqlMockCatalogue = options.templateCatalogue;
+  dpqlMockDocumentStateData.clear();
   dpqlMockDocumentFields.clear();
   dpqlMockDocumentProviders.clear();
   const lsp = createMockLspServer(MOCK_LSP_URL, {

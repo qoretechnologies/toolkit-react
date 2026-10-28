@@ -62,6 +62,8 @@ import {
   templateTree,
   withTemplateContexts,
 } from '../../../../helpers/templateTree';
+import { ITemplateCatalogue, withTemplateCatalogue } from '../../../../helpers/templateCatalogue';
+import { useTemplateCatalogue } from '../../../../helpers/templateCatalogueContext';
 import { commitTypedReferences } from '../../../smartEditor/typedReferences';
 import { ISlateConverter, ISlateElement } from '../../../smartEditor/types';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
@@ -107,6 +109,12 @@ export interface IRichTextFormFieldProps extends Omit<
   onChange?: (value: string | IReqoreRichTextEditorProps['value']) => void;
   allowTemplates?: boolean;
   templates?: IReqoreFormTemplates;
+  /**
+   * The field's template catalogue, as Qorus gives it for the field's context (qorus#646: REST
+   * `getTemplateCatalogue`): the template contexts the field can use, each with its keys and whether it can be used
+   * whole. Offered as the "Template contexts" group of `templates`, in the picker and as it is typed.
+   */
+  templateCatalogue?: ITemplateCatalogue;
   /**
    * The catalogue a chip is NAMED from, when it is wider than the `templates` offered: a typed field offers
    * only the fields of its type, but a chip of any field in its value is named as the catalogue names it.
@@ -218,6 +226,7 @@ export const RichTextFormField = memo(({
   onChange,
   allowTemplates,
   templates,
+  templateCatalogue: ownCatalogue,
   namingTemplates,
   valueFormat = 'richtext',
   singleLine,
@@ -490,17 +499,28 @@ export const RichTextFormField = memo(({
      Tab into the text opens it at the caret, a click on a chip opens it at the chip's group to replace it - and
      reached by what is typed after a `$`, in the rows the same popover shows then (a group's row opens the picker
      at its members). */
+  // the field's own catalogue, or that of the fields where it is (`TemplateCatalogueProvider`)
+  const hostCatalogue = useTemplateCatalogue();
+  const templateCatalogue = ownCatalogue ?? hostCatalogue;
+  // with the field's catalogue's contexts, where it has one: typed and picked alike
   const templateRoots = useMemo(
-    () => (allowTemplates !== false && !readOnly ? templateTree(templates, { wholeRecords }) : []),
-    [allowTemplates, readOnly, templates, wholeRecords]
+    () =>
+      allowTemplates !== false && !readOnly ?
+        withTemplateCatalogue(templateTree(templates, { wholeRecords }), templateCatalogue, wholeRecords)
+      : [],
+    [allowTemplates, readOnly, templates, templateCatalogue, wholeRecords]
   );
   // a lone group kept whole, for the picker to open only where nothing is added beside it (`openLoneGroup`)
   const templateRootsKept = useMemo(
     () =>
       allowTemplates !== false && !readOnly ?
-        templateTree(templates, { wholeRecords, keepLoneGroup: true })
+        withTemplateCatalogue(
+          templateTree(templates, { wholeRecords, keepLoneGroup: true }),
+          templateCatalogue,
+          wholeRecords
+        )
       : [],
-    [allowTemplates, readOnly, templates, wholeRecords]
+    [allowTemplates, readOnly, templates, templateCatalogue, wholeRecords]
   );
   const pickerRoots = useMemo(
     () => openLoneGroup(withTemplateContexts(templateRootsKept, wholeRecords)),

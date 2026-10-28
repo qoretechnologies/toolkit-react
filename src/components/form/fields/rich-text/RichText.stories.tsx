@@ -33,6 +33,7 @@ import {
   plainTextOf,
 } from '../../../../stories/templatePicker';
 import { withTouchScreen } from '../../../../stories/touchScreen';
+import { templateCatalogueFixture } from '../../../../stories/templateCatalogueMock';
 
 const meta = {
   component: RichTextFormField,
@@ -745,33 +746,27 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
   },
 };
 
-/** A workflow whose static data has a declared type: its keys are known, as Qorus lists them. */
-const WORKFLOW_WITH_STATIC_KEYS = buildTemplates({
-  ...WORKFLOW_CONTEXT_DATA_PAYLOAD,
-  static_data: {
-    display_name: 'Order (static data)',
-    short_desc: "The order this workflow processes, as its static data's type declares it",
-    items: [
-      { name: 'order_id', display_name: 'Order ID', type: 'int', value: '$static:order_id' },
-      { name: 'customer', display_name: 'Customer', type: 'string', value: '$static:customer' },
-    ],
-  },
-} as never);
-
 /**
  * A context with known keys lists them, and is used whole, `$local:*` (qorus#646, David: "clicking on '$local:'
  * just gives the text '$local: ' - the value inserted is unusable"): picked with the mouse, it goes on to its keys.
- * A workflow's static data with a declared type lists its keys; dynamic data, of free keys, is used whole.
+ * A workflow's static data with a declared type lists its keys; dynamic data, of free keys, is used whole. The
+ * field's catalogue is Qorus's, for a workflow that declares a static data type (its fixture).
  */
 export const AContextListsItsKeysAndIsUsedWhole: Story = {
-  args: { value: '', valueFormat: 'text', templates: WORKFLOW_WITH_STATIC_KEYS },
+  args: {
+    value: '',
+    valueFormat: 'text',
+    templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD),
+    templateCatalogue: templateCatalogueFixture('workflow-typed-static'),
+  },
   parameters: {
     docs: {
       description: {
         story:
           'Types `$loc` and clicks $local: with the mouse: it is written as text and its keys are listed under the ' +
-          'whole of it, $local:*. `$sta` and Tab: the whole of the static data and its declared keys, Customer and ' +
-          'Order ID. `$dyn`: the row $dynamic: has Use, which writes $dynamic:*.',
+          'whole of it, $local:*. `$sta` and Tab: the whole of the static data and its declared key, Order; `ord` ' +
+          'and Tab go into the order: Order ID and Customer Name. `$dyn`: the row $dynamic: has Use, which writes ' +
+          '$dynamic:*.',
       },
     },
   },
@@ -782,7 +777,9 @@ export const AContextListsItsKeysAndIsUsedWhole: Story = {
     await typeAsAPerson(userEvent, '$loc');
     await userEvent.click(await completionRow('$local:'));
     await waitFor(() =>
-      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'Interface ID', 'Interface Name']))
+      expect(seenCompletionLabels()).toEqual(
+        expect.arrayContaining(['$local:*', 'Interface ID', 'Interface Name'])
+      )
     );
     expect(plainTextOf(editable)).toBe('$local:');
     await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
@@ -790,13 +787,112 @@ export const AContextListsItsKeysAndIsUsedWhole: Story = {
     await waitFor(() => expect(highlightedCompletionLabel()).toBe('$static:'));
     await userEvent.keyboard('{Tab}');
     await waitFor(() =>
-      expect(seenCompletionLabels()).toEqual(['$static:*', 'Customer', 'Order ID', 'Browse all templates'])
+      expect(seenCompletionLabels()).toEqual(['$static:*', 'Order', 'Browse all templates'])
     );
+    await typeAsAPerson(userEvent, 'ord');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('Order'));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() =>
+      expect(seenCompletionLabels()).toEqual(['Order ID', 'Customer Name', 'Browse all templates'])
+    );
+    expect(plainTextOf(editable)).toBe('$static:order.');
     await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
     await typeAsAPerson(userEvent, '$dyn');
     const dynamic = await completionRow('$dynamic:');
     await userEvent.click(dynamic.parentElement!.querySelector<HTMLElement>('.completion-use')!);
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:*'));
+  },
+};
+
+/** The containers a rich-text field's catalogue offers whole, and those it does not. */
+const usedWhole = (label: string) =>
+  document.querySelector<HTMLElement>(`.template-picker [aria-label="Use ${label}"]`);
+
+/**
+ * Every container of a field's catalogue is used whole from the picker, and only those Qorus reads whole (qorus#646,
+ * David's review: "every container row gets the divider plus Use"): `$info:` gives `$info:*`; a context of values
+ * (`$timestamp:`), order keys (`$keys:*` reads nothing) and a formatted argument (`$sensitive:`) have no Use. A
+ * context the field cannot use - a Qog's variables in a workflow - is not there at all.
+ */
+export const EveryContainerIsUsedWhole: Story = {
+  args: {
+    value: '',
+    valueFormat: 'text',
+    templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD),
+    templateCatalogue: templateCatalogueFixture('workflow-typed-static'),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A workflow field, its catalog Qorus\'s: a click in the text opens the picker; Template contexts lists ' +
+          'the workflow\'s contexts, each container with Use ($local:, $static:, $dynamic:, $info:, ...) and none ' +
+          'for $keys:, $timestamp: or $sensitive:; no $transient:. Use beside $info: writes the chip for $info:*.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.click(await pickerRow('Template contexts'));
+    await waitFor(() => expect(pickerLabels()).toContain('$info:'));
+    expect(pickerLabels()).not.toContain('$transient:');
+    for (const container of ['$local:', '$static:', '$dynamic:', '$temp:', '$info:', '$pstate:', '$env:']) {
+      expect(usedWhole(container), `Use beside ${container}`).toBeTruthy();
+    }
+    for (const notWhole of ['$keys:', '$timestamp:', '$sensitive:', '$rest:']) {
+      expect(usedWhole(notWhole), `no Use beside ${notWhole}`).toBeNull();
+    }
+    await userEvent.click(usedWhole('$info:')!);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$info:*'));
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+  },
+};
+
+/**
+ * A Qog state's field offers the variables declared where it is and the loops around it (qorus#646, David: "list
+ * the defined variables"; "the same for `$for:`/`$foreach:`"): `$transient:` lists the global variable, `$foreach:`
+ * is used whole, `$for:` - only its value - is not.
+ */
+export const AQogStatesVariablesAndLoops: Story = {
+  args: {
+    value: '',
+    valueFormat: 'text',
+    templateCatalogue: templateCatalogueFixture('qog-loops'),
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A field of a Qog state inside a for loop inside a foreach loop (Qorus\'s catalog): `$tr` and Tab list ' +
+          '$transient:* and the global variable total; `$fo` lists $for: and $foreach:, $foreach: with Use and ' +
+          '$for: without; Tab on $for: lists its value, and Tab takes it: the chip for $for:value.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$tr');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$transient:'));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() =>
+      expect(seenCompletionLabels()).toEqual(['$transient:*', 'total', 'Browse all templates'])
+    );
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await typeAsAPerson(userEvent, '$fo');
+    await waitFor(() =>
+      expect(seenCompletionLabels()).toEqual(['$foreach:', '$for:', 'Browse all templates'])
+    );
+    const foreach = await completionRow('$foreach:');
+    expect(foreach.parentElement!.querySelector('.completion-use'), 'Use beside $foreach:').toBeTruthy();
+    const loop = await completionRow('$for:');
+    expect(loop.parentElement!.querySelector('.completion-use'), 'no Use beside $for:').toBeNull();
+    await typeAsAPerson(userEvent, 'r:');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(['value', 'Browse all templates']));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$for:value'));
   },
 };
 

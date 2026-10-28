@@ -1,0 +1,161 @@
+{
+  "description": "An output target field of a workflow step",
+  "response": {
+    "field_context": {
+      "interface_type": "step",
+      "sandboxed": false,
+      "mode": "write"
+    },
+    "contexts": [
+      {
+        "name": "dynamic",
+        "display_name": "Dynamic order data",
+        "description": "The workflow order's dynamic data",
+        "kind": "container",
+        "sort_priority": 13,
+        "use_whole": true,
+        "free_form_keys": true,
+        "needs_arg": true,
+        "writable": true,
+        "type": "hash<auto>",
+        "whole_template": "$dynamic:*"
+      },
+      {
+        "name": "temp",
+        "display_name": "Temporary order data",
+        "description": "The workflow order's temporary data",
+        "kind": "container",
+        "sort_priority": 14,
+        "use_whole": true,
+        "free_form_keys": true,
+        "needs_arg": true,
+        "writable": true,
+        "type": "hash<auto>",
+        "whole_template": "$temp:*"
+      },
+      {
+        "name": "step",
+        "display_name": "Step data",
+        "description": "The current step's data",
+        "kind": "container",
+        "sort_priority": 15,
+        "use_whole": true,
+        "free_form_keys": true,
+        "needs_arg": true,
+        "writable": true,
+        "type": "hash<auto>",
+        "whole_template": "$step:*"
+      },
+      {
+        "name": "keys",
+        "display_name": "Order keys",
+        "description": "The workflow order's keys",
+        "kind": "container",
+        "sort_priority": 16,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": true,
+        "keys": [
+          {
+            "name": "order_id",
+            "path": "order_id",
+            "template": "$keys:order_id",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "keylist",
+            "type": "softlist<string>",
+            "description": "Order key \"order_id\"",
+            "base_type": "list"
+          }
+        ]
+      },
+      {
+        "name": "sensitive",
+        "display_name": "Sensitive order data",
+        "description": "The workflow order's sensitive data by sensitive key and value",
+        "kind": "formatted",
+        "sort_priority": 17,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": true,
+        "arg_format": "<skey>.<svalue>.<field>[.<field>...]"
+      },
+      {
+        "name": "sensitive-alias",
+        "display_name": "Sensitive order data by alias",
+        "description": "The workflow order's sensitive data by alias",
+        "kind": "formatted",
+        "sort_priority": 18,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": true,
+        "arg_format": "<alias>.<field>[.<field>...]"
+      },
+      {
+        "name": "feedback",
+        "display_name": "Parent order feedback",
+        "description": "Feedback for the parent order of a subworkflow order",
+        "kind": "formatted",
+        "sort_priority": 19,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": true,
+        "arg_format": "<key>"
+      },
+      {
+        "name": "pstate",
+        "display_name": "Persistent state",
+        "description": "The interface's persistent state data",
+        "kind": "container",
+        "sort_priority": 22,
+        "use_whole": true,
+        "free_form_keys": true,
+        "needs_arg": true,
+        "writable": true,
+        "type": "hash<auto>",
+        "whole_template": "$pstate:*"
+      },
+      {
+        "name": "sysprop",
+        "display_name": "System properties",
+        "description": "System property values by domain and key",
+        "kind": "container",
+        "sort_priority": 25,
+        "use_whole": true,
+        "free_form_keys": true,
+        "needs_arg": true,
+        "writable": true,
+        "type": "hash<auto>",
+        "keys": [
+          {
+            "name": "billing",
+            "path": "billing",
+            "template": "$sysprop:billing",
+            "use_whole": true,
+            "free_form_keys": false,
+            "source": "system",
+            "type": "hash<auto>",
+            "description": "System property domain \"billing\"",
+            "keys": [
+              {
+                "name": "rate",
+                "path": "billing.rate",
+                "template": "$sysprop:billing.rate",
+                "use_whole": false,
+                "free_form_keys": false,
+                "source": "system",
+                "description": "System property \"rate\" of domain \"billing\""
+              }
+            ],
+            "base_type": "hash"
+          }
+        ],
+        "whole_template": "$sysprop:*"
+      }
+    ]
+  }
+}

@@ -314,12 +314,12 @@ export const templateSearchItems = (
               .some((word) => word.startsWith(wanted))
         )
       : [];
-    return [
+    return onceEach([
       ...templateContextsOf(roots, partial, wholeRecords).map((node) =>
         templateRow(node, typeLabel)
       ),
       ...named.map((node) => templateRow(node, typeLabel)),
-    ];
+    ]);
   }
   /* A context of free keys (`$dynamic:*`) is completed by writing its key: no row stands for its keys once its
      context is written - the list says to write the key (`unlistedContextMessage`). A context Qorus reads whole
@@ -328,21 +328,41 @@ export const templateSearchItems = (
   const known =
     roots.length > 0 &&
     allTemplateNodes(roots).some((node) => templateContextOf(node.reference) === inContext?.[1]);
+  // what the field's catalogue says of the context, where it has one (`withTemplateCatalogue`); else as Qorus reads it
+  const catalogued =
+    inContext ?
+      templateContextsOf(roots, inContext[1].slice(1, -1)).find(
+        (node) => node.reference === inContext[1] && node.catalogue
+      )
+    : undefined;
+  const readWhole =
+    catalogued ?
+      !!catalogued.catalogue!.use_whole
+    : !!inContext && WHOLE_TEMPLATE_CONTEXTS.has(inContext[1].slice(1, -1));
   const whole =
-    (
-      inContext &&
-      known &&
-      wholeRecords !== false &&
-      WHOLE_TEMPLATE_CONTEXTS.has(inContext[1].slice(1, -1))
-    ) ?
+    inContext && known && wholeRecords !== false && readWhole ?
       [wholeContextRow(inContext[1])]
     : [];
-  return [
+  return onceEach([
     ...whole,
     ...searchTemplateReferences(roots, typed)
       .filter((node) => !node.writesKey)
       .map((node) => templateRow(node, typeLabel)),
-  ];
+  ]);
+};
+
+/* Each reference once: a template a field lists in a group of its own (Context Data) and its catalogue lists in its
+   context is one row, the first. */
+const onceEach = (rows: ILspCompletionItem[]): ILspCompletionItem[] => {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const written = unbracedReference(row.insertText ?? row.label);
+    if (seen.has(written)) {
+      return false;
+    }
+    seen.add(written);
+    return true;
+  });
 };
 
 /** The row for the whole of a context, `$data:*`: written as its chip. */
@@ -361,7 +381,9 @@ const wholeContextRow = (context: string): ILspCompletionItem => ({
 /** A node's row in the completion list. */
 const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletionItem => {
   const group = !!node.children?.length || !!node.loadChildren;
-  const isContext = node.id.startsWith('context:');
+  // a context written to go on into it (`$local:`): of the field's own templates, or of its catalogue
+  const isContext =
+    node.id.startsWith('context:') || (!!node.catalogue && /^\$[\w-]+:$/.test(node.reference ?? ''));
   /* A group that a reference names - a context, a state, a record - is gone on into as it is typed: taken, its
      reference is written and what is in it is listed (qorus#646, David: "accepting an intermediate level continues
      to the next level"). A group no reference names (Context Data) opens the picker at its members. */
@@ -376,8 +398,9 @@ const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletion
     templateNodeId: node.id,
     opens: group && !continuation,
     continues: !!continuation,
-    takesWhole: group && !!node.takesWhole,
-    wholeValue: group && node.takesWhole ? node.value : undefined,
+    // a context of keys written freely has none listed, and is taken whole all the same (`$dynamic:*`)
+    takesWhole: (group || isContext) && !!node.takesWhole,
+    wholeValue: (group || isContext) && node.takesWhole ? node.value : undefined,
     section: node.kind === 'field' ? RECORD_FIELDS_LABEL : 'Templates',
     kindLabel,
     kindIntent: templateNodeIntent(node),

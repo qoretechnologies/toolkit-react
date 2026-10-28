@@ -12,6 +12,7 @@
  */
 import type { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { templateBaseType, templateType } from './templateType';
+import type { ITemplateCatalogueContext } from './templateCatalogue';
 
 /** What a node is, as its row says it: the badge a row carries and the icon it is drawn with. */
 export type TTemplateNodeKind =
@@ -99,6 +100,8 @@ export interface ITemplateNode {
   disabled?: boolean;
   /** The catalogue row it was read from, for a host that needs its own metadata back. */
   row?: ITemplateCatalogueRow;
+  /** The context of the field's template catalogue it is (`withTemplateCatalogue`): what Qorus says of it. */
+  catalogue?: ITemplateCatalogueContext;
 }
 
 const text = (value: unknown): string | undefined =>
@@ -471,6 +474,12 @@ export const searchTemplateReferences = (
   const walk = (nodes: ITemplateNode[] | undefined) => {
     for (const node of nodes ?? []) {
       const reference = node.reference?.toLowerCase();
+      /* a context written whole (`$local:`) is gone into: what is in it is offered, not the context again
+         (its catalogue's contexts are nodes of their own, `withTemplateCatalogue`) */
+      if (node.catalogue && reference && wanted.includes(reference)) {
+        walk(node.children);
+        continue;
+      }
       if (
         reference &&
         wanted.some((each) => reference.startsWith(each)) &&
@@ -767,6 +776,14 @@ export const templateContextsOf = (
   wholeRecords?: boolean
 ): ITemplateNode[] => {
   const wanted = partial.toLowerCase();
+  /* the field's catalogue says which contexts it can use, and what each is (`withTemplateCatalogue`): those, as
+     it lists them - none guessed from the field's own templates */
+  const catalogued = roots
+    .find((node) => node.id === 'contexts')
+    ?.children?.filter((node) => node.catalogue);
+  if (catalogued?.length) {
+    return catalogued.filter((node) => node.catalogue!.name.toLowerCase().startsWith(wanted));
+  }
   const contexts = new Map<string, ITemplateNode[]>();
   const nodes = allTemplateNodes(roots);
   const byId = new Map(nodes.map((node) => [node.id, node]));

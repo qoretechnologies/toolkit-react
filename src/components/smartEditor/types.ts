@@ -276,6 +276,12 @@ export interface ISmartEditorProps {
   presentDiagnostics?: (diagnostics: ILspDiagnostic[], plainText: string) => ILspDiagnostic[];
 
   /**
+   * What can be done about a diagnostic, where the host can do it: a button beside what the editor says of it
+   * (qorus#646: "Declare it" for a variable a Qog does not declare, the server's `qog_variable_undeclared`).
+   */
+  diagnosticAction?: (diagnostic: ILspDiagnostic) => ISmartEditorDiagnosticAction | undefined;
+
+  /**
    * Whether a reference typed in the text names nothing the field is given: it stays the text it was typed as,
    * not drawn as a chip, which would read as a reference that stands for something (qorus#646).
    */
@@ -325,4 +331,10 @@ export interface ICompletionContext {
    * in `plainText` before the caret but is a value already.
    */
   typedInText?: string;
+}
+
+/** A host's action for a diagnostic (`diagnosticAction`): its button's label, and what it does. */
+export interface ISmartEditorDiagnosticAction {
+  label: string;
+  onClick: () => void;
 }

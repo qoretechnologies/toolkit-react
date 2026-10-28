@@ -49,6 +49,9 @@ const meta = {
   component: ExpressionField,
   title: 'Components/Form/Expressions/ExpressionField',
   parameters: {
+    /* an expression of a Qog state's options, as Qorus completes it (its catalogue fixture): in a loop, with
+       variables, configuration items and the data of the states before it */
+    templateCatalogue: 'qog-loops',
     mockData: [
       {
         url: storyApiUrl('system?action=expressions&context=ui'),
@@ -1873,9 +1876,9 @@ export const TextModeOffersTemplateCompletions: Story = {
         const listed = Array.from(
           document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')
         ).map((row) => row.getAttribute('data-label'));
-        expect(listed).toEqual(expect.arrayContaining(['$local:', '$timestamp:']));
-        // a context of variables only where some are defined: none are here (qorus#646 round 4)
-        expect(listed).not.toContain('$transient:');
+        // the Qog declares a global variable: its context is offered (qorus#646 round 4, Qorus's catalogue)
+        expect(listed).toEqual(expect.arrayContaining(['$local:', '$timestamp:', '$transient:']));
+        // no workflow runs the Qog: no order data
         expect(listed).not.toContain('$static:');
         expect(listed).not.toContain('$dynamic:');
         expect(listed).not.toContain('pos');
@@ -1914,7 +1917,7 @@ export const AnAtWithNoRecordSaysThereIsNone: Story = {
     docs: {
       description: {
         story:
-          'Types `1 + @` into the Text view of an expression that names no record and offers no templates: the completion list says "No record fields here" instead of opening empty or not at all (David\'s decision), and nothing is said of the `@` while it is open. Escape puts the list away, and the server\'s words for an `@` alone are said; a click after the `@` opens the list again, saying it again.',
+          'Types `1 + @` into the Text view of an expression that names no record: the completion list says "No record fields here" instead of opening empty or not at all (David\'s decision), with Browse all templates for the templates it can use, and nothing is said of the `@` while it is open. Escape puts the list away, and the server\'s words for an `@` alone are said; a click after the `@` opens the list again, saying it again.',
       },
     },
   },
@@ -1931,9 +1934,13 @@ export const AnAtWithNoRecordSaysThereIsNone: Story = {
     await waitForLspIdle(canvasElement);
     await userEvent.click(editable);
     await userEvent.type(editable, '1 + @');
-    await waitFor(() => expect(completionListed()).toEqual(['No record fields here']));
+    // the templates a field can use everywhere are still there to browse
+    await waitFor(() =>
+      expect(completionListed()).toEqual(['No record fields here', 'Browse all templates'])
+    );
+    // said above the row to browse the templates, as a note
     const message = document.querySelector<HTMLElement>(
-      '.completion-menu .completion-empty-message'
+      '.completion-menu .completion-empty-message, .completion-menu .completion-note'
     );
     expect(message, 'said, not a row to pick').toBeTruthy();
     // read, not dimmed as a row that cannot be picked is
@@ -1948,7 +1955,10 @@ export const AnAtWithNoRecordSaysThereIsNone: Story = {
     );
     // a click after the `@` asks again, and the list says it again
     await userEvent.click(editable);
-    await waitFor(() => expect(completionListed()).toEqual(['No record fields here']));
+    // the templates a field can use everywhere are still there to browse
+    await waitFor(() =>
+      expect(completionListed()).toEqual(['No record fields here', 'Browse all templates'])
+    );
     expect(saidUnderTheText(canvasElement)).toEqual([]);
   },
 };
@@ -2474,7 +2484,7 @@ export const AContextPickedGoesOnToWhatIsInIt: Story = {
     await userEvent.keyboard('{Tab}');
     // written as text and what is in it listed: the whole of it, and the local context's keys Qorus knows
     await waitFor(() =>
-      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'Interface ID', 'Interface Name']))
+      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'id', 'name']))
     );
     expect(editable.querySelectorAll('.reqore-tag')).toHaveLength(0);
     expect(editable.textContent).toContain('$local:');

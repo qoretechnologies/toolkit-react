@@ -1,0 +1,155 @@
+{
+  "description": "A field with no context: only the templates that work everywhere",
+  "response": {
+    "field_context": {
+      "interface_type": "generic",
+      "sandboxed": false,
+      "mode": "read"
+    },
+    "contexts": [
+      {
+        "name": "env",
+        "display_name": "Environment variables",
+        "description": "The server's environment variables",
+        "kind": "container",
+        "sort_priority": 26,
+        "use_whole": true,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "type": "hash<string, string>",
+        "keys": [
+          {
+            "name": "HOME",
+            "path": "HOME",
+            "template": "$env:HOME",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "environment",
+            "type": "string",
+            "description": "Environment variable HOME",
+            "base_type": "string"
+          },
+          {
+            "name": "PATH",
+            "path": "PATH",
+            "template": "$env:PATH",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "environment",
+            "type": "string",
+            "description": "Environment variable PATH",
+            "base_type": "string"
+          }
+        ],
+        "whole_template": "$env:*"
+      },
+      {
+        "name": "timestamp",
+        "display_name": "Timestamp",
+        "description": "The current time, midnight, or the current time in a date format",
+        "kind": "values",
+        "sort_priority": 27,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "now|timegm|last_midnight|next_midnight|<date format>",
+        "keys": [
+          {
+            "name": "now",
+            "path": "now",
+            "template": "$timestamp:now",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "type": "date",
+            "description": "The current date and time with microseconds",
+            "base_type": "date"
+          },
+          {
+            "name": "timegm",
+            "path": "timegm",
+            "template": "$timestamp:timegm",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "type": "int",
+            "description": "The current time as seconds since the epoch (GMT)",
+            "base_type": "int"
+          },
+          {
+            "name": "last_midnight",
+            "path": "last_midnight",
+            "template": "$timestamp:last_midnight",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "type": "date",
+            "description": "The last midnight (the start of today)",
+            "base_type": "date"
+          },
+          {
+            "name": "next_midnight",
+            "path": "next_midnight",
+            "template": "$timestamp:next_midnight",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "type": "date",
+            "description": "The next midnight (the start of tomorrow)",
+            "base_type": "date"
+          }
+        ]
+      },
+      {
+        "name": "rest",
+        "display_name": "REST API call",
+        "description": "The result of a GET request to the Qorus REST API",
+        "kind": "formatted",
+        "sort_priority": 28,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "<URI path>[.<key>...]"
+      },
+      {
+        "name": "qore-expr",
+        "display_name": "Qore expression",
+        "description": "The value of a Qore expression",
+        "kind": "expression",
+        "sort_priority": 29,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<expression>}"
+      },
+      {
+        "name": "python-expr",
+        "display_name": "Python expression",
+        "description": "The value of a Python expression",
+        "kind": "expression",
+        "sort_priority": 30,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<expression>}"
+      },
+      {
+        "name": "parse-value",
+        "display_name": "Parsed value",
+        "description": "A Qore value parsed from a string",
+        "kind": "expression",
+        "sort_priority": 31,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<value>}"
+      }
+    ]
+  }
+}
