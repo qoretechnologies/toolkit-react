@@ -42,7 +42,7 @@ import {
   calmNoteIntent,
   useIsCalmForm,
 } from './formAppearance';
-import { revealRow } from './revealRow';
+import { getRevealClearance, isCaretLineInView, revealRow } from './revealRow';
 import {
   StyledActionSlot,
   StyledCardHeading,
@@ -991,9 +991,10 @@ export const CompactRow = memo(
         // A card hands the caret only to where text goes (see `findRowFocusTarget`).
         const control = findRowFocusTarget(editor, { textEntryOnly: !inlineEditable });
         if (!control) return false;
-        // The least scroll that shows the row clear of the pinned box header,
-        // and none when it is already in view (see `revealRow`).
-        if (rowRef.current) {
+        // The least scroll that shows the row clear of the pinned box header, and none
+        // while the line the caret lands on is in view (`isCaretLineInView`: the row's own
+        // height is not settled yet, the top of its control is).
+        if (rowRef.current && !isCaretLineInView(control, getRevealClearance(control))) {
           revealRow(rowRef.current, 'auto');
         }
         // `preventScroll`, because the reveal above has already put the row
