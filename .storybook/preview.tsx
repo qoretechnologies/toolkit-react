@@ -6,6 +6,7 @@ import {
 } from '@qoretechnologies/reqore';
 import { initializeReqraft, ReqraftQueryClient } from '../src';
 import { startDpqlMockLsp } from '../src/components/form/expressions/dpqlMockLsp';
+import type { IQorusTemplateContext } from '../src/stories/qorusTemplateContexts';
 import { _resetServerQorusTypesForTests } from '../src/helpers/qorusTypeCatalogue';
 import { _resetExpressionTypeTransportForTests } from '../src/components/form/expressions/useExpressionType';
 import { _resetRenderExpressionTransportForTests } from '../src/components/form/expressions/useRenderExpression';
@@ -72,7 +73,11 @@ export const parameters = {
 // caches, and be served in place of this story's own mocks (useStorage's stored
 // value, useFetch's 409). Emptied before anything mounts: a request the previous
 // story left in flight is cancelled with nothing left waiting for it.
-export const beforeEach = ({ parameters }: { parameters?: IStoryClockParameters }) => {
+export const beforeEach = ({
+  parameters,
+}: {
+  parameters?: IStoryClockParameters & { qorusTemplateContext?: IQorusTemplateContext };
+}) => {
   ReqraftQueryClient.clear();
   // and without the type catalogue an earlier story's server answered with (`getQorusTypes`)
   _resetServerQorusTypesForTests();
@@ -82,7 +87,11 @@ export const beforeEach = ({ parameters }: { parameters?: IStoryClockParameters 
     // the expression type client too, and the types it cached: a story's server says what its expressions give
     _resetExpressionTypeTransportForTests();
     _resetSharedLspConnectionsForTests();
-    const stopLsp = parameters?.live ? undefined : startDpqlMockLsp();
+    // what the story says of where its field is (`qorusTemplateContext`): the contexts valid there
+    const stopLsp =
+      parameters?.live ? undefined : (
+        startDpqlMockLsp({ templateContext: parameters?.qorusTemplateContext })
+      );
     return () => {
       try {
         stopLsp?.();

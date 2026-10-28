@@ -9,6 +9,7 @@
 // The answers come from `dpqlMockLanguage`, which follows the real server.
 import {
   dpqlTemplateContext,
+  IQorusTemplateContext,
   qorusTemplateCompletions,
 } from '../../../stories/qorusTemplateContexts';
 import { mockHoverDpql } from '../../dpqlEditor/__fixtures__/dpqlMockHover';
@@ -69,6 +70,16 @@ const DPQL_MOCK_TYPE_NAMES: Record<string, string> = {
 /** A type as the catalogue names it: an optional or soft form, or a complex one, by its base; else its own name. */
 export const dpqlMockTypeName = (type: string): string =>
   DPQL_MOCK_TYPE_NAMES[type.replace(/^\*/, '').replace(/^soft/, '').replace(/<.*>$/, '')] ?? type;
+
+/** The local context's keys (`UserApi::getUserContextInfo()`), as Qorus lists them after `$local:`. */
+const DPQL_MOCK_LOCAL_KEYS = [
+  { name: 'id', display_name: 'Interface ID' },
+  { name: 'name', display_name: 'Interface Name' },
+  { name: 'type', display_name: 'Top-Level Interface Type' },
+];
+
+/** The template context the stand-in completes with: a Qog's, with what the story says is defined there. */
+let dpqlMockTemplateContext: IQorusTemplateContext = dpqlTemplateContext();
 
 /** What the server offers after a whole value: operators (Keywords), never a value. */
 const DPQL_MOCK_AFTER_A_VALUE = ['==', '!=', '<', '>', '&&', '||'].map((label) => ({
@@ -181,7 +192,10 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
        Qog's record expression that its name starts; after the `:`, the values Qorus knows in the context - none of
        a context of free keys, none of `$data:` with no Qog bound */
     if (token.startsWith('$') && !MOCK_WHOLE_TEMPLATE.test(token)) {
-      return { isIncomplete: false, items: qorusTemplateCompletions(token, dpqlTemplateContext()) };
+      return {
+        isIncomplete: false,
+        items: qorusTemplateCompletions(token, dpqlMockTemplateContext),
+      };
     }
     if (token.startsWith('@')) {
       return { isIncomplete: false, items: fieldItems };
@@ -194,7 +208,7 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
     const written = head.trimEnd();
     const items =
       !written || MOCK_BEFORE_A_VALUE.test(written) ?
-        [...fieldItems, ...qorusTemplateCompletions('$', dpqlTemplateContext())]
+        [...fieldItems, ...qorusTemplateCompletions('$', dpqlMockTemplateContext)]
       : MOCK_WHOLE_TEMPLATE.test(token) || written !== head ? DPQL_MOCK_AFTER_A_VALUE
       : [];
     return { isIncomplete: false, items };
@@ -288,6 +302,11 @@ const DPQL_MOCK_HANDLERS: Record<string, TMockLspHandler> = {
 export interface IStartDpqlMockLspOptions {
   /** Handlers to use instead of, or beside, the default ones. */
   handlers?: Record<string, TMockLspHandler>;
+  /**
+   * What the story says of where the field is - transient variables defined, a loop - for the server to offer the
+   * contexts valid there (the contract a Qorus agent is building).
+   */
+  templateContext?: IQorusTemplateContext;
   /** Per-method response delays in ms. */
   delays?: Record<string, number>;
 }
@@ -297,6 +316,11 @@ export const startDpqlMockLspServer = (
   options: IStartDpqlMockLspOptions = {}
 ): { lsp: IMockLspServer; stop: () => void } => {
   dpqlMockParseCalls.length = 0;
+  dpqlMockTemplateContext = {
+    ...dpqlTemplateContext(),
+    local_keys: DPQL_MOCK_LOCAL_KEYS,
+    ...options.templateContext,
+  };
   dpqlMockDocumentFields.clear();
   dpqlMockDocumentProviders.clear();
   const lsp = createMockLspServer(MOCK_LSP_URL, {

@@ -29,8 +29,10 @@ describe('the picker with the language server completions', () => {
   it('adds the template contexts, gone on from, the functions and the values as groups of their own', () => {
     const merged = withServerCompletions(roots, SERVER);
     const group = (label: string) => merged.find((node) => node.label === label)?.children ?? [];
-    expect(group('Template contexts').map((node) => [node.value, node.continues])).toEqual([
-      ['$timestamp:', true],
+    // the field's own context ($local:, with what is in it, taken whole) and the server's ($timestamp:, gone on from)
+    expect(group('Template contexts').map((node) => [node.reference, node.continues, node.value])).toEqual([
+      ['$local:', undefined, '$local:*'],
+      ['$timestamp:', true, undefined],
     ]);
     expect(group('Functions').map((node) => [node.label, node.value, node.kind])).toEqual([
       ['size', 'size(', 'function'],

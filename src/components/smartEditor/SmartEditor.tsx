@@ -423,6 +423,8 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
       converter,
       inserter: completionInserter,
       emptyMessage: emptyCompletionMessage,
+      // what to write next, above the rows, where none of them is what is written
+      noteAt: emptyCompletionMessage,
       // Enter or Tab where nothing more is listed: what is written at the caret, a whole reference, is its chip
       commitTyped: (editor) =>
         commitTypedReferences(
@@ -909,7 +911,13 @@ export const SmartEditor = forwardRef<TReqoreRichTextEditorRef, ISmartEditorProp
           /* An empty text offers its templates and fields: the picker, at its top (qorus#646, David: a click in an
              empty field shows the templates, the record's fields among them). */
           const empty = !converter.fromSlateNodes(editor.children as unknown as ISlateElement[]).trim();
-          if (browsesOnClick && (empty || !completeOnClick)) {
+          /* A reference being written at the caret is completed where it is - what is listed of it, what to write
+             next and Browse all templates to put a working one in its place - not left for the picker at the top
+             (qorus#646, David's review: a click at the end of `$dynamic:` showed the picker's top silently). */
+          // what is typed in the text the caret is in: a chip before it is a value, not a reference being written
+          const leaf = Editor.leaf(editor as unknown as Editor, caret.anchor)[0] as { text?: string };
+          const writing = /[$@][\w.:{}*-]*$/.test((leaf.text ?? '').slice(0, caret.anchor.offset));
+          if (browsesOnClick && !writing && (empty || !completeOnClick)) {
             openBrowse(editor as any, {
               rect: { left: at.left, bottom: at.bottom },
               caret: caret.anchor,

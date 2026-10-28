@@ -3,7 +3,12 @@
 // completion at the caret, with the field's templates merged in where a value can be written - opened by a click,
 // a tap or Tab as by typing - and the server's diagnostics in the words the editor owes the author.
 import { TTypeLabel } from '../../helpers/qorusTypeCatalogue';
-import { ITemplateNode, unbracedReference } from '../../helpers/templateTree';
+import {
+  ITemplateNode,
+  unbracedReference,
+  WHOLE_TEMPLATE_CONTEXTS,
+  wholeContextValue,
+} from '../../helpers/templateTree';
 import { ILspCompletionItem, ILspDiagnostic } from '../../utils/lspClient.types';
 import { EXPRESSION_HOLE } from '../form/expressions/renderExpressionToText';
 import {
@@ -128,6 +133,46 @@ const isRecordField = (item: ILspCompletionItem): boolean => {
   return item.kind === FIELD_KIND || written.startsWith('@') || unbracedReference(written).startsWith('$record:');
 };
 
+/** Whether a completion is a template context, written `$<name>:`. */
+const isContextItem = (item: ILspCompletionItem) => /^\$[\w-]+:$/.test(item.insertText ?? '');
+
+/**
+ * A server completion as the list draws it, by what the server says of it (`data`: the contract a Qorus agent is
+ * building - a container or a leaf, used whole or not): a context or a state, a container, is gone on into - its
+ * reference written as text and what is in it listed next - and its row's Use takes it whole (`$data:*`, the
+ * state's whole data). A server that says nothing of a context: a container, used whole as Qorus reads it
+ * (`WHOLE_TEMPLATE_CONTEXTS`).
+ */
+const markedServerItem = (item: ILspCompletionItem): ILspCompletionItem => {
+  const said = (item.data ?? {}) as { container?: boolean; use_whole?: boolean };
+  const written = item.textEdit?.newText ?? item.insertText ?? item.label;
+  if (isContextItem({ ...item, insertText: written })) {
+    if (said.container === false) return item;
+    const whole = said.use_whole ?? WHOLE_TEMPLATE_CONTEXTS.has(written.slice(1, -1));
+    return {
+      ...item,
+      data: {
+        ...said,
+        continues: true,
+        kindLabel: 'Template context',
+        // listed with the field's own templates and contexts, in one section
+        section: 'Templates',
+        takesWhole: whole,
+        wholeValue: whole ? wholeContextValue(written) : undefined,
+      },
+    };
+  }
+  if (said.container && /^\$[\w-]+:\S+$/.test(written)) {
+    return {
+      ...item,
+      insertText: `${written}.`,
+      filterText: written,
+      data: { ...said, continues: true, takesWhole: !!said.use_whole, wholeValue: said.use_whole ? written : undefined },
+    };
+  }
+  return item;
+};
+
 export const dpqlCompletionsWith =
   (roots: ITemplateNode[] = [], typeLabel?: TTypeLabel) =>
   ({ plainText, offset, serverItems, typedInText }: ICompletionContext): ILspCompletionItem[] => {
@@ -155,7 +200,7 @@ export const dpqlCompletionsWith =
     /* A record field the server offers is listed as the server lists it - it knows the record - and once: a field
        of the field's own list it offers too is left out of that list. */
     const ours = rankByFit(
-      typed && valueHere && roots.length ? templateSearchItems(roots, typed, typeLabel) : [],
+      typed && valueHere && roots.length ? templateSearchItems(roots, typed, typeLabel, true) : [],
       wordTyped(written)
     ).filter(
       (item) =>
@@ -164,21 +209,31 @@ export const dpqlCompletionsWith =
         !(typed.startsWith('$') && isRecordField(item))
     );
     const browse = valueHere && roots.length ? [browseAllTemplatesItem()] : [];
+    /* What the server says of a context or a value (the contract a Qorus agent is building, qorus#646 round 4): a
+       container is gone on into, its reference written as text, and taken whole (`$ctx:*`) where it can be. */
+    const marked = server.map(markedServerItem);
     if (!ours.length) {
-      // a context written that nothing is listed in: the list says what to write next (`unlistedContextMessage`)
-      if (!server.length && unlistedContextMessage(typed || written)) {
-        return [];
+      /* a context written that nothing is listed in: the list says what to write next (`unlistedContextMessage`),
+         with Browse all templates, to put a working reference in its place (qorus#646, David's review) */
+      if (!marked.length && unlistedContextMessage(typed || written)) {
+        return roots.length ? [browseAllTemplatesItem()] : [];
       }
-      return [...server, ...browse];
+      return [...marked, ...browse];
     }
-    /* a template context the server offers is listed as the server offers it, with its words; a template the
-       server offers that the field's own list has is listed once, as the field's own */
-    const serverWritten = new Set(server.map((item) => item.textEdit?.newText ?? item.insertText ?? item.label));
-    const oursListed = ours.filter(
-      (item) =>
-        !((item.data as { kindLabel?: string } | undefined)?.kindLabel === 'Template context' &&
-          serverWritten.has(item.insertText ?? ''))
+    /* a template context the field's own list has is listed as its own - with what is in it - and taken whole as
+       the server says it can be; the server's own row for it is left out below */
+    const serverWhole = new Map(
+      marked
+        .filter((item) => isContextItem(item))
+        .map((item) => [item.insertText ?? '', !!(item.data as { takesWhole?: boolean } | undefined)?.takesWhole])
     );
+    const oursListed = ours.map((item) => {
+      const data = item.data as { kindLabel?: string; takesWhole?: boolean } | undefined;
+      const whole = serverWhole.get(item.insertText ?? '');
+      return data?.kindLabel === 'Template context' && whole !== undefined && whole !== data.takesWhole ?
+          { ...item, data: { ...data, takesWhole: whole } }
+        : item;
+    });
     // by the reference each stands for: a state gone on into writes `$data:receive_order.`, the server's is the state
     const ownReferences = new Set(
       oursListed.flatMap((item) => [
@@ -188,14 +243,16 @@ export const dpqlCompletionsWith =
     );
     const rest = [
       ...oursListed,
-      ...server.filter(
+      ...marked.filter(
         (item) =>
-          !ownReferences.has(unbracedReference(item.textEdit?.newText ?? item.insertText ?? item.label))
+          !ownReferences.has(unbracedReference(item.textEdit?.newText ?? item.insertText ?? item.label)) &&
+          // a state gone on into: its reference without the `.`
+          !ownReferences.has(unbracedReference((item.insertText ?? '').replace(/\.$/, '')))
       ),
     ];
     /* the contexts first, by name as Qorus lists them, the field's own and the server's alike, then what is named
        so: `$time` lists $timestamp: before Current Timestamp */
-    const isContext = (item: ILspCompletionItem) => /^\$[\w-]+:$/.test(item.insertText ?? '');
+    const isContext = isContextItem;
     return [
       ...rest.filter(isContext).sort((a, b) => (a.insertText ?? '').localeCompare(b.insertText ?? '')),
       ...rest.filter((item) => !isContext(item)),

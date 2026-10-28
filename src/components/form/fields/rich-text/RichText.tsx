@@ -55,7 +55,13 @@ import {
   templateSearchItems,
   unlistedContextMessage,
 } from '../../../smartEditor/templateCompletions';
-import { referenceNamesNothing, templateNodeFor, templateTree } from '../../../../helpers/templateTree';
+import {
+  openLoneGroup,
+  referenceNamesNothing,
+  templateNodeFor,
+  templateTree,
+  withTemplateContexts,
+} from '../../../../helpers/templateTree';
 import { commitTypedReferences } from '../../../smartEditor/typedReferences';
 import { ISlateConverter, ISlateElement } from '../../../smartEditor/types';
 import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
@@ -488,6 +494,18 @@ export const RichTextFormField = memo(({
     () => (allowTemplates !== false && !readOnly ? templateTree(templates, { wholeRecords }) : []),
     [allowTemplates, readOnly, templates, wholeRecords]
   );
+  // a lone group kept whole, for the picker to open only where nothing is added beside it (`openLoneGroup`)
+  const templateRootsKept = useMemo(
+    () =>
+      allowTemplates !== false && !readOnly ?
+        templateTree(templates, { wholeRecords, keepLoneGroup: true })
+      : [],
+    [allowTemplates, readOnly, templates, wholeRecords]
+  );
+  const pickerRoots = useMemo(
+    () => openLoneGroup(withTemplateContexts(templateRootsKept, wholeRecords)),
+    [templateRootsKept, wholeRecords]
+  );
   const completionMenuId = useMemo(() => `completion-menu-text-${++textCompletionMenuCounter}`, []);
   // a template's type named in its row by the catalogue the surrounding form has, never its code
   const typeLabel = useTypeLabel();
@@ -511,12 +529,12 @@ export const RichTextFormField = memo(({
       // what is typed in the text the caret is in: a chip before it is a value, not a reference being typed
       const typed = REFERENCE_BEING_TYPED.exec(typedInText ?? plainText.slice(0, offset))?.[1];
       if (!typed) return [];
-      const rows = templateSearchItems(templateRoots, typed, typeLabel);
-      // a context written that nothing is listed in: the list says what to write next (`emptyMessage`)
-      if (!rows.length && unlistedContextMessage(typed)) return [];
+      const rows = templateSearchItems(templateRoots, typed, typeLabel, wholeRecords);
+      /* a context written that nothing is listed in: the list says what to write next above Browse all
+         templates, which puts a working reference in its place (`noteAt`; qorus#646, David's review) */
       return [...rows, browseAllTemplatesItem()];
     },
-    [templateRoots, typeLabel]
+    [templateRoots, typeLabel, wholeRecords]
   );
   const autocomplete = useLspAutocomplete({
     getCompletions: offerTemplates,
@@ -526,6 +544,7 @@ export const RichTextFormField = memo(({
     inserter: templateChipInserter,
     // a context written that nothing is listed in: what to write next, the list held open
     emptyMessage: unlistedContextMessageAt,
+    noteAt: unlistedContextMessageAt,
     // Enter or Tab where nothing more is listed: what is written at the caret, a whole reference, is its chip
     commitTyped: (editor) =>
       commitTypedReferences(
@@ -535,7 +554,7 @@ export const RichTextFormField = memo(({
         editor.selection?.anchor.path[0]
       ),
   });
-  const { openBrowse } = autocomplete;
+  const { openBrowse, openAtCaret } = autocomplete;
   const coarse = useCoarsePointer();
   const autocompleteRef = useRef(autocomplete);
   autocompleteRef.current = autocomplete;
@@ -563,12 +582,22 @@ export const RichTextFormField = memo(({
         const at = box.width || box.height ? box : root.getBoundingClientRect();
         // in an empty text the arrows have nowhere else to go: they move through the picker
         const empty = !defaultSlateConverter.fromSlateNodes(editor.children as any).trim();
+        /* A reference being written at the caret is completed where it is: what is listed of it, what to write
+           next and Browse all templates, to put a working one in its place - not the picker's top (qorus#646,
+           David's review: a click at the end of `$dynamic:` showed the picker's top silently). */
+        // what is typed in the text the caret is in: a chip before it is a value, not a reference being written
+        const leaf = Editor.leaf(editor as unknown as Editor, caret.anchor)[0] as { text?: string };
+        const textBefore = (leaf.text ?? '').slice(0, caret.anchor.offset);
+        if (REFERENCE_BEING_TYPED.test(textBefore)) {
+          openAtCaret(editor as any, caret.anchor, { left: at.left, bottom: at.bottom });
+          return;
+        }
         openBrowse(editor as any, { rect: { left: at.left, bottom: at.bottom }, caret: caret.anchor, arrows: empty });
       } catch {
         // the editor is not drawn, or the page's caret is not in it: nothing opens
       }
     },
-    [templateRoots, readOnly, openBrowse]
+    [templateRoots, readOnly, openBrowse, openAtCaret]
   );
 
   /* A click on a template chip the catalogue lists opens the picker at the chip's group, its row the keyboard's,
@@ -816,7 +845,8 @@ export const RichTextFormField = memo(({
     <CompletionMenu
       autocomplete={autocomplete}
       id={completionMenuId}
-      templateRoots={templateRoots}
+      // the picker offers what typing offers: the template contexts too, each taken whole or gone into
+      templateRoots={pickerRoots}
       onSelect={(item) => editorRef.current && autocomplete.onItemSelect(item, editorRef.current as any)}
     />
     </>

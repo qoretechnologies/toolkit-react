@@ -13,6 +13,13 @@
  *
  * and `Classes/QorusLspWebSocketHandler.qc` `buildDpqlTemplateContext()`: a DPQL document is always completed as a
  * Qog's (`interface_type: "fsm"`, a record expression), with the state data of the Qog it is bound to.
+ *
+ * PENDING (qorus#646 round 4: the contract a Qorus agent is building; this mirror follows it until it lands, then
+ * follows the code): each context offered only where it is valid - `$transient:`/`$globalvar:` where transient
+ * variables are defined, `$var:`/`$localvar:` where block-local ones are, `$autovar:` where auto variables are,
+ * `$foreach:`/`$for:` inside such a loop - and marked a container or a leaf, with its known keys (nested), whether it
+ * can be used whole (`$ctx:*`: UserApi `_priv_get_template_arg` reads `*` as an argument, and `getHashDotValue()`
+ * gives the whole hash for it), its type, and whether its keys are free (written by the user).
  */
 
 export type TQorusInterfaceType = 'wf' | 'svc' | 'job' | 'fsm';
@@ -22,6 +29,15 @@ export interface IQorusTemplateContext {
   interface_type?: TQorusInterfaceType;
   record_expression?: boolean;
   sandboxed?: boolean;
+  /** PENDING: the transient variables (`$transient:`), block-local (`$var:`) and auto variables defined here. */
+  transient_vars?: string[];
+  local_vars?: string[];
+  auto_vars?: string[];
+  /** PENDING: the loops the field is inside of, by kind (`$foreach:`, `$for:`). */
+  loops?: { foreach?: boolean; for?: boolean };
+  /** PENDING: the keys of the local context (`UserApi::getUserContextInfo()`) and a workflow's declared static data. */
+  local_keys?: IQorusTemplateKey[];
+  static_keys?: IQorusTemplateKey[];
   /** The bound Qog's state data, by state: each with its display name and items. */
   state_data?: Record<
     string,
@@ -32,11 +48,80 @@ export interface IQorusTemplateContext {
   >;
 }
 
+/** PENDING: a known key of a context, or of a key that is a container itself (nested). */
+export interface IQorusTemplateKey {
+  name: string;
+  display_name?: string;
+  type?: string;
+  description?: string;
+  container?: boolean;
+  use_whole?: boolean;
+  free_keys?: boolean;
+  keys?: IQorusTemplateKey[];
+}
+
 export interface IQorusTemplateContextInfo {
   name: string;
   description: string;
   needs_arg: boolean;
+  /** PENDING: a container (it holds keys) or a leaf (a value written after it, `$timestamp:now`). */
+  container: boolean;
+  /** PENDING: whether it can be used whole, `$<name>:*`. */
+  use_whole: boolean;
+  /** PENDING: whether its keys are written freely, not all known (`$dynamic:`). */
+  free_keys: boolean;
+  type?: string;
 }
+
+/** The contexts read as a hash with `*` for the whole of it (UserApi `expandOneVariable()`: `getHashDotValue()`, or
+ *  an explicit `"*"` case). */
+const WHOLE_CONTEXTS = new Set([
+  'autovar',
+  'config',
+  'data',
+  'dynamic',
+  'env',
+  'for',
+  'foreach',
+  'fsminput',
+  'globalvar',
+  'local',
+  'localvar',
+  'record',
+  'static',
+  'transient',
+  'var',
+  'xconfig',
+]);
+/** The contexts written after their `:` as an expression or a single value, not keys: leaves. */
+const LEAF_CONTEXTS = new Set([
+  'parse-value',
+  'python-expr',
+  'qore-expr',
+  'rest',
+  'sysprop',
+  'timestamp',
+  'value-map',
+]);
+/** The contexts whose keys are written freely: not all known where the field is edited. */
+const FREE_KEY_CONTEXTS = new Set([
+  'dynamic',
+  'static',
+  'temp',
+  'sensitive',
+  'sensitive-alias',
+  'keys',
+  'pstate',
+  'state',
+  'step',
+  'env',
+  'rest',
+  'sysprop',
+  'value-map',
+  'fsminput',
+  'info',
+  'jinfo',
+]);
 
 const CONTEXTS: Array<[string, string]> = [
   ['autovar', 'Automatically-managed variable data — type: `$autovar:field_name`'],
@@ -97,7 +182,15 @@ const WORKFLOW_ONLY = new Set([
 export const qorusTemplateContexts = (
   context?: IQorusTemplateContext
 ): IQorusTemplateContextInfo[] => {
-  let contexts = CONTEXTS.map(([name, description]) => ({ name, description, needs_arg: true }));
+  let contexts = CONTEXTS.map(([name, description]) => ({
+    name,
+    description,
+    needs_arg: true,
+    container: !LEAF_CONTEXTS.has(name),
+    use_whole: WHOLE_CONTEXTS.has(name),
+    // a workflow's static data has its keys where its type declares them
+    free_keys: FREE_KEY_CONTEXTS.has(name) && !(name === 'static' && context?.static_keys?.length),
+  }));
   if (!context) {
     return contexts.filter(({ name }) => name !== 'record');
   }
@@ -116,7 +209,21 @@ export const qorusTemplateContexts = (
     if (type === 'fsm')
       contexts = contexts.filter(({ name }) => name !== 'pstate' && name !== 'info');
   }
-  return contexts;
+  // PENDING: a context of variables only where some are defined, a loop's only inside one
+  const defined: Record<string, unknown[] | boolean | undefined> = {
+    transient: context.transient_vars,
+    globalvar: context.transient_vars,
+    var: context.local_vars,
+    localvar: context.local_vars,
+    autovar: context.auto_vars,
+    foreach: context.loops?.foreach,
+    for: context.loops?.for,
+  };
+  return contexts.filter(({ name }) => {
+    if (!(name in defined)) return true;
+    const has = defined[name];
+    return Array.isArray(has) ? has.length > 0 : !!has;
+  });
 };
 
 /** `QorusClientServer::listTemplateValues()`: the values Qorus knows in a context; none for any other. */
@@ -143,6 +250,31 @@ export const qorusTemplateValues = (
       ];
     case 'for':
       return [{ name: 'value', description: 'Current for loop value' }];
+    // PENDING: the keys Qorus knows where the field is edited
+    case 'local':
+      return context?.local_keys?.map((key) => ({
+        ...key,
+        description: key.description ?? key.name,
+      }));
+    case 'static':
+      return context?.static_keys?.map((key) => ({
+        ...key,
+        description: key.description ?? key.name,
+      }));
+    case 'transient':
+    case 'globalvar':
+      return context?.transient_vars?.map((name) => ({
+        name,
+        description: `Transient variable ${name}`,
+      }));
+    case 'var':
+    case 'localvar':
+      return context?.local_vars?.map((name) => ({
+        name,
+        description: `Block-local variable ${name}`,
+      }));
+    case 'autovar':
+      return context?.auto_vars?.map((name) => ({ name, description: `Auto variable ${name}` }));
     case 'data': {
       if (!context?.state_data) return undefined;
       const dot = prefix.indexOf('.');
@@ -184,21 +316,26 @@ export const qorusTemplateValues = (
 export const qorusTemplateCompletions = (written: string, context?: IQorusTemplateContext) => {
   const rest = written.slice(1);
   const colon = rest.indexOf(':');
+  const contexts = qorusTemplateContexts(context);
   if (colon < 0) {
-    return qorusTemplateContexts(context)
+    return contexts
       .filter(({ name }) => name.startsWith(rest))
-      .map(({ name, description }) => ({
+      .map(({ name, description, container, use_whole, free_keys }) => ({
         label: `$${name}:`,
         kind: 6,
         insertText: `$${name}:`,
         filterText: `$${name}:`,
         detail: "needs a value after ':'",
         documentation: description,
+        // PENDING: what it is, for the editor to go on into it and take it whole
+        data: { container, use_whole, free_keys },
       }));
   }
   const ctx = rest.slice(0, colon);
   const prefix = rest.slice(colon + 1);
-  return (qorusTemplateValues(ctx, prefix, context) ?? [])
+  const info = contexts.find(({ name }) => name === ctx);
+  if (!info) return [];
+  const values = (qorusTemplateValues(ctx, prefix, context) ?? [])
     .filter((value) => ctx === 'data' || value.name.startsWith(prefix))
     .map((value) => ({
       label: value.display_name ?? `$${ctx}:${value.name}`,
@@ -207,7 +344,27 @@ export const qorusTemplateCompletions = (written: string, context?: IQorusTempla
       filterText: `$${ctx}:${value.name}`,
       ...(value.type ? { detail: value.type } : {}),
       documentation: value.description,
+      // a Qog's state is a container of its own: its data, and the whole of it
+      ...(ctx === 'data' && !value.name.includes('.') ?
+        { data: { container: true, use_whole: true } }
+      : {}),
     }));
+  // PENDING: the whole of a context that can be used whole, `$<name>:*`
+  const whole =
+    info.use_whole && (!prefix || '*'.startsWith(prefix)) ?
+      [
+        {
+          label: `$${ctx}:*`,
+          kind: 6,
+          insertText: `$${ctx}:*`,
+          filterText: `$${ctx}:*`,
+          detail: 'all of it',
+          documentation: `The whole of ${info.description.split(' — ')[0].toLowerCase()}`,
+          data: { whole: true },
+        },
+      ]
+    : [];
+  return [...whole, ...values];
 };
 
 /** `buildDpqlTemplateContext()`: a DPQL document's template context, always a Qog's. */

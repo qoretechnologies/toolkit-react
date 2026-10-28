@@ -132,6 +132,11 @@ export interface IUseLspAutocompleteOptions {
    * and Enter or Tab is pressed (`commitTypedReferences`); whether anything was taken.
    */
   commitTyped?: (editor: BaseEditor & ReactEditor & HistoryEditor) => boolean;
+  /**
+   * What the list says above its rows where none of them is what is written (only Browse all templates, or the
+   * whole of a context): a context of free keys, a reference naming nothing - what to write next (qorus#646).
+   */
+  noteAt?: (plainText: string, offset: number) => string | undefined;
 }
 
 export interface IUseLspAutocompleteResult {
@@ -144,6 +149,8 @@ export interface IUseLspAutocompleteResult {
   isFetching: boolean;
   /** What the open list says in place of rows, where nothing can be offered (`emptyMessage`). */
   emptyMessage?: string;
+  /** What the open list says above its rows, where it lists nothing of what is written (`noteAt`). */
+  note?: string;
   /** The list is open, or asked for and on its way. */
   isActive: boolean;
   focusedIndex: number;
@@ -366,6 +373,7 @@ export function useLspAutocomplete(
     inserter,
     emptyMessage: emptyMessageAt,
     commitTyped,
+    noteAt,
   } = opts;
   const commitTypedRef = useRef(commitTyped);
   commitTypedRef.current = commitTyped;
@@ -376,6 +384,9 @@ export function useLspAutocomplete(
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [isFetching, setIsFetching] = useState(false);
   const [emptyMessage, setEmptyMessage] = useState<string>();
+  const [note, setNote] = useState<string>();
+  const noteRef = useRef<string>();
+  noteRef.current = note;
   // asked for and not answered yet: the debounce running, or the answer on its way (`pendingRequestRef`)
   const [isRequested, setIsRequested] = useState(false);
   // Handle for the deferred `setIsFetching(true)`; cleared on resolve or
@@ -537,6 +548,12 @@ export function useLspAutocomplete(
           return;
         }
         setEmptyMessage(undefined);
+        // nothing listed of what is written: what to write next, above the rows there are
+        const substantive = lspItems.filter((item) => {
+          const marks = (item.data ?? {}) as { browseAll?: boolean; whole?: boolean };
+          return !marks.browseAll && !marks.whole;
+        });
+        setNote(substantive.length ? undefined : noteAt?.(plainText, offset));
         // Sort by `sortText` when present (Qonsole encodes rank into it);
         // otherwise preserve server order, as DPQL doesn't populate it.
         const sortedLspItems = lspItems.some((i) => i.sortText)
@@ -566,7 +583,7 @@ export function useLspAutocomplete(
         }
       }
     },
-    [getCompletions, isReady, emptyMessageAt]
+    [getCompletions, isReady, emptyMessageAt, noteAt]
   );
 
   /* One debounced request for the editor's life, sending with the latest `performCompletionRequest`: remade when
@@ -602,6 +619,7 @@ export function useLspAutocomplete(
     setIsOpen(false);
     setItems([]);
     setEmptyMessage(undefined);
+    setNote(undefined);
     setIsRequested(false);
     setFocusedIndex(0);
     setFilterPrefix('');
@@ -809,8 +827,16 @@ export function useLspAutocomplete(
     count: filteredItems.length,
     setFocusedIndex,
     onAccept: () => {
+      /* where none of the rows is what is written (the note says so) and what is written is a whole reference -
+         a context of free keys and its key, `$dynamic:order.id` - Enter or Tab takes what is written, its chip;
+         else the row the keyboard is on (qorus#646, David's review) */
+      const editor = editorRef.current;
+      if (noteRef.current && editor && commitTypedRef.current?.(editor)) {
+        close();
+        return;
+      }
       const item = filteredItems[focusedIndexRef.current];
-      if (item && editorRef.current) selectItem(item);
+      if (item && editor) selectItem(item);
     },
     onClose: close,
     onOtherKey: (e) => {
@@ -1196,7 +1222,8 @@ export function useLspAutocomplete(
 
   const pickTemplate = useCallback(
     (node: ITemplateNode, written?: string) => {
-      const value = written ?? node.value;
+      // a context gone on into writes its reference (`$local:`); taken whole, its value (`$local:*`)
+      const value = written ?? (node.continues ? node.reference : node.value);
       if (!value) return;
       /* what it is, for the editor to write it as it is: a field or a template as its chip, a function, a value or
          a keyword as text, a template context as text that is completed on (`continues`) */
@@ -1210,7 +1237,7 @@ export function useLspAutocomplete(
           label: node.label,
           insertText: value,
           kind,
-          data: { templateNodeId: node.id, ...(node.continues ? { continues: true } : {}) },
+          data: { templateNodeId: node.id, ...(node.continues && !written ? { continues: true } : {}) },
         },
       ]);
       selectItem({ ...item, metadata: { ...item.metadata, retrigger: false } });
@@ -1226,6 +1253,7 @@ export function useLspAutocomplete(
     isReplaceMode,
     isFetching,
     emptyMessage: isOpen ? emptyMessage : undefined,
+    note: isOpen ? note : undefined,
     isActive: isOpen || isRequested,
     focusedIndex,
     close,

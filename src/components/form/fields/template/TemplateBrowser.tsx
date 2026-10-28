@@ -3,7 +3,12 @@ import { ReqoreDropdown } from '@qoretechnologies/reqore';
 import { IReqoreDropdownProps } from '@qoretechnologies/reqore/dist/components/Dropdown';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { useCallback, useMemo, useRef } from 'react';
-import { ITemplateNode, templateTree } from '../../../../helpers/templateTree';
+import {
+  ITemplateNode,
+  openLoneGroup,
+  templateTree,
+  withTemplateContexts,
+} from '../../../../helpers/templateTree';
 import { TEMPLATE_BROWSE_LIST_PROPS } from '../rich-text/useTemplateTags';
 import { TemplatePicker } from './TemplatePicker';
 
@@ -36,7 +41,17 @@ export const TemplateBrowser = ({
   wholeRecords,
   ...rest
 }: ITemplateBrowserProps & Record<string, unknown>) => {
-  const roots = useMemo(() => templateTree(templates, { wholeRecords }), [templates, wholeRecords]);
+  // the template contexts too, each taken whole or gone into, as typing offers them (qorus#646)
+  const roots = useMemo(
+    () =>
+      openLoneGroup(
+        withTemplateContexts(
+          templateTree(templates, { wholeRecords, keepLoneGroup: true }),
+          wholeRecords
+        )
+      ),
+    [templates, wholeRecords]
+  );
   const id = useMemo(() => `template-browser-${++templateBrowserCounter}`, []);
   // the popover's own controls: a pick puts it away
   const popover = useRef<{ close?: () => void } | null>(null);

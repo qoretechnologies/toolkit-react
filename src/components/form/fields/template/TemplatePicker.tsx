@@ -659,7 +659,8 @@ export const TemplatePicker = memo(
                   />
                 }
                 badge={rowBadges(node, typeLabel) as any}
-                rightIcon={group ? 'ArrowRightSLine' : undefined}
+                // a group opens; a context only the server knows goes on into what is in it as it is typed
+                rightIcon={group || node.continues ? 'ArrowRightSLine' : undefined}
                 selected={index === focused}
                 active={index === focused}
                 disabled={node.disabled}
@@ -670,7 +671,7 @@ export const TemplatePicker = memo(
                 onMouseDown={keysFromPage ? keepTheFocus : undefined}
                 onClick={() => take(node)}
                 rightAction={
-                  group && node.takesWhole ?
+                  (group || node.continues) && node.takesWhole ?
                     ({
                       label: 'Use',
                       className: 'template-picker-use',
@@ -678,7 +679,8 @@ export const TemplatePicker = memo(
                       tooltip: coarse ? undefined : useWholeSays(node.label),
                       compact: true,
                       onMouseDown: keysFromPage ? keepTheFocus : undefined,
-                      onClick: () => pick(node),
+                      // the whole of it: its value, not gone on into
+                      onClick: () => onPick(node, node.value),
                       style: {
                         ...USE_WHOLE_STYLE,
                         ...(coarse ? { minWidth: 44, minHeight: 44 } : {}),

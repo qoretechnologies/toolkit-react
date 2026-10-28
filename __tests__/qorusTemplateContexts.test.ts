@@ -51,9 +51,7 @@ describe("the stories' Qorus template contexts", () => {
     for (const name of ['static', 'dynamic', 'keys', 'jinfo', 'state', 'pstate', 'info']) {
       expect(fsm, name).not.toContain(name);
     }
-    expect(fsm).toEqual(
-      expect.arrayContaining(['data', 'config', 'local', 'timestamp', 'transient'])
-    );
+    expect(fsm).toEqual(expect.arrayContaining(['data', 'config', 'local', 'timestamp']));
   });
 
   it('a record expression has `record`; a sandboxed user no `env`, `python-expr`, `rest` or `sysprop`', () => {
@@ -113,5 +111,72 @@ describe("the stories' Qorus template contexts", () => {
         ({ insertText }) => insertText
       )
     ).toEqual(['$timestamp:now', '$timestamp:next_midnight']);
+  });
+
+  /* PENDING (the contract a Qorus agent is building, qorus#646 round 4): a context only where it is valid, marked a
+     container or a leaf, used whole with `*`, its keys known or free */
+  it("offers a context of variables only where some are defined, a loop's only inside one", () => {
+    for (const name of ['transient', 'globalvar', 'var', 'localvar', 'autovar', 'foreach', 'for']) {
+      expect(names({ interface_type: 'fsm' }), name).not.toContain(name);
+    }
+    const scoped = names({
+      interface_type: 'fsm',
+      transient_vars: ['order'],
+      local_vars: ['tries'],
+      auto_vars: ['row'],
+      loops: { foreach: true, for: true },
+    });
+    expect(scoped).toEqual(
+      expect.arrayContaining([
+        'transient',
+        'globalvar',
+        'var',
+        'localvar',
+        'autovar',
+        'foreach',
+        'for',
+      ])
+    );
+  });
+
+  it('marks containers, leaves, the contexts used whole and those of free keys', () => {
+    const info = (name: string, context = {}) =>
+      qorusTemplateContexts(context).find((each) => each.name === name);
+    expect(info('local')).toMatchObject({ container: true, use_whole: true, free_keys: false });
+    expect(info('timestamp')).toMatchObject({ container: false, use_whole: false });
+    expect(info('dynamic', { interface_type: 'wf' })).toMatchObject({
+      container: true,
+      use_whole: true,
+      free_keys: true,
+    });
+    expect(info('static', { interface_type: 'wf' })).toMatchObject({ free_keys: true });
+    expect(
+      info('static', { interface_type: 'wf', static_keys: [{ name: 'order_id' }] })
+    ).toMatchObject({
+      free_keys: false,
+    });
+  });
+
+  it('completes a context used whole with `$ctx:*` first, then its known keys', () => {
+    const local = qorusTemplateCompletions('$local:', {
+      interface_type: 'fsm',
+      local_keys: [{ name: 'name', display_name: 'Interface Name' }],
+    });
+    expect(local.map(({ insertText }) => insertText)).toEqual(['$local:*', '$local:name']);
+    expect(qorusTemplateCompletions('$timestamp:', dpqlTemplateContext())[0].insertText).toBe(
+      '$timestamp:now'
+    );
+    expect(qorusTemplateCompletions('$transient:', dpqlTemplateContext())).toEqual([]);
+    expect(
+      qorusTemplateCompletions('$transient:', {
+        interface_type: 'fsm',
+        transient_vars: ['order'],
+      }).map(({ insertText }) => insertText)
+    ).toEqual(['$transient:*', '$transient:order']);
+    expect(qorusTemplateCompletions('$loc', dpqlTemplateContext())[0].data).toEqual({
+      container: true,
+      use_whole: true,
+      free_keys: false,
+    });
   });
 });

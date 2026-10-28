@@ -15,7 +15,15 @@ import { templateBaseType, templateType } from './templateType';
 
 /** What a node is, as its row says it: the badge a row carries and the icon it is drawn with. */
 export type TTemplateNodeKind =
-  'group' | 'state' | 'context' | 'config' | 'variable' | 'field' | 'template' | 'function' | 'keyword';
+  | 'group'
+  | 'state'
+  | 'context'
+  | 'config'
+  | 'variable'
+  | 'field'
+  | 'template'
+  | 'function'
+  | 'keyword';
 
 /** What a row says a node is, in words. A group says nothing: its members do. */
 export const TEMPLATE_NODE_KIND_LABELS: Record<TTemplateNodeKind, string | undefined> = {
@@ -292,7 +300,10 @@ const fieldNodes = (
     ].filter(Boolean);
     const id = `${parentId}.${index}`;
     const members =
-      field?.fields ?? (typeof field?.type === 'object' && !Array.isArray(field.type) ? field.type.fields : undefined);
+      field?.fields ??
+      (typeof field?.type === 'object' && !Array.isArray(field.type) ?
+        field.type.fields
+      : undefined);
     return {
       id,
       label: name,
@@ -302,7 +313,14 @@ const fieldNodes = (
       type: fieldTypeName(field?.type),
       description: said.length ? said.join(': ') : undefined,
       trail,
-      trailIds: [...trail.map((_, at) => parentId.split('.').slice(0, at + 1).join('.'))],
+      trailIds: [
+        ...trail.map((_, at) =>
+          parentId
+            .split('.')
+            .slice(0, at + 1)
+            .join('.')
+        ),
+      ],
       ...(members && Object.keys(members).length ?
         { children: fieldNodes(members, id, [...trail, name], value), takesWhole: true }
       : {}),
@@ -715,7 +733,39 @@ export const templateContextOf = (reference: string | undefined): string | undef
  * context its nodes are in (`$data:`, `$local:`, ...), as a node of its own whose members are its first nodes, in
  * the order the tree lists them. Taking one writes it and goes on to what is in it.
  */
-export const templateContextsOf = (roots: ITemplateNode[], partial = ''): ITemplateNode[] => {
+/**
+ * The template contexts Qorus reads as a hash, `*` the whole of it (UserApi `expandOneVariable()`: the contexts read
+ * with `getHashDotValue()`, which gives the whole hash for `*`, and those with a `"*"` case of their own; an argument
+ * `*` is read by `_priv_get_template_arg()`: `\*|\w+[\w.]*`). A context of these is a container: used whole as
+ * `$<context>:*` where the field takes a record (qorus#646, David's review).
+ */
+export const WHOLE_TEMPLATE_CONTEXTS = new Set([
+  'autovar',
+  'config',
+  'data',
+  'dynamic',
+  'env',
+  'for',
+  'foreach',
+  'fsminput',
+  'globalvar',
+  'local',
+  'localvar',
+  'record',
+  'static',
+  'transient',
+  'var',
+  'xconfig',
+]);
+
+/** The whole of a context, as Qorus writes it: `$data:*`. */
+export const wholeContextValue = (context: string) => `${context}*`;
+
+export const templateContextsOf = (
+  roots: ITemplateNode[],
+  partial = '',
+  wholeRecords?: boolean
+): ITemplateNode[] => {
   const wanted = partial.toLowerCase();
   const contexts = new Map<string, ITemplateNode[]>();
   const nodes = allTemplateNodes(roots);
@@ -733,6 +783,8 @@ export const templateContextsOf = (roots: ITemplateNode[], partial = ''): ITempl
   }
   return Array.from(contexts.entries()).map(([context, members]) => {
     const groups = Array.from(new Set(members.map((member) => member.trail[0] ?? member.label)));
+    // used whole where the field takes a record and Qorus reads the context whole (`WHOLE_TEMPLATE_CONTEXTS`)
+    const whole = wholeRecords !== false && WHOLE_TEMPLATE_CONTEXTS.has(context.slice(1, -1));
     return {
       id: `context:${context}`,
       label: context,
@@ -742,6 +794,7 @@ export const templateContextsOf = (roots: ITemplateNode[], partial = ''): ITempl
       trail: [],
       trailIds: [],
       children: members,
+      ...(whole ? { value: wholeContextValue(context), takesWhole: true } : {}),
     };
   });
 };
@@ -756,10 +809,30 @@ interface IServerCompletion {
   documentation?: string | { value?: string };
 }
 
-const SERVER_GROUPS: Array<{ id: string; label: string; kind: TTemplateNodeKind; description: string }> = [
-  { id: 'contexts', label: 'Template contexts', kind: 'context', description: 'Write one and pick what is in it' },
-  { id: 'functions', label: 'Functions', kind: 'function', description: 'What the expression can call' },
-  { id: 'keywords', label: 'Values and keywords', kind: 'keyword', description: 'Literal values and operators' },
+const SERVER_GROUPS: Array<{
+  id: string;
+  label: string;
+  kind: TTemplateNodeKind;
+  description: string;
+}> = [
+  {
+    id: 'contexts',
+    label: 'Template contexts',
+    kind: 'context',
+    description: 'Write one and pick what is in it',
+  },
+  {
+    id: 'functions',
+    label: 'Functions',
+    kind: 'function',
+    description: 'What the expression can call',
+  },
+  {
+    id: 'keywords',
+    label: 'Values and keywords',
+    kind: 'keyword',
+    description: 'Literal values and operators',
+  },
 ];
 
 /**
@@ -769,23 +842,108 @@ const SERVER_GROUPS: Array<{ id: string; label: string; kind: TTemplateNodeKind;
  * field's Record fields group (once each); the server's template contexts (each written and gone on from), its
  * functions and its values and keywords are groups of their own.
  */
-export const withServerCompletions = (roots: ITemplateNode[], items: IServerCompletion[] | undefined): ITemplateNode[] => {
-  if (!items?.length) return roots;
-  const written = (item: IServerCompletion) => item.textEdit?.newText ?? item.insertText ?? item.label;
+/** `node` and its members under another group: ids of their own (`prefix.`), its trail that group's. */
+const rehomed = (
+  node: ITemplateNode,
+  prefix: string,
+  trail: string[],
+  trailIds: string[]
+): ITemplateNode => ({
+  ...node,
+  id: `${prefix}.${node.id}`,
+  trail,
+  trailIds,
+  ...(node.children ?
+    {
+      children: node.children.map((child) =>
+        rehomed(child, prefix, [...trail, node.label], [...trailIds, `${prefix}.${node.id}`])
+      ),
+    }
+  : {}),
+});
+
+/** The name of the picker's group of template contexts. */
+export const TEMPLATE_CONTEXTS_LABEL = 'Template contexts';
+
+/**
+ * The picker's roots with the template contexts of the field's own templates as a group of their own (qorus#646,
+ * David's review: every container that can be used has Use, and the picker offers what typing offers): each
+ * context - `$local:`, `$data:`, `$dynamic:` - a container of what is in it, used whole as `$<context>:*` where the
+ * value takes a record. Where there is more than one context; one alone is the field's group already.
+ */
+export const withTemplateContexts = (
+  roots: ITemplateNode[],
+  wholeRecords?: boolean
+): ITemplateNode[] => {
+  const contexts = templateContextsOf(roots, '', wholeRecords);
+  /* only where it adds something: a context to take whole (the value takes a record) - for a value that takes no
+     record, the same templates again, regrouped */
+  if (
+    contexts.length < 2 ||
+    !contexts.some((context) => context.takesWhole) ||
+    roots.some((node) => node.id === 'contexts')
+  ) {
+    return roots;
+  }
+  const id = 'contexts';
+  return [
+    ...roots,
+    {
+      id,
+      label: TEMPLATE_CONTEXTS_LABEL,
+      kind: 'context',
+      description: 'Each context, to pick what is in it or to take it whole',
+      trail: [],
+      trailIds: [],
+      children: contexts.map((context) => ({
+        ...context,
+        id: `${id}.${context.id}`,
+        trail: [TEMPLATE_CONTEXTS_LABEL],
+        trailIds: [id],
+        children: (context.children ?? []).map((member) =>
+          rehomed(
+            member,
+            `${id}.${context.id}`,
+            [TEMPLATE_CONTEXTS_LABEL, context.label],
+            [id, `${id}.${context.id}`]
+          )
+        ),
+      })),
+    },
+  ];
+};
+
+export const withServerCompletions = (
+  roots: ITemplateNode[],
+  items: IServerCompletion[] | undefined,
+  wholeRecords?: boolean
+): ITemplateNode[] => {
+  if (!items?.length) return withTemplateContexts(roots, wholeRecords);
+  const written = (item: IServerCompletion) =>
+    item.textEdit?.newText ?? item.insertText ?? item.label;
   const describe = (item: IServerCompletion) =>
-    typeof item.documentation === 'string' ? item.documentation : (item.documentation?.value ?? item.detail);
+    typeof item.documentation === 'string' ?
+      item.documentation
+    : (item.documentation?.value ?? item.detail);
   const known = new Set(
-    allTemplateNodes(roots).flatMap((node) => [node.value, node.reference].filter(Boolean) as string[])
+    allTemplateNodes(roots).flatMap(
+      (node) => [node.value, node.reference].filter(Boolean) as string[]
+    )
   );
-  const fields = items.filter((item) => item.kind === 5 && /^@/.test(written(item)) && !known.has(written(item)));
+  const fields = items.filter(
+    (item) => item.kind === 5 && /^@/.test(written(item)) && !known.has(written(item))
+  );
   const contexts = items.filter((item) => /^\$[\w-]+:$/.test(written(item)));
   const functions = items.filter((item) => item.kind === 3 || item.kind === 2);
   const keywords = items.filter(
-    (item) => (item.kind === 14 || item.kind === 12 || item.kind === 24) && !/^[$@]/.test(written(item))
+    (item) =>
+      (item.kind === 14 || item.kind === 12 || item.kind === 24) && !/^[$@]/.test(written(item))
   );
   let out = roots;
   if (fields.length) {
-    const fieldGroup = roots.find((node) => node.label === RECORD_FIELDS_LABEL && node.kind === 'field');
+    const fieldGroup = roots.find(
+      (node) => node.label === RECORD_FIELDS_LABEL && node.kind === 'field'
+    );
     const id = fieldGroup?.id ?? 'server.fields';
     const trail = [RECORD_FIELDS_LABEL];
     const extra: ITemplateNode[] = fields.map((item, index) => ({
@@ -801,7 +959,9 @@ export const withServerCompletions = (roots: ITemplateNode[], items: IServerComp
     }));
     out =
       fieldGroup ?
-        out.map((node) => (node === fieldGroup ? { ...node, children: [...(node.children ?? []), ...extra] } : node))
+        out.map((node) =>
+          node === fieldGroup ? { ...node, children: [...(node.children ?? []), ...extra] } : node
+        )
       : [
           ...out,
           {
@@ -815,7 +975,73 @@ export const withServerCompletions = (roots: ITemplateNode[], items: IServerComp
           },
         ];
   }
-  const byGroup: Record<string, IServerCompletion[]> = { contexts, functions, keywords };
+  /* The template contexts, one group: the field's own (with what is in them) and those only the server offers -
+     each a container, gone on into, used whole as the server says (`data`: the contract a Qorus agent is
+     building) or as Qorus reads it (`WHOLE_TEMPLATE_CONTEXTS`). */
+  out = withTemplateContexts(out, wholeRecords);
+  const ownContexts = new Set(templateContextsOf(roots).map((node) => node.reference));
+  const serverOnly = contexts.filter((item) => !ownContexts.has(written(item)));
+  if (serverOnly.length || ownContexts.size === 1) {
+    const id = 'contexts';
+    const group = out.find((node) => node.id === id);
+    const fromServer = serverOnly.map((item, index): ITemplateNode => {
+      const context = written(item);
+      const said = ((item as { data?: { use_whole?: boolean } }).data ?? {}) as {
+        use_whole?: boolean;
+      };
+      const whole =
+        wholeRecords !== false &&
+        (said.use_whole ?? WHOLE_TEMPLATE_CONTEXTS.has(context.slice(1, -1)));
+      return {
+        id: `${id}.server.${index}`,
+        label: context,
+        reference: context,
+        kind: 'context',
+        description: describe(item),
+        trail: [TEMPLATE_CONTEXTS_LABEL],
+        trailIds: [id],
+        continues: true,
+        ...(whole ? { value: wholeContextValue(context), takesWhole: true } : {}),
+      };
+    });
+    // a lone context of the field's own joins the group, with what is in it
+    const lone =
+      !group && ownContexts.size === 1 ?
+        templateContextsOf(roots, '', wholeRecords).map((context) => ({
+          ...context,
+          id: `${id}.${context.id}`,
+          trail: [TEMPLATE_CONTEXTS_LABEL],
+          trailIds: [id],
+          children: (context.children ?? []).map((member) =>
+            rehomed(
+              member,
+              `${id}.${context.id}`,
+              [TEMPLATE_CONTEXTS_LABEL, context.label],
+              [id, `${id}.${context.id}`]
+            )
+          ),
+        }))
+      : [];
+    const members = [...(group?.children ?? []), ...lone, ...fromServer].sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
+    out =
+      group ?
+        out.map((node) => (node === group ? { ...node, children: members } : node))
+      : [
+          ...out,
+          {
+            id,
+            label: TEMPLATE_CONTEXTS_LABEL,
+            kind: 'context',
+            description: 'Each context, to pick what is in it or to take it whole',
+            trail: [],
+            trailIds: [],
+            children: members,
+          },
+        ];
+  }
+  const byGroup: Record<string, IServerCompletion[]> = { contexts: [], functions, keywords };
   for (const group of SERVER_GROUPS) {
     const members = byGroup[group.id];
     if (!members.length) continue;
@@ -844,4 +1070,3 @@ export const withServerCompletions = (roots: ITemplateNode[], items: IServerComp
   }
   return out;
 };
-

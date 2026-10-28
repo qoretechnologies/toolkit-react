@@ -29,6 +29,8 @@ import {
   typeAsAPerson,
   highlightedCompletionLabel,
   seenCompletionLabels,
+  completionRow,
+  plainTextOf,
 } from '../../../../stories/templatePicker';
 import { withTouchScreen } from '../../../../stories/touchScreen';
 
@@ -420,8 +422,8 @@ export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
     docs: {
       description: {
         story:
-          'Clicks in the empty field: the template picker opens at the top - Context Data, Look up customer and ' +
-          'Receive order. Receive order, then Customer, then Address open level by level, the way back above the ' +
+          'Clicks in the empty field: the template picker opens at the top - Context Data, Look up customer, ' +
+          'Receive order and the template contexts. Receive order, then Customer, then Address open level by level, the way back above the ' +
           'rows reading Templates › Receive order › Customer › Address; City picked there is written as one chip, ' +
           'Receive order › … › Address › City, and the value is $data:{receive_order.customer.address.city}.',
       },
@@ -430,7 +432,10 @@ export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
   play: async ({ canvasElement, args }) => {
     const editable = within(canvasElement).getByRole('textbox');
     await userEvent.click(editable);
-    await waitFor(() => expect(pickerLabels()).toEqual(['Context Data', 'Look up customer', 'Receive order']));
+    // the template contexts too, each taken whole or gone into (qorus#646, David: every container has Use)
+    await waitFor(() =>
+      expect(pickerLabels()).toEqual(['Context Data', 'Look up customer', 'Receive order', 'Template contexts'])
+    );
     await userEvent.click(await pickerRow('Receive order'));
     await userEvent.click(await pickerRow('Customer'));
     await userEvent.click(await pickerRow('Address'));
@@ -487,8 +492,9 @@ export const TypingAReferenceNarrowsTheRows: Story = {
     await userEvent.click(editable);
     await userEvent.keyboard('{Escape}');
     await typeAsAPerson(userEvent, 'Order $data:');
+    // the whole of it first, then the states
     await waitFor(() =>
-      expect(completionLabels()).toEqual(['Look up customer', 'Receive order', 'Browse all templates'])
+      expect(completionLabels()).toEqual(['$data:*', 'Look up customer', 'Receive order', 'Browse all templates'])
     );
     await typeAsAPerson(userEvent, 'receive_order.');
     await waitFor(() =>
@@ -681,7 +687,7 @@ export const TypingCompletesEachLevel: Story = {
     await waitFor(() =>
       expect(seenCompletionLabels()).toEqual(['$local:', '$timestamp:', '$test:', '$data:', 'Browse all templates'])
     );
-    await tabTo('da', '$data:', ['Look up customer', 'Receive order']);
+    await tabTo('da', '$data:', ['$data:*', 'Look up customer', 'Receive order']);
     await tabTo('rec', 'Receive order', ['Customer', 'Event type', 'Order ID', 'User name']);
     await tabTo('cu', 'Customer', ['Address', 'Name']);
     await tabTo('na', 'Name');
@@ -723,7 +729,7 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
     await userEvent.keyboard('{Tab}');
     await waitFor(() =>
       expect(document.querySelector('.reqore-popover-content .completion-menu')?.textContent).toContain(
-        "Nothing is listed in $dynamic: here: write what it refers to after the ':'"
+        "Write what $dynamic: refers to after the ':', or pick from the list"
       )
     );
     await typeAsAPerson(userEvent, 'order.id');
@@ -736,5 +742,106 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
     await userEvent.click(canvasElement.ownerDocument.body);
     await waitFor(() => expect(chipsOf(editable)).toEqual(['dynamic: order.id', 'dynamic: batch']));
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:order.id $dynamic:batch'));
+  },
+};
+
+/** A workflow whose static data has a declared type: its keys are known, as Qorus lists them. */
+const WORKFLOW_WITH_STATIC_KEYS = buildTemplates({
+  ...WORKFLOW_CONTEXT_DATA_PAYLOAD,
+  static_data: {
+    display_name: 'Order (static data)',
+    short_desc: "The order this workflow processes, as its static data's type declares it",
+    items: [
+      { name: 'order_id', display_name: 'Order ID', type: 'int', value: '$static:order_id' },
+      { name: 'customer', display_name: 'Customer', type: 'string', value: '$static:customer' },
+    ],
+  },
+} as never);
+
+/**
+ * A context with known keys lists them, and is used whole, `$local:*` (qorus#646, David: "clicking on '$local:'
+ * just gives the text '$local: ' - the value inserted is unusable"): picked with the mouse, it goes on to its keys.
+ * A workflow's static data with a declared type lists its keys; dynamic data, of free keys, is used whole.
+ */
+export const AContextListsItsKeysAndIsUsedWhole: Story = {
+  args: { value: '', valueFormat: 'text', templates: WORKFLOW_WITH_STATIC_KEYS },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$loc` and clicks $local: with the mouse: it is written as text and its keys are listed under the ' +
+          'whole of it, $local:*. `$sta` and Tab: the whole of the static data and its declared keys, Customer and ' +
+          'Order ID. `$dyn`: the row $dynamic: has Use, which writes $dynamic:*.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$loc');
+    await userEvent.click(await completionRow('$local:'));
+    await waitFor(() =>
+      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'Interface ID', 'Interface Name']))
+    );
+    expect(plainTextOf(editable)).toBe('$local:');
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await typeAsAPerson(userEvent, '$sta');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$static:'));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() =>
+      expect(seenCompletionLabels()).toEqual(['$static:*', 'Customer', 'Order ID', 'Browse all templates'])
+    );
+    await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
+    await typeAsAPerson(userEvent, '$dyn');
+    const dynamic = await completionRow('$dynamic:');
+    await userEvent.click(dynamic.parentElement!.querySelector<HTMLElement>('.completion-use')!);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$dynamic:*'));
+  },
+};
+
+/**
+ * A reference left unfinished - a context of free keys, `$dynamic:` - completed where it is: a click at its end
+ * lists the whole of it and Browse all templates under what to write next, the help read in full; Browse all puts
+ * a working reference in its place (qorus#646, David: the help was cut off, and a click at the end showed the
+ * picker's top silently).
+ */
+export const AnUnfinishedReferenceIsCompletedWhereItIs: Story = {
+  args: { value: '', valueFormat: 'text', templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD) },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$dynamic:` and puts the list away; a click at its end lists $dynamic:* and Browse all templates ' +
+          'under "Write what $dynamic: refers to after the \':\', or pick from the list" - in full, not cut off. ' +
+          'Browse all templates, then Context Data and Interface Name: the chip Interface Name takes the place of ' +
+          '$dynamic:.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$dynamic:');
+    await waitFor(() => expect(seenCompletionLabels()).toContain('$dynamic:*'));
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual([]));
+    // a click at the end of what is written
+    const text = Array.from(editable.querySelectorAll<HTMLElement>('[data-slate-string]')).pop()!;
+    const box = text.getBoundingClientRect();
+    await userEvent.pointer({ keys: '[MouseLeft]', target: text, coords: { clientX: box.right - 1, clientY: box.top + box.height / 2 } });
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(['$dynamic:*', 'Browse all templates']));
+    expect(document.querySelector('.template-picker'), 'not the picker at its top').toBeNull();
+    const note = document.querySelector<HTMLElement>('.completion-note')!;
+    expect(note.textContent).toContain("Write what $dynamic: refers to after the ':', or pick from the list");
+    // read in full: nothing of it cut off
+    const label = note.querySelector<HTMLElement>('.reqore-button-text-content') ?? note;
+    expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
+    await userEvent.click(await completionRow('Browse all templates'));
+    await userEvent.click(await pickerRow('Context Data'));
+    await userEvent.click(await pickerRow('Interface Name'));
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith('$local:name'));
+    await waitFor(() => expect(chipsOf(editable)).toEqual(['Interface Name']));
   },
 };

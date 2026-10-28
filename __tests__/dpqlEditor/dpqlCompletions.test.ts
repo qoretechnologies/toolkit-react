@@ -156,14 +156,17 @@ describe('what the one completion list offers', () => {
     });
   });
 
-  it('offers the server answer alone where the field has no templates', () => {
-    expect(
-      dpqlCompletionsWith([])({
-        plainText: '1 + ',
-        offset: 4,
-        serverItems: AFTER_AN_OPERATOR,
-      })
-    ).toEqual(AFTER_AN_OPERATOR);
+  it('offers the server answer alone where the field has no templates, a context gone on into and used whole', () => {
+    const offered = dpqlCompletionsWith([])({
+      plainText: '1 + ',
+      offset: 4,
+      serverItems: AFTER_AN_OPERATOR,
+    });
+    expect(listed(offered)).toEqual(listed(AFTER_AN_OPERATOR));
+    // a template context is a container: gone on into, its row's Use taking it whole (qorus#646 round 4)
+    const context = offered.find((item) => item.label === '$config:');
+    expect(context?.data).toMatchObject({ continues: true, takesWhole: true });
+    expect((context?.data as { wholeValue?: string }).wholeValue).toMatch(/^\$[\w-]+:\*$/);
   });
 });
 
@@ -292,7 +295,7 @@ describe('a template being typed', () => {
     ]);
     // a context's name being written: the context, written and gone on from
     expect(listed(completeQog('$loc'))).toEqual(['$local:', BROWSE_ALL_TEMPLATES]);
-    expect(listed(completeQog('$local:'))).toEqual(['$local:id', BROWSE_ALL_TEMPLATES]);
+    expect(listed(completeQog('$local:'))).toEqual(['$local:*', '$local:id', BROWSE_ALL_TEMPLATES]);
   });
 
   /* qorus#646, David's review (round 3): typing goes on level by level - `$d` and `$data` the context, `$data:` its
@@ -303,9 +306,12 @@ describe('a template being typed', () => {
       expect(listed(offered), typed).toEqual(['$data:', BROWSE_ALL_TEMPLATES]);
       expect(offered[0]).toMatchObject({ label: '$data:', data: expect.objectContaining({ continues: true }) });
     }
+    // the whole of it first (`$data:*`), then the states
     const states = completeQog('$data:', STATES);
-    expect(listed(states)).toEqual(['$data:receive_order.', BROWSE_ALL_TEMPLATES]);
-    expect(states[0]).toMatchObject({ label: 'Receive order', data: expect.objectContaining({ continues: true }) });
+    expect(listed(states)).toEqual(['$data:*', '$data:receive_order.', BROWSE_ALL_TEMPLATES]);
+    expect(states[1]).toMatchObject({ label: 'Receive order', data: expect.objectContaining({ continues: true }) });
+    // a context row has Use: the whole of it
+    expect(completeQog('$d')[0].data).toMatchObject({ takesWhole: true, wholeValue: '$data:*' });
   });
 
   it('offers the contexts while only its `$` is typed', () => {

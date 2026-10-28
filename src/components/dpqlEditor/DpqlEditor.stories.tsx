@@ -41,7 +41,11 @@ import {
   plainTextOf,
 } from '../../stories/templatePicker';
 import { ITemplatesPayload } from '../../helpers/templates';
-import { dpqlTemplateContext, qorusTemplateCompletions } from '../../stories/qorusTemplateContexts';
+import {
+  dpqlTemplateContext,
+  IQorusTemplateContext,
+  qorusTemplateCompletions,
+} from '../../stories/qorusTemplateContexts';
 import {
   QOG_FIELD_TEMPLATES,
   QOG_STATE_DATA_PAYLOAD,
@@ -59,6 +63,15 @@ const QOG_STATE_DATA: ITemplatesPayload = QOG_STATE_DATA_PAYLOAD;
 
 /** The record the stories' server describes (`dpql/setContext`): what a field's hover says of it. */
 const STORY_RECORD_FIELDS = RECORD_FIELDS;
+
+/** The local context's keys (`UserApi::getUserContextInfo()`), as Qorus lists them after `$local:`. */
+const STORY_LOCAL_KEYS = [
+  { name: 'id', display_name: 'Interface ID' },
+  { name: 'name', display_name: 'Interface Name' },
+  { name: 'version', display_name: 'Interface Version' },
+  { name: 'type', display_name: 'Top-Level Interface Type' },
+  { name: 'input', display_name: 'Input Data' },
+];
 
 /** A customer record, as a server describes it: its contact a record of its own (`@contact.email`). */
 const CUSTOMER_RECORD_FIELDS = {
@@ -147,6 +160,14 @@ const meta = {
     let fsmStateData: ITemplatesPayload = {};
     // the record the document is bound to, by its provider: a customer record has a record of its own in it
     let boundFields: Record<string, unknown> = STORY_RECORD_FIELDS;
+    /* The field's template context, as Qorus completes a DPQL document with it (`buildDpqlTemplateContext`): a
+       Qog's record expression, the local context's keys, and what the story says is defined where the field is -
+       transient variables, a loop (the contract a Qorus agent is building: a context only where it is valid). */
+    const storyContext: IQorusTemplateContext = {
+      ...dpqlTemplateContext(),
+      local_keys: STORY_LOCAL_KEYS,
+      ...((context.parameters?.qorusTemplateContext as IQorusTemplateContext | undefined) ?? {}),
+    };
     lsp = createMockLspServer(MOCK_LSP_URL, {
       capabilities: {
         ...DEFAULT_LSP_CAPABILITIES,
@@ -226,7 +247,7 @@ const meta = {
              context's `:`, the values Qorus knows in it (the timestamps, a loop's); `$data:` with a Qog bound is
              answered below. */
           const TEMPLATE_ITEMS =
-            sigil === '$' ? qorusTemplateCompletions(sigilToken, dpqlTemplateContext()) : [];
+            sigil === '$' ? qorusTemplateCompletions(sigilToken, storyContext) : [];
 
           /* The functions a bare word completes, as the real server lists them (`getFunctionCompletions`): those
              whose name starts with the word, each written with its bracket, what it gives its detail. */
@@ -260,9 +281,16 @@ const meta = {
             ...(boundFields === STORY_RECORD_FIELDS ? FIELD_ITEMS : fieldItemsAt(boundFields, '@')),
             ...['true', 'false', 'null'].map((label) => ({ label, kind: 12, insertText: label })),
             ...FUNCTION_ITEMS,
-            ...qorusTemplateCompletions('$', dpqlTemplateContext()),
+            ...qorusTemplateCompletions('$', storyContext),
             { label: '!', kind: 24, insertText: '!', documentation: 'Logical NOT' },
           ];
+          /* After a whole value - a template written whole, braced (`$data:{receive_order.event_type}`, as a chip
+             writes it) - what can follow one, as Qorus answers there: the operators. */
+          if (/^\$[\w-]+:\{[^{}]*\}$/.test(sigilToken)) {
+            return {
+              items: ['==', '!=', '<', '>', '+', '&&', '||'].map((label) => ({ label, kind: 24, insertText: label })),
+            };
+          }
           const items = inFsmDataTemplate
             ? FSM_DATA_KEY_ITEMS
             : sigil === '$'
@@ -1326,8 +1354,10 @@ export const TypingNarrowsToWhatItReaches: Story = {
       timeout: 30000,
     });
     await typeAsAPerson(userEvent, ':');
+    // the whole of it first, `$data:*` (UserApi reads `*` as the whole of it), then the states
     await waitFor(
-      () => expect(completionLabels()).toEqual(['Look up customer', 'Receive order', 'Browse all templates']),
+      () =>
+        expect(completionLabels()).toEqual(['$data:*', 'Look up customer', 'Receive order', 'Browse all templates']),
       { timeout: 30000 }
     );
     await typeAsAPerson(userEvent, 'rec');
@@ -1405,7 +1435,18 @@ export const AClickInTheEmptyFieldBrowsesItsTemplates: Story = {
     const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await waitFor(
-      () => expect(pickerLabels()).toEqual(['Context Data', 'Look up customer', 'Receive order', 'Record fields']),
+      () =>
+        expect(pickerLabels()).toEqual([
+          'Context Data',
+          'Look up customer',
+          'Receive order',
+          'Record fields',
+          // every completion the field has (qorus#646): its contexts, each taken whole or gone into, the
+          // functions and the values
+          'Template contexts',
+          'Functions',
+          'Values and keywords',
+        ]),
       { timeout: 30000 }
     );
     await userEvent.click(await pickerRow('Record fields'));
@@ -1879,7 +1920,7 @@ export const WithTemplates: Story = {
     await typeAsAPerson(userEvent, '$');
     await waitFor(
       () => {
-        expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$autovar:', '$config:', '$data:']));
+        expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$config:', '$data:', '$env:']));
         expect(seenCompletionLabels()).not.toContain('@name');
       },
       { timeout: 30000 }
@@ -1888,7 +1929,10 @@ export const WithTemplates: Story = {
     await typeAsAPerson(userEvent, 'loc');
     await waitFor(() => expect(highlightedCompletionLabel()).toBe('$local:'));
     await userEvent.keyboard('{Tab}');
-    await waitFor(() => expect(seenCompletionLabels()).toEqual(['order id', 'customer', 'Browse all templates']));
+    // the whole of it, the templates given in it and the local context's keys the server lists
+    await waitFor(() =>
+      expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$local:*', 'order id', 'customer', 'Interface ID']))
+    );
 
     // Clear and switch to `@` → fields.
     await userEvent.keyboard('{Escape}{Control>}a{/Control}{Backspace}');
@@ -2591,8 +2635,7 @@ export const TypingCompletesEachLevel: Story = {
         story:
           'Types key by key, Tab at each level: `$da` → $data:, then its states; `rec` → $data:receive_order., ' +
           'then its data; `cu` → $data:receive_order.customer., then the customer\'s; `na` → the chip for ' +
-          '$data:{receive_order.customer.name}. ` + $time` → $timestamp:, then the timestamps; `tim` → the chip ' +
-          'Epoch Seconds. ` + @co` → @contact., then its fields; `em` → the chip for @contact.email.',
+          '$data:{receive_order.customer.name}.',
       },
     },
   },
@@ -2614,7 +2657,7 @@ export const TypingCompletesEachLevel: Story = {
     await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$data:', '$config:'])), {
       timeout: 30000,
     });
-    await step('da', '$data:', ['Look up customer', 'Receive order']);
+    await step('da', '$data:', ['$data:*', 'Look up customer', 'Receive order']);
     expect(plainTextOf(editable)).toBe('$data:');
     await step('rec', 'Receive order', ['Customer', 'Event type', 'Order ID', 'User name']);
     expect(plainTextOf(editable)).toBe('$data:receive_order.');
@@ -2627,16 +2670,61 @@ export const TypingCompletesEachLevel: Story = {
       )
     );
     expect(chipsOf(editable)).toHaveLength(1);
-    await typeAsAPerson(userEvent, ' + $time');
+  },
+};
+
+/** A context of values Qorus knows, typed key by key: `$time` → $timestamp:, then the timestamps, `tim` → a chip. */
+export const TypingCompletesAContextOfValues: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$time` key by key: $timestamp: is listed first and Tab writes it; the timestamps are listed, and ' +
+          '`tim` and Tab make the chip Epoch Seconds.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$time');
     await waitFor(() => expect(highlightedCompletionLabel()).toBe('$timestamp:'), { timeout: 30000 });
     await userEvent.keyboard('{Tab}');
     await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['Epoch Seconds'])), {
       timeout: 30000,
     });
-    await step('tim', 'Epoch Seconds');
+    await typeAsAPerson(userEvent, 'tim');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('Epoch Seconds'), { timeout: 30000 });
+    await userEvent.keyboard('{Tab}');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringContaining('$timestamp:timegm')));
-    expect(chipsOf(editable)).toHaveLength(2);
-    await typeAsAPerson(userEvent, ' + @co');
+    expect(chipsOf(editable)).toHaveLength(1);
+  },
+};
+
+/** A record field typed key by key is completed at every level too: `@co` → @contact., then its fields. */
+export const TypingCompletesEachFieldLevel: Story = {
+  args: { ...WithFsmContext.args, provider: 'crm/customers', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types key by key, Tab at each level: `@co` → @contact., then its fields; `em` → the chip for ' +
+          '@contact.email.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    const step = async (typed: string, highlighted: string) => {
+      await typeAsAPerson(userEvent, typed);
+      await waitFor(() => expect(highlightedCompletionLabel()).toBe(highlighted), { timeout: 30000 });
+      await userEvent.keyboard('{Tab}');
+    };
+    await typeAsAPerson(userEvent, '@co');
     await waitFor(() => expect(highlightedCompletionLabel()).toBe('contact'), { timeout: 30000 });
     await userEvent.keyboard('{Tab}');
     await waitFor(
@@ -2645,7 +2733,7 @@ export const TypingCompletesEachLevel: Story = {
     );
     await step('em', '@contact.email');
     await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/@contact\.email\s*$/)));
-    expect(chipsOf(editable)).toHaveLength(3);
+    expect(chipsOf(editable)).toHaveLength(1);
   },
 };
 
@@ -2672,7 +2760,7 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
     await typeAsAPerson(userEvent, '$transient:order.id');
     await waitFor(() =>
       expect(document.querySelector('.reqore-popover-content .completion-menu')?.textContent).toContain(
-        "Nothing is listed in $transient: here: write what it refers to after the ':'"
+        "Write what $transient: refers to after the ':', or pick from the list"
       )
     );
     await userEvent.keyboard('{Enter}');
@@ -2743,5 +2831,182 @@ export const ThePickerOffersEveryCompletionAfterClearing: Story = {
     // opened from the template button: the same
     await userEvent.click(canvasElement.querySelector<HTMLElement>('.smart-editor-template-button')!);
     await waitFor(() => expect(pickerLabels()).toEqual(expect.arrayContaining(everySource)), { timeout: 30000 });
+  },
+};
+
+/**
+ * A template context is a container, and one Qorus reads whole is used whole (qorus#646, David: "for all
+ * 'container' values that can be used, the 'Use' control should be present"; `$data:*` - UserApi reads `*` as the
+ * whole of it): Use on its row writes `$data:*`, in the list typing opens and in the picker.
+ */
+export const AContextIsUsedWhole: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Types `$dat`: the row $data: is a container - its ">" goes into the states - with Use beside it, set ' +
+          'apart by a divider; Use writes the whole of it, the chip for $data:*. Cleared, the picker\'s Template ' +
+          'contexts list $data: with Use too.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$dat');
+    const row = await completionRow('$data:');
+    const use = row.parentElement!.querySelector<HTMLElement>('.completion-use');
+    expect(use, 'Use beside $data:').toBeTruthy();
+    expect(getComputedStyle(use!).borderLeftStyle).toBe('solid');
+    await userEvent.click(use!);
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$data:\*\s*$/)));
+    await waitFor(() => expect(chipsOf(editable)).toHaveLength(1));
+    // the picker: the template contexts, each with Use
+    await userEvent.keyboard('{Control>}a{/Control}{Backspace}');
+    await userEvent.click(canvasElement.ownerDocument.body);
+    await userEvent.click(editable);
+    await userEvent.click(await pickerRow('Template contexts'));
+    const context = await pickerRow('$data:');
+    expect(context.parentElement!.querySelector('.template-picker-use'), 'Use beside $data: in the picker').toBeTruthy();
+  },
+};
+
+/**
+ * A click after a chip lists what can follow it, as typing there does (qorus#646, David: "clicking the mouse on
+ * the textarea after the chip shows no templates; is this intentional?" - it was not: the story server answered
+ * nothing after a whole value).
+ */
+export const AClickAfterAChipListsWhatCanFollow: Story = {
+  args: { ...WithFsmContext.args, value: '$data:{receive_order.event_type}', onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A click just after the chip Receive order › Event type lists what can follow a value there: the ' +
+          'operators (==, !=, ...), as Qorus answers after a whole value.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    const chip = await waitFor(() => {
+      const found = editable.querySelector<HTMLElement>('.reqore-tag');
+      expect(found).toBeTruthy();
+      return found!;
+    });
+    const box = chip.getBoundingClientRect();
+    await userEvent.pointer({ keys: '[MouseLeft]', target: editable, coords: { clientX: box.right + 8, clientY: box.top + box.height / 2 } });
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['==', '!='])), {
+      timeout: 30000,
+    });
+  },
+};
+
+/**
+ * A context of variables is offered only where some are defined, and lists them; used whole, `$transient:*`
+ * (qorus#646, David: "if none are defined, don't offer $transient: at all"; "Qorus needs to know when transient
+ * variables have been defined and provide a guided UX"). Here the Qog defines two.
+ */
+export const TransientVariablesDefinedAreListed: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    qorusTemplateContext: { transient_vars: ['order', 'retries'] },
+    docs: {
+      description: {
+        story:
+          'In a Qog that defines the transient variables order and retries: `$tr` lists $transient:, with Use; ' +
+          'Tab writes it and lists the whole of it, $transient:*, and the two variables; `ord` and Tab make the ' +
+          'chip for $transient:order.',
+      },
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$tr');
+    const row = await completionRow('$transient:');
+    expect(row.parentElement!.querySelector('.completion-use'), 'Use beside $transient:').toBeTruthy();
+    await userEvent.keyboard('{Tab}');
+    await waitFor(
+      () =>
+        expect(seenCompletionLabels()).toEqual([
+          '$transient:*',
+          '$transient:order',
+          '$transient:retries',
+          'Browse all templates',
+        ]),
+      { timeout: 30000 }
+    );
+    await typeAsAPerson(userEvent, 'ord');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$transient:order'));
+    await userEvent.keyboard('{Tab}');
+    await waitFor(() => expect(args.onChange).toHaveBeenLastCalledWith(expect.stringMatching(/^\$transient:order\s*$/)));
+  },
+};
+
+/** Where no transient variable is defined, `$transient:` is not offered at all; nor a loop's context outside one. */
+export const UndefinedVariablesAndLoopsAreNotOffered: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'In a Qog that defines no transient variable and is in no loop: `$tr` lists no $transient:, `$fo` no ' +
+          '$foreach: or $for: - using them would fail when the Qog runs.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$');
+    await waitFor(() => expect(seenCompletionLabels()).toEqual(expect.arrayContaining(['$data:'])), {
+      timeout: 30000,
+    });
+    const listed = () =>
+      Array.from(document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')).map((row) =>
+        row.getAttribute('data-label')
+      );
+    for (const context of ['$transient:', '$globalvar:', '$var:', '$foreach:', '$for:']) {
+      expect(listed(), context).not.toContain(context);
+    }
+  },
+};
+
+/** A loop's context inside one: `$foreach:` lists its values, and the whole of it. */
+export const ALoopsContextInsideTheLoop: Story = {
+  args: { ...WithFsmContext.args, onChange: fn() },
+  parameters: {
+    qorusTemplateContext: { loops: { foreach: true } },
+    docs: {
+      description: {
+        story:
+          'Inside a foreach loop: `$fore` lists $foreach:; Tab lists the whole of it and its values - value, ' +
+          'index, size.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = await readyEditor(canvasElement);
+    await userEvent.click(editable);
+    await userEvent.keyboard('{Escape}');
+    await typeAsAPerson(userEvent, '$fore');
+    await waitFor(() => expect(highlightedCompletionLabel()).toBe('$foreach:'), { timeout: 30000 });
+    await userEvent.keyboard('{Tab}');
+    await waitFor(
+      () =>
+        expect(seenCompletionLabels()).toEqual([
+          '$foreach:*',
+          '$foreach:value',
+          '$foreach:index',
+          '$foreach:size',
+          'Browse all templates',
+        ]),
+      { timeout: 30000 }
+    );
   },
 };

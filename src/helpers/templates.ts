@@ -151,10 +151,11 @@ export const getTemplateValue = (value: string): string => {
  */
 const TEMPLATE_KEY = /[A-Za-z_][\w-]*/y;
 /* A plain segment as Qorus reads one (UserApi `_priv_get_template_arg`: `\w+[\w.]*`): words and the dots between
-   them - `$static:order.id` is one reference, its key `order.id` (qorus#646: it was cut at the dot, the chip
+   them - `$static:order.id` is one reference, its key `order.id`, and `*` alone, the whole of the context
+   (`$data:*`) - (qorus#646: it was cut at the dot, the chip
    "static: order" and the text ".id"). A dot that ends it is not part of it: `$data:receive_order.` is a reference
    being written on. */
-const TEMPLATE_WORD_SEGMENT = /\w[\w-]*(?:\.[\w-]+)*/y;
+const TEMPLATE_WORD_SEGMENT = /\*(?![\w.])|\w[\w-]*(?:\.[\w-]+)*/y;
 
 /** Where a braced segment that opens at `from` (its `{`) ends: the index after the `}` that closes it, or -1. */
 const endOfBracedSegment = (text: string, from: number): number => {

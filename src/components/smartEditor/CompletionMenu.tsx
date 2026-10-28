@@ -291,6 +291,11 @@ export interface ICompletionListProps {
   emptyLabel?: string;
   /** The empty label is what the list says where nothing can be offered, not that it is waiting: an ⓘ, not a loader. */
   emptyIsMessage?: boolean;
+  /**
+   * Said above the rows: what to write next where the list lists nothing of what is written (a context of free
+   * keys, a reference that names nothing), beside the rows it does have - Browse all templates, the whole of it.
+   */
+  note?: string;
   /** The row whose documentation is shown under it (its `value`). */
   docsFor?: string | null;
   /** Show or put away a row's documentation (see `IUseLspAutocompleteResult.toggleDocs`). */
@@ -309,6 +314,7 @@ export const CompletionList = memo(
     onSelect,
     emptyLabel,
     emptyIsMessage,
+    note,
     docsFor,
     onToggleDocs,
   }: ICompletionListProps) => {
@@ -335,6 +341,18 @@ export const CompletionList = memo(
         effect={SMART_EDITOR_OVERLAY_EFFECT}
         customTheme={COMPLETION_LIST_THEME}
       >
+        {note && completionGroups.length > 0 ?
+          <ReqoreMenuItem
+            icon='InformationLine'
+            label={note}
+            className='completion-note'
+            disabled
+            compact
+            // read, not cut: it wraps in the list's width (qorus#646, David: it was cut off with room to spare)
+            wrap
+            style={{ opacity: 1, cursor: 'default' }}
+          />
+        : null}
         {completionGroups.length === 0 && emptyLabel ?
           <ReqoreMenuItem
             icon={emptyIsMessage ? 'InformationLine' : 'LoaderLine'}
@@ -342,6 +360,7 @@ export const CompletionList = memo(
             className={emptyIsMessage ? 'completion-empty-message' : undefined}
             disabled
             compact
+            wrap
             /* a message is read, not waited on: not dimmed as a row that cannot be picked is - dimmed, "No record
                fields here" was hard to read on the list (qorus#646) */
             style={emptyIsMessage ? { opacity: 1, cursor: 'default' } : undefined}
@@ -470,6 +489,7 @@ export const CompletionMenu = memo(
                 docsFor={autocomplete.docsFor}
                 onToggleDocs={autocomplete.toggleDocs}
                 emptyIsMessage={!!autocomplete.emptyMessage && !autocomplete.isFetching}
+                note={autocomplete.note}
                 emptyLabel={
                   // what the list says where nothing can be offered: "No record fields here" (qorus#646)
                   autocomplete.emptyMessage && !autocomplete.isFetching ? autocomplete.emptyMessage

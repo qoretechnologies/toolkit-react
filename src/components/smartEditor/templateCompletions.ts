@@ -9,7 +9,10 @@ import {
   RECORD_FIELDS_LABEL,
   searchTemplateReferences,
   allTemplateNodes,
+  templateContextOf,
   templateContextsOf,
+  WHOLE_TEMPLATE_CONTEXTS,
+  wholeContextValue,
   TEMPLATE_NODE_KIND_LABELS,
   templateNodeIntent,
   TTemplateIntent,
@@ -286,7 +289,9 @@ export const BROWSE_ALL_TEMPLATES = 'Browse all templates';
 export const templateSearchItems = (
   roots: ITemplateNode[],
   typed: string,
-  typeLabel: TTypeLabel = builtInTypeLabel
+  typeLabel: TTypeLabel = builtInTypeLabel,
+  /** Whether the value takes a record: a context, a state or a record is then offered whole too (`Use`). */
+  wholeRecords?: boolean
 ): ILspCompletionItem[] => {
   /* A `$` and a context's name being written: the contexts it starts, each written and gone on from - then, from
      two letters on, the templates named so (qorus#646, David: "`$` → contexts", each level filtered by what is
@@ -310,16 +315,48 @@ export const templateSearchItems = (
         )
       : [];
     return [
-      ...templateContextsOf(roots, partial).map((node) => templateRow(node, typeLabel)),
+      ...templateContextsOf(roots, partial, wholeRecords).map((node) =>
+        templateRow(node, typeLabel)
+      ),
       ...named.map((node) => templateRow(node, typeLabel)),
     ];
   }
-  /* A context of free keys (`$dynamic:*`) is completed by writing its key: no row stands for it once its context
-     is written - the list says to write the key (`unlistedContextMessage`). */
-  return searchTemplateReferences(roots, typed)
-    .filter((node) => !node.writesKey)
-    .map((node) => templateRow(node, typeLabel));
+  /* A context of free keys (`$dynamic:*`) is completed by writing its key: no row stands for its keys once its
+     context is written - the list says to write the key (`unlistedContextMessage`). A context Qorus reads whole
+     is offered whole first, `$data:*`, where the value takes a record (qorus#646, David's review). */
+  const inContext = /^(\$[\w-]+:)(\*?)$/.exec(typed);
+  const known =
+    roots.length > 0 &&
+    allTemplateNodes(roots).some((node) => templateContextOf(node.reference) === inContext?.[1]);
+  const whole =
+    (
+      inContext &&
+      known &&
+      wholeRecords !== false &&
+      WHOLE_TEMPLATE_CONTEXTS.has(inContext[1].slice(1, -1))
+    ) ?
+      [wholeContextRow(inContext[1])]
+    : [];
+  return [
+    ...whole,
+    ...searchTemplateReferences(roots, typed)
+      .filter((node) => !node.writesKey)
+      .map((node) => templateRow(node, typeLabel)),
+  ];
 };
+
+/** The row for the whole of a context, `$data:*`: written as its chip. */
+const wholeContextRow = (context: string): ILspCompletionItem => ({
+  label: wholeContextValue(context),
+  kind: TEMPLATE_KIND,
+  detail: `all of ${context}`,
+  insertText: wholeContextValue(context),
+  filterText: wholeContextValue(context),
+  data: { whole: true, section: 'Templates', kindLabel: 'Template context' } as Record<
+    string,
+    unknown
+  >,
+});
 
 /** A node's row in the completion list. */
 const templateRow = (node: ITemplateNode, typeLabel: TTypeLabel): ILspCompletionItem => {
@@ -381,7 +418,8 @@ export const browseAllTemplatesItem = (): ILspCompletionItem => ({
  */
 export const unlistedContextMessage = (before: string): string | undefined => {
   const context = /(\$[\w-]+:)[\w.]*$/.exec(before)?.[1];
+  // said with the rows there are (the whole of it, Browse all templates) or in their place: true either way
   return context ?
-      `Nothing is listed in ${context} here: write what it refers to after the ':'`
+      `Write what ${context} refers to after the ':', or pick from the list`
     : undefined;
 };
