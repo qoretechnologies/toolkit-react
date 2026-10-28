@@ -121,7 +121,9 @@ import {
 } from '../../Description/markdownRendererContext';
 import { OptionsHelpDialog } from './OptionsHelpDialog';
 import {
+  calmNoteIntent,
   FormAppearanceProvider,
+  getCalmIntentText,
   getCalmPanelHairline,
   getCalmPanelSurface,
   TFormEngineAppearance,
@@ -3165,7 +3167,7 @@ const FormEngineImpl = ({
             if (!schemaMsgs.length) return null;
             const items = schemaMsgs.map(({ intent, title, content }, index) => (
               <ReqoreMessage
-                intent={intent as never}
+                intent={calmNoteIntent(intent, calm) as never}
                 title={title}
                 key={title || index}
                 opaque={false}
@@ -3452,8 +3454,11 @@ const FormEngineImpl = ({
   const cFaint = `${cMuted}99`;
   const cDivider = `${cText}14`;
   const cHover = `${cText}0d`;
-  const cDanger = theme?.intents?.danger || '#e35a5a';
-  const cWarning = theme?.intents?.warning || '#ffdf34';
+  // Calm: the intents as words that read on the section surface, not the
+  // theme's fills (see `getCalmIntentText`). Dots and edges take them too.
+  const cDanger = calm ? getCalmIntentText(theme, 'danger') : theme?.intents?.danger || '#e35a5a';
+  const cWarning =
+    calm ? getCalmIntentText(theme, 'warning') : theme?.intents?.warning || '#ffdf34';
   const cInfo = theme?.intents?.info || '#3b8eea';
   const cSuccess = theme?.intents?.success || '#36b37e';
   const cBg = (theme as { main?: string } | undefined)?.main || '#181818';
@@ -4667,7 +4672,7 @@ const FormEngineImpl = ({
         )}
         {recordRequiresSearchOptions && !readOnly ?
           <>
-            <ReqoreMessage intent='info'>
+            <ReqoreMessage intent={calmNoteIntent('info', calm)}>
               This provider record requires some search options to be set. You can set them below.
             </ReqoreMessage>
             <ReqoreVerticalSpacer height={10} />

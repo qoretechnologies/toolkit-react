@@ -36,7 +36,12 @@ import { Description } from '../../Description';
 import { useMarkdownRenderer } from '../../Description/markdownRendererContext';
 import { FocusedEditing } from '../../FocusedEditing';
 import { CompactRowContext } from './compactRowContext';
-import { CALM_REQUIRED_LABEL, CALM_REQUIRED_READ_LABEL, useIsCalmForm } from './formAppearance';
+import {
+  CALM_REQUIRED_LABEL,
+  CALM_REQUIRED_READ_LABEL,
+  calmNoteIntent,
+  useIsCalmForm,
+} from './formAppearance';
 import { revealRow } from './revealRow';
 import {
   StyledActionSlot,
@@ -1389,14 +1394,8 @@ export const CompactRow = memo(
         size='small'
         opaque={false}
         flat
-        // Calm: a note that only informs takes no colour — blue is kept for "a
-        // filter is on", green for a healthy figure. A warning or a failure
-        // keeps its intent: those are what a person has to act on.
-        intent={
-          (calm && (!m.intent || m.intent === 'info' || m.intent === 'success') ?
-            undefined
-          : m.intent) as never
-        }
+        // Calm: a note that only informs takes no colour (`calmNoteIntent`).
+        intent={calmNoteIntent(m.intent, calm) as never}
         title={m.title}
         style={{ marginBottom: 8 }}
       >

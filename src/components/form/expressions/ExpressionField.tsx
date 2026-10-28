@@ -23,6 +23,7 @@ import { IExpression, IExpressionSchema, IExpressionValue, TExpressionReorder } 
 import { useExpressions } from './useExpressions';
 import { useRenderExpression } from './useRenderExpression';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
+import { calmNoteIntent, useIsCalmForm } from '../engine/formAppearance';
 
 export type TExpressionMode = 'visual' | 'text';
 
@@ -111,6 +112,7 @@ export const ExpressionField = memo(
     componentOverrides,
     reorder,
   }: IExpressionFieldProps) => {
+    const calm = useIsCalmForm();
     const { expressions } = useExpressions({
       override: expressionsOverride,
       expressionsUrl,
@@ -472,7 +474,13 @@ export const ExpressionField = memo(
                 An empty query has nothing to render either, so the box appears
                 once there is a result rather than holding a placeholder. */}
             {previewState === 'shown' ? (
-              <ReqoreMessage intent='info' size='small' title='Preview' flat opaque={false}>
+              <ReqoreMessage
+                intent={calmNoteIntent('info', calm)}
+                size='small'
+                title='Preview'
+                flat
+                opaque={false}
+              >
                 <DpqlRendering text={preview} data-testid='expression-preview' />
               </ReqoreMessage>
             ) : null}

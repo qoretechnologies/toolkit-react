@@ -4,6 +4,7 @@ import {
   changeLightness,
   getMainBackgroundColor,
 } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { darken, lighten } from 'polished';
 import { createContext, useContext } from 'react';
 
 /**
@@ -75,9 +76,98 @@ export const getCalmPanelHairline = (theme: IReqoreTheme): string =>
 export const getCalmAttentionColours = (
   theme: IReqoreTheme
 ): { fault: string; pending: string } => ({
-  fault: theme.intents?.warning || '#d17c29',
+  fault: getCalmIntentText(theme, 'warning'),
   pending: `${(theme.text?.color as string) || '#e8e8e8'}a6`,
 });
+
+/** `#rgb` as `#rrggbb` (polished shortens the colours it returns when it can). */
+const fullHex = (hex: string): string =>
+  /^#[0-9a-f]{3}$/i.test(hex) ?
+    `#${hex
+      .slice(1)
+      .split('')
+      .map((digit) => digit + digit)
+      .join('')}`
+  : hex;
+
+/** WCAG relative luminance of a `#rrggbb` colour (any alpha suffix ignored). */
+const luminance = (hex: string): number => {
+  const [r, g, b] = [1, 3, 5].map((start) => {
+    const channel = parseInt(hex.slice(start, start + 2), 16) / 255;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+const contrast = (a: string, b: string): number => {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+};
+
+/**
+ * `color` moved away from its surfaces until it reads at `min` contrast on each
+ * of them (WCAG AA for text by default): lighter on dark surfaces, darker on
+ * light ones. A colour that already reads comes back unchanged. The same rule as
+ * Reqore's `getReadableAccentColor`, which only arrived in Reqore 0.77.2 — read
+ * here so the whole peer range works.
+ */
+export const getReadableOn = (
+  color: string,
+  surfaces: string | string[],
+  min: number = 4.5
+): string => {
+  const isHex = (value: string) => /^#[0-9a-f]{6}/i.test(value);
+  const from = fullHex(color);
+  const on = (Array.isArray(surfaces) ? surfaces : [surfaces]).map(fullHex).filter(isHex);
+  if (!isHex(from) || !on.length) {
+    return color;
+  }
+  const onLight = luminance(on[0]) > 0.4;
+  const reads = (accent: string) => on.every((surface) => contrast(accent, surface) >= min);
+  let accent = from.slice(0, 7);
+  // 25 steps of 4% cover the whole range, so the loop always ends. polished's
+  // lighten/darken, not Reqore's changeLightness/changeDarkness: those turn
+  // round once a colour is light enough, so the loop went back and forth.
+  for (let step = 0; step < 25 && !reads(accent); step++) {
+    accent = fullHex(onLight ? darken(0.04, accent) : lighten(0.04, accent));
+  }
+  return accent;
+};
+
+const INTENT_FALLBACK: Record<string, string> = {
+  danger: '#e35a5a',
+  warning: '#d17c29',
+  info: '#3b8eea',
+  success: '#4a7110',
+};
+
+/**
+ * An intent as TEXT in the calm look. A theme's intents are fills — Reqore's
+ * danger is #a82a2a, which as a small line on a near-black form reads at about
+ * 2.3:1 — so every calm word that is coloured by what it means (a failure, a
+ * fault, the amber "Required · add a value") takes the fill moved until it
+ * reads on both surfaces a calm form puts text on: its sections, and the page
+ * a read-only form or a nested item sits on directly.
+ */
+export const getCalmIntentText = (theme: IReqoreTheme, intent: string): string =>
+  getReadableOn(
+    (theme.intents as Record<string, string> | undefined)?.[intent] ||
+      INTENT_FALLBACK[intent] ||
+      INTENT_FALLBACK.info,
+    [getCalmPanelSurface(theme), getMainBackgroundColor(theme)]
+  );
+
+/**
+ * The intent a NOTE takes in the calm look: one that only informs (info,
+ * success, or none) takes no colour — blue is kept for "a filter is on", green
+ * for a healthy figure — while a warning or a failure keeps its intent, because
+ * those are what a person has to act on. Every note a calm form draws asks this.
+ */
+export const calmNoteIntent = <T extends string | undefined>(
+  intent: T,
+  calm: boolean
+): T | undefined =>
+  calm && (!intent || intent === 'info' || intent === 'success') ? undefined : intent;
 
 /**
  * What a calm form writes in place of an empty required value. Editable: what

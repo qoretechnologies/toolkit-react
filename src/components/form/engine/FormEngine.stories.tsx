@@ -17,6 +17,7 @@ import {
   _testsChangeStringField,
   _testsClickButton,
   _testsClickText,
+  _testsExpectReadable,
   _testsOpenTemplateMenu,
   _testsOpenTemplates,
   _testsWaitForInputValue,
@@ -9565,6 +9566,13 @@ export const AReadOnlyFormShowsWhatIsWrong: Story = {
         CALM_REQUIRED_READ_LABEL
       );
     });
+    // What is wrong can be read: the failure's red as a word, not the theme's fill.
+    const reason = [...canvasElement.querySelectorAll<HTMLElement>('[data-field="kind"] *')].find(
+      (element) =>
+        !element.children.length && element.textContent?.includes('is not one of the choices')
+    );
+    expect(reason).toBeTruthy();
+    _testsExpectReadable(reason!);
   },
 };
 

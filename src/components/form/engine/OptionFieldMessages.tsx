@@ -5,6 +5,7 @@ import {
   ReqoreVerticalSpacer,
   useReqoreTheme,
 } from '@qoretechnologies/reqore';
+import { TReqoreEffectColor } from '@qoretechnologies/reqore/dist/components/Effect';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
 import { getReadableColor } from '@qoretechnologies/reqore/dist/helpers/colors';
@@ -26,7 +27,12 @@ import {
   unsatisfiedRequiredGroups,
 } from '../../../helpers/validations';
 import { OptionsContext } from './optionsContext';
-import { CALM_REQUIRED_LABEL, CALM_REQUIRED_READ_LABEL, useIsCalmForm } from './formAppearance';
+import {
+  CALM_REQUIRED_LABEL,
+  CALM_REQUIRED_READ_LABEL,
+  getCalmIntentText,
+  useIsCalmForm,
+} from './formAppearance';
 
 /** A `messages` entry that appears only for certain values of its siblings. */
 export interface IConditionalFieldMessage {
@@ -518,14 +524,16 @@ export const OptionFieldMessages = ({
           <ReqoreP
             key={index}
             size='small'
-            intent={message.intent}
-            // A requirement nobody has been asked about yet carries no intent: it is
-            // said in the same faint colour as the row's pending word, not in full text.
-            effect={
-              message.intent ? undefined : (
-                { color: `${getReadableColor(theme, undefined, undefined, true)}a6` }
-              )
-            }
+            // Its meaning's colour as a word that reads (`getCalmIntentText`), never
+            // the theme's fill: Reqore's danger red as a small line on a near-black
+            // form reads at about 2.3:1. A requirement nobody has been asked about yet
+            // carries no intent: it is said in the same faint colour as the row's
+            // pending word, not in full text.
+            effect={{
+              color: (message.intent ?
+                getCalmIntentText(theme, message.intent)
+              : `${getReadableColor(theme, undefined, undefined, true)}a6`) as TReqoreEffectColor,
+            }}
             className='options-field-message'
           >
             {message.label}

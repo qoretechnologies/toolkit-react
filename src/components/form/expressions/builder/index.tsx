@@ -54,6 +54,7 @@ import {
   TExpressionReorder,
   TExpressionReorderSurface,
 } from '../types';
+import { calmNoteIntent, useIsCalmForm } from '../../engine/formAppearance';
 import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
 import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
@@ -155,6 +156,7 @@ export const Expression = ({
   componentOverrides,
   ...props
 }: IExpressionProps) => {
+  const calm = useIsCalmForm();
   const coarsePointer = useCoarsePointer();
   const types = useQorusTypes();
   const [showSummary, setShowSummary] = useState(false);
@@ -1051,7 +1053,7 @@ export const Expression = ({
         <ExpressionRenderTemplate exp={value} expressions={expressions.value} templates={localTemplates} />
       )}
       {!selectedExpression && !serverExpression && !firstArgument?.value && level === 0 ? (
-        <ReqoreMessage size='small' opaque={false} intent='info'>
+        <ReqoreMessage size='small' opaque={false} intent={calmNoteIntent('info', calm)}>
           Select an operation to start building your expression
         </ReqoreMessage>
       ) : (

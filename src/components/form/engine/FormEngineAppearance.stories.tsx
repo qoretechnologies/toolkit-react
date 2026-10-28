@@ -5,6 +5,7 @@ import { expect, fn, waitFor } from 'storybook/test';
 import {
   _testsClickText,
   _testsWaitForText,
+  _testsExpectReadable,
   _testsWaitForTextToNotExist,
   _testsWithViewport,
 } from '../../../stories/Tests/utils';
@@ -414,6 +415,8 @@ export const CalmNeedsAttention: Story = {
     const word = row('display_name')!.querySelector<HTMLElement>('.options-readfirst-valuetext')!;
     expect(isGrey(getComputedStyle(word).color)).toBe(false);
     expect(getComputedStyle(word).fontStyle).toBe('normal');
+    // Amber that can be read: a word, not the theme's fill.
+    _testsExpectReadable(word);
     // The amber word is the row's one signal: no dot beside it.
     expectNoDot('display_name');
 
@@ -432,6 +435,7 @@ export const CalmNeedsAttention: Story = {
       )
     );
     expect(document.querySelector('.options-field-message')?.closest('.reqore-tag')).toBeNull();
+    _testsExpectReadable(document.querySelector<HTMLElement>('.options-field-message')!);
   },
 };
 
