@@ -84,7 +84,10 @@ const documentCatalogue = (uri: string): ITemplateCatalogue => {
   const provider = dpqlMockDocumentProviders.get(uri);
   const fields = (provider ? DPQL_MOCK_PROVIDERS[provider] : undefined) ?? dpqlMockDocumentFields.get(uri);
   return storyDpqlCatalogue({
-    catalogue: dpqlMockCatalogue,
+    /* the field of a story with no catalogue of its own is a Qog state's option, as a form's expression is in the
+       IDE: its local context written freely (qlip #418: `$local:name` of FormEngine · Compact Expressions read as
+       naming nothing against a field with no context) */
+    catalogue: dpqlMockCatalogue ?? 'qog-unhosted',
     stateData: dpqlMockDocumentStateData.get(uri),
     fields: fields as never,
   });
@@ -325,7 +328,7 @@ export interface IStartDpqlMockLspOptions {
   handlers?: Record<string, TMockLspHandler>;
   /**
    * The catalogue of the story's field - one of Qorus's fixtures (`TEMPLATE_CATALOGUE_FIXTURES`) or one of its own -
-   * for the server to offer the contexts valid there; by default a record expression with no context.
+   * for the server to offer the contexts valid there; by default a Qog state's option (`qog-unhosted`).
    */
   templateCatalogue?: TTemplateCatalogueFixture | ITemplateCatalogue;
   /** Per-method response delays in ms. */

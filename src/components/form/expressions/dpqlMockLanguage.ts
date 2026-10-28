@@ -221,8 +221,15 @@ type TToken =
   | { kind: 'op'; text: string; start: number };
 
 // 6: a record field (`@create`), which the server gives as the template `$record:{create}`
+/* A template is braced wherever its path holds more than a name's characters (`$record:{orders[*].id}`), as the
+   server reads it; `=~` and `!~` match a regular expression literal, read whole after them (`readRegex`). */
 const LEX_RE =
-  /\s*(?:("(?:\\.|[^"\\])*")|(\$[A-Za-z_-][\w-]*:[\w.{}]+)|(\d+(?:\.\d+)?)|([A-Za-z_]\w*)|(==|!=|<=|>=|&&|\|\||[-+*/<>!(),])|(@[A-Za-z_][\w]*))/y;
+  /\s*(?:("(?:\\.|[^"\\])*")|(\$[A-Za-z_-][\w-]*:(?:\{[^{}]*\}|[\w.]+))|(\d+(?:\.\d+)?)|([A-Za-z_]\w*)|(==|!=|=~|!~|<=|>=|&&|\|\||[-+*/<>!(),])|(@[A-Za-z_][\w]*))/y;
+
+/** A regular expression literal at the start of `text` (`/^[a-z]+@example\.com$/i`), as the server reads one after
+ *  `=~` or `!~`: what is in it is the pattern's, a `$` or an `@` in it included. */
+const readRegex = (text: string): string | undefined =>
+  /^\/(?:\\.|[^/\\\n])*\/[gimsux]*/.exec(text)?.[0];
 
 /** Binary operators, loosest first — the precedence the server parenthesises by. */
 const BINARY_PRECEDENCE: Record<string, number> = {
@@ -230,6 +237,8 @@ const BINARY_PRECEDENCE: Record<string, number> = {
   '&&': 2,
   '==': 3,
   '!=': 3,
+  '=~': 3,
+  '!~': 3,
   '<': 3,
   '>': 3,
   '<=': 3,
@@ -314,6 +323,17 @@ const tokenize = (text: string): TToken[] => {
     const start = LEX_RE.lastIndex;
     // a record field reference, with its quotes and accessors: the template the server gives it
     const at = start + (/^\s*/.exec(text.slice(start))?.[0].length ?? 0);
+    // after `=~` or `!~`, a regular expression literal: one value, whatever it holds
+    const previous = tokens[tokens.length - 1];
+    const regex =
+      previous?.kind === 'op' && (previous.text === '=~' || previous.text === '!~') ?
+        readRegex(text.slice(at))
+      : undefined;
+    if (regex) {
+      tokens.push({ kind: 'string', text: regex, start: at });
+      LEX_RE.lastIndex = at + regex.length;
+      continue;
+    }
     const reference = text[at] === '@' ? readRecordReference(text.slice(at)) : undefined;
     if (reference) {
       tokens.push({ kind: 'template', text: reference.template, start: at });
@@ -472,7 +492,10 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
             { type: 'float', value: parseFloat(token.text) }
           : { type: 'int', value: parseInt(token.text, 10) };
       case 'string':
-        return { type: 'string', value: JSON.parse(token.text) };
+        // a regular expression literal (after `=~`) is the pattern as written
+        return token.text.startsWith('/') ?
+            { type: 'string', value: token.text }
+          : { type: 'string', value: JSON.parse(token.text) };
       case 'template':
         return templateArg(token.text);
       case 'word': {
@@ -516,6 +539,34 @@ const parseTokens = (tokens: TToken[], endColumn: number): IDpqlMockNode => {
     let left = primary();
     for (;;) {
       const op = peek();
+      /* `in (…)` and `between … and …` compare as the symbol comparisons do (the server's DpqlParser): a value in
+         a list, a value between two others */
+      if (
+        op?.kind === 'word' &&
+        (op.text === 'in' || op.text === 'between') &&
+        BINARY_PRECEDENCE['=='] >= minPrecedence
+      ) {
+        pos++;
+        if (op.text === 'in') {
+          if (peek()?.text !== '(') return fail();
+          pos++;
+          const list: IDpqlMockNode[] = [];
+          while (peek() && peek()!.text !== ')') {
+            list.push(asOperand(binary(1)));
+            if (peek()?.text !== ',') break;
+            pos++;
+          }
+          closeParenthesis(true);
+          left = { exp: 'in', args: [asOperand(left), ...list] };
+        } else {
+          const low = binary(BINARY_PRECEDENCE['=='] + 1);
+          if (peek()?.text !== 'and') return fail();
+          pos++;
+          const high = binary(BINARY_PRECEDENCE['=='] + 1);
+          left = { exp: 'between', args: [asOperand(left), asOperand(low), asOperand(high)] };
+        }
+        continue;
+      }
       // A word comparison (`"a" contains "b"`) binds as the symbol comparisons do.
       const wordComparison =
         (

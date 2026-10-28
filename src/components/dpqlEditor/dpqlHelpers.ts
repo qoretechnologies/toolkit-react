@@ -204,6 +204,11 @@ const readReferences = (
       open = char;
       openedAt = i;
       i += 1;
+    } else if (char === '/' && /[=!]~\s*$/.test(line.slice(0, i))) {
+      /* a regular expression literal after `=~` or `!~`: what is in it is the pattern's - `@example` in
+         `/^[a-z]+@example\.com$/i` is no field (qlip #418, DpqlEditor · With Semantic Tokens) */
+      const literal = /^\/(?:\\.|[^/\\])*\/[gimsux]*/.exec(line.slice(i))?.[0];
+      i += literal ? literal.length : 1;
     } else if (char === '$' || char === '@') {
       const reference = char === '$' ? readTemplate(line, i) : readField(line, i);
       if (reference) {

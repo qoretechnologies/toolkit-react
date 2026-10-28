@@ -5663,6 +5663,8 @@ export const CompactExpressions: Story = {
       { timeout: 10000 }
     );
     expect(document.querySelector(`${card} [data-testid="expression-preview"]`)).toBeNull();
+    // `$local:name` is the local context's, whose keys are written freely: it is not said to name nothing (qlip #418)
+    expect(document.querySelector(card)?.textContent ?? '').not.toContain('No template here is called');
   },
 };
 

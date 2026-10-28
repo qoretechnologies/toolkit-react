@@ -1860,6 +1860,16 @@ export const WithSemanticTokens: Story = {
       },
       { timeout: 30000 }
     );
+    // the regular expression is one value: its `@example` is the pattern's, no chip, and nothing is refused
+    // (qlip #418: the chip record: example, and errors the server never gives)
+    expect(chipsOf(editable)).toEqual([
+      'record: status',
+      'record: age',
+      'record: email',
+      'record: balance',
+      'record: deleted',
+    ]);
+    expect(saidOfTheText(canvasElement)).toEqual([]);
   },
 };
 
