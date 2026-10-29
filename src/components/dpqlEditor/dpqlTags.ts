@@ -2,10 +2,23 @@
 // DPQL tag rendering — colors per template prefix, field-meta tooltips,
 // `getTagProps` callback for ReqoreRichTextEditor.
 
+import { NO_FIELD_DESCRIPTION } from '../../helpers/noDescription';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
-import { describeTemplateReference, templateTooltip } from '../../helpers/templates';
+import { descriptionTooltip, IDescriptionTooltipOptions } from '../../helpers/descriptionTooltip';
+import { builtInTypeSentenceForm, TTypeSentenceForm } from '../../helpers/qorusTypeCatalogue';
+import {
+  describedWithType,
+  describeTemplateReference,
+  getTemplateTagStyle,
+  REFERENCE_CHIP_PROPS,
+  templateTooltip,
+  TTemplateMeta,
+} from '../../helpers/templates';
+import { recordTemplateOfReference } from '../../helpers/recordFieldReference';
+import { templateChipLabel } from '../../helpers/templateText';
 import { ISlateElement } from '../smartEditor/types';
+import { dpqlFieldName } from './dpqlHelpers';
 import { IDpqlFieldMeta } from './useDpqlSession';
 
 /** Color scheme for tag rendering, keyed by template prefix. */
@@ -48,13 +61,11 @@ export const getTemplatePrefixColor = (value: string): string => {
 
 export interface IDpqlTagRendererOptions {
   /**
-   * Color template (`$…`) tags with the `info` intent instead of the per-prefix
-   * palette. For read-only render surfaces (the Explain panel) that mirror
-   * qorus-ide, where template tags are uniformly `info`. The server's
-   * `renderExpression` carries no built-in / event-trigger metadata (verified
-   * against the live LSP), so `info` is the whole scheme here — there's nothing
-   * to promote to qorus purple / success. The editable editor omits this and
-   * keeps the per-prefix palette for telling prefixes apart at a glance.
+   * Draw a template (`$…`) chip as every other template chip is drawn - in a value's text, a template field, a
+   * read row (`getTemplateTagStyle`): `info`, or the catalogue entry's built-in (`custom1`) or event-trigger
+   * (`success`) intent. The default (qorus#646, David's review: a template picked on a value's Value tab was blue
+   * there and gray on its Expression tab). `false` keeps the per-prefix palette (`TEMPLATE_COLORS`), which drew a
+   * prefix it did not list (`$record:`) gray.
    */
   templateTagsUseIntent?: boolean;
   /**
@@ -64,6 +75,16 @@ export interface IDpqlTagRendererOptions {
    * that is not found keeps its path.
    */
   templates?: IReqoreFormTemplates;
+  /**
+   * How the editor shows a description's card (`useDescriptionTooltips`): a field's and a template's
+   * description is markdown, drawn as the template list draws it, and opened by a tap on a touch screen.
+   */
+  descriptions?: IDescriptionTooltipOptions;
+  /**
+   * What a type is called inside a sentence (`useQorusTypes().getTypeSentenceForm`): a field's and a template's
+   * hover says its type in words with it. Without it, the built-in catalogue's words.
+   */
+  typeSentenceForm?: TTypeSentenceForm;
 }
 
 /**
@@ -75,38 +96,81 @@ export function makeDpqlTagRenderer(
   fieldMeta: Record<string, IDpqlFieldMeta>,
   options: IDpqlTagRendererOptions = {}
 ) {
+  /**
+   * A template's chip, as every view draws it: its catalogue name and description, else `<key>: <path>`. A field
+   * gives its own hover (`field`): the record's description of it, or none, so that the server's hover is the one
+   * shown and the chip's text is not repeated as its tooltip.
+   */
+  const templateChip = (
+    template: string,
+    field?: { tooltip: IReqoreTagProps['tooltip'] }
+  ): IReqoreTagProps => {
+    const named = options.templates && describeTemplateReference(options.templates, template);
+    return {
+      ...REFERENCE_CHIP_PROPS,
+      icon: 'ExchangeDollarLine',
+      /* the catalogue's name for it; else a template keeps the label its element was given (`<key>: <path>`), and a
+         field, whose element is labeled with its name, says the template's */
+      ...(named?.item ? { label: named.label }
+      : field ? { label: templateChipLabel(options.templates, template) }
+      : {}),
+      ...(named?.item ?
+        {
+          tooltip: templateTooltip(
+            options.templates,
+            template,
+            options.descriptions ?? {},
+            options.typeSentenceForm
+          ),
+        }
+      : field ? { tooltip: field.tooltip }
+      : {}),
+      ...(options.templateTagsUseIntent === false ?
+        { color: getTemplatePrefixColor(template) as `#${string}` }
+      : getTemplateTagStyle(named?.item?.metadata as TTemplateMeta | undefined)),
+    };
+  };
+
   return (tag: ISlateElement): IReqoreTagProps => {
     const tagValue = tag.value?.toString();
     if (!tagValue) return {};
 
-    if (tagValue.startsWith('@')) {
-      const fieldName = tagValue.slice(1);
+    /* A field, `@name`, quoted `@"order-id"` or with its accessors `@orders[*].id`, is a field of the record: the
+       same record field a value holds as `$record:{orders[*].id}`, and drawn as that chip - its color, its icon
+       and its label, `record: orders[*].id` (qorus#646, David: one chip for one record field). The record's own
+       description of the field is its hover where the catalogue does not describe it. */
+    const fieldName = dpqlFieldName(tagValue);
+    if (fieldName !== undefined) {
       const meta = fieldMeta[fieldName];
-      const tooltip = meta
-        ? `${meta.display_name || fieldName}${
-            meta.type?.name ? ` (${meta.type.name})` : ''
-          }${meta.short_desc ? `\n${meta.short_desc}` : ''}`
+      /* the field's name heads the card, and under it what kind of value it is, in words, and its description:
+         its type was said raw, "Order ID (int)" (qorus#646) */
+      const typeSentenceForm = options.typeSentenceForm ?? builtInTypeSentenceForm;
+      const tooltip =
+        meta ?
+          descriptionTooltip(
+            // what the field is, or why nothing says so (qorus#646)
+            describedWithType(
+              meta.short_desc?.trim() ? meta.short_desc : NO_FIELD_DESCRIPTION,
+              typeSentenceForm(meta.type?.name)
+            ),
+            options.descriptions ?? {},
+            meta.display_name || fieldName
+          )
         : undefined;
-
-      return {
-        icon: 'Database2Line',
-        color: FIELD_REF_COLOR.fg as `#${string}`,
-        tooltip,
-        label: meta?.display_name || fieldName,
-      };
+      const template = recordTemplateOfReference(tagValue);
+      return template ?
+          templateChip(template, { tooltip })
+        : {
+            ...REFERENCE_CHIP_PROPS,
+            icon: 'ExchangeDollarLine',
+            label: fieldName,
+            tooltip,
+            ...getTemplateTagStyle(undefined),
+          };
     }
 
     if (tagValue.startsWith('$')) {
-      const named = options.templates && describeTemplateReference(options.templates, tagValue);
-      return {
-        icon: 'ExchangeDollarLine',
-        ...(named?.item ?
-          { label: named.label, tooltip: templateTooltip(options.templates, tagValue) }
-        : {}),
-        ...(options.templateTagsUseIntent
-          ? { intent: 'info' as const }
-          : { color: getTemplatePrefixColor(tagValue) as `#${string}` }),
-      };
+      return templateChip(tagValue);
     }
 
     return {};

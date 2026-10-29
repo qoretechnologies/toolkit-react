@@ -13,6 +13,7 @@ import { useReqoreTheme } from '@qoretechnologies/reqore/dist/hooks/useTheme';
 import React, { memo } from 'react';
 import styled from 'styled-components';
 import { useContext } from 'use-context-selector';
+import { getCompactToolbarInks } from './compactToolbarColors';
 import { CompactToolbarContext, TCompactSort } from './compactToolbarContext';
 
 // Field sort modes, listed in the Fields menu's "Sort by" submenu. 'schema' is
@@ -139,6 +140,8 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
   const cSuccess = intents.success || '#4a7110';
   const cWarning = intents.warning || '#d17c29';
   const cText = (theme.text?.color as string) || '#e8e8e8';
+  // the summary's words in shades that read (the meter keeps the intents themselves)
+  const inks = React.useMemo(() => getCompactToolbarInks(theme), [theme]);
   const cTrack = `${cText}1f`;
   // The GREEN run is what is done, not merely what has a value: a field that is
   // set but flagged belongs to the amber run, and counting it twice pushed that
@@ -165,7 +168,7 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
           <StyledCompletionLine>
             <StyledSummary
               className='options-readfirst-status'
-              $color={invalidCount || attentionCount ? cWarning : cSuccess}
+              $color={invalidCount || attentionCount ? inks.warning : inks.success}
               style={{ fontWeight: 600 }}
             >
               {/* "Ready" is a claim about the whole form, so anything the form
@@ -179,13 +182,13 @@ export const CompactToolbar = memo((reqoreProps: Partial<IReqoreControlGroupProp
                   batched mode's per-row chip alone. */}
               {invalidCount || attentionCount ? 'Incomplete' : 'Ready'}
             </StyledSummary>
-            <StyledSummary style={{ opacity: 0.5 }}>
+            <StyledSummary style={{ opacity: inks.countOpacity }}>
               · {completion.set}/{completion.total} set
               {attentionCount ? ' ·' : ''}
             </StyledSummary>
             {attentionCount ?
               <StyledAttentionLink
-                $color={cWarning}
+                $color={inks.warning}
                 className='options-readfirst-attention-link'
                 onClick={onToggleInvalidOnly}
               >

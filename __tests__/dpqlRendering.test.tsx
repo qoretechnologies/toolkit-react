@@ -45,7 +45,7 @@ beforeEach(() => {
 });
 
 describe('DpqlRendering', () => {
-  it('shows the text through a read-only DPQL editor, without diagnostics, hover or overlay', () => {
+  it('shows the text through a read-only DPQL editor, without diagnostics or overlay', () => {
     const { container } = mount(<DpqlRendering text='1 + 2 > 3' data-testid='shown' />);
 
     expect(container.querySelector('[data-testid="shown"]')?.textContent).toBe('1 + 2 > 3');
@@ -53,10 +53,15 @@ describe('DpqlRendering', () => {
       value: '1 + 2 > 3',
       readOnly: true,
       showDiagnostics: false,
-      enableHover: false,
       // The text is known up front; no "Connecting…" overlay may hide it.
       loadingIndicator: null,
     });
+  });
+
+  it('says what a word is on hover, as the editor does (qorus#646, David: "trim" said nothing when read)', () => {
+    mount(<DpqlRendering text='trim(" a ")' />);
+
+    expect(editorProps[0].enableHover).not.toBe(false);
   });
 });
 

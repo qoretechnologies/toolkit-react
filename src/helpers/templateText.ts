@@ -9,7 +9,7 @@
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { getTagLabel } from '../components/dpqlEditor/dpqlHelpers';
 import { IRichtextSegment } from './common';
-import { describeTemplateReference, TEMPLATE_TOKEN_SOURCE } from './templates';
+import { describeTemplateReference, templateTokenSpans } from './templates';
 
 /* Stated here rather than borrowed from Reqore's editor props: those resolve
    to Reqore's `CustomElement`, which it does not export, so the published
@@ -66,7 +66,7 @@ export const templateChipLabel = (templates: IReqoreFormTemplates | undefined, v
  * Every value the catalogue offers, longest first.
  *
  * A host may write its references in a grammar reqraft has never seen — a Qorus
- * test spells one `$._case.mode`, which `TEMPLATE_TOKEN_SOURCE` cannot match
+ * test spells one `$._case.mode`, which `templateTokenSpans` cannot match
  * because it has no `$key:` at all. Asking the field's own list which strings
  * it NAMES settles that without reqraft guessing at anybody's syntax, and it is
  * the same question the whole-value branch of the read row already asks
@@ -81,7 +81,7 @@ export const templateChipLabel = (templates: IReqoreFormTemplates | undefined, v
    Walking a 29-item catalogue per row per render is work with one answer. */
 const catalogueValueCache = new WeakMap<object, string[]>();
 
-const catalogueValues = (templates?: IReqoreFormTemplates): string[] => {
+export const catalogueValues = (templates?: IReqoreFormTemplates): string[] => {
   if (!templates) {
     return [];
   }
@@ -196,7 +196,7 @@ const lineReferenceSpans = (
   const declared = grammarSource(tokenGrammar);
   const candidates: ITokenSpan[] = [
     ...(declared ? patternSpans(line, declared) : []),
-    ...patternSpans(line, TEMPLATE_TOKEN_SOURCE),
+    ...templateTokenSpans(line).map(([start, end]) => ({ start, end })),
     ...catalogueValues(templates).flatMap((literal) => literalSpans(line, literal)),
   ].sort((a, b) => a.start - b.start || b.end - a.end);
 

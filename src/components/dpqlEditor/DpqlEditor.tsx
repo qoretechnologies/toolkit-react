@@ -9,24 +9,39 @@
 // Templates and fields are BOTH served by the LSP server through the
 // completion stream: typing `$` opens templates, `@` opens field
 // references (the server's `dpql-get-completions` is position-aware).
-// There is intentionally no client-side "Templates" button — it would
-// duplicate what the server already returns on `$`.
+// Given templates, it lists them in that one list on a click as well, and
+// a picker beside the text browses them as their catalogue nests them
+// (`TemplateBrowser`), as a Qog field's are.
 
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { SmartEditor } from '../smartEditor/SmartEditor';
 import { ISlateConverter, ISlateElement } from '../smartEditor/types';
-import { dpqlSlateConverter, richtextResponseToSlate } from './dpqlHelpers';
+import { dpqlReferencesIn, dpqlSlateConverter, richtextResponseToSlate } from './dpqlHelpers';
 import { dpqlCompletionInserter } from './dpqlInserter';
 import { makeDpqlTagRenderer } from './dpqlTags';
+import {
+  dpqlCompletionsWith,
+  dpqlEmptyCompletionMessage,
+  dpqlExpectsValue,
+  NO_VALUE_AT_THE_END,
+  presentDpqlDiagnostics,
+} from './dpqlCompletions';
 import { IDpqlEditorProps, IDpqlEditorRef } from './types';
 import { useDpqlSession } from './useDpqlSession';
+import {
+  referenceNamesNothing,
+  referenceNamesNothingMessage,
+  templateTree,
+} from '../../helpers/templateTree';
+import { ILspDiagnostic } from '../../utils/lspClient.types';
+import { ITemplateCatalogue, withTemplateCatalogue } from '../../helpers/templateCatalogue';
+import {
+  useTemplateCatalogue,
+  useTemplateFieldContext,
+} from '../../helpers/templateCatalogueContext';
+import { DPQL_EDITING_LANGUAGE } from '../smartEditor/editingAids';
+import { useDescriptionTooltips } from '../../helpers/descriptionTooltip';
+import { useTypeLabel, useTypeSentenceForm } from '../form/typeSentenceForm';
 
 export type { IDpqlEditorProps, IDpqlEditorRef };
 
@@ -47,10 +62,14 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       options,
       actionCode,
       height,
+      size,
       readOnly = false,
+      wordWrap,
+      maxHeight,
+      lineNumbers,
       showDiagnostics = true,
       enableHover = true,
-      templateTagsUseIntent = false,
+      templateTagsUseIntent = true,
       loadingIndicator,
       templates,
       onBlur,
@@ -58,9 +77,19 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       fields,
       alertPayloadContext = false,
       fsmContext,
+      onUnavailable,
+      onReady,
+      completeOnClick = !!templates,
+      browseTemplates = true,
+      templateCatalogue,
+      fieldContext: ownFieldContext,
+      diagnosticAction,
     },
     ref
   ) => {
+    // where the field is: its own, or where the host says its fields are (`TemplateCatalogueProvider`)
+    const hostFieldContext = useTemplateFieldContext();
+    const fieldContext = ownFieldContext ?? hostFieldContext;
     const dpql = useDpqlSession({
       provider,
       recordType,
@@ -70,6 +99,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       initialText: value,
       alertPayloadContext,
       fsmContext,
+      fieldContext,
     });
 
     // Server-parse state: when `useServerParse` is true, we ask the
@@ -79,12 +109,8 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
     // reuse it without another roundtrip. `null` until the first
     // response arrives (or when the request errored — caller falls
     // back to the client-side regex parser via `dpqlSlateConverter`).
-    const [serverParsedNodes, setServerParsedNodes] = useState<
-      ISlateElement[] | null
-    >(null);
-    const [serverParsedFor, setServerParsedFor] = useState<string | null>(
-      null
-    );
+    const [serverParsedNodes, setServerParsedNodes] = useState<ISlateElement[] | null>(null);
+    const [serverParsedFor, setServerParsedFor] = useState<string | null>(null);
     const [isParsing, setIsParsing] = useState(false);
     // Tracks the most recent in-flight request so a slow response
     // can't overwrite a newer one (the user typed faster than the
@@ -163,10 +189,7 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       return {
         ...dpqlSlateConverter,
         toSlateNodes: (text: string) => {
-          if (
-            text === serverParsedFor &&
-            serverParsedNodes
-          ) {
+          if (text === serverParsedFor && serverParsedNodes) {
             return serverParsedNodes;
           }
           return dpqlSlateConverter.toSlateNodes(text);
@@ -174,9 +197,120 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       };
     }, [useServerParse, serverParsedFor, serverParsedNodes]);
 
+    // no language server to talk to: said once, for the host to show what works without one
+    const unavailable = dpql.session.isUnavailable;
+    useEffect(() => {
+      if (unavailable) onUnavailable?.();
+    }, [unavailable]);
+    // the language server can now parse and write the text: said once, as the session says it
+    const ready = dpql.session.isReady && dpql.session.isContextReady;
+    useEffect(() => {
+      if (ready) onReady?.();
+    }, [ready]);
+
+    /* What the field can refer to (qorus#646, David's decisions): its templates as their catalogue nests them, and
+       the record's fields as a group of their own - one tree, browsed in the template picker (a click in the empty
+       text, the template button, a chip, a group's row) and reached by what is typed (`dpqlCompletionsWith`). */
+    /* The field's template catalogue (qorus#646): the contexts it can use where it is used, asked of the language
+       server once the document's context is bound, and again when that changes. A server that does not know the
+       request leaves the field with its own templates. */
+    const [askedCatalogue, setAskedCatalogue] = useState<ITemplateCatalogue>();
+    const catalogueClient = dpql.session.client;
+    const catalogueReady = dpql.session.isReady && dpql.session.isContextReady;
+    const fieldContextKey = fieldContext ? JSON.stringify(fieldContext) : '';
+    useEffect(() => {
+      if (templateCatalogue || readOnly || !catalogueClient || !catalogueReady) return undefined;
+      let current = true;
+      catalogueClient
+        .customRequest<ITemplateCatalogue>('dpql/templateCatalogue', {
+          uri: dpql.session.uri,
+          ...(fieldContextKey ? { field_context: JSON.parse(fieldContextKey) } : {}),
+        })
+        .then((catalogue) => {
+          if (current) setAskedCatalogue(catalogue?.contexts ? catalogue : undefined);
+        })
+        .catch(() => {
+          // a server without the catalogue: the field's own templates
+          if (current) setAskedCatalogue(undefined);
+        });
+      return () => {
+        current = false;
+      };
+      // asked again when the Qog the document is bound to changes (`fsmContext`): its state data are `$data:`'s keys
+    }, [
+      templateCatalogue,
+      readOnly,
+      catalogueClient,
+      catalogueReady,
+      fieldContextKey,
+      fsmContext,
+      dpql.session.uri,
+    ]);
+    // the field's own, its language server's, or that of the fields where it is (`TemplateCatalogueProvider`)
+    const hostCatalogue = useTemplateCatalogue();
+    const catalogue = templateCatalogue ?? askedCatalogue ?? hostCatalogue;
+    const templateRoots = useMemo(
+      // an expression takes a record whole: a state's data or a record is offered whole as well as opened
+      // a lone group kept whole: the editor adds the language server's groups beside it (`openLoneGroup`)
+      () =>
+        withTemplateCatalogue(
+          templateTree(templates, { fields: dpql.fieldMeta, wholeRecords: true, keepLoneGroup: true }),
+          catalogue,
+          true
+        ),
+      [templates, dpql.fieldMeta, catalogue]
+    );
+    /* A reference that names none of the field's templates says so where it is written, and stays the text it
+       was typed as (qorus#646, David's review: a half-typed reference was taken as it was). */
+    const namesNothing = useCallback(
+      (reference: string) => referenceNamesNothing(templateRoots, reference),
+      [templateRoots]
+    );
+    const presentDiagnostics = useCallback(
+      (diagnostics: ILspDiagnostic[], plainText: string): ILspDiagnostic[] => [
+        ...presentDpqlDiagnostics(diagnostics, plainText),
+        ...dpqlReferencesIn(plainText)
+          .filter(({ value }) => namesNothing(value))
+          /* what the server says of a reference is said once: a variable the Qog does not declare is the server's
+             warning, with what to do about it (`qog_variable_undeclared`), not an error of the editor's too */
+          .filter(
+            ({ line, start }) =>
+              !diagnostics.some(
+                (diagnostic) =>
+                  diagnostic.code === 'qog_variable_undeclared' &&
+                  diagnostic.range.start.line === line &&
+                  diagnostic.range.start.character <= start &&
+                  diagnostic.range.end.character > start
+              )
+          )
+          .map(({ line, start, end, value }) => ({
+            range: { start: { line, character: start }, end: { line, character: end } },
+            severity: 1 as const,
+            source: 'templates',
+            message: referenceNamesNothingMessage(value),
+          })),
+      ],
+      [namesNothing]
+    );
+    // a template's type named in its row by the catalogue the surrounding form has, never its code
+    const typeLabel = useTypeLabel();
+    const completionsWith = useMemo(
+      () => dpqlCompletionsWith(templateRoots, typeLabel),
+      [templateRoots, typeLabel]
+    );
+
+    const descriptions = useDescriptionTooltips();
+    // a chip's hover says its type in the server's words for it
+    const typeSentenceForm = useTypeSentenceForm();
     const tagRenderer = useMemo(
-      () => makeDpqlTagRenderer(dpql.fieldMeta, { templateTagsUseIntent, templates }),
-      [dpql.fieldMeta, templateTagsUseIntent, templates]
+      () =>
+        makeDpqlTagRenderer(dpql.fieldMeta, {
+          templateTagsUseIntent,
+          templates,
+          descriptions,
+          typeSentenceForm,
+        }),
+      [dpql.fieldMeta, templateTagsUseIntent, templates, descriptions, typeSentenceForm]
     );
 
     useImperativeHandle(
@@ -195,7 +329,30 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
       [dpql, value, onChange]
     );
 
-    return (
+    // Shift+Alt+F: the text as the language server formats it
+    const formatDocument = useCallback(() => {
+      dpql.session
+        .format()
+        .then((formatted) => {
+          if (formatted !== null && formatted !== value) {
+            onChange(formatted);
+          }
+        })
+        .catch(() => {
+          // the server could not format it: the text stays as it is
+        });
+    }, [dpql.session, value, onChange]);
+
+    // the button beside the text that opens the picker for a pick at the caret, where a value can be written there
+    const templateButton = useMemo(
+      () =>
+        browseTemplates && !readOnly && templates?.items?.length ?
+          { insertableAt: dpqlExpectsValue, notInsertable: NO_VALUE_AT_THE_END }
+        : undefined,
+      [browseTemplates, readOnly, templates]
+    );
+
+    const editor = (
       <SmartEditor
         session={dpql.session}
         value={value}
@@ -205,14 +362,32 @@ export const DpqlEditor = forwardRef<IDpqlEditorRef, IDpqlEditorProps>(
         converter={converter}
         completionInserter={dpqlCompletionInserter}
         height={height}
+        size={size}
         readOnly={readOnly}
         showDiagnostics={showDiagnostics}
         enableHover={enableHover}
         onBlur={onBlur}
+        templateRoots={readOnly ? undefined : templateRoots}
+        // DPQL's brackets and strings, as a code editor closes, wraps and matches them
+        editingLanguage={DPQL_EDITING_LANGUAGE}
+        formatDocument={formatDocument}
+        wordWrap={wordWrap}
+        maxHeight={maxHeight}
+        lineNumbers={lineNumbers}
+        templateButton={templateButton}
+        completeOnClick={completeOnClick}
+        completionsWith={completionsWith}
+        // "No record fields here" is the server's to say: with none, there may be a record it would know
+        emptyCompletionMessage={dpql.session.isUnavailable ? undefined : dpqlEmptyCompletionMessage}
+        presentDiagnostics={presentDiagnostics}
+        diagnosticAction={diagnosticAction}
+        referenceNamesNothing={namesNothing}
         isLoading={isParsing}
         loadingIndicator={loadingIndicator}
       />
     );
+
+    return editor;
   }
 );
 

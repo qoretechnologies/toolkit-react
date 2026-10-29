@@ -1,0 +1,529 @@
+{
+  "description": "A service field with configuration items and a value map",
+  "response": {
+    "field_context": {
+      "interface_type": "service",
+      "sandboxed": false,
+      "mode": "read"
+    },
+    "contexts": [
+      {
+        "name": "local",
+        "display_name": "Local context",
+        "description": "The context of the current call: the interface and what the caller gives",
+        "kind": "container",
+        "sort_priority": 1,
+        "use_whole": true,
+        "free_form_keys": true,
+        "needs_arg": true,
+        "writable": false,
+        "type": "hash<auto>",
+        "keys": [
+          {
+            "name": "type",
+            "path": "type",
+            "template": "$local:type",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Interface type",
+            "type": "string",
+            "description": "The type of the interface: workflow, service, job or Qog",
+            "base_type": "string"
+          },
+          {
+            "name": "name",
+            "path": "name",
+            "template": "$local:name",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Interface name",
+            "type": "string",
+            "description": "The name of the interface",
+            "base_type": "string"
+          },
+          {
+            "name": "id",
+            "path": "id",
+            "template": "$local:id",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Interface ID",
+            "type": "int",
+            "description": "The ID of the interface",
+            "base_type": "int"
+          },
+          {
+            "name": "version",
+            "path": "version",
+            "template": "$local:version",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Interface version",
+            "type": "string",
+            "description": "The version of the interface",
+            "base_type": "string"
+          },
+          {
+            "name": "servicetype",
+            "path": "servicetype",
+            "template": "$local:servicetype",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Service type",
+            "type": "string",
+            "description": "The service type: user or system",
+            "base_type": "string"
+          },
+          {
+            "name": "auth_enabled",
+            "path": "auth_enabled",
+            "template": "$local:auth_enabled",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Authentication enabled",
+            "type": "bool",
+            "description": "Whether authentication is enabled in this Qorus instance",
+            "base_type": "bool"
+          },
+          {
+            "name": "context_user",
+            "path": "context_user",
+            "template": "$local:context_user",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Current user",
+            "type": "*string",
+            "description": "The user the interface runs for, if any",
+            "base_type": "string"
+          },
+          {
+            "name": "sandboxed",
+            "path": "sandboxed",
+            "template": "$local:sandboxed",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Sandboxed",
+            "type": "bool",
+            "description": "Whether the interface is sandboxed",
+            "base_type": "bool"
+          },
+          {
+            "name": "group_namespace",
+            "path": "group_namespace",
+            "template": "$local:group_namespace",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Group namespace",
+            "type": "*int",
+            "description": "The group namespace of the interface, if any",
+            "base_type": "int"
+          }
+        ],
+        "whole_template": "$local:*"
+      },
+      {
+        "name": "config",
+        "display_name": "Configuration items",
+        "description": "The values of the configuration items here",
+        "kind": "container",
+        "sort_priority": 10,
+        "use_whole": true,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "type": "hash<auto>",
+        "keys": [
+          {
+            "name": "url",
+            "path": "url",
+            "template": "$config:url",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "config",
+            "display_name": "URL",
+            "type": "string",
+            "description": "The endpoint URL",
+            "base_type": "string"
+          },
+          {
+            "name": "retry-count",
+            "path": "retry-count",
+            "template": "$config:{retry-count}",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "config",
+            "type": "int",
+            "description": "How often to retry",
+            "base_type": "int"
+          }
+        ],
+        "whole_template": "$config:*"
+      },
+      {
+        "name": "info",
+        "display_name": "Interface information",
+        "description": "Information about the running job, service or workflow order",
+        "kind": "container",
+        "sort_priority": 20,
+        "use_whole": true,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "type": "hash<auto>",
+        "keys": [
+          {
+            "name": "type",
+            "path": "type",
+            "template": "$info:type",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Service type",
+            "type": "string",
+            "description": "The service type: user or system",
+            "base_type": "string"
+          },
+          {
+            "name": "name",
+            "path": "name",
+            "template": "$info:name",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Service name",
+            "type": "string",
+            "description": "The name of the service",
+            "base_type": "string"
+          },
+          {
+            "name": "version",
+            "path": "version",
+            "template": "$info:version",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Service version",
+            "type": "string",
+            "description": "The version of the service",
+            "base_type": "string"
+          },
+          {
+            "name": "desc",
+            "path": "desc",
+            "template": "$info:desc",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Description",
+            "type": "*string",
+            "description": "The description of the service",
+            "base_type": "string"
+          },
+          {
+            "name": "serviceid",
+            "path": "serviceid",
+            "template": "$info:serviceid",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Service ID",
+            "type": "int",
+            "description": "The ID of the service",
+            "base_type": "int"
+          },
+          {
+            "name": "status",
+            "path": "status",
+            "template": "$info:status",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Status",
+            "type": "string",
+            "description": "The status of the service",
+            "base_type": "string"
+          },
+          {
+            "name": "threads",
+            "path": "threads",
+            "template": "$info:threads",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Threads",
+            "type": "int",
+            "description": "The number of running service threads",
+            "base_type": "int"
+          },
+          {
+            "name": "autostart",
+            "path": "autostart",
+            "template": "$info:autostart",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Autostart",
+            "type": "bool",
+            "description": "Whether the service starts automatically",
+            "base_type": "bool"
+          },
+          {
+            "name": "loaded",
+            "path": "loaded",
+            "template": "$info:loaded",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Loaded",
+            "type": "date",
+            "description": "When the service was loaded",
+            "base_type": "date"
+          },
+          {
+            "name": "methods",
+            "path": "methods",
+            "template": "$info:methods",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Methods",
+            "type": "list<auto>",
+            "description": "The methods of the service",
+            "base_type": "list"
+          },
+          {
+            "name": "method",
+            "path": "method",
+            "template": "$info:method",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Method",
+            "type": "*string",
+            "description": "The service method being called",
+            "base_type": "string"
+          },
+          {
+            "name": "resources",
+            "path": "resources",
+            "template": "$info:resources",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Resources",
+            "type": "*hash<auto>",
+            "description": "The resources of the service",
+            "base_type": "hash"
+          },
+          {
+            "name": "groups",
+            "path": "groups",
+            "template": "$info:groups",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "context-info",
+            "display_name": "Groups",
+            "type": "*list<auto>",
+            "description": "The interface groups of the service",
+            "base_type": "list"
+          }
+        ],
+        "whole_template": "$info:*"
+      },
+      {
+        "name": "pstate",
+        "display_name": "Persistent state",
+        "description": "The interface's persistent state data",
+        "kind": "container",
+        "sort_priority": 22,
+        "use_whole": true,
+        "free_form_keys": true,
+        "needs_arg": true,
+        "writable": true,
+        "type": "hash<auto>",
+        "whole_template": "$pstate:*"
+      },
+      {
+        "name": "state",
+        "display_name": "State data",
+        "description": "The service's or job's state data",
+        "kind": "container",
+        "sort_priority": 23,
+        "use_whole": true,
+        "free_form_keys": true,
+        "needs_arg": true,
+        "writable": true,
+        "type": "hash<auto>",
+        "whole_template": "$state:*"
+      },
+      {
+        "name": "value-map",
+        "display_name": "Value maps",
+        "description": "A value from a value map of the interface",
+        "kind": "formatted",
+        "sort_priority": 24,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "<valuemap>.<key>",
+        "keys": [
+          {
+            "name": "currency-codes",
+            "path": "currency-codes",
+            "template": "$value-map:{currency-codes}",
+            "use_whole": false,
+            "free_form_keys": true,
+            "source": "declared",
+            "description": "Value map \"currency-codes\": add \".<key>\""
+          }
+        ]
+      },
+      {
+        "name": "env",
+        "display_name": "Environment variables",
+        "description": "The server's environment variables",
+        "kind": "container",
+        "sort_priority": 26,
+        "use_whole": true,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "type": "hash<string, string>",
+        "keys": [
+          {
+            "name": "HOME",
+            "path": "HOME",
+            "template": "$env:HOME",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "environment",
+            "type": "string",
+            "description": "Environment variable HOME",
+            "base_type": "string"
+          }
+        ],
+        "whole_template": "$env:*"
+      },
+      {
+        "name": "timestamp",
+        "display_name": "Timestamp",
+        "description": "The current time, midnight, or the current time in a date format",
+        "kind": "values",
+        "sort_priority": 27,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "now|timegm|last_midnight|next_midnight|<date format>",
+        "keys": [
+          {
+            "name": "now",
+            "path": "now",
+            "template": "$timestamp:now",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "display_name": "Now",
+            "type": "date",
+            "description": "The current date and time with microseconds",
+            "base_type": "date"
+          },
+          {
+            "name": "timegm",
+            "path": "timegm",
+            "template": "$timestamp:timegm",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "display_name": "Seconds since the epoch",
+            "type": "int",
+            "description": "The current time as seconds since the epoch (GMT)",
+            "base_type": "int"
+          },
+          {
+            "name": "last_midnight",
+            "path": "last_midnight",
+            "template": "$timestamp:last_midnight",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "display_name": "Last midnight",
+            "type": "date",
+            "description": "The last midnight (the start of today)",
+            "base_type": "date"
+          },
+          {
+            "name": "next_midnight",
+            "path": "next_midnight",
+            "template": "$timestamp:next_midnight",
+            "use_whole": false,
+            "free_form_keys": false,
+            "source": "values",
+            "display_name": "Next midnight",
+            "type": "date",
+            "description": "The next midnight (the start of tomorrow)",
+            "base_type": "date"
+          }
+        ]
+      },
+      {
+        "name": "rest",
+        "display_name": "REST API call",
+        "description": "The result of a GET request to the Qorus REST API",
+        "kind": "formatted",
+        "sort_priority": 28,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "<URI path>[.<key>...]"
+      },
+      {
+        "name": "qore-expr",
+        "display_name": "Qore expression",
+        "description": "The value of a Qore expression",
+        "kind": "expression",
+        "sort_priority": 29,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<expression>}"
+      },
+      {
+        "name": "python-expr",
+        "display_name": "Python expression",
+        "description": "The value of a Python expression",
+        "kind": "expression",
+        "sort_priority": 30,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<expression>}"
+      },
+      {
+        "name": "parse-value",
+        "display_name": "Parsed value",
+        "description": "A Qore value parsed from a string",
+        "kind": "expression",
+        "sort_priority": 31,
+        "use_whole": false,
+        "free_form_keys": false,
+        "needs_arg": true,
+        "writable": false,
+        "arg_format": "{<value>}"
+      }
+    ]
+  }
+}

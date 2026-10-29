@@ -1,7 +1,14 @@
+import { DEFAULT_THEME } from '@qoretechnologies/reqore/dist/constants/theme';
+import { buildTheme } from '@qoretechnologies/reqore/dist/helpers/colors';
+import { getUnavailableLabelOpacity } from '../src/components/form/fields/select/unavailableRow';
 import { ReqoreUIProvider } from '@qoretechnologies/reqore';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { UNAVAILABLE_ITEM_CLASS } from '../src/components/form/fields/select/SelectCollection';
+
+/* A refused value's name is dimmed, as far as it still reads in the theme (qorus#646): 0.55 was 4.1:1. Only the
+   name: the reason under it stays as reqore draws a row's description (dimming the whole row took it to 3.1:1). */
+const DIMMED = getUnavailableLabelOpacity(buildTheme(DEFAULT_THEME as never));
 
 /**
  * The three picker paths that still handed a refused value to reqore's
@@ -79,7 +86,10 @@ describe('the creatable chip picker', () => {
     expect(refused.readOnly).toBe(true);
     expect(refused.tooltip).toBe(REASON);
     expect(refused.icon).toBe('LockLine');
-    expect(refused.effect).toEqual({ opacity: 0.55 });
+    expect(refused.labelEffect).toEqual({ opacity: DIMMED });
+    /* no `effect`: reqore 0.77.2 fills a row that has one (a refused row with an intent turned solid, its reason
+       unreadable on it), where the rows beside it are drawn on the list */
+    expect(refused.effect).toBeUndefined();
     // The reason LEADS: a reader who has just been refused a choice is looking
     // for why, not for what the value would have done.
     expect(refused.description).toContain(REASON);
@@ -157,6 +167,21 @@ describe('the menu a picker renders inline', () => {
 
     const offered = await rowFor('Database');
     expect(offered.className).not.toContain(UNAVAILABLE_ITEM_CLASS);
+    /* its name dimmed as far as it still reads, the reason under it not, and the row drawn on the list like the
+       one beside it - not filled, as reqore 0.77.2 fills a row that has an `effect` */
+    expect(getComputedStyle(refused).opacity).toBe('1');
+    // the name as drawn: reqore draws it more than once to animate it, the copy it shows on a hover hidden till then
+    const names = [
+      ...refused.querySelectorAll<HTMLElement>('.reqore-button-text-content:not(.reqore-active)'),
+    ];
+    expect(names.length).toBeGreaterThan(0);
+    for (const name of names) {
+      expect(getComputedStyle(name).opacity).toBe(String(DIMMED));
+    }
+    expect(
+      getComputedStyle(refused.querySelector('.reqore-button-description') as HTMLElement).opacity
+    ).toBe('1');
+    expect(getComputedStyle(refused).backgroundColor).toBe(getComputedStyle(offered).backgroundColor);
     fireEvent.click(offered);
     expect(onChange).toHaveBeenCalledWith('db');
   });

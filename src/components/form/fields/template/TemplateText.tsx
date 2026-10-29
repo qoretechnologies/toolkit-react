@@ -6,9 +6,18 @@ import { IRichtextSegment } from '../../../../helpers/common';
 import {
   findTemplate,
   getTemplateTagStyle,
+  REFERENCE_CHIP_PROPS,
   templateTooltip,
   TTemplateMeta,
 } from '../../../../helpers/templates';
+import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { useTypeSentenceForm } from '../../typeSentenceForm';
+import {
+  hostSaysOf,
+  referenceStanding,
+  unlistedReferenceChipProps,
+  useTemplateReferenceNames,
+} from './referenceNames';
 
 export interface ITemplateTextProps {
   /** Prose runs and reference chips, from `templateTextSegments` or
@@ -63,53 +72,78 @@ const collapseSummaryBreaks = (text: string): string => text.replace(/\s*\r?\n\s
  * (`getTemplateTagStyle`) and the same hover card (`templateTooltip`), so a
  * reference looks identical wherever it is shown.
  */
-export const TemplateText = memo(({ segments, templates, full, className }: ITemplateTextProps) => (
-  <span
-    className={`reqraft-template-text${className ? ` ${className}` : ''}`}
-    style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 4,
-      minWidth: 0,
-      maxWidth: '100%',
-      ...(full ? { flexWrap: 'wrap' } : { overflow: 'hidden' }),
-    }}
-  >
-    {segments.map((segment, index) =>
-      segment.kind === 'tag' ?
-        <ReqoreTag
-          key={`tag-${index}`}
-          className='reqraft-template-chip'
-          size='tiny'
-          // The chip's label has to be the same size as the prose it is embedded
-          // in. The wrapper centres boxes, so two different text sizes centred
-          // against each other cannot share a baseline and the chips visibly
-          // float above the words. Inheriting makes centring align the baselines
-          // too, at whatever font size the consuming app uses.
-          style={{ fontSize: 'inherit' }}
-          icon='ExchangeDollarLine'
-          label={segment.text || segment.value}
-          // The same card the chosen-template chip shows: what the value IS, not
-          // the reference that names it.
-          tooltip={templateTooltip(templates, segment.value || '')}
-          {...getTemplateTagStyle(
-            (templates ? findTemplate(templates, segment.value || '') : undefined)?.metadata as
-              | TTemplateMeta
-              | undefined
-          )}
-        />
-      : <span
-          key={`text-${index}`}
-          className='reqraft-template-prose'
-          // `pre`, not the row's `nowrap`: the single space that separates a
-          // word from the chip beside it is real content here, and collapsing
-          // it would join them. A read row keeps the newlines too.
-          style={{ whiteSpace: full ? 'pre-wrap' : 'pre' }}
-        >
-          {full ? segment.text : collapseSummaryBreaks(segment.text)}
-        </span>
-    )}
-  </span>
-));
+const TemplateTextBody = ({ segments, templates, full, className }: ITemplateTextProps) => {
+  const descriptions = useDescriptionTooltips();
+  const getTypeSentenceForm = useTypeSentenceForm();
+  const names = useTemplateReferenceNames();
+  return (
+    <span
+      className={`reqraft-template-text${className ? ` ${className}` : ''}`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        minWidth: 0,
+        maxWidth: '100%',
+        ...(full ? { flexWrap: 'wrap' } : { overflow: 'hidden' }),
+      }}
+    >
+      {segments.map((segment, index) => {
+        if (segment.kind !== 'tag') {
+          return (
+            <span
+              key={`text-${index}`}
+              className='reqraft-template-prose'
+              // `pre`, not the row's `nowrap`: the single space that separates a
+              // word from the chip beside it is real content here, and collapsing
+              // it would join them. A read row keeps the newlines too.
+              style={{ whiteSpace: full ? 'pre-wrap' : 'pre' }}
+            >
+              {full ? segment.text : collapseSummaryBreaks(segment.text)}
+            </span>
+          );
+        }
+        // a reference nothing names says so; one the host knows wears its name (`referenceStanding`)
+        const standing = referenceStanding(templates, segment.value || '', names);
+        const unlisted = standing.unlisted ? unlistedReferenceChipProps(names) : undefined;
+        return (
+          <ReqoreTag
+            key={`tag-${index}`}
+            className={`reqraft-template-chip${unlisted ? ` ${unlisted.className}` : ''}`}
+            // The chip's label has to be the same size as the prose it is embedded
+            // in. The wrapper centres boxes, so two different text sizes centred
+            // against each other cannot share a baseline and the chips visibly
+            // float above the words. Inheriting makes centring align the baselines
+            // too, at whatever font size the consuming app uses.
+            {...REFERENCE_CHIP_PROPS}
+            icon='ExchangeDollarLine'
+            label={standing.label || segment.text || segment.value}
+            // The same card the chosen-template chip shows: what the value IS, not
+            // the reference that names it, drawn by the host's markdown renderer and
+            // opened by a tap on a touch screen.
+            tooltip={
+              unlisted?.tooltip ??
+              templateTooltip(
+                templates,
+                segment.value || '',
+                descriptions,
+                getTypeSentenceForm,
+                hostSaysOf(segment.value || '', names)
+              )
+            }
+            {...getTemplateTagStyle(
+              (templates ? findTemplate(templates, segment.value || '') : undefined)?.metadata as
+                | TTemplateMeta
+                | undefined
+            )}
+            {...(unlisted ? { intent: unlisted.intent } : {})}
+          />
+        );
+      })}
+    </span>
+  );
+};
+
+export const TemplateText = memo(TemplateTextBody);
 
 TemplateText.displayName = 'TemplateText';

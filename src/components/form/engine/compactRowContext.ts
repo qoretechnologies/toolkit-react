@@ -1,4 +1,5 @@
 import { IReqoreTheme } from '@qoretechnologies/reqore/dist/constants/theme';
+import type { IReadFirstInks } from './readFirstColors';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { useReqoreProperty } from '@qoretechnologies/reqore';
 import {
@@ -35,6 +36,19 @@ export type TCodePreviewRenderer = (props: {
   options?: IQorusFormSchema;
   values?: TQorusForm;
 }) => React.ReactNode;
+
+/**
+ * What a collapsed row says of its value, drawn by its host for a `ui_type` whose editor reports a status of its
+ * own - a pipeline processor's field mappings, "incomplete" or "required" - in place of the generic summary
+ * ("2 items"), which said nothing of it (qorus#646). It is what the row shows; it changes nothing.
+ */
+export type TReadSummary = React.ComponentType<{
+  name: string;
+  value: unknown;
+  schema?: TQorusFormFieldSchema;
+  /** The generic summary, for a host that adds to it rather than replacing it. */
+  formatted: string;
+}>;
 
 export interface ICompactRowContext {
   // Props / config
@@ -92,7 +106,10 @@ export interface ICompactRowContext {
   // Handlers (useCallback)
   handleValueChange: (optionName: string, val?: any, _type?: string, isFunction?: boolean) => void;
   handleAddOptionalFieldChange: (_name: string, optionName: unknown) => void;
-  toggleExpandedOption: (optionName: string) => void;
+  /** Opens a row; nothing when it is open. Spends the first-required scan, as any row the user opens does. */
+  expandOption: (optionName: string) => void;
+  /** Closes a row; nothing when it is closed. */
+  collapseOption: (optionName: string) => void;
   flashOption: (optionName: string) => void;
   hasOptionChanged: (optionValue: unknown, optionName: string) => boolean;
   handleOptionLabelClick: (optionName: string) => void;
@@ -130,8 +147,19 @@ export interface ICompactRowContext {
    * sibling field rather than being told it twice.
    */
   codePreviewRenderer?: TCodePreviewRenderer;
+  /**
+   * The host's code editor (its `componentOverrides['code-editor']`), which draws the read-first preview of a
+   * `code-editor` value read-only where the host gives no `codePreviewRenderer`: code is shown as the host shows
+   * code - highlighted, with its language server - and as a plain block only where there is no editor (qorus#646,
+   * David's decision).
+   */
+  codeEditor?: React.ComponentType<any>;
+  /** A collapsed row's summary drawn by the host, by `ui_type` (see `TReadSummary`). */
+  readSummaries?: Record<string, TReadSummary>;
+  /** The host's editors that open in the card below their row (see FormEngine's `cardEditorTypes`). */
+  cardEditorTypes?: string[];
 
-  // Theme + theme-derived colours
+  // Theme + theme-derived colors
   theme: IReqoreTheme;
   cText: string;
   cMuted: string;
@@ -143,6 +171,8 @@ export interface ICompactRowContext {
   cWarning: string;
   cInfo: string;
   cBg: string;
+  /** The rows' own words and marks in colors that read on every surface a row is drawn on. */
+  rowInks: IReadFirstInks;
 }
 
 export const CompactRowContext = createContext<ICompactRowContext>({} as ICompactRowContext);

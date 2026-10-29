@@ -62,6 +62,19 @@ describe('templateTextToNodes', () => {
     ]);
   });
 
+  /* qorus#646, David's review: `$static:order.id` was cut at its dot - the chip "static: order" and the text ".id".
+     Qorus reads a plain key as words and the dots between them (UserApi `_priv_get_template_arg`). */
+  it('reads a key with dots as one reference, and a dot that ends it as text', () => {
+    const [paragraph] = templateTextToNodes('$static:order.id and $data:receive_order.', TEMPLATES);
+    expect(paragraph.children.map((node: any) => node.text ?? `[${node.value}]`)).toEqual([
+      '',
+      '[$static:order.id]',
+      ' and ',
+      '[$data:receive_order]',
+      '.',
+    ]);
+  });
+
   it('keeps a method call outside the reference it is called on', () => {
     const [paragraph] = templateTextToNodes('$local:str.endsWith("x")', TEMPLATES);
 

@@ -26,7 +26,7 @@ const SCROLLER = 'sticky-story-scroller';
  * Enough rows per bucket that scrolling lands INSIDE a box rather than between
  * two of them — a header pinned at the boundary proves nothing.
  */
-const longSchema = (): IQorusFormSchema => {
+const longSchema = (optional = 12): IQorusFormSchema => {
   const schema: IQorusFormSchema = {};
   for (let i = 1; i <= 4; i++) {
     schema[`attention_${i}`] = {
@@ -43,7 +43,7 @@ const longSchema = (): IQorusFormSchema => {
       display_name: `Already set ${i}`,
     };
   }
-  for (let i = 1; i <= 12; i++) {
+  for (let i = 1; i <= optional; i++) {
     schema[`optional_${i}`] = {
       type: 'string',
       ui_type: 'string',
@@ -126,7 +126,7 @@ const boxHeader = (label: string): HTMLElement => {
     (el.querySelector(':scope > .reqore-panel-title')?.textContent ?? '').includes(label)
   );
   if (!box) {
-    throw new Error(`no status box labelled ${label}`);
+    throw new Error(`no status box labeled ${label}`);
   }
   return box.querySelector(':scope > .reqore-panel-title') as HTMLElement;
 };
@@ -265,6 +265,10 @@ export const BoxHeaderClearsTheToolbar: Story = {
  * That is what keeps the cost of this one header's height rather than three.
  */
 export const OnlyOneBoxHeaderIsEverPinned: Story = {
+  /* The last box is longer than the scroller at any screen height, so it can be scrolled past the line it pins at:
+     with 12 rows, at a 1080px screen (a 756px scroller) the scroll ended before the box reached the line, and the
+     story failed in Storybook's UI at that size while passing in the test runner's smaller window. */
+  args: { options: longSchema(30) },
   parameters: {
     docs: {
       description: {
@@ -314,6 +318,10 @@ export const StickyHeadersOnAPhone: Story = {
   },
   play: async () => {
     await waitFor(() => expect(boxHeader('Set')).toBeInTheDocument());
+    /* The narrow layout, which the form takes once it has measured its own width: scrolled before it, the play aimed
+       at where the box was in the wide layout, and the rows that stack on a phone then pushed it down (in
+       Storybook's UI, whose play starts as soon as the form is drawn). */
+    await waitFor(() => expect(document.querySelector('.readfirst-narrow')).toBeTruthy());
     await scrollIntoBox('Set', 40);
 
     const band = scroller().getBoundingClientRect();

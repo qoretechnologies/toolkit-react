@@ -205,6 +205,8 @@ export const ExpressionBuilderArgumentWrapper = memo(
         fluid={fluid}
         size='small'
         className='expression-arg'
+        // the builder gives a value just added the focus here when it has no text field (see `focusNewArgIn`)
+        tabIndex={-1}
         {...dragProps}
         // at most the width of the expression it is in: a narrow column shrinks its field instead
         style={{ flexShrink: 1, minWidth: 0, maxWidth: '100%', ...dragProps.style }}

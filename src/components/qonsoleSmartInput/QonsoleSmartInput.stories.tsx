@@ -627,6 +627,9 @@ export const WithCommitCharacters: Story = {
     initialValue: '/list services ',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `BasicMock`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -752,6 +755,9 @@ export const SelectingWizardItemFiresCallback: Story = {
     onWizardStart: fn(),
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithWizardItems`.
+    qlip: { skip: true },
     chromatic: { disable: true },
     docs: {
       description: {

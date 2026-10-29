@@ -19,7 +19,7 @@ import { IReqoreMenuItemProps } from '@qoretechnologies/reqore/dist/components/M
 import { IReqoreIconName } from '@qoretechnologies/reqore/dist/types/icons';
 import { IReqoreFormTemplates } from '@qoretechnologies/reqore/dist/components/Textarea';
 import { TQorusType } from '@qoretechnologies/ts-toolkit';
-import { clone, cloneDeep, get, isArray, set, size, unset } from 'lodash';
+import { clone, cloneDeep, compact, get, isArray, set, size, unset } from 'lodash';
 import { darken, rgba } from 'polished';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
@@ -28,11 +28,22 @@ import {
   areQorusTypesCompatible,
   expressionFitsReturnType,
   getArgumentType,
+  conditionBaseType,
+  conditionByTruthinessText,
+  conditionErrorText,
+  expressionTypeMismatchText,
+  conditionPartCards,
+  conditionPartVerdict,
+  conditionVerdict,
+  IConditionPart,
   isConditionType,
   isTextOrDateType,
 } from '../../../../helpers/expressions';
 import { addMissingExpressionArgs } from '../argumentPresence';
+import { fieldPathOf, fieldPathTemplate } from '../fieldPath';
+import { isUntypedOptionType } from '../../../../helpers/optionUiTypes';
 import { findTemplate } from '../../../../helpers/templates';
+import { templateChipLabel } from '../../../../helpers/templateText';
 import { validateField, validateFieldWithResult } from '../../../../helpers/validations';
 import { IQorusTypeObject, useQorusTypes } from '../../../../hooks/useQorusTypes';
 import { useReqraftStorage } from '../../../../hooks/useStorage/useStorage';
@@ -41,6 +52,7 @@ import { useCoarsePointer } from '../../../../hooks/useCoarsePointer';
 import { useTemplates } from '../../../../hooks/useTemplates';
 import { AutoFormField as auto } from '../../fields/auto/AutoFormField';
 import { SelectFormField as Select } from '../../fields/select/Select';
+import { ReadOnlyTemplateTag } from '../../fields/template/ReadOnlyTemplateTag';
 import {
   ITemplateMenuActions,
   TCustomTemplateItems,
@@ -51,9 +63,11 @@ import {
   IExpression,
   IExpressionSchema,
   IExpressionSchemaArg,
+  isOfferedForPicking,
   TExpressionReorder,
   TExpressionReorderSurface,
 } from '../types';
+import { useExpressionType } from '../useExpressionType';
 import { useExpressions } from '../useExpressions';
 import { ExpressionArgumentDetail } from './argumentDetail';
 import { ExpressionBuilderAddArgumentSlot } from './argumentSlot';
@@ -77,6 +91,11 @@ export interface IExpressionBuilderProps {
   path?: string;
   index?: number;
   returnType?: TQorusType | TQorusType[];
+  /**
+   * The base data type of the place's type, which Qorus gives with every field (`base_type`): what a place of a
+   * type the type catalogue does not list takes (`qorusTypeEntry`).
+   */
+  returnBaseType?: string;
   group?: '&&' | '||';
   onChange?: (value: IExpression, remove?: boolean) => void;
   onValueChange?: (value: IExpression, path: string, remove?: boolean) => void;
@@ -87,6 +106,27 @@ export interface IExpressionBuilderProps {
   expressions?: IExpressionSchema[];
   expressionsUrl?: string;
   serverHandled?: boolean;
+  /**
+   * The expression is a condition: what it gives is read as true or false by its value, true unless it is
+   * zero or empty (a Qog transition's condition, an if state's, a while or for block's, a sheet contract's
+   * row rule). A value of type `bool` is not one: the Qorus server checks it as a bool, and an int does not
+   * fit it.
+   */
+  condition?: boolean;
+  /**
+   * What the server says of each part of the condition's `&&`, `||` and `!` (`dpql/parse` with `condition: true`,
+   * qorus#646), in its walk order: each is drawn on its part's card. Given to the builder at the top; it hands
+   * each card its own (`conditionPartCards`).
+   */
+  conditionParts?: IConditionPart[];
+  /** Each part's verdict, by the path of the card it is drawn on: what the top builder hands its cards. */
+  conditionPartCards?: Record<string, IConditionPart>;
+  /**
+   * What the server says of the whole condition (NOT_A_CONDITION or CONDITION_BY_TRUTHINESS), in its words: drawn
+   * under the condition's card in place of the builder's own fallback, as the Text view and the part cards draw
+   * the server's words. Given to the top builder only; it is about the whole.
+   */
+  conditionMessage?: string;
   /**
    * SEAM (reqraft): the host's per-`ui_type` editors, forwarded to the operand
    * fields below.
@@ -147,12 +187,16 @@ export const Expression = ({
   onValueChange,
   group,
   returnType,
+  returnBaseType,
   readOnly,
   id,
   expressionsUrl,
   serverHandled,
   extraActions,
   componentOverrides,
+  condition: isCondition,
+  conditionPartCards: partCards,
+  conditionMessage,
   ...props
 }: IExpressionProps) => {
   const coarsePointer = useCoarsePointer();
@@ -210,30 +254,24 @@ export const Expression = ({
     [extraActions, selectedExpression, JSON.stringify(value)]
   );
 
-  // If the `return_type_first_arg` is set, we need to get the return type from the first arguments type
-  const expressionReturnType = useMemo(() => {
-    if (selectedExpression?.return_type_first_arg && firstArgument) {
-      if (firstArgument.is_expression && firstArgument.value?.exp) {
-        const firstArgExpression = expressions.value?.find(
-          (exp) => exp.name === firstArgument.value.exp
-        );
-
-        return firstArgExpression?.ui_return_type;
-      }
-
-      return firstArgument.type;
-    }
-
-    return selectedExpression?.ui_return_type;
-  }, [
-    JSON.stringify(selectedExpression),
-    JSON.stringify(firstArgument),
-    returnType,
-    JSON.stringify(expressions.value),
-  ]);
-  const expectedReturnTypeText = isArray(returnType)
-    ? returnType.map(types.getTypeDisplayName).join(' or ')
-    : types.getTypeDisplayName(returnType);
+  // The type the expression gives is the server's, the same as everywhere else in Qorus
+  // (qoretechnologies/qorus#713); it is not known, and nothing is judged by it, until the server gives it.
+  // `ui_type` is compared with the types this place takes, which are UI types; what the expression gives is
+  // named, and judged as a condition, by the type's own name, as the Text view names it (`inferred_type`:
+  // "a whole number", where the UI type of every number is `number`).
+  const serverType = useExpressionType(value.value);
+  const expressionReturnType = serverType?.ui_type;
+  const expressionGivesType = serverType?.inferred_type;
+  // An empty card gives nothing, which is known without asking: it does not fit a place that takes something.
+  const typeNotKnownYet = !!value.value?.exp && !serverType;
+  // the type(s) this place takes, named inside a sentence: their sentence forms; none where no type is known
+  // (qorus#646)
+  const expectedReturnTypeText =
+    compact(
+      (isArray(returnType) ? returnType : [returnType]).map((type) =>
+        types.getTypeSentenceForm(type, returnBaseType)
+      )
+    ).join(' or ') || undefined;
 
   // Server Handler expressions is either defined by the option
   // then it's always the first level
@@ -520,9 +558,16 @@ export const Expression = ({
   }, [onValueChange, path]);
 
   const firstArgSchema = selectedExpression?.args[0];
+  /* An empty untyped operand is of the type the catalogue declares for it, as the other operands are:
+     falling back to the builder's own type gave the first value of a condition (the builder's `bool`)
+     or of an untyped builder (`context`) a type it is not, which rendered as "Unknown type!" once an
+     untyped operand was written as text. */
   const firstParamType = firstArgument?.is_expression
     ? firstArgSchema?.ui_type
-    : firstArgument?.type || type || 'context';
+    : firstArgument?.type ||
+      (isUntypedOptionType(firstArgSchema?.ui_type) ? firstArgSchema?.ui_type : undefined) ||
+      type ||
+      'context';
   let restOfArgs = selectedExpression?.args.slice(1);
   const argCount = size(value.value?.args);
   const canReorderArgs =
@@ -587,25 +632,64 @@ export const Expression = ({
     ];
   }
 
+  /* The expression as a condition (qorus#646): a Qog if state's, a while or for block's, a transition's
+     condition is read by the server as true unless its value is zero or empty (Fsm.qc calls .toBool()). What
+     it gives is said as every condition editor says it: a number or a list is accepted with a warning under
+     it, text, a date or a time is refused. Only where the host says it is a condition: a value of type bool
+     is checked as a bool, and an int does not fit it. */
+  const condition = level === 0 && isCondition ? conditionVerdict(expressionGivesType) : undefined;
+  /* A part of the condition's AND, OR or NOT (this card's own, or the one a NOT reads): read as true or false
+     by its value as the whole condition is, and judged by the server by the same rule (qorus#646). Its verdict
+     is the server's, drawn here; nothing on this side checks a part as a bool. */
+  const part = partCards?.[path ?? ''];
+  const partVerdict = conditionPartVerdict(part);
+  /* A bool place that takes any result but text, a date or a time: the condition itself, and a bool place a
+     catalogue still declares (a part of an AND or an OR is typed by its operator's arguments, which take any
+     value on a Qorus that reads them as conditions). */
+  const takesCondition =
+    level === 0 ? !!isCondition : isConditionType(returnType as string | string[] | undefined);
+  /* A condition the server says gives text, a date or a time is refused, whatever this place declares: a
+     condition field need not declare `bool`, and a mismatch was then never drawn - the refusal was shown only
+     because the type worked out here happened to be a number's (a warning, in the server's words). */
+  /* A part whose operation is not chosen yet gives nothing yet, and nothing is said of what it gives: it was told
+     "This expression gives nothing, which this field does not take" - a type it never claimed - beside the Text
+     view's "Fill in each …" (qorus#646, David's review). What it lacks is said instead (`noOperationYetText`). */
+  const noOperationYet = !value?.value?.exp;
+  /** What the place takes, said with what it lacks: only a type that is a type (not untyped, not `auto`). */
+  const takesText =
+    (
+      (isArray(returnType) ? returnType : [returnType]).some(
+        (type) => !!type && !isUntypedOptionType(type) && String(type) !== 'auto'
+      )
+    ) ?
+      expectedReturnTypeText
+    : undefined;
+  /** The whole expression has nothing chosen yet: its card says so, once (`noOperationYetText`). */
+  const nothingChosenYet =
+    !selectedExpression && !serverExpression && !firstArgument?.value && level === 0;
   const isReturnTypeMatching =
-    expressionReturnType === 'any' ||
-    (isArray(returnType)
-      ? areQorusTypesCompatible(returnType, expressionReturnType)
-      : returnType === 'auto' ||
-        returnType === 'any' ||
-        returnType === 'context' ||
-        expressionReturnType === 'any' ||
-        areQorusTypesCompatible(returnType, expressionReturnType) ||
-        returnType === expressionReturnType ||
-        !returnType) ||
-    // a condition is decided by any result but text, a date or a time
-    (isConditionType(returnType as string | string[] | undefined) &&
-      !!expressionReturnType &&
-      !isTextOrDateType(expressionReturnType));
+    noOperationYet ||
+    (condition !== 'error' &&
+    (typeNotKnownYet ||
+      expressionReturnType === 'any' ||
+      (isArray(returnType)
+        ? areQorusTypesCompatible(returnType, expressionReturnType, types.value, returnBaseType)
+        : returnType === 'auto' ||
+          returnType === 'any' ||
+          returnType === 'context' ||
+          expressionReturnType === 'any' ||
+          // a place of a type the catalogue does not list takes what its base type takes
+          areQorusTypesCompatible(returnType, expressionReturnType, types.value, returnBaseType) ||
+          returnType === expressionReturnType ||
+          !returnType) ||
+        // a condition is decided by any result but text, a date or a time
+        (takesCondition && !!expressionReturnType && !isTextOrDateType(expressionReturnType))));
 
   const defaultItems = useMemo(
     () =>
       expressions.value
+        // an operation drawn only inside the construct that makes it is never offered (`internal`)
+        .filter(isOfferedForPicking)
         // a condition (a field or an operand that must be true or false) offers the operations whose
         // result decides it - any but text, a date or a time, which are compared explicitly; a group's members
         // are its own business, and the operation already chosen
@@ -614,6 +698,7 @@ export const Expression = ({
           (exp) =>
             isChild ||
             exp.name === value?.value?.exp ||
+            !takesCondition ||
             expressionFitsReturnType(returnType as string | string[] | undefined, exp)
         )
         .map((exp) => ({
@@ -676,19 +761,11 @@ export const Expression = ({
       return;
     }
 
-    // A typed operand mounts a text field; an untyped one opens on its
-    // template picker, whose trigger is the field's first button that is not
-    // one of the operand's own controls (grip, position, ⋮, remove).
-    const field =
-      added.querySelector<HTMLElement>('textarea, input') ??
-      Array.from(added.querySelectorAll<HTMLElement>('button')).find(
-        (button) =>
-          !button.closest(
-            '.expression-arg-drag-handle, .expression-arg-position, .template-more, .expression-remove-arg'
-          )
-      );
-
-    field?.focus();
+    /* A typed operand mounts a text field, and the caret goes there. An untyped one has nothing to type into:
+       its first control is its template picker, a list that opens when it is focused, and since reqore 0.78
+       one focused as it mounts opens at once. Adding a value is not asking for that list (David, qorus#646),
+       so the operand itself takes the focus, and its picker opens when the user goes to it. */
+    (added.querySelector<HTMLElement>('textarea, input') ?? added).focus();
   }, [argCount]);
 
   const canAddArg = !!selectedExpression?.varargs && !readOnly;
@@ -858,7 +935,7 @@ export const Expression = ({
       as={ReqorePanel}
       intent={validationData.isValid && !!returnType && isReturnTypeMatching ? 'muted' : 'danger'}
       description={
-        isExpressionServerHandled ? 'This expression will be executed outside of Qorus' : ''
+        isExpressionServerHandled ? 'This expression runs outside Qorus' : ''
       }
       flat
       readOnly={readOnly}
@@ -937,7 +1014,7 @@ export const Expression = ({
             hideItemCount: true,
             onChange: handleWrapExpressionClick,
             showDescription: 'tooltip',
-            tooltip: 'Wrap this expression in another expression',
+            tooltip: 'Put this expression inside another one',
             size: 'tiny',
           },
         },
@@ -946,7 +1023,7 @@ export const Expression = ({
           label: 'Remove',
           textAlign: 'center',
           icon: 'CloseLine',
-          tooltip: 'Remove this expression but keep the children',
+          tooltip: 'Remove this expression and keep what is inside it',
           fixed: true,
           onClick: unwrapExpression,
           show: value.value?.args?.[0]?.is_expression === true && !readOnly ? 'hover' : false,
@@ -967,7 +1044,7 @@ export const Expression = ({
           intent: 'danger',
           textAlign: 'center',
           icon: 'DeleteBinLine',
-          tooltip: 'Remove this expression and its children',
+          tooltip: 'Remove this expression and everything inside it',
           fixed: true,
           minimal: true,
           show: readOnly ? false : 'hover',
@@ -976,7 +1053,12 @@ export const Expression = ({
       ]}
       bottomActions={[
         {
-          show: !!selectedExpression && areQorusTypesCompatible('bool', returnType) && !readOnly,
+          /* a yes/no place, or a part of an AND or an OR, which another AND or OR can stand for (a part
+             takes any value, qorus#646) */
+          show:
+            !!selectedExpression &&
+            (!!group || areQorusTypesCompatible('bool', returnType, types.value)) &&
+            !readOnly,
           group: [
             {
               flat: true,
@@ -1050,9 +1132,16 @@ export const Expression = ({
       {showSummary && (
         <ExpressionRenderTemplate exp={value} expressions={expressions.value} templates={localTemplates} />
       )}
-      {!selectedExpression && !serverExpression && !firstArgument?.value && level === 0 ? (
-        <ReqoreMessage size='small' opaque={false} intent='info'>
-          Select an operation to start building your expression
+      {/* One sentence for an expression with nothing chosen yet: what it lacks and what its place takes. It
+          was said twice, here and under the card (qorus#646). */}
+      {nothingChosenYet ? (
+        <ReqoreMessage
+          size='small'
+          opaque={false}
+          intent='info'
+          className='expression-no-operation-yet'
+        >
+          {noOperationYetText(false, takesText)}
         </ReqoreMessage>
       ) : (
         <ReqoreControlGroup
@@ -1090,6 +1179,8 @@ export const Expression = ({
             <TemplateField
               component={auto}
               componentOverrides={componentOverrides}
+              // an operand's text is as wide as what it holds, and gives way to its row
+              textWidth='content'
               // SEAM (reqraft): an operand that becomes an expression mounts
               // its own builder through this TemplateField — hand the host's
               // actions on, or nesting silently drops them (the group
@@ -1119,7 +1210,10 @@ export const Expression = ({
                   ? firstArgument?.type.base_type
                   : firstParamType
               }
-              returnType={types.getAcceptedTypes(firstArgSchema?.ui_type) as any}
+              // an argument of a type the catalogue does not list takes what its base type takes
+              returnType={
+                types.getAcceptedTypes(firstArgSchema?.ui_type, firstArgSchema?.base_type) as any
+              }
               value={firstArgument?.value}
               isFunction={firstArgument?.is_expression}
               onChange={handleFirstParamChange as any}
@@ -1129,7 +1223,10 @@ export const Expression = ({
               allowCustomValues={
                 !!firstArgument?.allowed_values ||
                 !!firstArgument?.element_allowed_values ||
-                (!!firstArgument?.type && !serverExpression)
+                // an untyped operand is written as text from the start, as a typed one is once
+                // it has a type: a template chosen into it is a chip, with text around it
+                ((!!firstArgument?.type || isUntypedOptionType(firstArgSchema?.ui_type)) &&
+                  !serverExpression)
               }
               filterTemplatesFunc={(templates) => {
                 // PORT NOTE: `?.` on `items` added — with no templates at all
@@ -1212,6 +1309,7 @@ export const Expression = ({
                       minimal
                       component={auto}
                       componentOverrides={componentOverrides}
+                      textWidth='content'
                       // SEAM (reqraft): same as the first operand above.
                       extraActions={extraActions}
                       level={level + 1}
@@ -1232,7 +1330,8 @@ export const Expression = ({
                           ? arg.ui_type
                           : (rest[index]?.type ?? arg.ui_type)
                       }
-                      returnType={types.getAcceptedTypes(arg.ui_type) as any}
+                      // an argument of a type the catalogue does not list takes what its base type takes
+                      returnType={types.getAcceptedTypes(arg.ui_type, arg.base_type) as any}
                       canBeNull={false}
                       value={rest[index]?.value}
                       templates={localTemplates}
@@ -1242,7 +1341,9 @@ export const Expression = ({
                         !!arg.allowed_values ||
                         !!arg.element_allowed_values ||
                         !!rest[index]?.type ||
-                        !!arg.default_value
+                        !!arg.default_value ||
+                        // an untyped operand is written as text from the start (see the first operand)
+                        isUntypedOptionType(arg.ui_type)
                       }
                       onChange={((_name, value, type, isFunction) => {
                         updateArg(value, index + 1, isFunction ? undefined : type, isFunction);
@@ -1286,24 +1387,74 @@ export const Expression = ({
           )}
         </ReqoreControlGroup>
       )}
-      {!isReturnTypeMatching && (
+      {partVerdict && (
         <>
           <ReqoreVerticalSpacer height={5} />
           <ReqoreTag
             minimal
-            icon='ErrorWarningLine'
-            intent='danger'
+            className='expression-condition-part-verdict'
+            data-verdict={partVerdict}
+            icon={partVerdict === 'error' ? 'ErrorWarningLine' : 'AlertLine'}
+            intent={partVerdict === 'error' ? 'danger' : 'warning'}
             size='tiny'
             wrap
             label={
-              isConditionType(returnType as string | string[] | undefined) &&
-              !!expressionReturnType &&
-              isTextOrDateType(expressionReturnType)
-                ? // a condition that gives text, a date or a time: say how to make it one
-                  `A condition can't give ${types.getTypeDisplayName(expressionReturnType)}: compare it explicitly, for example @status == "open" or @note != "".`
-                : `This expression returns ${types.getTypeDisplayName(expressionReturnType) || 'nothing'} but the expected return type is ${expectedReturnTypeText}. Please select an expression that returns ${expectedReturnTypeText} or wrap this expression inside another one that does.`
+              part?.message ??
+              (partVerdict === 'error' ?
+                conditionErrorText(types.getTypeSentenceForm(conditionBaseType(part!.type)), part!.type)
+              : conditionByTruthinessText(part!.type))
             }
           />
+        </>
+      )}
+      {condition === 'warning' && (
+        <>
+          <ReqoreVerticalSpacer height={5} />
+          <ReqoreTag
+            minimal
+            className='expression-condition-verdict'
+            icon='AlertLine'
+            intent='warning'
+            size='tiny'
+            wrap
+            // the server's words for the whole condition, where it said any; the same rule's own otherwise
+            label={conditionMessage ?? conditionByTruthinessText(expressionGivesType)}
+          />
+        </>
+      )}
+      {!isReturnTypeMatching && (
+        <>
+          <ReqoreVerticalSpacer height={5} />
+          {takesCondition && !!expressionGivesType && isTextOrDateType(expressionGivesType) ? (
+            // a condition that gives text, a date or a time: say how to make it one
+            <ReqoreTag
+              minimal
+              className='expression-condition-verdict'
+              icon='ErrorWarningLine'
+              intent='danger'
+              size='tiny'
+              wrap
+              label={
+                (level === 0 ? conditionMessage : undefined) ??
+                conditionErrorText(
+                  types.getTypeSentenceForm(conditionBaseType(expressionGivesType)),
+                  expressionGivesType
+                )
+              }
+            />
+          ) : (
+            <ReqoreTag
+              minimal
+              icon='ErrorWarningLine'
+              intent='danger'
+              size='tiny'
+              wrap
+              label={expressionTypeMismatchText(
+                expressionGivesType ? types.getTypeSentenceForm(expressionGivesType) : undefined,
+                expectedReturnTypeText
+              )}
+            />
+          )}
         </>
       )}
       {selectedExpression && !validationData.isValid ? (
@@ -1315,13 +1466,36 @@ export const Expression = ({
             intent='danger'
             size='tiny'
             wrap
-            label={validationData.reason || 'Expression is not valid for unknown reasons'}
+            label={validationData.reason || 'Qorus could not check this expression.'}
           />
         </>
       ) : null}
+      {noOperationYet && !readOnly && !nothingChosenYet ?
+        <>
+          <ReqoreVerticalSpacer height={5} />
+          <ReqoreTag
+            minimal
+            className='expression-no-operation-yet'
+            icon='ErrorWarningLine'
+            intent='warning'
+            size='tiny'
+            wrap
+            label={noOperationYetText(isChild || level > 0, takesText)}
+          />
+        </>
+      : null}
     </ExpressionItem>
   );
 };
+
+/**
+ * What an expression, or a part of one, whose operation is not chosen yet says: what it lacks, as the Text view's
+ * holes do, and what its place takes where that is a type (qorus#646). `takes` names the type inside the sentence.
+ */
+export const noOperationYetText = (part: boolean, takes: string | undefined): string =>
+  part ?
+    `Choose what this part does${takes ? `: it must give ${takes}` : ''}.`
+  : `Choose what this expression does${takes ? `: this field takes ${takes}` : ''}.`;
 
 export const ExpressionBuilder = ({
   localTemplates,
@@ -1332,6 +1506,7 @@ export const ExpressionBuilder = ({
   path,
   type,
   returnType,
+  returnBaseType,
   group,
   onChange,
   onValueChange,
@@ -1342,8 +1517,20 @@ export const ExpressionBuilder = ({
   extraActions,
   componentOverrides,
   reorder,
+  condition,
+  conditionParts,
+  conditionPartCards: givenPartCards,
+  conditionMessage,
 }: IExpressionBuilderProps) => {
   const templates = useTemplates(!isChild, localTemplates);
+  /* The top builder places what the server says of each part of the condition on that part's card; a nested
+     one is handed the placement. */
+  const partCards = useMemo(
+    () =>
+      givenPartCards ??
+      (condition && conditionParts ? conditionPartCards(value, conditionParts) : undefined),
+    [givenPartCards, condition, conditionParts, JSON.stringify(value)]
+  );
   /* A builder nested in a group does not resolve templates again: its parent hands it the resolved ones.
      `useTemplates` gives a nested builder none, and they were what it handed on, so every comparison in
      an AND/OR group had no templates - its field pickers had nothing to offer and were drawn disabled,
@@ -1436,7 +1623,13 @@ export const ExpressionBuilder = ({
           customTheme={{
             main: darken(`0.0${level * 25}`, theme.main) as TReqoreHexColor,
           }}
-          label={isChild ? (value.value.exp === '||' ? 'OR group' : 'AND group') : 'IF group'}
+          label={
+            isChild ?
+              value.value.exp === '||' ?
+                'At least one of these is true (OR)'
+              : 'All of these are true (AND)'
+            : 'If'
+          }
           style={{
             marginLeft: isChild ? 10 : 0,
             // a nested group too: its indent is taken out of its width, not added past it
@@ -1453,7 +1646,7 @@ export const ExpressionBuilder = ({
                   `${path ? `${path}.` : ''}value.args.${size(value.value.args)}`
                 );
               },
-              tooltip: 'Add condition parameter',
+              tooltip: 'Add a condition',
             },
             {
               className: 'expression-explain',
@@ -1492,7 +1685,13 @@ export const ExpressionBuilder = ({
                   index={index}
                   type={type}
                   onValueChange={handleChange}
-                  returnType='bool'
+                  /* what its operator takes, as the catalogue declares it: any value, on a Qorus that reads
+                     each part of an AND or an OR as a condition (qorus#646) */
+                  returnType={
+                    (_expressions.expressions?.find((exp) => exp.name === value.value.exp)
+                      ?.args?.[0]?.ui_type ?? 'any') as any
+                  }
+                  conditionPartCards={partCards}
                   group={value.value.exp}
                   readOnly={readOnly}
                   expressions={expressions}
@@ -1518,6 +1717,24 @@ export const ExpressionBuilder = ({
     );
   }
 
+  /* A field path written with accessors - `orders[*].id`, `prices{*}` - is drawn as the path, the chip a record
+     field is, not as the accessor operations it is made of: their operands misread (the `@value` of a hash
+     wildcard is the item's value, not a record field), and an operation with a source and a body is not what
+     was written (David, qorus#646). It is edited on the Expression tab; here it can be removed, as any operand
+     can, with its field's controls. */
+  const fieldPath = fieldPathOf(value);
+  if (fieldPath !== undefined) {
+    return (
+      <span className='expression-field-path' data-path={fieldPath}>
+        <ReadOnlyTemplateTag
+          value={fieldPathTemplate(fieldPath)}
+          templates={resolvedTemplates}
+          label={templateChipLabel(resolvedTemplates, fieldPathTemplate(fieldPath))}
+        />
+      </span>
+    );
+  }
+
   return (
     <ReqoreErrorBoundary>
       <Expression
@@ -1526,6 +1743,7 @@ export const ExpressionBuilder = ({
         isChild={isChild}
         type={type}
         returnType={returnType}
+        returnBaseType={returnBaseType}
         level={level}
         path={path}
         index={index}
@@ -1539,6 +1757,9 @@ export const ExpressionBuilder = ({
         extraActions={extraActions}
         componentOverrides={componentOverrides}
         reorder={reorder}
+        condition={condition}
+        conditionPartCards={partCards}
+        conditionMessage={conditionMessage}
       />
     </ReqoreErrorBoundary>
   );

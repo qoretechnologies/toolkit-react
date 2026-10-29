@@ -132,7 +132,7 @@ export const CompareAll: Story = {
     docs: {
       description: {
         story:
-          'Renders all four compact-form variants stacked in a single scroll — the Calm Table, Cards, Focus and Minimal layouts sit under labelled panels so they can be compared side by side.',
+          'Renders all four compact-form variants stacked in a single scroll — the Calm Table, Cards, Focus and Minimal layouts sit under labeled panels so they can be compared side by side.',
       },
     },
   },

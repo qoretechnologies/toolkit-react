@@ -1,7 +1,12 @@
 import { ReqoreControlGroup, ReqoreTag, ReqoreVerticalSpacer } from '@qoretechnologies/reqore';
 import { IReqoreTagProps } from '@qoretechnologies/reqore/dist/components/Tag';
 import { TReqoreIntent } from '@qoretechnologies/reqore/dist/constants/theme';
-import { IQorusFormField, IQorusFormSchema, TQorusForm } from '@qoretechnologies/ts-toolkit';
+import {
+  IQorusAllowedValue,
+  IQorusFormField,
+  IQorusFormSchema,
+  TQorusForm,
+} from '@qoretechnologies/ts-toolkit';
 import { isArray, size } from 'lodash';
 import { useMemo } from 'react';
 import { useContextSelector } from 'use-context-selector';
@@ -11,6 +16,7 @@ import {
   getRequiredOptionMessage,
 } from '../../../helpers/options';
 import { isUntypedOptionType } from '../../../helpers/optionUiTypes';
+import { allowedValueName, allowedValueOf } from '../../../helpers/allowedValues';
 import {
   hasAllDependenciesFullfilled,
   parseDependency,
@@ -101,6 +107,13 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
   }
 
   const label = `"${dependencySchema.display_name || name}"`;
+  /* The value is named as the reader sees it in that field: an allowed value by its display name
+     ("Other"), not by the value it stands for (`__other__`, qorus#646). A value with no display name is
+     quoted as it is. */
+  const allowed = (dependencySchema.allowed_values as IQorusAllowedValue[] | undefined)?.find(
+    (entry) => String(allowedValueOf(entry)) === value
+  );
+  const shown = allowed ? allowedValueName(allowed) : value;
 
   // `!name` names no value to compare against — it is satisfied by the sibling
   // being unanswered — so it gets a sentence of its own rather than the
@@ -109,7 +122,7 @@ const describeDependency = (dependency: string, schema: IQorusFormSchema): strin
     return `${label} must have no value`;
   }
 
-  return op ? `${label} must ${op === '!=' ? 'not ' : ''}be "${value}"` : label;
+  return op ? `${label} must ${op === '!=' ? 'not ' : ''}be "${shown}"` : label;
 };
 
 /**
@@ -356,7 +369,21 @@ export const getOptionFieldMessages = ({
     !!optionSchema?.depends_on &&
     !hasAllDependenciesFullfilled(optionSchema.depends_on, allOptions, schema);
 
-  if (option.value || option.value === false || option.value === 0 || option.value === null) {
+  /* The host's own words for what is wrong with this field (`invalid_reason`) are said in place of the
+     field's own reason and its "This field is required": a host that has a sentence of its own, in the
+     user's language, showed it beside the field's generic one, two messages for one problem (qorus#646).
+     Required groups and dependencies still say what they say. */
+  const hostReason = (optionSchema as { invalid_reason?: string } | undefined)?.invalid_reason;
+  /* An empty list is not a value: the form counts it as not set (an optional one is not saved, a required one
+     needs attention), so a required one is said to be required. Counted as a value, being truthy, it was
+     validated as one and passed, and nothing said why its row needed attention (qorus#646). */
+  const hasValue =
+    (option.value || option.value === false || option.value === 0 || option.value === null) &&
+    !(isArray(option.value) && option.value.length === 0);
+
+  if (hostReason) {
+    result.push({ label: hostReason, intent: 'danger' });
+  } else if (hasValue) {
     /* A concrete type the VALUE carries beats an untyped schema.
        `auto`/`any` declare no type — the author picks one (Binary, Date, …)
        and it is recorded beside the value. Reading the schema first validated
@@ -396,7 +423,9 @@ export const getOptionFieldMessages = ({
     if (optionSchema?.required && !locked) {
       result.push({ label: 'This field is required', intent: 'danger' });
     }
+  }
 
+  if (!hasValue) {
     if (
       optionSchema?.required_groups &&
       !validateOptionWithRequiredGroups(allOptions, schema, optionSchema.required_groups)

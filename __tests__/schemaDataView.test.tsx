@@ -10,7 +10,7 @@ import {
  * A described value is previewed through its description, not as data.
  *
  * `StructuredDataView` has to announce what it found — "Object · 1 field", raw
- * keys, values coloured by inferred type — because inference is all an untyped
+ * keys, values colored by inferred type — because inference is all an untyped
  * renderer has. A form field with an `arg_schema` is the opposite situation: the
  * shape, the names and the choices are all known before the value arrives, so
  * showing it as a data tree asks the reader to decode something the form can

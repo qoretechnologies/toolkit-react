@@ -71,7 +71,7 @@ export const CustomerAwaitingLabel: Story = {
     docs: {
       description: {
         story:
-          "Renders the same awaiting_customer status from the customer viewpoint, where it is re-labelled 'Awaiting your reply'.",
+          "Renders the same awaiting_customer status from the customer viewpoint, where it is re-labeled 'Awaiting your reply'.",
       },
     },
   },

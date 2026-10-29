@@ -109,3 +109,43 @@ describe('a host wait handed to the form', () => {
     expect(after).toBe(first);
   });
 });
+
+/**
+ * A form whose host has no schema yet says nothing about the value (qorus#646).
+ *
+ * The form read the value against the schema it had - none, while its host was still loading one - and every
+ * field the schema did not name was dropped. It then emitted what was left, nothing, as the form's own
+ * answer: a Qog state's stored options were wiped the moment it was opened, before its options had loaded.
+ */
+describe('a form whose host is still loading its schema', () => {
+  const SCHEMA = {
+    limit: { type: 'int', display_name: 'Limit' },
+    where_cond: { type: 'hash', display_name: 'Where Condition' },
+  } as never;
+  const STORED = {
+    limit: { type: 'int', value: 10 },
+    where_cond: { type: 'hash', value: { exp: 'EQUALS', args: [] }, is_expression: true },
+  } as never;
+
+  const form = (props: Record<string, unknown>) => (
+    <ReqoreUIProvider>
+      <FetchContext.Provider value={fetchContext}>
+        <FormEngine compact name='late-schema' value={STORED} {...props} />
+      </FetchContext.Provider>
+    </ReqoreUIProvider>
+  );
+
+  it('emits nothing while it waits, and nothing when the schema it waited for agrees with the value', async () => {
+    const onChange = vi.fn();
+    const { container, rerender } = render(form({ skeleton: true, options: {}, onChange }));
+    await waitFor(() => expect(container.querySelector('.options-loading-skeleton')).not.toBeNull());
+    // the emit runs in an effect of the first render; a 0 ms timer queued now runs after anything it scheduled
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onChange).not.toHaveBeenCalled();
+
+    rerender(form({ skeleton: false, options: SCHEMA, onChange }));
+    await waitFor(() => expect(container.textContent).toContain('Limit'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});

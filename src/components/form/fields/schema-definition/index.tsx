@@ -19,6 +19,8 @@ import {
   ReqoreTabsContent,
 } from '@qoretechnologies/reqore';
 import { memo, ReactNode, useCallback, useMemo, useRef, useState } from 'react';
+import { useDescriptionTooltips } from '../../../../helpers/descriptionTooltip';
+import { describedPanelProps } from '../../../Description/describedControl';
 import { Hint } from './Hint';
 import Loader from './Loader';
 import { CatalogGroupBody, CatalogNodeEditor } from './CatalogNodeEditor';
@@ -71,13 +73,13 @@ const PRIMARY_SECTIONS = [
 
 /** Extracts a human-readable message from a catalogue fetch error. */
 const errorMessage = (error: unknown): string => {
-  if (!error) return 'The schema option catalogue could not be loaded.';
+  if (!error) return 'The schema option catalog could not be loaded.';
   if (typeof error === 'string') return error;
   const e = error as { desc?: string; message?: string };
   return (
     e.desc ??
     e.message ??
-    'The schema option catalogue could not be loaded.'
+    'The schema option catalog could not be loaded.'
   );
 };
 
@@ -97,6 +99,8 @@ const SchemaEditorBody = memo(
     wrapperName,
     saveError,
   }: ISchemaEditorBodyProps) => {
+    // a section's description card: markdown drawn, opened by a tap on touch (`descriptionTooltip`)
+    const descriptions = useDescriptionTooltips();
     const definition = useMemo<IDataSchemaDefinition>(
       () => value ?? createEmptyDefinition(wrapperName),
       [value, wrapperName]
@@ -352,7 +356,7 @@ const SchemaEditorBody = memo(
                       collapsible
                       isCollapsed
                       label={node.display_name}
-                      tooltip={node.short_desc}
+                      {...describedPanelProps(node.short_desc, descriptions, node.display_name)}
                       icon={SECTION_ICONS[key]}
                       size='small'
                     >
