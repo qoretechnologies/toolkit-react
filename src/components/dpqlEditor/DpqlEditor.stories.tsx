@@ -1992,8 +1992,9 @@ export const WithTemplates: Story = {
   },
   // CI guard: `$` lists whole templates and no bare context, `@` lists fields
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const editable = canvas.getByRole('textbox');
+    // wait for the language server before typing: a `$` typed into the editor while it is still connecting is
+    // answered once the session is ready, and this story's job is the completion content, not that race (#602)
+    const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
 
     // `$` → the contexts Qorus offers a Qog's field, and no field
@@ -2052,6 +2053,54 @@ export const WithTemplates: Story = {
 };
 
 /**
+ * A `$` typed while the language server is still connecting is answered once it is ready: the edit made before
+ * the session was up is not lost, so the completion the author asked for still opens. This guards the deferred
+ * request path (`pendingTypingRef`), whose loss on a loaded runner left `With Templates`' first `$` unanswered
+ * and hung the test (develop #602).
+ */
+export const TypingBeforeTheServerIsReadyIsStillAnswered: Story = {
+  args: { value: '', onChange: fn() },
+  async beforeEach() {
+    // the meta's beforeEach has made the harness; hold the session's `initialize` so `$` below is typed first
+    lsp.delays.initialize = 800;
+  },
+  parameters: {
+    // a Qog state's field, as `WithTemplates`
+    templateCatalogue: 'qog-loops',
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithTemplates`.
+    qlip: { skip: true },
+    docs: {
+      description: {
+        story:
+          'The editor is still connecting (its `initialize` is held 800ms). `$` is typed into it before the ' +
+          'session is ready; once it is, the deferred request is answered and the contexts are listed - the ' +
+          'edit made before the server was up is not lost.',
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const editable = within(canvasElement).getByRole('textbox');
+    // the session is not ready yet: the overlay is up
+    await waitFor(() => expect(canvasElement.textContent).toContain('Connecting to language server'));
+    // typed before the server is ready
+    await userEvent.click(editable);
+    await typeAsAPerson(userEvent, '$');
+    expect(plainTextOf(editable)).toBe('$');
+    // once the session is ready the deferred request is answered and the contexts are listed
+    await waitFor(
+      () => {
+        const listed = Array.from(
+          document.querySelectorAll('.reqore-popover-content .completion-menu [data-label]')
+        ).map((row) => row.getAttribute('data-label'));
+        expect(listed).toEqual(expect.arrayContaining(['$config:', '$data:', '$env:']));
+      },
+      { timeout: 20000 }
+    );
+  },
+};
+
+/**
  * `$` in an editor given no templates: the list says there are none. It listed the server's template contexts, and
  * a pick of one left the text invalid (qorus#646).
  */
@@ -2070,7 +2119,8 @@ export const ADollarWithNoTemplatesListsTheServersContexts: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    const editable = within(canvasElement).getByRole('textbox');
+    // wait for the language server before typing `$`, so the request is not raced against the session coming up
+    const editable = await readyEditor(canvasElement);
     await userEvent.click(editable);
     await typeAsAPerson(userEvent, '$');
     await waitFor(

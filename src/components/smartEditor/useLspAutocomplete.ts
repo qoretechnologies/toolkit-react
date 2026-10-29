@@ -1012,6 +1012,12 @@ export function useLspAutocomplete(
      ready the completions are asked for what it holds then, as for a chip click (see
      `pendingChipRequestRef`). */
   const pendingTypingRef = useRef<(BaseEditor & ReactEditor & HistoryEditor) | null>(null);
+  /* The session's readiness read live, not from this handler's closure: a keystroke the editor hears just as the
+     session becomes ready must not be deferred against a stale `isReady === false` and then left unanswered
+     because the flush effect (which runs on `isReady` changing) has already run. That lost the first `$`/`@`
+     completion on a loaded runner, so the story's wait for it never resolved and the test timed out (#602). */
+  const isReadyRef = useRef(isReady);
+  isReadyRef.current = isReady;
 
   const onSlateChangeImpl = useCallback(
     (
@@ -1019,7 +1025,7 @@ export function useLspAutocomplete(
       nodes: ISlateElement[]
     ) => {
       editorRef.current = editor;
-      if (!editor.selection || !isReady) {
+      if (!editor.selection || !isReadyRef.current) {
         // Don't tear down replace mode just because the click that
         // opened it momentarily left the selection null — clicking a
         // void inline can do that.
@@ -1068,7 +1074,7 @@ export function useLspAutocomplete(
 
       completeAtCaret(editor, nodes);
     },
-    [isReady, isOpen, close, completeAtCaret]
+    [isOpen, close, completeAtCaret]
   );
 
   // Answer an edit made before the session was ready, for what the editor holds now.
