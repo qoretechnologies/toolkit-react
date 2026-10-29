@@ -131,6 +131,9 @@ const colors = { key: '#f1f0ee', muted: '#a0a0a0', border: '#a0a0a066', accent: 
 
 export const Schemes: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `NestedSchemas`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -149,6 +152,9 @@ export const Schemes: Story = {
 
 export const ServiceMethods: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `NestedSchemas`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -164,6 +170,9 @@ export const ServiceMethods: Story = {
 
 export const Undescribed: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `NestedSchemas`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

@@ -9,6 +9,7 @@ import {
   RUNNING_FIVE,
   RUNNING_TWO,
   variant,
+  noSnapshot,
 } from '../../stories/tracking';
 import { StoryMeta } from '../../types';
 import { ExperimentCard } from './ExperimentCard';
@@ -72,8 +73,12 @@ const draft: Story = {
 const DRAFT_TEXT =
   'Renders the card of a draft test with two versions: the "Draft" tag, the "not started" verdict, both rows without numbers, each with "Show analytics", Accept and a bin icon (Remove) at the far end, and Start test as the only solid button.';
 export const Draft = variant(draft, DRAFT_TEXT, 'Dark');
-export const DraftLight = variant(draft, DRAFT_TEXT, 'Light');
-export const DraftPhone = variant(draft, DRAFT_TEXT, 'Phone');
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsLight`.
+export const DraftLight = noSnapshot(variant(draft, DRAFT_TEXT, 'Light'));
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsPhone`.
+export const DraftPhone = noSnapshot(variant(draft, DRAFT_TEXT, 'Phone'));
 
 // ── running, two versions ────────────────────────────────────────────────────────
 
@@ -137,9 +142,15 @@ const runningFive: Story = {
 };
 const RUNNING_FIVE_TEXT =
   'Renders a running test with five versions sorted best first, the best one tagged "Leading" with a softer glow than a winner\'s: three and a half rows are visible and the list scrolls inside the card for the rest.';
-export const RunningFiveVersions = variant(runningFive, RUNNING_FIVE_TEXT, 'Dark');
-export const RunningFiveVersionsLight = variant(runningFive, RUNNING_FIVE_TEXT, 'Light');
-export const RunningFiveVersionsPhone = variant(runningFive, RUNNING_FIVE_TEXT, 'Phone');
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RemoveConfirmStep`.
+export const RunningFiveVersions = noSnapshot(variant(runningFive, RUNNING_FIVE_TEXT, 'Dark'));
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsLight`.
+export const RunningFiveVersionsLight = noSnapshot(variant(runningFive, RUNNING_FIVE_TEXT, 'Light'));
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsPhone`.
+export const RunningFiveVersionsPhone = noSnapshot(variant(runningFive, RUNNING_FIVE_TEXT, 'Phone'));
 
 // ── paused ─────────────────────────────────────────────────────────────────────
 
@@ -159,8 +170,12 @@ const paused: Story = {
 const PAUSED_TEXT =
   'Renders a paused test in its second phase: the "Paused · phase 2" tag, a note saying since when it counts and which version was removed, the leading version first, and Resume (solid) and Stop in the footer.';
 export const Paused = variant(paused, PAUSED_TEXT, 'Dark');
-export const PausedLight = variant(paused, PAUSED_TEXT, 'Light');
-export const PausedPhone = variant(paused, PAUSED_TEXT, 'Phone');
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsLight`.
+export const PausedLight = noSnapshot(variant(paused, PAUSED_TEXT, 'Light'));
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsPhone`.
+export const PausedPhone = noSnapshot(variant(paused, PAUSED_TEXT, 'Phone'));
 
 // ── concluded ──────────────────────────────────────────────────────────────────
 
@@ -184,8 +199,12 @@ const concluded: Story = {
 const CONCLUDED_TEXT =
   'Renders an ended test whose winner (Short copy) is live: the "Ended" tag, the final verdict, the winner first with a "Winner" tag, the winner\'s glow and the blue shown colour, "Show analytics" on every version, and no lifecycle buttons; Accept and Remove are disabled.';
 export const Concluded = variant(concluded, CONCLUDED_TEXT, 'Dark');
-export const ConcludedLight = variant(concluded, CONCLUDED_TEXT, 'Light');
-export const ConcludedPhone = variant(concluded, CONCLUDED_TEXT, 'Phone');
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsLight`.
+export const ConcludedLight = noSnapshot(variant(concluded, CONCLUDED_TEXT, 'Light'));
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsPhone`.
+export const ConcludedPhone = noSnapshot(variant(concluded, CONCLUDED_TEXT, 'Phone'));
 
 // ── no data yet ────────────────────────────────────────────────────────────────
 
@@ -202,8 +221,12 @@ const noData: Story = {
 const NO_DATA_TEXT =
   'Renders a running test nobody has seen yet: "Too early to tell", "No visitors yet" on each version instead of numbers and bars, and no leader.';
 export const NoDataYet = variant(noData, NO_DATA_TEXT, 'Dark');
-export const NoDataYetLight = variant(noData, NO_DATA_TEXT, 'Light');
-export const NoDataYetPhone = variant(noData, NO_DATA_TEXT, 'Phone');
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsLight`.
+export const NoDataYetLight = noSnapshot(variant(noData, NO_DATA_TEXT, 'Light'));
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsPhone`.
+export const NoDataYetPhone = noSnapshot(variant(noData, NO_DATA_TEXT, 'Phone'));
 
 // ── not set up yet ───────────────────────────────────────────────────────────────
 
@@ -231,8 +254,12 @@ const notSetUp: Story = {
 const NOT_SET_UP_TEXT =
   'Renders a test that is in the page\'s code but not registered in the analytics service yet: the "Not set up" tag, the words "ask the Designer to set it up", its versions from the code (switchable, without numbers), and no Accept, Remove, analytics links or lifecycle buttons.';
 export const NotSetUp = variant(notSetUp, NOT_SET_UP_TEXT, 'Dark');
-export const NotSetUpLight = variant(notSetUp, NOT_SET_UP_TEXT, 'Light');
-export const NotSetUpPhone = variant(notSetUp, NOT_SET_UP_TEXT, 'Phone');
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsLight`.
+export const NotSetUpLight = noSnapshot(variant(notSetUp, NOT_SET_UP_TEXT, 'Light'));
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsPhone`.
+export const NotSetUpPhone = noSnapshot(variant(notSetUp, NOT_SET_UP_TEXT, 'Phone'));
 
 // ── the service cannot be reached ────────────────────────────────────────────────
 
@@ -250,8 +277,12 @@ const unreachable: Story = {
 const UNREACHABLE_TEXT =
   'Renders the card when the analytics service cannot be reached: the "No connection" tag and an amber message saying so; the versions from the code can still be switched.';
 export const ServiceUnreachable = variant(unreachable, UNREACHABLE_TEXT, 'Dark');
-export const ServiceUnreachableLight = variant(unreachable, UNREACHABLE_TEXT, 'Light');
-export const ServiceUnreachablePhone = variant(unreachable, UNREACHABLE_TEXT, 'Phone');
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsLight`.
+export const ServiceUnreachableLight = noSnapshot(variant(unreachable, UNREACHABLE_TEXT, 'Light'));
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `RunningTwoVersionsPhone`.
+export const ServiceUnreachablePhone = noSnapshot(variant(unreachable, UNREACHABLE_TEXT, 'Phone'));
 
 // ── the confirm step on Remove ───────────────────────────────────────────────────
 

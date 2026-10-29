@@ -42,6 +42,9 @@ export const Items: Story = {
     ],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -65,6 +68,9 @@ export const WithValueLabel: Story = {
     items: [{ value: 'ms' }, { value: 'seconds' }, { value: 'minutes' }],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -346,6 +352,9 @@ export const AutoSelectWithDescriptions: Story = {
     items: [{ display_name: 'Item 1', desc: 'This is item 1', value: 'item1' }],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AutoSelect`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -373,6 +382,9 @@ export const ItemValuesAreObjectsAndCanBeSelected: Story = {
     ],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `AutoSelect`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -437,6 +449,9 @@ export const CreatableWithValueOutsideTheList: Story = {
     value: '$.create.body.items[0].sku',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Creatable`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -550,6 +565,9 @@ export const ItemActionsInTheTitleBar: Story = {
     items: EXPLAINED_ITEMS,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ItemTooltipOnTheRow`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

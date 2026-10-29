@@ -125,6 +125,9 @@ export const SchemaFromUrl: Story = {
     url: 'sb-remote/basic',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `InjectedOptionActions`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -338,6 +341,9 @@ export const InjectedCompactOptionActions: Story = {
     ],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `InjectedCompactOptionActionsMany`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -648,6 +654,9 @@ export const TemplatesFromContext: Story = {
     interfaceContext: 'sb-ctx',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `InjectedOptionActions`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

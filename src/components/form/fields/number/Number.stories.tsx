@@ -39,6 +39,9 @@ export const Integer: Story = {
     type: 'int',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Float`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -139,6 +142,9 @@ export const TypedFreely: Story = {
     type: 'int',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Float`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

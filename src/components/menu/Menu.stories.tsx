@@ -82,6 +82,9 @@ export const WithDefaultQuery: Story = {
     defaultQuery: 'mapper',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Filtered`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

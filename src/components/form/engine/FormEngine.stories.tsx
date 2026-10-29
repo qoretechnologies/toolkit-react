@@ -40,6 +40,7 @@ import {
 } from './FormEngine';
 import { basicFormValue, getBasicFormOptions as getOptions } from './__fixtures__/basicFormOptions';
 import { chromeFieldBases, metaFieldBases } from './__fixtures__/fieldChromeOptions';
+import { noSnapshot } from '../../../stories/tracking';
 
 // schema data
 
@@ -373,6 +374,9 @@ export const DescriptionIsShown: Story = {
 
 export const ValueCanBeRemoved: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -449,6 +453,9 @@ export const RowActionsOnAPhone: Story = {
 export const ChangeCanBeReverted: Story = {
   ...ValueCanBeRemoved,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -467,6 +474,9 @@ export const ChangeCanBeReverted: Story = {
 export const AllChangesCanBeReverted: Story = {
   ...ValueCanBeRemoved,
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -520,6 +530,9 @@ export const WithRequiredGroups: Story = {
 
 export const WithRequiredGroupsFulfilled: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -543,6 +556,9 @@ export const WithRequiredGroupsFulfilled: Story = {
 
 export const OptionDependsOnOptionOrAnotherOption: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithRequiredGroups`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -581,6 +597,9 @@ export const OptionDependsOnOptionOrAnotherOption: Story = {
 
 export const OptionDependsOnOptionInRequiredGroup: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithRequiredGroups`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -639,6 +658,9 @@ export const OptionDependsOnOptionInRequiredGroup: Story = {
 
 export const OptionalWithValues: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Optional`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -734,6 +756,9 @@ export const OptionWithAnyType: Story = {
 
 export const NonExistentOptionsFiltered: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -777,6 +802,9 @@ export const NonExistentOptionsFiltered: Story = {
 
 export const OptionsWithOnChangeTriggerEvents: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -890,6 +918,9 @@ const CodeEditorStandinNoSyntax = (props: Parameters<typeof CodeEditorStandin>[0
 
 export const OptionInheritsRenderPropFromSibling: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `NestedOptionInheritsRenderPropFromAncestor`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -961,6 +992,9 @@ export const OptionInheritsRenderPropFromSibling: Story = {
 // compact path can't silently break inherit_props for read-first surfaces.
 export const OptionInheritsRenderPropFromSiblingCompact: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactRowCodeEditorPreview`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1020,6 +1054,9 @@ export const OptionInheritsRenderPropFromSiblingCompact: Story = {
 // value back to what the field was opened with.
 export const CompactRowCancelEdit: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactBatchedCommit`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -1389,6 +1426,9 @@ export const CompactRowCodeEditorPreview: Story = {
 
 export const CompactRowCodeEditorMessage: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactRowCodeEditorLateMessage`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2110,6 +2150,9 @@ export const DependantsResetWhenParentChanges: Story = {
 
 export const CompactWithholdsFieldsWithUnmetDependencies: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactUnsetFieldShowsItsDefault`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2252,6 +2295,9 @@ export const CompactLockedRequiredNeedsNoAttention: Story = {
 
 export const CompactUnlockedRequiredNeedsAttention: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Compact`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2334,6 +2380,9 @@ export const CompactConditionalMessage: Story = {
 
 export const ValueIsFixedWhenDefaultValueDoesNotMatchAndReadOnlyIsTrue: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -2502,6 +2551,9 @@ export const AllowedValuesOptionWithTemplateValueShowsWarning: Story = {
 export const OnValidityChange: Story = {
   // chromatic off: async validity-callback timing.
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Basic`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -3137,6 +3189,9 @@ const SchemaShrinksHarness = (args: IFormEngineProps) => {
 
 export const SchemaShrinksWhileMounted: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Compact`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -3858,6 +3913,9 @@ export const CompactBatchedCommitInvalid: Story = {
 // never renders as page text, in read or edit state.
 export const CompactSensitive: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactBatchedCommit`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -3905,6 +3963,9 @@ export const CompactSensitive: Story = {
 // identifier marks the form invalid (banner + Incomplete status).
 export const CompactValidIdentifierRule: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactReadFirstRichtextStringList`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -4081,6 +4142,9 @@ export const CompactMultiSelectEditing: Story = {
 // Field-level `sort` orders compact rows (schema declared out of order).
 export const CompactSortOrder: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactLoneOptionalStaysOpenByDefault`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -4131,6 +4195,9 @@ export const CompactSortOrder: Story = {
 
 export const CompactReadFirstEditing: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Compact`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -4190,6 +4257,9 @@ export const CompactReadFirstEditing: Story = {
 // locate fired (the scroll itself, scrollIntoView, isn't assertable in the runner).
 export const CompactPanelChangeScroll: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Compact`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -4294,6 +4364,9 @@ export const CompactRequiredOnlyAndSearch: Story = {
 
 export const CompactFieldsMenu: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Compact`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -4372,6 +4445,9 @@ export const CompactFieldsMenu: Story = {
 // without opening each row's info panel by hand.
 export const CompactDescriptionsToggle: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactBatchedCommit`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -4442,6 +4518,9 @@ export const CompactDescriptionsToggle: Story = {
 
 export const CompactSearchHidden: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactRequiredOnlyAndSearch`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -4829,6 +4908,9 @@ export const CompactHostOwnedScrollPaddedHost: Story = {
 // as classic — the read-first editor must fire and reset the same way.
 export const CompactOnChangeAndDependents: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactEditingShowsDescription`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -5143,6 +5225,9 @@ const assertFixedChoiceCanCloseWithoutClearing = async (field: string, expectedL
 export const CompactEnumWithImages: Story = {
   // chromatic off: ends with the radio editor open in the card.
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactEnumRichtextValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -5299,6 +5384,9 @@ const _isRowOpen = (field: string): boolean =>
  */
 export const CompactSingleExpand: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactMultiExpand`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -6197,6 +6285,9 @@ const _compactTypeIntoCardRichText = async (field: string, value: string) => {
 // fulfilling EITHER blocker unlocks (and flashes) the dependent row.
 export const CompactOptionDependsOnOptionOrAnotherOption: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactOptionDependsOnOptionInRequiredGroup`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -6432,6 +6523,9 @@ export const CompactAnyType: Story = {
 // back to the default (engine `fixOptions`); the read row shows the default.
 export const CompactReadonlyDefaultFix: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactBatchedCommit`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -6464,6 +6558,9 @@ export const CompactReadonlyDefaultFix: Story = {
 // Values for options that aren't in the schema are filtered out, not rendered.
 export const CompactNonExistentFiltered: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactBatchedCommit`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -6526,6 +6623,9 @@ export const CompactHelpDialog: Story = {
 // Read-first rendering is render-stable — it doesn't emit a storm of onChanges.
 export const CompactDoesNotCauseInfiniteRerenders: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Compact`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -6563,6 +6663,9 @@ const loadCompactSchemaAsync = (): Promise<IQorusFormSchema> =>
 // snapshot — the loading state has its own story below.
 export const CompactOptionsLoader: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Compact`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -6863,6 +6966,9 @@ export const CompactShowcaseMobile: Story = {
 // notification group (none set → violet, pending).
 export const CompactRequiredGroupRails: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactFieldSortWithinGroups`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -7003,6 +7109,9 @@ export const CompactFieldSortWithinGroups: Story = {
 // its editor takes focus — no click, no DOM scraping.
 export const CompactAutoFocusFirstRequired: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactEditingShowsDescription`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -7057,6 +7166,9 @@ export const CompactAutoFocusFirstRequired: Story = {
 // with no interaction, while a row the caller did not name stays collapsed.
 export const CompactInitialExpandedOptions: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactEditingShowsDescription`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -7097,6 +7209,9 @@ export const CompactInitialExpandedOptions: Story = {
 // field this schema no longer has just lands on the collapsed form.
 export const CompactInitialExpandedOptionsUnknownName: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Compact`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -7156,6 +7271,9 @@ const CompactInvalidFilledValue: IOptions = {
 
 export const CompactAutoFocusTargetsInvalidFilledField: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ANewFormSaysWhatIsRequired`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -7237,6 +7355,9 @@ const CompactNonFocusableFirstValue: IOptions = {}; // both unset → both need 
 
 export const CompactAutoFocusNonFocusableFirstField: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ANewFormSaysWhatIsRequired`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -7367,6 +7488,9 @@ const CompactLateEditorSchema = {
 
 export const CompactAutoFocusLateMountingEditor: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `ANewFormSaysWhatIsRequired`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -7432,6 +7556,9 @@ const RichtextTemplateValue: IOptions = {
 
 export const CompactReadFirstRichtextTemplateBaseline: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactExpressionTemplateChips`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -7538,6 +7665,9 @@ const RichtextMultilineTemplateValue: IOptions = {
 
 export const CompactReadFirstRichtextMultilineTemplate: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactExpressionTemplateChips`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -7675,6 +7805,9 @@ export const CompactReadFirstRichtextStringList: Story = {
  */
 export const CompactRowMarkdownWithoutRenderer: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactBatchedCommit`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -8035,6 +8168,9 @@ export const CompactExpressionTemplateChips: Story = {
  */
 export const CompactExpressionWithoutCatalogue: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactExpressionTemplateChips`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -8291,6 +8427,9 @@ export const CompactCollapseListCollapsesLoneOptional: Story = {
 
 export const CompactNoSearchCollapseIsFinal: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactChosenCollapsedBoxes`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -8337,6 +8476,9 @@ export const CompactNoSearchCollapseIsFinal: Story = {
  */
 export const CompactCardCancelDiscardsTheEdit: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactBatchedCommit`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -8393,6 +8535,9 @@ export const CompactCardCancelDiscardsTheEdit: Story = {
  */
 export const CompactCardEscapeDiscardsTheEdit: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactBatchedCommit`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -8608,6 +8753,9 @@ export const CompactMaxFieldsShown: Story = {
  */
 export const CompactNoMaxFieldsShown: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactLoneOptionalStaysOpenByDefault`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -8865,6 +9013,9 @@ export const CreatablePickerIsOneControl: Story = {
  */
 export const TemplateValueHoversOnceAndDescribesItself: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactExpressionTemplateChips`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -9247,6 +9398,9 @@ export const CompactRowOpensItsPicker: Story = {
 
 export const CompactTextRowOpensItsTextBox: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactEditingShowsDescription`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -9368,6 +9522,9 @@ const AiEndpointToolsSchema = {
 
 export const ToolSelectorsAreNotJudgedAsChoices: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactReadFirstRichtextStringList`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -9441,6 +9598,9 @@ export const ANewFormSaysWhatIsRequired: Story = {
 
 export const AReadOnlyFormShowsWhatIsWrong: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactReadOnly`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -9536,6 +9696,9 @@ const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() 
 
 export const AMovedRowInViewIsNotScrolled: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactBatchedCommit`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -9573,6 +9736,9 @@ export const AMovedRowInViewIsNotScrolled: Story = {
 
 export const AMovedRowLandsClearOfThePinnedHeader: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `Compact`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -9720,7 +9886,9 @@ const stickyBoxesStory = (layout: 'own' | 'host' | 'padded-host'): Story => ({
   },
 });
 
-export const BoxHeaderSlidesUnderToolbarOwnScroll: Story = stickyBoxesStory('own');
+// Interaction-only: the play assertions are the guard, and the end state
+// is already pictured by `BoxHeaderSlidesUnderToolbarHostScroll`.
+export const BoxHeaderSlidesUnderToolbarOwnScroll: Story = noSnapshot(stickyBoxesStory('own'));
 export const BoxHeaderSlidesUnderToolbarHostScroll: Story = stickyBoxesStory('host');
 export const BoxHeaderSlidesUnderToolbarPaddedHost: Story = stickyBoxesStory('padded-host');
 
@@ -9769,6 +9937,9 @@ const expectChannelChip = async (canvasElement: HTMLElement) => {
 
 export const RichTextChoiceIsShownByName: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `PickingARichTextChoiceShowsItsName`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

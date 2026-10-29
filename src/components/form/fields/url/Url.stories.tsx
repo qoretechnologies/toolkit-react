@@ -77,6 +77,9 @@ export const KeepsSeparatorInsideAddress: Story = {
     value: 'https://proxy/forward?to=http://inner',
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

@@ -31,6 +31,9 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -100,6 +103,9 @@ export const WithInexactValue: Story = {
     value: 90500,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -119,6 +125,9 @@ export const UnitSwitch: Story = {
     value: 45000,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -142,6 +151,9 @@ export const TypingConverts: Story = {
     value: 45000,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -164,6 +176,9 @@ export const KeepsUnitWhileTyping: Story = {
     value: 45000,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -187,6 +202,9 @@ export const ClearResetsToZero: Story = {
     value: 45000,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

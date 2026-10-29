@@ -223,6 +223,30 @@ yarn build:test         # Type-check without emit
     request can pass in CI and hang locally. When a story passes in CI but times out on
     your machine, look for an unmocked request before anything else.
 - **Visual regression via Qlip** (not Chromatic): the story run captures snapshots through the `qlip` Vitest plugin. Upload is gated on `QLIP_UPLOAD_TOKEN` (`vitest.config.ts`), so **local runs capture but never upload** — PNGs land in `qlip/screenshots/<ts>/stories/auto/<StoryId>.png` (gitignored); read the PNG to verify a visual change. CI (`.github/workflows/tests.yml`) sets the token and uploads a build for dashboard review. The full visual-change flow + the `qlip` MCP review skill live in the imported `stacks/frontend/FRONTEND.md`.
+- **Capture a look once, not a behaviour many times.** Qlip catches a change in how a component
+  looks; a story's play assertions test what it does. A story is captured only when its end state
+  looks different from every other capture of the same component: one capture per distinct look
+  (the field holding chips, plain text, read-only, empty, the completion list open, the picker at
+  its top level / drilled into a group / searched / on a phone, a hover or details card, each error
+  or diagnostic state, long content, find and replace, signature help...). Every other story keeps
+  its play and gets, per story (story parameters merge over the meta's):
+
+  ```ts
+  parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithSemanticTokens`.
+    qlip: { skip: true },
+  },
+  ```
+
+  naming the story that pictures its end state. Each capture is a baseline a human accepts by
+  hand, and a look changed on purpose is then one diff to review, not thirty.
+  - A capture shows what the story is about, or does not exist: a story about a list or a hover
+    ends with it open if its look is distinct; otherwise it is skipped.
+  - A "…On Touch" / "…On A Phone" story captured at desktop size is the desktop picture again:
+    give it `qlip: { viewport: PHONE_VIEWPORT }` when its layout differs, otherwise skip it.
+  - Before adding a story, check whether an existing capture of the component already shows its
+    end state; a new capture needs a look no other has.
 
 ## Code Patterns & Conventions
 

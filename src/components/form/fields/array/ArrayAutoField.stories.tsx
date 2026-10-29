@@ -191,6 +191,9 @@ export const CompactAddItem: Story = {
     value: ['existing'],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactWithValues`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -234,6 +237,9 @@ export const CompactEditItem: Story = {
     value: ['alpha', 'beta'],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactWithValues`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -284,6 +290,9 @@ export const CompactRemoveItem: Story = {
     value: ['one', 'two', 'three'],
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `CompactWithValues`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:

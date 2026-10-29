@@ -56,6 +56,9 @@ export const Red: Story = {
     value: { r: 220, g: 53, b: 69, a: 1 },
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story: 'Renders the Color field with a red RGBA value pre-selected in the sketch picker.',
@@ -69,6 +72,9 @@ export const Red: Story = {
 
 export const Empty: Story = {
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story: 'Renders the Color field with no value — the sketch picker mounts empty.',
@@ -86,6 +92,9 @@ export const Disabled: Story = {
     disabled: true,
   },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `WithValue`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
