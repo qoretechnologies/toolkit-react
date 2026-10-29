@@ -424,7 +424,7 @@ export const AClickBrowsesTheTemplatesAsTheyNest: Story = {
   args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
@@ -460,7 +460,7 @@ export const ARecordIsTakenWhole: Story = {
   args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
@@ -489,7 +489,7 @@ export const TypingAReferenceNarrowsTheRows: Story = {
   args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
@@ -525,7 +525,7 @@ export const AChipIsReplacedFromItsGroup: Story = {
   args: { value: 'Hello $data:{receive_order.user_name}!', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
@@ -559,7 +559,7 @@ export const AKeyIsWrittenForDataOfAnyKeys: Story = {
   args: { value: '', valueFormat: 'text', templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD) },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
@@ -630,7 +630,7 @@ export const AStateIsTakenWholeWhereTheValueTakesRecords: Story = {
   args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES, wholeRecords: true },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
@@ -683,6 +683,9 @@ export const AScalarValueTakesNoRecordWhole: Story = {
 export const TypingCompletesEachLevel: Story = {
   args: { value: '', valueFormat: 'text', templates: QOG_FIELD_TEMPLATES },
   parameters: {
+    // Interaction-only: the play assertions are the guard, and the end state
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
+    qlip: { skip: true },
     docs: {
       description: {
         story:
@@ -734,7 +737,7 @@ export const AFreeKeyReferenceTypedOutIsAChip: Story = {
   args: { value: '', valueFormat: 'text', templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD) },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
@@ -785,7 +788,7 @@ export const AContextListsItsKeysAndIsUsedWhole: Story = {
   },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
@@ -850,7 +853,7 @@ export const EveryContainerIsUsedWhole: Story = {
   },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
@@ -894,7 +897,7 @@ export const AQogStatesVariablesAndLoops: Story = {
   },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
@@ -953,7 +956,7 @@ export const AnUnfinishedReferenceIsCompletedWhereItIs: Story = {
   args: { value: '', valueFormat: 'text', templates: buildTemplates(WORKFLOW_CONTEXT_DATA_PAYLOAD) },
   parameters: {
     // Interaction-only: the play assertions are the guard, and the end state
-    // is already pictured by `TypingCompletesEachLevel`.
+    // is already pictured by `TemplateHoverDrawsTheDescription`.
     qlip: { skip: true },
     docs: {
       description: {
